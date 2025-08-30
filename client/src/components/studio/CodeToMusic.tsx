@@ -346,13 +346,12 @@ export default function CodeToMusic() {
                       await studioContext.playFullSong();
                     }
 
-                    const instrumentCount = [
-                      ...new Set(
-                        musicData.melody.map(
-                          (note: any) => note.instrument || "piano",
-                        ),
+                    const instrumentSet = new Set(
+                      musicData.melody.map(
+                        (note: any) => note.instrument || "piano",
                       ),
-                    ].length;
+                    );
+                    const instrumentCount = Array.from(instrumentSet).length;
                     toast({
                       title: "Playing Multi-Instrument Arrangement",
                       description: `Playing ${musicData.melody.length} notes across ${instrumentCount} instruments plus drums.`,

@@ -3,7 +3,7 @@ services:
     name: codedswitch
     env: node
     rootDir: .
-    buildCommand: npm install && npx vite build --config ./vite.config.prod.ts && npx esbuild ./server/index.prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV

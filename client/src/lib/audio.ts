@@ -2561,7 +2561,7 @@ class AudioManager {
     this.sequence = new Tone.Sequence(
       (time, step) => {
         state.tracks.forEach((track) => {
-          if (track.muted) return;
+          if ((track as any).muted) return;
 
           track.clips.forEach((clip) => {
             const localStep = step - clip.start;
@@ -2573,7 +2573,7 @@ class AudioManager {
                 // Output CO Producer-style triggering with velocity sensitivity
                 const drumSynth = this.drums[track.id];
                 if (drumSynth) {
-                  if (track.id === "kick" || track.id === "tom") {
+                  if (track.id === "kick" || track.id.startsWith("tom")) {
                     drumSynth.triggerAttackRelease("C1", "16n", time, velocity);
                   } else {
                     drumSynth.triggerAttackRelease("16n", time, velocity);
