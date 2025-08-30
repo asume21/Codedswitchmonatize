@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { SubscriptionButton } from "./SubscriptionButton";
+import { SubscriptionButton } from "./SubscriptionButton.tsx";
 
 export default function Header() {
   return (

@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import type { SequencerState } from "./sequencer";
+import type { SequencerState } from "./sequencer.ts";
 
 export interface OscillatorData {
   oscillator: OscillatorNode;

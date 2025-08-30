@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAudio } from "./use-audio";
+import { useAudio } from "./use-audio.ts";
 
 interface MIDIDevice {
   id: string;
