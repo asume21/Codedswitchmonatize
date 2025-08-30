@@ -43,8 +43,9 @@ export default defineConfig({
       "@assets": paths.assets,
     },
   },
+  root: "./client",
   build: {
-    outDir: "./dist/client",
+    outDir: "../dist/client",
     emptyOutDir: true,
   },
   server: {
