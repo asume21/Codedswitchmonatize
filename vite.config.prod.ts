@@ -3,21 +3,19 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import fs from "fs";
 
-// Debug function to understand Render's directory structure
-const debugPaths = () => {
+// Fix Render's path resolution issue
+const getCorrectPaths = () => {
   const currentDir = process.cwd();
-  const dirname = __dirname;
-  console.log("🔍 Current working directory:", currentDir);
-  console.log("🔍 __dirname:", dirname);
   
-  // Check if we're in Render's environment
+  // Render runs from /opt/render/project/src but files are actually in /opt/render/project
   if (currentDir.includes('/opt/render/project')) {
-    console.log("🚀 Detected Render environment");
-    // Render seems to expect files in a different structure
+    console.log("🚀 Detected Render environment - using correct paths");
+    // Go up one directory to find the actual project root
+    const projectRoot = path.resolve(currentDir, "..");
     return {
-      clientSrc: path.resolve(currentDir, "client", "src"),
-      shared: path.resolve(currentDir, "shared"),
-      assets: path.resolve(currentDir, "attached_assets"),
+      clientSrc: path.resolve(projectRoot, "client", "src"),
+      shared: path.resolve(projectRoot, "shared"),
+      assets: path.resolve(projectRoot, "attached_assets"),
     };
   } else {
     console.log("🏠 Detected local environment");
@@ -29,7 +27,7 @@ const debugPaths = () => {
   }
 };
 
-const paths = debugPaths();
+const paths = getCorrectPaths();
 
 export default defineConfig({
   plugins: [react()],
