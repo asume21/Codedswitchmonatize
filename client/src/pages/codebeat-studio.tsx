@@ -63,7 +63,7 @@ const MUSICAL_KEYS = [
   "B",
 ];
 
-export default function CodeBeatStudio() {
+function CodeBeatStudio() {
   const [sourceCode, setSourceCode] = useState("");
   const [language, setLanguage] = useState("");
   const [musicResult, setMusicResult] = useState<any>(null);
@@ -596,3 +596,5 @@ def generate_pattern(size):
     </div>
   );
 }
+
+export default CodeBeatStudio;
