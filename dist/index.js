@@ -1,21 +1,62 @@
 // server/index.prod.ts
-import express from "express";
-import cors from "cors";
-import path from "path";
+import { createServer } from "http";
+import { readFileSync, existsSync } from "fs";
+import { join, extname } from "path";
 import { fileURLToPath } from "url";
 var __filename = fileURLToPath(import.meta.url);
-var __dirname = path.dirname(__filename);
-var app = express();
+var __dirname = join(__filename, "..");
 var PORT = process.env.PORT || 3e3;
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "../client")));
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+var clientDir = join(__dirname, "client");
+var mimeTypes = {
+  ".html": "text/html",
+  ".js": "application/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon"
+};
+var server = createServer((req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  let filePath = req.url === "/" ? "/index.html" : req.url || "/index.html";
+  if (filePath.startsWith("/api/health")) {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+  const fullPath = join(clientDir, filePath);
+  if (existsSync(fullPath)) {
+    const ext = extname(fullPath);
+    const contentType = mimeTypes[ext] || "application/octet-stream";
+    try {
+      const content = readFileSync(fullPath);
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(content);
+    } catch (error) {
+      res.writeHead(500);
+      res.end("Server Error");
+    }
+  } else {
+    const indexPath = join(clientDir, "index.html");
+    if (existsSync(indexPath)) {
+      const content = readFileSync(indexPath);
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(content);
+    } else {
+      res.writeHead(404);
+      res.end("Not Found");
+    }
+  }
 });
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/index.html"));
-});
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

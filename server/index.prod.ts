@@ -1,31 +1,76 @@
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
+import { createServer } from 'http';
+import { readFileSync, existsSync } from 'fs';
+import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = join(__filename, '..');
 
-const app = express();
 const PORT = process.env.PORT || 3000;
+const clientDir = join(__dirname, 'client');
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+const mimeTypes: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon'
+};
 
-// Serve static files from the client build
-app.use(express.static(path.join(__dirname, '../client')));
+const server = createServer((req, res) => {
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-// API routes would go here
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  let filePath = req.url === '/' ? '/index.html' : (req.url || '/index.html');
+  
+  // API routes
+  if (filePath.startsWith('/api/health')) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
+
+  // Serve static files
+  const fullPath = join(clientDir, filePath);
+  
+  if (existsSync(fullPath)) {
+    const ext = extname(fullPath);
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    
+    try {
+      const content = readFileSync(fullPath);
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(content);
+    } catch (error) {
+      res.writeHead(500);
+      res.end('Server Error');
+    }
+  } else {
+    // Serve index.html for SPA routing
+    const indexPath = join(clientDir, 'index.html');
+    if (existsSync(indexPath)) {
+      const content = readFileSync(indexPath);
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(content);
+    } else {
+      res.writeHead(404);
+      res.end('Not Found');
+    }
+  }
 });
 
-// Serve the React app for all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/index.html'));
-});
-
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
