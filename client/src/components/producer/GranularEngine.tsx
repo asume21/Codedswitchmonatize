@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { 
-  Waveform, 
+  AudioWaveform, 
   Play, 
   Pause, 
   Upload,
@@ -23,7 +23,7 @@ export default function GranularEngine() {
       <Card className="h-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Waveform className="h-6 w-6" />
+            <AudioWaveform className="h-6 w-6" />
             Granular Engine
           </CardTitle>
         </CardHeader>
