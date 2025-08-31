@@ -13,6 +13,7 @@ import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
 import LyricLab from "@/components/studio/LyricLab";
 import MusicMixer from "@/components/studio/MusicMixer";
 import UnifiedMusicStudio from "@/components/studio/UnifiedMusicStudio";
+import ProfessionalStudio from "@/components/studio/ProfessionalStudio";
 import Mixer from "@/components/studio/Mixer";
 import DynamicLayering from "@/components/studio/DynamicLayering";
 import { MIDIController } from "@/components/studio/MIDIController";
@@ -266,7 +267,7 @@ export default function Studio() {
       case "lyrics":
         return <LyricLab />;
       case "musicmixer":
-        return <UnifiedMusicStudio />;
+        return <ProfessionalStudio />;
       case "professionalmixer":
         return <ProfessionalMixer />;
       case "mixer":
