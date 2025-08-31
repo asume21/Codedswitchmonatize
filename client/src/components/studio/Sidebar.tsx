@@ -16,7 +16,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     { id: "assistant", icon: "fas fa-robot", label: "AI Assistant" },
     { id: "security", icon: "fas fa-shield-alt", label: "Security Scanner" },
     { id: "lyrics", icon: "fas fa-microphone", label: "Lyric Lab" },
-    { id: "musicmixer", icon: "fas fa-sliders-h", label: "Music Mixer" },
+    { id: "musicmixer", icon: "fas fa-sliders-h", label: "Music Studio" },
     { id: "professionalmixer", icon: "fas fa-mixing-board", label: "Pro Console" },
     { id: "mixer", icon: "fas fa-sliders-v", label: "Track Mixer" },
     { id: "pack-generator", icon: "fas fa-box", label: "Pack Generator" },
@@ -65,7 +65,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             {activeTab === "assistant" && "AI-powered music help & song uploads"}
             {activeTab === "security" && "Scan code for vulnerabilities"}
             {activeTab === "lyrics" && "Write and edit song lyrics"}
-            {activeTab === "musicmixer" && "Mix beats, melodies & lyrics together"}
+            {activeTab === "musicmixer" && "Unified music studio with all advanced tools"}
             {activeTab === "professionalmixer" && "World-class professional mixing console"}
             {activeTab === "mixer" && "Mix and master individual tracks"}
             {activeTab === "pack-generator" && "AI-powered sample pack creation"}

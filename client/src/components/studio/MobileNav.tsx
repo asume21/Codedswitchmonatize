@@ -6,11 +6,11 @@ interface MobileNavProps {
 export default function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
   const tabs = [
     { id: "beatmaker", icon: "fas fa-drum", label: "Beats" },
+    { id: "musicmixer", icon: "fas fa-sliders-h", label: "Studio" },
     { id: "melody", icon: "fas fa-music", label: "Melody" },
-    { id: "codebeat", icon: "fas fa-exchange-alt", label: "Code→Music" },
-    { id: "musiccode", icon: "fas fa-code-branch", label: "Music→Code" },
+    { id: "professionalmixer", icon: "fas fa-mixing-board", label: "Pro" },
     { id: "assistant", icon: "fas fa-robot", label: "AI" },
-    { id: "security", icon: "fas fa-shield-alt", label: "Security" },
+    { id: "midi", icon: "fas fa-piano", label: "MIDI" },
   ];
 
   return (
