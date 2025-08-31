@@ -8,7 +8,7 @@ import {
   Headphones, 
   Settings, 
   FileMusic,
-  Waveform,
+  AudioWaveform,
   Play,
   Pause,
   Square
@@ -20,9 +20,26 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onToolSelect, activeTool }: SidebarProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const handleTransportPlay = () => {
+    setIsPlaying(!isPlaying);
+    // TODO: Connect to global audio context
+  };
+
+  const handleTransportPause = () => {
+    setIsPlaying(false);
+    // TODO: Connect to global audio context
+  };
+
+  const handleTransportStop = () => {
+    setIsPlaying(false);
+    // TODO: Connect to global audio context
+  };
+
   const tools = [
     { id: "music-studio", label: "Music Studio", icon: Music },
-    { id: "beat-studio", label: "Beat Studio", icon: Waveform },
+    { id: "beat-studio", label: "Beat Studio", icon: AudioWaveform },
     { id: "melody-composer", label: "Melody Composer", icon: FileMusic },
     { id: "code-translator", label: "Code Translator", icon: Code },
     { id: "lyric-lab", label: "Lyric Lab", icon: Mic },
@@ -58,13 +75,13 @@ export default function Sidebar({ onToolSelect, activeTool }: SidebarProps) {
           <CardContent className="p-4">
             <h3 className="text-sm font-medium mb-2">Transport</h3>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" onClick={handleTransportPlay}>
                 <Play className="h-3 w-3" />
               </Button>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" onClick={handleTransportPause}>
                 <Pause className="h-3 w-3" />
               </Button>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" onClick={handleTransportStop}>
                 <Square className="h-3 w-3" />
               </Button>
             </div>

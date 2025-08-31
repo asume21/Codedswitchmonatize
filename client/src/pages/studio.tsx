@@ -345,6 +345,23 @@ export default function Studio() {
     <AIMessageProvider>
       <StudioAudioContext.Provider value={studioAudioValue}>
         <div className="h-screen flex bg-studio-bg text-white">
+          <Sidebar
+            onToolSelect={(toolId: string) => {
+              // Map sidebar tool IDs to studio tabs
+              const toolMap: Record<string, Tab> = {
+                "music-studio": "unified-studio",
+                "beat-studio": "beatmaker",
+                "melody-composer": "melody",
+                "code-translator": "translator",
+                "lyric-lab": "lyrics",
+                "mix-studio": "mix-studio",
+                "ai-assistant": "assistant",
+              };
+              const tab = toolMap[toolId] || "beatmaker";
+              setActiveTab(tab);
+            }}
+            activeTool={activeTab}
+          />
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header />
 

@@ -115,7 +115,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(0, 0%, 27.1%);
   }
   
   /* Mobile viewport fix for iPhone */
@@ -126,8 +126,8 @@
   
   body {
     font-family: var(--font-sans);
-    background: var(--background);
-    color: var(--foreground);
+    background-color: hsl(0, 0%, 10%);
+    color: hsl(0, 0%, 100%);
     overflow-x: hidden;
   }
   
@@ -236,8 +236,11 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
     font-family: var(--font-sans);
+    background-color: hsl(0, 0%, 10%);
+    color: hsl(0, 0%, 100%);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -378,6 +381,7 @@
     writing-mode: bt-lr; /* IE */
     writing-mode: vertical-lr; /* Standard */
     -webkit-appearance: slider-vertical;
+    appearance: none; /* Standard property for compatibility */
   }
 
   .code-editor {
