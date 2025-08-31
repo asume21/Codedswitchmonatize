@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
-import { Play, Square, RotateCcw, Volume2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import React, { useState, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
+import { Badge } from '@/components/ui/badge';
+import { Play, Square, RotateCcw, Volume2 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 interface DrumTrack {
   id: string;
@@ -23,251 +23,219 @@ interface StepSequencerProps {
   onPlayStateChange?: (isPlaying: boolean) => void;
 }
 
-export function StepSequencer({
-  bpm = 90,
+export function StepSequencer({ 
+  bpm = 90, 
   onPatternChange,
-  onPlayStateChange,
+  onPlayStateChange 
 }: StepSequencerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [swing, setSwing] = useState(0); // 0-100% swing
   const [masterVolume, setMasterVolume] = useState(80);
-
+  
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-
+  
   // Classic hip-hop drum tracks
   const [tracks, setTracks] = useState<DrumTrack[]>([
     {
-      id: "kick",
-      name: "Kick",
-      color: "bg-red-500",
+      id: 'kick',
+      name: 'Kick',
+      color: 'bg-red-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(100),
       muted: false,
       solo: false,
-      volume: 85,
+      volume: 85
     },
     {
-      id: "snare",
-      name: "Snare",
-      color: "bg-blue-500",
+      id: 'snare',
+      name: 'Snare', 
+      color: 'bg-blue-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(90),
       muted: false,
       solo: false,
-      volume: 80,
+      volume: 80
     },
     {
-      id: "hihat",
-      name: "Hi-Hat",
-      color: "bg-yellow-500",
+      id: 'hihat',
+      name: 'Hi-Hat',
+      color: 'bg-yellow-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(70),
       muted: false,
       solo: false,
-      volume: 60,
+      volume: 60
     },
     {
-      id: "openhat",
-      name: "Open Hat",
-      color: "bg-green-500",
+      id: 'openhat',
+      name: 'Open Hat',
+      color: 'bg-green-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(85),
       muted: false,
       solo: false,
-      volume: 70,
+      volume: 70
     },
     {
-      id: "clap",
-      name: "Clap",
-      color: "bg-purple-500",
+      id: 'clap',
+      name: 'Clap',
+      color: 'bg-purple-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(95),
       muted: false,
       solo: false,
-      volume: 75,
+      volume: 75
     },
     {
-      id: "crash",
-      name: "Crash",
-      color: "bg-orange-500",
+      id: 'crash',
+      name: 'Crash',
+      color: 'bg-orange-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(100),
       muted: false,
       solo: false,
-      volume: 90,
-    },
+      volume: 90
+    }
   ]);
 
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
+    
   }, []);
 
   // Calculate step timing with swing
   const getStepTiming = (step: number) => {
-    const baseInterval = ((60 / bpm) * 1000) / 4; // 16th notes
+    const baseInterval = (60 / bpm) * 1000 / 4; // 16th notes
     if (step % 2 === 1 && swing > 0) {
       // Delay odd steps for swing feel
-      return baseInterval + ((baseInterval * swing) / 100) * 0.3;
+      return baseInterval + (baseInterval * swing / 100 * 0.3);
     }
     return baseInterval;
   };
 
   // Generate classic hip-hop drum sound
-  const playDrumSound = async (
-    trackId: string,
-    velocity: number,
-    volume: number,
-  ) => {
+  const playDrumSound = async (trackId: string, velocity: number, volume: number) => {
     if (!audioContextRef.current) return;
-
+    
     // Resume audio context if suspended (required by browsers)
-    if (audioContextRef.current.state === "suspended") {
+    if (audioContextRef.current.state === 'suspended') {
       await audioContextRef.current.resume();
     }
-
+    
     const ctx = audioContextRef.current;
     const gainNode = ctx.createGain();
-    const finalVolume =
-      (velocity / 127) * (volume / 100) * (masterVolume / 100);
+    const finalVolume = (velocity / 127) * (volume / 100) * (masterVolume / 100);
     gainNode.gain.value = finalVolume;
-
+    
     let oscillator: OscillatorNode;
     let noiseSource: AudioBufferSourceNode | null = null;
-
+    
     switch (trackId) {
-      case "kick":
+      case 'kick':
         // Deep punchy kick with quick decay
         oscillator = ctx.createOscillator();
         oscillator.frequency.setValueAtTime(60, ctx.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(
-          40,
-          ctx.currentTime + 0.1,
-        );
-        oscillator.type = "sine";
-
+        oscillator.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
+        oscillator.type = 'sine';
+        
         const kickGain = ctx.createGain();
         kickGain.gain.setValueAtTime(1, ctx.currentTime);
         kickGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-
+        
         oscillator.connect(kickGain);
         kickGain.connect(gainNode);
         oscillator.start();
         oscillator.stop(ctx.currentTime + 0.3);
         break;
-
-      case "snare":
+        
+      case 'snare':
         // Crisp snare with noise burst
         oscillator = ctx.createOscillator();
         oscillator.frequency.value = 200;
-        oscillator.type = "triangle";
-
+        oscillator.type = 'triangle';
+        
         // Add noise for snare crack
-        const noiseBuffer = ctx.createBuffer(
-          1,
-          ctx.sampleRate * 0.2,
-          ctx.sampleRate,
-        );
+        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
         const noiseData = noiseBuffer.getChannelData(0);
         for (let i = 0; i < noiseData.length; i++) {
           noiseData[i] = (Math.random() * 2 - 1) * 0.3;
         }
-
+        
         noiseSource = ctx.createBufferSource();
         noiseSource.buffer = noiseBuffer;
-
+        
         const snareGain = ctx.createGain();
         snareGain.gain.setValueAtTime(1, ctx.currentTime);
-        snareGain.gain.exponentialRampToValueAtTime(
-          0.01,
-          ctx.currentTime + 0.15,
-        );
-
+        snareGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        
         oscillator.connect(snareGain);
         noiseSource.connect(snareGain);
         snareGain.connect(gainNode);
-
+        
         oscillator.start();
         noiseSource.start();
         oscillator.stop(ctx.currentTime + 0.15);
         noiseSource.stop(ctx.currentTime + 0.15);
         break;
-
-      case "hihat":
+        
+      case 'hihat':
         // Short metallic hi-hat
-        const hihatBuffer = ctx.createBuffer(
-          1,
-          ctx.sampleRate * 0.05,
-          ctx.sampleRate,
-        );
+        const hihatBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
         const hihatData = hihatBuffer.getChannelData(0);
         for (let i = 0; i < hihatData.length; i++) {
-          hihatData[i] =
-            (Math.random() * 2 - 1) * Math.pow(1 - i / hihatData.length, 2);
+          hihatData[i] = (Math.random() * 2 - 1) * Math.pow((1 - i / hihatData.length), 2);
         }
-
+        
         noiseSource = ctx.createBufferSource();
         noiseSource.buffer = hihatBuffer;
-
+        
         const filter = ctx.createBiquadFilter();
-        filter.type = "highpass";
+        filter.type = 'highpass';
         filter.frequency.value = 8000;
-
+        
         noiseSource.connect(filter);
         filter.connect(gainNode);
         noiseSource.start();
         noiseSource.stop(ctx.currentTime + 0.05);
         break;
-
-      case "openhat":
+        
+      case 'openhat':
         // Longer open hi-hat
-        const openBuffer = ctx.createBuffer(
-          1,
-          ctx.sampleRate * 0.3,
-          ctx.sampleRate,
-        );
+        const openBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
         const openData = openBuffer.getChannelData(0);
         for (let i = 0; i < openData.length; i++) {
-          openData[i] =
-            (Math.random() * 2 - 1) *
-            Math.pow(1 - i / openData.length, 1.5) *
-            0.7;
+          openData[i] = (Math.random() * 2 - 1) * Math.pow((1 - i / openData.length), 1.5) * 0.7;
         }
-
+        
         noiseSource = ctx.createBufferSource();
         noiseSource.buffer = openBuffer;
-
+        
         const openFilter = ctx.createBiquadFilter();
-        openFilter.type = "highpass";
+        openFilter.type = 'highpass';
         openFilter.frequency.value = 6000;
-
+        
         noiseSource.connect(openFilter);
         openFilter.connect(gainNode);
         noiseSource.start();
         noiseSource.stop(ctx.currentTime + 0.3);
         break;
-
-      case "clap":
+        
+      case 'clap':
         // Hand clap simulation
         for (let i = 0; i < 3; i++) {
           const clapDelay = i * 0.01;
-          const clapBuffer = ctx.createBuffer(
-            1,
-            ctx.sampleRate * 0.1,
-            ctx.sampleRate,
-          );
+          const clapBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
           const clapData = clapBuffer.getChannelData(0);
-
+          
           for (let j = 0; j < clapData.length; j++) {
-            clapData[j] =
-              (Math.random() * 2 - 1) * Math.pow(1 - j / clapData.length, 3);
+            clapData[j] = (Math.random() * 2 - 1) * Math.pow((1 - j / clapData.length), 3);
           }
-
+          
           const clapSource = ctx.createBufferSource();
           clapSource.buffer = clapBuffer;
           clapSource.connect(gainNode);
@@ -275,34 +243,27 @@ export function StepSequencer({
           clapSource.stop(ctx.currentTime + clapDelay + 0.1);
         }
         break;
-
-      case "crash":
+        
+      case 'crash':
         // Crash cymbal
-        const crashBuffer = ctx.createBuffer(
-          1,
-          ctx.sampleRate * 2,
-          ctx.sampleRate,
-        );
+        const crashBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
         const crashData = crashBuffer.getChannelData(0);
         for (let i = 0; i < crashData.length; i++) {
-          crashData[i] =
-            (Math.random() * 2 - 1) *
-            Math.pow(1 - i / crashData.length, 0.5) *
-            0.8;
+          crashData[i] = (Math.random() * 2 - 1) * Math.pow((1 - i / crashData.length), 0.5) * 0.8;
         }
-
+        
         noiseSource = ctx.createBufferSource();
         noiseSource.buffer = crashBuffer;
-
+        
         const crashFilter = ctx.createBiquadFilter();
-        crashFilter.type = "bandpass";
+        crashFilter.type = 'bandpass';
         crashFilter.frequency.value = 5000;
         crashFilter.Q.value = 0.5;
-
+        
         const crashGain = ctx.createGain();
         crashGain.gain.setValueAtTime(1, ctx.currentTime);
         crashGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 2);
-
+        
         noiseSource.connect(crashFilter);
         crashFilter.connect(crashGain);
         crashGain.connect(gainNode);
@@ -310,7 +271,7 @@ export function StepSequencer({
         noiseSource.stop(ctx.currentTime + 2);
         break;
     }
-
+    
     gainNode.connect(ctx.destination);
   };
 
@@ -318,29 +279,25 @@ export function StepSequencer({
   useEffect(() => {
     if (isPlaying) {
       const stepTime = getStepTiming(currentStep);
-
+      
       intervalRef.current = setTimeout(() => {
         // Play active tracks for current step
-        const hasSolo = tracks.some((track) => track.solo);
-
-        tracks.forEach((track) => {
+        const hasSolo = tracks.some(track => track.solo);
+        
+        tracks.forEach(track => {
           if (track.pattern[currentStep] && !track.muted) {
             // If any track is soloed, only play soloed tracks
             if (!hasSolo || track.solo) {
-              playDrumSound(
-                track.id,
-                track.velocity[currentStep],
-                track.volume,
-              );
+              playDrumSound(track.id, track.velocity[currentStep], track.volume);
             }
           }
         });
-
+        
         // Move to next step
         setCurrentStep((prev) => (prev + 1) % 16);
       }, stepTime);
     }
-
+    
     return () => {
       if (intervalRef.current) {
         clearTimeout(intervalRef.current);
@@ -352,7 +309,7 @@ export function StepSequencer({
     const newPlaying = !isPlaying;
     setIsPlaying(newPlaying);
     onPlayStateChange?.(newPlaying);
-
+    
     if (!newPlaying) {
       setCurrentStep(0);
     }
@@ -362,10 +319,8 @@ export function StepSequencer({
   useEffect(() => {
     const masterPlayHandler = (event: any) => {
       const shouldPlay = event.detail?.playing;
-      console.log(
-        `🥁 Drums received master control: ${shouldPlay ? "PLAY" : "STOP"}`,
-      );
-
+      console.log(`🥁 Drums received master control: ${shouldPlay ? 'PLAY' : 'STOP'}`);
+      
       if (shouldPlay !== undefined) {
         setIsPlaying(shouldPlay);
         if (!shouldPlay) {
@@ -374,9 +329,8 @@ export function StepSequencer({
       }
     };
 
-    window.addEventListener("masterPlayControl", masterPlayHandler);
-    return () =>
-      window.removeEventListener("masterPlayControl", masterPlayHandler);
+    window.addEventListener('masterPlayControl', masterPlayHandler);
+    return () => window.removeEventListener('masterPlayControl', masterPlayHandler);
   }, []);
 
   const toggleStep = (trackIndex: number, stepIndex: number) => {
@@ -385,7 +339,7 @@ export function StepSequencer({
     newTracks[trackIndex].pattern[stepIndex] = !wasActive;
     setTracks(newTracks);
     onPatternChange?.(newTracks);
-
+    
     // Live playback - play the sound immediately when activated
     if (!wasActive && newTracks[trackIndex].pattern[stepIndex]) {
       const track = newTracks[trackIndex];
@@ -393,15 +347,11 @@ export function StepSequencer({
     }
   };
 
-  const setVelocity = (
-    trackIndex: number,
-    stepIndex: number,
-    velocity: number,
-  ) => {
+  const setVelocity = (trackIndex: number, stepIndex: number, velocity: number) => {
     const newTracks = [...tracks];
     newTracks[trackIndex].velocity[stepIndex] = velocity;
     setTracks(newTracks);
-
+    
     // Live preview - play sound with new velocity if step is active
     if (newTracks[trackIndex].pattern[stepIndex]) {
       const track = newTracks[trackIndex];
@@ -425,16 +375,16 @@ export function StepSequencer({
     const newTracks = [...tracks];
     newTracks[trackIndex].volume = volume;
     setTracks(newTracks);
-
+    
     // Live preview - play sound with new volume
     const track = newTracks[trackIndex];
     playDrumSound(track.id, 100, volume);
   };
 
   const clearPattern = () => {
-    const newTracks = tracks.map((track) => ({
+    const newTracks = tracks.map(track => ({
       ...track,
-      pattern: new Array(16).fill(false),
+      pattern: new Array(16).fill(false)
     }));
     setTracks(newTracks);
     onPatternChange?.(newTracks);
@@ -442,99 +392,14 @@ export function StepSequencer({
 
   const loadClassicHipHopPattern = () => {
     const newTracks = [...tracks];
-
+    
     // Classic "All Eyez On Me" style pattern
-    newTracks[0].pattern = [
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-    ]; // Kick
-    newTracks[1].pattern = [
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      false,
-    ]; // Snare
-    newTracks[2].pattern = [
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-    ]; // Hi-hat
-    newTracks[3].pattern = [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-    ]; // Open hat
-    newTracks[4].pattern = [
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      false,
-    ]; // Clap (doubles snare)
-
+    newTracks[0].pattern = [true, false, false, false, false, false, true, false, true, false, false, false, false, false, true, false]; // Kick
+    newTracks[1].pattern = [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false]; // Snare
+    newTracks[2].pattern = [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false]; // Hi-hat
+    newTracks[3].pattern = [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true]; // Open hat
+    newTracks[4].pattern = [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false]; // Clap (doubles snare)
+    
     setTracks(newTracks);
     onPatternChange?.(newTracks);
   };
@@ -555,34 +420,18 @@ export function StepSequencer({
           onClick={togglePlay}
           size="lg"
           data-testid="button-sequencer-play"
-          className={
-            isPlaying
-              ? "bg-red-500 hover:bg-red-600"
-              : "bg-green-500 hover:bg-green-600"
-          }
+          className={isPlaying ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"}
         >
-          {isPlaying ? (
-            <Square className="h-5 w-5" />
-          ) : (
-            <Play className="h-5 w-5" />
-          )}
+          {isPlaying ? <Square className="h-5 w-5" /> : <Play className="h-5 w-5" />}
           {isPlaying ? "Stop" : "Play"}
         </Button>
-
-        <Button
-          onClick={clearPattern}
-          variant="outline"
-          data-testid="button-clear-pattern"
-        >
+        
+        <Button onClick={clearPattern} variant="outline" data-testid="button-clear-pattern">
           <RotateCcw className="h-4 w-4 mr-2" />
           Clear
         </Button>
-
-        <Button
-          onClick={loadClassicHipHopPattern}
-          variant="outline"
-          data-testid="button-load-pattern"
-        >
+        
+        <Button onClick={loadClassicHipHopPattern} variant="outline" data-testid="button-load-pattern">
           Load Hip-Hop Pattern
         </Button>
       </div>
@@ -602,7 +451,7 @@ export function StepSequencer({
           />
           <span className="text-sm w-8">{masterVolume}</span>
         </div>
-
+        
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Swing</span>
           <Slider
@@ -656,10 +505,10 @@ export function StepSequencer({
                   variant={active ? "default" : "outline"}
                   onClick={() => toggleStep(trackIndex, stepIndex)}
                   className={`w-8 h-8 p-0 text-xs ${
-                    currentStep === stepIndex && isPlaying
-                      ? "ring-2 ring-yellow-400 ring-offset-2"
-                      : ""
-                  } ${active ? track.color.replace("bg-", "bg-") : ""}`}
+                    currentStep === stepIndex && isPlaying 
+                      ? 'ring-2 ring-yellow-400 ring-offset-2' 
+                      : ''
+                  } ${active ? track.color.replace('bg-', 'bg-') : ''}`}
                   data-testid={`button-step-${track.id}-${stepIndex}`}
                 >
                   {stepIndex + 1}

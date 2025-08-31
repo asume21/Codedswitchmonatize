@@ -12,14 +12,14 @@ export function Waveform({
   className,
   bars = 8,
   animated = true,
-  color = "purple",
+  color = "purple"
 }: WaveformProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const colorClasses = {
     purple: "bg-purple-400",
-    pink: "bg-pink-400",
-    cyan: "bg-cyan-400",
+    pink: "bg-pink-400", 
+    cyan: "bg-cyan-400"
   };
 
   return (
@@ -33,11 +33,11 @@ export function Waveform({
           className={cn(
             "w-1 rounded-full transition-all duration-300",
             colorClasses[color],
-            animated && "animate-pulse",
+            animated && "animate-pulse"
           )}
           style={{
             height: `${Math.random() * 60 + 20}%`,
-            animationDelay: animated ? `${i * 0.1}s` : "0s",
+            animationDelay: animated ? `${i * 0.1}s` : "0s"
           }}
         />
       ))}

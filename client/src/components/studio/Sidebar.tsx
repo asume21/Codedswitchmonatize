@@ -1,92 +1,81 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Music, 
-  Code, 
-  Mic, 
-  Headphones, 
-  Settings, 
-  FileMusic,
-  AudioWaveform,
-  Play,
-  Pause,
-  Square
-} from "lucide-react";
 
 interface SidebarProps {
-  onToolSelect?: (tool: string) => void;
-  activeTool?: string;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
 }
 
-export default function Sidebar({ onToolSelect, activeTool }: SidebarProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  const handleTransportPlay = () => {
-    setIsPlaying(!isPlaying);
-    // TODO: Connect to global audio context
-  };
-
-  const handleTransportPause = () => {
-    setIsPlaying(false);
-    // TODO: Connect to global audio context
-  };
-
-  const handleTransportStop = () => {
-    setIsPlaying(false);
-    // TODO: Connect to global audio context
-  };
-
-  const tools = [
-    { id: "music-studio", label: "Music Studio", icon: Music },
-    { id: "beat-studio", label: "Beat Studio", icon: AudioWaveform },
-    { id: "melody-composer", label: "Melody Composer", icon: FileMusic },
-    { id: "code-translator", label: "Code Translator", icon: Code },
-    { id: "lyric-lab", label: "Lyric Lab", icon: Mic },
-    { id: "mix-studio", label: "Mix Studio", icon: Headphones },
-    { id: "ai-assistant", label: "AI Assistant", icon: Settings },
+export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+  const tabs = [
+    { id: "translator", icon: "fas fa-code", label: "Code Translator" },
+    { id: "beatmaker", icon: "fas fa-drum", label: "Beat Maker" },
+    { id: "melody", icon: "fas fa-music", label: "Melody Composer" },
+    { id: "codebeat", icon: "fas fa-exchange-alt", label: "Code to Music" },
+    { id: "musiccode", icon: "fas fa-code-branch", label: "Music to Code" },
+    { id: "layers", icon: "fas fa-layer-group", label: "Dynamic Layering" },
+    { id: "assistant", icon: "fas fa-robot", label: "AI Assistant" },
+    { id: "security", icon: "fas fa-shield-alt", label: "Security Scanner" },
+    { id: "lyrics", icon: "fas fa-microphone", label: "Lyric Lab" },
+    { id: "musicmixer", icon: "fas fa-sliders-h", label: "Music Mixer" },
+    { id: "professionalmixer", icon: "fas fa-mixing-board", label: "Pro Console" },
+    { id: "mixer", icon: "fas fa-sliders-v", label: "Track Mixer" },
+    { id: "pack-generator", icon: "fas fa-box", label: "Pack Generator" },
+    { id: "advanced-sequencer", icon: "fas fa-th-large", label: "Advanced Sequencer" },
+    { id: "granular-engine", icon: "fas fa-atom", label: "Granular Engine" },
+    { id: "wavetable-oscillator", icon: "fas fa-wave-square", label: "Wavetable Synth" },
+    { id: "midi", icon: "fas fa-piano", label: "MIDI Controller" },
+    { id: "metrics", icon: "fas fa-chart-line", label: "Performance Metrics" },
   ];
 
   return (
-    <div className="w-64 h-full bg-gray-900 text-white p-4 flex flex-col">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold mb-2">Studio Tools</h2>
+    <div className="w-48 md:w-56 lg:w-64 bg-studio-panel border-r border-gray-700 flex flex-col py-4 space-y-2 overflow-y-auto h-screen">
+      <div className="px-4 mb-4">
+        <h3 className="text-sm font-medium text-gray-300 mb-2">Studio Tools</h3>
+        <p className="text-xs text-gray-500">Click any tool to switch</p>
       </div>
-
-      <div className="flex-1 space-y-2">
-        {tools.map((tool) => {
-          const Icon = tool.icon;
-          return (
-            <Button
-              key={tool.id}
-              variant={activeTool === tool.id ? "secondary" : "ghost"}
-              className="w-full justify-start text-left"
-              onClick={() => onToolSelect?.(tool.id)}
-            >
-              <Icon className="h-4 w-4 mr-2" />
-              {tool.label}
-            </Button>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 pt-4 border-t border-gray-700">
-        <Card className="bg-gray-800 border-gray-700">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-medium mb-2">Transport</h3>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={handleTransportPlay}>
-                <Play className="h-3 w-3" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleTransportPause}>
-                <Pause className="h-3 w-3" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleTransportStop}>
-                <Square className="h-3 w-3" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      
+      {tabs.map((tab) => (
+        <Button
+          key={tab.id}
+          onClick={() => onTabChange(tab.id)}
+          className={`mx-2 h-12 rounded-lg flex items-center justify-start px-3 md:px-4 transition-colors touch-target ${
+            activeTab === tab.id
+              ? "bg-studio-accent hover:bg-blue-500 text-white"
+              : "bg-gray-700 hover:bg-gray-600 text-gray-300"
+          }`}
+          title={tab.label}
+        >
+          <i className={`${tab.icon} text-lg mr-2 md:mr-3 flex-shrink-0`}></i>
+          <span className="text-xs md:text-sm font-medium hidden sm:block">{tab.label}</span>
+        </Button>
+      ))}
+      
+      <div className="px-4 mt-6 pt-4 border-t border-gray-600">
+        <div className="text-xs text-gray-500">
+          <div className="mb-2">
+            <strong className="text-gray-400">Current:</strong> {tabs.find(tab => tab.id === activeTab)?.label || "Unknown"}
+          </div>
+          <div>
+            {activeTab === "beatmaker" && "Create drum patterns and beats"}
+            {activeTab === "translator" && "Convert code between languages"}
+            {activeTab === "melody" && "Compose musical melodies"}
+            {activeTab === "codebeat" && "Turn code into music"}
+            {activeTab === "musiccode" && "Convert music back to code"}
+            {activeTab === "layers" && "AI-powered instrument layering"}
+            {activeTab === "assistant" && "AI-powered music help & song uploads"}
+            {activeTab === "security" && "Scan code for vulnerabilities"}
+            {activeTab === "lyrics" && "Write and edit song lyrics"}
+            {activeTab === "musicmixer" && "Mix beats, melodies & lyrics together"}
+            {activeTab === "professionalmixer" && "World-class professional mixing console"}
+            {activeTab === "mixer" && "Mix and master individual tracks"}
+            {activeTab === "pack-generator" && "AI-powered sample pack creation"}
+            {activeTab === "advanced-sequencer" && "Professional multi-layered sequencer"}
+            {activeTab === "granular-engine" && "Advanced texture manipulation"}
+            {activeTab === "wavetable-oscillator" && "Wavetable synthesis engine"}
+            {activeTab === "midi" && "Connect physical MIDI controllers"}
+            {activeTab === "metrics" && "AI music generation analytics"}
+          </div>
+        </div>
       </div>
     </div>
   );

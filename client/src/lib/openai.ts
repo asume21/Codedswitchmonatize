@@ -67,35 +67,27 @@ export const MUSIC_GENRES = {
     defaultBpm: 85,
     characteristics: ["strong kick", "snappy snare", "hi-hat patterns"],
   },
-  house: {
+  "house": {
     label: "House",
     defaultBpm: 128,
-    characteristics: [
-      "four-on-the-floor kick",
-      "open hi-hats",
-      "electronic sounds",
-    ],
+    characteristics: ["four-on-the-floor kick", "open hi-hats", "electronic sounds"],
   },
-  trap: {
+  "trap": {
     label: "Trap",
     defaultBpm: 140,
     characteristics: ["rolling hi-hats", "heavy 808s", "snare on 3"],
   },
-  dnb: {
+  "dnb": {
     label: "Drum & Bass",
     defaultBpm: 174,
     characteristics: ["fast breakbeats", "heavy bass", "complex rhythms"],
   },
-  techno: {
+  "techno": {
     label: "Techno",
     defaultBpm: 130,
-    characteristics: [
-      "repetitive beats",
-      "synthesized sounds",
-      "driving rhythm",
-    ],
+    characteristics: ["repetitive beats", "synthesized sounds", "driving rhythm"],
   },
-  ambient: {
+  "ambient": {
     label: "Ambient",
     defaultBpm: 70,
     characteristics: ["atmospheric sounds", "slow tempo", "ethereal textures"],
@@ -113,7 +105,7 @@ export const VULNERABILITY_LEVELS = {
   },
   high: {
     label: "High",
-    color: "text-orange-400",
+    color: "text-orange-400", 
     bgColor: "bg-orange-500",
     icon: "fas fa-exclamation-triangle",
     description: "Serious security issue that should be addressed soon",
@@ -121,7 +113,7 @@ export const VULNERABILITY_LEVELS = {
   medium: {
     label: "Medium",
     color: "text-yellow-400",
-    bgColor: "bg-yellow-500",
+    bgColor: "bg-yellow-500", 
     icon: "fas fa-exclamation",
     description: "Moderate security concern worth addressing",
   },
@@ -189,160 +181,24 @@ export class OpenAIUtils {
   }
 
   static getLanguageFromExtension(filename: string): string {
-    const ext = filename.split(".").pop()?.toLowerCase();
-    const lang = SUPPORTED_LANGUAGES.find((l) => l.extension === `.${ext}`);
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const lang = SUPPORTED_LANGUAGES.find(l => l.extension === `.${ext}`);
     return lang?.value || "javascript";
   }
 
   static generateBeatPatternTemplate(style: string): any {
     const templates: { [key: string]: any } = {
       "hip-hop": {
-        kick: [
-          true,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-        ],
-        snare: [
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-        ],
-        hihat: [
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-        ],
-        openhat: [
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-        ],
+        kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+        snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+        hihat: [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false],
+        openhat: [false, false, false, false, false, false, true, false, false, false, false, false, false, false, true, false],
       },
       trap: {
-        kick: [
-          true,
-          false,
-          false,
-          true,
-          false,
-          false,
-          true,
-          false,
-          false,
-          true,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-        ],
-        snare: [
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-        ],
-        hihat: [
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-          true,
-        ],
-        openhat: [
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          true,
-        ],
+        kick: [true, false, false, true, false, false, true, false, false, true, false, false, true, false, false, false],
+        snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+        hihat: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+        openhat: [false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, true],
       },
     };
 
@@ -372,26 +228,26 @@ export class OpenAIUtils {
 
   static extractRhymeWords(lyrics: string): string[] {
     // Extract words that could be used for rhyming
-    const lines = lyrics.split("\n");
+    const lines = lyrics.split('\n');
     const rhymeWords: string[] = [];
 
-    lines.forEach((line) => {
+    lines.forEach(line => {
       const words = line.trim().split(/\s+/);
-      const lastWord = words[words.length - 1]?.replace(/[^\w]/g, "");
+      const lastWord = words[words.length - 1]?.replace(/[^\w]/g, '');
       if (lastWord && lastWord.length > 2) {
         rhymeWords.push(lastWord.toLowerCase());
       }
     });
 
-    return Array.from(new Set(rhymeWords)); // Remove duplicates
+    return [...new Set(rhymeWords)]; // Remove duplicates
   }
 
   static countSyllables(word: string): number {
     // Simple syllable counting algorithm
     word = word.toLowerCase();
     if (word.length <= 3) return 1;
-
-    const vowels = "aeiouy";
+    
+    const vowels = 'aeiouy';
     let count = 0;
     let previousWasVowel = false;
 
@@ -404,7 +260,7 @@ export class OpenAIUtils {
     }
 
     // Handle silent 'e'
-    if (word.endsWith("e")) {
+    if (word.endsWith('e')) {
       count--;
     }
 
@@ -413,15 +269,15 @@ export class OpenAIUtils {
 
   static generateMelodyFromCode(code: string): any {
     // Generate a simple melody pattern based on code structure
-    const lines = code.split("\n").filter((line) => line.trim());
-    const notes: any[] = [];
+    const lines = code.split('\n').filter(line => line.trim());
+    const notes = [];
     const scale = ["C", "D", "E", "F", "G", "A", "B"];
-
+    
     lines.forEach((line, index) => {
-      const noteIndex = line.length % scale.length;
-      const octave = 4 + (Math.floor(index / 8) % 2);
+      const noteIndex = (line.length % scale.length);
+      const octave = 4 + Math.floor(index / 8) % 2;
       const duration = Math.max(0.25, Math.min(1, line.trim().length / 50));
-
+      
       notes.push({
         note: scale[noteIndex],
         octave,

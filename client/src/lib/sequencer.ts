@@ -1,87 +1,68 @@
 import { nanoid } from "nanoid";
 
-export type TrackId =
-  | "kick"
-  | "snare"
-  | "hhc" // hi-hat closed
-  | "hho" // hi-hat open
-  | "tom1"
-  | "tom2"
-  | "tom3"
-  | "ride"
-  | "crash"
-  | "clap"
-  | "perc";
+export type TrackId = string;
 
 export interface Step {
   active: boolean;
-  velocity?: number; // 0..1 optional for future use
+  velocity: number;
 }
 
 export interface Clip {
   id: string;
-  start: number; // timeline step index
-  length: number; // in steps
-  steps: Step[]; // length = length
-  name?: string; // optional label
+  name?: string;
+  start: number;
+  length: number;
+  steps: (Step | null)[];
 }
 
 export interface Track {
   id: TrackId;
   name: string;
   clips: Clip[];
-  mute?: boolean;
+  muted?: boolean;
   solo?: boolean;
-  volume?: number; // dB
-  pan?: number; // -1..1
+  volume?: number;
 }
 
 export interface SequencerState {
+  bars: number;
+  stepsPerBar: number;
   bpm: number;
-  swing: number; // 0..1
-  bars: number; // e.g. 4
-  stepsPerBar: number; // 16
-  loopStart: number; // step index
-  loopEnd: number; // step index
   tracks: Track[];
 }
 
-export const DEFAULT_TRACKS: Track[] = [
-  { id: "kick", name: "Kick", clips: [] },
-  { id: "snare", name: "Snare", clips: [] },
-  { id: "hhc", name: "Hi-hat (Closed)", clips: [] },
-  { id: "hho", name: "Hi-hat (Open)", clips: [] },
-  { id: "tom1", name: "Tom 1", clips: [] },
-  { id: "tom2", name: "Tom 2", clips: [] },
-  { id: "tom3", name: "Tom 3", clips: [] },
-  { id: "ride", name: "Ride", clips: [] },
-  { id: "crash", name: "Crash", clips: [] },
-  { id: "clap", name: "Clap", clips: [] },
-  { id: "perc", name: "Percussion", clips: [] },
+export const DEFAULT_TRACKS: Omit<Track, "clips">[] = [
+  { id: "kick", name: "Kick" },
+  { id: "snare", name: "Snare" },
+  { id: "hhc", name: "Hi-Hat Closed" },
+  { id: "hho", name: "Hi-Hat Open" },
+  { id: "crash", name: "Crash" },
+  { id: "clap", name: "Clap" },
+  { id: "tom", name: "Tom" },
+  { id: "perc", name: "Percussion" },
 ];
 
-export function createEmptyClip(
-  start: number,
-  length: number,
-  name?: string,
-): Clip {
+export function createDefaultState(bars = 4, stepsPerBar = 16, bpm = 120): SequencerState {
   return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    start,
-    length,
-    steps: Array.from({ length }, () => ({ active: false })),
-    name,
+    bars,
+    stepsPerBar,
+    bpm,
+    tracks: DEFAULT_TRACKS.map((track) => ({
+      ...track,
+      clips: [],
+      volume: 1,
+      muted: false,
+      solo: false,
+    })),
   };
 }
 
-export function createDefaultState(bars = 4, stepsPerBar = 16): SequencerState {
+export function createEmptyClip(start: number, length: number, name?: string): Clip {
   return {
-    bpm: 120,
-    swing: 0,
-    bars,
-    stepsPerBar,
-    loopStart: 0,
-    loopEnd: bars * stepsPerBar,
-    tracks: DEFAULT_TRACKS.map((t) => ({ ...t, clips: [] })),
+    id: nanoid(),
+    name,
+    start,
+    length,
+    steps: Array(length).fill(null),
   };
 }

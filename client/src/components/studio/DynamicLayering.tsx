@@ -1,308 +1,356 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useContext } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Layers, 
-  Plus, 
-  Minus, 
-  Play, 
-  Pause, 
-  Volume2,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock
-} from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { StudioAudioContext } from "@/pages/studio";
+import { useAudio } from "@/hooks/use-audio";
 
 interface Layer {
-  id: string;
-  name: string;
-  type: "drums" | "bass" | "melody" | "harmony" | "fx";
-  volume: number[];
-  opacity: number[];
-  active: boolean;
-  visible: boolean;
-  locked: boolean;
-  color: string;
+  instrument: string;
+  type: string;
+  notes: Array<{
+    frequency: number;
+    start: number;
+    duration: number;
+    velocity: number;
+  }>;
+  volume: number;
+  pan: number;
+  effects: string[];
+  role: string;
+}
+
+interface LayerResult {
+  layers: Layer[];
+  layerType: string;
+  primaryInstrument: string;
+  approach: string;
+  complexity: number;
+  explanation: string;
 }
 
 export default function DynamicLayering() {
-  const [layers, setLayers] = useState<Layer[]>([
-    {
-      id: "1",
-      name: "Kick Pattern",
-      type: "drums",
-      volume: [80],
-      opacity: [100],
-      active: true,
-      visible: true,
-      locked: false,
-      color: "bg-red-500"
-    },
-    {
-      id: "2",
-      name: "Bass Line",
-      type: "bass",
-      volume: [70],
-      opacity: [85],
-      active: true,
-      visible: true,
-      locked: false,
-      color: "bg-blue-500"
-    },
-    {
-      id: "3",
-      name: "Lead Melody",
-      type: "melody",
-      volume: [65],
-      opacity: [90],
-      active: false,
-      visible: true,
-      locked: false,
-      color: "bg-green-500"
-    },
-    {
-      id: "4",
-      name: "Pad Harmony",
-      type: "harmony",
-      volume: [45],
-      opacity: [60],
-      active: false,
-      visible: true,
-      locked: false,
-      color: "bg-purple-500"
-    }
-  ]);
-
+  const [targetStyle, setTargetStyle] = useState("electronic");
+  const [complexity, setComplexity] = useState([5]);
+  const [generatedLayers, setGeneratedLayers] = useState<Layer[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
 
-  const updateLayer = (layerId: string, property: keyof Layer, value: any) => {
-    setLayers(prev => prev.map(layer => 
-      layer.id === layerId 
-        ? { ...layer, [property]: value }
-        : layer
-    ));
-  };
+  const { toast } = useToast();
+  const { playFrequency, initialize, isInitialized } = useAudio();
+  const studioContext = useContext(StudioAudioContext);
 
-  const addLayer = () => {
-    const newLayer: Layer = {
-      id: Date.now().toString(),
-      name: `Layer ${layers.length + 1}`,
-      type: "melody",
-      volume: [75],
-      opacity: [100],
-      active: false,
-      visible: true,
-      locked: false,
-      color: "bg-gray-500"
+  const generateLayersMutation = useMutation({
+    mutationFn: async (data: { arrangement: any; style: string; complexity: number }) => {
+      // Add randomization for variety
+      const styles = ["electronic", "orchestral", "jazz", "rock", "ambient", "world", "cinematic", "experimental"];
+      const complexities = [3, 4, 5, 6, 7, 8];
+      
+      const randomStyle = styles[Math.floor(Math.random() * styles.length)];
+      const randomComplexity = complexities[Math.floor(Math.random() * complexities.length)];
+      
+      const response = await apiRequest("POST", "/api/layers/generate", {
+        ...data,
+        style: randomStyle,
+        complexity: randomComplexity
+      });
+      return response.json();
+    },
+    onSuccess: (data: LayerResult) => {
+      if (data.layers) {
+        setGeneratedLayers(data.layers);
+        // Add layers to studio context
+        studioContext.setCurrentLayers?.(data.layers);
+      }
+      toast({
+        title: "Layers Generated",
+        description: `AI created ${data.layers?.length || 0} ${data.approach} ${data.primaryInstrument} layers!`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate dynamic layers. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const getCurrentArrangement = () => {
+    return {
+      beatPattern: studioContext.currentPattern,
+      melody: studioContext.currentMelody,
+      lyrics: studioContext.currentLyrics,
+      codeMusic: studioContext.currentCodeMusic,
+      bpm: 120, // Default BPM
+      timestamp: Date.now()
     };
-    setLayers(prev => [...prev, newLayer]);
   };
 
-  const removeLayer = (layerId: string) => {
-    setLayers(prev => prev.filter(layer => layer.id !== layerId));
+  const handleGenerateLayers = () => {
+    const arrangement = getCurrentArrangement();
+    
+    generateLayersMutation.mutate({
+      arrangement,
+      style: targetStyle,
+      complexity: complexity[0]
+    });
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "drums": return "bg-red-100 text-red-800";
-      case "bass": return "bg-blue-100 text-blue-800";
-      case "melody": return "bg-green-100 text-green-800";
-      case "harmony": return "bg-purple-100 text-purple-800";
-      case "fx": return "bg-yellow-100 text-yellow-800";
-      default: return "bg-gray-100 text-gray-800";
+  const playLayer = async (layer: Layer) => {
+    if (!isInitialized) {
+      await initialize();
     }
+
+    setIsPlaying(true);
+    setSelectedLayer(layer.instrument);
+
+    // Play the layer's notes in sequence
+    for (const note of layer.notes) {
+      setTimeout(() => {
+        playFrequency(note.frequency, note.duration, layer.instrument, note.velocity);
+      }, note.start * 1000);
+    }
+
+    // Stop playing after the longest note
+    const maxEnd = Math.max(...layer.notes.map(n => n.start + n.duration));
+    setTimeout(() => {
+      setIsPlaying(false);
+      setSelectedLayer(null);
+    }, maxEnd * 1000);
+  };
+
+  const playAllLayers = async () => {
+    if (!isInitialized) {
+      await initialize();
+    }
+
+    setIsPlaying(true);
+
+    // Play all layers simultaneously
+    generatedLayers.forEach(layer => {
+      layer.notes.forEach(note => {
+        setTimeout(() => {
+          playFrequency(note.frequency, note.duration, layer.instrument, note.velocity * layer.volume);
+        }, note.start * 1000);
+      });
+    });
+
+    // Calculate total duration
+    const maxDuration = Math.max(
+      ...generatedLayers.flatMap(layer => 
+        layer.notes.map(note => note.start + note.duration)
+      )
+    );
+
+    setTimeout(() => {
+      setIsPlaying(false);
+    }, maxDuration * 1000);
   };
 
   return (
-    <div className="h-full w-full p-6 bg-gray-50">
-      <Card className="h-full">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Layers className="h-6 w-6" />
-            Dynamic Layering
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="h-full">
-          <div className="flex gap-6 h-full">
-            {/* Layer List */}
-            <div className="w-1/2 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-medium">Audio Layers</h3>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={addLayer}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant={isPlaying ? "default" : "outline"}
-                    onClick={() => setIsPlaying(!isPlaying)}
-                  >
-                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {layers.map((layer) => (
-                  <Card key={layer.id} className={`border-l-4 ${layer.color.replace('bg-', 'border-')}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${layer.color}`}></div>
-                          <span className="font-medium">{layer.name}</span>
-                          <Badge variant="outline" className={getTypeColor(layer.type)}>
-                            {layer.type}
-                          </Badge>
-                        </div>
-                        
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => updateLayer(layer.id, 'visible', !layer.visible)}
-                          >
-                            {layer.visible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => updateLayer(layer.id, 'locked', !layer.locked)}
-                          >
-                            {layer.locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeLayer(layer.id)}
-                            disabled={layer.locked}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm w-12">Active</span>
-                          <Switch
-                            checked={layer.active}
-                            onCheckedChange={(checked) => updateLayer(layer.id, 'active', checked)}
-                            disabled={layer.locked}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Volume2 className="h-4 w-4" />
-                            <span className="text-sm w-16">Volume</span>
-                            <Slider
-                              value={layer.volume}
-                              onValueChange={(value) => updateLayer(layer.id, 'volume', value)}
-                              max={100}
-                              min={0}
-                              step={1}
-                              className="flex-1"
-                              disabled={layer.locked}
-                            />
-                            <span className="text-sm w-8">{layer.volume[0]}</span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Layers className="h-4 w-4" />
-                            <span className="text-sm w-16">Opacity</span>
-                            <Slider
-                              value={layer.opacity}
-                              onValueChange={(value) => updateLayer(layer.id, 'opacity', value)}
-                              max={100}
-                              min={0}
-                              step={1}
-                              className="flex-1"
-                              disabled={layer.locked}
-                            />
-                            <span className="text-sm w-8">{layer.opacity[0]}%</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="p-6 border-b border-gray-600 flex-shrink-0">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-heading font-bold">AI Dynamic Layering</h2>
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={initialize}
+              disabled={isInitialized}
+              className="bg-studio-accent hover:bg-blue-500"
+            >
+              <i className="fas fa-power-off mr-2"></i>
+              {isInitialized ? 'Audio Ready' : 'Start Audio'}
+            </Button>
+            <div className="text-xs text-gray-400 px-2">
+              <div>Intelligent instrument layering</div>
+              <div>Analyzes your arrangement and adds complementary parts</div>
             </div>
+          </div>
+        </div>
 
-            {/* Visual Timeline */}
-            <div className="flex-1">
-              <h3 className="font-medium mb-4">Layer Timeline</h3>
-              <div className="bg-gray-900 rounded-lg p-4 h-96">
-                <div className="space-y-2">
-                  {layers.filter(layer => layer.visible).map((layer, index) => (
-                    <div key={layer.id} className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${layer.color}`}></div>
-                      <div className="flex-1 h-8 bg-gray-800 rounded relative overflow-hidden">
-                        {layer.active && (
-                          <div 
-                            className={`h-full ${layer.color} rounded`}
-                            style={{ 
-                              opacity: layer.opacity[0] / 100,
-                              width: `${layer.volume[0]}%`
-                            }}
-                          ></div>
-                        )}
-                        {isPlaying && layer.active && (
-                          <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-400 w-20">{layer.name}</span>
-                    </div>
-                  ))}
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>Target Style</Label>
+            <Select value={targetStyle} onValueChange={setTargetStyle}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="orchestral">Orchestral (Strings, Brass, Woodwinds)</SelectItem>
+                <SelectItem value="electronic">Electronic (Synths, Pads, Piano)</SelectItem>
+                <SelectItem value="jazz">Jazz (Piano, Trumpet, Saxophone)</SelectItem>
+                <SelectItem value="rock">Rock (Guitar, Organ, Strings)</SelectItem>
+                <SelectItem value="ambient">Ambient (Pads, Harp, Choir)</SelectItem>
+                <SelectItem value="world">World (Ethnic Instruments, Flute)</SelectItem>
+                <SelectItem value="cinematic">Cinematic (Full Orchestra)</SelectItem>
+                <SelectItem value="experimental">Experimental (Mixed Instruments)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-                {layers.filter(layer => layer.visible).length === 0 && (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <div className="text-center">
-                      <Layers className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>No visible layers</p>
-                    </div>
-                  </div>
-                )}
+          <div className="space-y-2">
+            <Label>Complexity: {complexity[0]}/10</Label>
+            <Slider
+              value={complexity}
+              onValueChange={setComplexity}
+              max={10}
+              min={1}
+              step={1}
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex items-end space-x-2">
+            <Button
+              onClick={handleGenerateLayers}
+              disabled={generateLayersMutation.isPending}
+              className="bg-studio-accent hover:bg-blue-500 flex-1"
+            >
+              {generateLayersMutation.isPending ? (
+                <>
+                  <i className="fas fa-spinner animate-spin mr-2"></i>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-layer-group mr-2"></i>
+                  Generate Layers
+                </>
+              )}
+            </Button>
+
+            {generatedLayers.length > 0 && (
+              <Button
+                onClick={playAllLayers}
+                disabled={isPlaying || !isInitialized}
+                className="bg-green-600 hover:bg-green-500"
+              >
+                <i className={`fas ${isPlaying ? 'fa-stop' : 'fa-play'} mr-2`}></i>
+                {isPlaying ? 'Stop' : 'Play All'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 p-6 overflow-y-auto">
+        {generatedLayers.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-center">
+            <div className="max-w-md">
+              <i className="fas fa-layer-group text-6xl text-gray-600 mb-4"></i>
+              <h3 className="text-xl font-semibold mb-2">No Layers Generated</h3>
+              <p className="text-gray-400 mb-6">
+                Click "Generate Layers" to have AI analyze your current arrangement and add intelligent instrumental layers with piano, violin, guitar, flute, trumpet, and other melodic instruments.
+              </p>
+              <div className="text-sm text-gray-500 space-y-2">
+                <p><strong>Current Arrangement:</strong></p>
+                <p>• Beats: {studioContext.currentPattern ? 'Available' : 'None'}</p>
+                <p>• Melody: {studioContext.currentMelody?.length ? `${studioContext.currentMelody.length} notes` : 'None'}</p>
+                <p>• Lyrics: {studioContext.currentLyrics ? 'Available' : 'None'}</p>
               </div>
-
-              {/* Layer Controls */}
-              <div className="mt-4 space-y-2">
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    onClick={() => setLayers(prev => prev.map(l => ({ ...l, active: true })))}
-                  >
-                    Enable All
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setLayers(prev => prev.map(l => ({ ...l, active: false })))}
-                  >
-                    Disable All
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setLayers(prev => prev.map(l => ({ ...l, volume: [75], opacity: [100] })))}
-                  >
-                    Reset Levels
-                  </Button>
-                </div>
-
-                <div className="text-sm text-gray-600">
-                  Active Layers: {layers.filter(l => l.active).length} / {layers.length}
+              <div className="mt-4 p-3 bg-gray-800 rounded-lg">
+                <p className="text-xs text-gray-400 mb-2"><strong>Available Instruments:</strong></p>
+                <div className="flex flex-wrap gap-1 text-xs">
+                  {["Piano", "Violin", "Guitar", "Flute", "Trumpet", "Saxophone", "Organ", "Harp", "Cello", "Synthesizer", "Ambient Pads", "Choir"].map(inst => (
+                    <span key={inst} className="bg-gray-700 text-gray-300 px-2 py-1 rounded">{inst}</span>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Generated Layers ({generatedLayers.length})</h3>
+              <Badge variant="secondary">{targetStyle} style</Badge>
+            </div>
+
+            <div className="grid gap-4">
+              {generatedLayers.map((layer, index) => (
+                <Card key={index} className={`border-gray-600 ${selectedLayer === layer.instrument ? 'ring-2 ring-blue-500' : ''}`}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">{layer.instrument}</CardTitle>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline">{layer.type}</Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => playLayer(layer)}
+                          disabled={isPlaying || !isInitialized}
+                          className="bg-green-600 hover:bg-green-500"
+                        >
+                          <i className={`fas ${isPlaying && selectedLayer === layer.instrument ? 'fa-stop' : 'fa-play'} mr-1`}></i>
+                          {isPlaying && selectedLayer === layer.instrument ? 'Stop' : 'Play'}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-400">Volume:</span>
+                          <div className="font-semibold">{Math.round(layer.volume * 100)}%</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Pan:</span>
+                          <div className="font-semibold">
+                            {layer.pan === 0 ? 'Center' : layer.pan > 0 ? `${Math.round(layer.pan * 100)}% R` : `${Math.round(Math.abs(layer.pan) * 100)}% L`}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Notes:</span>
+                          <div className="font-semibold">{layer.notes.length}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Role:</span>
+                          <div className="font-semibold text-xs">{layer.role}</div>
+                        </div>
+                      </div>
+
+                      {(Array.isArray(layer.effects) ? layer.effects.length > 0 : layer.effects) && (
+                        <div>
+                          <span className="text-gray-400 text-sm">Effects:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(Array.isArray(layer.effects) ? layer.effects : layer.effects ? [layer.effects] : []).map((effect, effectIndex) => (
+                              <Badge key={effectIndex} variant="secondary" className="text-xs">
+                                {effect}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <Separator className="bg-gray-600" />
+
+                      <div className="space-y-1">
+                        <span className="text-gray-400 text-sm">Note Preview (first 3):</span>
+                        {layer.notes.slice(0, 3).map((note, noteIndex) => (
+                          <div key={noteIndex} className="text-xs font-mono bg-gray-800 p-2 rounded">
+                            {Math.round(note.frequency)}Hz • {note.start}s • {note.duration}s • {Math.round(note.velocity * 100)}%
+                          </div>
+                        ))}
+                        {layer.notes.length > 3 && (
+                          <div className="text-xs text-gray-500">+{layer.notes.length - 3} more notes...</div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

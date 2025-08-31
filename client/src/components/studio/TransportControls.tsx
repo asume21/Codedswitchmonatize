@@ -2,20 +2,8 @@ import { useState, useContext } from "react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -31,10 +19,7 @@ interface TransportControlsProps {
   activeTab?: string;
 }
 
-export default function TransportControls({
-  currentTool = "Beat Maker",
-  activeTab = "beatmaker",
-}: TransportControlsProps) {
+export default function TransportControls({ currentTool = "Beat Maker", activeTab = "beatmaker" }: TransportControlsProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState("00:00");
   const [totalTime] = useState("02:45");
@@ -52,19 +37,15 @@ export default function TransportControls({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isToolPlaying, setIsToolPlaying] = useState(false);
-
+  
   const { setMasterVolume, initialize, isInitialized } = useAudio();
-  const {
-    playPattern,
-    stopPattern,
-    isPlaying: sequencerPlaying,
-  } = useSequencer();
+  const { playPattern, stopPattern, isPlaying: sequencerPlaying } = useSequencer();
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
 
   // Fetch playlists
   const { data: playlists } = useQuery<Playlist[]>({
-    queryKey: ["/api/playlists"],
+    queryKey: ['/api/playlists'],
     initialData: [],
   });
 
@@ -79,7 +60,7 @@ export default function TransportControls({
       return response.json();
     },
     onSuccess: (newPlaylist: Playlist) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/playlists"] });
+      queryClient.invalidateQueries({ queryKey: ['/api/playlists'] });
       setNewPlaylistName("");
       setShowCreateDialog(false);
       toast({
@@ -95,78 +76,23 @@ export default function TransportControls({
         console.log("🎵 Initializing audio...");
         await initialize();
       }
-
+      
       if (isPlaying) {
         console.log("🎵 Stopping playback...");
         stopPattern();
         studioContext.stopFullSong();
         setIsPlaying(false);
       } else {
-        console.log(
-          `🎵 Starting playback - Mode: ${studioContext.playMode}, Tool: ${activeTab}`,
-        );
-
+        console.log(`🎵 Starting playback - Mode: ${studioContext.playMode}, Tool: ${activeTab}`);
+        
         // Always play the beat pattern as the base
-        const currentPattern =
-          studioContext.currentPattern &&
-          Object.keys(studioContext.currentPattern).length > 0
-            ? studioContext.currentPattern
-            : {
-                kick: [
-                  true,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                ],
-                snare: [
-                  false,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                  false,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                ],
-                hihat: [
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                ],
-              };
+        const currentPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 
+          ? studioContext.currentPattern 
+          : {
+              kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+              snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+              hihat: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+            };
 
         console.log("🎵 Playing pattern:", currentPattern);
         playPattern(currentPattern, studioContext.bpm || 120);
@@ -176,19 +102,16 @@ export default function TransportControls({
           console.log("🎵 Playing from active playlist");
           await studioContext.playFullSong();
         } else {
-          console.log(
-            "🎵 No playlist selected - main transport is for playlist playback only",
-          );
+          console.log("🎵 No playlist selected - main transport is for playlist playback only");
           toast({
             title: "No Playlist Selected",
-            description:
-              "Main transport controls are for playlist playback. Select a playlist or use tool-specific play buttons.",
+            description: "Main transport controls are for playlist playback. Select a playlist or use tool-specific play buttons.",
             variant: "default",
           });
           setIsPlaying(false);
           return;
         }
-
+        
         setIsPlaying(true);
       }
     } catch (error) {
@@ -212,15 +135,11 @@ export default function TransportControls({
   const getPlayingContent = (tab: string): string => {
     switch (tab) {
       case "beatmaker":
-        return studioContext.currentPattern &&
-          Object.keys(studioContext.currentPattern).length > 0
-          ? "Custom Beat Pattern"
-          : "Default Beat Pattern";
+        return studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 
+          ? "Custom Beat Pattern" : "Default Beat Pattern";
       case "melody":
-        return studioContext.currentMelody &&
-          studioContext.currentMelody.length > 0
-          ? "Custom Melody"
-          : "Default Melody Pattern";
+        return studioContext.currentMelody && studioContext.currentMelody.length > 0 
+          ? "Custom Melody" : "Default Melody Pattern";
       case "mixer":
         return "Mixed Audio Content";
       case "codebeat":
@@ -228,17 +147,10 @@ export default function TransportControls({
       case "assistant":
         return "Assistant Demo Audio";
       case "playlist":
-        if (
-          studioContext.currentPlaylist &&
-          studioContext.currentPlaylist.songs
-        ) {
-          const currentSong =
-            studioContext.currentPlaylist.songs[
-              studioContext.currentPlaylistIndex
-            ];
-          return currentSong
-            ? `${currentSong.name} (${studioContext.currentPlaylistIndex + 1}/${studioContext.currentPlaylist.songs.length})`
-            : `${studioContext.currentPlaylist.name} - Empty`;
+        if (studioContext.currentPlaylist && studioContext.currentPlaylist.songs) {
+          const currentSong = studioContext.currentPlaylist.songs[studioContext.currentPlaylistIndex];
+          return currentSong ? `${currentSong.name} (${studioContext.currentPlaylistIndex + 1}/${studioContext.currentPlaylist.songs.length})` 
+                              : `${studioContext.currentPlaylist.name} - Empty`;
         }
         return "No Playlist Selected";
       default:
@@ -248,14 +160,11 @@ export default function TransportControls({
 
   const handlePrevious = () => {
     if (studioContext.currentPlaylist && studioContext.currentPlaylist.songs) {
-      const newIndex =
-        studioContext.currentPlaylistIndex > 0
-          ? studioContext.currentPlaylistIndex - 1
-          : studioContext.currentPlaylist.songs.length - 1;
+      const newIndex = studioContext.currentPlaylistIndex > 0 
+        ? studioContext.currentPlaylistIndex - 1 
+        : studioContext.currentPlaylist.songs.length - 1;
       studioContext.setCurrentPlaylistIndex(newIndex);
-      console.log(
-        `🎵 Previous track: ${newIndex + 1}/${studioContext.currentPlaylist.songs.length}`,
-      );
+      console.log(`🎵 Previous track: ${newIndex + 1}/${studioContext.currentPlaylist.songs.length}`);
     } else {
       toast({
         title: "No Playlist Active",
@@ -267,15 +176,11 @@ export default function TransportControls({
 
   const handleNext = () => {
     if (studioContext.currentPlaylist && studioContext.currentPlaylist.songs) {
-      const newIndex =
-        studioContext.currentPlaylistIndex <
-        studioContext.currentPlaylist.songs.length - 1
-          ? studioContext.currentPlaylistIndex + 1
-          : 0;
+      const newIndex = studioContext.currentPlaylistIndex < studioContext.currentPlaylist.songs.length - 1
+        ? studioContext.currentPlaylistIndex + 1 
+        : 0;
       studioContext.setCurrentPlaylistIndex(newIndex);
-      console.log(
-        `🎵 Next track: ${newIndex + 1}/${studioContext.currentPlaylist.songs.length}`,
-      );
+      console.log(`🎵 Next track: ${newIndex + 1}/${studioContext.currentPlaylist.songs.length}`);
     } else {
       toast({
         title: "No Playlist Active",
@@ -287,19 +192,15 @@ export default function TransportControls({
 
   const handleSetActivePlaylist = async (playlist: Playlist) => {
     try {
-      const response = await apiRequest(
-        "GET",
-        `/api/playlists/${playlist.id}/songs`,
-        {},
-      );
+      const response = await apiRequest("GET", `/api/playlists/${playlist.id}/songs`, {});
       const playlistWithSongs = await response.json();
-
+      
       studioContext.setCurrentPlaylist({
         ...playlist,
-        songs: playlistWithSongs,
+        songs: playlistWithSongs
       });
       studioContext.setCurrentPlaylistIndex(0);
-
+      
       toast({
         title: "Active Playlist Set",
         description: `${playlist.name} is now active. Use play button to start.`,
@@ -337,82 +238,27 @@ export default function TransportControls({
         stopPattern();
         setIsToolPlaying(false);
       } else {
-        console.log(
-          `🔧 Playing ${activeTab} tool audio - Mode: ${studioContext.playMode}`,
-        );
-
+        console.log(`🔧 Playing ${activeTab} tool audio - Mode: ${studioContext.playMode}`);
+        
         // Always play the beat pattern as the base
-        const currentPattern =
-          studioContext.currentPattern &&
-          Object.keys(studioContext.currentPattern).length > 0
-            ? studioContext.currentPattern
-            : {
-                kick: [
-                  true,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                ],
-                snare: [
-                  false,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                  false,
-                  false,
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                ],
-                hihat: [
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                  true,
-                ],
-              };
+        const currentPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 
+          ? studioContext.currentPattern 
+          : {
+              kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+              snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+              hihat: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+            };
 
         playPattern(currentPattern, studioContext.bpm || 120);
 
-        if (studioContext.playMode === "all") {
+        if (studioContext.playMode === 'all') {
           console.log("🔧 Playing ALL tools combined");
           await studioContext.playFullSong();
         } else {
           console.log(`🔧 Playing current tool only: ${activeTab}`);
           await studioContext.playCurrentAudio();
         }
-
+        
         setIsToolPlaying(true);
       }
     } catch (error) {
@@ -445,8 +291,8 @@ export default function TransportControls({
     if (!isFloating) return;
     // Only allow dragging from header area, not buttons
     const target = e.target as HTMLElement;
-    if (target.closest("button") || target.closest('[role="button"]')) return;
-
+    if (target.closest('button') || target.closest('[role="button"]')) return;
+    
     setIsDragging(true);
     setDragOffset({
       x: e.clientX - position.x,
@@ -456,14 +302,14 @@ export default function TransportControls({
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging || !isFloating) return;
-
+    
     const newX = e.clientX - dragOffset.x;
     const newY = e.clientY - dragOffset.y;
-
+    
     // Keep within viewport bounds
     const maxX = window.innerWidth - 800; // min-width of floating panel
     const maxY = window.innerHeight - 200; // approximate height
-
+    
     setPosition({
       x: Math.max(0, Math.min(newX, maxX)),
       y: Math.max(0, Math.min(newY, maxY)),
@@ -477,36 +323,38 @@ export default function TransportControls({
   // Add mouse event listeners for dragging
   React.useEffect(() => {
     if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
       return () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
       };
     }
   }, [isDragging, dragOffset]);
 
-  const containerClasses = isFloating
-    ? `fixed bg-studio-panel border border-gray-600 rounded-lg shadow-2xl px-6 z-50 ${isDragging ? "cursor-grabbing" : ""} ${isMinimized ? "h-auto pb-2 min-w-[400px]" : "py-4 min-w-[800px]"}`
+  const containerClasses = isFloating 
+    ? `fixed bg-studio-panel border border-gray-600 rounded-lg shadow-2xl px-6 z-50 ${isDragging ? 'cursor-grabbing' : ''} ${isMinimized ? 'h-auto pb-2 min-w-[400px]' : 'py-4 min-w-[800px]'}`
     : "bg-studio-panel border-t border-gray-700 px-6 py-4";
 
-  const containerStyle = isFloating
-    ? {
-        left: `${position.x}px`,
+  const containerStyle = isFloating 
+    ? { 
+        left: `${position.x}px`, 
         top: `${position.y}px`,
-        transform: "none",
-      }
+        transform: 'none'
+      } 
     : {};
 
   return (
-    <div
+    <div 
       className={containerClasses}
       style={containerStyle}
       onMouseDown={isFloating ? handleMouseDown : undefined}
     >
+
+
       {/* Floating drag handle with minimize */}
       {isFloating && (
-        <div
+        <div 
           className="absolute top-0 left-0 right-0 h-8 bg-gray-700 rounded-t-lg flex items-center justify-between px-3 cursor-grab hover:bg-gray-600 transition-colors"
           onMouseDown={handleMouseDown}
         >
@@ -516,11 +364,9 @@ export default function TransportControls({
               <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
               <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
             </div>
-            <span className="text-xs text-gray-400 font-medium">
-              Transport Controls
-            </span>
+            <span className="text-xs text-gray-400 font-medium">Transport Controls</span>
           </div>
-
+          
           <div className="flex items-center space-x-1">
             <Button
               onClick={handleMinimize}
@@ -540,9 +386,7 @@ export default function TransportControls({
               className="h-6 w-6 p-0 text-xs hover:bg-red-600 bg-red-500 border border-red-400"
               title="Close floating window - Dock to bottom"
             >
-              <span className="text-white text-lg font-bold leading-none">
-                ×
-              </span>
+              <span className="text-white text-lg font-bold leading-none">×</span>
             </Button>
           </div>
         </div>
@@ -565,15 +409,13 @@ export default function TransportControls({
               onClick={handlePlay}
               variant="default"
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                isPlaying
-                  ? "bg-red-600 hover:bg-red-500"
+                isPlaying 
+                  ? "bg-red-600 hover:bg-red-500" 
                   : "bg-green-600 hover:bg-green-500"
               }`}
               title={isPlaying ? "Stop" : "Play"}
             >
-              <i
-                className={`fas ${isPlaying ? "fa-stop" : "fa-play"} text-white`}
-              ></i>
+              <i className={`fas ${isPlaying ? "fa-stop" : "fa-play"} text-white`}></i>
             </Button>
             <Button
               onClick={handleNext}
@@ -611,26 +453,20 @@ export default function TransportControls({
       {(!isFloating || !isMinimized) && (
         <>
           {/* Tool Audio Controls */}
-          <div
-            className={`mb-3 flex items-center justify-between gap-4 p-3 bg-gray-800 rounded-lg relative ${isFloating ? "mt-8" : "mt-8"}`}
-          >
+          <div className={`mb-3 flex items-center justify-between gap-4 p-3 bg-gray-800 rounded-lg relative ${isFloating ? 'mt-8' : 'mt-8'}`}>
             <div className="flex items-center gap-4">
-              <span className="text-xs font-medium text-gray-300">
-                Tool Audio:
-              </span>
+              <span className="text-xs font-medium text-gray-300">Tool Audio:</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400">Current</span>
                 <Switch
-                  checked={studioContext.playMode === "all"}
-                  onCheckedChange={(checked) =>
-                    studioContext.setPlayMode(checked ? "all" : "current")
-                  }
+                  checked={studioContext.playMode === 'all'}
+                  onCheckedChange={(checked) => studioContext.setPlayMode(checked ? 'all' : 'current')}
                   className="data-[state=checked]:bg-studio-accent"
                   aria-label="Toggle between current tool audio and all tools audio"
                 />
                 <span className="text-xs text-gray-400">All</span>
               </div>
-
+              
               {/* Small Float/Dock Button */}
               {isFloating ? (
                 <Button
@@ -645,7 +481,7 @@ export default function TransportControls({
               ) : (
                 <Button
                   onClick={handleFloat}
-                  size="sm"
+                  size="sm" 
                   variant="outline"
                   className="h-6 w-12 text-xs bg-green-600 hover:bg-green-500 text-white border-green-500"
                   title="Float controls"
@@ -654,14 +490,14 @@ export default function TransportControls({
                 </Button>
               )}
             </div>
-
+            
             {/* Tool-specific play button */}
             <div className="flex items-center gap-2">
               <Button
                 onClick={handleToolPlay}
                 className={`h-8 w-16 text-xs ${
-                  isToolPlaying
-                    ? "bg-red-600 hover:bg-red-500"
+                  isToolPlaying 
+                    ? "bg-red-600 hover:bg-red-500" 
                     : "bg-green-600 hover:bg-green-500"
                 }`}
               >
@@ -670,211 +506,181 @@ export default function TransportControls({
             </div>
           </div>
 
-          {/* Separated Status Display */}
-          <div className="mb-2 text-xs text-gray-400 text-center">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-900/30 p-2 rounded">
-                <strong>Playlist Controls:</strong>{" "}
-                {studioContext.currentPlaylist?.songs?.length > 0
-                  ? `"${studioContext.currentPlaylist.name}" (${studioContext.currentPlaylist.songs.length} songs)`
-                  : "No playlist selected"}
-                <div className="text-xs mt-1 text-blue-300">
-                  Status: {isPlaying ? "Playing" : "Ready"}
-                </div>
-              </div>
-              <div className="bg-green-900/30 p-2 rounded">
-                <strong>Tool Audio:</strong>{" "}
-                {studioContext.playMode === "current"
-                  ? `${currentTool} only`
-                  : "All tools combined"}
-                <div className="text-xs mt-1 text-green-300">
-                  Status: {isToolPlaying ? "Playing" : "Ready"}
-                </div>
-              </div>
+      {/* Separated Status Display */}
+      <div className="mb-2 text-xs text-gray-400 text-center">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-blue-900/30 p-2 rounded">
+            <strong>Playlist Controls:</strong> {
+              studioContext.currentPlaylist?.songs?.length > 0 
+                ? `"${studioContext.currentPlaylist.name}" (${studioContext.currentPlaylist.songs.length} songs)`
+                : "No playlist selected"
+            }
+            <div className="text-xs mt-1 text-blue-300">
+              Status: {isPlaying ? "Playing" : "Ready"}
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              {/* Transport Control Buttons with Labels */}
-              <div className="flex items-center space-x-6">
-                <div className="flex flex-col items-center space-y-1">
-                  <Button
-                    onClick={handlePrevious}
-                    variant="secondary"
-                    className="bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                    title="Previous Song in Playlist"
-                  >
-                    <i className="fas fa-step-backward"></i>
-                  </Button>
-                  <span className="text-xs text-gray-400">Previous</span>
-                </div>
-
-                <div className="flex flex-col items-center space-y-1">
-                  <Button
-                    onClick={handlePlay}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-                      isPlaying
-                        ? "bg-red-600 hover:bg-red-500"
-                        : "bg-studio-success hover:bg-green-500"
-                    }`}
-                    title={
-                      isPlaying
-                        ? "Pause - Stop playing current beat"
-                        : "Play - Start playing your beat pattern"
-                    }
-                  >
-                    <i
-                      className={`fas ${isPlaying ? "fa-pause" : "fa-play"} text-lg`}
-                    ></i>
-                  </Button>
-                  <span className="text-xs text-gray-300 font-medium">
-                    {isPlaying ? "Pause" : "Play"}
-                  </span>
-                </div>
-
-                <div className="flex flex-col items-center space-y-1">
-                  <Button
-                    onClick={handleStop}
-                    className="bg-red-600 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                    title="Stop - Stop playback and reset to beginning"
-                  >
-                    <i className="fas fa-stop"></i>
-                  </Button>
-                  <span className="text-xs text-gray-400">Stop</span>
-                </div>
-
-                <div className="flex flex-col items-center space-y-1">
-                  <Button
-                    onClick={handleNext}
-                    variant="secondary"
-                    className="bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                    title="Next Song in Playlist"
-                  >
-                    <i className="fas fa-step-forward"></i>
-                  </Button>
-                  <span className="text-xs text-gray-400">Next</span>
-                </div>
-
-                <div className="flex flex-col items-center space-y-1">
-                  <Button
-                    variant="secondary"
-                    className="bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                    title="Loop - Repeat current pattern continuously"
-                  >
-                    <i className="fas fa-redo"></i>
-                  </Button>
-                  <span className="text-xs text-gray-400">Loop</span>
-                </div>
-              </div>
+          <div className="bg-green-900/30 p-2 rounded">
+            <strong>Tool Audio:</strong> {studioContext.playMode === 'current' ? `${currentTool} only` : "All tools combined"}
+            <div className="text-xs mt-1 text-green-300">
+              Status: {isToolPlaying ? "Playing" : "Ready"}
             </div>
-
-            <div className="flex items-center space-x-6">
-              <div className="text-sm">
-                <span className="font-mono text-lg">{currentTime}</span>
-                <span className="text-gray-400 ml-2">/ {totalTime}</span>
-              </div>
-              <div className="text-sm">
-                <span className="font-mono">Bar {bar}</span>
-                <span className="text-gray-400 ml-2">Beat {beat}</span>
-              </div>
-              <div className="text-sm">
-                <span className="font-mono">{bpm} BPM</span>
-              </div>
-            </div>
-
-            {/* Playlist Management */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-gray-400">Playlists:</span>
-                <Select
-                  value={studioContext.currentPlaylist?.id || ""}
-                  onValueChange={(playlistId) => {
-                    const playlist = playlists?.find(
-                      (p) => p.id === playlistId,
-                    );
-                    if (playlist) handleSetActivePlaylist(playlist);
-                  }}
-                >
-                  <SelectTrigger
-                    className="w-32 h-8 bg-gray-700 border-gray-600 text-xs"
-                    aria-label="Select playlist"
-                  >
-                    <SelectValue placeholder="Select..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-600">
-                    {playlists?.map((playlist) => (
-                      <SelectItem key={playlist.id} value={playlist.id}>
-                        {playlist.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Dialog
-                open={showCreateDialog}
-                onOpenChange={setShowCreateDialog}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          {/* Transport Control Buttons with Labels */}
+          <div className="flex items-center space-x-6">
+            <div className="flex flex-col items-center space-y-1">
+              <Button
+                onClick={handlePrevious}
+                variant="secondary"
+                className="bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                title="Previous Song in Playlist"
               >
-                <DialogTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 bg-gray-700 hover:bg-gray-600 text-xs"
-                  >
-                    <i className="fas fa-plus mr-1"></i>New
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-gray-800 border-gray-600">
-                  <DialogHeader>
-                    <DialogTitle>Create New Playlist</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="Enter playlist name..."
-                      value={newPlaylistName}
-                      onChange={(e) => setNewPlaylistName(e.target.value)}
-                      onKeyPress={(e) =>
-                        e.key === "Enter" && handleCreatePlaylist()
-                      }
-                      className="bg-gray-700 border-gray-600"
-                      aria-label="New playlist name"
-                    />
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowCreateDialog(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleCreatePlaylist}
-                        disabled={createPlaylistMutation.isPending}
-                      >
-                        {createPlaylistMutation.isPending
-                          ? "Creating..."
-                          : "Create"}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                <i className="fas fa-step-backward"></i>
+              </Button>
+              <span className="text-xs text-gray-400">Previous</span>
+            </div>
 
-              <div className="flex items-center space-x-2">
-                <i className="fas fa-volume-up text-gray-400"></i>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  className="w-20 h-2 bg-gray-700 rounded-lg appearance-none slider"
-                  aria-label={`Playlist volume control: ${volume}%`}
-                  title={`Playlist volume: ${volume}%`}
-                />
-                <span className="text-sm text-gray-400 w-8">{volume}%</span>
-              </div>
+            <div className="flex flex-col items-center space-y-1">
+              <Button
+                onClick={handlePlay}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                  isPlaying 
+                    ? "bg-red-600 hover:bg-red-500" 
+                    : "bg-studio-success hover:bg-green-500"
+                }`}
+                title={isPlaying ? "Pause - Stop playing current beat" : "Play - Start playing your beat pattern"}
+              >
+                <i className={`fas ${isPlaying ? "fa-pause" : "fa-play"} text-lg`}></i>
+              </Button>
+              <span className="text-xs text-gray-300 font-medium">
+                {isPlaying ? "Pause" : "Play"}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center space-y-1">
+              <Button
+                onClick={handleStop}
+                className="bg-red-600 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                title="Stop - Stop playback and reset to beginning"
+              >
+                <i className="fas fa-stop"></i>
+              </Button>
+              <span className="text-xs text-gray-400">Stop</span>
+            </div>
+
+            <div className="flex flex-col items-center space-y-1">
+              <Button
+                onClick={handleNext}
+                variant="secondary"
+                className="bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                title="Next Song in Playlist"
+              >
+                <i className="fas fa-step-forward"></i>
+              </Button>
+              <span className="text-xs text-gray-400">Next</span>
+            </div>
+
+            <div className="flex flex-col items-center space-y-1">
+              <Button
+                variant="secondary"
+                className="bg-gray-700 hover:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                title="Loop - Repeat current pattern continuously"
+              >
+                <i className="fas fa-redo"></i>
+              </Button>
+              <span className="text-xs text-gray-400">Loop</span>
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center space-x-6">
+          <div className="text-sm">
+            <span className="font-mono text-lg">{currentTime}</span>
+            <span className="text-gray-400 ml-2">/ {totalTime}</span>
+          </div>
+          <div className="text-sm">
+            <span className="font-mono">Bar {bar}</span>
+            <span className="text-gray-400 ml-2">Beat {beat}</span>
+          </div>
+          <div className="text-sm">
+            <span className="font-mono">{bpm} BPM</span>
+          </div>
+        </div>
+
+        {/* Playlist Management */}
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-gray-400">Playlists:</span>
+            <Select 
+              value={studioContext.currentPlaylist?.id || ""} 
+              onValueChange={(playlistId) => {
+                const playlist = playlists?.find(p => p.id === playlistId);
+                if (playlist) handleSetActivePlaylist(playlist);
+              }}
+            >
+              <SelectTrigger className="w-32 h-8 bg-gray-700 border-gray-600 text-xs" aria-label="Select playlist">
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600">
+                {playlists?.map((playlist) => (
+                  <SelectItem key={playlist.id} value={playlist.id}>
+                    {playlist.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button variant="secondary" size="sm" className="h-8 bg-gray-700 hover:bg-gray-600 text-xs">
+                <i className="fas fa-plus mr-1"></i>New
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-gray-800 border-gray-600">
+              <DialogHeader>
+                <DialogTitle>Create New Playlist</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  placeholder="Enter playlist name..."
+                  value={newPlaylistName}
+                  onChange={(e) => setNewPlaylistName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleCreatePlaylist()}
+                  className="bg-gray-700 border-gray-600"
+                  aria-label="New playlist name"
+                />
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreatePlaylist} disabled={createPlaylistMutation.isPending}>
+                    {createPlaylistMutation.isPending ? 'Creating...' : 'Create'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <div className="flex items-center space-x-2">
+            <i className="fas fa-volume-up text-gray-400"></i>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={volume}
+              onChange={handleVolumeChange}
+              className="w-20 h-2 bg-gray-700 rounded-lg appearance-none slider"
+              aria-label={`Playlist volume control: ${volume}%`}
+              title={`Playlist volume: ${volume}%`}
+            />
+            <span className="text-sm text-gray-400 w-8">{volume}%</span>
+          </div>
+        </div>
+      </div>
         </>
       )}
     </div>

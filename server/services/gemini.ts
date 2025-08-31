@@ -4,21 +4,15 @@ if (!process.env.GEMINI_API_KEY) {
   console.warn("GEMINI_API_KEY not found. Gemini features will be disabled.");
 }
 
-const gemini = process.env.GEMINI_API_KEY
-  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  : null;
+const gemini = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
-export async function translateCodeWithGemini(
-  sourceCode: string,
-  sourceLanguage: string,
-  targetLanguage: string,
-): Promise<string> {
+export async function translateCodeWithGemini(sourceCode: string, sourceLanguage: string, targetLanguage: string): Promise<string> {
   if (!gemini) {
     throw new Error("Gemini API key not configured");
   }
 
   const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+  
   const prompt = `Translate the following ${sourceLanguage} code to ${targetLanguage}. 
   Maintain the same functionality and logic. Return only the translated code without explanations.
   
@@ -29,22 +23,17 @@ export async function translateCodeWithGemini(
   return result.response.text();
 }
 
-export async function generateLyricsWithGemini(
-  theme: string,
-  genre: string,
-  mood: string,
-  complexity: number = 5,
-): Promise<string> {
+export async function generateLyricsWithGemini(theme: string, genre: string, mood: string, complexity: number = 5): Promise<string> {
   if (!gemini) {
     throw new Error("Gemini API key not configured");
   }
 
   const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+  
   const prompt = `Create original ${genre} lyrics about "${theme}" with ${mood} mood and complexity level ${complexity}/10.
   
   Requirements:
-  - Complexity ${complexity}/10: ${complexity <= 3 ? "Simple words, basic rhymes, straightforward themes" : complexity <= 6 ? "Moderate vocabulary, some metaphors, varied rhyme schemes" : "Advanced vocabulary, complex metaphors, intricate wordplay, layered meanings"}
+  - Complexity ${complexity}/10: ${complexity <= 3 ? 'Simple words, basic rhymes, straightforward themes' : complexity <= 6 ? 'Moderate vocabulary, some metaphors, varied rhyme schemes' : 'Advanced vocabulary, complex metaphors, intricate wordplay, layered meanings'}
   - Genre-appropriate language and imagery
   - Emotionally resonant and meaningful
   - Complete song structure with verses and chorus`;
@@ -53,23 +42,19 @@ export async function generateLyricsWithGemini(
   return result.response.text();
 }
 
-export async function generateBeatWithGemini(
-  style: string,
-  bpm: number,
-  complexity: number = 5,
-): Promise<any> {
+export async function generateBeatWithGemini(style: string, bpm: number, complexity: number = 5): Promise<any> {
   if (!gemini) {
     throw new Error("Gemini API key not configured");
   }
 
   const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+  
   const prompt = `Create a ${style} beat pattern at ${bpm} BPM with complexity level ${complexity}/10.
 
   Return JSON with kick, bass, tom, snare, hihat, openhat, clap, crash arrays (16 boolean values each).
   
   Requirements:
-  - Complexity ${complexity}/10: ${complexity <= 3 ? "Simple, basic patterns" : complexity <= 6 ? "Moderate complexity with some fills" : "Complex patterns with advanced fills and syncopation"}
+  - Complexity ${complexity}/10: ${complexity <= 3 ? 'Simple, basic patterns' : complexity <= 6 ? 'Moderate complexity with some fills' : 'Complex patterns with advanced fills and syncopation'}
   - Musically interesting with proper spacing and groove
   - Genre-appropriate patterns for ${style}
   
@@ -86,165 +71,25 @@ export async function generateBeatWithGemini(
   } catch {
     // Fallback pattern if JSON parsing fails
     return {
-      kick: [
-        true,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-      ],
-      snare: [
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-      ],
-      hihat: [
-        true,
-        false,
-        true,
-        false,
-        true,
-        false,
-        true,
-        false,
-        true,
-        false,
-        true,
-        false,
-        true,
-        false,
-        true,
-        false,
-      ],
-      bass: [
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-      ],
-      tom: [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-      ],
-      openhat: [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-      ],
-      clap: [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-      ],
-      crash: [
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-      ],
+      kick: [true,false,false,false,true,false,false,false,true,false,false,false,true,false,false,false],
+      snare: [false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false],
+      hihat: [true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false],
+      bass: [true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false],
+      tom: [false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],
+      openhat: [false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,true],
+      clap: [false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],
+      crash: [true,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false]
     };
   }
 }
 
-export async function convertCodeToMusicWithGemini(
-  code: string,
-  language: string,
-  complexity: number = 5,
-): Promise<any> {
+export async function convertCodeToMusicWithGemini(code: string, language: string, complexity: number = 5): Promise<any> {
   if (!gemini) {
     throw new Error("Gemini API key not configured");
   }
 
   const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+  
   const prompt = `Transform this ${language} code into a musical composition with complexity level ${complexity}/10:
 
   Code:
@@ -253,7 +98,7 @@ export async function convertCodeToMusicWithGemini(
   Requirements:
   - Map code elements to instruments: classes→piano, functions→violin/guitar, variables→bass, loops→drums
   - Return JSON with melody array and drumPattern object
-  - Complexity ${complexity}/10: ${complexity <= 3 ? "Simple melodies, basic drum patterns" : complexity <= 6 ? "Moderate complexity with some harmonies" : "Complex arrangements with multiple instruments and advanced rhythms"}
+  - Complexity ${complexity}/10: ${complexity <= 3 ? 'Simple melodies, basic drum patterns' : complexity <= 6 ? 'Moderate complexity with some harmonies' : 'Complex arrangements with multiple instruments and advanced rhythms'}
   
   Format:
   {
@@ -277,110 +122,32 @@ export async function convertCodeToMusicWithGemini(
     // Fallback composition if JSON parsing fails
     return {
       melody: [
-        {
-          note: "C4",
-          start: 0,
-          duration: 1.0,
-          frequency: 261.63,
-          instrument: "piano",
-        },
-        {
-          note: "E4",
-          start: 1.0,
-          duration: 1.0,
-          frequency: 329.63,
-          instrument: "piano",
-        },
-        {
-          note: "G4",
-          start: 2.0,
-          duration: 1.0,
-          frequency: 392.0,
-          instrument: "piano",
-        },
-        {
-          note: "C5",
-          start: 3.0,
-          duration: 1.0,
-          frequency: 523.25,
-          instrument: "piano",
-        },
+        {note: "C4", start: 0, duration: 1.0, frequency: 261.63, instrument: "piano"},
+        {note: "E4", start: 1.0, duration: 1.0, frequency: 329.63, instrument: "piano"},
+        {note: "G4", start: 2.0, duration: 1.0, frequency: 392.00, instrument: "piano"},
+        {note: "C5", start: 3.0, duration: 1.0, frequency: 523.25, instrument: "piano"}
       ],
       drumPattern: {
-        kick: [
-          true,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-        ],
-        snare: [
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          true,
-          false,
-          false,
-          false,
-        ],
-        hihat: [
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-          true,
-          false,
-        ],
+        kick: [true,false,false,false,true,false,false,false,true,false,false,false,true,false,false,false],
+        snare: [false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false],
+        hihat: [true,false,true,false,true,false,true,false,true,false,true,false,true,false,true,false]
       },
       title: "Generated Code Music",
-      description: "A simple musical interpretation",
+      description: "A simple musical interpretation"
     };
   }
 }
 
-export async function getAIAssistanceWithGemini(
-  message: string,
-  context?: string,
-): Promise<string> {
+export async function getAIAssistanceWithGemini(message: string, context?: string): Promise<string> {
   if (!gemini) {
     throw new Error("Gemini API key not configured");
   }
 
   const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+  
   const prompt = `You are an AI assistant for CodedSwitch, a platform that bridges coding and music creation.
   
-  ${context ? `Context: ${context}` : ""}
+  ${context ? `Context: ${context}` : ''}
   
   User message: ${message}
   
@@ -390,10 +157,7 @@ export async function getAIAssistanceWithGemini(
   return result.response.text();
 }
 
-export async function generateSamplePacksWithGemini(
-  prompt: string,
-  count: number,
-) {
+export async function generateSamplePacksWithGemini(prompt: string, count: number) {
   if (!gemini) {
     throw new Error("Gemini API key not configured");
   }
@@ -407,7 +171,7 @@ Return JSON with format: {"packs": [{"id": "string", "title": "string", "descrip
   const result = await model.generateContent(systemPrompt);
   const response = await result.response;
   const text = response.text();
-
+  
   try {
     const parsed = JSON.parse(text);
     return parsed.packs || [];

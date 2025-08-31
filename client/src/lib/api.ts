@@ -20,9 +20,13 @@ export const beatAPI = {
     return response.json();
   },
 
-  async save(params: { name: string; pattern: any; bpm: number }) {
+  async save(params: {
+    name: string;
+    pattern: any;
+    bpm: number;
+  }) {
     const response = await fetch("/api/beats", {
-      method: "POST",
+      method: "POST", 
       headers: {
         "Content-Type": "application/json",
       },
@@ -38,11 +42,11 @@ export const beatAPI = {
 
   async list() {
     const response = await fetch("/api/beats");
-
+    
     if (!response.ok) {
       throw new Error(`Failed to fetch beats: ${response.statusText}`);
     }
 
     return response.json();
-  },
+  }
 };

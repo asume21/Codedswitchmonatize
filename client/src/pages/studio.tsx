@@ -1,17 +1,17 @@
 import { useState, createContext, useContext, useEffect } from "react";
 import { useLocation } from "wouter";
 import Header from "@/components/studio/Header";
+import Sidebar from "@/components/studio/Sidebar";
 import TransportControls from "@/components/studio/TransportControls";
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import { BeatMaker } from "@/components/producer/BeatMaker";
 import MelodyComposer from "@/components/studio/MelodyComposer";
-import UnifiedMusicStudio from "@/components/studio/UnifiedMusicStudio";
 import CodeToMusic from "@/components/studio/CodeToMusic";
 import MusicToCode from "@/components/studio/MusicToCode";
 import AIAssistant from "@/components/studio/AIAssistant";
 import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
 import LyricLab from "@/components/studio/LyricLab";
-import MixStudio from "@/components/studio/MixStudio";
+import MusicMixer from "@/components/studio/MusicMixer";
 import Mixer from "@/components/studio/Mixer";
 import DynamicLayering from "@/components/studio/DynamicLayering";
 import { MIDIController } from "@/components/studio/MIDIController";
@@ -37,9 +37,9 @@ export const StudioAudioContext = createContext({
   currentLayers: [] as any[],
   isPlaying: false,
   bpm: 120,
-  playMode: "current" as "current" | "all",
-  setPlayMode: (mode: "current" | "all") => {},
-  activeTab: "beatmaker" as string,
+  playMode: 'current' as 'current' | 'all',
+  setPlayMode: (mode: 'current' | 'all') => {},
+  activeTab: 'beatmaker' as string,
   currentPlaylist: null as any,
   setCurrentPlaylist: (playlist: any) => {},
   currentPlaylistIndex: 0 as number,
@@ -55,58 +55,34 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-type Tab =
-  | "translator"
-  | "beatmaker"
-  | "melody"
-  | "unified-studio"
-  | "codebeat"
-  | "musiccode"
-  | "assistant"
-  | "security"
-  | "lyrics"
-  | "professionalmixer"
-  | "layers"
-  | "midi"
-  | "metrics"
-  | "advanced-sequencer"
-  | "granular-engine"
-  | "wavetable-oscillator"
-  | "pack-generator"
-  | "song-structure"
-  | "mix-studio";
+type Tab = "translator" | "beatmaker" | "melody" | "codebeat" | "musiccode" | "assistant" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
 
 export default function Studio() {
   const [location] = useLocation();
-
+  
   // Determine active tab based on current route
   const getTabFromRoute = (path: string): Tab => {
-    if (path.includes("/code-translator")) return "translator";
-    if (path.includes("/beat-studio")) return "beatmaker";
-    if (path.includes("/melody-composer")) return "melody";
-    if (path.includes("/unified-studio")) return "unified-studio";
-    if (path.includes("/codebeat-studio")) return "codebeat";
-    if (path.includes("/music-studio")) return "unified-studio"; // ✅ FIXED: Music Studio goes to Unified Studio
-    if (path.includes("/professional-mixer")) return "professionalmixer";
-    if (path.includes("/song-uploader")) return "assistant"; // ✅ FIXED: Song Uploader goes to AI Assistant (where uploads happen)
-    if (path.includes("/ai-assistant")) return "assistant";
-    if (path.includes("/vulnerability-scanner")) return "security";
-    if (path.includes("/lyric-lab")) return "lyrics";
-    if (path.includes("/pack-generator")) return "pack-generator";
-    if (path.includes("/advanced-sequencer")) return "advanced-sequencer";
-    if (path.includes("/granular-engine")) return "granular-engine";
-    if (path.includes("/wavetable-oscillator")) return "wavetable-oscillator";
-    if (path.includes("/song-structure")) return "song-structure";
-    if (path.includes("/mix-studio")) return "mix-studio";
-    if (path.includes("/pro-console")) return "professionalmixer";
-    if (path.includes("/midi-controller")) return "midi";
-    return "unified-studio"; // default to new unified studio
+    if (path.includes('/code-translator')) return 'translator';
+    if (path.includes('/beat-studio')) return 'beatmaker';
+    if (path.includes('/melody-composer')) return 'melody';
+    if (path.includes('/codebeat-studio')) return 'codebeat';
+    if (path.includes('/music-studio')) return 'musicmixer'; // ✅ FIXED: Music Studio goes to Music Mixer
+    if (path.includes('/professional-mixer')) return 'professionalmixer';
+    if (path.includes('/song-uploader')) return 'assistant'; // ✅ FIXED: Song Uploader goes to AI Assistant (where uploads happen)
+    if (path.includes('/ai-assistant')) return 'assistant';
+    if (path.includes('/vulnerability-scanner')) return 'security';
+    if (path.includes('/lyric-lab')) return 'lyrics';
+    if (path.includes('/mixer-studio')) return 'musicmixer';
+    if (path.includes('/pack-generator')) return 'pack-generator';
+    if (path.includes('/advanced-sequencer')) return 'advanced-sequencer';
+    if (path.includes('/granular-engine')) return 'granular-engine';
+    if (path.includes('/wavetable-oscillator')) return 'wavetable-oscillator';
+    if (path.includes('/song-structure')) return 'song-structure';
+    return 'beatmaker'; // default
   };
 
-  const [activeTab, setActiveTab] = useState<Tab>(() =>
-    getTabFromRoute(location),
-  );
-
+  const [activeTab, setActiveTab] = useState<Tab>(() => getTabFromRoute(location));
+  
   // Update active tab when route changes
   useEffect(() => {
     setActiveTab(getTabFromRoute(location));
@@ -118,10 +94,10 @@ export default function Studio() {
   const [currentLayers, setCurrentLayers] = useState<any[]>([]);
   const [isStudioPlaying, setIsStudioPlaying] = useState(false);
   const [studioBpm, setStudioBpm] = useState(120);
-  const [playMode, setPlayMode] = useState<"current" | "all">("current"); // New play mode state
+  const [playMode, setPlayMode] = useState<'current' | 'all'>('current'); // New play mode state
   const [currentPlaylist, setCurrentPlaylist] = useState<any>(null); // Current active playlist
   const [currentPlaylistIndex, setCurrentPlaylistIndex] = useState(0); // Current song in playlist
-
+  
   const { initialize, isInitialized } = useAudio();
 
   // Listen for tab navigation events from other components
@@ -131,15 +107,9 @@ export default function Studio() {
       setActiveTab(targetTab);
     };
 
-    window.addEventListener(
-      "navigateToTab",
-      handleTabNavigation as EventListener,
-    );
+    window.addEventListener('navigateToTab', handleTabNavigation as EventListener);
     return () => {
-      window.removeEventListener(
-        "navigateToTab",
-        handleTabNavigation as EventListener,
-      );
+      window.removeEventListener('navigateToTab', handleTabNavigation as EventListener);
     };
   }, []);
 
@@ -147,9 +117,9 @@ export default function Studio() {
     if (!isInitialized) {
       await initialize();
     }
-
+    
     console.log(`🎵 Playing current tool only: ${activeTab}`);
-
+    
     // Play only the content from the current active tab
     switch (activeTab) {
       case "beatmaker":
@@ -160,17 +130,7 @@ export default function Studio() {
         console.log("🎵 Playing melody only:", currentMelody);
         // Melody playback - would trigger melody composer's play function
         if (window.dispatchEvent) {
-          window.dispatchEvent(new CustomEvent("playCurrentMelody"));
-        }
-        break;
-      case "unified-studio":
-        console.log("🎵 Playing unified composition:", {
-          pattern: currentPattern,
-          melody: currentMelody,
-        });
-        // Play both beat and melody together
-        if (window.dispatchEvent) {
-          window.dispatchEvent(new CustomEvent("playUnifiedComposition"));
+          window.dispatchEvent(new CustomEvent('playCurrentMelody'));
         }
         break;
       case "codebeat":
@@ -183,11 +143,7 @@ export default function Studio() {
       case "assistant":
         console.log("🎵 Playing uploaded song:", currentPlaylist);
         // Play current playlist or current song in playlist
-        if (
-          currentPlaylist &&
-          currentPlaylist.songs &&
-          currentPlaylist.songs.length > 0
-        ) {
+        if (currentPlaylist && currentPlaylist.songs && currentPlaylist.songs.length > 0) {
           const currentSong = currentPlaylist.songs[currentPlaylistIndex];
           console.log("🎵 Playing playlist song:", currentSong);
         }
@@ -196,7 +152,7 @@ export default function Studio() {
         console.log("🎵 Playing default audio for:", activeTab);
         break;
     }
-
+    
     setIsStudioPlaying(true);
   };
 
@@ -206,25 +162,25 @@ export default function Studio() {
 
   const getActiveToolName = (tab: Tab): string => {
     const toolNames: Record<Tab, string> = {
-      translator: "Code Translator",
-      beatmaker: "Beat Maker",
-      melody: "Melody Composer",
-      codebeat: "Code to Music",
-      musiccode: "Music to Code",
-      assistant: "Song Uploader & AI Assistant",
-      security: "Security Scanner",
-      lyrics: "Lyric Lab",
-      "unified-studio": "🎵 Music Studio",
-      "mix-studio": "Music Mixer",
-      professionalmixer: "Professional Audio Console",
-      layers: "Dynamic Layering",
-      midi: "MIDI Controller",
-      metrics: "Performance Metrics",
+      "translator": "Code Translator",
+      "beatmaker": "Beat Maker", 
+      "melody": "Melody Composer",
+      "codebeat": "Code to Music",
+      "musiccode": "Music to Code",
+      "assistant": "Song Uploader & AI Assistant",
+      "security": "Security Scanner",
+      "lyrics": "Lyric Lab",
+      "musicmixer": "Music Studio",
+      "professionalmixer": "Professional Audio Console",
+      "mixer": "Mixer",
+      "layers": "Dynamic Layering",
+      "midi": "MIDI Controller",
+      "metrics": "Performance Metrics",
       "advanced-sequencer": "Advanced Sequencer",
       "granular-engine": "Granular Engine",
       "wavetable-oscillator": "Wavetable Oscillator",
       "pack-generator": "Pack Generator",
-      "song-structure": "Song Structure Manager",
+      "song-structure": "Song Structure Manager"
     };
     return toolNames[tab] || "Beat Maker";
   };
@@ -233,32 +189,30 @@ export default function Studio() {
     if (!isInitialized) {
       await initialize();
     }
-
+    
     console.log("🎵 Playing ALL tools combined:");
     console.log("- Beat Pattern:", currentPattern);
     console.log("- Melody:", currentMelody);
     console.log("- Lyrics:", currentLyrics);
     console.log("- Code Music:", currentCodeMusic);
     console.log("- Layers:", currentLayers);
-
+    
     // Trigger all tools to play simultaneously, including playlist if available
     if (window.dispatchEvent) {
-      window.dispatchEvent(
-        new CustomEvent("playAllTools", {
-          detail: {
-            pattern: currentPattern,
-            melody: currentMelody,
-            lyrics: currentLyrics,
-            codeMusic: currentCodeMusic,
-            layers: currentLayers,
-            playlist: currentPlaylist,
-            playlistIndex: currentPlaylistIndex,
-            bpm: studioBpm,
-          },
-        }),
-      );
+      window.dispatchEvent(new CustomEvent('playAllTools', {
+        detail: {
+          pattern: currentPattern,
+          melody: currentMelody,
+          lyrics: currentLyrics,
+          codeMusic: currentCodeMusic,
+          layers: currentLayers,
+          playlist: currentPlaylist,
+          playlistIndex: currentPlaylistIndex,
+          bpm: studioBpm
+        }
+      }));
     }
-
+    
     setIsStudioPlaying(true);
   };
 
@@ -297,13 +251,9 @@ export default function Studio() {
       case "translator":
         return <CodeTranslator />;
       case "beatmaker":
-        return (
-          <BeatMaker onBeatGenerated={(beat) => setCurrentPattern(beat)} />
-        );
+        return <BeatMaker onBeatGenerated={(beat) => setCurrentPattern(beat)} />;
       case "melody":
         return <MelodyComposer />;
-      case "unified-studio":
-        return <UnifiedMusicStudio />;
       case "codebeat":
         return <CodeToMusic />;
       case "musiccode":
@@ -314,8 +264,12 @@ export default function Studio() {
         return <VulnerabilityScanner />;
       case "lyrics":
         return <LyricLab />;
+      case "musicmixer":
+        return <MusicMixer />;
       case "professionalmixer":
         return <ProfessionalMixer />;
+      case "mixer":
+        return <Mixer />;
       case "layers":
         return <DynamicLayering />;
 
@@ -333,8 +287,6 @@ export default function Studio() {
         return <PackGenerator />;
       case "song-structure":
         return <SongStructureManager />;
-      case "mix-studio":
-        return <MixStudio />;
       default:
         return <BeatMaker />;
     }
@@ -346,25 +298,19 @@ export default function Studio() {
         <div className="h-screen flex bg-studio-bg text-white">
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header />
-
+            
             <div className="flex-1 overflow-x-auto overflow-y-auto pb-16 md:pb-0">
               <div className="min-w-[1600px] p-3 md:p-6 studio-content">
                 {renderTabContent()}
               </div>
             </div>
-
-            <TransportControls
-              currentTool={getActiveToolName(activeTab)}
-              activeTab={activeTab}
-            />
+            
+            <TransportControls currentTool={getActiveToolName(activeTab)} activeTab={activeTab} />
           </div>
-
+          
           {/* Mobile Bottom Navigation */}
-          <MobileNav
-            activeTab={activeTab}
-            onTabChange={(tab: string) => setActiveTab(tab as Tab)}
-          />
-
+          <MobileNav activeTab={activeTab} onTabChange={(tab: string) => setActiveTab(tab as Tab)} />
+          
           {/* iOS Audio Enable Button */}
           <IOSAudioEnable />
         </div>

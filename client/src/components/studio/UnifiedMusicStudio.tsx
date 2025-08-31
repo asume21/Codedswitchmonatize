@@ -77,13 +77,11 @@ export default function UnifiedMusicStudio() {
   };
 
   const handleStartComposing = async () => {
-    console.log("🎵 Starting composition...");
     try {
       if (!isInitialized) {
-        console.log("🎵 Initializing audio...");
         await initialize();
       }
-
+      
       // Play a simple chord progression
       const chords = [
         [{ note: "C", octave: 4 }, { note: "E", octave: 4 }, { note: "G", octave: 4 }],
@@ -92,10 +90,8 @@ export default function UnifiedMusicStudio() {
         [{ note: "C", octave: 4 }, { note: "E", octave: 4 }, { note: "G", octave: 4 }],
       ];
 
-      console.log("🎵 Playing chord progression...");
       chords.forEach((chord, chordIndex) => {
         setTimeout(() => {
-          console.log(`🎵 Playing chord ${chordIndex + 1}:`, chord);
           chord.forEach((note) => {
             playNote(note.note, note.octave, 1.0);
           });
@@ -106,6 +102,13 @@ export default function UnifiedMusicStudio() {
         title: "Melody Composer",
         description: "Playing chord progression demo",
       });
+
+      // Navigate to Melody Composer tool in Studio
+      if (window.dispatchEvent) {
+        window.dispatchEvent(
+          new CustomEvent("navigateToTab", { detail: "melody" }),
+        );
+      }
     } catch (error) {
       console.error("Compose error:", error);
       toast({
@@ -117,20 +120,16 @@ export default function UnifiedMusicStudio() {
   };
 
   const handleCreateBeats = async () => {
-    console.log("🎵 Creating beats...");
     try {
       if (!isInitialized) {
-        console.log("🎵 Initializing audio for beats...");
         await initialize();
       }
 
       // Play different drum sounds in sequence
       const drumSequence = ["kick", "snare", "hihat", "kick", "snare", "hihat", "kick", "snare"];
-
-      console.log("🎵 Playing drum sequence...");
+      
       drumSequence.forEach((drum, index) => {
         setTimeout(() => {
-          console.log(`🎵 Playing drum: ${drum} at index ${index}`);
           playDrumSound(drum, 0.8);
         }, index * 200);
       });
@@ -139,6 +138,13 @@ export default function UnifiedMusicStudio() {
         title: "Beat Maker",
         description: "Playing drum sequence demo",
       });
+
+      // Navigate to Beat Maker tool in Studio
+      if (window.dispatchEvent) {
+        window.dispatchEvent(
+          new CustomEvent("navigateToTab", { detail: "beatmaker" }),
+        );
+      }
     } catch (error) {
       console.error("Beat creation error:", error);
       toast({
@@ -243,7 +249,6 @@ export default function UnifiedMusicStudio() {
                 <CardContent>
                   <div className="space-y-4">
                     <Button onClick={() => {
-                      console.log("🎵 Converting code to music...");
                       // Play algorithmic music based on code patterns
                       const codePattern = [
                         { note: "C", octave: 3, duration: 0.25 },
@@ -251,11 +256,9 @@ export default function UnifiedMusicStudio() {
                         { note: "E", octave: 3, duration: 0.25 },
                         { note: "F", octave: 3, duration: 0.25 },
                       ];
-
-                      console.log("🎵 Playing code pattern...");
+                      
                       codePattern.forEach((note, index) => {
                         setTimeout(() => {
-                          console.log(`🎵 Playing code note: ${note.note}${note.octave}`);
                           playNote(note.note, note.octave, note.duration);
                         }, index * 300);
                       });
@@ -264,6 +267,13 @@ export default function UnifiedMusicStudio() {
                         title: "Code to Music",
                         description: "Playing algorithmic music pattern",
                       });
+
+                      // Navigate to Code to Music tool in Studio
+                      if (window.dispatchEvent) {
+                        window.dispatchEvent(
+                          new CustomEvent("navigateToTab", { detail: "codebeat" }),
+                        );
+                      }
                     }} className="w-full">
                       <Code className="h-4 w-4 mr-2" />
                       Convert Code
@@ -302,6 +312,13 @@ export default function UnifiedMusicStudio() {
                         title: "Recording Studio",
                         description: "Playing recorded melody demo",
                       });
+
+                      // Navigate to Song Uploader & AI Assistant (recording area)
+                      if (window.dispatchEvent) {
+                        window.dispatchEvent(
+                          new CustomEvent("navigateToTab", { detail: "assistant" }),
+                        );
+                      }
                     }} className="w-full">
                       <Mic className="h-4 w-4 mr-2" />
                       Start Recording
@@ -347,6 +364,13 @@ export default function UnifiedMusicStudio() {
                         title: "Audio Mixer",
                         description: "Playing layered mix demo",
                       });
+
+                      // Navigate to Mix Studio tool in Studio
+                      if (window.dispatchEvent) {
+                        window.dispatchEvent(
+                          new CustomEvent("navigateToTab", { detail: "mix-studio" }),
+                        );
+                      }
                     }} className="w-full">
                       <Headphones className="h-4 w-4 mr-2" />
                       Open Mixer

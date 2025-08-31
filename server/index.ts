@@ -1,8 +1,29 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
+import { currentUser } from "./middleware/auth";
 
 const app = express();
+
+// Stripe webhook must receive the raw body for signature verification.
+// Mount this BEFORE json/urlencoded parsers.
+app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
+
+// Sessions (simple in-memory store for dev)
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "dev_session_secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      sameSite: "lax",
+    },
+  }),
+);
+
+// Standard body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -37,7 +58,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Choose storage implementation
+  const storage: IStorage = process.env.DATABASE_URL
+    ? new DatabaseStorage()
+    : new MemStorage();
+
+  // Attach current user middleware (dev falls back to default user)
+  app.use(currentUser(storage));
+
+  const server = await registerRoutes(app, storage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

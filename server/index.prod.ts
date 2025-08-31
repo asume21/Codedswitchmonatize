@@ -1,76 +1,80 @@
-import { createServer } from 'http';
-import { readFileSync, existsSync } from 'fs';
-import { join, extname } from 'path';
-import { fileURLToPath } from 'url';
+import express, { type Request, Response, NextFunction } from "express";
+import { registerRoutes } from "./routes";
+import path from "path";
+import fs from "fs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = join(__filename, '..');
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-const PORT = process.env.PORT || 3000;
-const clientDir = join(__dirname, 'client');
+// Logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-const mimeTypes: Record<string, string> = {
-  '.html': 'text/html',
-  '.js': 'application/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
-};
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
 
-const server = createServer((req, res) => {
-  // Add CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
 
-  let filePath = req.url === '/' ? '/index.html' : (req.url || '/index.html');
-  
-  // API routes
-  if (filePath.startsWith('/api/health')) {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok' }));
-    return;
-  }
-
-  // Serve static files
-  const fullPath = join(clientDir, filePath);
-  
-  if (existsSync(fullPath)) {
-    const ext = extname(fullPath);
-    const contentType = mimeTypes[ext] || 'application/octet-stream';
-    
-    try {
-      const content = readFileSync(fullPath);
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content);
-    } catch (error) {
-      res.writeHead(500);
-      res.end('Server Error');
+      console.log(`${new Date().toLocaleTimeString()} [express] ${logLine}`);
     }
-  } else {
-    // Serve index.html for SPA routing
-    const indexPath = join(clientDir, 'index.html');
-    if (existsSync(indexPath)) {
-      const content = readFileSync(indexPath);
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(content);
-    } else {
-      res.writeHead(404);
-      res.end('Not Found');
-    }
-  }
+  });
+
+  next();
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+(async () => {
+  const server = await registerRoutes(app);
+
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ message });
+    throw err;
+  });
+
+  // Production static file serving - look in dist/client
+  const distPath = path.resolve(process.cwd(), "dist", "client");
+  
+  if (!fs.existsSync(distPath)) {
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+    );
+  }
+
+  app.use(express.static(distPath));
+
+  // fall through to index.html if the file doesn't exist
+  app.use("*", (_req, res) => {
+    res.sendFile(path.resolve(distPath, "index.html"));
+  });
+
+  // ALWAYS serve the app on the port specified in the environment variable PORT
+  // Other ports are firewalled. Default to 5000 if not specified.
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
+  const port = parseInt(process.env.PORT || '5000', 10);
+  server.listen({
+    port,
+    host: "0.0.0.0",
+    reusePort: true,
+  }, () => {
+    console.log(`${new Date().toLocaleTimeString()} [express] serving on port ${port}`);
+  });
+})();

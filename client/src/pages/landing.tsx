@@ -1,65 +1,45 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Code,
-  Music,
-  Zap,
-  MessageSquare,
-  Drum,
-  Upload,
-  Shield,
-} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield } from "lucide-react";
 
 export default function Landing() {
   const features = [
     {
       icon: Code,
       title: "Code Translation",
-      description:
-        "Translate code between 14+ programming languages with AI assistance",
+      description: "Translate code between 14+ programming languages with AI assistance"
     },
     {
       icon: Music,
       title: "Professional Music Studio",
-      description:
-        "Create music with multi-instrument orchestral compositions and MIDI support",
+      description: "Create music with multi-instrument orchestral compositions and MIDI support"
     },
     {
       icon: Upload,
       title: "Song Analysis",
-      description:
-        "Upload songs for AI-powered analysis and intelligent music insights",
+      description: "Upload songs for AI-powered analysis and intelligent music insights"
     },
     {
       icon: Drum,
       title: "Beat Studio",
-      description: "Professional drum synthesis with real-time pattern editing",
+      description: "Professional drum synthesis with real-time pattern editing"
     },
     {
       icon: Zap,
       title: "Code to Music",
-      description:
-        "Revolutionary bidirectional translation between code and musical compositions",
+      description: "Revolutionary bidirectional translation between code and musical compositions"
     },
     {
       icon: Shield,
       title: "Security Scanner",
-      description:
-        "AI-powered code vulnerability detection and security analysis",
+      description: "AI-powered code vulnerability detection and security analysis"
     },
     {
       icon: MessageSquare,
       title: "AI Assistant",
-      description:
-        "24/7 intelligent help with multiple AI providers (Grok, Gemini, OpenAI)",
-    },
+      description: "24/7 intelligent help with multiple AI providers (Grok, Gemini, OpenAI)"
+    }
   ];
 
   return (
@@ -74,8 +54,7 @@ export default function Landing() {
             CodedSwitch
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            The world's first AI-powered bidirectional translation platform that
-            bridges code development with music creation
+            The world's first AI-powered bidirectional translation platform that bridges code development with music creation
           </p>
           <div className="flex justify-center gap-4">
             <Link href="/dashboard">
@@ -108,12 +87,9 @@ export default function Landing() {
 
         {/* CTA Section */}
         <div className="text-center bg-card rounded-2xl p-12 border">
-          <h2 className="text-3xl font-bold mb-4">
-            Ready to Transform Your Workflow?
-          </h2>
+          <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Workflow?</h2>
           <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
-            Experience the future of creative development with AI-powered tools
-            that bridge the gap between code and music.
+            Experience the future of creative development with AI-powered tools that bridge the gap between code and music.
           </p>
           <Link href="/dashboard">
             <Button size="lg" className="text-lg px-8">

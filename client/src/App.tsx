@@ -13,6 +13,7 @@ import Subscribe from "@/pages/Subscribe";
 import TestCircular from "@/pages/TestCircular";
 import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
+import BillingResult from "@/pages/billing-result";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
@@ -44,6 +45,8 @@ function Router() {
       <Route path="/pack-generator" component={Studio} />
       <Route path="/song-structure" component={Studio} />
       <Route path="/billing" component={Subscribe} />
+      <Route path="/billing/success" component={BillingResult} />
+      <Route path="/billing/cancel" component={BillingResult} />
       <Route path="/settings" component={Studio} />
       <Route path="/studio" component={Studio} />
       <Route path="/subscribe" component={Subscribe} />

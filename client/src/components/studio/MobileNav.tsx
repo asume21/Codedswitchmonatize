@@ -19,7 +19,9 @@ export default function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`mobile-nav-item ${activeTab === tab.id ? "active" : ""}`}
+          className={`mobile-nav-item ${
+            activeTab === tab.id ? "active" : ""
+          }`}
           title={tab.label}
         >
           <i className={`${tab.icon} text-sm mb-1`}></i>
