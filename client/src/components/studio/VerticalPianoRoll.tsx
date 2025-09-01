@@ -267,7 +267,7 @@ export default function VerticalPianoRoll() {
                 notesAtStep.forEach(note => {
                   audioEngine.current.playNote(
                     note.note,
-                    note.octave,
+                    note.octave.toString(),
                     note.velocity / 127,
                     0.25 // quarter note duration
                   );
@@ -337,7 +337,7 @@ export default function VerticalPianoRoll() {
   const playChord = (chordNotes: string[], octave: number = 4) => {
     chordNotes.forEach((note, index) => {
       setTimeout(() => {
-        audioEngine.current.playNote(note, octave, 0.6, 1.0);
+        audioEngine.current.playNote(note, octave.toString(), 0.6, 1.0);
       }, index * 50); // Slight stagger for chord effect
     });
   };
@@ -514,7 +514,7 @@ export default function VerticalPianoRoll() {
                           playChord(chordNotes, key.octave);
                         } else {
                           // Normal mode - play single note
-                          audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
+                          audioEngine.current.playNote(key.note, key.octave.toString(), 0.8, 0.25);
                         }
                       } catch (error) {
                         console.error('Audio playback error:', error);
