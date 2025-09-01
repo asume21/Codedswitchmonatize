@@ -707,7 +707,7 @@ export default function VerticalPianoRoll() {
           </div>
         </div>
       )}
-    </Card>
+      </Card>
     </div>
   );
 };
