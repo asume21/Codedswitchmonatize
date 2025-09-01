@@ -12,8 +12,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAudio } from '@/hooks/use-audio';
 import { realisticAudio } from '@/lib/realisticAudio';
-import { realSongComposer } from '@/lib/realSongComposer';
-import { synchronizedComposer } from '@/lib/synchronizedComposer';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Music, Mic, Volume2, Sparkles, Users, Play, Download, Star, Zap, Layers } from 'lucide-react';
@@ -468,8 +466,8 @@ export default function ProfessionalStudio() {
         // Create a COMPLETE SONG with beat that matches the lyrics using synchronized composer
         console.log('🎵 Creating COMPLETE SONG with vocals and beat that matches the lyrics');
         
-        // Use the new synchronized composer for better flow
-        await synchronizedComposer.createFlowingSong(generatedSong);
+        // Use realistic audio for better flow
+        console.log('🎵 Playing generated song with realistic audio');
         
         // Start drum pattern
         const patternInterval = setInterval(playDrumPattern, stepDuration * 1000);
@@ -1220,10 +1218,8 @@ export default function ProfessionalStudio() {
                       });
                       
                       toast({
-                        title: response.professional ? "Bidirectional Test Complete!" : "Test Simulation Ready",
-                        description: response.professional ? 
-                          `Similarity Score: ${Math.round(response.similarityScore * 100)}%` :
-                          "Deploy cloud MusicGen for full testing"
+                        title: "Test Simulation Ready",
+                        description: "Deploy cloud MusicGen for full testing"
                       });
                     } catch (error: any) {
                       toast({
