@@ -149,7 +149,47 @@ export default function VerticalPianoRoll() {
   const [chordSequence, setChordSequence] = useState<string[]>([]);
   const [sequenceMode, setSequenceMode] = useState(false);
   const [sequenceIndex, setSequenceIndex] = useState(0);
-  const [customKeys, setCustomKeys] = useState<any>(DEFAULT_MUSIC_KEYS);
+  const [customKeys, setCustomKeys] = useState<any>({
+    'C': {
+      name: 'C Major',
+      notes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+      chords: {
+        'I': ['C', 'E', 'G'],
+        'ii': ['D', 'F', 'A'],
+        'iii': ['E', 'G', 'B'],
+        'IV': ['F', 'A', 'C'],
+        'V': ['G', 'B', 'D'],
+        'vi': ['A', 'C', 'E'],
+        'vii°': ['B', 'D', 'F']
+      }
+    },
+    'G': {
+      name: 'G Major',
+      notes: ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+      chords: {
+        'I': ['G', 'B', 'D'],
+        'ii': ['A', 'C', 'E'],
+        'iii': ['B', 'D', 'F#'],
+        'IV': ['C', 'E', 'G'],
+        'V': ['D', 'F#', 'A'],
+        'vi': ['E', 'G', 'B'],
+        'vii°': ['F#', 'A', 'C']
+      }
+    },
+    'F': {
+      name: 'F Major',
+      notes: ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+      chords: {
+        'I': ['F', 'A', 'C'],
+        'ii': ['G', 'Bb', 'D'],
+        'iii': ['A', 'C', 'E'],
+        'IV': ['Bb', 'D', 'F'],
+        'V': ['C', 'E', 'G'],
+        'vi': ['D', 'F', 'A'],
+        'vii°': ['E', 'G', 'Bb']
+      }
+    }
+  });
 
   // Custom key functions
   const addCustomKey = () => {
@@ -176,7 +216,7 @@ export default function VerticalPianoRoll() {
       }
     };
 
-    setCustomKeys(prev => ({
+    setCustomKeys((prev: any) => ({
       ...prev,
       [newKeyName.charAt(0).toUpperCase()]: newKey
     }));
@@ -331,7 +371,7 @@ export default function VerticalPianoRoll() {
     selectedProgression.chords.forEach((chordSymbol, index) => {
       const chordNotes = customKeys[currentKey].chords[chordSymbol as keyof typeof customKeys[typeof currentKey]['chords']];
       
-      chordNotes.forEach((note, noteIndex) => {
+      chordNotes.forEach((note: string, noteIndex: number) => {
         const newNote: Note = {
           id: `${note}-${step}-${Date.now()}-${noteIndex}`,
           note,
