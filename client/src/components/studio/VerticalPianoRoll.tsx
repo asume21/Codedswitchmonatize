@@ -466,14 +466,18 @@ export default function VerticalPianoRoll() {
                     `}
                     style={{ height: `${KEY_HEIGHT}px` }}
                     onClick={() => {
-                      if (chordMode) {
-                        // In chord mode, play the current chord when any key is clicked
-                        const currentChord = selectedProgression.chords[currentChordIndex];
-                        const chordNotes = customKeys[currentKey].chords[currentChord as keyof typeof customKeys[typeof currentKey]['chords']];
-                        playChord(chordNotes, key.octave);
-                      } else {
-                        // Normal mode - play single note
-                        audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
+                      try {
+                        if (chordMode) {
+                          // In chord mode, play the current chord when any key is clicked
+                          const currentChord = selectedProgression.chords[currentChordIndex];
+                          const chordNotes = customKeys[currentKey].chords[currentChord as keyof typeof customKeys[typeof currentKey]['chords']];
+                          playChord(chordNotes, key.octave);
+                        } else {
+                          // Normal mode - play single note
+                          audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
+                        }
+                      } catch (error) {
+                        console.error('Audio playback error:', error);
                       }
                     }}
                   >
@@ -660,9 +664,9 @@ export default function VerticalPianoRoll() {
             </div>
           </div>
         </CardContent>
-      </Card>
-      {/* Custom Key Dialog */}
-      {showCustomKeyDialog && (
+        
+        {/* Custom Key Dialog */}
+        {showCustomKeyDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-lg border border-gray-600 w-96">
             <h3 className="text-lg font-bold mb-4">Add Custom Key</h3>
@@ -706,7 +710,7 @@ export default function VerticalPianoRoll() {
             </div>
           </div>
         </div>
-      )}
+        )}
       </Card>
     </div>
   );
