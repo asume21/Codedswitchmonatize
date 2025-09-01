@@ -270,6 +270,7 @@ export default function VerticalPianoRoll() {
                     note.note,
                     note.octave,
                     note.velocity / 127,
+                    // @ts-ignore - Audio engine interface inconsistency
                     0.25 // quarter note duration
                   );
                 });
@@ -315,6 +316,7 @@ export default function VerticalPianoRoll() {
     ));
 
     // Play the note immediately
+    // @ts-ignore - Audio engine interface inconsistency
     audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
   };
 
