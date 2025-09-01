@@ -68,13 +68,13 @@ export default function Studio() {
     if (path.includes('/beat-studio')) return 'beatmaker';
     if (path.includes('/melody-composer')) return 'melody';
     if (path.includes('/codebeat-studio')) return 'codebeat';
-    if (path.includes('/music-studio')) return 'musicmixer'; // ✅ FIXED: Music Studio goes to Music Mixer
-    if (path.includes('/professional-mixer')) return 'professionalmixer';
-    if (path.includes('/song-uploader')) return 'assistant'; // ✅ FIXED: Song Uploader goes to AI Assistant (where uploads happen)
+    if (path.includes('/music-studio')) return 'musicmixer';
+    if (path.includes('/pro-console')) return 'mixer';
+    if (path.includes('/song-uploader')) return 'assistant';
     if (path.includes('/ai-assistant')) return 'assistant';
     if (path.includes('/vulnerability-scanner')) return 'security';
     if (path.includes('/lyric-lab')) return 'lyrics';
-    if (path.includes('/mixer-studio')) return 'musicmixer';
+    if (path.includes('/mix-studio')) return 'mixer';
     if (path.includes('/pack-generator')) return 'pack-generator';
     if (path.includes('/advanced-sequencer')) return 'advanced-sequencer';
     if (path.includes('/granular-engine')) return 'granular-engine';
