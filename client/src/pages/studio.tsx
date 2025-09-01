@@ -5,7 +5,7 @@ import Sidebar from "@/components/studio/Sidebar";
 import TransportControls from "@/components/studio/TransportControls";
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import { BeatMaker } from "@/components/producer/BeatMaker";
-import MelodyComposer from "@/components/studio/MelodyComposer";
+import VerticalPianoRoll from "@/components/studio/VerticalPianoRoll";
 import CodeToMusic from "@/components/studio/CodeToMusic";
 import MusicToCode from "@/components/studio/MusicToCode";
 import AIAssistant from "@/components/studio/AIAssistant";
@@ -255,7 +255,7 @@ export default function Studio() {
       case "beatmaker":
         return <BeatMaker onBeatGenerated={(beat) => setCurrentPattern(beat)} />;
       case "melody":
-        return <MelodyComposer />;
+        return <VerticalPianoRoll />;
       case "codebeat":
         return <CodeToMusic />;
       case "musiccode":
