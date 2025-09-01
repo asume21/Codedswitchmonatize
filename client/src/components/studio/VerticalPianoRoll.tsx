@@ -24,6 +24,27 @@ interface Track {
   volume: number;
 }
 
+interface ChordProgression {
+  id: string;
+  name: string;
+  chords: string[];
+  key: string;
+}
+
+interface MusicKey {
+  name: string;
+  notes: string[];
+  chords: {
+    I: string[];
+    ii: string[];
+    iii: string[];
+    IV: string[];
+    V: string[];
+    vi: string[];
+    vii: string[];
+  };
+}
+
 interface PianoKey {
   note: string;
   octave: number;
@@ -49,6 +70,59 @@ const STEPS = 32; // 32 step grid
 const KEY_HEIGHT = 20;
 const STEP_WIDTH = 25;
 
+// Music theory data
+const MUSIC_KEYS: Record<string, MusicKey> = {
+  'C': {
+    name: 'C Major',
+    notes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+    chords: {
+      I: ['C', 'E', 'G'],
+      ii: ['D', 'F', 'A'],
+      iii: ['E', 'G', 'B'],
+      IV: ['F', 'A', 'C'],
+      V: ['G', 'B', 'D'],
+      vi: ['A', 'C', 'E'],
+      vii: ['B', 'D', 'F']
+    }
+  },
+  'G': {
+    name: 'G Major',
+    notes: ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+    chords: {
+      I: ['G', 'B', 'D'],
+      ii: ['A', 'C', 'E'],
+      iii: ['B', 'D', 'F#'],
+      IV: ['C', 'E', 'G'],
+      V: ['D', 'F#', 'A'],
+      vi: ['E', 'G', 'B'],
+      vii: ['F#', 'A', 'C']
+    }
+  },
+  'F': {
+    name: 'F Major',
+    notes: ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+    chords: {
+      I: ['F', 'A', 'C'],
+      ii: ['G', 'Bb', 'D'],
+      iii: ['A', 'C', 'E'],
+      IV: ['Bb', 'D', 'F'],
+      V: ['C', 'E', 'G'],
+      vi: ['D', 'F', 'A'],
+      vii: ['E', 'G', 'Bb']
+    }
+  }
+};
+
+const CHORD_PROGRESSIONS: ChordProgression[] = [
+  { id: 'classic', name: 'Classic (I-V-vi-IV)', chords: ['I', 'V', 'vi', 'IV'], key: 'C' },
+  { id: 'jazz', name: 'Jazz (ii-V-I)', chords: ['ii', 'V', 'I'], key: 'C' },
+  { id: 'pop', name: 'Pop (vi-IV-I-V)', chords: ['vi', 'IV', 'I', 'V'], key: 'C' },
+  { id: 'electronic', name: 'Electronic (i-VII-VI-VII)', chords: ['vi', 'V', 'IV', 'V'], key: 'C' }
+];
+
+// Circle of Fifths
+const CIRCLE_OF_FIFTHS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'];
+
 export default function VerticalPianoRoll() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -65,6 +139,13 @@ export default function VerticalPianoRoll() {
       volume: 80
     }
   ]);
+
+  // Chord progression state
+  const [currentKey, setCurrentKey] = useState('C');
+  const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
+  const [chordMode, setChordMode] = useState(false);
+  const [scaleLock, setScaleLock] = useState(false);
+  const [currentChordIndex, setCurrentChordIndex] = useState(0);
 
   const { toast } = useToast();
   const audioEngine = useRef(new RealisticAudioEngine());
@@ -169,6 +250,67 @@ export default function VerticalPianoRoll() {
     ));
   };
 
+  // Chord progression functions
+  const playChord = (chordNotes: string[], octave: number = 4) => {
+    chordNotes.forEach((note, index) => {
+      setTimeout(() => {
+        audioEngine.current.playNote(note, octave, 0.6, 1.0);
+      }, index * 50); // Slight stagger for chord effect
+    });
+  };
+
+  const addChordToGrid = (step: number) => {
+    const currentChord = selectedProgression.chords[currentChordIndex];
+    const chordNotes = MUSIC_KEYS[currentKey].chords[currentChord as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
+    
+    chordNotes.forEach((note, index) => {
+      const newNote: Note = {
+        id: `${note}-${step}-${Date.now()}-${index}`,
+        note,
+        octave: 4,
+        step,
+        velocity: 100,
+        length: 1
+      };
+      
+      setTracks(prev => prev.map((track, trackIndex) => 
+        trackIndex === selectedTrack 
+          ? { ...track, notes: [...track.notes, newNote] }
+          : track
+      ));
+    });
+
+    // Play the chord
+    playChord(chordNotes);
+    
+    // Move to next chord in progression
+    setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
+  };
+
+  const generateProgression = () => {
+    let step = 0;
+    selectedProgression.chords.forEach((chordSymbol, index) => {
+      const chordNotes = MUSIC_KEYS[currentKey].chords[chordSymbol as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
+      
+      chordNotes.forEach((note, noteIndex) => {
+        const newNote: Note = {
+          id: `${note}-${step}-${Date.now()}-${noteIndex}`,
+          note,
+          octave: 4,
+          step: step + (index * 8), // 8 steps per chord
+          velocity: 100,
+          length: 8
+        };
+        
+        setTracks(prev => prev.map((track, trackIndex) => 
+          trackIndex === selectedTrack 
+            ? { ...track, notes: [...track.notes, newNote] }
+            : track
+        ));
+      });
+    });
+  };
+
   return (
     <div className="h-full w-full bg-gray-900 text-white">
       <Card className="h-full bg-gray-800 border-gray-700">
@@ -192,9 +334,46 @@ export default function VerticalPianoRoll() {
                   <RotateCcw className="h-4 w-4" />
                   Clear
                 </Button>
+                <Button 
+                  onClick={() => setChordMode(!chordMode)} 
+                  variant={chordMode ? "default" : "outline"}
+                  className={chordMode ? "bg-purple-600 hover:bg-purple-500" : "bg-gray-700 hover:bg-gray-600"}
+                >
+                  🎵 Chord Mode
+                </Button>
+                <Button onClick={generateProgression} variant="outline" className="bg-green-700 hover:bg-green-600">
+                  Generate Progression
+                </Button>
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Key:</span>
+                <select 
+                  value={currentKey} 
+                  onChange={(e) => setCurrentKey(e.target.value)}
+                  className="bg-gray-700 text-white px-2 py-1 rounded text-sm"
+                >
+                  {Object.keys(MUSIC_KEYS).map(key => (
+                    <option key={key} value={key}>{MUSIC_KEYS[key].name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Progression:</span>
+                <select 
+                  value={selectedProgression.id} 
+                  onChange={(e) => {
+                    const prog = CHORD_PROGRESSIONS.find(p => p.id === e.target.value);
+                    if (prog) setSelectedProgression(prog);
+                  }}
+                  className="bg-gray-700 text-white px-2 py-1 rounded text-sm"
+                >
+                  {CHORD_PROGRESSIONS.map(prog => (
+                    <option key={prog.id} value={prog.id}>{prog.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm">BPM:</span>
                 <Slider
@@ -304,6 +483,8 @@ export default function VerticalPianoRoll() {
                             onClick={() => {
                               if (hasNote && note) {
                                 removeNote(note.id);
+                              } else if (chordMode) {
+                                addChordToGrid(step);
                               } else {
                                 addNote(keyIndex, step);
                               }
@@ -320,6 +501,77 @@ export default function VerticalPianoRoll() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Chord Progression Panel */}
+          <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-600">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium">🎼 Chord Progression</span>
+                <span className="text-sm text-gray-400">
+                  Key: {MUSIC_KEYS[currentKey].name}
+                </span>
+                <span className="text-sm text-gray-400">
+                  Current: {selectedProgression.chords[currentChordIndex]} ({currentChordIndex + 1}/{selectedProgression.chords.length})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={() => setScaleLock(!scaleLock)} 
+                  variant={scaleLock ? "default" : "outline"}
+                  className={`text-xs ${scaleLock ? "bg-blue-600 hover:bg-blue-500" : "bg-gray-700 hover:bg-gray-600"}`}
+                >
+                  Scale Lock
+                </Button>
+              </div>
+            </div>
+            
+            {/* Circle of Fifths */}
+            <div className="mb-3">
+              <span className="text-xs text-gray-400 mb-2 block">Circle of Fifths:</span>
+              <div className="flex flex-wrap gap-1">
+                {CIRCLE_OF_FIFTHS.map((key, index) => (
+                  <button
+                    key={key}
+                    onClick={() => setCurrentKey(key)}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${
+                      currentKey === key 
+                        ? 'bg-purple-600 text-white' 
+                        : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                    }`}
+                  >
+                    {key}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Current Progression Display */}
+            <div className="mb-3">
+              <span className="text-xs text-gray-400 mb-2 block">Current Progression ({selectedProgression.name}):</span>
+              <div className="flex gap-2">
+                {selectedProgression.chords.map((chord, index) => {
+                  const chordNotes = MUSIC_KEYS[currentKey].chords[chord as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setCurrentChordIndex(index);
+                        playChord(chordNotes);
+                      }}
+                      className={`px-3 py-2 text-sm rounded transition-colors ${
+                        currentChordIndex === index 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium">{chord}</div>
+                      <div className="text-xs opacity-75">{chordNotes.join('-')}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
