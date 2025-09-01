@@ -71,44 +71,44 @@ const KEY_HEIGHT = 20;
 const STEP_WIDTH = 25;
 
 // Music theory data
-const MUSIC_KEYS: Record<string, MusicKey> = {
+const DEFAULT_customKeys = {
   'C': {
     name: 'C Major',
     notes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
     chords: {
-      I: ['C', 'E', 'G'],
-      ii: ['D', 'F', 'A'],
-      iii: ['E', 'G', 'B'],
-      IV: ['F', 'A', 'C'],
-      V: ['G', 'B', 'D'],
-      vi: ['A', 'C', 'E'],
-      vii: ['B', 'D', 'F']
+      'I': ['C', 'E', 'G'],
+      'ii': ['D', 'F', 'A'],
+      'iii': ['E', 'G', 'B'],
+      'IV': ['F', 'A', 'C'],
+      'V': ['G', 'B', 'D'],
+      'vi': ['A', 'C', 'E'],
+      'vii°': ['B', 'D', 'F']
     }
   },
   'G': {
     name: 'G Major',
     notes: ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
     chords: {
-      I: ['G', 'B', 'D'],
-      ii: ['A', 'C', 'E'],
-      iii: ['B', 'D', 'F#'],
-      IV: ['C', 'E', 'G'],
-      V: ['D', 'F#', 'A'],
-      vi: ['E', 'G', 'B'],
-      vii: ['F#', 'A', 'C']
+      'I': ['G', 'B', 'D'],
+      'ii': ['A', 'C', 'E'],
+      'iii': ['B', 'D', 'F#'],
+      'IV': ['C', 'E', 'G'],
+      'V': ['D', 'F#', 'A'],
+      'vi': ['E', 'G', 'B'],
+      'vii°': ['F#', 'A', 'C']
     }
   },
   'F': {
     name: 'F Major',
     notes: ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
     chords: {
-      I: ['F', 'A', 'C'],
-      ii: ['G', 'Bb', 'D'],
-      iii: ['A', 'C', 'E'],
-      IV: ['Bb', 'D', 'F'],
-      V: ['C', 'E', 'G'],
-      vi: ['D', 'F', 'A'],
-      vii: ['E', 'G', 'Bb']
+      'I': ['F', 'A', 'C'],
+      'ii': ['G', 'Bb', 'D'],
+      'iii': ['A', 'C', 'E'],
+      'IV': ['Bb', 'D', 'F'],
+      'V': ['C', 'E', 'G'],
+      'vi': ['D', 'F', 'A'],
+      'vii°': ['E', 'G', 'Bb']
     }
   }
 };
@@ -146,6 +146,49 @@ export default function VerticalPianoRoll() {
   const [chordMode, setChordMode] = useState(false);
   const [scaleLock, setScaleLock] = useState(false);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
+  const [chordSequence, setChordSequence] = useState<string[]>([]);
+  const [sequenceMode, setSequenceMode] = useState(false);
+  const [sequenceIndex, setSequenceIndex] = useState(0);
+  const [customKeys, setCustomKeys] = useState<any>(DEFAULT_MUSIC_KEYS);
+
+  // Custom key functions
+  const addCustomKey = () => {
+    if (!newKeyName || !newKeyNotes) return;
+    
+    const notes = newKeyNotes.split(',').map(n => n.trim());
+    if (notes.length !== 7) {
+      toast({ title: "Error", description: "Please enter exactly 7 notes separated by commas" });
+      return;
+    }
+
+    // Generate basic triads for the custom key
+    const newKey = {
+      name: newKeyName,
+      notes: notes,
+      chords: {
+        'I': [notes[0], notes[2], notes[4]],
+        'ii': [notes[1], notes[3], notes[5]],
+        'iii': [notes[2], notes[4], notes[6]],
+        'IV': [notes[3], notes[5], notes[0]],
+        'V': [notes[4], notes[6], notes[1]],
+        'vi': [notes[5], notes[0], notes[2]],
+        'vii°': [notes[6], notes[1], notes[3]]
+      }
+    };
+
+    setCustomKeys(prev => ({
+      ...prev,
+      [newKeyName.charAt(0).toUpperCase()]: newKey
+    }));
+
+    setNewKeyName('');
+    setNewKeyNotes('');
+    setShowCustomKeyDialog(false);
+    toast({ title: "Success", description: `Added custom key: ${newKeyName}` });
+  };
+  const [showCustomKeyDialog, setShowCustomKeyDialog] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyNotes, setNewKeyNotes] = useState('');
 
   const { toast } = useToast();
   const audioEngine = useRef(new RealisticAudioEngine());
@@ -260,37 +303,33 @@ export default function VerticalPianoRoll() {
   };
 
   const addChordToGrid = (step: number) => {
-    const currentChord = selectedProgression.chords[currentChordIndex];
-    const chordNotes = MUSIC_KEYS[currentKey].chords[currentChord as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
-    
-    chordNotes.forEach((note, index) => {
-      const newNote: Note = {
-        id: `${note}-${step}-${Date.now()}-${index}`,
-        note,
-        octave: 4,
-        step,
-        velocity: 100,
-        length: 1
-      };
-      
-      setTracks(prev => prev.map((track, trackIndex) => 
-        trackIndex === selectedTrack 
-          ? { ...track, notes: [...track.notes, newNote] }
-          : track
-      ));
-    });
+    let chordToUse: string;
+    let chordNotes: string[];
 
-    // Play the chord
-    playChord(chordNotes);
+    if (sequenceMode && chordSequence.length > 0) {
+      // Use chord from custom sequence
+      chordToUse = chordSequence[sequenceIndex % chordSequence.length];
+      chordNotes = customKeys[currentKey].chords[chordToUse as keyof typeof customKeys[typeof currentKey]['chords']];
+      setSequenceIndex((prev) => (prev + 1) % chordSequence.length);
+    } else {
+      // Use chord from progression
+      chordToUse = selectedProgression.chords[currentChordIndex];
+      chordNotes = customKeys[currentKey].chords[chordToUse as keyof typeof customKeys[typeof currentKey]['chords']];
+      setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
+    }
     
-    // Move to next chord in progression
-    setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
+    chordNotes.forEach((noteName: string, noteIndex: number) => {
+      const keyIndex = PIANO_KEYS.findIndex(key => key.note === noteName && key.octave === 4);
+      if (keyIndex !== -1) {
+        addNote(keyIndex, step + noteIndex * 0.1); // Slight offset for chord notes
+      }
+    });
   };
 
   const generateProgression = () => {
     let step = 0;
     selectedProgression.chords.forEach((chordSymbol, index) => {
-      const chordNotes = MUSIC_KEYS[currentKey].chords[chordSymbol as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
+      const chordNotes = customKeys[currentKey].chords[chordSymbol as keyof typeof customKeys[typeof currentKey]['chords']];
       
       chordNotes.forEach((note, noteIndex) => {
         const newNote: Note = {
@@ -344,6 +383,13 @@ export default function VerticalPianoRoll() {
                 <Button onClick={generateProgression} variant="outline" className="bg-green-700 hover:bg-green-600">
                   Generate Progression
                 </Button>
+                <Button 
+                  onClick={() => setShowCustomKeyDialog(true)} 
+                  variant="outline" 
+                  className="bg-blue-700 hover:bg-blue-600"
+                >
+                  + Add Custom Key
+                </Button>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -354,8 +400,8 @@ export default function VerticalPianoRoll() {
                   onChange={(e) => setCurrentKey(e.target.value)}
                   className="bg-gray-700 text-white px-2 py-1 rounded text-sm"
                 >
-                  {Object.keys(MUSIC_KEYS).map(key => (
-                    <option key={key} value={key}>{MUSIC_KEYS[key].name}</option>
+                  {Object.keys(customKeys).map(key => (
+                    <option key={key} value={key}>{customKeys[key].name}</option>
                   ))}
                 </select>
               </div>
@@ -423,7 +469,7 @@ export default function VerticalPianoRoll() {
                       if (chordMode) {
                         // In chord mode, play the current chord when any key is clicked
                         const currentChord = selectedProgression.chords[currentChordIndex];
-                        const chordNotes = MUSIC_KEYS[currentKey].chords[currentChord as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
+                        const chordNotes = customKeys[currentKey].chords[currentChord as keyof typeof customKeys[typeof currentKey]['chords']];
                         playChord(chordNotes, key.octave);
                       } else {
                         // Normal mode - play single note
@@ -519,7 +565,7 @@ export default function VerticalPianoRoll() {
               <div className="flex items-center gap-4">
                 <span className="text-sm font-medium">🎼 Chord Progression</span>
                 <span className="text-sm text-gray-400">
-                  Key: {MUSIC_KEYS[currentKey].name}
+                  Key: {customKeys[currentKey].name}
                 </span>
                 <span className="text-sm text-gray-400">
                   Current: {selectedProgression.chords[currentChordIndex]} ({currentChordIndex + 1}/{selectedProgression.chords.length})
@@ -561,7 +607,7 @@ export default function VerticalPianoRoll() {
               <span className="text-xs text-gray-400 mb-2 block">Current Progression ({selectedProgression.name}):</span>
               <div className="flex gap-2">
                 {selectedProgression.chords.map((chord, index) => {
-                  const chordNotes = MUSIC_KEYS[currentKey].chords[chord as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
+                  const chordNotes = customKeys[currentKey].chords[chord as keyof typeof customKeys[typeof currentKey]['chords']];
                   return (
                     <button
                       key={index}
@@ -615,6 +661,53 @@ export default function VerticalPianoRoll() {
           </div>
         </CardContent>
       </Card>
+      {/* Custom Key Dialog */}
+      {showCustomKeyDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg border border-gray-600 w-96">
+            <h3 className="text-lg font-bold mb-4">Add Custom Key</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Key Name:</label>
+                <input
+                  type="text"
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  placeholder="e.g., D Minor, A Harmonic"
+                  className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">7 Notes (comma separated):</label>
+                <input
+                  type="text"
+                  value={newKeyNotes}
+                  onChange={(e) => setNewKeyNotes(e.target.value)}
+                  placeholder="e.g., D, E, F, G, A, Bb, C"
+                  className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600"
+                />
+                <p className="text-xs text-gray-400 mt-1">Enter exactly 7 notes for the scale</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button onClick={addCustomKey} className="bg-blue-600 hover:bg-blue-500">
+                Add Key
+              </Button>
+              <Button 
+                onClick={() => setShowCustomKeyDialog(false)} 
+                variant="outline"
+                className="bg-gray-700 hover:bg-gray-600"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
     </div>
   );
-}
+};
