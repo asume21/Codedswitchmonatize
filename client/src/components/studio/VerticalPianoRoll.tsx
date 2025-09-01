@@ -416,11 +416,19 @@ export default function VerticalPianoRoll() {
                         ? 'bg-gray-900 text-gray-300 border-l-4 border-l-gray-700' 
                         : 'bg-gray-700 text-white'
                       }
+                      ${chordMode ? 'ring-2 ring-purple-500 ring-opacity-50' : ''}
                     `}
                     style={{ height: `${KEY_HEIGHT}px` }}
                     onClick={() => {
-                      // Play note when key is clicked
-                      audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
+                      if (chordMode) {
+                        // In chord mode, play the current chord when any key is clicked
+                        const currentChord = selectedProgression.chords[currentChordIndex];
+                        const chordNotes = MUSIC_KEYS[currentKey].chords[currentChord as keyof typeof MUSIC_KEYS[typeof currentKey]['chords']];
+                        playChord(chordNotes, key.octave);
+                      } else {
+                        // Normal mode - play single note
+                        audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
+                      }
                     }}
                   >
                     {key.key}
