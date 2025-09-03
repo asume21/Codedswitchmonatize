@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
+import { PianoRollPlugin } from './plugins/PianoRollPlugin';
+import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
+import { realisticAudio } from '@/lib/realisticAudio';
 
 interface Note {
   id: string;
@@ -130,7 +134,7 @@ function MelodyComposer() {
     chordNotes.forEach((pitch, index) => {
       const newNote: Note = {
         id: `chord-${Date.now()}-${index}`,
-        pitch,
+        pitch: pitch.toString(),
         start: Date.now() / 1000,
         duration: 1.0,
         velocity: 80,
@@ -157,7 +161,7 @@ function MelodyComposer() {
       chordNotes.forEach((pitch, noteIndex) => {
         newNotes.push({
           id: `prog-${Date.now()}-${beatIndex}-${noteIndex}`,
-          pitch,
+          pitch: pitch.toString(),
           start: beatIndex * 2, // 2 beats per chord
           duration: 1.5,
           velocity: 70,
@@ -569,14 +573,53 @@ function MelodyComposer() {
           </div>
         )}
 
-        {/* Piano Roll Placeholder */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 text-white">🎹 Piano Roll</h3>
-          <div className="text-center text-gray-400">
-            <p>Notes: {notes.length} | Selected Track: {tracks.find(t => t.id === selectedTrack)?.name}</p>
-            <p>Piano roll interface with note visualization will be rendered here</p>
-          </div>
-        </div>
+        {/* Track Controls Plugin */}
+        <TrackControlsPlugin
+          tracks={tracks}
+          onTrackUpdate={(trackId, updates) => {
+            setTracks(prev => prev.map(track => 
+              track.id === trackId ? { ...track, ...updates } : track
+            ));
+          }}
+          selectedTrack={selectedTrack}
+          onTrackSelect={setSelectedTrack}
+        />
+
+        {/* Piano Roll Plugin */}
+        <PianoRollPlugin
+          notes={notes}
+          onNotesChange={setNotes}
+          selectedTrack={selectedTrack}
+          isPlaying={isPlaying}
+          onPlayNote={async (note, octave, duration, instrument) => {
+            try {
+              await realisticAudio.playNote(note, octave, duration, instrument);
+            } catch (error) {
+              console.error('Error playing note:', error);
+            }
+          }}
+        />
+
+        {/* Step Sequencer Plugin */}
+        <StepSequencerPlugin
+          tracks={tracks}
+          selectedTrack={selectedTrack}
+          isPlaying={isPlaying}
+          onPlayDrum={async (drumType, velocity) => {
+            try {
+              await realisticAudio.playDrumSound(drumType, velocity);
+            } catch (error) {
+              console.error('Error playing drum:', error);
+            }
+          }}
+          onPlayNote={async (note, octave, duration, instrument) => {
+            try {
+              await realisticAudio.playNote(note, octave, duration, instrument);
+            } catch (error) {
+              console.error('Error playing note:', error);
+            }
+          }}
+        />
 
         {/* Playback Controls */}
         <div className="flex justify-center space-x-4">
