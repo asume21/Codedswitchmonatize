@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getKeySpecificChordProgression } from "./chord-progressions";
 
 const gemini = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
@@ -77,17 +78,21 @@ export class AIStructureGenerator {
   /**
    * Generate a complete song structure from a prompt
    */
-  async generateSongStructure(prompt: string, genre: string = 'Electronic', bpm: number = 120): Promise<GeneratedSongData> {
+  async generateSongStructure(prompt: string, genre: string = 'Electronic', bpm: number = 120, key: string = 'C Major'): Promise<GeneratedSongData> {
     if (!gemini) {
       throw new Error("Gemini API key not configured");
     }
 
     const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
     
+    // Generate key-specific chord progression
+    const keySpecificChords = getKeySpecificChordProgression(key, genre.toLowerCase());
+    
     const structurePrompt = `Create a complete professional song structure for: "${prompt}"
 
 Genre: ${genre}
 BPM: ${bpm}
+Key: ${key}
 
 Generate a comprehensive song arrangement with the following JSON structure:
 
@@ -99,7 +104,7 @@ Generate a comprehensive song arrangement with the following JSON structure:
       "instruments": ["piano", "strings"],
       "dynamics": "soft",
       "tempo": ${bpm},
-      "key": "C Major",
+      "key": "${key}",
       "description": "Opening section description"
     },
     "verse1": {
@@ -124,11 +129,11 @@ Generate a comprehensive song arrangement with the following JSON structure:
     "artist": "AI Composer",
     "genre": "${genre}",
     "bpm": ${bpm},
-    "key": "C Major",
+    "key": "${key}",
     "duration": "3:30",
     "format": "WAV"
   },
-  "chordProgression": "C - Am - F - G",
+  "chordProgression": "${keySpecificChords}",
   "productionNotes": {
     "mixing": "Professional stereo balance with spatial positioning",
     "mastering": "Commercial loudness standards (-14 LUFS integrated)",
@@ -152,7 +157,7 @@ Create a complete, realistic song structure with:
 - Professional dynamics progression (soft → moderate → powerful → climactic)
 - Detailed descriptions for each section
 - Realistic durations and measure counts
-- Chord progression appropriate for the genre
+- Chord progression in ${key} appropriate for ${genre} style
 - Professional production notes
 
 Make it sound like a real professional song arrangement that could be produced.`;
@@ -166,6 +171,11 @@ Make it sound like a real professional song arrangement that could be produced.`
       if (jsonMatch) {
         const songData = JSON.parse(jsonMatch[0]);
         
+        // Ensure chord progression uses the key-specific chords
+        if (!songData.chordProgression || songData.chordProgression === "C - Am - F - G") {
+          songData.chordProgression = keySpecificChords;
+        }
+        
         // Add lyrics if vocals are present
         if (this.hasVocals(songData.structure)) {
           songData.lyrics = await this.generateLyricsStructure(prompt, genre, songData.structure);
@@ -175,11 +185,11 @@ Make it sound like a real professional song arrangement that could be produced.`
       }
       
       // Fallback if JSON parsing fails
-      return this.generateFallbackStructure(prompt, genre, bpm);
+      return this.generateFallbackStructure(prompt, genre, bpm, key);
       
     } catch (error) {
       console.error('Error generating song structure:', error);
-      return this.generateFallbackStructure(prompt, genre, bpm);
+      return this.generateFallbackStructure(prompt, genre, bpm, key);
     }
   }
 
@@ -250,7 +260,7 @@ Create meaningful lyrics that match the song sections and ${genre} style.`;
   /**
    * Generate a fallback structure if AI generation fails
    */
-  private generateFallbackStructure(prompt: string, genre: string, bpm: number): GeneratedSongData {
+  private generateFallbackStructure(prompt: string, genre: string, bpm: number, key: string = 'C Major'): GeneratedSongData {
     return {
       structure: {
         intro: {
@@ -259,7 +269,7 @@ Create meaningful lyrics that match the song sections and ${genre} style.`;
           instruments: ["piano", "strings"],
           dynamics: "soft",
           tempo: bpm,
-          key: "C Major",
+          key: key,
           description: `Atmospheric opening for ${prompt}`
         },
         verse1: {
@@ -315,11 +325,11 @@ Create meaningful lyrics that match the song sections and ${genre} style.`;
         artist: "CodedSwitch AI",
         genre: genre,
         bpm: bpm,
-        key: "C Major",
+        key: key,
         duration: "3:20",
         format: "WAV"
       },
-      chordProgression: "C - Am - F - G",
+      chordProgression: getKeySpecificChordProgression(key, genre),
       productionNotes: {
         mixing: "Professional stereo balance with spatial positioning",
         mastering: "Commercial loudness standards (-14 LUFS integrated)",
