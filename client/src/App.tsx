@@ -10,10 +10,13 @@ import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
 import Subscribe from "@/pages/Subscribe";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentCancel from "@/pages/PaymentCancel";
 import TestCircular from "@/pages/TestCircular";
 import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
 import BillingResult from "@/pages/billing-result";
+import MelodyComposerV2Page from "@/pages/melody-composer-v2";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
@@ -44,9 +47,9 @@ function Router() {
       <Route path="/wavetable-oscillator" component={Studio} />
       <Route path="/pack-generator" component={Studio} />
       <Route path="/song-structure" component={Studio} />
-      <Route path="/billing" component={Subscribe} />
-      <Route path="/billing/success" component={BillingResult} />
-      <Route path="/billing/cancel" component={BillingResult} />
+      <Route path="/subscribe" component={Subscribe} />
+      <Route path="/billing/success" component={PaymentSuccess} />
+      <Route path="/billing/cancel" component={PaymentCancel} />
       <Route path="/settings" component={Studio} />
       <Route path="/studio" component={Studio} />
       <Route path="/subscribe" component={Subscribe} />
@@ -161,6 +164,11 @@ function App() {
           <Route path="/codebeat-studio-direct">
             <AppLayout>
               <CodeBeatStudio />
+            </AppLayout>
+          </Route>
+          <Route path="/melody-composer-v2">
+            <AppLayout>
+              <MelodyComposerV2Page />
             </AppLayout>
           </Route>
           <Route path="*">
