@@ -17,6 +17,7 @@ import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
 import BillingResult from "@/pages/billing-result";
 import MelodyComposerV2Page from "@/pages/melody-composer-v2";
+import CodeToMusicStudioPage from "@/pages/code-to-music-studio";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
@@ -169,6 +170,11 @@ function App() {
           <Route path="/melody-composer-v2">
             <AppLayout>
               <MelodyComposerV2Page />
+            </AppLayout>
+          </Route>
+          <Route path="/code-to-music-studio">
+            <AppLayout>
+              <CodeToMusicStudioPage />
             </AppLayout>
           </Route>
           <Route path="*">
