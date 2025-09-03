@@ -207,61 +207,73 @@ export class RealisticAudioEngine {
       await this.initialize();
     }
 
+    // DEBUG: Log all parameters received
+    console.log(`🎵 DEBUG playNote called with: note=${note}, octave=${octave}, duration=${duration}, instrument=${instrument}, velocity=${velocity}`);
+    
+    // CRITICAL: Clamp octave to supported range FIRST (most soundfonts support C2-C7)
+    let adjustedOctave = octave;
+    if (adjustedOctave < 2) adjustedOctave = 2;
+    if (adjustedOctave > 7) adjustedOctave = 7;
+    
+    if (octave !== adjustedOctave) {
+      console.log(`🎵 Clamped octave from ${octave} to ${adjustedOctave} for note ${note}`);
+    }
+
     // Use the instrument key directly, or fallback to legacy mapping
     let realInstrument = instrument;
     
     // If instrument not in library, try fallback mapping
     if (!(realInstrument in this.instrumentLibrary)) {
-      if (instrument.includes('piano') || instrument.includes('keyboard')) {
+      // Ensure instrument is a string before using .includes()
+      const instrumentStr = String(instrument || 'piano').toLowerCase();
+      
+      if (instrumentStr.includes('piano') || instrumentStr.includes('keyboard')) {
         realInstrument = 'piano';
-      } else if (instrument.includes('guitar') || instrument.includes('string')) {
+      } else if (instrumentStr.includes('guitar') || instrumentStr.includes('string')) {
         realInstrument = 'guitar';
-      } else if (instrument.includes('violin')) {
+      } else if (instrumentStr.includes('violin')) {
         realInstrument = 'strings-violin';
-      } else if (instrument.includes('flute')) {
+      } else if (instrumentStr.includes('flute')) {
         realInstrument = 'flute-concert';
-      } else if (instrument.includes('trumpet') || instrument.includes('horn')) {
+      } else if (instrumentStr.includes('trumpet') || instrumentStr.includes('horn')) {
         realInstrument = 'horns-trumpet';
-      } else if (instrument.includes('bass')) {
+      } else if (instrumentStr.includes('bass')) {
         realInstrument = 'bass-electric';
-      } else if (instrument.includes('organ')) {
+      } else if (instrumentStr.includes('organ')) {
         realInstrument = 'piano-organ';
-      } else if (instrument.includes('synth')) {
+      } else if (instrumentStr.includes('synth')) {
         realInstrument = 'synth-analog';
-      } else if (instrument.includes('lead')) {
+      } else if (instrumentStr.includes('lead')) {
         realInstrument = 'leads-square';
-      } else if (instrument.includes('pad')) {
+      } else if (instrumentStr.includes('pad')) {
         realInstrument = 'pads-warm';
       } else {
         realInstrument = 'piano'; // Ultimate fallback
       }
     }
     
-    // Load instrument if not already loaded
-    if (!this.instruments[realInstrument]) {
-      await this.loadAdditionalInstrument(realInstrument);
-    }
-
     const instrumentSampler = this.instruments[realInstrument];
     if (!instrumentSampler) {
-      console.warn(`Realistic instrument ${realInstrument} not available, skipping playback`);
+      console.error(`Instrument ${realInstrument} not loaded`);
       return;
     }
 
     try {
-      const noteName = `${note}${octave}`;
-      const finalDuration = sustainEnabled ? duration : Math.min(duration, 0.5);
-      const adjustedVelocity = Math.max(0.1, Math.min(1.0, velocity));
-
-      // Use soundfont-player to play realistic sampled note
-      const playedNote = instrumentSampler.play(noteName, this.audioContext!.currentTime, {
-        duration: finalDuration,
-        gain: adjustedVelocity
+      const noteWithOctave = `${note}${adjustedOctave}`;
+      console.log(`🎵 Attempting to play realistic ${realInstrument}: ${noteWithOctave} for ${duration}s at velocity ${velocity}`);
+      
+      const audioNode = instrumentSampler.play(noteWithOctave, this.audioContext!.currentTime, {
+        duration,
+        gain: velocity
       });
       
-      console.log(`Playing realistic ${realInstrument}: ${noteName} for ${finalDuration}s`);
+      if (audioNode) {
+        console.log(`🎵 Successfully triggered realistic ${realInstrument}: ${noteWithOctave}`);
+      } else {
+        console.error(`🎵 Failed to play realistic ${realInstrument}: ${noteWithOctave} - instrumentSampler.play returned null`);
+      }
     } catch (error) {
-      console.error(`Error playing realistic note ${note}${octave} on ${realInstrument}:`, error);
+      console.error(`🎵 Error playing realistic ${realInstrument}:`, error);
     }
   }
 
@@ -270,18 +282,11 @@ export class RealisticAudioEngine {
       await this.initialize();
     }
 
-    // Load drum kit - use the synthetic engine instead of broken soundfont
-    if (!this.instruments['drums']) {
-      console.log('🎵 Using synthetic drums for realistic mode (soundfont drums are broken)');
-      // Don't load any drum soundfont - we'll use the synthetic engine
-    }
-
     // Use synthetic drum engine for "realistic" mode since soundfonts are broken
-    console.log(`🎵 Playing synthetic drum in realistic mode: ${drumType}`);
+    console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
     
-    // Use the same synthetic drum implementation directly here to avoid circular imports
     if (!this.audioContext) {
-      console.error('🎵 AudioContext not available for synthetic drums');
+      console.error('AudioContext not available for synthetic drums');
       return;
     }
 
