@@ -1,16 +1,33 @@
+<<<<<<< HEAD
 // Simple Stripe Checkout redirect flow
 import { useState } from 'react';
+=======
+// Use subscribe.tsx for paid subscriptions.
+import { useStripe, Elements, PaymentElement, useElements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+import { useEffect, useState } from 'react';
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Music, Code, Zap, Shield, Star, Crown } from "lucide-react";
 
+<<<<<<< HEAD
+=======
+// Make sure to call `loadStripe` outside of a component's render to avoid
+// recreating the `Stripe` object on every render.
+const stripePromise = import.meta.env.VITE_STRIPE_PUBLIC_KEY 
+  ? loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
+  : null;
+
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 interface SubscribeFormProps {
   selectedTier: 'basic' | 'pro';
 }
 
 const SubscribeForm = ({ selectedTier }: SubscribeFormProps) => {
+<<<<<<< HEAD
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -47,13 +64,62 @@ const SubscribeForm = ({ selectedTier }: SubscribeFormProps) => {
       <Button 
         onClick={handleSubscribe}
         disabled={isLoading} 
+=======
+  const stripe = useStripe();
+  const elements = useElements();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    if (!stripe || !elements) {
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/studio?subscription=success`,
+      },
+    });
+
+    if (error) {
+      toast({
+        title: "Payment Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      const tierName = selectedTier === 'basic' ? 'Basic' : 'Pro';
+      toast({
+        title: `Welcome to CodedSwitch ${tierName}!`,
+        description: "Your subscription is now active. Enjoy your new features!",
+      });
+    }
+    setIsLoading(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <PaymentElement className="mb-6" />
+      <Button 
+        type="submit" 
+        disabled={!stripe || isLoading} 
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
         data-testid="button-subscribe"
       >
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+<<<<<<< HEAD
             Redirecting to Payment...
+=======
+            Processing Payment...
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
           </>
         ) : (
           <>
@@ -62,16 +128,106 @@ const SubscribeForm = ({ selectedTier }: SubscribeFormProps) => {
           </>
         )}
       </Button>
+<<<<<<< HEAD
       <p className="text-xs text-gray-400 text-center">
         You'll be redirected to Stripe's secure payment page
       </p>
     </div>
+=======
+    </form>
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   );
 };
 
 export default function Subscribe() {
+<<<<<<< HEAD
   const [selectedTier, setSelectedTier] = useState<'basic' | 'pro'>('pro');
 
+=======
+  const [clientSecret, setClientSecret] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [selectedTier, setSelectedTier] = useState<'basic' | 'pro'>('pro');
+
+  useEffect(() => {
+    // Create subscription when tier is selected
+    apiRequest("POST", "/api/create-subscription", { tier: selectedTier })
+      .then((res) => res.json())
+      .then((data) => {
+        setClientSecret(data.clientSecret);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Subscription creation failed:", error);
+        setLoading(false);
+      });
+  }, [selectedTier]);
+
+  // Show setup message if Stripe is not configured
+  if (!import.meta.env.VITE_STRIPE_PUBLIC_KEY) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-gray-800/50 border-gray-700">
+          <CardHeader className="text-center">
+            <CardTitle className="text-white">Payment Setup Required</CardTitle>
+            <CardDescription className="text-gray-400">
+              Configure your Stripe keys to enable subscriptions
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-gray-300">
+              <p>To enable payments, you need to:</p>
+              <ol className="list-decimal list-inside mt-2 space-y-1">
+                <li>Set up your Stripe account</li>
+                <li>Create Basic ($10) and Pro ($39.99) products</li>
+                <li>Add your Stripe keys to environment variables</li>
+              </ol>
+            </div>
+            <Button 
+              onClick={() => window.location.href = '/studio'} 
+              className="w-full"
+              data-testid="button-back-studio"
+            >
+              Back to Studio
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+            <span className="ml-2">Setting up your subscription...</span>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="py-12 text-center">
+            <p className="text-red-400">Failed to initialize subscription. Please try again.</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              className="mt-4"
+              data-testid="button-retry"
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 p-4">
       <div className="max-w-4xl mx-auto">
@@ -191,7 +347,13 @@ export default function Subscribe() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               <SubscribeForm selectedTier={selectedTier} />
+=======
+              <Elements stripe={stripePromise} options={{ clientSecret }}>
+                <SubscribeForm selectedTier={selectedTier} />
+              </Elements>
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
             </CardContent>
           </Card>
         </div>

@@ -1,4 +1,5 @@
 node_modules
+<<<<<<< HEAD
 
 # Environment files (do not commit secrets)
 .env
@@ -15,3 +16,6 @@ github-api-push.js
 deploy.js
 deploy.cjs
 !.env.example
+=======
+.env
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6

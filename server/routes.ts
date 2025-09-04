@@ -8,8 +8,11 @@ import {
   handleStripeWebhook,
 } from "./services/stripe";
 import { musicGenService } from "./services/musicgen";
+<<<<<<< HEAD
 import { generateMelody } from "./services/grok";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
+=======
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 import fs from "fs";
 import path from "path";
 import { insertPlaylistSchema } from "@shared/schema";
@@ -180,12 +183,20 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Create Checkout Session
   app.post(
+<<<<<<< HEAD
     "/api/create-checkout-session",
     requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const { tier = 'pro' } = req.body;
         const { url } = await createCheckoutSession(storage, req.userId!, tier);
+=======
+    "/api/billing/create-checkout-session",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { url } = await createCheckoutSession(storage, req.userId!);
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
         res.json({ url });
       } catch (err: any) {
         res.status(400).json({ message: err.message || "Failed to create session" });
@@ -362,6 +373,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     },
   );
 
+<<<<<<< HEAD
   // Melody generation endpoint for Melody Composer
   app.post(
     "/api/melodies/generate",
@@ -433,6 +445,8 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+=======
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   // Internal binary upload endpoint (local fallback when GCS is not configured)
   app.put(
     "/api/internal/uploads/*",
@@ -473,6 +487,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+<<<<<<< HEAD
   // Complete professional song generation (structure + metadata)
   app.post(
     "/api/music/generate-complete",
@@ -579,6 +594,8 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   );
 
+=======
+>>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   // Create HTTP server
   const server = createServer(app);
   return server;

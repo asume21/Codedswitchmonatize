@@ -79,15 +79,23 @@ export default function OutputSequencer() {
   const intervalRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
+  // Centralized stop logic to ensure timers and audio are cleaned up
+  const stopPlayback = () => {
+    audioManager.stop();
+    setIsPlaying(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = undefined;
+    }
+    setCurrentStep(0);
+  };
+
   const handlePlay = async () => {
     try {
       await audioManager.initialize();
       if (isPlaying) {
-        audioManager.stop();
-        setIsPlaying(false);
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
+        // Toggle off
+        stopPlayback();
       } else {
         // Convert to simple pattern format for playback
         const simplePattern = {
@@ -103,11 +111,8 @@ export default function OutputSequencer() {
         
         await audioManager.playBeat(simplePattern, [], bpm);
         setIsPlaying(true);
-        
-        // Visual step indicator
-        intervalRef.current = setInterval(() => {
-          setCurrentStep(prev => (prev + 1) % patternLength);
-        }, (60 / bpm / 4) * 1000);
+        // Reset visual step indicator to start
+        setCurrentStep(0);
       }
     } catch (error) {
       toast({
@@ -163,6 +168,35 @@ export default function OutputSequencer() {
     ));
   };
 
+  // Manage the visual step indicator interval based on playback state and tempo
+  useEffect(() => {
+    if (!isPlaying) {
+      // Ensure no stray intervals when not playing
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = undefined;
+      }
+      return;
+    }
+
+    // Recreate interval when bpm or pattern length changes
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    const stepMs = (60 / bpm / 4) * 1000;
+    intervalRef.current = setInterval(() => {
+      setCurrentStep(prev => (prev + 1) % patternLength);
+    }, stepMs);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = undefined;
+      }
+    };
+  }, [isPlaying, bpm, patternLength]);
+
+  // On unmount, clear any existing interval
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
@@ -225,7 +259,7 @@ export default function OutputSequencer() {
                   >
                     {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
                   </Button>
-                  <Button variant="outline" onClick={() => { audioManager.stop(); setIsPlaying(false); }}>
+                  <Button variant="outline" onClick={stopPlayback}>
                     <Square className="h-4 w-4" />
                   </Button>
                 </div>

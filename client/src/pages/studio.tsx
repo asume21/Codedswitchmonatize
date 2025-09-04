@@ -5,7 +5,6 @@ import Sidebar from "@/components/studio/Sidebar";
 import TransportControls from "@/components/studio/TransportControls";
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import { BeatMaker } from "@/components/producer/BeatMaker";
-import VerticalPianoRoll from "@/components/studio/VerticalPianoRoll";
 import MelodyComposerV2 from "@/components/studio/MelodyComposerV2";
 import CodeToMusic from "@/components/studio/CodeToMusic";
 import MusicToCode from "@/components/studio/MusicToCode";
