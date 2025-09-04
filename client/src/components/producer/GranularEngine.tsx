@@ -170,6 +170,7 @@ export default function GranularEngine() {
       switch (param) {
         case "grainSize":
 <<<<<<< HEAD
+<<<<<<< HEAD
           granularRef.current.grainSize = toNumber(value) / 1000; // Convert to seconds
           break;
         case "position":
@@ -186,12 +187,15 @@ export default function GranularEngine() {
         default:
 =======
           granularRef.current.grainSize = value / 1000; // Convert to seconds
+=======
+          granularRef.current.grainSize = (typeof value === 'number' ? value : 0) / 1000; // Convert to seconds
+>>>>>>> c9353c43027a4404e9beec386e86b63251b2385f
           break;
         case "position":
-          granularRef.current.loopStart = value / 100;
+          granularRef.current.loopStart = (typeof value === 'number' ? value : 0) / 100;
           break;
         case "pitch":
-          granularRef.current.playbackRate = Math.pow(2, value / 12); // Semitone conversion
+          granularRef.current.playbackRate = Math.pow(2, (typeof value === 'number' ? value : 0) / 12); // Semitone conversion
           break;
         case "reverse":
           granularRef.current.reverse = value;

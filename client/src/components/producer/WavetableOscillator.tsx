@@ -82,10 +82,7 @@ function WavetableOscillator() {
       await Tone.start();
       
       // Create advanced wavetable oscillator with multiple modulation sources
-      synthRef.current = new Tone.Oscillator({
-        type: wavetableParams.waveform,
-        frequency: 220
-      });
+      synthRef.current = new Tone.Oscillator(220, wavetableParams.waveform as Tone.ToneOscillatorType);
       
       const filter = new Tone.Filter({
         type: "lowpass",
