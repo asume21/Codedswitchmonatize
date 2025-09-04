@@ -1097,7 +1097,7 @@ export class DatabaseStorage implements IStorage {
 
     const position =
       existingPlaylistSongs.length > 0
-        ? Math.max(...existingPlaylistSongs.map((ps) => ps.position)) + 1
+        ? Math.max(...existingPlaylistSongs.map((ps: any) => ps.position)) + 1
         : 1;
 
     const [playlistSong] = await db

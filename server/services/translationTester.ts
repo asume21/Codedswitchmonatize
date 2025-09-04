@@ -184,7 +184,8 @@ async function runSingleTest(testCase: any): Promise<TestResult> {
     };
     
   } catch (error) {
-    errors.push(`Translation failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    errors.push(`Translation failed: ${errorMessage}`);
     
     return {
       testName: testCase.name,

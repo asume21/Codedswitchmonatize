@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import path from "path";
 import fs from "fs";
 
@@ -39,7 +40,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Initialize storage (use database if available, fallback to memory)
+  const storage: IStorage = process.env.DATABASE_URL 
+    ? new DatabaseStorage()
+    : new MemStorage();
+    
+  const server = await registerRoutes(app, storage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

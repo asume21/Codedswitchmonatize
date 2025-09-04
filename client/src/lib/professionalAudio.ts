@@ -644,8 +644,10 @@ export class ProfessionalAudioEngine {
   getMasterSpectrum(): Uint8Array | null {
     if (!this.spectrumAnalyzer || !this.spectrumData) return null;
     
-    this.spectrumAnalyzer.getByteFrequencyData(this.spectrumData);
-    return new Uint8Array(this.spectrumData);
+    // Create a new Uint8Array with proper ArrayBuffer type
+    const data = new Uint8Array(this.spectrumData.length);
+    this.spectrumAnalyzer.getByteFrequencyData(data);
+    return data;
   }
   
   getChannels(): MixerChannel[] {

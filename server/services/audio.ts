@@ -274,8 +274,8 @@ export class AudioService {
       density: 0,
       complexity: 0,
       rhythm: 'steady',
-      dominant_instruments: [],
-      suggestions: [],
+      dominant_instruments: [] as string[],
+      suggestions: [] as string[],
     };
 
     if (!pattern || typeof pattern !== 'object') {
