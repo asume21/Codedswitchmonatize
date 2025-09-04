@@ -1,0 +1,17 @@
+node_modules
+
+# Environment files (do not commit secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+dist/
+.DS_Store
+*.log
+.vscode/settings.json
+upload-to-github.js
+github-api-push.js
+deploy.js
+deploy.cjs
+!.env.example

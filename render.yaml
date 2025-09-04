@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: codedswitch
+    env: node
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: codedswitch-db
+          property: connectionString
+      - key: GOOGLE_SERVICE_ACCOUNT_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID_BASIC
+        sync: false
+      - key: STRIPE_PRICE_ID_PRO
+        sync: false
+      - key: VITE_STRIPE_PUBLIC_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+    healthCheckPath: /api/health
+
+databases:
+  - name: codedswitch-db
+    databaseName: codedswitch
+    user: codedswitch

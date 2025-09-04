@@ -1,0 +1,6 @@
+🚀 Starting plugin manager upload to GitHub...
+✓ Uploaded: package.json
+✓ Uploaded: tsconfig.json
+✓ Uploaded: tailwind.config.ts
+✓ Uploaded: vite.config.prod.ts
+✓ Uploaded: render.yaml
