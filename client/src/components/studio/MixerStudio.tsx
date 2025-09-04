@@ -130,7 +130,7 @@ export default function MixerStudio() {
         duration: duration
       };
       const response = await apiRequest('POST', '/api/audio/export-master', mixData);
-      return response;
+      return response.json();
     },
     onSuccess: (result) => {
       toast({

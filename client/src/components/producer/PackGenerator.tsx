@@ -30,6 +30,11 @@ interface GeneratedPack {
     url?: string;
     audioUrl?: string; // For MusicGen real audio files
     pattern?: any;
+    aiData?: {
+      notes?: string[];
+      pattern?: number[];
+      intensity?: number;
+    };
   }[];
   metadata: {
     energy: number;
