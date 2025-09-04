@@ -327,7 +327,7 @@ export function MIDIController() {
                   <Label className="text-xs text-gray-400">Lowest Note</Label>
                   <Slider
                     value={[settings?.noteRange?.min || 21]}
-                    onValueChange={(value) => updateSettings({ noteRange: { ...settings?.noteRange, min: value[0] } })}
+                    onValueChange={(value) => updateSettings({ noteRange: { min: value[0], max: settings?.noteRange?.max || 108 } })}
                     max={127}
                     min={0}
                     step={1}
@@ -340,7 +340,7 @@ export function MIDIController() {
                   <Label className="text-xs text-gray-400">Highest Note</Label>
                   <Slider
                     value={[settings?.noteRange?.max || 108]}
-                    onValueChange={(value) => updateSettings({ noteRange: { ...settings?.noteRange, max: value[0] } })}
+                    onValueChange={(value) => updateSettings({ noteRange: { min: settings?.noteRange?.min || 21, max: value[0] } })}
                     max={127}
                     min={0}
                     step={1}

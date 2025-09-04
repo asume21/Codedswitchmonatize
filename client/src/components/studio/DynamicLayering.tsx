@@ -45,8 +45,24 @@ export default function DynamicLayering() {
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
 
   const { toast } = useToast();
-  const { playFrequency, initialize, isInitialized } = useAudio();
+  const { playNote, initialize, isInitialized } = useAudio();
   const studioContext = useContext(StudioAudioContext);
+
+  // Helper function to convert frequency to note name and octave
+  const frequencyToNote = (frequency: number): { note: string; octave: number } => {
+    const A4 = 440;
+    const semitoneRatio = Math.pow(2, 1/12);
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    
+    const semitonesFromA4 = Math.round(12 * Math.log2(frequency / A4));
+    const octave = Math.floor((semitonesFromA4 + 9) / 12) + 4;
+    const noteIndex = ((semitonesFromA4 + 9) % 12 + 12) % 12;
+    
+    return {
+      note: noteNames[noteIndex],
+      octave: Math.max(0, octave)
+    };
+  };
 
   const generateLayersMutation = useMutation({
     mutationFn: async (data: { arrangement: any; style: string; complexity: number }) => {
@@ -116,7 +132,8 @@ export default function DynamicLayering() {
     // Play the layer's notes in sequence
     for (const note of layer.notes) {
       setTimeout(() => {
-        playFrequency(note.frequency, note.duration, layer.instrument, note.velocity);
+        const { note: noteName, octave } = frequencyToNote(note.frequency);
+        playNote(noteName, octave, note.duration, layer.instrument, note.velocity);
       }, note.start * 1000);
     }
 
@@ -139,7 +156,8 @@ export default function DynamicLayering() {
     generatedLayers.forEach(layer => {
       layer.notes.forEach(note => {
         setTimeout(() => {
-          playFrequency(note.frequency, note.duration, layer.instrument, note.velocity * layer.volume);
+          const { note: noteName, octave } = frequencyToNote(note.frequency);
+          playNote(noteName, octave, note.duration, layer.instrument, note.velocity * layer.volume);
         }, note.start * 1000);
       });
     });
