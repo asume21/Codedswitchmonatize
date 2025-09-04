@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "set NODE_ENV=development && tsx server/index.ts",
+    "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "npx vite build --config vite.config.prod.ts && npx esbuild server/index.prod.ts --platform=node --bundle --format=cjs --outfile=dist/index.cjs",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
