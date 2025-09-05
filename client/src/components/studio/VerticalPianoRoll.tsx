@@ -4,11 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Square, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD
 import { realisticAudio } from "@/lib/realisticAudio";
-=======
-import { RealisticAudioEngine } from "@/lib/realisticAudio";
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 
 interface Note {
   id: string;
@@ -28,7 +24,6 @@ interface Track {
   volume: number;
 }
 
-<<<<<<< HEAD
 interface ProgressionStep {
   id: string;
   chordSymbol: string;
@@ -42,12 +37,6 @@ interface ChordProgression {
   id: string;
   name: string;
   steps: ProgressionStep[];
-=======
-interface ChordProgression {
-  id: string;
-  name: string;
-  chords: string[];
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   key: string;
 }
 
@@ -133,7 +122,6 @@ const DEFAULT_customKeys = {
   }
 };
 
-<<<<<<< HEAD
 const createProgressionStep = (chordSymbol: string, lengthSteps: number = 8): ProgressionStep => ({
   id: `${chordSymbol}-${Date.now()}-${Math.random()}`,
   chordSymbol,
@@ -187,13 +175,6 @@ const CHORD_PROGRESSIONS: ChordProgression[] = [
     ], 
     key: 'C' 
   }
-=======
-const CHORD_PROGRESSIONS: ChordProgression[] = [
-  { id: 'classic', name: 'Classic (I-V-vi-IV)', chords: ['I', 'V', 'vi', 'IV'], key: 'C' },
-  { id: 'jazz', name: 'Jazz (ii-V-I)', chords: ['ii', 'V', 'I'], key: 'C' },
-  { id: 'pop', name: 'Pop (vi-IV-I-V)', chords: ['vi', 'IV', 'I', 'V'], key: 'C' },
-  { id: 'electronic', name: 'Electronic (i-VII-VI-VII)', chords: ['vi', 'V', 'IV', 'V'], key: 'C' }
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 ];
 
 // Circle of Fifths
@@ -216,7 +197,6 @@ export default function VerticalPianoRoll() {
     }
   ]);
 
-<<<<<<< HEAD
   // Grid editing tools & interaction
   const [currentTool, setCurrentTool] = useState<'paint' | 'erase' | 'select'>('paint');
   const [isMouseDown, setIsMouseDown] = useState(false);
@@ -230,25 +210,18 @@ export default function VerticalPianoRoll() {
   const [snapDivision, setSnapDivision] = useState<4 | 8 | 16 | 32>(16);
   const [swing, setSwing] = useState(0); // 0-100 swing amount (placeholder for future playback timing)
 
-=======
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   // Chord progression state
   const [currentKey, setCurrentKey] = useState('C');
   const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
   const [chordMode, setChordMode] = useState(false);
   const [scaleLock, setScaleLock] = useState(false);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
-<<<<<<< HEAD
   const [isEditingProgression, setIsEditingProgression] = useState(false);
   const [progressionSteps, setProgressionSteps] = useState<ProgressionStep[]>(CHORD_PROGRESSIONS[0].steps);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [savedChords, setSavedChords] = useState<{name: string, keys: string[]}[]>([]);
   const [chordBuildMode, setChordBuildMode] = useState(false);
   const [chordSequence, setChordSequence] = useState<string[]>([]);
-=======
-  const [chordSequence, setChordSequence] = useState<string[]>([]);
-  const [sequenceMode, setSequenceMode] = useState(false);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   const [sequenceIndex, setSequenceIndex] = useState(0);
   const [customKeys, setCustomKeys] = useState<any>({
     'C': {
@@ -330,7 +303,6 @@ export default function VerticalPianoRoll() {
   const [showCustomKeyDialog, setShowCustomKeyDialog] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyNotes, setNewKeyNotes] = useState('');
-<<<<<<< HEAD
   const [audioInitialized, setAudioInitialized] = useState(false);
 
   const { toast } = useToast();
@@ -442,13 +414,6 @@ export default function VerticalPianoRoll() {
     return applyVoicing(invertedChord, step.voicing, step.octave);
   };
 
-=======
-
-  const { toast } = useToast();
-  const audioEngine = useRef(new RealisticAudioEngine());
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
@@ -457,7 +422,6 @@ export default function VerticalPianoRoll() {
     };
   }, []);
 
-<<<<<<< HEAD
   const initializeAudio = async () => {
     try {
       console.log('🎹 Initializing audio engine...');
@@ -476,11 +440,6 @@ export default function VerticalPianoRoll() {
       if (!audioInitialized) {
         await initializeAudio();
       }
-=======
-  const handlePlay = async () => {
-    try {
-      await audioEngine.current.initialize();
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
       
       if (isPlaying) {
         if (intervalRef.current) {
@@ -501,22 +460,12 @@ export default function VerticalPianoRoll() {
               if (!track.muted) {
                 const notesAtStep = track.notes.filter(note => note.step === nextStep);
                 notesAtStep.forEach(note => {
-<<<<<<< HEAD
                   realisticAudio.playNote(
                     note.note,
                     clampOct(note.octave),
                     0.25,
                     'piano',
                     note.velocity / 127
-=======
-                  // @ts-ignore - Audio engine interface inconsistency
-                  audioEngine.current.playNote(
-                    note.note,
-                    note.octave,
-                    note.velocity / 127,
-                    // @ts-ignore - Audio engine interface inconsistency
-                    0.25 // quarter note duration
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                   );
                 });
               }
@@ -543,17 +492,10 @@ export default function VerticalPianoRoll() {
     setCurrentStep(0);
   };
 
-<<<<<<< HEAD
   const addNote = async (keyIndex: number, step: number) => {
     const key = PIANO_KEYS[keyIndex];
     const newNote: Note = {
       id: `${key.note}${key.octave}-${step}-${Date.now()}`,
-=======
-  const addNote = (keyIndex: number, step: number) => {
-    const key = PIANO_KEYS[keyIndex];
-    const newNote: Note = {
-      id: `${key.key}-${step}-${Date.now()}`,
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
       note: key.note,
       octave: key.octave,
       step,
@@ -568,7 +510,6 @@ export default function VerticalPianoRoll() {
     ));
 
     // Play the note immediately
-<<<<<<< HEAD
     try {
       console.log('🎹 Adding note and playing:', key.note, key.octave);
       await realisticAudio.initialize();
@@ -576,10 +517,6 @@ export default function VerticalPianoRoll() {
     } catch (error) {
       console.error('🎹 Error playing note on add:', error);
     }
-=======
-    // @ts-ignore - Audio engine interface inconsistency
-    audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   };
 
   const removeNote = (noteId: string) => {
@@ -598,7 +535,6 @@ export default function VerticalPianoRoll() {
     ));
   };
 
-<<<<<<< HEAD
   // Handle piano key clicks for chord building and audio playback
   const handleKeyClick = (key: PianoKey) => {
     if (!audioInitialized) {
@@ -631,23 +567,15 @@ export default function VerticalPianoRoll() {
     }
   };
 
-=======
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   // Chord progression functions
   const playChord = (chordNotes: string[], octave: number = 4) => {
     chordNotes.forEach((note, index) => {
       setTimeout(() => {
-<<<<<<< HEAD
         realisticAudio.playNote(note, clampOct(octave), 1.0, 'piano', 0.6);
-=======
-        // @ts-ignore - Audio engine interface inconsistency
-        audioEngine.current.playNote(note, octave, 0.6, 1.0);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
       }, index * 50); // Slight stagger for chord effect
     });
   };
 
-<<<<<<< HEAD
   const playProgressionStep = (step: ProgressionStep) => {
     const voicedChord = getChordWithVoicing(step);
     voicedChord.forEach((chordNote, index) => {
@@ -724,45 +652,6 @@ export default function VerticalPianoRoll() {
           step: currentStep + noteIndex * 0.1, // Slight offset for chord notes
           velocity: 100,
           length: step.lengthSteps
-=======
-  const addChordToGrid = (step: number) => {
-    let chordToUse: string;
-    let chordNotes: string[];
-
-    if (sequenceMode && chordSequence.length > 0) {
-      // Use chord from custom sequence
-      chordToUse = chordSequence[sequenceIndex % chordSequence.length];
-      chordNotes = customKeys[currentKey].chords[chordToUse as keyof typeof customKeys[typeof currentKey]['chords']];
-      setSequenceIndex((prev) => (prev + 1) % chordSequence.length);
-    } else {
-      // Use chord from progression
-      chordToUse = selectedProgression.chords[currentChordIndex];
-      chordNotes = customKeys[currentKey].chords[chordToUse as keyof typeof customKeys[typeof currentKey]['chords']];
-      setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
-    }
-    
-    chordNotes.forEach((noteName: string, noteIndex: number) => {
-      const keyIndex = PIANO_KEYS.findIndex(key => key.note === noteName && key.octave === 4);
-      if (keyIndex !== -1) {
-        addNote(keyIndex, step + noteIndex * 0.1); // Slight offset for chord notes
-      }
-    });
-  };
-
-  const generateProgression = () => {
-    let step = 0;
-    selectedProgression.chords.forEach((chordSymbol, index) => {
-      const chordNotes = customKeys[currentKey].chords[chordSymbol as keyof typeof customKeys[typeof currentKey]['chords']];
-      
-      chordNotes.forEach((note: string, noteIndex: number) => {
-        const newNote: Note = {
-          id: `${note}-${step}-${Date.now()}-${noteIndex}`,
-          note,
-          octave: 4,
-          step: step + (index * 8), // 8 steps per chord
-          velocity: 100,
-          length: 8
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
         };
         
         setTracks(prev => prev.map((track, trackIndex) => 
@@ -771,11 +660,8 @@ export default function VerticalPianoRoll() {
             : track
         ));
       });
-<<<<<<< HEAD
       
       currentStep += step.lengthSteps;
-=======
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
     });
   };
 
@@ -786,7 +672,6 @@ export default function VerticalPianoRoll() {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="text-xl">🎹 Vertical Piano Roll</span>
-<<<<<<< HEAD
               <div className="flex items-center space-x-4">
                 {!audioInitialized && (
                   <Button
@@ -803,15 +688,6 @@ export default function VerticalPianoRoll() {
                 >
                   {isPlaying ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                   {isPlaying ? 'Stop' : 'Play'}
-=======
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={handlePlay}
-                  className={`${isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}
-                >
-                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {isPlaying ? 'Pause' : 'Play'}
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                 </Button>
                 <Button onClick={handleStop} variant="outline" className="bg-gray-700 hover:bg-gray-600">
                   <Square className="h-4 w-4" />
@@ -821,7 +697,6 @@ export default function VerticalPianoRoll() {
                   <RotateCcw className="h-4 w-4" />
                   Clear
                 </Button>
-<<<<<<< HEAD
                 {/* Tool selector */}
                 <select
                   value={currentTool}
@@ -858,8 +733,6 @@ export default function VerticalPianoRoll() {
                   <Slider value={[swing]} onValueChange={(v) => setSwing(v[0])} min={0} max={100} step={1} className="w-24" />
                   <span className="text-sm w-8 text-center">{swing}%</span>
                 </div>
-=======
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                 <Button 
                   onClick={() => setChordMode(!chordMode)} 
                   variant={chordMode ? "default" : "outline"}
@@ -868,7 +741,6 @@ export default function VerticalPianoRoll() {
                   🎵 Chord Mode
                 </Button>
                 <Button onClick={generateProgression} variant="outline" className="bg-green-700 hover:bg-green-600">
-<<<<<<< HEAD
                   Apply to Grid
                 </Button>
                 <Button 
@@ -884,9 +756,6 @@ export default function VerticalPianoRoll() {
                   className="bg-blue-700 hover:bg-blue-600"
                 >
                   Preview All
-=======
-                  Generate Progression
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                 </Button>
                 <Button 
                   onClick={() => setShowCustomKeyDialog(true)} 
@@ -916,15 +785,11 @@ export default function VerticalPianoRoll() {
                   value={selectedProgression.id} 
                   onChange={(e) => {
                     const prog = CHORD_PROGRESSIONS.find(p => p.id === e.target.value);
-<<<<<<< HEAD
                     if (prog) {
                       setSelectedProgression(prog);
                       setProgressionSteps([...prog.steps]);
                       setCurrentChordIndex(0);
                     }
-=======
-                    if (prog) setSelectedProgression(prog);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                   }}
                   className="bg-gray-700 text-white px-2 py-1 rounded text-sm"
                 >
@@ -978,7 +843,6 @@ export default function VerticalPianoRoll() {
                       ${chordMode ? 'ring-2 ring-purple-500 ring-opacity-50' : ''}
                     `}
                     style={{ height: `${KEY_HEIGHT}px` }}
-<<<<<<< HEAD
                     onClick={() => handleKeyClick(key)}
                   >
                     <div className="flex flex-col items-center justify-center h-full">
@@ -987,37 +851,13 @@ export default function VerticalPianoRoll() {
                         <div className="w-2 h-2 bg-yellow-400 rounded-full mt-1"></div>
                       )}
                     </div>
-=======
-                    onClick={() => {
-                      try {
-                        if (chordMode) {
-                          // In chord mode, play the current chord when any key is clicked
-                          const currentChord = selectedProgression.chords[currentChordIndex];
-                          const chordNotes = customKeys[currentKey].chords[currentChord as keyof typeof customKeys[typeof currentKey]['chords']];
-                          playChord(chordNotes, key.octave);
-                        } else {
-                          // Normal mode - play single note
-                          // @ts-ignore - Audio engine interface inconsistency
-                          audioEngine.current.playNote(key.note, key.octave, 0.8, 0.25);
-                        }
-                      } catch (error) {
-                        console.error('Audio playback error:', error);
-                      }
-                    }}
-                  >
-                    {key.key}
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Step Grid */}
-<<<<<<< HEAD
             <div className="flex-1 overflow-auto" ref={el => (gridRef.current = el)}>
-=======
-            <div className="flex-1 overflow-auto">
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
               <div className="relative bg-gray-900">
                 {/* Step Headers */}
                 <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10">
@@ -1041,7 +881,6 @@ export default function VerticalPianoRoll() {
 
                 {/* Grid */}
                 <div className="relative">
-<<<<<<< HEAD
                   {PIANO_KEYS.map((key, keyIndex) => {
                     const rowNotes = tracks[selectedTrack]?.notes.filter(n => n.note === key.note && n.octave === key.octave) || [];
                     const stepWidthPx = STEP_WIDTH * zoom;
@@ -1117,60 +956,11 @@ export default function VerticalPianoRoll() {
                       </div>
                     );
                   })}
-=======
-                  {PIANO_KEYS.map((key, keyIndex) => (
-                    <div key={key.key} className="flex border-b border-gray-700">
-                      {Array.from({ length: STEPS }, (_, step) => {
-                        const hasNote = tracks[selectedTrack]?.notes.some(
-                          note => note.note === key.note && note.octave === key.octave && note.step === step
-                        );
-                        const note = tracks[selectedTrack]?.notes.find(
-                          note => note.note === key.note && note.octave === key.octave && note.step === step
-                        );
-
-                        return (
-                          <div
-                            key={step}
-                            className={`
-                              border-r border-gray-700 cursor-pointer transition-colors relative
-                              ${hasNote 
-                                ? 'bg-blue-500 hover:bg-blue-400' 
-                                : 'hover:bg-gray-700'
-                              }
-                              ${step % 4 === 0 ? 'border-r-gray-500' : ''}
-                              ${currentStep === step ? 'bg-red-900 bg-opacity-50' : ''}
-                            `}
-                            style={{ 
-                              width: `${STEP_WIDTH * zoom}px`,
-                              height: `${KEY_HEIGHT}px`
-                            }}
-                            onClick={() => {
-                              if (hasNote && note) {
-                                removeNote(note.id);
-                              } else if (chordMode) {
-                                addChordToGrid(step);
-                              } else {
-                                addNote(keyIndex, step);
-                              }
-                            }}
-                          >
-                            {hasNote && (
-                              <div className="absolute inset-0 bg-blue-500 rounded-sm m-0.5 flex items-center justify-center">
-                                <div className="w-1 h-1 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                 </div>
               </div>
             </div>
           </div>
 
-<<<<<<< HEAD
           {/* Velocity Lane */}
           <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-700">
             <div className="flex items-center justify-between mb-2">
@@ -1215,8 +1005,6 @@ export default function VerticalPianoRoll() {
             </div>
           </div>
 
-=======
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
           {/* Chord Progression Panel */}
           <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-600">
             <div className="flex items-center justify-between mb-3">
@@ -1226,11 +1014,7 @@ export default function VerticalPianoRoll() {
                   Key: {customKeys[currentKey].name}
                 </span>
                 <span className="text-sm text-gray-400">
-<<<<<<< HEAD
                   Current: {progressionSteps[currentChordIndex]?.chordSymbol || 'N/A'} ({currentChordIndex + 1}/{progressionSteps.length})
-=======
-                  Current: {selectedProgression.chords[currentChordIndex]} ({currentChordIndex + 1}/{selectedProgression.chords.length})
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -1264,7 +1048,6 @@ export default function VerticalPianoRoll() {
               </div>
             </div>
 
-<<<<<<< HEAD
             {/* Chord Progression Editor */}
             <div className="mb-3">
               <div className="flex items-center justify-between mb-2">
@@ -1389,30 +1172,6 @@ export default function VerticalPianoRoll() {
                         <div className="text-xs opacity-50">{step.lengthSteps}st • Oct{step.octave}</div>
                       )}
                     </div>
-=======
-            {/* Current Progression Display */}
-            <div className="mb-3">
-              <span className="text-xs text-gray-400 mb-2 block">Current Progression ({selectedProgression.name}):</span>
-              <div className="flex gap-2">
-                {selectedProgression.chords.map((chord, index) => {
-                  const chordNotes = customKeys[currentKey].chords[chord as keyof typeof customKeys[typeof currentKey]['chords']];
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        setCurrentChordIndex(index);
-                        playChord(chordNotes);
-                      }}
-                      className={`px-3 py-2 text-sm rounded transition-colors ${
-                        currentChordIndex === index 
-                          ? 'bg-green-600 text-white' 
-                          : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                      }`}
-                    >
-                      <div className="font-medium">{chord}</div>
-                      <div className="text-xs opacity-75">{chordNotes.join('-')}</div>
-                    </button>
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                   );
                 })}
               </div>
@@ -1496,7 +1255,6 @@ export default function VerticalPianoRoll() {
           </div>
         </div>
         )}
-<<<<<<< HEAD
 
         {/* Chord Builder Panel */}
         <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
@@ -1649,8 +1407,6 @@ export default function VerticalPianoRoll() {
             </div>
           )}
         </div>
-=======
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
       </Card>
     </div>
   );

@@ -178,12 +178,8 @@ export default function CodeToMusic() {
                       await studioContext.playFullSong();
                     }
                     
-<<<<<<< HEAD
                     const instrumentSet = new Set<string>((musicData.melody as any[]).map((note: any) => String(note.instrument || 'piano')));
                     const instrumentCount = instrumentSet.size;
-=======
-                    const instrumentCount = [...new Set(musicData.melody.map((note: any) => note.instrument || 'piano'))].length;
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
                     toast({ title: "Playing Multi-Instrument Arrangement", description: `Playing ${musicData.melody.length} notes across ${instrumentCount} instruments plus drums.` });
                   } else {
                     // If no proper melody, just trigger the drum pattern playback

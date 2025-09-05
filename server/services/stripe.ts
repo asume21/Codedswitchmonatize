@@ -15,11 +15,7 @@ function getStripe(): Stripe {
   });
 }
 
-<<<<<<< HEAD
 export async function createCheckoutSession(storage: IStorage, userId: string, tier: string = 'pro') {
-=======
-export async function createCheckoutSession(storage: IStorage, userId: string) {
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   const stripe = getStripe();
   const user = await storage.getUser(userId);
   if (!user) throw new Error("User not found");
