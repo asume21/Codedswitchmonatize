@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import * as Tone from "tone";
 import type { SequencerState } from "./sequencer";
 
@@ -67,7 +66,6 @@ export class AudioEngine {
       console.log('🎵 Synthetic audio engine initialized successfully');
     } catch (error) {
       console.error("Failed to initialize audio:", error);
-=======
 import { realisticAudio } from './realisticAudio';
 
 export interface AudioEngine {
@@ -106,12 +104,10 @@ class WebAudioEngine implements AudioEngine {
       console.log('Audio engine initialized successfully');
     } catch (error) {
       console.error('Failed to initialize audio engine:', error);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
       throw error;
     }
   }
 
-<<<<<<< HEAD
   private async createReverb(): Promise<void> {
     if (!this.audioContext) return;
     
@@ -2049,7 +2045,6 @@ class WebAudioEngine implements AudioEngine {
       });
     });
     this.activeOscillators.clear();
-=======
   async playNote(frequency: number, duration: number, velocity: number, instrument?: string, sustainEnabled?: boolean): Promise<void> {
     if (!this.audioContext || !this.masterGain) return;
 
@@ -2318,12 +2313,10 @@ class WebAudioEngine implements AudioEngine {
 
   setBpm(bpm: number): void {
     console.log('Setting BPM to:', bpm);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   }
 
   setMasterVolume(volume: number): void {
     if (this.masterGain) {
-<<<<<<< HEAD
       this.masterGain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.audioContext!.currentTime);
     }
   }
@@ -2512,7 +2505,6 @@ class AudioManager {
 }
 
 export const audioManager = new AudioManager();
-=======
       this.masterGain.gain.value = Math.max(0, Math.min(1, volume));
     }
   }
@@ -2530,4 +2522,3 @@ export const audioManager = new AudioManager();
 
 export const audioEngine = new WebAudioEngine();
 export const audioManager = audioEngine;
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
