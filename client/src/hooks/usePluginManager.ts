@@ -19,15 +19,8 @@ import GranularEngine from '@/components/producer/GranularEngine';
 import WavetableOscillator from '@/components/producer/WavetableOscillator';
 import ProfessionalStudio from '@/components/studio/ProfessionalStudio';
 
-// Placeholder component for missing plugins
-const PlaceholderComponent = () => {
-  return (
-    <div className="p-4 text-center text-muted-foreground">
-      <Settings className="w-8 h-8 mx-auto mb-2" />
-      <p>Plugin coming soon...</p>
-    </div>
-  );
-};
+// Placeholder component for missing plugins - simple function returning null for .ts file
+const PlaceholderComponent = () => null;
 
 const defaultPlugins: Plugin[] = [
   // Studio Category
