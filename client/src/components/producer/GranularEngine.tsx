@@ -84,14 +84,9 @@ export default function GranularEngine() {
     macro3: 70,
     macro4: 20
   });
-  
-<<<<<<< HEAD
+ 
   const synthRef = useRef<Tone.Oscillator | null>(null);
   const granularRef = useRef<Tone.GrainPlayer | null>(null);
-=======
-  const synthRef = useRef<any>(null);
-  const granularRef = useRef<any>(null);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 
   useEffect(() => {
     // Initialize Tone.js synthesizers for Output CO Producer-style sound generation
@@ -144,7 +139,6 @@ export default function GranularEngine() {
   };
 
   const updateGranularParam = (param: keyof GranularParams, value: number | boolean | string) => {
-<<<<<<< HEAD
     const toNumber = (v: number | boolean | string) =>
       typeof v === "number" ? v : Number(v);
     const toBoolean = (v: number | boolean | string) => Boolean(v);
@@ -161,16 +155,12 @@ export default function GranularEngine() {
       return next;
     });
 
-=======
     setGranularParams(prev => ({ ...prev, [param]: value }));
     
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
     // Update active granular engine
     if (granularRef.current) {
       switch (param) {
         case "grainSize":
-<<<<<<< HEAD
-<<<<<<< HEAD
           granularRef.current.grainSize = toNumber(value) / 1000; // Convert to seconds
           break;
         case "position":
@@ -185,11 +175,8 @@ export default function GranularEngine() {
           granularRef.current.reverse = toBoolean(value);
           break;
         default:
-=======
           granularRef.current.grainSize = value / 1000; // Convert to seconds
-=======
           granularRef.current.grainSize = (typeof value === 'number' ? value : 0) / 1000; // Convert to seconds
->>>>>>> c9353c43027a4404e9beec386e86b63251b2385f
           break;
         case "position":
           granularRef.current.loopStart = (typeof value === 'number' ? value : 0) / 100;

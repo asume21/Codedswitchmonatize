@@ -69,13 +69,8 @@ function WavetableOscillator() {
     slope: 24
   });
   
-<<<<<<< HEAD
   const synthRef = useRef<Tone.Oscillator | null>(null);
   const lfoRefs = useRef<Tone.LFO[]>([]);
-=======
-  const synthRef = useRef<any>(null);
-  const lfoRefs = useRef<any[]>([]);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 
   useEffect(() => {
     const initSynths = async () => {
@@ -104,27 +99,15 @@ function WavetableOscillator() {
       lfoRefs.current = lfos.map((lfoConfig, index) => {
         const lfo = new Tone.LFO({
           frequency: lfoConfig.rate,
-<<<<<<< HEAD
           type: lfoConfig.shape as any
         });
         // set depth via amplitude after construction for TS compatibility
         lfo.amplitude.value = lfoConfig.depth / 100;
-=======
-          type: lfoConfig.shape as any,
-          amplitude: lfoConfig.depth / 100
-        });
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
         
         // Connect LFO to various parameters based on target
         switch (lfoConfig.target) {
           case "position":
-<<<<<<< HEAD
-            if (synthRef.current) {
-              lfo.connect(synthRef.current.frequency);
-            }
-=======
             lfo.connect(synthRef.current.frequency);
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
             break;
           case "harmonics":
             lfo.connect(filter.frequency);
@@ -177,11 +160,8 @@ function WavetableOscillator() {
     if (synthRef.current) {
       switch (param) {
         case "waveform":
-<<<<<<< HEAD
           synthRef.current.type = value as any;
-=======
           synthRef.current.type = value;
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
           break;
         case "harmonics":
           // Simulate harmonic content changes
@@ -206,7 +186,6 @@ function WavetableOscillator() {
       const lfo = lfoRefs.current[index];
       switch (param) {
         case "rate":
-<<<<<<< HEAD
           lfo.frequency.value = Number(value);
           break;
         case "depth":
@@ -214,15 +193,13 @@ function WavetableOscillator() {
           break;
         case "shape":
           lfo.type = value as any;
-=======
-          lfo.frequency.value = value;
+         lfo.frequency.value = value;
           break;
         case "depth":
           lfo.amplitude.value = (value as number) / 100;
           break;
         case "shape":
           lfo.type = value;
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
           break;
       }
     }

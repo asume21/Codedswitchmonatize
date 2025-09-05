@@ -4,11 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Square, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD
 import { realisticAudio } from "@/lib/realisticAudio";
-=======
-import { RealisticAudioEngine } from "@/lib/realisticAudio";
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 
 interface Note {
   id: string;

@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 
-<<<<<<< HEAD
 // Load API key (server-only)
 const apiKey = process.env.XAI_API_KEY?.trim();
 
