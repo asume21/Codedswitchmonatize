@@ -1,5 +1,4 @@
 import { GeneratedSongData } from './ai-structure-grok';
-import { GeneratedSongData } from './ai-structure-generator';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
