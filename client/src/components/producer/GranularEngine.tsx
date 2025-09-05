@@ -174,20 +174,6 @@ export default function GranularEngine() {
         case "reverse":
           granularRef.current.reverse = toBoolean(value);
           break;
-        default:
-          granularRef.current.grainSize = value / 1000; // Convert to seconds
-          granularRef.current.grainSize = (typeof value === 'number' ? value : 0) / 1000; // Convert to seconds
-          break;
-        case "position":
-          granularRef.current.loopStart = (typeof value === 'number' ? value : 0) / 100;
-          break;
-        case "pitch":
-          granularRef.current.playbackRate = Math.pow(2, (typeof value === 'number' ? value : 0) / 12); // Semitone conversion
-          break;
-        case "reverse":
-          granularRef.current.reverse = value;
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
-          break;
       }
     }
   };
