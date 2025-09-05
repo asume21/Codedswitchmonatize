@@ -49,7 +49,6 @@ export function PianoRollPlugin({
   notes, 
   onNotesChange, 
   selectedTrack, 
-<<<<<<< HEAD
   isPlaying, 
   onPlayNote 
 }: PianoRollPluginProps) {
@@ -69,7 +68,6 @@ export function PianoRollPlugin({
     };
     
     onNotesChange([...notes, newNote]);
-=======
   isPlaying,
   onPlayNote 
 }: PianoRollPluginProps) {
@@ -87,7 +85,7 @@ export function PianoRollPlugin({
 
     onNotesChange([...notes, newNote]);
     onPlayNote(note, octave, selectedDuration, 'piano');
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
+
   };
 
   const getPitchOffset = (note: string): number => {
