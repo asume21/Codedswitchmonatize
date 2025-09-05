@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1964,7 +1963,6 @@ export default function ProfessionalStudio() {
           </Card>
         </TabsContent>
       </Tabs>
-=======
 import React, { useState, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -2152,7 +2150,6 @@ export default function ProfessionalStudio() {
           </div>
         </div>
       </div>
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
     </div>
   );
 }
