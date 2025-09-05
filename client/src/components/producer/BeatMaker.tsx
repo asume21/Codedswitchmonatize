@@ -1,6 +1,5 @@
-<<<<<<< HEAD
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useRef, useEffect, useContext } from "react";
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepSequencer } from './StepSequencer';
@@ -13,17 +12,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-=======
-import { useState, useRef, useEffect, useContext } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { useMIDI } from "@/hooks/use-midi";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Slider } from "@/components/ui/slider";
 import { StudioAudioContext } from "@/pages/studio";
 import { realisticAudio } from "@/lib/realisticAudio";
 import OutputSequencer from "@/components/producer/OutputSequencer";
@@ -66,14 +59,12 @@ const defaultTracks = [
   { id: "tom3", name: "Tom 3", color: "bg-purple-800" },
   { id: "ride", name: "Ride", color: "bg-orange-500" },
 ];
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 
 interface BeatMakerProps {
   onBeatGenerated?: (beat: any) => void;
 }
 
 export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
-<<<<<<< HEAD
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpm, setBpm] = useState(90);
   const [currentPattern, setCurrentPattern] = useState<any>(null);
