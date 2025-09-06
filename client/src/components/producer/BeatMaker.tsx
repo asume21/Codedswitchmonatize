@@ -9,7 +9,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { useAudio } from '@/hooks/use-audio';
 import { useMIDI } from '@/hooks/use-midi';
-import { StudioAudioContext } from '@/contexts/StudioAudioContext';
+import { StudioAudioContext } from '@/pages/studio';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { OutputSequencer } from '@/components/producer/OutputSequencer';
 
@@ -94,6 +94,9 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
 
   const { toast } = useToast();
   const { playDrumSound, initialize, isInitialized } = useAudio();
+  
+  // Use Studio Audio Context
+  const studioContext = useContext(StudioAudioContext);
   
   // MIDI Controller Integration  
   const { isConnected: midiConnected, activeNotes, settings: midiSettings } = useMIDI();
