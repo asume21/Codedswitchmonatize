@@ -68,24 +68,20 @@ export function PianoRollPlugin({
     };
     
     onNotesChange([...notes, newNote]);
-  isPlaying,
-  onPlayNote 
-}: PianoRollPluginProps) {
-  const [selectedDuration, setSelectedDuration] = useState(0.5);
+  };
 
   const addNote = (note: string, octave: number) => {
     const newNote: Note = {
       id: `note-${Date.now()}-${Math.random()}`,
       pitch: (octave * 12) + getPitchOffset(note),
       start: 0,
-      duration: selectedDuration,
+      duration: noteDuration,
       velocity: 0.8,
       trackId: selectedTrack
     };
 
     onNotesChange([...notes, newNote]);
-    onPlayNote(note, octave, selectedDuration, 'piano');
-
+    onPlayNote(note, octave, noteDuration, 'piano');
   };
 
   const getPitchOffset = (note: string): number => {
@@ -118,8 +114,8 @@ export function PianoRollPlugin({
           <div className="flex items-center space-x-2">
             <label className="text-sm text-gray-400">Duration:</label>
             <select 
-              value={selectedDuration}
-              onChange={(e) => setSelectedDuration(parseFloat(e.target.value))}
+              value={noteDuration}
+              onChange={(e) => setNoteDuration(parseFloat(e.target.value))}
               className="bg-gray-600 text-white px-2 py-1 rounded text-sm"
             >
               <option value={0.25}>1/16</option>
