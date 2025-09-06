@@ -7,8 +7,8 @@ import { Play, Pause, Square, Save, Zap, Volume2, Settings } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
-import { useAudio } from '@/hooks/useAudio';
-import { useMIDI } from '@/hooks/useMIDI';
+import { useAudio } from '@/hooks/use-audio';
+import { useMIDI } from '@/hooks/use-midi';
 import { StudioAudioContext } from '@/contexts/StudioAudioContext';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { OutputSequencer } from '@/components/producer/OutputSequencer';

@@ -192,13 +192,6 @@ function WavetableOscillator() {
           lfo.amplitude.value = Number(value) / 100;
           break;
         case "shape":
-          lfo.type = value as any;
-         lfo.frequency.value = value;
-          break;
-        case "depth":
-          lfo.amplitude.value = (value as number) / 100;
-          break;
-        case "shape":
           lfo.type = value;
           break;
       }
