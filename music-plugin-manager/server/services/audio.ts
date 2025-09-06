@@ -270,7 +270,13 @@ export class AudioService {
 
   // Audio analysis utilities
   static analyzeAudioPattern(pattern: any) {
-    const analysis = {
+    const analysis: {
+      density: number;
+      complexity: number;
+      rhythm: string;
+      dominant_instruments: string[];
+      suggestions: string[];
+    } = {
       density: 0,
       complexity: 0,
       rhythm: 'steady',

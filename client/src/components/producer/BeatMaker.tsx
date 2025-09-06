@@ -6,12 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Play, Pause, Square, Save, Zap, Volume2, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/api';
+import { beatAPI } from '@/lib/api';
 import { useAudio } from '@/hooks/use-audio';
 import { useMIDI } from '@/hooks/use-midi';
 import { StudioAudioContext } from '@/pages/studio';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
-import { OutputSequencer } from '@/components/producer/OutputSequencer';
+import OutputSequencer from '@/components/producer/OutputSequencer';
 
 interface BeatPattern {
   kick: boolean[];
@@ -29,7 +29,6 @@ interface BeatMakerProps {
 }
 
 const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
-  const studioContext = useContext(StudioAudioContext);
   const [bpm, setBpm] = useState(120);
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -43,20 +42,6 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
 
   // Initialize pattern with default structure or load from studio context
   const [pattern, setPattern] = useState<BeatPattern>(() => {
-    // Check for pattern from studio context first
-    if (studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0) {
-      return {
-        kick: studioContext.currentPattern.kick || Array(16).fill(false),
-        snare: studioContext.currentPattern.snare || Array(16).fill(false),
-        hihat: studioContext.currentPattern.hihat || Array(16).fill(false),
-        openhat: studioContext.currentPattern.openhat || Array(16).fill(false),
-        tom1: studioContext.currentPattern.tom1 || Array(16).fill(false),
-        tom2: studioContext.currentPattern.tom2 || Array(16).fill(false),
-        tom3: studioContext.currentPattern.tom3 || Array(16).fill(false),
-        ride: studioContext.currentPattern.ride || Array(16).fill(false),
-      };
-    }
-    
     // Check localStorage for persisted data
     const storedData = localStorage.getItem('generatedMusicData');
     if (storedData) {
@@ -122,20 +107,12 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
   // Beat generation mutation
   const generateBeatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/beat/generate", {
+      return beatAPI.generate({
         genre: "trap",
         bpm,
-        complexity: complexity[0],
-        pattern_length: 16,
-        instruments: ["kick", "snare", "hihat", "openhat", "tom1", "tom2", "tom3", "ride"],
-        aiProvider
+        duration: 16,
+        aiProvider,
       });
-      
-      if (!response.ok) {
-        throw new Error("Failed to generate beat");
-      }
-      
-      return response.json();
     },
     onSuccess: (data) => {
       if (data.beat_pattern) {
@@ -165,17 +142,11 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
   // Save beat mutation
   const saveBeatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/beat/save", {
+      return beatAPI.save({
+        name: `Beat_${new Date().toISOString().slice(0, 10)}_${bpm}BPM`,
         pattern,
         bpm,
-        name: `Beat_${new Date().toISOString().slice(0, 10)}_${bpm}BPM`
       });
-      
-      if (!response.ok) {
-        throw new Error("Failed to save beat");
-      }
-      
-      return response.json();
     },
     onSuccess: () => {
       toast({
