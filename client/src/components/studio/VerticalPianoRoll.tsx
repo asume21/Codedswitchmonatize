@@ -482,7 +482,7 @@ export default function VerticalPianoRoll() {
                           
                           const chordSymbol = selectedProgression.chords[chordIndex];
                           const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[chordSymbol];
-                          console.log(`Playing chord ${chordIndex + 1} (${chordSymbol}):`, chordNotes.join(', '));
+                          console.log('Playing chord', chordIndex + 1, chordSymbol, chordNotes.join(', '));
                           playChord(chordNotes, key.octave);
                         } else {
                           realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
