@@ -21,6 +21,10 @@ import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 
+// Import the missing components
+import CodeTranslator from "@/components/studio/CodeTranslator";
+import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
+
 function Router() {
   // Track page views when routes change
   useAnalytics();
@@ -34,10 +38,10 @@ function Router() {
       <Route path="/beat-studio" component={Studio} />
       <Route path="/melody-composer" component={Studio} />
       <Route path="/unified-studio" component={Studio} />
-      <Route path="/code-translator" component={Studio} />
+      <Route path="/code-translator" component={CodeTranslator} />
       <Route path="/codebeat-studio" component={Studio} />
       <Route path="/lyric-lab" component={Studio} />
-      <Route path="/vulnerability-scanner" component={Studio} />
+      <Route path="/vulnerability-scanner" component={VulnerabilityScanner} />
       <Route path="/ai-assistant" component={Studio} />
       <Route path="/mix-studio" component={Studio} />
       <Route path="/pro-console" component={Studio} />
@@ -81,10 +85,10 @@ function App() {
           <Route path="/song-uploader" component={Studio} />
           <Route path="/beat-studio" component={Studio} />
           <Route path="/melody-composer" component={Studio} />
-          <Route path="/code-translator" component={Studio} />
+          <Route path="/code-translator" component={CodeTranslator} />
           <Route path="/codebeat-studio" component={Studio} />
           <Route path="/lyric-lab" component={Studio} />
-          <Route path="/vulnerability-scanner" component={Studio} />
+          <Route path="/vulnerability-scanner" component={VulnerabilityScanner} />
           <Route path="/ai-assistant" component={Studio} />
           <Route path="/mix-studio" component={Studio} />
           <Route path="/pro-console" component={Studio} />
