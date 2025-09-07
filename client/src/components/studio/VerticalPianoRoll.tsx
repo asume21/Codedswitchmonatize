@@ -347,6 +347,92 @@ export default function VerticalPianoRoll() {
               </Button>
             </div>
           </CardTitle>
+          
+          {/* Track Selection - Moved to top for visibility */}
+          <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-600">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-white">Track:</span>
+              <div className="flex gap-2">
+                {tracks.map((track, index) => (
+                  <button
+                    key={track.id}
+                    onClick={() => setSelectedTrack(index)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      selectedTrack === index
+                        ? `${track.color} text-white`
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {track.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4 mt-3">
+              <span className="text-sm font-medium text-white">Instrument:</span>
+              <select
+                value={tracks[selectedTrack]?.instrument || 'piano'}
+                onChange={(e) => {
+                  setTracks(prev => prev.map((track, index) => 
+                    index === selectedTrack 
+                      ? { ...track, instrument: e.target.value }
+                      : track
+                  ));
+                }}
+                className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
+              >
+                {/* Piano */}
+                <option value="piano">🎹 Piano</option>
+                <option value="piano-organ">🎹 Organ</option>
+                
+                {/* Strings */}
+                <option value="strings-violin">🎻 Violin</option>
+                <option value="strings">🎻 Strings</option>
+                <option value="guitar">🎸 Guitar</option>
+                <option value="strings-guitar">🎸 Guitar (Steel)</option>
+                <option value="guitar-nylon">🎸 Guitar (Nylon)</option>
+                <option value="pads-strings">🎻 Pad Strings</option>
+                
+                {/* Horns */}
+                <option value="horns-trumpet">🎺 Trumpet</option>
+                <option value="horns-trombone">🎺 Trombone</option>
+                <option value="horns-french">🎺 French Horn</option>
+                
+                {/* Flutes */}
+                <option value="flute-concert">🪈 Flute</option>
+                <option value="flute-recorder">🪈 Recorder</option>
+                <option value="flute-indian">🪈 Indian Flute</option>
+                
+                {/* Bass */}
+                <option value="bass-electric">🎸 Bass (Electric)</option>
+                <option value="bass-upright">🎸 Bass (Upright)</option>
+                <option value="bass-synth">🎸 Bass (Synth)</option>
+                
+                {/* Synth */}
+                <option value="synth-analog">🎛️ Synth (Analog)</option>
+                <option value="synth-digital">🎛️ Synth (Digital)</option>
+                <option value="synth-fm">🎛️ Synth (FM)</option>
+                
+                {/* Leads */}
+                <option value="leads-square">🎛️ Lead (Square)</option>
+                <option value="leads-saw">🎛️ Lead (Saw)</option>
+                <option value="leads-pluck">🎛️ Lead (Pluck)</option>
+                
+                {/* Pads */}
+                <option value="pads-warm">🎛️ Pad (Warm)</option>
+                <option value="pads-choir">🎛️ Pad (Choir)</option>
+                
+                {/* Drums */}
+                <option value="drum-kick">🥁 Kick Drum</option>
+                <option value="drum-snare">🥁 Snare Drum</option>
+                <option value="drum-hihat">🥁 Hi-Hat</option>
+                <option value="drum-crash">🥁 Crash</option>
+                <option value="drum-tom">🥁 Tom</option>
+                <option value="drum-clap">🥁 Clap</option>
+              </select>
+            </div>
+          </div>
         </CardHeader>
 
         <CardContent className="h-full overflow-hidden">
@@ -368,8 +454,35 @@ export default function VerticalPianoRoll() {
                     onClick={() => {
                       try {
                         if (chordMode) {
-                          const currentChord = selectedProgression.chords[currentChordIndex];
-                          const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[currentChord];
+                          // Map piano keys to chords in a more intuitive way
+                          const noteIndex = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(key.note);
+                          
+                          // Map different ranges of keys to different chords
+                          let chordIndex = 0;
+                          
+                          // White keys in lower octave → chord 0 (I)
+                          if (key.octave <= 4 && !key.isBlack) {
+                            chordIndex = 0;
+                          }
+                          // White keys in middle octave → chord 1 (V) 
+                          else if (key.octave === 5 && !key.isBlack) {
+                            chordIndex = 1;
+                          }
+                          // Black keys or higher octaves → chord 2 (vi)
+                          else if (key.isBlack || key.octave >= 6) {
+                            chordIndex = 2;
+                          }
+                          // Everything else → chord 3 (IV)
+                          else {
+                            chordIndex = 3;
+                          }
+                          
+                          // Ensure we don't exceed the available chords in the progression
+                          chordIndex = Math.min(chordIndex, selectedProgression.chords.length - 1);
+                          
+                          const chordSymbol = selectedProgression.chords[chordIndex];
+                          const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[chordSymbol];
+                          console.log(`🎵 Playing chord ${chordIndex + 1} (${chordSymbol}): ${chordNotes.join(', ')}`);
                           playChord(chordNotes, key.octave);
                         } else {
                           realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
@@ -601,8 +714,37 @@ export default function VerticalPianoRoll() {
               </select>
             </div>
           </div>
+
+          {/* Track Info */}
+          <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-600">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium">Track: {tracks[selectedTrack]?.name}</span>
+                <span className="text-sm text-gray-400">
+                  Notes: {tracks[selectedTrack]?.notes.length || 0}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Volume:</span>
+                <Slider
+                  value={[tracks[selectedTrack]?.volume || 80]}
+                  onValueChange={(value) => {
+                    setTracks(prev => prev.map((track, index) => 
+                      index === selectedTrack 
+                        ? { ...track, volume: value[0] }
+                        : track
+                    ));
+                  }}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-20"
+                />
+                <span className="text-sm w-8">{tracks[selectedTrack]?.volume}%</span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
-  );
 }
