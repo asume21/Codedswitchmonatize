@@ -6,21 +6,43 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react({
+      jsxRuntime: 'automatic',
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client/src"),
       "@shared": path.resolve(__dirname, "shared"),
-      "@assets": path.resolve(__dirname, "attached_assets"),
     },
   },
   root: "./client",
   build: {
     outDir: "../dist/client",
     emptyOutDir: true,
+    sourcemap: false,
+    minify: true,
+    rollupOptions: {
+      external: [],
+      output: {
+        manualChunks: undefined,
+      },
+    },
   },
   server: {
     host: "0.0.0.0",
     port: 5173,
+  },
+  define: {
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      '@tanstack/react-query',
+      'wouter',
+    ],
   },
 });
