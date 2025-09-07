@@ -55,6 +55,14 @@ export class RealisticAudioEngine {
     'leads-saw': 'lead_2_sawtooth',
     'leads-pluck': 'lead_6_voice',
     
+    // Drum instruments (synthetic)
+    'drum-kick': 'synth_drum',
+    'drum-snare': 'synth_drum',
+    'drum-hihat': 'synth_drum',
+    'drum-crash': 'synth_drum',
+    'drum-tom': 'synth_drum',
+    'drum-clap': 'synth_drum',
+    
     // Legacy mappings for backwards compatibility
     bass: 'electric_bass_finger',
     violin: 'violin',
@@ -114,7 +122,13 @@ export class RealisticAudioEngine {
       // Load essential instruments first (piano, guitar, and a few more)
       await this.loadInstruments([
         'piano', 'guitar', 'strings-guitar', 'violin', 'flute', 'trumpet', 
-        'piano-organ', 'bass-electric', 'strings-violin'
+        'piano-organ', 'bass-electric', 'strings-violin',
+        'horns-trumpet', 'horns-trombone', 'horns-french',
+        'flute-concert', 'flute-recorder', 'flute-indian',
+        'strings', 'pads-strings', 'choir_aahs',
+        'synth-analog', 'synth-digital', 'synth-fm',
+        'leads-square', 'leads-saw', 'leads-pluck',
+        'drum-kick', 'drum-snare', 'drum-hihat', 'drum-crash'
       ]);
       
       this.isInitialized = true;

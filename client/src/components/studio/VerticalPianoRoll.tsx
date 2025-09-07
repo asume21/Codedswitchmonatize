@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+ import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -22,6 +22,7 @@ interface Track {
   notes: Note[];
   muted: boolean;
   volume: number;
+  instrument: string;
 }
 
 interface ChordProgression {
@@ -120,7 +121,35 @@ export default function VerticalPianoRoll() {
       color: 'bg-blue-500',
       notes: [],
       muted: false,
-      volume: 80
+      volume: 80,
+      instrument: 'piano'
+    },
+    {
+      id: 'track2',
+      name: 'Bass',
+      color: 'bg-green-500',
+      notes: [],
+      muted: false,
+      volume: 75,
+      instrument: 'bass-electric'
+    },
+    {
+      id: 'track3',
+      name: 'Harmony',
+      color: 'bg-purple-500',
+      notes: [],
+      muted: false,
+      volume: 70,
+      instrument: 'strings-violin'
+    },
+    {
+      id: 'track4',
+      name: 'Synth',
+      color: 'bg-yellow-500',
+      notes: [],
+      muted: false,
+      volume: 65,
+      instrument: 'synth-analog'
     }
   ]);
 
@@ -165,7 +194,7 @@ export default function VerticalPianoRoll() {
                     note.note,
                     note.octave,
                     0.25,
-                    'piano',
+                    track.instrument || 'piano',
                     note.velocity / 127
                   );
                 });
@@ -210,7 +239,7 @@ export default function VerticalPianoRoll() {
         : track
     ));
 
-    realisticAudio.playNote(key.note, key.octave, 0.8, 'piano', 0.8);
+    realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
   };
 
   const removeNote = (noteId: string) => {
@@ -232,7 +261,7 @@ export default function VerticalPianoRoll() {
   const playChord = (chordNotes: string[], octave: number = 4) => {
     chordNotes.forEach((note, index) => {
       setTimeout(() => {
-        realisticAudio.playNote(note, octave, 1.0, 'piano', 0.6);
+        realisticAudio.playNote(note, octave, 1.0, tracks[selectedTrack]?.instrument || 'piano', 0.6);
       }, index * 50); // Slight stagger for chord effect
     });
   };
@@ -343,7 +372,7 @@ export default function VerticalPianoRoll() {
                           const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[currentChord];
                           playChord(chordNotes, key.octave);
                         } else {
-                          realisticAudio.playNote(key.note, key.octave, 0.8, 'piano', 0.8);
+                          realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
                         }
                       } catch (error) {
                         console.error('Audio playback error:', error);
@@ -487,33 +516,89 @@ export default function VerticalPianoRoll() {
             </div>
           </div>
 
-          {/* Track Info */}
+          {/* Track Selection */}
           <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-600">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium">Track: {tracks[selectedTrack]?.name}</span>
-                <span className="text-sm text-gray-400">
-                  Notes: {tracks[selectedTrack]?.notes.length || 0}
-                </span>
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-white">Track:</span>
+              <div className="flex gap-2">
+                {tracks.map((track, index) => (
+                  <button
+                    key={track.id}
+                    onClick={() => setSelectedTrack(index)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      selectedTrack === index
+                        ? `${track.color} text-white`
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {track.name}
+                  </button>
+                ))}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm">Volume:</span>
-                <Slider
-                  value={[tracks[selectedTrack]?.volume || 80]}
-                  onValueChange={(value) => {
-                    setTracks(prev => prev.map((track, index) => 
-                      index === selectedTrack 
-                        ? { ...track, volume: value[0] }
-                        : track
-                    ));
-                  }}
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="w-20"
-                />
-                <span className="text-sm w-8">{tracks[selectedTrack]?.volume}%</span>
-              </div>
+            </div>
+            
+            <div className="flex items-center gap-4 mt-3">
+              <span className="text-sm font-medium text-white">Instrument:</span>
+              <select
+                value={tracks[selectedTrack]?.instrument || 'piano'}
+                onChange={(e) => {
+                  setTracks(prev => prev.map((track, index) => 
+                    index === selectedTrack 
+                      ? { ...track, instrument: e.target.value }
+                      : track
+                  ));
+                }}
+                className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
+              >
+                {/* Piano */}
+                <option value="piano">🎹 Piano</option>
+                <option value="piano-organ">🎹 Organ</option>
+                
+                {/* Strings */}
+                <option value="strings-violin">🎻 Violin</option>
+                <option value="strings">🎻 Strings</option>
+                <option value="guitar">🎸 Guitar</option>
+                <option value="strings-guitar">🎸 Guitar (Steel)</option>
+                <option value="guitar-nylon">🎸 Guitar (Nylon)</option>
+                <option value="pads-strings">🎻 Pad Strings</option>
+                
+                {/* Horns */}
+                <option value="horns-trumpet">🎺 Trumpet</option>
+                <option value="horns-trombone">🎺 Trombone</option>
+                <option value="horns-french">🎺 French Horn</option>
+                
+                {/* Flutes */}
+                <option value="flute-concert">🪈 Flute</option>
+                <option value="flute-recorder">🪈 Recorder</option>
+                <option value="flute-indian">🪈 Indian Flute</option>
+                
+                {/* Bass */}
+                <option value="bass-electric">🎸 Bass (Electric)</option>
+                <option value="bass-upright">🎸 Bass (Upright)</option>
+                <option value="bass-synth">🎸 Bass (Synth)</option>
+                
+                {/* Synth */}
+                <option value="synth-analog">🎛️ Synth (Analog)</option>
+                <option value="synth-digital">🎛️ Synth (Digital)</option>
+                <option value="synth-fm">🎛️ Synth (FM)</option>
+                
+                {/* Leads */}
+                <option value="leads-square">🎛️ Lead (Square)</option>
+                <option value="leads-saw">🎛️ Lead (Saw)</option>
+                <option value="leads-pluck">🎛️ Lead (Pluck)</option>
+                
+                {/* Pads */}
+                <option value="pads-warm">🎛️ Pad (Warm)</option>
+                <option value="pads-choir">🎛️ Pad (Choir)</option>
+                
+                {/* Drums */}
+                <option value="drum-kick">🥁 Kick Drum</option>
+                <option value="drum-snare">🥁 Snare Drum</option>
+                <option value="drum-hihat">🥁 Hi-Hat</option>
+                <option value="drum-crash">🥁 Crash</option>
+                <option value="drum-tom">🥁 Tom</option>
+                <option value="drum-clap">🥁 Clap</option>
+              </select>
             </div>
           </div>
         </CardContent>
