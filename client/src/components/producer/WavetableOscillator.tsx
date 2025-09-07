@@ -107,7 +107,9 @@ function WavetableOscillator() {
         // Connect LFO to various parameters based on target
         switch (lfoConfig.target) {
           case "position":
-            lfo.connect(synthRef.current.frequency);
+            if (synthRef.current) {
+              lfo.connect(synthRef.current.frequency);
+            }
             break;
           case "harmonics":
             lfo.connect(filter.frequency);
@@ -161,7 +163,6 @@ function WavetableOscillator() {
       switch (param) {
         case "waveform":
           synthRef.current.type = value as any;
-          synthRef.current.type = value;
           break;
         case "harmonics":
           // Simulate harmonic content changes
@@ -192,7 +193,7 @@ function WavetableOscillator() {
           lfo.amplitude.value = Number(value) / 100;
           break;
         case "shape":
-          lfo.type = value;
+          lfo.type = value as any;
           break;
       }
     }
