@@ -22,6 +22,22 @@ import {
   type InsertSamplePack,
   type Sample,
   type InsertSample,
+  // Social types
+  type UserProfile,
+  type InsertUserProfile,
+  type UserFollow,
+  type ProjectShare,
+  type ProjectCollaboration,
+  type ProjectComment,
+  type ProjectLike,
+  type ProjectVersion,
+  userProfiles,
+  projectShares,
+  projectCollaborations,
+  projectComments,
+  projectLikes,
+  userFollows,
+  projectVersions,
   users,
   projects,
   codeTranslations,
@@ -144,7 +160,26 @@ export interface IStorage {
   getAllSamples(): Promise<Sample[]>;
   getSamplesByPack(packId: string): Promise<Sample[]>;
   createSample(sample: InsertSample): Promise<Sample>;
-  deleteSample(id: string): Promise<void>;
+
+  // Social Features
+  getUserProfile(userId: string): Promise<UserProfile | undefined>;
+  createUserProfile(userId: string, profile: InsertUserProfile): Promise<UserProfile>;
+  updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<UserProfile>;
+  followUser(followerId: string, followingId: string): Promise<UserFollow>;
+  unfollowUser(followerId: string, followingId: string): Promise<void>;
+  getUserFollowers(userId: string): Promise<User[]>;
+  getUserFollowing(userId: string): Promise<User[]>;
+  shareProject(projectId: string, sharedById: string, sharedWithId: string, permission: string): Promise<ProjectShare>;
+  getProjectShares(projectId: string): Promise<ProjectShare[]>;
+  addProjectCollaborator(projectId: string, userId: string, role: string): Promise<ProjectCollaboration>;
+  removeProjectCollaborator(projectId: string, userId: string): Promise<void>;
+  addProjectComment(projectId: string, userId: string, content: string, parentCommentId?: string): Promise<ProjectComment>;
+  getProjectComments(projectId: string): Promise<ProjectComment[]>;
+  likeProject(projectId: string, userId: string): Promise<ProjectLike>;
+  unlikeProject(projectId: string, userId: string): Promise<void>;
+  getProjectLikes(projectId: string): Promise<ProjectLike[]>;
+  createProjectVersion(projectId: string, version: number, data: any, createdBy: string, description?: string): Promise<ProjectVersion>;
+  getProjectVersions(projectId: string): Promise<ProjectVersion[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -158,8 +193,13 @@ export class MemStorage implements IStorage {
   private songs: Map<string, Song>;
   private playlists: Map<string, Playlist>;
   private playlistSongs: Map<string, PlaylistSong>;
-  private samplePacks: Map<string, SamplePack>;
-  private samples: Map<string, Sample>;
+  private userProfiles: Map<string, UserProfile>;
+  private projectShares: Map<string, ProjectShare>;
+  private projectCollaborations: Map<string, ProjectCollaboration>;
+  private projectComments: Map<string, ProjectComment>;
+  private projectLikes: Map<string, ProjectLike>;
+  private userFollows: Map<string, UserFollow>;
+  private projectVersions: Map<string, ProjectVersion>;
 
   constructor() {
     this.users = new Map();

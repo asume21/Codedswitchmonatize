@@ -203,22 +203,85 @@ export const samplePacks = pgTable("sample_packs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const samples = pgTable("samples", {
+export const userProfiles = pgTable("user_profiles", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  packId: varchar("pack_id").references(() => samplePacks.id, {
-    onDelete: "cascade",
-  }),
-  name: text("name").notNull(),
-  type: text("type").notNull(), // "drums", "bass", "melody", "vocals"
-  category: text("category").notNull(), // "kick", "snare", "hihat", "808", etc.
-  audioData: text("audio_data").notNull(), // Base64 encoded audio
-  description: text("description"),
-  bpm: integer("bpm"),
-  key: text("key"),
-  duration: integer("duration"), // in milliseconds
-  aiData: json("ai_data"), // AI-generated musical data
+  userId: varchar("user_id").references(() => users.id),
+  displayName: varchar("display_name"),
+  bio: text("bio"),
+  avatarUrl: varchar("avatar_url"),
+  websiteUrl: varchar("website_url"),
+  socialLinks: jsonb("social_links"), // { twitter, instagram, youtube, etc. }
+  location: varchar("location"),
+  favoriteGenres: text("favorite_genres").array(),
+  instruments: text("instruments").array(),
+  skillLevel: varchar("skill_level"), // beginner, intermediate, advanced, professional
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const projectShares = pgTable("project_shares", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id),
+  sharedByUserId: varchar("shared_by_user_id").references(() => users.id),
+  sharedWithUserId: varchar("shared_with_user_id").references(() => users.id),
+  permission: varchar("permission").default("view"), // view, edit, admin
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const projectCollaborations = pgTable("project_collaborations", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id),
+  userId: varchar("user_id").references(() => users.id),
+  role: varchar("role").default("collaborator"), // owner, collaborator, viewer
+  joinedAt: timestamp("joined_at").defaultNow(),
+  lastActiveAt: timestamp("last_active_at").defaultNow(),
+});
+
+export const projectComments = pgTable("project_comments", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id),
+  userId: varchar("user_id").references(() => users.id),
+  content: text("content").notNull(),
+  parentCommentId: varchar("parent_comment_id"), // for replies
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const projectLikes = pgTable("project_likes", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id),
+  userId: varchar("user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userFollows = pgTable("user_follows", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  followerId: varchar("follower_id").references(() => users.id),
+  followingId: varchar("following_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const projectVersions = pgTable("project_versions", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id),
+  version: integer("version").notNull(),
+  data: jsonb("data").notNull(),
+  createdBy: varchar("created_by").references(() => users.id),
+  changeDescription: text("change_description"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -252,41 +315,46 @@ export const insertSamplePackSchema = createInsertSchema(samplePacks).pick({
   generatedSamples: true,
 });
 
-export const insertSampleSchema = createInsertSchema(samples).pick({
-  packId: true,
-  name: true,
-  type: true,
-  category: true,
-  audioData: true,
-  description: true,
-  bpm: true,
-  key: true,
-  duration: true,
-  aiData: true,
+export const insertUserProfileSchema = createInsertSchema(userProfiles).pick({
+  displayName: true,
+  bio: true,
+  avatarUrl: true,
+  websiteUrl: true,
+  socialLinks: true,
+  location: true,
+  favoriteGenres: true,
+  instruments: true,
+  skillLevel: true,
 });
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type Project = typeof projects.$inferSelect;
-export type InsertProject = z.infer<typeof insertProjectSchema>;
-export type CodeTranslation = typeof codeTranslations.$inferSelect;
-export type InsertCodeTranslation = z.infer<typeof insertCodeTranslationSchema>;
-export type BeatPattern = typeof beatPatterns.$inferSelect;
-export type InsertBeatPattern = z.infer<typeof insertBeatPatternSchema>;
-export type Melody = typeof melodies.$inferSelect;
-export type InsertMelody = z.infer<typeof insertMelodySchema>;
-export type VulnerabilityScan = typeof vulnerabilityScans.$inferSelect;
-export type InsertVulnerabilityScan = z.infer<
-  typeof insertVulnerabilityScanSchema
->;
-export type Lyrics = typeof lyrics.$inferSelect;
-export type InsertLyrics = z.infer<typeof insertLyricsSchema>;
-export type Song = typeof songs.$inferSelect;
-export type InsertSong = z.infer<typeof insertSongSchema>;
-export type Playlist = typeof playlists.$inferSelect;
-export type InsertPlaylist = z.infer<typeof insertPlaylistSchema>;
-export type PlaylistSong = typeof playlistSongs.$inferSelect;
-export type SamplePack = typeof samplePacks.$inferSelect;
-export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
-export type Sample = typeof samples.$inferSelect;
-export type InsertSample = z.infer<typeof insertSampleSchema>;
+export const insertProjectShareSchema = createInsertSchema(projectShares).pick({
+  permission: true,
+});
+
+export const insertProjectCollaborationSchema = createInsertSchema(projectCollaborations).pick({
+  role: true,
+});
+
+export const insertProjectCommentSchema = createInsertSchema(projectComments).pick({
+  content: true,
+  parentCommentId: true,
+});
+
+export const insertProjectLikeSchema = createInsertSchema(projectLikes);
+
+export const insertUserFollowSchema = createInsertSchema(userFollows);
+
+export const insertProjectVersionSchema = createInsertSchema(projectVersions).pick({
+  version: true,
+  data: true,
+  changeDescription: true,
+});
+
+export type UserProfile = typeof userProfiles.$inferSelect;
+export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
+export type UserFollow = typeof userFollows.$inferSelect;
+export type ProjectShare = typeof projectShares.$inferSelect;
+export type ProjectCollaboration = typeof projectCollaborations.$inferSelect;
+export type ProjectComment = typeof projectComments.$inferSelect;
+export type ProjectLike = typeof projectLikes.$inferSelect;
+export type ProjectVersion = typeof projectVersions.$inferSelect;
