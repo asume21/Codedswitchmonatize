@@ -188,9 +188,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         accessibleUrl: songURL, // For now, same as original
         fileSize: fileSize || 0,
         format: format || 'unknown',
-        mimeType: mimeType || '',
         duration: null, // Will be analyzed later
-        metadata: {}
       });
 
       res.status(201).json(song);
@@ -230,7 +228,13 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       // Update song metadata if songId provided
       if (songId) {
         await storage.updateSong(songId, {
-          metadata: analysis,
+          estimatedBPM: analysis.estimatedBPM,
+          keySignature: analysis.keySignature,
+          genre: analysis.genre,
+          mood: analysis.mood,
+          structure: analysis.structure,
+          instruments: analysis.instruments,
+          analysisNotes: analysis.analysis_notes,
           analyzedAt: new Date()
         });
       }

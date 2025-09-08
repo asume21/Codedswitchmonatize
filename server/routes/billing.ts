@@ -21,7 +21,7 @@ export function billingRoutes(storage: IStorage) {
         return res.status(400).json({ error: "Valid tier required (basic or pro)" });
       }
 
-      const result = await createCheckoutSession(storage, userId, tier);
+      const result = await createCheckoutSession(storage, userId);
       res.json(result);
     } catch (error) {
       console.error("Checkout session creation failed:", error);

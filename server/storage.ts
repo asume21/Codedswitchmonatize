@@ -1089,7 +1089,7 @@ export class DatabaseStorage implements IStorage {
     playlistId: string,
     songId: string,
   ): Promise<PlaylistSong> {
-    // Get position as the highest position + 1
+    // Get existing playlist songs to determine position
     const existingPlaylistSongs = await db
       .select()
       .from(playlistSongs)
@@ -1097,7 +1097,7 @@ export class DatabaseStorage implements IStorage {
 
     const position =
       existingPlaylistSongs.length > 0
-        ? Math.max(...existingPlaylistSongs.map((ps) => ps.position)) + 1
+        ? Math.max(...existingPlaylistSongs.map((ps: PlaylistSong) => ps.position)) + 1
         : 1;
 
     const [playlistSong] = await db
