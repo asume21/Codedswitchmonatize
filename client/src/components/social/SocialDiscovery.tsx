@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { Search, TrendingUp, Users, Music, Star, Heart, Play, UserPlus, Filter } from 'lucide-react';
+import { Search, TrendingUp, Users, Music, Star, Heart, Play, UserPlus, Filter, MessageCircle } from 'lucide-react';
 
 interface User {
   id: string;

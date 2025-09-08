@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { Badge } from '@/components/ui/badge';
 import { MessageCircle, Heart, Reply, MoreVertical, Flag } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 

@@ -1,4 +1,5 @@
 import {
+  // Type exports
   type User,
   type InsertUser,
   type Project,
@@ -31,13 +32,7 @@ import {
   type ProjectComment,
   type ProjectLike,
   type ProjectVersion,
-  userProfiles,
-  projectShares,
-  projectCollaborations,
-  projectComments,
-  projectLikes,
-  userFollows,
-  projectVersions,
+  // Table exports
   users,
   projects,
   codeTranslations,
@@ -50,6 +45,14 @@ import {
   playlistSongs,
   samplePacks,
   samples,
+  // Social tables
+  userProfiles,
+  projectShares,
+  projectCollaborations,
+  projectComments,
+  projectLikes,
+  userFollows,
+  projectVersions,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
