@@ -567,11 +567,7 @@ export default function VerticalPianoRoll() {
                   <button
                     key={key}
                     onClick={() => setCurrentKey(key)}
-                    className={`px-2 py-1 text-xs rounded transition-colors ${
-                      currentKey === key 
-                        ? 'bg-purple-600 text-white' 
-                        : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                    }`}
+                    className={currentKey === key ? "px-2 py-1 text-xs rounded transition-colors bg-purple-600 text-white" : "px-2 py-1 text-xs rounded transition-colors bg-gray-700 hover:bg-gray-600 text-gray-300"}
                   >
                     {key}
                   </button>
@@ -637,4 +633,5 @@ export default function VerticalPianoRoll() {
         </CardContent>
       </Card>
     </div>
+  )
 }
