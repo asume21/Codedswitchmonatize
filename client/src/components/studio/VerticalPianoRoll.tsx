@@ -222,7 +222,13 @@ const CHORD_PROGRESSIONS: ChordProgression[] = [
   { id: 'classic', name: 'Classic (I-V-vi-IV)', chords: ['I', 'V', 'vi', 'IV'], key: 'C' },
   { id: 'jazz', name: 'Jazz (ii-V-I)', chords: ['ii', 'V', 'I'], key: 'C' },
   { id: 'pop', name: 'Pop (vi-IV-I-V)', chords: ['vi', 'IV', 'I', 'V'], key: 'C' },
-  { id: 'electronic', name: 'Electronic (i-VII-VI-VII)', chords: ['vi', 'V', 'IV', 'V'], key: 'C' }
+  { id: 'electronic', name: 'Electronic (i-VII-VI-VII)', chords: ['vi', 'V', 'IV', 'V'], key: 'C' },
+  { id: 'minor', name: 'Minor (i-III-VII)', chords: ['i', 'III', 'VII'], key: 'A' },
+  { id: 'blues', name: 'Blues (I-IV-V)', chords: ['I', 'IV', 'V'], key: 'C' },
+  { id: 'rock', name: 'Rock (I-V-IV)', chords: ['I', 'V', 'IV'], key: 'G' },
+  { id: 'funk', name: 'Funk (I-IV-ii)', chords: ['I', 'IV', 'ii'], key: 'C' },
+  { id: 'hiphop', name: 'Hip-Hop (vi-IV-V)', chords: ['vi', 'IV', 'V'], key: 'C' },
+  { id: 'reggae', name: 'Reggae (I-VII-IV)', chords: ['I', 'VII', 'IV'], key: 'C' }
 ];
 
 export default function VerticalPianoRoll() {
@@ -479,21 +485,24 @@ export default function VerticalPianoRoll() {
         return;
       }
 
-      const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+      // Use the selected key instead of hardcoded 'C'
+      const keyToUse = currentKey;
+
+      const keyData = DEFAULT_customKeys[keyToUse as keyof typeof DEFAULT_customKeys];
       if (!keyData) {
-        console.error('❌ Key data not found for key:', currentKey);
+        console.error('❌ Key data not found for key:', keyToUse);
         return;
       }
 
       if (!keyData.chords) {
-        console.error('❌ Chords not found for key:', currentKey);
+        console.error('❌ Chords not found for key:', keyToUse);
         return;
       }
 
       let step = 0;
       selectedProgression.chords.forEach((chordSymbol, index) => {
         try {
-          console.log('🎵 Processing chord symbol:', chordSymbol, 'for key:', currentKey);
+          console.log('🎵 Processing chord symbol:', chordSymbol, 'for key:', keyToUse);
 
           const chordNotes = keyData.chords[chordSymbol as keyof typeof keyData.chords];
           console.log('🎵 Chord notes for', chordSymbol, ':', chordNotes);
@@ -524,7 +533,7 @@ export default function VerticalPianoRoll() {
         }
       });
 
-      console.log('✅ Progression generated successfully');
+      console.log('✅ Progression generated successfully for key:', keyToUse);
     } catch (error) {
       console.error('❌ Error in generateProgression:', error);
       if (error instanceof Error) {

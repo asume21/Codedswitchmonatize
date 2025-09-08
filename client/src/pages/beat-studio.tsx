@@ -226,8 +226,8 @@ export default function BeatStudio() {
       <Tabs defaultValue="generate" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="generate">Generate Beat</TabsTrigger>
+          <TabsTrigger value="bass">Bass Generator</TabsTrigger>
           <TabsTrigger value="edit">Edit Pattern</TabsTrigger>
-          <TabsTrigger value="sequencer">Sequencer</TabsTrigger>
         </TabsList>
 
         <TabsContent value="generate">
@@ -442,6 +442,91 @@ export default function BeatStudio() {
               </Card>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="bass">
+          <Card className="bg-background border-border">
+            <CardHeader>
+              <CardTitle>Bass Generator</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Bass Type</label>
+                    <Select value={selectedSample} onValueChange={setSelectedSample}>
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select bass type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Kick">Sub Bass</SelectItem>
+                        <SelectItem value="Snare">Wobble Bass</SelectItem>
+                        <SelectItem value="Hi-Hat">808 Bass</SelectItem>
+                        <SelectItem value="Open Hat">FM Bass</SelectItem>
+                        <SelectItem value="Clap">Acid Bass</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Key</label>
+                    <Select value="C" onValueChange={() => {}}>
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select key" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].map(key => (
+                          <SelectItem key={key} value={key}>{key} Major</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Pattern Style</label>
+                    <Select value="walking" onValueChange={() => {}}>
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select style" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="walking">Walking Bass</SelectItem>
+                        <SelectItem value="octave">Octave Jumps</SelectItem>
+                        <SelectItem value="chromatic">Chromatic</SelectItem>
+                        <SelectItem value="pentatonic">Pentatonic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex space-x-4">
+                  <Button className="bg-green-600 hover:bg-green-700">
+                    Generate Bassline
+                  </Button>
+                  <Button variant="outline">
+                    Preview Bass
+                  </Button>
+                  <Button variant="outline">
+                    Add to Beat
+                  </Button>
+                </div>
+
+                <div className="bg-secondary/20 p-4 rounded-lg">
+                  <h3 className="font-medium mb-2">Bass Pattern Preview</h3>
+                  <div className="text-sm text-muted-foreground mb-4">
+                    Bass generator will create complementary basslines that work with your drum patterns.
+                    Select different styles, keys, and bass types to create the perfect foundation for your tracks.
+                  </div>
+                  <div className="grid grid-cols-16 gap-1">
+                    {Array.from({ length: 16 }, (_, i) => (
+                      <div key={i} className="h-8 bg-secondary/50 rounded text-xs flex items-center justify-center">
+                        {i % 4 === 0 ? '•' : ''}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="edit">
