@@ -1,6 +1,7 @@
 import { Express } from "express";
 import { IStorage } from "../storage";
 import { billingRoutes } from "./billing";
+import { requireAuth } from "../middleware/auth";
 
 // AI Service imports
 import { generateBeatPattern } from "../services/grok";
@@ -157,6 +158,87 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         error: "Failed to generate song structure",
         message: error instanceof Error ? error.message : "Unknown error"
       });
+    }
+  });
+
+  // Song management endpoints
+  app.get("/api/songs", requireAuth(), async (req, res) => {
+    try {
+      const songs = await storage.getUserSongs(req.userId!);
+      res.json(songs);
+    } catch (error) {
+      console.error("Error fetching songs:", error);
+      res.status(500).json({ message: "Failed to fetch songs" });
+    }
+  });
+
+  app.post("/api/songs/upload", requireAuth(), async (req, res) => {
+    try {
+      const { songURL, name, fileSize, format, mimeType } = req.body;
+
+      if (!songURL || !name) {
+        return res.status(400).json({ message: "Song URL and name are required" });
+      }
+
+      console.log('🎵 Saving song:', { name, fileSize, format, mimeType });
+
+      const song = await storage.createSong(req.userId!, {
+        name,
+        originalUrl: songURL,
+        accessibleUrl: songURL, // For now, same as original
+        fileSize: fileSize || 0,
+        format: format || 'unknown',
+        mimeType: mimeType || '',
+        duration: null, // Will be analyzed later
+        metadata: {}
+      });
+
+      res.status(201).json(song);
+    } catch (error) {
+      console.error("Error saving song:", error);
+      res.status(500).json({ message: "Failed to save song" });
+    }
+  });
+
+  app.post("/api/songs/analyze", requireAuth(), async (req, res) => {
+    try {
+      const { songId, songURL, songName } = req.body;
+
+      if (!songURL) {
+        return res.status(400).json({ message: "Song URL is required" });
+      }
+
+      console.log('🎵 Analyzing song:', songName || songURL);
+
+      // For now, return basic analysis - in a real app you'd call an AI service
+      const analysis = {
+        estimatedBPM: 120,
+        keySignature: "C Major",
+        genre: "Unknown",
+        mood: "Neutral",
+        structure: {
+          intro: "0:00-0:15",
+          verse1: "0:15-0:45",
+          chorus: "0:45-1:15",
+          verse2: "1:15-1:45",
+          outro: "1:45-end"
+        },
+        instruments: ["Unknown"],
+        analysis_notes: "Basic analysis - full AI analysis would require audio processing service"
+      };
+
+      // Update song metadata if songId provided
+      if (songId) {
+        await storage.updateSong(songId, {
+          metadata: analysis,
+          analyzedAt: new Date()
+        });
+      }
+
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error analyzing song:", error);
+      res.status(500).json({ message: "Failed to analyze song" });
     }
   });
 
