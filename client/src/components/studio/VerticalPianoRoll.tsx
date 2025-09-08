@@ -454,35 +454,8 @@ export default function VerticalPianoRoll() {
                     onClick={() => {
                       try {
                         if (chordMode) {
-                          // Map piano keys to chords in a more intuitive way
-                          const noteIndex = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(key.note);
-                          
-                          // Map different ranges of keys to different chords
-                          let chordIndex = 0;
-                          
-                          // White keys in lower octave → chord 0 (I)
-                          if (key.octave <= 4 && !key.isBlack) {
-                            chordIndex = 0;
-                          }
-                          // White keys in middle octave → chord 1 (V) 
-                          else if (key.octave === 5 && !key.isBlack) {
-                            chordIndex = 1;
-                          }
-                          // Black keys or higher octaves → chord 2 (vi)
-                          else if (key.isBlack || key.octave >= 6) {
-                            chordIndex = 2;
-                          }
-                          // Everything else → chord 3 (IV)
-                          else {
-                            chordIndex = 3;
-                          }
-                          
-                          // Ensure we don't exceed the available chords in the progression
-                          chordIndex = Math.min(chordIndex, selectedProgression.chords.length - 1);
-                          
-                          const chordSymbol = selectedProgression.chords[chordIndex];
-                          const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[chordSymbol];
-                          console.log('Playing chord', chordIndex + 1, chordSymbol, chordNotes.join(', '));
+                          const currentChord = selectedProgression.chords[currentChordIndex];
+                          const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[currentChord];
                           playChord(chordNotes, key.octave);
                         } else {
                           realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
