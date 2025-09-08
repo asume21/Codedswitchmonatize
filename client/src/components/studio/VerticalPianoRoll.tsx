@@ -643,7 +643,7 @@ export default function VerticalPianoRoll() {
                 <Slider
                   value={[tracks[selectedTrack]?.volume || 80]}
                   onValueChange={(value) => {
-                    setTracks(prev => prev.map((track, index) => 
+                    setTracks((prev) => prev.map((track, index) => 
                       index === selectedTrack 
                         ? { ...track, volume: value[0] }
                         : track
