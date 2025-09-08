@@ -1,6 +1,6 @@
 import { Express } from "express";
 import { IStorage } from "../storage";
-import { registerBillingRoutes } from "./billing";
+import { billingRoutes } from "./billing";
 
 // AI Service imports
 import { generateBeatPattern } from "../services/grok";
@@ -10,7 +10,7 @@ import { generateSongStructureWithAI } from "../services/ai-structure-grok";
 
 export async function registerRoutes(app: Express, storage: IStorage) {
   // Register existing billing routes
-  registerBillingRoutes(app, storage);
+  app.use("/api/billing", billingRoutes(storage));
 
   // AI Generation Routes
   app.post("/api/beat/generate", async (req, res) => {
