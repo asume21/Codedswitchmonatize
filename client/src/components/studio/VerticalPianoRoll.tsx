@@ -384,48 +384,147 @@ export default function VerticalPianoRoll() {
   };
 
   const addChordToGrid = (step: number) => {
-    let chordToUse: string;
-    let chordNotes: string[];
+    try {
+      let chordToUse: string;
+      let chordNotes: string[];
 
-    if (chordMode) {
-      chordToUse = selectedProgression.chords[currentChordIndex];
-      chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[chordToUse];
-      setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
-    } else {
-      chordToUse = selectedProgression.chords[0];
-      chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[chordToUse];
-    }
-
-    chordNotes.forEach((noteName: string, noteIndex: number) => {
-      const keyIndex = PIANO_KEYS.findIndex(key => key.note === noteName && key.octave === 4);
-      if (keyIndex !== -1) {
-        addNote(keyIndex, step + noteIndex * 0.1); // Slight offset for chord notes
+      if (chordMode) {
+        console.log('🎵 addChordToGrid: chordMode=true, currentChordIndex:', currentChordIndex);
+        console.log('🎵 Selected progression:', selectedProgression);
+        
+        if (!selectedProgression || !selectedProgression.chords) {
+          console.error('❌ No selected progression or chords');
+          return;
+        }
+        
+        if (currentChordIndex >= selectedProgression.chords.length) {
+          console.warn('⚠️ Current chord index out of bounds, resetting to 0');
+          setCurrentChordIndex(0);
+          chordToUse = selectedProgression.chords[0];
+        } else {
+          chordToUse = selectedProgression.chords[currentChordIndex];
+        }
+        
+        console.log('🎵 Using chord:', chordToUse, 'for key:', currentKey);
+        
+        const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+        if (!keyData) {
+          console.error('❌ Key data not found for key:', currentKey);
+          return;
+        }
+        
+        if (!keyData.chords) {
+          console.error('❌ Chords not found for key:', currentKey);
+          return;
+        }
+        
+        chordNotes = keyData.chords[chordToUse as keyof typeof keyData.chords];
+        if (!chordNotes || !Array.isArray(chordNotes)) {
+          console.error('❌ Invalid chord notes for', chordToUse, ':', chordNotes);
+          return;
+        }
+        
+        console.log('🎵 Found chord notes:', chordNotes);
+        setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
+      } else {
+        console.log('🎵 addChordToGrid: chordMode=false, using first chord');
+        chordToUse = selectedProgression.chords[0];
+        const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+        if (!keyData || !keyData.chords) {
+          console.error('❌ Key data or chords not found for key:', currentKey);
+          return;
+        }
+        chordNotes = keyData.chords[chordToUse as keyof typeof keyData.chords];
+        if (!chordNotes || !Array.isArray(chordNotes)) {
+          console.error('❌ Invalid chord notes for', chordToUse, ':', chordNotes);
+          return;
+        }
       }
-    });
+
+      chordNotes.forEach((noteName: string, noteIndex: number) => {
+        const keyIndex = PIANO_KEYS.findIndex(key => key.note === noteName && key.octave === 4);
+        if (keyIndex !== -1) {
+          addNote(keyIndex, step + noteIndex * 0.1); // Slight offset for chord notes
+        } else {
+          console.warn('⚠️ Note not found in PIANO_KEYS:', noteName, 'octave 4');
+        }
+      });
+      
+      console.log('✅ Successfully added chord to grid');
+    } catch (error) {
+      console.error('❌ Error in addChordToGrid:', error);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+    }
   };
 
   const generateProgression = () => {
-    let step = 0;
-    selectedProgression.chords.forEach((chordSymbol, index) => {
-      const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[chordSymbol];
+    try {
+      console.log('🎵 Generating progression for key:', currentKey);
+      console.log('🎵 Selected progression:', selectedProgression);
 
-      chordNotes.forEach((note: string, noteIndex: number) => {
-        const newNote: Note = {
-          id: `${note}-${step}-${Date.now()}-${noteIndex}`,
-          note,
-          octave: 4,
-          step: step + (index * 8), // 8 steps per chord
-          velocity: 100,
-          length: 8
-        };
+      if (!selectedProgression || !selectedProgression.chords) {
+        console.error('❌ No selected progression or chords');
+        return;
+      }
 
-        setTracks(prev => prev.map((track, trackIndex) =>
-          trackIndex === selectedTrack
-            ? { ...track, notes: [...track.notes, newNote] }
-            : track
-        ));
+      const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+      if (!keyData) {
+        console.error('❌ Key data not found for key:', currentKey);
+        return;
+      }
+
+      if (!keyData.chords) {
+        console.error('❌ Chords not found for key:', currentKey);
+        return;
+      }
+
+      let step = 0;
+      selectedProgression.chords.forEach((chordSymbol, index) => {
+        try {
+          console.log('🎵 Processing chord symbol:', chordSymbol, 'for key:', currentKey);
+
+          const chordNotes = keyData.chords[chordSymbol as keyof typeof keyData.chords];
+          console.log('🎵 Chord notes for', chordSymbol, ':', chordNotes);
+
+          if (!chordNotes || !Array.isArray(chordNotes)) {
+            console.error('❌ Invalid chord notes for', chordSymbol, ':', chordNotes);
+            return;
+          }
+
+          chordNotes.forEach((note: string, noteIndex: number) => {
+            const newNote: Note = {
+              id: `${note}-${step}-${Date.now()}-${noteIndex}`,
+              note,
+              octave: 4,
+              step: step + (index * 8), // 8 steps per chord
+              velocity: 100,
+              length: 8
+            };
+
+            setTracks(prev => prev.map((track, trackIndex) =>
+              trackIndex === selectedTrack
+                ? { ...track, notes: [...track.notes, newNote] }
+                : track
+            ));
+          });
+        } catch (chordError) {
+          console.error('❌ Error processing chord', chordSymbol, ':', chordError);
+        }
       });
-    });
+
+      console.log('✅ Progression generated successfully');
+    } catch (error) {
+      console.error('❌ Error in generateProgression:', error);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+    }
   };
 
   return (
@@ -571,14 +670,44 @@ export default function VerticalPianoRoll() {
                     onClick={() => {
                       try {
                         if (chordMode) {
+                          console.log('🎵 Chord Mode: Trying to play chord for key:', key.note, key.octave);
+                          console.log('🎵 Current key:', currentKey);
+                          console.log('🎵 Current chord index:', currentChordIndex);
+                          console.log('🎵 Selected progression:', selectedProgression);
+
                           const currentChord = selectedProgression.chords[currentChordIndex];
-                          const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[currentChord];
-                          playChord(chordNotes, key.octave);
+                          console.log('🎵 Current chord symbol:', currentChord);
+
+                          const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+                          console.log('🎵 Key data found:', !!keyData);
+
+                          if (keyData && keyData.chords) {
+                            const chordNotes = keyData.chords[currentChord as keyof typeof keyData.chords];
+                            console.log('🎵 Chord notes found:', chordNotes);
+
+                            if (chordNotes && Array.isArray(chordNotes)) {
+                              playChord(chordNotes, key.octave);
+                              console.log('🎵 Successfully played chord:', chordNotes);
+                            } else {
+                              console.error('🎵 Chord notes not found or not array:', chordNotes);
+                            }
+                          } else {
+                            console.error('🎵 Key data or chords not found for key:', currentKey);
+                          }
+
+                          setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
                         } else {
+                          console.log('🎵 Single note mode: Playing', key.note, key.octave, 'with instrument:', tracks[selectedTrack]?.instrument);
                           realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
                         }
                       } catch (error) {
-                        console.error('Audio playback error:', error);
+                        console.error('❌ Audio playback error:', error);
+                        // Add more detailed error info
+                        if (error instanceof Error) {
+                          console.error('Error name:', error.name);
+                          console.error('Error message:', error.message);
+                          console.error('Error stack:', error.stack);
+                        }
                       }
                     }}
                   >
@@ -667,12 +796,38 @@ export default function VerticalPianoRoll() {
               <span className="text-sm">Key:</span>
               <select
                 value={currentKey}
-                onChange={(e) => setCurrentKey(e.target.value)}
+                onChange={(e) => {
+                  try {
+                    const newKey = e.target.value;
+                    console.log('🎵 Key dropdown: Changing key from', currentKey, 'to', newKey);
+                    
+                    if (!DEFAULT_customKeys[newKey as keyof typeof DEFAULT_customKeys]) {
+                      console.error('❌ Key not found in DEFAULT_customKeys:', newKey);
+                      return;
+                    }
+                    
+                    setCurrentKey(newKey);
+                    console.log('✅ Key changed successfully to:', newKey);
+                  } catch (error) {
+                    console.error('❌ Error changing key via dropdown:', error);
+                  }
+                }}
                 className="bg-gray-700 text-white px-2 py-1 rounded text-sm"
               >
-                {Object.keys(DEFAULT_customKeys).map(key => (
-                  <option key={key} value={key}>{DEFAULT_customKeys[key as keyof typeof DEFAULT_customKeys].name}</option>
-                ))}
+                {Object.keys(DEFAULT_customKeys).map(key => {
+                  try {
+                    const keyData = DEFAULT_customKeys[key as keyof typeof DEFAULT_customKeys];
+                    const displayName = keyData?.name || key;
+                    return (
+                      <option key={key} value={key}>{displayName}</option>
+                    );
+                  } catch (error) {
+                    console.error('❌ Error rendering key option:', key, error);
+                    return (
+                      <option key={key} value={key} disabled>{key} (Error)</option>
+                    );
+                  }
+                })}
               </select>
             </div>
             
@@ -683,7 +838,15 @@ export default function VerticalPianoRoll() {
                 {CIRCLE_OF_FIFTHS.map((key, index) => (
                   <button
                     key={key}
-                    onClick={() => setCurrentKey(key)}
+                    onClick={() => {
+                      console.log('🎵 Circle of Fifths: Changing key from', currentKey, 'to', key);
+                      try {
+                        setCurrentKey(key);
+                        console.log('✅ Key changed successfully to:', key);
+                      } catch (error) {
+                        console.error('❌ Error changing key:', error);
+                      }
+                    }}
                     className={currentKey === key ? "px-2 py-1 text-xs rounded transition-colors bg-purple-600 text-white" : "px-2 py-1 text-xs rounded transition-colors bg-gray-700 hover:bg-gray-600 text-gray-300"}
                   >
                     {key}
@@ -697,19 +860,70 @@ export default function VerticalPianoRoll() {
               <span className="text-xs text-gray-400 mb-2 block">Current Progression ({selectedProgression.name}):</span>
               <div className="flex gap-2">
                 {selectedProgression.chords.map((chord, index) => {
-                  const chordNotes = (DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys] as any).chords[chord];
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        setCurrentChordIndex(index);
-                        playChord(chordNotes);
-                      }}
-                    >
-                      <div className="font-medium">{chord}</div>
-                      <div className="text-xs opacity-75">{chordNotes.join('-')}</div>
-                    </button>
-                  );
+                  try {
+                    console.log('🎵 Rendering chord progression:', chord, 'for key:', currentKey);
+                    const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+                    
+                    if (!keyData) {
+                      console.error('❌ Key data not found for key:', currentKey);
+                      return (
+                        <button key={index} disabled className="opacity-50">
+                          <div className="font-medium">{chord}</div>
+                          <div className="text-xs opacity-75">Key Error</div>
+                        </button>
+                      );
+                    }
+                    
+                    if (!keyData.chords) {
+                      console.error('❌ Chords not found for key:', currentKey);
+                      return (
+                        <button key={index} disabled className="opacity-50">
+                          <div className="font-medium">{chord}</div>
+                          <div className="text-xs opacity-75">Chords Error</div>
+                        </button>
+                      );
+                    }
+                    
+                    const chordNotes = keyData.chords[chord as keyof typeof keyData.chords];
+                    console.log('🎵 Chord notes for', chord, ':', chordNotes);
+                    
+                    if (!chordNotes || !Array.isArray(chordNotes)) {
+                      console.error('❌ Invalid chord notes for', chord, ':', chordNotes);
+                      return (
+                        <button key={index} disabled className="opacity-50">
+                          <div className="font-medium">{chord}</div>
+                          <div className="text-xs opacity-75">Invalid Notes</div>
+                        </button>
+                      );
+                    }
+                    
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          console.log('🎵 Playing chord progression:', chord, chordNotes);
+                          try {
+                            setCurrentChordIndex(index);
+                            playChord(chordNotes);
+                            console.log('✅ Chord progression played successfully');
+                          } catch (error) {
+                            console.error('❌ Error playing chord progression:', error);
+                          }
+                        }}
+                      >
+                        <div className="font-medium">{chord}</div>
+                        <div className="text-xs opacity-75">{chordNotes.join('-')}</div>
+                      </button>
+                    );
+                  } catch (error) {
+                    console.error('❌ Error rendering chord progression for', chord, ':', error);
+                    return (
+                      <button key={index} disabled className="opacity-50">
+                        <div className="font-medium">{chord}</div>
+                        <div className="text-xs opacity-75">Error</div>
+                      </button>
+                    );
+                  }
                 })}
               </div>
             </div>

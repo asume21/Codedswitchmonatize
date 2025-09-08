@@ -469,6 +469,12 @@ Return JSON with format:
   }
 }
 
+// Export a function to get the preferred AI client
+export function getAIClient() {
+  const preferred = getPreferredClient();
+  return preferred?.client || null;
+}
+
 // Enhanced fallback that actually uses music theory
 function generateMusicTheoryBasedFallback(scale: string, style: string, complexity: number, availableTracks?: any[], musicalParams?: any): any {
   const scaleNotes = musicalParams?.scaleNotes || getScaleNotes(scale).map((s: any) => s.note);

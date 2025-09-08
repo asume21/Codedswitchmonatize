@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { openai as xaiClient } from "./grok"; // xAI Grok client (baseURL https://api.x.ai/v1)
+import { getAIClient } from "./grok";
 import { getKeySpecificChordProgression } from "./chord-progressions";
 
 export interface SongSection {
@@ -52,7 +52,9 @@ function getAiClient(provider?: string) {
     if (!key) throw new Error("OPENAI_API_KEY not configured");
     return new OpenAI({ apiKey: key });
   }
-  // default to xAI Grok
+  // default to xAI Grok - use the client from grok.ts
+  const xaiClient = getAIClient();
+  if (!xaiClient) throw new Error("xAI Grok client not available");
   return xaiClient;
 }
 

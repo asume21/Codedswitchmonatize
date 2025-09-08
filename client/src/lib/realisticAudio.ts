@@ -217,7 +217,10 @@ export class RealisticAudioEngine {
     velocity: number = 0.7,
     sustainEnabled: boolean = true
   ): Promise<void> {
+    console.log(`🎵 DEBUG: playNote called with: note=${note}, octave=${octave}, duration=${duration}, instrument=${instrument}, velocity=${velocity}`);
+
     if (!this.isInitialized) {
+      console.log('🎵 DEBUG: Audio not initialized, initializing now...');
       await this.initialize();
     }
 
@@ -238,6 +241,7 @@ export class RealisticAudioEngine {
     
     // If instrument not in library, try fallback mapping
     if (!(realInstrument in this.instrumentLibrary)) {
+      console.log(`🎵 DEBUG: Instrument ${realInstrument} not in library, trying fallback mapping`);
       // Ensure instrument is a string before using .includes()
       const instrumentStr = String(instrument || 'piano').toLowerCase();
       
@@ -264,30 +268,50 @@ export class RealisticAudioEngine {
       } else {
         realInstrument = 'piano'; // Ultimate fallback
       }
+      console.log(`🎵 DEBUG: Mapped ${instrument} to ${realInstrument}`);
     }
     
     const instrumentSampler = this.instruments[realInstrument];
     if (!instrumentSampler) {
-      console.error(`Instrument ${realInstrument} not loaded`);
-      return;
+      console.error(`❌ Instrument ${realInstrument} not loaded - available instruments:`, Object.keys(this.instruments));
+      console.log('🎵 DEBUG: Trying to load instrument on-demand...');
+      try {
+        await this.loadAdditionalInstrument(realInstrument);
+        const retrySampler = this.instruments[realInstrument];
+        if (!retrySampler) {
+          console.error(`❌ Still failed to load ${realInstrument}`);
+          return;
+        }
+      } catch (loadError) {
+        console.error(`❌ Failed to load ${realInstrument} on-demand:`, loadError);
+        return;
+      }
     }
 
     try {
       const noteWithOctave = `${note}${adjustedOctave}`;
       console.log(`🎵 Attempting to play realistic ${realInstrument}: ${noteWithOctave} for ${duration}s at velocity ${velocity}`);
       
-      const audioNode = instrumentSampler.play(noteWithOctave, this.audioContext!.currentTime, {
+      const audioNode = this.instruments[realInstrument].play(noteWithOctave, this.audioContext!.currentTime, {
         duration,
         gain: velocity
       });
       
       if (audioNode) {
-        console.log(`🎵 Successfully triggered realistic ${realInstrument}: ${noteWithOctave}`);
+        console.log(`✅ Successfully triggered realistic ${realInstrument}: ${noteWithOctave}`);
       } else {
-        console.error(`🎵 Failed to play realistic ${realInstrument}: ${noteWithOctave} - instrumentSampler.play returned null`);
+        console.error(`❌ Failed to play realistic ${realInstrument}: ${noteWithOctave} - instrumentSampler.play returned null`);
       }
     } catch (error) {
-      console.error(`🎵 Error playing realistic ${realInstrument}:`, error);
+      console.error(`❌ Error playing realistic ${realInstrument}:`, error);
+      console.log('🎵 DEBUG: Falling back to synthetic drum if this is a drum instrument');
+      
+      // Try synthetic drum fallback for drum instruments
+      const instrumentStr = String(instrument).toLowerCase();
+      if (instrumentStr.includes('drum') || instrumentStr.includes('kick') || instrumentStr.includes('snare') || instrumentStr.includes('hihat')) {
+        console.log('🎵 DEBUG: Attempting synthetic drum fallback');
+        await this.playDrumSound(instrument, velocity);
+      }
     }
   }
 
