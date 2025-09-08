@@ -19,8 +19,6 @@ import {
   Playlist,
   InsertPlaylist,
   PlaylistSong,
-  SamplePack,
-  InsertSamplePack,
   Sample,
   InsertSample,
   // Social types

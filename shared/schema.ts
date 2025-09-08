@@ -358,3 +358,26 @@ export type ProjectCollaboration = typeof projectCollaborations.$inferSelect;
 export type ProjectComment = typeof projectComments.$inferSelect;
 export type ProjectLike = typeof projectLikes.$inferSelect;
 export type ProjectVersion = typeof projectVersions.$inferSelect;
+
+// Basic table inferred types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type CodeTranslation = typeof codeTranslations.$inferSelect;
+export type InsertCodeTranslation = z.infer<typeof insertCodeTranslationSchema>;
+export type BeatPattern = typeof beatPatterns.$inferSelect;
+export type InsertBeatPattern = z.infer<typeof insertBeatPatternSchema>;
+export type Melody = typeof melodies.$inferSelect;
+export type InsertMelody = z.infer<typeof insertMelodySchema>;
+export type VulnerabilityScan = typeof vulnerabilityScans.$inferSelect;
+export type InsertVulnerabilityScan = z.infer<typeof insertVulnerabilityScanSchema>;
+export type Lyrics = typeof lyrics.$inferSelect;
+export type InsertLyrics = z.infer<typeof insertLyricsSchema>;
+export type Song = typeof songs.$inferSelect;
+export type InsertSong = z.infer<typeof insertSongSchema>;
+export type Playlist = typeof playlists.$inferSelect;
+export type InsertPlaylist = z.infer<typeof insertPlaylistSchema>;
+export type PlaylistSong = typeof playlistSongs.$inferSelect;
+export type SamplePack = typeof samplePacks.$inferSelect;
+export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
