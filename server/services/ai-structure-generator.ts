@@ -80,7 +80,7 @@ export class AIStructureGenerator {
    */
   async generateSongStructure(prompt: string, genre: string = 'Electronic', bpm: number = 120, key: string = 'C Major'): Promise<GeneratedSongData> {
     if (!gemini) {
-      throw new Error("Gemini API key not configured");
+      throw new Error("Gemini API key not configured. Please add GEMINI_API_KEY to your .env file.");
     }
 
     const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -165,6 +165,11 @@ Make it sound like a real professional song arrangement that could be produced.`
     try {
       const result = await model.generateContent(structurePrompt);
       const responseText = result.response.text();
+      
+      // Check if response is HTML (error page)
+      if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
+        throw new Error("Gemini API returned HTML error page. Please check your API key and try again.");
+      }
       
       // Try to parse JSON response
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
