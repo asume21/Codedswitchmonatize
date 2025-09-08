@@ -19,6 +19,8 @@ import {
   Playlist,
   InsertPlaylist,
   PlaylistSong,
+  SamplePack,
+  InsertSamplePack,
   Sample,
   InsertSample,
   // Social types
@@ -42,7 +44,6 @@ import {
   playlists,
   playlistSongs,
   samplePacks,
-  samples,
   // Social tables
   userProfiles,
   projectShares,
@@ -214,7 +215,13 @@ export class MemStorage implements IStorage {
     this.playlists = new Map();
     this.playlistSongs = new Map();
     this.samplePacks = new Map();
-    this.samples = new Map();
+    this.userProfiles = new Map();
+    this.projectShares = new Map();
+    this.projectCollaborations = new Map();
+    this.projectComments = new Map();
+    this.projectLikes = new Map();
+    this.userFollows = new Map();
+    this.projectVersions = new Map();
 
     // Create default user
     const defaultUser: User = {
