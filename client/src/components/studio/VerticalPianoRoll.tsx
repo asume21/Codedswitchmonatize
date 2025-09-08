@@ -274,6 +274,12 @@ export default function VerticalPianoRoll() {
   const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
   const [chordMode, setChordMode] = useState(false);
   const [scaleLock, setScaleLock] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [loopStart, setLoopStart] = useState(0);
+  const [loopEnd, setLoopEnd] = useState(STEPS);
+  const [quantization, setQuantization] = useState(1); // 1/4 notes
+  const [velocitySensitivity, setVelocitySensitivity] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(true);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
 
   const { toast } = useToast();
@@ -301,7 +307,9 @@ export default function VerticalPianoRoll() {
 
         intervalRef.current = setInterval(() => {
           setCurrentStep(prev => {
-            const nextStep = (prev + 1) % STEPS;
+            const nextStep = loopEnabled ?
+              (prev >= loopEnd ? loopStart : prev + 1) :
+              (prev + 1) % STEPS;
 
             tracks.forEach(track => {
               if (!track.muted) {
@@ -583,6 +591,54 @@ export default function VerticalPianoRoll() {
                   </button>
                 ))}
               </div>
+            </div>
+            
+            {/* Advanced Controls */}
+            <div className="flex items-center gap-4 mt-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-white">BPM:</span>
+                <input
+                  type="number"
+                  value={bpm}
+                  onChange={(e) => setBpm(Math.max(60, Math.min(200, parseInt(e.target.value) || 120)))}
+                  className="w-16 bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
+                  min="60"
+                  max="200"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-white">Quantize:</span>
+                <select
+                  value={quantization}
+                  onChange={(e) => setQuantization(parseInt(e.target.value))}
+                  className="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
+                >
+                  <option value="1">1/4</option>
+                  <option value="2">1/8</option>
+                  <option value="4">1/16</option>
+                </select>
+              </div>
+              
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={loopEnabled}
+                  onChange={(e) => setLoopEnabled(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm text-white">Loop</span>
+              </label>
+              
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={autoScroll}
+                  onChange={(e) => setAutoScroll(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm text-white">Auto-Scroll</span>
+              </label>
             </div>
             
             <div className="flex items-center gap-4 mt-3">
