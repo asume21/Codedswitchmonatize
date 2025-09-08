@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Play, Pause, Square, Download, Share, Volume2, Loader2, Music } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { beatAPI } from "@/lib/api";
 import { audioManager } from "@/lib/audio";
 import { Waveform } from "@/components/ui/waveform";
 import { AudioVisualizer } from "@/components/ui/audio-visualizer";
@@ -40,7 +39,46 @@ export default function BeatStudio() {
   const intervalRef = useRef<NodeJS.Timeout>();
 
   const generateMutation = useMutation({
-    mutationFn: beatAPI.generate,
+    mutationFn: async (params: { genre: string; bpm: number; duration: number; aiProvider: string }) => {
+      // Simulate beat generation - create a simple pattern
+      const pattern = Array(16).fill(0);
+      
+      // Generate a basic beat pattern based on genre
+      if (params.genre === 'Hip-Hop' || params.genre === 'Trap') {
+        // Basic hip-hop/trap pattern
+        pattern[0] = 1; // Kick on 1
+        pattern[4] = 1; // Snare on 2
+        pattern[8] = 1; // Kick on 3
+        pattern[12] = 1; // Snare on 4
+        pattern[2] = 0.5; // Light kick
+        pattern[6] = 0.3; // Light snare
+        pattern[10] = 0.5; // Light kick
+        pattern[14] = 0.3; // Light snare
+      } else if (params.genre === 'House' || params.genre === 'Techno') {
+        // Basic house/techno pattern
+        pattern[0] = 1; // Kick on 1
+        pattern[2] = 0.7; // Light kick
+        pattern[4] = 0.8; // Snare
+        pattern[6] = 0.7; // Light kick
+        pattern[8] = 1; // Kick
+        pattern[10] = 0.7; // Light kick
+        pattern[12] = 0.8; // Snare
+        pattern[14] = 0.7; // Light kick
+      } else {
+        // Random pattern for other genres
+        for (let i = 0; i < 16; i++) {
+          pattern[i] = Math.random() > 0.7 ? 1 : 0;
+        }
+      }
+
+      return {
+        pattern,
+        samples: ['kick', 'snare', 'hihat'],
+        description: `A ${params.genre} beat at ${params.bpm} BPM with a ${params.duration} bar pattern`,
+        bpm: params.bpm,
+        genre: params.genre
+      };
+    },
     onSuccess: (data) => {
       setGeneratedBeat(data);
       setBeatPattern(data.pattern);

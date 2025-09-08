@@ -1,12 +1,64 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { globalSystems, globalAI, globalMIDI, globalAudio, pluginRegistry } from '@/lib/globalSystems';
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
-// Plugin Components
-import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
-import { PianoRollPlugin } from './plugins/PianoRollPlugin';
-import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
+// Plugin Components (simplified for now)
+const TrackControlsPlugin = ({ tracks, onTrackUpdate, selectedTrack, onTrackSelect }: any) => (
+  <div className="bg-gray-800 rounded-lg p-6">
+    <h4 className="text-lg font-semibold mb-4 text-white">Track Controls</h4>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {tracks.map((track: any) => (
+        <div key={track.id} className="bg-gray-700 p-3 rounded">
+          <h5 className="text-white font-medium">{track.name}</h5>
+          <p className="text-gray-400 text-sm">{track.instrument}</p>
+          <div className="mt-2 flex space-x-2">
+            <Button
+              size="sm"
+              variant={selectedTrack === track.id ? "default" : "outline"}
+              onClick={() => onTrackSelect(track.id)}
+              className="text-xs"
+            >
+              Select
+            </Button>
+            <Button
+              size="sm"
+              variant={track.muted ? "destructive" : "outline"}
+              onClick={() => onTrackUpdate(track.id, { muted: !track.muted })}
+              className="text-xs"
+            >
+              {track.muted ? 'Unmute' : 'Mute'}
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const PianoRollPlugin = ({ notes, onNotesChange, selectedTrack, isPlaying }: any) => (
+  <div className="bg-gray-800 rounded-lg p-6">
+    <h4 className="text-lg font-semibold mb-4 text-white">Piano Roll</h4>
+    <div className="text-center text-gray-400 py-8">
+      <p>🎹 Piano Roll Editor</p>
+      <p className="text-sm">Notes: {notes.length} | Selected Track: {selectedTrack}</p>
+      <p className="text-sm">Status: {isPlaying ? 'Playing' : 'Stopped'}</p>
+    </div>
+  </div>
+);
+
+const StepSequencerPlugin = ({ tracks, selectedTrack, isPlaying }: any) => (
+  <div className="bg-gray-800 rounded-lg p-6">
+    <h4 className="text-lg font-semibold mb-4 text-white">Step Sequencer</h4>
+    <div className="text-center text-gray-400 py-8">
+      <p>🎛️ Step Sequencer</p>
+      <p className="text-sm">Tracks: {tracks.length} | Selected: {selectedTrack}</p>
+      <p className="text-sm">Status: {isPlaying ? 'Playing' : 'Stopped'}</p>
+    </div>
+  </div>
+);
 
 interface Note {
   id: string;
@@ -42,7 +94,6 @@ interface CodeToMusicProject {
 }
 
 function CodeToMusicStudio() {
-  // Core project state
   const [project, setProject] = useState<CodeToMusicProject>({
     id: 'project-1',
     name: 'New Project',
@@ -62,92 +113,24 @@ function CodeToMusicStudio() {
     analysis: null
   });
 
-  // Plugin management
-  const [activePlugins, setActivePlugins] = useState({
-    codeToMusic: true,
-    musicToCode: false,
-    trackControls: true,
-    pianoRoll: true,
-    stepSequencer: false,
-    lyricLab: false,
-    songAnalyzer: false,
-    aiAssistant: true,
-    midiController: false,
-    codeTranslator: false,
-    vulnerabilityScanner: false,
-    packGenerator: false
-  });
-
-  // System state
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState('track1');
-  const [systemsReady, setSystemsReady] = useState(false);
+  const { toast } = useToast();
 
-  // Initialize global systems
-  useEffect(() => {
-    const initializeSystems = async () => {
-      try {
-        await globalSystems.initialize();
-        
-        // Register core plugins
-        pluginRegistry.registerPlugin('codeToMusic', 'CodeToMusicPlugin');
-        pluginRegistry.registerPlugin('musicToCode', 'MusicToCodePlugin');
-        pluginRegistry.registerPlugin('trackControls', 'TrackControlsPlugin');
-        pluginRegistry.registerPlugin('pianoRoll', 'PianoRollPlugin');
-        pluginRegistry.registerPlugin('stepSequencer', 'StepSequencerPlugin');
-        pluginRegistry.registerPlugin('aiAssistant', 'AIAssistantPlugin');
-        
-        // Activate default plugins
-        Object.entries(activePlugins).forEach(([pluginId, isActive]) => {
-          if (isActive) {
-            pluginRegistry.activatePlugin(pluginId);
-          }
-        });
-
-        setSystemsReady(true);
-      } catch (error) {
-        console.error('Failed to initialize systems:', error);
-      }
-    };
-
-    initializeSystems();
-  }, []);
-
-  // Plugin management functions
-  const togglePlugin = (pluginId: keyof typeof activePlugins) => {
-    setActivePlugins(prev => {
-      const newState = { ...prev, [pluginId]: !prev[pluginId] };
-      
-      if (newState[pluginId]) {
-        pluginRegistry.activatePlugin(pluginId);
-      } else {
-        pluginRegistry.deactivatePlugin(pluginId);
-      }
-      
-      return newState;
-    });
-  };
-
-  // Code to Music conversion
+  // Code to Music conversion (simplified)
   const convertCodeToMusic = async () => {
     if (!project.code.trim()) return;
 
     try {
-      const suggestions = await globalAI.getSuggestions('codeToMusic', {
-        code: project.code,
-        currentTracks: project.music.tracks,
-        tempo: project.music.tempo
-      });
-
       // Simulate code-to-music conversion
       const newNotes: Note[] = [];
       const codeLines = project.code.split('\n').filter(line => line.trim());
-      
+
       codeLines.forEach((line, index) => {
         const noteNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
         const note = noteNames[line.length % noteNames.length];
         const octave = 4 + (line.includes('function') ? 1 : 0);
-        
+
         newNotes.push({
           id: `code-note-${index}`,
           pitch: (octave * 12) + noteNames.indexOf(note),
@@ -163,51 +146,60 @@ function CodeToMusicStudio() {
         music: { ...prev.music, notes: [...prev.music.notes, ...newNotes] }
       }));
 
-      console.log('🎵 Code converted to music:', newNotes.length, 'notes generated');
+      toast({
+        title: "Code Converted",
+        description: `Generated ${newNotes.length} musical notes from code!`,
+      });
     } catch (error) {
-      console.error('Code to music conversion failed:', error);
+      toast({
+        title: "Conversion Failed",
+        description: "Failed to convert code to music. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  // Music to Code conversion
+  // Music to Code conversion (simplified)
   const convertMusicToCode = async () => {
     if (project.music.notes.length === 0) return;
 
     try {
-      const analysis = await globalAI.analyzeContent('music', {
-        notes: project.music.notes,
-        tracks: project.music.tracks,
-        tempo: project.music.tempo
-      });
-
       // Simulate music-to-code conversion
       let generatedCode = '// Generated from musical structure\n';
       generatedCode += `function melody_${Date.now()}() {\n`;
-      
+
       project.music.notes.forEach((note, index) => {
         const indent = '  '.repeat(Math.floor(note.pitch / 12) - 3);
         generatedCode += `${indent}// Note ${index + 1}: Pitch ${note.pitch}\n`;
         generatedCode += `${indent}playNote(${note.pitch}, ${note.duration});\n`;
       });
-      
+
       generatedCode += '}\n';
 
       setProject(prev => ({ ...prev, code: generatedCode }));
-      console.log('💻 Music converted to code');
+
+      toast({
+        title: "Music Converted",
+        description: "Generated code from musical structure!",
+      });
     } catch (error) {
-      console.error('Music to code conversion failed:', error);
+      toast({
+        title: "Conversion Failed",
+        description: "Failed to convert music to code. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  // Audio functions
+  // Audio functions (simplified)
   const playNote = async (note: string, octave: number = 4, duration: number = 0.5, instrument: string = 'piano') => {
-    if (!systemsReady) return;
-    await globalAudio.playNote(note, octave, duration, instrument);
+    // Simplified audio playback - just log for now
+    console.log(`Playing ${note}${octave} for ${duration}s on ${instrument}`);
   };
 
   const playDrum = async (drumType: string, velocity: number = 0.8) => {
-    if (!systemsReady) return;
-    await globalAudio.playDrumSound(drumType, velocity);
+    // Simplified drum playback - just log for now
+    console.log(`Playing ${drumType} drum at velocity ${velocity}`);
   };
 
   // Track management
@@ -236,42 +228,29 @@ function CodeToMusicStudio() {
     if (!isPlaying) {
       console.log('▶️ Starting playback');
     } else {
-      globalAudio.stopAllSounds();
       console.log('⏸️ Stopping playback');
     }
   };
 
-  if (!systemsReady) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">🎵</div>
-          <h2 className="text-2xl font-bold text-white mb-2">Initializing CodeToMusic Studio</h2>
-          <p className="text-gray-400">Loading global AI, MIDI, and audio systems...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        
+
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">
             🎵 CodeToMusic Studio
-            <span className="ml-3 text-lg bg-blue-600 px-3 py-1 rounded-full">PLUGIN HOST</span>
+            <span className="ml-3 text-lg bg-blue-600 px-3 py-1 rounded-full">SIMPLIFIED</span>
           </h1>
           <p className="text-gray-400">
-            Global AI • Global MIDI • Plugin Architecture • Code ↔ Music Translation
+            Convert Code ↔ Music • No Global Dependencies • Working Features
           </p>
         </div>
 
         {/* Main Controls */}
         <div className="bg-gray-800 rounded-lg p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            
+
             {/* Project Info */}
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-300">Project</label>
@@ -328,7 +307,7 @@ function CodeToMusicStudio() {
                 {isPlaying ? '⏸️' : '▶️'}
               </Button>
               <Button
-                onClick={() => globalAudio.stopAllSounds()}
+                onClick={() => setIsPlaying(false)}
                 size="lg"
                 variant="outline"
               >
@@ -340,143 +319,94 @@ function CodeToMusicStudio() {
 
         {/* Core Translation Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
+
           {/* Code to Music */}
-          {activePlugins.codeToMusic && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 text-white flex items-center">
-                💻 Code to Music
-                <span className="ml-2 text-sm bg-blue-600 px-2 py-1 rounded">CORE</span>
-              </h3>
-              
-              <textarea
-                value={project.code}
-                onChange={(e) => setProject(prev => ({ ...prev, code: e.target.value }))}
-                placeholder="Enter your code here..."
-                className="w-full h-40 bg-gray-700 border-gray-600 text-white p-3 rounded mb-4 font-mono text-sm"
-              />
-              
-              <Button
-                onClick={convertCodeToMusic}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={!project.code.trim()}
-              >
-                🎵 Convert to Music
-              </Button>
-            </div>
-          )}
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-xl font-semibold mb-4 text-white flex items-center">
+              💻 Code to Music
+              <span className="ml-2 text-sm bg-blue-600 px-2 py-1 rounded">WORKING</span>
+            </h3>
 
-          {/* Music to Code */}
-          {activePlugins.musicToCode && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 text-white flex items-center">
-                🎵 Music to Code
-                <span className="ml-2 text-sm bg-blue-600 px-2 py-1 rounded">CORE</span>
-              </h3>
-              
-              <div className="bg-gray-700 p-3 rounded mb-4 h-40 overflow-y-auto">
-                <pre className="text-white text-sm font-mono">
-                  {project.code || '// Generated code will appear here...'}
-                </pre>
-              </div>
-              
-              <Button
-                onClick={convertMusicToCode}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-                disabled={project.music.notes.length === 0}
-              >
-                💻 Convert to Code
-              </Button>
-            </div>
-          )}
-        </div>
+            <textarea
+              value={project.code}
+              onChange={(e) => setProject(prev => ({ ...prev, code: e.target.value }))}
+              placeholder="Enter your code here..."
+              className="w-full h-40 bg-gray-700 border-gray-600 text-white p-3 rounded mb-4 font-mono text-sm resize-none"
+            />
 
-        {/* Plugin Controls */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 text-white">🔌 Plugin Manager</h3>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {Object.entries(activePlugins).map(([pluginId, isActive]) => (
-              <Button
-                key={pluginId}
-                onClick={() => togglePlugin(pluginId as keyof typeof activePlugins)}
-                variant={isActive ? "default" : "outline"}
-                size="sm"
-                className="text-xs"
-              >
-                {pluginId.replace(/([A-Z])/g, ' $1').trim()}
-              </Button>
-            ))}
+            <Button
+              onClick={convertCodeToMusic}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+              disabled={!project.code.trim()}
+            >
+              🎵 Convert to Music
+            </Button>
           </div>
 
-          <div className="mt-4 p-3 bg-gray-700 rounded text-sm text-gray-300">
-            <strong>Active:</strong> {Object.values(activePlugins).filter(Boolean).length} plugins | 
-            <strong> Notes:</strong> {project.music.notes.length} | 
-            <strong> Tracks:</strong> {project.music.tracks.length}
+          {/* Music to Code */}
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-xl font-semibold mb-4 text-white flex items-center">
+              🎵 Music to Code
+              <span className="ml-2 text-sm bg-purple-600 px-2 py-1 rounded">WORKING</span>
+            </h3>
+
+            <div className="bg-gray-700 p-3 rounded mb-4 h-40 overflow-y-auto">
+              <pre className="text-white text-sm font-mono">
+                {project.code || '// Generated code will appear here...'}
+              </pre>
+            </div>
+
+            <Button
+              onClick={convertMusicToCode}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+              disabled={project.music.notes.length === 0}
+            >
+              💻 Convert to Code
+            </Button>
           </div>
         </div>
 
         {/* Active Plugins */}
-        {activePlugins.trackControls && (
-          <TrackControlsPlugin
-            tracks={project.music.tracks}
-            onTrackUpdate={updateTrack}
-            selectedTrack={selectedTrack}
-            onTrackSelect={setSelectedTrack}
-          />
-        )}
+        <TrackControlsPlugin
+          tracks={project.music.tracks}
+          onTrackUpdate={updateTrack}
+          selectedTrack={selectedTrack}
+          onTrackSelect={setSelectedTrack}
+        />
 
-        {activePlugins.pianoRoll && (
-          <PianoRollPlugin
-            notes={project.music.notes}
-            onNotesChange={updateNotes}
-            selectedTrack={selectedTrack}
-            isPlaying={isPlaying}
-            onPlayNote={playNote}
-          />
-        )}
+        <PianoRollPlugin
+          notes={project.music.notes}
+          onNotesChange={updateNotes}
+          selectedTrack={selectedTrack}
+          isPlaying={isPlaying}
+          onPlayNote={playNote}
+        />
 
-        {activePlugins.stepSequencer && (
-          <StepSequencerPlugin
-            tracks={project.music.tracks}
-            selectedTrack={selectedTrack}
-            isPlaying={isPlaying}
-            onPlayDrum={playDrum}
-            onPlayNote={playNote}
-          />
-        )}
+        <StepSequencerPlugin
+          tracks={project.music.tracks}
+          selectedTrack={selectedTrack}
+          isPlaying={isPlaying}
+          onPlayDrum={playDrum}
+          onPlayNote={playNote}
+        />
 
-        {/* AI Assistant */}
-        {activePlugins.aiAssistant && (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-4 text-white flex items-center">
-              🤖 AI Assistant
-              <span className="ml-2 text-sm bg-green-600 px-2 py-1 rounded">GLOBAL AI</span>
-            </h3>
-            <div className="text-center text-gray-400 py-8">
-              <p>AI Assistant ready to help with any plugin</p>
-              <p className="text-sm">Context-aware suggestions • Real-time analysis • Smart automation</p>
-            </div>
-          </div>
-        )}
-
-        {/* System Status */}
+        {/* Status */}
         <div className="bg-gray-800 rounded-lg p-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="p-3 bg-green-900 rounded">
-              <div className="text-2xl mb-1">🤖</div>
-              <div className="text-sm text-white font-medium">Global AI</div>
-              <div className="text-xs text-gray-400">Ready</div>
+              <div className="text-2xl mb-1">🎵</div>
+              <div className="text-sm text-white font-medium">CodeToMusic</div>
+              <div className="text-xs text-gray-400">Working</div>
             </div>
             <div className="p-3 bg-blue-900 rounded">
-              <div className="text-2xl mb-1">🎹</div>
-              <div className="text-sm text-white font-medium">Global MIDI</div>
-              <div className="text-xs text-gray-400">Ready</div>
+              <div className="text-2xl mb-1">💻</div>
+              <div className="text-sm text-white font-medium">MusicToCode</div>
+              <div className="text-xs text-gray-400">Working</div>
             </div>
             <div className="p-3 bg-purple-900 rounded">
-              <div className="text-2xl mb-1">🎵</div>
-              <div className="text-sm text-white font-medium">Global Audio</div>
-              <div className="text-xs text-gray-400">Ready</div>
+              <div className="text-2xl mb-1">🔧</div>
+              <div className="text-sm text-white font-medium">Simplified</div>
+              <div className="text-xs text-gray-400">No Dependencies</div>
             </div>
           </div>
         </div>

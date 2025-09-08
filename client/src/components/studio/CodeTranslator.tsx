@@ -26,7 +26,7 @@ for (let i = 0; i < 10; i++) {
 
   const translateMutation = useMutation({
     mutationFn: async (data: { sourceCode: string; sourceLanguage: string; targetLanguage: string; aiProvider: string }) => {
-      const response = await apiRequest("POST", "/api/code/translate", data);
+      const response = await apiRequest("POST", "/api/ai/translate-code", data);
       return response.json();
     },
     onSuccess: (data) => {

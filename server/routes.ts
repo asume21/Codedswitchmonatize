@@ -361,6 +361,36 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     },
   );
 
+  // Code translation endpoint
+  app.post("/api/ai/translate-code", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { sourceCode, sourceLanguage, targetLanguage, aiProvider } = req.body;
+
+      if (!sourceCode || !sourceLanguage || !targetLanguage) {
+        return res.status(400).json({ message: "Missing required parameters" });
+      }
+
+      // For now, return a placeholder translation
+      // In a real implementation, this would use AI to translate the code
+      const translatedCode = `// Translated from ${sourceLanguage} to ${targetLanguage}
+// Original: ${sourceCode}
+
+// Note: This is a placeholder translation
+// Real AI-powered translation would be implemented here
+
+${sourceCode}`;
+
+      res.json({
+        translatedCode,
+        sourceLanguage,
+        targetLanguage
+      });
+    } catch (err: any) {
+      console.error("Code translation error:", err);
+      res.status(500).json({ message: err?.message || "Failed to translate code" });
+    }
+  });
+
   // Melody generation endpoint for Melody Composer
   app.post(
     "/api/melodies/generate",
