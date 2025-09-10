@@ -270,7 +270,7 @@ export class OpenAIUtils {
   static generateMelodyFromCode(code: string): any {
     // Generate a simple melody pattern based on code structure
     const lines = code.split('\n').filter(line => line.trim());
-    const notes = [];
+    const notes: any[] = [];
     const scale = ["C", "D", "E", "F", "G", "A", "B"];
     
     lines.forEach((line, index) => {

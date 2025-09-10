@@ -37,6 +37,8 @@ export const StudioAudioContext = createContext({
   currentLyrics: "" as string,
   currentCodeMusic: {} as any,
   currentLayers: [] as any[],
+  currentTracks: [] as any[],
+  currentKey: "C" as string,
   isPlaying: false,
   bpm: 120,
   playMode: 'current' as 'current' | 'all',
@@ -51,9 +53,12 @@ export const StudioAudioContext = createContext({
   setCurrentLyrics: (lyrics: string) => {},
   setCurrentCodeMusic: (music: any) => {},
   setCurrentLayers: (layers: any[]) => {},
+  setCurrentTracks: (tracks: any[]) => {},
+  setBpm: (bpm: number) => {},
+  setCurrentKey: (key: string) => {},
   playCurrentAudio: () => Promise.resolve(),
   stopCurrentAudio: () => {},
-  playFullSong: () => Promise.resolve(), // Master play function
+  playFullSong: () => Promise.resolve(),
   stopFullSong: () => {},
 });
 
@@ -94,6 +99,8 @@ export default function Studio() {
   const [currentLyrics, setCurrentLyrics] = useState("");
   const [currentCodeMusic, setCurrentCodeMusic] = useState({});
   const [currentLayers, setCurrentLayers] = useState<any[]>([]);
+  const [currentTracks, setCurrentTracks] = useState<any[]>([]);
+  const [currentKey, setCurrentKey] = useState("C");
   const [isStudioPlaying, setIsStudioPlaying] = useState(false);
   const [studioBpm, setStudioBpm] = useState(120);
   const [playMode, setPlayMode] = useState<'current' | 'all'>('current'); // New play mode state
@@ -228,6 +235,8 @@ export default function Studio() {
     currentLyrics,
     currentCodeMusic,
     currentLayers,
+    currentTracks,
+    currentKey,
     isPlaying: isStudioPlaying,
     bpm: studioBpm,
     playMode,
@@ -242,6 +251,9 @@ export default function Studio() {
     setCurrentLyrics,
     setCurrentCodeMusic,
     setCurrentLayers,
+    setCurrentTracks,
+    setBpm: setStudioBpm,
+    setCurrentKey,
     playCurrentAudio,
     stopCurrentAudio,
     playFullSong,

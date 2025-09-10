@@ -246,6 +246,63 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // Beat save and list endpoints
+  app.post("/api/beats", async (req, res) => {
+    try {
+      const { name, pattern, bpm } = req.body;
+
+      if (!name || !pattern) {
+        return res.status(400).json({ error: "Name and pattern are required" });
+      }
+
+      console.log(`💾 Saving beat: ${name}`);
+
+      // For now, just return success - in a real app you'd save to database
+      const savedBeat = {
+        id: `beat_${Date.now()}`,
+        name,
+        pattern,
+        bpm: bpm || 120,
+        createdAt: new Date().toISOString()
+      };
+
+      res.json({
+        success: true,
+        data: savedBeat,
+        message: `Beat "${name}" saved successfully`
+      });
+
+    } catch (error) {
+      console.error("Beat save error:", error);
+      res.status(500).json({
+        error: "Failed to save beat",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.get("/api/beats", async (req, res) => {
+    try {
+      console.log("📋 Fetching saved beats");
+
+      // For now, return empty array - in a real app you'd fetch from database
+      const beats: any[] = [];
+
+      res.json({
+        success: true,
+        data: beats,
+        message: "Beats retrieved successfully"
+      });
+
+    } catch (error) {
+      console.error("Beat list error:", error);
+      res.status(500).json({
+        error: "Failed to fetch beats",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

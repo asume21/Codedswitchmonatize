@@ -16,10 +16,20 @@ export async function setupVite(app: Express, server: any) {
 
 export function serveStatic(app: Express) {
   const clientPath = path.resolve("dist/client");
-  app.use(express.static(clientPath));
   
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(clientPath, "index.html"));
+  // Serve static files from the dist/client directory
+  app.use(express.static(clientPath, {
+    index: false, // Don't serve index.html for directories
+    fallthrough: true, // Continue to next middleware if file not found
+  }));
+  
+  // Handle client-side routing - return index.html for all non-API routes
+  app.get(/^(?!\/api\/).*/, (req, res) => {
+    res.sendFile(path.join(clientPath, 'index.html'), (err) => {
+      if (err) {
+        res.status(500).send('Error loading the application');
+      }
+    });
   });
 }
 

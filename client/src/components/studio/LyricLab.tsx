@@ -147,40 +147,21 @@ Type here or use AI generation...`);
     },
   });
 
-  // NEW: Generate beats and melody based on lyrics using xAI Grok
+  // Generate music from lyrics using Suno API
   const generateMusicFromLyricsMutation = useMutation({
-    mutationFn: async (data: { lyrics: string; genre: string; mood: string; title: string; complexity?: number }) => {
-      const response = await apiRequest("POST", "/api/music/generate-from-lyrics", data);
+    mutationFn: async (data: { lyrics: string; genre: string; mood: string; title: string }) => {
+      const response = await apiRequest("POST", "/api/lyrics/generate-music", data);
       return response.json();
     },
     onSuccess: (data) => {
       console.log("🎵 Music generated from lyrics:", data);
-      if (data.beatPattern) {
-        console.log("🥁 Setting beat pattern:", data.beatPattern);
-        studioContext.setCurrentPattern(data.beatPattern);
-      }
-      if (data.melody) {
-        console.log("🎼 Setting melody:", data.melody);
-        studioContext.setCurrentMelody(data.melody);
-      }
-      if (data.codeMusic) {
-        console.log("🎹 Setting code music:", data.codeMusic);
-        studioContext.setCurrentCodeMusic(data.codeMusic);
+      if (data.audioUrl) {
+        toast({
+          title: "Music Generated!",
+          description: `Song "${data.title}" created. Audio ready to play.`,
+        });
       }
       setHasGeneratedMusic(true);
-      
-      // Store in localStorage for persistence across tabs
-      localStorage.setItem('generatedMusicData', JSON.stringify({
-        beatPattern: data.beatPattern,
-        melody: data.melody,
-        codeMusic: data.codeMusic,
-        timestamp: Date.now()
-      }));
-      
-      toast({
-        title: "Music Generated from Lyrics",
-        description: "Beat pattern and melody created! Check the Beat Maker or Melody Composer tabs to see and edit your generated music.",
-      });
     },
     onError: () => {
       toast({

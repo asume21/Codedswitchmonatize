@@ -28,24 +28,20 @@ export default function MusicMixer() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-<<<<<<< HEAD
-  const [activeView, setActiveView] = useState<'studio' | 'live' | 'mastering'>('studio');
-=======
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
   const [bpm, setBpm] = useState(120);
   const [masterVolume, setMasterVolume] = useState([80]);
-  
+
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mixerRef = useRef<HTMLDivElement>(null);
 
   // Get data from studio context and localStorage
   const getBeatData = () => {
     if (studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0) {
-      const hasRealData = Object.values(studioContext.currentPattern).some(arr => 
+      const hasRealData = Object.values(studioContext.currentPattern).some(arr =>
         Array.isArray(arr) && arr.some(val => val === true));
       return hasRealData ? studioContext.currentPattern : null;
     }
-    
+
     const stored = localStorage.getItem('generatedMusicData');
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -58,7 +54,7 @@ export default function MusicMixer() {
     if (studioContext.currentMelody && studioContext.currentMelody.length > 0) {
       return studioContext.currentMelody;
     }
-    
+
     const stored = localStorage.getItem('generatedMusicData');
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -143,42 +139,39 @@ export default function MusicMixer() {
   // Play mixed composition
   const playMixedComposition = async () => {
     await initializeAudio();
-    
+
     const stepDuration = (60 / bpm / 4) * 1000; // 16th note duration
     let step = 0;
-    
 
-
-    
     intervalRef.current = setInterval(() => {
       setCurrentStep(step % 16);
-      
+
       // Play beats if enabled
       const beatTrack = tracks.find(t => t.id === 'beats' && t.enabled);
       if (beatTrack && beatTrack.data) {
         Object.entries(beatTrack.data).forEach(([drum, pattern]) => {
-          if (Array.isArray(pattern) && pattern[step % 16]) {
+          if (Array.isArray(pattern) && (pattern as boolean[])[step % 16]) {
             playDrumSound(drum);
           }
         });
       }
-      
+
       // Play melody if enabled and has notes at this step
       const melodyTrack = tracks.find(t => t.id === 'melody' && t.enabled);
-      if (melodyTrack && melodyTrack.data && melodyTrack.data.length > 0) {
+      if (melodyTrack && melodyTrack.data && (melodyTrack.data as any[]).length > 0) {
         // Play melody notes that align with current step timing
         const melodyStep = Math.floor(step / 4); // Melody plays on quarter notes
-        if (step % 4 === 0 && melodyStep < melodyTrack.data.length) {
-          const note = melodyTrack.data[melodyStep];
-          if (note && note.note) {
+        if (step % 4 === 0 && melodyStep < (melodyTrack.data as any[]).length) {
+          const note = (melodyTrack.data as any[])[melodyStep];
+          if (note && (note as any).note) {
             // Simple melody playback using drum sounds for now
             playDrumSound('kick');
           }
         }
       }
-      
+
       step++;
-      
+
       // Loop after 16 steps (one bar)
       if (step >= 16) {
         step = 0;
@@ -195,11 +188,7 @@ export default function MusicMixer() {
     setCurrentStep(0);
   };
 
-<<<<<<< HEAD
-  const handlePlayAll = async () => {
-=======
   const handlePlayPause = async () => {
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
     if (isPlaying) {
       stopPlayback();
     } else {
@@ -209,13 +198,13 @@ export default function MusicMixer() {
   };
 
   const updateTrackVolume = (trackId: string, volume: number) => {
-    setTracks(prev => prev.map(track => 
+    setTracks(prev => prev.map(track =>
       track.id === trackId ? { ...track, volume } : track
     ));
   };
 
   const toggleTrack = (trackId: string) => {
-    setTracks(prev => prev.map(track => 
+    setTracks(prev => prev.map(track =>
       track.id === trackId ? { ...track, enabled: !track.enabled } : track
     ));
   };
@@ -225,10 +214,10 @@ export default function MusicMixer() {
       title: "Export Started",
       description: "Your mixed composition is being prepared for download...",
     });
-    
+
     // This would integrate with a proper audio export system
     // Export mixed composition with tracks, bpm, and master volume
-    
+
     setTimeout(() => {
       toast({
         title: "Export Complete",
@@ -242,15 +231,6 @@ export default function MusicMixer() {
       <div className="p-8 text-center">
         <div className="max-w-md mx-auto">
           <MixerIcon className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-<<<<<<< HEAD
-          <h3 className="text-lg font-semibold mb-2">🎛️ Multi-Track Studio Mixer</h3>
-          <p className="text-muted-foreground mb-4">
-            Professional mixing console ready for your tracks. Generate content in other studio tools first.
-          </p>
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-            <p>• Use Beat Maker to create drum patterns</p>
-            <p>• Use Vertical Piano Roll to create melodies</p>
-=======
           <h3 className="text-lg font-semibold mb-2">No Music Data Available</h3>
           <p className="text-muted-foreground mb-4">
             Generate some beats, melodies, or lyrics in other studio tools first, then come back here to mix them together.
@@ -258,7 +238,6 @@ export default function MusicMixer() {
           <div className="flex flex-col gap-2 text-sm text-muted-foreground">
             <p>• Use Beat Maker to create drum patterns</p>
             <p>• Use Melody Composer to create musical phrases</p>
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
             <p>• Use Lyric Lab to generate music from lyrics</p>
             <p>• Use Code Translator to create music from code</p>
           </div>
@@ -268,9 +247,7 @@ export default function MusicMixer() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-<<<<<<< HEAD
-=======
+    <div className="p-6 max-w-4xl mx-auto space-y-6" ref={mixerRef}>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -281,7 +258,7 @@ export default function MusicMixer() {
             Combine your beats, melodies, and lyrics into a complete song
           </p>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Label htmlFor="bpm" className="text-sm">BPM:</Label>
@@ -298,14 +275,10 @@ export default function MusicMixer() {
           </div>
         </div>
       </div>
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
 
       {/* Transport Controls */}
       <Card>
         <CardHeader>
-<<<<<<< HEAD
-          <CardTitle>Transport & Master Controls</CardTitle>
-=======
           <CardTitle className="flex items-center justify-between">
             Transport Controls
             <div className="flex items-center gap-2">
@@ -314,13 +287,10 @@ export default function MusicMixer() {
               </Badge>
             </div>
           </CardTitle>
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <Button 
-<<<<<<< HEAD
-=======
+            <Button
               onClick={handlePlayPause}
               className="flex items-center gap-2"
               disabled={enabledTracks.length === 0}
@@ -328,22 +298,21 @@ export default function MusicMixer() {
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               {isPlaying ? "Pause" : "Play Mixed Song"}
             </Button>
-            
-            <Button 
-              onClick={stopPlayback} 
+
+            <Button
+              onClick={stopPlayback}
               variant="outline"
               className="flex items-center gap-2"
             >
               <Square className="w-4 h-4" />
               Stop
             </Button>
-            
+
             <Separator orientation="vertical" className="h-8" />
-            
-            <Button 
->>>>>>> 8485ec252f45f5cb49fc4fc23695ca7bb13fbcc6
+
+            <Button
               onClick={exportMix}
-              variant="outline" 
+              variant="outline"
               className="flex items-center gap-2"
               disabled={enabledTracks.length === 0}
             >
@@ -351,7 +320,7 @@ export default function MusicMixer() {
               Export Mix
             </Button>
           </div>
-          
+
           {/* Master Volume */}
           <div className="mt-4 flex items-center gap-4">
             <Volume2 className="w-4 h-4" />
@@ -381,21 +350,21 @@ export default function MusicMixer() {
                   <div>
                     <CardTitle className="text-lg">{track.name}</CardTitle>
                     <CardDescription>
-                      {track.hasData ? 
-                        (track.id === 'beats' ? 
-                          `${Object.values(track.data || {}).filter((arr: any) => arr.some((v: boolean) => v)).length} drum tracks` :
+                      {track.hasData ?
+                        (track.id === 'beats' ?
+                          `${Object.values(track.data || {}).filter((arr: any) => (arr as boolean[]).some((v: boolean) => v)).length} drum tracks` :
                           track.id === 'melody' ?
-                          `${track.data?.length || 0} notes` :
+                          `${(track.data as any[])?.length || 0} notes` :
                           track.id === 'lyrics' ?
-                          `${(track.data || '').split(' ').length} words` :
+                          `${(track.data as string || '').split(' ').length} words` :
                           'Code-generated music'
-                        ) : 
+                        ) :
                         'No data available'
                       }
                     </CardDescription>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-4">
                   <Switch
                     checked={track.enabled}
@@ -403,7 +372,7 @@ export default function MusicMixer() {
                     disabled={!track.hasData}
                     aria-label={`Toggle ${track.name} track`}
                   />
-                  
+
                   {track.hasData && (
                     <Badge variant={track.enabled ? "default" : "secondary"}>
                       {track.enabled ? "Enabled" : "Muted"}
@@ -412,7 +381,7 @@ export default function MusicMixer() {
                 </div>
               </div>
             </CardHeader>
-            
+
             {track.hasData && track.enabled && (
               <CardContent className="pt-0">
                 <div className="flex items-center gap-4">
@@ -464,3 +433,4 @@ export default function MusicMixer() {
     </div>
   );
 }
+

@@ -195,7 +195,7 @@ export function useMelodyPlayer() {
       isPlaying = false;
       melodyTimeouts.forEach(timeout => clearTimeout(timeout));
       melodyTimeouts = [];
-      audioEngine.stopAllInstruments();
+      audioEngine.stop();
       console.log("Melody stopped - all timeouts cleared");
     }
   };

@@ -143,7 +143,7 @@ export default function ProjectSharing({ projectId, projectName, currentUserRole
     }
   };
 
-  const canManageCollaborators = currentUserRole === 'owner' || currentUserRole === 'admin';
+  const canManageCollaborators = currentUserRole === 'owner';
 
   return (
     <Card className="w-full bg-gray-800 border-gray-600">

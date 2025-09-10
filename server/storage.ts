@@ -195,6 +195,8 @@ export class MemStorage implements IStorage {
   private songs: Map<string, Song>;
   private playlists: Map<string, Playlist>;
   private playlistSongs: Map<string, PlaylistSong>;
+  private samplePacks: Map<string, SamplePack>;
+  private samples: Map<string, Sample>;
   private userProfiles: Map<string, UserProfile>;
   private projectShares: Map<string, ProjectShare>;
   private projectCollaborations: Map<string, ProjectCollaboration>;
@@ -215,6 +217,7 @@ export class MemStorage implements IStorage {
     this.playlists = new Map();
     this.playlistSongs = new Map();
     this.samplePacks = new Map();
+    this.samples = new Map();
     this.userProfiles = new Map();
     this.projectShares = new Map();
     this.projectCollaborations = new Map();
@@ -754,8 +757,6 @@ export class MemStorage implements IStorage {
       bpm: sample.bpm || null,
       duration: sample.duration || null,
       description: sample.description || null,
-      aiData: sample.aiData || null,
-      createdAt: new Date(),
     };
     this.samples.set(id, newSample);
     return newSample;
@@ -763,6 +764,284 @@ export class MemStorage implements IStorage {
 
   async deleteSample(id: string): Promise<void> {
     this.samples.delete(id);
+  }
+
+  // User Profiles
+  async getUserProfile(id: string): Promise<UserProfile | undefined> {
+    return this.userProfiles.get(id);
+  }
+
+  async getUserProfileByUserId(userId: string): Promise<UserProfile | undefined> {
+    return Array.from(this.userProfiles.values()).find(
+      (profile) => profile.userId === userId,
+    );
+  }
+
+  async createUserProfile(userId: string, insertProfile: InsertUserProfile): Promise<UserProfile> {
+    const id = randomUUID();
+    const profile: UserProfile = {
+      ...insertProfile,
+      id,
+      userId,
+      favoriteGenres: insertProfile.favoriteGenres || [],
+      instruments: insertProfile.instruments || [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.userProfiles.set(id, profile);
+    return profile;
+  }
+
+  async updateUserProfile(id: string, data: Partial<UserProfile>): Promise<UserProfile> {
+    const profile = this.userProfiles.get(id);
+    if (!profile) throw new Error("User profile not found");
+
+    const updated: UserProfile = {
+      ...profile,
+      ...data,
+      updatedAt: new Date(),
+    };
+    this.userProfiles.set(id, updated);
+    return updated;
+  }
+
+  async deleteUserProfile(id: string): Promise<void> {
+    this.userProfiles.delete(id);
+  }
+
+  // User Follows
+  async followUser(followerId: string, followingId: string): Promise<UserFollow> {
+    const id = randomUUID();
+    const follow: UserFollow = {
+      id,
+      followerId,
+      followingId,
+      createdAt: new Date(),
+    };
+    this.userFollows.set(id, follow);
+    return follow;
+  }
+
+  async unfollowUser(followerId: string, followingId: string): Promise<void> {
+    const follow = Array.from(this.userFollows.values()).find(
+      (f) => f.followerId === followerId && f.followingId === followingId,
+    );
+    if (follow) {
+      this.userFollows.delete(follow.id);
+    }
+  }
+
+  async getUserFollowers(userId: string): Promise<UserFollow[]> {
+    return Array.from(this.userFollows.values()).filter(
+      (follow) => follow.followingId === userId,
+    );
+  }
+
+  async getUserFollowing(userId: string): Promise<UserFollow[]> {
+    return Array.from(this.userFollows.values()).filter(
+      (follow) => follow.followerId === userId,
+    );
+  }
+
+  async isFollowing(followerId: string, followingId: string): Promise<boolean> {
+    return Array.from(this.userFollows.values()).some(
+      (follow) => follow.followerId === followerId && follow.followingId === followingId,
+    );
+  }
+
+  // Project Shares
+  async getProjectShares(projectId: string): Promise<ProjectShare[]> {
+    return Array.from(this.projectShares.values()).filter(
+      (share) => share.projectId === projectId,
+    );
+  }
+
+  async createProjectShare(
+    projectId: string,
+    sharedByUserId: string,
+    sharedWithUserId: string,
+    insertShare: InsertProjectShare,
+  ): Promise<ProjectShare> {
+    const id = randomUUID();
+    const share: ProjectShare = {
+      ...insertShare,
+      id,
+      projectId,
+      sharedByUserId,
+      sharedWithUserId,
+      createdAt: new Date(),
+    };
+    this.projectShares.set(id, share);
+    return share;
+  }
+
+  async updateProjectShare(id: string, data: Partial<ProjectShare>): Promise<ProjectShare> {
+    const share = this.projectShares.get(id);
+    if (!share) throw new Error("Project share not found");
+
+    const updated: ProjectShare = {
+      ...share,
+      ...data,
+    };
+    this.projectShares.set(id, updated);
+    return updated;
+  }
+
+  async deleteProjectShare(id: string): Promise<void> {
+    this.projectShares.delete(id);
+  }
+
+  // Project Collaborations
+  async getProjectCollaborators(projectId: string): Promise<ProjectCollaboration[]> {
+    return Array.from(this.projectCollaborations.values()).filter(
+      (collaboration) => collaboration.projectId === projectId,
+    );
+  }
+
+  async addProjectCollaborator(
+    projectId: string,
+    userId: string,
+    insertCollaboration: InsertProjectCollaboration,
+  ): Promise<ProjectCollaboration> {
+    const id = randomUUID();
+    const collaboration: ProjectCollaboration = {
+      ...insertCollaboration,
+      id,
+      projectId,
+      userId,
+      joinedAt: new Date(),
+      lastActiveAt: new Date(),
+    };
+    this.projectCollaborations.set(id, collaboration);
+    return collaboration;
+  }
+
+  async updateProjectCollaborator(
+    id: string,
+    data: Partial<ProjectCollaboration>,
+  ): Promise<ProjectCollaboration> {
+    const collaboration = this.projectCollaborations.get(id);
+    if (!collaboration) throw new Error("Project collaboration not found");
+
+    const updated: ProjectCollaboration = {
+      ...collaboration,
+      ...data,
+      lastActiveAt: new Date(),
+    };
+    this.projectCollaborations.set(id, updated);
+    return updated;
+  }
+
+  async removeProjectCollaborator(id: string): Promise<void> {
+    this.projectCollaborations.delete(id);
+  }
+
+  // Project Comments
+  async getProjectComments(projectId: string): Promise<ProjectComment[]> {
+    return Array.from(this.projectComments.values())
+      .filter((comment) => comment.projectId === projectId)
+      .sort((a, b) => a.createdAt!.getTime() - b.createdAt!.getTime());
+  }
+
+  async createProjectComment(
+    projectId: string,
+    userId: string,
+    insertComment: InsertProjectComment,
+  ): Promise<ProjectComment> {
+    const id = randomUUID();
+    const comment: ProjectComment = {
+      ...insertComment,
+      id,
+      projectId,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.projectComments.set(id, comment);
+    return comment;
+  }
+
+  async updateProjectComment(id: string, data: Partial<ProjectComment>): Promise<ProjectComment> {
+    const comment = this.projectComments.get(id);
+    if (!comment) throw new Error("Project comment not found");
+
+    const updated: ProjectComment = {
+      ...comment,
+      ...data,
+      updatedAt: new Date(),
+    };
+    this.projectComments.set(id, updated);
+    return updated;
+  }
+
+  async deleteProjectComment(id: string): Promise<void> {
+    this.projectComments.delete(id);
+  }
+
+  // Project Likes
+  async likeProject(projectId: string, userId: string): Promise<ProjectLike> {
+    const id = randomUUID();
+    const like: ProjectLike = {
+      id,
+      projectId,
+      userId,
+      createdAt: new Date(),
+    };
+    this.projectLikes.set(id, like);
+    return like;
+  }
+
+  async unlikeProject(projectId: string, userId: string): Promise<void> {
+    const like = Array.from(this.projectLikes.values()).find(
+      (l) => l.projectId === projectId && l.userId === userId,
+    );
+    if (like) {
+      this.projectLikes.delete(like.id);
+    }
+  }
+
+  async getProjectLikes(projectId: string): Promise<ProjectLike[]> {
+    return Array.from(this.projectLikes.values()).filter(
+      (like) => like.projectId === projectId,
+    );
+  }
+
+  async getUserProjectLikes(userId: string): Promise<ProjectLike[]> {
+    return Array.from(this.projectLikes.values()).filter(
+      (like) => like.userId === userId,
+    );
+  }
+
+  // Project Versions
+  async createProjectVersion(
+    projectId: string,
+    version: number,
+    data: any,
+    createdBy: string,
+    description?: string,
+  ): Promise<ProjectVersion> {
+    const id = randomUUID();
+    const projectVersion: ProjectVersion = {
+      id,
+      projectId,
+      version,
+      data,
+      createdBy,
+      changeDescription: description,
+      createdAt: new Date(),
+    };
+    this.projectVersions.set(id, projectVersion);
+    return projectVersion;
+  }
+
+  async getProjectVersions(projectId: string): Promise<ProjectVersion[]> {
+    return Array.from(this.projectVersions.values())
+      .filter((version) => version.projectId === projectId)
+      .sort((a, b) => b.version - a.version);
+  }
+
+  async getProjectVersion(id: string): Promise<ProjectVersion | undefined> {
+    return this.projectVersions.get(id);
   }
 }
 
@@ -1272,6 +1551,184 @@ export class DatabaseStorage implements IStorage {
       .returning();
     if (!user) throw new Error("User not found");
     return user;
+  }
+
+  // Social Features
+  // User Profiles
+  async getUserProfile(userId: string): Promise<UserProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId));
+    return profile || undefined;
+  }
+
+  async createUserProfile(userId: string, profile: InsertUserProfile): Promise<UserProfile> {
+    const [created] = await db
+      .insert(userProfiles)
+      .values({
+        ...profile,
+        userId,
+      })
+      .returning();
+    return created;
+  }
+
+  async updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<UserProfile> {
+    const [updated] = await db
+      .update(userProfiles)
+      .set({
+        ...profile,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(userProfiles.userId, userId))
+      .returning();
+    if (!updated) throw new Error("User profile not found");
+    return updated;
+  }
+
+  // Follows
+  async followUser(followerId: string, followingId: string): Promise<UserFollow> {
+    const [follow] = await db
+      .insert(userFollows)
+      .values({ followerId, followingId })
+      .returning();
+    return follow;
+  }
+
+  async unfollowUser(followerId: string, followingId: string): Promise<void> {
+    await db
+      .delete(userFollows)
+      .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followingId, followingId)));
+  }
+
+  async getUserFollowers(userId: string): Promise<User[]> {
+    const followerRows = await db
+      .select({ followerId: userFollows.followerId })
+      .from(userFollows)
+      .where(eq(userFollows.followingId, userId));
+    if (followerRows.length === 0) return [];
+    const ids = followerRows.map(r => r.followerId);
+    const rows = await db.select().from(users).where((sql`1=1`) as any);
+    // Filter in memory because some drivers don't support IN on serverless
+    return rows.filter(u => ids.includes(u.id));
+  }
+
+  async getUserFollowing(userId: string): Promise<User[]> {
+    const followingRows = await db
+      .select({ followingId: userFollows.followingId })
+      .from(userFollows)
+      .where(eq(userFollows.followerId, userId));
+    if (followingRows.length === 0) return [];
+    const ids = followingRows.map(r => r.followingId);
+    const rows = await db.select().from(users).where((sql`1=1`) as any);
+    return rows.filter(u => ids.includes(u.id));
+  }
+
+  // Shares
+  async shareProject(
+    projectId: string,
+    sharedById: string,
+    sharedWithId: string,
+    permission: string,
+  ): Promise<ProjectShare> {
+    const [share] = await db
+      .insert(projectShares)
+      .values({ projectId, sharedByUserId: sharedById, sharedWithUserId: sharedWithId, permission })
+      .returning();
+    return share;
+  }
+
+  async getProjectShares(projectId: string): Promise<ProjectShare[]> {
+    return await db.select().from(projectShares).where(eq(projectShares.projectId, projectId));
+  }
+
+  // Collaborations
+  async addProjectCollaborator(
+    projectId: string,
+    userId: string,
+    role: string,
+  ): Promise<ProjectCollaboration> {
+    const [collab] = await db
+      .insert(projectCollaborations)
+      .values({ projectId, userId, role, joinedAt: new Date(), lastActiveAt: new Date() })
+      .returning();
+    return collab;
+  }
+
+  async removeProjectCollaborator(projectId: string, userId: string): Promise<void> {
+    await db
+      .delete(projectCollaborations)
+      .where(and(eq(projectCollaborations.projectId, projectId), eq(projectCollaborations.userId, userId)));
+  }
+
+  // Comments
+  async addProjectComment(
+    projectId: string,
+    userId: string,
+    content: string,
+    parentCommentId?: string,
+  ): Promise<ProjectComment> {
+    const [comment] = await db
+      .insert(projectComments)
+      .values({ projectId, userId, content, parentCommentId: parentCommentId || null })
+      .returning();
+    return comment;
+  }
+
+  async getProjectComments(projectId: string): Promise<ProjectComment[]> {
+    return await db
+      .select()
+      .from(projectComments)
+      .where(eq(projectComments.projectId, projectId))
+      .orderBy(desc(projectComments.createdAt));
+  }
+
+  // Likes
+  async likeProject(projectId: string, userId: string): Promise<ProjectLike> {
+    const existing = await db
+      .select()
+      .from(projectLikes)
+      .where(and(eq(projectLikes.projectId, projectId), eq(projectLikes.userId, userId)));
+    if (existing.length > 0) return existing[0];
+    const [like] = await db
+      .insert(projectLikes)
+      .values({ projectId, userId })
+      .returning();
+    return like;
+  }
+
+  async unlikeProject(projectId: string, userId: string): Promise<void> {
+    await db
+      .delete(projectLikes)
+      .where(and(eq(projectLikes.projectId, projectId), eq(projectLikes.userId, userId)));
+  }
+
+  async getProjectLikes(projectId: string): Promise<ProjectLike[]> {
+    return await db.select().from(projectLikes).where(eq(projectLikes.projectId, projectId));
+  }
+
+  // Versions
+  async createProjectVersion(
+    projectId: string,
+    version: number,
+    data: any,
+    createdBy: string,
+    description?: string,
+  ): Promise<ProjectVersion> {
+    const [ver] = await db
+      .insert(projectVersions)
+      .values({ projectId, version, data, createdBy, changeDescription: description || null })
+      .returning();
+    return ver;
+  }
+
+  async getProjectVersions(projectId: string): Promise<ProjectVersion[]> {
+    return await db
+      .select()
+      .from(projectVersions)
+      .where(eq(projectVersions.projectId, projectId))
+      .orderBy(desc(projectVersions.version));
   }
 }
 

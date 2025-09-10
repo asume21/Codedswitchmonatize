@@ -5,12 +5,17 @@ export const beatAPI = {
     duration: number;
     aiProvider: string;
   }) {
-    const response = await fetch("/api/beats/generate", {
+    const response = await fetch("/api/beat/generate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(params),
+      body: JSON.stringify({
+        style: params.genre,
+        bpm: params.bpm,
+        complexity: 5,
+        aiProvider: params.aiProvider
+      }),
     });
 
     if (!response.ok) {

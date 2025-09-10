@@ -146,10 +146,43 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   // Validation schemas
   const updatePlaylistSchema = insertPlaylistSchema.partial();
   const addSongSchema = z.object({ songId: z.string() });
+  const waitlistSchema = z.object({
+    email: z.string().email(),
+    name: z.string().optional(),
+  });
 
   // Health check endpoint
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Waitlist endpoint
+  app.post("/api/waitlist", express.json(), (req: Request, res: Response) => {
+    try {
+      const parsed = waitlistSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid email." });
+      }
+      const { email, name } = parsed.data;
+      const file = path.join(LOCAL_OBJECTS_DIR, "waitlist.json");
+      let list: Array<{ email: string; name?: string; ts: string }>();
+      try {
+        const raw = fs.readFileSync(file, "utf8");
+        list = JSON.parse(raw);
+        if (!Array.isArray(list)) list = [];
+      } catch {
+        list = [];
+      }
+
+      const exists = list.some((e) => (e.email || "").toLowerCase() === email.toLowerCase());
+      if (!exists) {
+        list.push({ email: email.toLowerCase(), name, ts: new Date().toISOString() });
+        fs.writeFileSync(file, JSON.stringify(list, null, 2), "utf8");
+      }
+      return res.json({ ok: true, already: exists });
+    } catch (err: any) {
+      return res.status(500).json({ message: err?.message || "Failed to join waitlist" });
+    }
   });
 
   // Current user
@@ -608,7 +641,116 @@ ${sourceCode}`;
     }
   );
 
-  // Create HTTP server
-  const server = createServer(app);
-  return server;
+  // Generate music from lyrics using Suno API
+  app.post(
+    "/api/lyrics/generate-music",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { lyrics, style, genre } = req.body;
+
+        if (!lyrics) {
+          return res.status(400).json({ message: "Lyrics are required" });
+        }
+
+        // Placeholder for Suno API integration
+        // In production, replace with real API call
+        const generatedMusic = {
+          id: `music-${Date.now()}`,
+          title: "AI Generated Song",
+          audioUrl: "https://example.com/generated-song.mp3", // Placeholder
+          lyrics: lyrics,
+          style: style || "pop",
+          genre: genre || "electronic"
+        };
+
+        res.json(generatedMusic);
+      } catch (err: any) {
+        console.error("Lyrics to music error:", err);
+        res.status(500).json({ message: err?.message || "Failed to generate music" });
+      }
+    }
+  );
+
+  // Generate music with MusicGen via Replicate
+  app.post(
+    "/api/music/generate-with-musicgen",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { prompt, duration } = req.body;
+
+        if (!prompt) {
+          return res.status(400).json({ message: "Prompt is required" });
+        }
+
+        // Call Replicate API for MusicGen
+        const response = await fetch("https://api.replicate.com/v1/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}`,
+          },
+          body: JSON.stringify({
+            version: "7a76a8258b23fae65c5a22debb8841d1d7e816b75c2f24218cd2bd85737879072", // MusicGen melody version
+            input: {
+              model_version: "melody",
+              prompt: prompt,
+              duration: duration || 10,
+            },
+          }),
+        });
+
+        const prediction = await response.json();
+
+        // Poll for result
+        let result;
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}` },
+          });
+          result = await statusResponse.json();
+        } while (result.status === "starting" || result.status === "processing");
+
+        if (result.status === "succeeded") {
+          res.json({ audioUrl: result.output });
+        } else {
+          res.status(500).json({ message: "Music generation failed" });
+        }
+      } catch (err: any) {
+        console.error("MusicGen error:", err);
+        res.status(500).json({ message: err?.message || "Failed to generate music" });
+      }
+    }
+  );
+
+  // ChatMusician integration for melody generation
+  app.post(
+    "/api/chatmusician/generate",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { prompt, style } = req.body;
+
+        if (!prompt) {
+          return res.status(400).json({ message: "Prompt is required" });
+        }
+
+        // Placeholder for ChatMusician integration
+        // In production, integrate with Hugging Face or local inference
+        const generatedMelody = {
+          id: `melody-${Date.now()}`,
+          abcNotation: "X:1\nM:4/4\nK:C\nC2E2G2c2|", // Placeholder ABC
+          description: prompt,
+          style: style || "classical"
+        };
+
+        res.json(generatedMelody);
+      } catch (err: any) {
+        console.error("ChatMusician error:", err);
+        res.status(500).json({ message: err?.message || "Failed to generate melody" });
+      }
+    }
+  );
 }

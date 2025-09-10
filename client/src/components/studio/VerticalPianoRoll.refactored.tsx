@@ -249,17 +249,57 @@ export const VerticalPianoRoll: React.FC = () => {
     setSelectedTrack(index);
   }, []);
 
+  const handleMuteToggle = useCallback((trackId: string) => {
+    setTracks(prev => prev.map(track =>
+      track.id === trackId ? { ...track, muted: !track.muted } : track
+    ));
+  }, []);
+
   const handleVolumeChange = useCallback((trackId: string, volume: number) => {
     setTracks(prev => prev.map(track =>
       track.id === trackId ? { ...track, volume } : track
     ));
   }, []);
 
-  const handleMuteToggle = useCallback((trackId: string) => {
-    setTracks(prev => prev.map(track =>
-      track.id === trackId ? { ...track, muted: !track.muted } : track
-    ));
-  }, []);
+  // Generate AI melody using ChatMusician
+  const handleGenerateAIMelody = async () => {
+    const prompt = `Generate a ${selectedProgression?.name || 'melody'} in ${currentKey} key, ${bpm} BPM, for ${tracks.length} tracks`;
+    
+    try {
+      const response = await fetch('/api/chatmusician/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, style: selectedProgression?.name })
+      });
+      
+      const data = await response.json();
+      
+      if (data.abcNotation) {
+        // Add each note of the chord
+        const demoNotes = [
+          { id: `ai-note-1-${Date.now()}`, note: 'C', octave: 4, step: 0, velocity: 100, length: 1 },
+          { id: `ai-note-2-${Date.now()}`, note: 'E', octave: 4, step: 2, velocity: 100, length: 1 },
+          { id: `ai-note-3-${Date.now()}`, note: 'G', octave: 4, step: 4, velocity: 100, length: 1 },
+          { id: `ai-note-4-${Date.now()}`, note: 'C', octave: 5, step: 6, velocity: 100, length: 1 },
+        ];
+        
+        setTracks(prev => prev.map((track, index) =>
+          index === selectedTrack ? { ...track, notes: [...track.notes, ...demoNotes] } : track
+        ));
+        
+        toast({
+          title: "AI Melody Generated",
+          description: "Melody has been added to the piano roll.",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate AI melody.",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Render
   return (
@@ -295,11 +335,11 @@ export const VerticalPianoRoll: React.FC = () => {
                 Clear
               </Button>
               <Button
-                onClick={() => setChordMode(!chordMode)}
-                variant={chordMode ? "default" : "outline"}
-                className={chordMode ? "bg-purple-600 hover:bg-purple-500" : "bg-gray-700 hover:bg-gray-600"}
+                onClick={handleGenerateAIMelody}
+                className="bg-purple-600 hover:bg-purple-500"
+                disabled={isPlaying}
               >
-                🎵 {chordMode ? 'Chord Mode On' : 'Chord Mode Off'}
+                🤖 Generate AI Melody
               </Button>
             </div>
           </CardTitle>

@@ -1,9 +1,46 @@
 import { Link } from "wouter";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield } from "lucide-react";
+import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send } from "lucide-react";
 
 export default function Landing() {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const submitWaitlist = async () => {
+    setStatus(null);
+    const trimmed = email.trim().toLowerCase();
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+    if (!valid) {
+      setStatus("Please enter a valid email address.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed, name: name.trim() || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus(data?.message || "Something went wrong. Please try again.");
+      } else {
+        setStatus("You're on the list! We'll be in touch soon.");
+        setEmail("");
+        setName("");
+      }
+    } catch (e) {
+      setStatus("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const features = [
     {
       icon: Code,
@@ -83,6 +120,45 @@ export default function Landing() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* Waitlist Section */}
+        <div className="text-center bg-card rounded-2xl p-12 border mb-12">
+          <h2 className="text-3xl font-bold mb-2">Join the Waitlist</h2>
+          <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+            Be the first to get access, product updates, and early adopter perks.
+          </p>
+          <div className="mx-auto max-w-xl flex flex-col sm:flex-row gap-3 items-stretch">
+            <div className="flex-1">
+              <Label htmlFor="waitlist-email" className="sr-only">Email</Label>
+              <Input
+                id="waitlist-email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+            <div className="flex-1">
+              <Label htmlFor="waitlist-name" className="sr-only">Name (optional)</Label>
+              <Input
+                id="waitlist-name"
+                type="text"
+                placeholder="Your name (optional)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+            <Button onClick={submitWaitlist} disabled={submitting} className="min-w-36">
+              <Send className="h-4 w-4 mr-2" />
+              {submitting ? "Joining..." : "Join Waitlist"}
+            </Button>
+          </div>
+          {status && (
+            <p className="mt-3 text-sm text-muted-foreground">{status}</p>
+          )}
         </div>
 
         {/* CTA Section */}

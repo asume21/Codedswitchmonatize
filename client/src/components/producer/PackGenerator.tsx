@@ -327,17 +327,58 @@ export default function PackGenerator() {
       return;
     }
 
-    generateMutation.mutate(prompt);
-  };
+    setPlayingPack(pack.id);
+    
+    // Create a realistic preview based on pack genre and instruments
+    await playGenrePreview(pack, audioContext);
+    
+    toast({
+      title: `Playing "${pack.title}"`,
+      description: `${pack.genre} • ${pack.bpm} BPM • ${pack.key}`,
+    });
+    
+    // Auto-stop after 8 seconds
+    setTimeout(() => {
+      setPlayingPack(null);
+    }, 8000);
+    
+  } catch (error) {
+    console.error('Playback error:', error);
+    toast({
+      title: "Playback failed", 
+      description: "Could not preview sample pack",
+      variant: "destructive",
+    });
+    setPlayingPack(null);
+  }
+};
 
-  const handleRandomPrompt = () => {
-    const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
-    setPrompt(randomPrompt);
-  };
+const playGenrePreview = async (pack: GeneratedPack, audioContext: AudioContext) => {
+  console.log(`🎵 Playing AI-generated pack: "${pack.title}"`);
+  console.log(`🤖 Pack contains ${pack.samples.length} samples:`, pack.samples.map(s => s.name));
+  
+  // Check if this pack has real audio files (MusicGen) or needs synthesis
+  const hasRealAudio = pack.samples.some(sample => sample.audioUrl);
+  
+  if (hasRealAudio) {
+    // Play real AI-generated audio files
+    await playRealAudioSamples(pack);
+  } else {
+    // Fallback to synthesis for metadata-only packs
+    await playSynthesizedSamples(pack, audioContext);
+  }
+};
 
-  const handlePlayPack = async (pack: GeneratedPack) => {
+const playRealAudioSamples = async (pack: GeneratedPack) => {
+  console.log(`🎵 Playing real MusicGen audio for "${pack.title}"`);
+  
+  for (const sample of pack.samples) {
+    if (!sample.audioUrl) continue;
+    
     try {
-      // Initialize audio context if needed
+      // Create audio element and play the real AI-generated audio
+      const audio = new Audio(sample.audioUrl);
+      audio.volume = 0.7;
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
@@ -747,21 +788,12 @@ export default function PackGenerator() {
             </div>
 
             <Button
-              onClick={handleGenerate}
+              onClick={() => generateWithMusicGen(prompt)}
               disabled={generateMutation.isPending || !prompt.trim()}
-              className="w-full h-12 text-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+              className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             >
-              {generateMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Generating {packCount} New Packs...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-5 w-5" />
-                  Generate {packCount} New Packs
-                </>
-              )}
+              <Music className="mr-2 h-5 w-5" />
+              Generate with MusicGen AI
             </Button>
           </CardContent>
         </Card>

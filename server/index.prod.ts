@@ -1,9 +1,30 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
+import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
+import { currentUser } from "./middleware/auth";
 import path from "path";
 import fs from "fs";
 
 const app = express();
+
+// Stripe webhook must receive the raw body for signature verification.
+// Mount this BEFORE json/urlencoded parsers.
+app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
+
+// Sessions (simple in-memory store for prod unless DATABASE_URL used with DB storage-backed session elsewhere)
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "prod_session_secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      sameSite: "lax",
+    },
+  }),
+);
+
+// Standard body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -39,7 +60,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Choose storage implementation
+  const storage: IStorage = process.env.DATABASE_URL
+    ? new DatabaseStorage()
+    : new MemStorage();
+
+  // Attach current user middleware
+  app.use(currentUser(storage));
+
+  const server = await registerRoutes(app, storage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -70,11 +99,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen(port, "0.0.0.0", () => {
     console.log(`${new Date().toLocaleTimeString()} [express] serving on port ${port}`);
   });
 })();

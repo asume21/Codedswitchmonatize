@@ -1,4 +1,11 @@
-import { openai } from "./grok.js";
+import OpenAI from "openai";
+import { } from "./grok";
+// Use the same environment keys as grok.ts; prefer xAI base if key provided
+const xaiApiKey = process.env.XAI_API_KEY?.trim();
+const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
+const openai = xaiApiKey
+  ? new OpenAI({ baseURL: "https://api.x.ai/v1", apiKey: xaiApiKey })
+  : new OpenAI({ apiKey: openaiApiKey });
 
 export interface FileSecurityScan {
   isSecure: boolean;

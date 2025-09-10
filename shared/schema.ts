@@ -203,6 +203,20 @@ export const samplePacks = pgTable("sample_packs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const samples = pgTable("samples", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  packId: varchar("pack_id"), // Can be null for individual samples
+  name: varchar("name").notNull(),
+  key: varchar("key"), // musical key
+  bpm: integer("bpm"),
+  duration: integer("duration"), // in seconds
+  description: text("description"),
+  aiData: jsonb("ai_data"), // AI-generated metadata
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const userProfiles = pgTable("user_profiles", {
   id: varchar("id")
     .primaryKey()
@@ -307,6 +321,16 @@ export const insertPlaylistSchema = createInsertSchema(playlists).pick({
   isPublic: true,
 });
 
+export const insertSampleSchema = createInsertSchema(samples).pick({
+  packId: true,
+  name: true,
+  key: true,
+  bpm: true,
+  duration: true,
+  description: true,
+  aiData: true,
+});
+
 export const insertSamplePackSchema = createInsertSchema(samplePacks).pick({
   name: true,
   genre: true,
@@ -381,3 +405,5 @@ export type InsertPlaylist = z.infer<typeof insertPlaylistSchema>;
 export type PlaylistSong = typeof playlistSongs.$inferSelect;
 export type SamplePack = typeof samplePacks.$inferSelect;
 export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
+export type Sample = typeof samples.$inferSelect;
+export type InsertSample = z.infer<typeof insertSampleSchema>;

@@ -270,7 +270,13 @@ export class AudioService {
 
   // Audio analysis utilities
   static analyzeAudioPattern(pattern: any) {
-    const analysis = {
+    const analysis: {
+      density: number;
+      complexity: number;
+      rhythm: string;
+      dominant_instruments: string[];
+      suggestions: string[];
+    } = {
       density: 0,
       complexity: 0,
       rhythm: 'steady',
@@ -313,7 +319,7 @@ export class AudioService {
 
   // Beat matching and tempo analysis
   static analyzeTempo(bpm: number) {
-    const tempoRanges = {
+    const tempoRanges: Record<string, { min: number; max: number; label: string }> = {
       ballad: { min: 60, max: 80, label: 'Ballad' },
       moderate: { min: 80, max: 100, label: 'Moderate' },
       uptempo: { min: 100, max: 120, label: 'Up-tempo' },

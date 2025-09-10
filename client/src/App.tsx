@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/layout/navigation";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import UserProfile from "@/pages/user-profile";
+import SocialHub from "@/pages/social-hub";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
 import Subscribe from "@/pages/Subscribe";
@@ -14,7 +16,6 @@ import PaymentCancel from "@/pages/PaymentCancel";
 import TestCircular from "@/pages/TestCircular";
 import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
-import BillingResult from "@/pages/billing-result";
 import MelodyComposerV2Page from "@/pages/melody-composer-v2";
 import CodeToMusicStudioPage from "@/pages/code-to-music-studio";
 import { useEffect } from "react";
@@ -24,6 +25,11 @@ import { useAnalytics } from "@/hooks/use-analytics";
 // Import the missing components
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
+import { MIDIController } from "@/components/studio/MIDIController";
+import HybridWorkflow from "@/components/studio/HybridWorkflow";
+import LyricLab from "@/components/studio/LyricLab";
+import Header from "@/components/studio/Header";
+import TestPianoRoll from "@/pages/test-piano-roll";
 
 function Router() {
   // Track page views when routes change
@@ -45,12 +51,19 @@ function Router() {
       <Route path="/ai-assistant" component={Studio} />
       <Route path="/mix-studio" component={Studio} />
       <Route path="/pro-console" component={Studio} />
-      <Route path="/midi-controller" component={Studio} />
+      <Route path="/midi-controller" component={MIDIController} />
       <Route path="/advanced-sequencer" component={Studio} />
       <Route path="/granular-engine" component={Studio} />
       <Route path="/wavetable-oscillator" component={Studio} />
       <Route path="/pack-generator" component={Studio} />
       <Route path="/song-structure" component={Studio} />
+      <Route path="/social-hub" component={SocialHub} />
+      <Route path="/test-piano-roll" component={TestPianoRoll} />
+      <Route path="/profile" component={UserProfile} />
+      <Route path="/user-profile" component={UserProfile} />
+      <Route path="/hybrid-workflow" component={HybridWorkflow} />
+      <Route path="/lyric-lab" component={LyricLab} />
+      <Route path="/header" component={Header} />
       <Route path="/subscribe" component={Subscribe} />
       <Route path="/billing/success" component={PaymentSuccess} />
       <Route path="/billing/cancel" component={PaymentCancel} />
@@ -79,31 +92,8 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Switch>
-          <Route path="/" component={Landing} />
-          <Route path="/music-studio" component={Studio} />
-          <Route path="/song-uploader" component={Studio} />
-          <Route path="/beat-studio" component={Studio} />
-          <Route path="/melody-composer" component={Studio} />
-          <Route path="/code-translator" component={CodeTranslator} />
-          <Route path="/codebeat-studio" component={Studio} />
-          <Route path="/lyric-lab" component={Studio} />
-          <Route path="/vulnerability-scanner" component={VulnerabilityScanner} />
-          <Route path="/ai-assistant" component={Studio} />
-          <Route path="/mix-studio" component={Studio} />
-          <Route path="/pro-console" component={Studio} />
-          <Route path="/midi-controller" component={Studio} />
-          <Route path="/song-structure" component={Studio} />
-          <Route path="/pro-audio" component={ProAudio} />
-          <Route path="/codebeat-studio-direct" component={CodeBeatStudio} />
-          <Route path="/melody-composer-v2" component={MelodyComposerV2Page} />
-          <Route path="/code-to-music-studio" component={CodeToMusicStudioPage} />
-          <Route path="/subscribe" component={Subscribe} />
-          <Route path="/billing/success" component={PaymentSuccess} />
-          <Route path="/billing/cancel" component={PaymentCancel} />
-          <Route path="/test-circular" component={TestCircular} />
-          <Route path="*" component={Router} />
-        </Switch>
+        <Navigation />
+        <Router />
       </TooltipProvider>
     </QueryClientProvider>
   );
