@@ -317,7 +317,7 @@ export default function PackGenerator() {
     return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(buffer))));
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!prompt.trim()) {
       toast({
         title: "No prompt entered",
@@ -329,20 +329,21 @@ export default function PackGenerator() {
 
     setPlayingPack(pack.id);
     
-    // Create a realistic preview based on pack genre and instruments
-    await playGenrePreview(pack, audioContext);
-    
-    toast({
-      title: `Playing "${pack.title}"`,
-      description: `${pack.genre} • ${pack.bpm} BPM • ${pack.key}`,
-    });
-    
-    // Auto-stop after 8 seconds
-    setTimeout(() => {
-      setPlayingPack(null);
-    }, 8000);
-    
-  } catch (error) {
+    try {
+      // Create a realistic preview based on pack genre and instruments
+      await playGenrePreview(pack, audioContext);
+      
+      toast({
+        title: `Playing "${pack.title}"`,
+        description: `${pack.genre} • ${pack.bpm} BPM • ${pack.key}`,
+      });
+      
+      // Auto-stop after 8 seconds
+      setTimeout(() => {
+        setPlayingPack(null);
+      }, 8000);
+      
+    } catch (error) {
     console.error('Playback error:', error);
     toast({
       title: "Playback failed", 
