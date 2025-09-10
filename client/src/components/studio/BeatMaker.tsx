@@ -179,44 +179,9 @@ export default function BeatMaker() {
     },
   });
 
-  // Save beat mutation
-  const saveBeatMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/beat/save", {
-        pattern,
-        bpm,
-        name: `Beat_${new Date().toISOString().slice(0, 10)}_${bpm}BPM`
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to save beat");
-      }
-      
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Beat Saved!",
-        description: "Your beat has been saved successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Save Failed",
-        description: error.message || "Failed to save beat",
-        variant: "destructive",
-      });
-    },
-  });
-
   // Handle beat generation
   const handleGenerateAI = () => {
     generateBeatMutation.mutate();
-  };
-
-  // Handle saving
-  const handleSave = () => {
-    saveBeatMutation.mutate();
   };
 
   const toggleStep = (track: keyof BeatPattern, stepIndex: number) => {
@@ -403,40 +368,23 @@ export default function BeatMaker() {
               </div>
               
               {/* Controls */}
-              <div className="flex items-center space-x-4 mb-4">
-                <Button
-                  onClick={initialize}
-                  disabled={isInitialized}
-                  className="bg-studio-accent hover:bg-blue-500"
-                >
-                  <i className="fas fa-power-off mr-2"></i>
-                  {isInitialized ? 'Audio Ready' : 'Start Audio'}
-                </Button>
-                <Button
-                  onClick={playPattern}
-                  className={`${isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-studio-success hover:bg-green-500'}`}
-                >
-                  <i className={`fas ${isPlaying ? 'fa-stop' : 'fa-play'} mr-2`}></i>
-                  {isPlaying ? 'Stop' : 'Play'}
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={saveBeatMutation.isPending}
-                  className="bg-gray-600 hover:bg-gray-500"
-                >
-                  {saveBeatMutation.isPending ? (
-                    <>
-                      <i className="fas fa-spinner animate-spin mr-2"></i>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-save mr-2"></i>
-                      Save Beat
-                    </>
-                  )}
-                </Button>
-              </div>
+                <div className="flex items-center space-x-4 mb-4">
+                  <Button
+                    onClick={initialize}
+                    disabled={isInitialized}
+                    className="bg-studio-accent hover:bg-blue-500"
+                  >
+                    <i className="fas fa-power-off mr-2"></i>
+                    {isInitialized ? 'Audio Ready' : 'Start Audio'}
+                  </Button>
+                  <Button
+                    onClick={playPattern}
+                    className={`${isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-studio-success hover:bg-green-500'}`}
+                  >
+                    <i className={`fas ${isPlaying ? 'fa-stop' : 'fa-play'} mr-2`}></i>
+                    {isPlaying ? 'Stop' : 'Play'}
+                  </Button>
+                </div>
               
               {/* Visual Time Indicator */}
               {isPlaying && (

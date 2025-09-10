@@ -134,7 +134,7 @@ export default function ProfessionalStudio() {
 
   const generateAIBeatMutation = useMutation({
     mutationFn: async (data: { style: string; lyrics?: string; bpm?: number; complexity?: number }) => {
-      const response = await apiRequest('POST', '/api/beats/generate', data);
+      const response = await apiRequest('POST', '/api/beat/generate', data);
       return await response.json();
     },
     onSuccess: (result) => {
