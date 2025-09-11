@@ -788,82 +788,114 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                 <option value="drum-clap">🥁 Clap</option>
               </select>
             </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white">Quantize:</span>
+              <select
+                value={quantization}
+                onChange={(e) => setQuantization(parseInt(e.target.value))}
+                className="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
+              >
+                <option value="1">1/4</option>
+                <option value="2">1/8</option>
+                <option value="4">1/16</option>
+              </select>
+            </div>
+            
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={loopEnabled}
+                onChange={(e) => setLoopEnabled(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm text-white">Loop</span>
+            </label>
+            
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={autoScroll}
+                onChange={(e) => setAutoScroll(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm text-white">Auto-Scroll</span>
+            </label>
+          </div>
+          
+          <div className="flex items-center gap-4 mt-3">
+            <span className="text-sm font-medium text-white">Instrument:</span>
+            <select
+              value={tracks[selectedTrack]?.instrument || 'piano'}
+              onChange={(e) => {
+                setTracks(prev => prev.map((track, index) => 
+                  index === selectedTrack 
+                    ? { ...track, instrument: e.target.value }
+                    : track
+                ));
+              }}
+              className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
+            >
+              {/* Piano */}
+              <option value="piano">🎹 Piano</option>
+              <option value="piano-organ">🎹 Organ</option>
+              
+              {/* Strings */}
+              <option value="strings-violin">🎻 Violin</option>
+              <option value="strings">🎻 Strings</option>
+              <option value="guitar">🎸 Guitar</option>
+              <option value="strings-guitar">🎸 Guitar (Steel)</option>
+              <option value="guitar-nylon">🎸 Guitar (Nylon)</option>
+              <option value="pads-strings">🎻 Pad Strings</option>
+              
+              {/* Horns */}
+              <option value="horns-trumpet">🎺 Trumpet</option>
+              <option value="horns-trombone">🎺 Trombone</option>
+              <option value="horns-french">🎺 French Horn</option>
+              
+              {/* Flutes */}
+              <option value="flute-concert">🪈 Flute</option>
+              <option value="flute-recorder">🪈 Recorder</option>
+              <option value="flute-indian">🪈 Indian Flute</option>
+              
+              {/* Bass */}
+              <option value="bass-electric">🎸 Bass (Electric)</option>
+              <option value="bass-upright">🎸 Bass (Upright)</option>
+              <option value="bass-synth">🎸 Bass (Synth)</option>
+              
+              {/* Synth */}
+              <option value="synth-analog">🎛️ Synth (Analog)</option>
+              <option value="synth-digital">🎛️ Synth (Digital)</option>
+              <option value="synth-fm">🎛️ Synth (FM)</option>
+              
+              {/* Leads */}
+              <option value="leads-square">🎛️ Lead (Square)</option>
+              <option value="leads-saw">🎛️ Lead (Saw)</option>
+              <option value="leads-pluck">🎛️ Lead (Pluck)</option>
+              
+              {/* Pads */}
+              <option value="pads-warm">🎛️ Pad (Warm)</option>
+              <option value="pads-choir">🎛️ Pad (Choir)</option>
+              
+              {/* Drums */}
+              <option value="drum-kick">🥁 Kick Drum</option>
+              <option value="drum-snare">🥁 Snare Drum</option>
+              <option value="drum-hihat">🥁 Hi-Hat</option>
+              <option value="drum-crash">🥁 Crash</option>
+              <option value="drum-tom">🥁 Tom</option>
+              <option value="drum-clap">🥁 Clap</option>
+            </select>
           </div>
         </CardHeader>
 
         <CardContent className="h-full overflow-hidden">
           <div className="flex h-full">
-            {/* Vertical Piano Keys */}
-            <div className="w-20 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0">
-              <div className="relative">
-                {PIANO_KEYS.map((key, index) => (
-                  <button
-                    key={key.key}
-                    className={`w-full text-xs font-mono border-b border-gray-600 hover:bg-gray-600 transition-colors
-                      ${key.isBlack
-                        ? 'bg-gray-900 text-gray-300 border-l-4 border-l-gray-700'
-                        : 'bg-gray-700 text-white'
-                      }
-                      ${chordMode ? 'ring-2 ring-purple-500 ring-opacity-50' : ''}
-                    `}
-                    style={{ height: `${KEY_HEIGHT}px` }}
-                    onClick={() => {
-                      try {
-                        setHighlightedRow(index); // Use the map index directly for alignment
-
-                        if (chordMode) {
-                          console.log('🎵 Chord Mode: Trying to play chord for key:', key.note, key.octave);
-                          console.log('🎵 Current key:', currentKey);
-                          console.log('🎵 Current chord index:', currentChordIndex);
-                          console.log('🎵 Selected progression:', selectedProgression);
-
-                          const currentChord = selectedProgression.chords[currentChordIndex];
-                          console.log('🎵 Current chord symbol:', currentChord);
-
-                          const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
-                          console.log('🎵 Key data found:', !!keyData);
-
-                          if (keyData && keyData.chords) {
-                            const chordNotes = keyData.chords[currentChord as keyof typeof keyData.chords];
-                            console.log('🎵 Chord notes found:', chordNotes);
-
-                            if (chordNotes && Array.isArray(chordNotes)) {
-                              playChord(chordNotes, key.octave);
-                              console.log('🎵 Successfully played chord:', chordNotes);
-                            } else {
-                              console.error('🎵 Chord notes not found or not array:', chordNotes);
-                            }
-                          } else {
-                            console.error('🎵 Key data or chords not found for key:', currentKey);
-                          }
-
-                          setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
-                        } else {
-                          console.log('🎵 Single note mode: Playing', key.note, key.octave, 'with instrument:', tracks[selectedTrack]?.instrument);
-                          realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
-                        }
-                      } catch (error) {
-                        console.error('❌ Audio playback error:', error);
-                        // Add more detailed error info
-                        if (error instanceof Error) {
-                          console.error('Error name:', error.name);
-                          console.error('Error message:', error.message);
-                          console.error('Error stack:', error.stack);
-                        }
-                      }
-                    }}
-                  >
-                    {key.key}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Step Grid - Fixed alignment */}
+            {/* Combined Piano Keys and Grid - Perfect Alignment */}
             <div className="flex-1 overflow-auto">
-              <div className="relative bg-gray-900 pt-8">
+              <div className="relative bg-gray-900">
                 {/* Step Headers */}
-                <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10" style={{ marginTop: `-${KEY_HEIGHT * 4}px` }}>
+                <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10">
+                  <div className="w-28"></div> {/* Space for piano keys */}
                   {Array.from({ length: STEPS }, (_, step) => (
                     <div
                       key={step}
@@ -881,58 +913,116 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                   ))}
                 </div>
 
-                {/* Grid - Fixed alignment with piano keys */}
+                {/* Unified Piano Keys and Grid Rows */}
                 <div className="relative">
                   {PIANO_KEYS.map((key, keyIndex) => (
-                    <div 
-                      key={key.key} 
-                      className={`flex border-b border-gray-700 transition-colors duration-200 ${
-                        highlightedRow === keyIndex ? 'bg-yellow-400 bg-opacity-20 ring-2 ring-yellow-400' : ''
-                      }`} 
-                      style={{ height: `${KEY_HEIGHT}px` }}
-                    >
-                      {Array.from({ length: STEPS }, (_, step) => {
-                        const hasNote = tracks[selectedTrack]?.notes.some(
-                          note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
-                        );
-                        const note = tracks[selectedTrack]?.notes.find(
-                          note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
-                        );
+                    <div key={key.key} className="flex border-b border-gray-700">
+                      {/* Piano Key - Part of same unified row */}
+                      <div className="w-28 flex-shrink-0">
+                        <button
+                          className={`w-full text-xs font-mono border-b border-gray-600 hover:bg-gray-600 transition-colors
+                            ${key.isBlack
+                              ? 'bg-gray-900 text-gray-300 border-l-4 border-l-gray-700'
+                              : 'bg-gray-700 text-white'
+                            }
+                            ${chordMode ? 'ring-2 ring-purple-500 ring-opacity-50' : ''}
+                            ${highlightedRow === keyIndex ? 'ring-2 ring-yellow-400 ring-opacity-80' : ''}
+                          `}
+                          style={{ height: `${KEY_HEIGHT}px` }}
+                          onClick={() => {
+                            try {
+                              setHighlightedRow(keyIndex);
 
-                        return (
-                          <div
-                            key={step}
-                            className={`border-r border-gray-700 cursor-pointer transition-colors relative hover:bg-gray-600
-                              ${hasNote
-                                ? 'bg-blue-500 hover:bg-blue-400'
-                                : 'hover:bg-gray-700'
-                              }
-                              ${step % 4 === 0 ? 'border-r-gray-500' : ''}
-                              ${currentStep === step ? 'bg-red-900 bg-opacity-50' : ''}
-                              ${highlightedRow === keyIndex ? 'ring-1 ring-yellow-300 ring-opacity-50' : ''}
-                            `}
-                            style={{
-                              width: `${STEP_WIDTH * zoom}px`,
-                              height: `${KEY_HEIGHT}px`
-                            }}
-                            onClick={() => {
-                              if (hasNote && note) {
-                                removeNote(note.id);
-                              } else if (chordMode) {
-                                addChordToGrid(step);
+                              if (chordMode) {
+                                console.log('🎵 Chord Mode: Trying to play chord for key:', key.note, key.octave);
+                                console.log('🎵 Current key:', currentKey);
+                                console.log('🎵 Current chord index:', currentChordIndex);
+                                console.log('🎵 Selected progression:', selectedProgression);
+
+                                const currentChord = selectedProgression.chords[currentChordIndex];
+                                console.log('🎵 Current chord symbol:', currentChord);
+
+                                const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+                                console.log('🎵 Key data found:', !!keyData);
+
+                                if (keyData && keyData.chords) {
+                                  const chordNotes = keyData.chords[currentChord as keyof typeof keyData.chords];
+                                  console.log('🎵 Chord notes found:', chordNotes);
+
+                                  if (chordNotes && Array.isArray(chordNotes)) {
+                                    playChord(chordNotes, key.octave);
+                                    console.log('🎵 Successfully played chord:', chordNotes);
+                                  } else {
+                                    console.error('🎵 Chord notes not found or not array:', chordNotes);
+                                  }
+                                } else {
+                                  console.error('🎵 Key data or chords not found for key:', currentKey);
+                                }
+
+                                setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
                               } else {
-                                addNote(keyIndex, step);
+                                console.log('🎵 Single note mode: Playing', key.note, key.octave, 'with instrument:', tracks[selectedTrack]?.instrument);
+                                realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
                               }
-                            }}
-                          >
-                            {hasNote && (
-                              <div className="absolute inset-0 bg-blue-500 rounded-sm m-0.5 flex items-center justify-center">
-                                <div className="w-1 h-1 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                            } catch (error) {
+                              console.error('❌ Audio playback error:', error);
+                              if (error instanceof Error) {
+                                console.error('Error name:', error.name);
+                                console.error('Error message:', error.message);
+                                console.error('Error stack:', error.stack);
+                              }
+                            }
+                          }}
+                        >
+                          {key.key}
+                        </button>
+                      </div>
+
+                      {/* Grid Row - Same unified row, perfect alignment */}
+                      <div className="flex">
+                        {Array.from({ length: STEPS }, (_, step) => {
+                          const hasNote = tracks[selectedTrack]?.notes.some(
+                            note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
+                          );
+                          const note = tracks[selectedTrack]?.notes.find(
+                            note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
+                          );
+
+                          return (
+                            <div
+                              key={step}
+                              className={`border-r border-gray-700 cursor-pointer transition-colors relative hover:bg-gray-600
+                                ${hasNote
+                                  ? 'bg-blue-500 hover:bg-blue-400'
+                                  : 'hover:bg-gray-700'
+                                }
+                                ${step % 4 === 0 ? 'border-r-gray-500' : ''}
+                                ${currentStep === step ? 'bg-red-900 bg-opacity-50' : ''}
+                                ${highlightedRow === keyIndex ? 'ring-1 ring-yellow-300 ring-opacity-50' : ''}
+                              `}
+                              style={{
+                                width: `${STEP_WIDTH * zoom}px`,
+                                height: `${KEY_HEIGHT}px`
+                              }}
+                              onClick={() => {
+                                if (hasNote && note) {
+                                  removeNote(note.id);
+                                } else if (chordMode) {
+                                  addChordToGrid(step);
+                                } else {
+                                  addNote(keyIndex, step);
+                                }
+                              }}
+                            >
+                              {hasNote && (
+                                <div className="absolute inset-0 bg-blue-500 rounded-sm m-0.5 flex items-center justify-center">
+                                  <div className="w-1 h-1 bg-white rounded-full"></div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>
