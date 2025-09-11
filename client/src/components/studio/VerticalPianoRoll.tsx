@@ -863,7 +863,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
             <div className="flex-1 overflow-auto">
               <div className="relative bg-gray-900 pt-8">
                 {/* Step Headers */}
-                <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10" style={{ marginTop: `${KEY_HEIGHT * 2}px` }}>
+                <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10" style={{ marginTop: `-${KEY_HEIGHT * 2.5}px` }}>
                   {Array.from({ length: STEPS }, (_, step) => (
                     <div
                       key={step}
