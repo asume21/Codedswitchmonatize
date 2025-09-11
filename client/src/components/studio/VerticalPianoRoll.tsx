@@ -794,18 +794,16 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
         <CardContent className="h-full overflow-hidden">
           <div className="flex h-full">
             {/* Vertical Piano Keys */}
-            <div className="w-24 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0 relative">
+            <div className="w-28 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0 relative">
               <div className="relative">
                 {PIANO_KEYS.map((key, index) => (
-                  <div key={key.key} className="relative">
-                    {/* Row number label */}
-                    <div className="absolute -left-5 top-0 w-4 h-full flex items-center justify-center z-10">
-                      <span className="text-xs text-white font-mono bg-gray-900 px-1 py-0.5 rounded border border-gray-600">
-                        {index}
-                      </span>
+                  <div key={key.key} className="relative flex">
+                    {/* Row number label - More prominent */}
+                    <div className="w-6 flex items-center justify-center bg-yellow-600 text-black font-bold text-sm border-r border-gray-400">
+                      {index}
                     </div>
                     <button
-                      className={`w-full text-xs font-mono border-b border-gray-600 hover:bg-gray-600 transition-colors
+                      className={`flex-1 text-xs font-mono border-b border-gray-600 hover:bg-gray-600 transition-colors
                         ${key.isBlack
                           ? 'bg-gray-900 text-gray-300 border-l-4 border-l-gray-700'
                           : 'bg-gray-700 text-white'
