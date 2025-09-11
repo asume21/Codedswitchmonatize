@@ -43,6 +43,7 @@ function Router() {
       <Route path="/song-uploader" component={Studio} />
       <Route path="/beat-studio" component={Studio} />
       <Route path="/melody-composer" component={Studio} />
+      <Route path="/melody-composer-v2" component={MelodyComposerV2Page} />
       <Route path="/unified-studio" component={Studio} />
       <Route path="/code-translator" component={CodeTranslator} />
       <Route path="/codebeat-studio" component={Studio} />
