@@ -227,14 +227,9 @@ export class RealisticAudioEngine {
     // DEBUG: Log all parameters received
     console.log(`🎵 DEBUG playNote called with: note=${note}, octave=${octave}, duration=${duration}, instrument=${instrument}, velocity=${velocity}`);
     
-    // CRITICAL: Clamp octave to supported range FIRST (most soundfonts support C2-C7)
+    // NOTE: Removed octave clamping to allow full octave range (0-8)
+    // Soundfonts support wider range than originally assumed
     let adjustedOctave = octave;
-    if (adjustedOctave < 2) adjustedOctave = 2;
-    if (adjustedOctave > 7) adjustedOctave = 7;
-    
-    if (octave !== adjustedOctave) {
-      console.log(`🎵 Clamped octave from ${octave} to ${adjustedOctave} for note ${note}`);
-    }
 
     // Use the instrument key directly, or fallback to legacy mapping
     let realInstrument = instrument;
