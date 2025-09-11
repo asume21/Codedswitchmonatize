@@ -888,7 +888,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                 </div>
 
                 {/* Grid - Fixed alignment with piano keys */}
-                <div className="relative">
+                <div className="relative" style={{ marginTop: `-${KEY_HEIGHT * 1.5}px` }}>
                   {PIANO_KEYS.map((key, keyIndex) => (
                     <div 
                       key={key.key} 
