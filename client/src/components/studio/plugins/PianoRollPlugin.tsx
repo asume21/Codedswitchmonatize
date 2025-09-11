@@ -4,11 +4,11 @@ import VerticalPianoRoll from '../VerticalPianoRoll';
 
 interface Note {
   id: string;
-  pitch: number;
-  start: number;
-  duration: number;
+  note: string;
+  octave: number;
+  step: number;
   velocity: number;
-  trackId: string;
+  length: number;
 }
 
 interface PianoRollPluginProps {
@@ -34,11 +34,11 @@ export function PianoRollPlugin({
     // Add note to the selected track
     const newNote: Note = {
       id: `note-${Date.now()}-${Math.random()}`,
-      pitch: (octave * 12) + ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(note),
-      start: Date.now() / 1000,
-      duration: noteDuration,
+      note: note,
+      octave: octave,
+      step: 0,
       velocity: 0.8,
-      trackId: selectedTrack
+      length: noteDuration
     };
     
     onNotesChange([...notes, newNote]);
@@ -47,11 +47,11 @@ export function PianoRollPlugin({
   const addNote = (note: string, octave: number) => {
     const newNote: Note = {
       id: `note-${Date.now()}-${Math.random()}`,
-      pitch: (octave * 12) + getPitchOffset(note),
-      start: 0,
-      duration: noteDuration,
+      note: note,
+      octave: octave,
+      step: 0,
       velocity: 0.8,
-      trackId: selectedTrack
+      length: noteDuration
     };
 
     onNotesChange([...notes, newNote]);
@@ -67,10 +67,12 @@ export function PianoRollPlugin({
   };
 
   const clearNotes = () => {
-    onNotesChange(notes.filter(note => note.trackId !== selectedTrack));
+    // Since we don't have trackId in the new Note interface,
+    // we'll clear all notes when this is called
+    onNotesChange([]);
   };
 
-  const trackNotes = notes.filter(note => note.trackId === selectedTrack);
+  const trackNotes = notes; // Return all notes since we don't have trackId filtering in the new interface
 
   return (
     <div className="bg-gray-800 rounded-lg p-6">

@@ -256,6 +256,13 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
   const isPlaying = externalIsPlaying;
   const onPlayNote = externalOnPlayNote;
   const noteDuration = externalNoteDuration;
+
+  // Internal state for component functionality
+  const [currentStep, setCurrentStep] = useState(0);
+  const [bpm, setBpm] = useState(120);
+  const [zoom, setZoom] = useState(1);
+  const [isPlayingInternal, setIsPlayingInternal] = useState(false);
+  const [selectedTrackInternal, setSelectedTrackInternal] = useState(0);
   const [tracks, setTracks] = useState<Track[]>([
     {
       id: 'track1',
@@ -324,14 +331,14 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
         }
-        setIsPlaying(false);
+        setIsPlayingInternal(false);
         setCurrentStep(0);
       } else {
         setIsPlaying(true);
         const stepDuration = (60 / bpm / 4) * 1000; // 16th note duration in ms
 
         intervalRef.current = setInterval(() => {
-          setCurrentStep(prev => {
+          setCurrentStep((prev: number) => {
             const nextStep = loopEnabled ?
               (prev >= loopEnd ? loopStart : prev + 1) :
               (prev + 1) % STEPS;
@@ -368,7 +375,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-    setIsPlaying(false);
+    setIsPlayingInternal(false);
     setCurrentStep(0);
   };
 
@@ -630,7 +637,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                 {tracks.map((track, index) => (
                   <button
                     key={track.id}
-                    onClick={() => setSelectedTrack(index)}
+                    onClick={() => setSelectedTrackInternal(index)}
                     className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                       selectedTrack === index
                         ? `${track.color} text-white`
