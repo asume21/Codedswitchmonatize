@@ -231,12 +231,31 @@ const CHORD_PROGRESSIONS: ChordProgression[] = [
   { id: 'reggae', name: 'Reggae (I-VII-IV)', chords: ['I', 'VII', 'IV'], key: 'C' }
 ];
 
-export default function VerticalPianoRoll() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [bpm, setBpm] = useState(120);
-  const [selectedTrack, setSelectedTrack] = useState(0);
-  const [zoom, setZoom] = useState(1);
+interface VerticalPianoRollProps {
+  notes?: Note[];
+  onNotesChange?: (notes: Note[]) => void;
+  selectedTrack?: string;
+  isPlaying?: boolean;
+  onPlayNote?: (note: string, octave: number, duration: number, instrument: string) => void;
+  noteDuration?: number;
+}
+
+export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
+  const {
+    notes: externalNotes = [],
+    onNotesChange: externalOnNotesChange,
+    selectedTrack: externalSelectedTrack = 'track0',
+    isPlaying: externalIsPlaying = false,
+    onPlayNote: externalOnPlayNote,
+    noteDuration: externalNoteDuration = 0.5
+  } = props;
+  // Use external props or fall back to internal state
+  const notes = externalNotes;
+  const onNotesChange = externalOnNotesChange || (() => {});
+  const selectedTrack = externalSelectedTrack ? parseInt(externalSelectedTrack.replace('track', '')) : 0;
+  const isPlaying = externalIsPlaying;
+  const onPlayNote = externalOnPlayNote;
+  const noteDuration = externalNoteDuration;
   const [tracks, setTracks] = useState<Track[]>([
     {
       id: 'track1',
@@ -499,27 +518,39 @@ export default function VerticalPianoRoll() {
         return;
       }
 
-      let step = 0;
+      // Clear existing notes first
+      clearAll();
+
+      // Calculate steps per chord based on available space
+      const availableSteps = STEPS;
+      const chordsCount = selectedProgression.chords.length;
+      const stepsPerChord = Math.max(4, Math.floor(availableSteps / chordsCount)); // Minimum 4 steps per chord
+
+      console.log('🎵 Using', stepsPerChord, 'steps per chord for', chordsCount, 'chords');
+
+      let currentStep = 0;
       selectedProgression.chords.forEach((chordSymbol, index) => {
         try {
-          console.log('🎵 Processing chord symbol:', chordSymbol, 'for key:', keyToUse);
+          console.log('🎵 Processing chord symbol:', chordSymbol, 'at step:', currentStep);
 
           const chordNotes = keyData.chords[chordSymbol as keyof typeof keyData.chords];
           console.log('🎵 Chord notes for', chordSymbol, ':', chordNotes);
 
           if (!chordNotes || !Array.isArray(chordNotes)) {
             console.error('❌ Invalid chord notes for', chordSymbol, ':', chordNotes);
+            currentStep += stepsPerChord;
             return;
           }
 
+          // Add chord notes with proper timing
           chordNotes.forEach((note: string, noteIndex: number) => {
             const newNote: Note = {
-              id: `${note}-${step}-${Date.now()}-${noteIndex}`,
+              id: `${note}-${currentStep}-${Date.now()}-${noteIndex}`,
               note,
               octave: 4,
-              step: step + (index * 8), // 8 steps per chord
+              step: currentStep + noteIndex * 0.5, // Slight offset for chord notes
               velocity: 100,
-              length: 8
+              length: stepsPerChord - 1 // Make chord last for most of its allocated time
             };
 
             setTracks(prev => prev.map((track, trackIndex) =>
@@ -528,12 +559,22 @@ export default function VerticalPianoRoll() {
                 : track
             ));
           });
+
+          currentStep += stepsPerChord;
         } catch (chordError) {
           console.error('❌ Error processing chord', chordSymbol, ':', chordError);
+          currentStep += stepsPerChord;
         }
       });
 
       console.log('✅ Progression generated successfully for key:', keyToUse);
+      console.log('✅ Total notes added:', tracks[selectedTrack]?.notes.length || 0);
+
+      // Auto-scroll to beginning
+      if (autoScroll) {
+        setCurrentStep(0);
+      }
+
     } catch (error) {
       console.error('❌ Error in generateProgression:', error);
       if (error instanceof Error) {
@@ -719,7 +760,7 @@ export default function VerticalPianoRoll() {
         <CardContent className="h-full overflow-hidden">
           <div className="flex h-full">
             {/* Vertical Piano Keys */}
-            <div className="w-20 bg-gray-800 border-r border-gray-600 overflow-y-auto">
+            <div className="w-20 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0">
               <div className="relative">
                 {PIANO_KEYS.map((key, index) => (
                   <button
@@ -782,7 +823,7 @@ export default function VerticalPianoRoll() {
               </div>
             </div>
 
-            {/* Step Grid */}
+            {/* Step Grid - Fixed alignment */}
             <div className="flex-1 overflow-auto">
               <div className="relative bg-gray-900">
                 {/* Step Headers */}
@@ -804,16 +845,16 @@ export default function VerticalPianoRoll() {
                   ))}
                 </div>
 
-                {/* Grid */}
+                {/* Grid - Fixed alignment with piano keys */}
                 <div className="relative">
                   {PIANO_KEYS.map((key, keyIndex) => (
-                    <div key={key.key} className="flex border-b border-gray-700">
+                    <div key={key.key} className="flex border-b border-gray-700" style={{ height: `${KEY_HEIGHT}px` }}>
                       {Array.from({ length: STEPS }, (_, step) => {
                         const hasNote = tracks[selectedTrack]?.notes.some(
-                          note => note.note === key.note && note.octave === key.octave && note.step === step
+                          note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
                         );
                         const note = tracks[selectedTrack]?.notes.find(
-                          note => note.note === key.note && note.octave === key.octave && note.step === step
+                          note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
                         );
 
                         return (

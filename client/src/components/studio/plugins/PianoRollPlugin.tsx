@@ -78,8 +78,15 @@ export function PianoRollPlugin({
         🎹 Advanced Piano Roll
       </h3>
 
-      {/* Use the full VerticalPianoRoll component */}
-      <VerticalPianoRoll />
+      {/* Use the full VerticalPianoRoll component with proper props */}
+      <VerticalPianoRoll
+        notes={notes}
+        onNotesChange={onNotesChange}
+        selectedTrack={selectedTrack}
+        isPlaying={isPlaying}
+        onPlayNote={onPlayNote}
+        noteDuration={noteDuration}
+      />
     </div>
   );
 }
