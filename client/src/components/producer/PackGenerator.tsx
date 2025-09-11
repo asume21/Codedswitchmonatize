@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,6 @@ import {
   Loader2, Zap, Package, Headphones, Music, Plus, DatabaseIcon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { audioManager } from "@/lib/audio";
-import { realisticAudio } from "@/lib/realisticAudio";
-import { apiRequest } from "@/lib/queryClient";
 
 interface GeneratedPack {
   id: string;
@@ -28,20 +25,20 @@ interface GeneratedPack {
     type: "loop" | "oneshot" | "midi";
     duration: number;
     url?: string;
-    audioUrl?: string; // For MusicGen real audio files
+    audioUrl?: string;
     pattern?: any;
     aiData?: {
       notes?: string[];
       pattern?: number[];
       intensity?: number;
-    };
+    }
   }[];
   metadata: {
     energy: number;
     mood: string;
     instruments: string[];
     tags: string[];
-  };
+  }
 }
 
 const RANDOM_PROMPTS = [
@@ -50,388 +47,96 @@ const RANDOM_PROMPTS = [
   "Dreamy lo-fi hip hop with vinyl crackle, warm pads, and mellow jazz chords, 85 BPM.",
   "Aggressive trap beats with 808s, dark atmosphere, and industrial elements, 140 BPM.",
   "Uplifting house music with piano melodies, vocal chops, and four-on-the-floor kicks, 128 BPM.",
-  "Cinematic orchestral composition with epic brass, soaring strings, and thunderous timpani.",
-  "Retro synthwave with nostalgic arpeggios, neon atmosphere, and driving basslines, 120 BPM.",
-  "Experimental ambient textures with granular synthesis, field recordings, and evolving drones.",
-  "Jazzy neo-soul with smooth Rhodes, walking basslines, and laid-back grooves, 90 BPM.",
-  "Hard-hitting drill beats with sliding 808s, hi-hat rolls, and menacing melodies, 150 BPM.",
-  "Epic electronic dance music with driving basslines, soaring synths, and energetic melodies, 130 BPM.",
-  "Mellow indie folk with acoustic guitars, heartfelt lyrics, and soothing vocal harmonies, 100 BPM.",
-  "Dark and ominous industrial music with distorted synths, pounding drums, and haunting atmospheres, 110 BPM.",
-  "Upbeat pop music with catchy melodies, bright synths, and energetic drum patterns, 120 BPM.",
-  "Relaxing ambient music with calming pads, soft textures, and peaceful atmospheres, 80 BPM.",
-  "Complex progressive rock with intricate instrumental passages, conceptual themes, and dramatic vocals, 90 BPM.",
-  "Epic electronic dance music with driving basslines, soaring synths, and energetic melodies, 130 BPM.",
-  "Mellow indie folk with acoustic guitars, heartfelt lyrics, and soothing vocal harmonies, 100 BPM.",
-  "Dark and ominous industrial music with distorted synths, pounding drums, and haunting atmospheres, 110 BPM.",
-  "Upbeat pop music with catchy melodies, bright synths, and energetic drum patterns, 120 BPM.",
-  "Relaxing ambient music with calming pads, soft textures, and peaceful atmospheres, 80 BPM.",
-  "Complex progressive rock with intricate instrumental passages, conceptual themes, and dramatic vocals, 90 BPM."
 ];
 
-const [prompt, setPrompt] = useState("");
-const [packCount, setPackCount] = useState(4);
-const [generatedPacks, setGeneratedPacks] = useState<GeneratedPack[]>([]);
-const [playingPack, setPlayingPack] = useState<string | null>(null);
-const [aiProvider, setAiProvider] = useState("musicgen"); // Default to MusicGen for real audio
-const [previewVolume, setPreviewVolume] = useState([75]);
-const { toast } = useToast();
-const queryClient = useQueryClient();
+export default function PackGenerator() {
+  const [prompt, setPrompt] = useState("");
+  const [packCount, setPackCount] = useState(4);
+  const [generatedPacks, setGeneratedPacks] = useState<GeneratedPack[]>([]);
+  const [playingPack, setPlayingPack] = useState<string | null>(null);
+  const [aiProvider, setAiProvider] = useState("musicgen");
+  const [previewVolume, setPreviewVolume] = useState([75]);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-const handleRandomPrompt = () => {
-  const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
-  setPrompt(randomPrompt);
-};
-
-const handlePlayPack = (pack: GeneratedPack) => {
-  // Handle playing pack logic
-  console.log("Playing pack:", pack.title);
-};
-
-const handleDownloadPack = (pack: GeneratedPack) => {
-  // Simulate pack download
-  toast({
-    title: `Downloading "${pack.title}"`,
-    description: `${pack.samples.length} samples • ${pack.genre} • ${pack.key}`,
-  });
-  
-  // In a real implementation, this would trigger an actual download
-  console.log("Downloading pack:", pack);
-};
-
-const generateMutation = useMutation({
-  mutationFn: async (userPrompt: string) => {
-    const response = await fetch("/api/packs/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        prompt: userPrompt,
-        count: packCount,
-        aiProvider: aiProvider
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Pack generation failed: ${response.statusText}`);
-    }
-
-    return response.json();
-  },
-  onSuccess: (data) => {
-    setGeneratedPacks(data.packs || []);
-    toast({
-      title: "Sample packs generated!",
-      description: `Created ${data.packs?.length || 0} unique sample packs`,
-    });
-  },
-  onError: (error) => {
-    toast({
-      title: "Generation failed",
-      description: (error as Error)?.message || "Unknown error occurred",
-      variant: "destructive",
-    });
-  },
-});
-
-const addToLibraryMutation = useMutation({
-  mutationFn: async (pack: GeneratedPack) => {
-    // Convert GeneratedPack format to database format
-    const samplePackData = {
-      name: pack.title,
-      genre: pack.genre,
-      mood: pack.metadata.mood,
-      description: pack.description,
-      generatedSamples: pack.samples.map(sample => ({
-        name: sample.name,
-        type: sample.type === "loop" ? "drums" : sample.type === "oneshot" ? "bass" : "melody",
-        category: sample.type,
-        audioData: generateAudioDataForSample(sample), // Generate realistic audio data
-        description: `${sample.type} sample from ${pack.title}`,
-        bpm: pack.bpm,
-        key: pack.key,
-        duration: sample.duration
-      }))
-    };
-
-    const response = await fetch(`/api/sample-packs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(samplePackData),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to add pack: ${response.statusText}`);
-    }
-
-    return await response.json();
-  },
-  onSuccess: () => {
-    toast({
-      title: "✅ Pack Added to Library",
-      description: "Sample pack successfully added to your Sample Library!",
-    });
-    // Invalidate samples query to refresh the library
-    queryClient.invalidateQueries({ queryKey: ["/api/samples"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/sample-packs"] });
-  },
-  onError: (error) => {
-    toast({
-      title: "❌ Failed to Add Pack",
-      description: (error as Error)?.message || "Unknown error occurred",
-      variant: "destructive",
-    });
-  },
-});
-
-// Generate high-quality realistic audio data for samples
-const generateAudioDataForSample = (sample: any) => {
-  const sampleRate = 44100;
-  const duration = Math.min(sample.duration / 1000, 3); // Max 3 seconds, convert ms to seconds
-  const numSamples = Math.floor(sampleRate * duration);
-  
-  // Create WAV header
-  const buffer = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(buffer);
-  
-  // WAV header
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
+  const handleRandomPrompt = () => {
+    const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
+    setPrompt(randomPrompt);
   };
-  
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + numSamples * 2, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, numSamples * 2, true);
-  
-  // Generate professional-quality audio based on sample name and type
-  const sampleName = (sample.name || '').toLowerCase();
-  let offset = 44;
-  
-  for (let i = 0; i < numSamples; i++) {
-    const time = i / sampleRate;
-    let amplitude = 0;
-    
-    // Generate professional, musical audio based on sample type
-    if (sampleName.includes('kick') || sampleName.includes('drum')) {
-      // Professional kick drum with multiple layers
-      const envelope = Math.exp(-time * 12); // Natural decay
-      const pitchEnv = Math.exp(-time * 8); // Pitch envelope
-      
-      // Sub bass component (20-60Hz)
-      const subBass = Math.sin(time * 2 * Math.PI * (40 + 20 * pitchEnv));
-      
-      // Body thump (60-120Hz)  
-      const body = Math.sin(time * 2 * Math.PI * (80 + 40 * pitchEnv));
-      
-      // Click component for attack
-      const clickEnv = Math.exp(-time * 50);
-      const click = Math.sin(time * 2 * Math.PI * 2000) * clickEnv * 0.3;
-      
-      amplitude = (subBass * 0.8 + body * 0.6 + click) * envelope * 0.9;
-                  
-    } else if (sampleName.includes('snare')) {
-      // Professional snare with tone and rattle
-      const envelope = Math.exp(-time * 6);
-      const toneEnv = Math.exp(-time * 4);
-      
-      // Fundamental tone (150-250Hz)
-      const tone = Math.sin(time * 2 * Math.PI * 200) * toneEnv * 0.7;
-      
-      // Snare rattle (filtered noise)
-      const rattle = (Math.random() * 2 - 1) * envelope * 0.6;
-      
-      // High frequency sizzle
-      const sizzle = Math.sin(time * 2 * Math.PI * 8000) * envelope * 0.2;
-      
-      amplitude = (tone + rattle + sizzle) * 0.8;
-      
-    } else if (sampleName.includes('hihat') || sampleName.includes('hat')) {
-      // Crisp hi-hat with natural metallic sound
-      const envelope = Math.exp(-time * 20);
-      
-      // Multiple high frequencies for metallic sound
-      const metal1 = Math.sin(time * 2 * Math.PI * 6000) * 0.4;
-      const metal2 = Math.sin(time * 2 * Math.PI * 8000) * 0.3;
-      const metal3 = Math.sin(time * 2 * Math.PI * 10000) * 0.2;
-      const noise = (Math.random() * 2 - 1) * 0.5;
-      
-      amplitude = (metal1 + metal2 + metal3 + noise) * envelope * 0.6;
-      
-    } else if (sampleName.includes('bass') || sampleName.includes('808') || sample.type === 'oneshot') {
-      // Deep, punchy bass with proper sub content
-      const envelope = Math.exp(-time * 1.8);
-      const pitchEnv = Math.exp(-time * 3);
-      
-      // Sub bass (30-50Hz)
-      const sub = Math.sin(time * 2 * Math.PI * (35 + 15 * pitchEnv));
-      
-      // Fundamental (50-80Hz)
-      const fundamental = Math.sin(time * 2 * Math.PI * (65 + 25 * pitchEnv));
-      
-      // Harmonic for punch
-      const harmonic = Math.sin(time * 2 * Math.PI * (130 + 50 * pitchEnv)) * 0.4;
-      
-      // Slight distortion for warmth
-      const signal = (sub * 0.9 + fundamental * 0.7 + harmonic) * envelope;
-      amplitude = Math.tanh(signal * 1.5) * 0.85;
-      
-    } else if (sampleName.includes('vocal') || sampleName.includes('voice')) {
-      // Rich vocal formants that sound human
-      const envelope = Math.exp(-time * 0.8);
-      const vibrato = 1 + 0.04 * Math.sin(time * 2 * Math.PI * 5.5);
-      
-      // Vowel formants for "Ah" sound
-      const f1 = Math.sin(time * 2 * Math.PI * 730 * vibrato) * 0.8;  // First formant
-      const f2 = Math.sin(time * 2 * Math.PI * 1090 * vibrato) * 0.5; // Second formant  
-      const f3 = Math.sin(time * 2 * Math.PI * 2440 * vibrato) * 0.25; // Third formant
-      const f4 = Math.sin(time * 2 * Math.PI * 3400 * vibrato) * 0.1;  // Brightness
-      
-      // Natural vocal breathiness
-      const breath = (Math.random() * 2 - 1) * envelope * 0.05;
-      
-      amplitude = (f1 + f2 + f3 + f4 + breath) * envelope * 0.7;
-      
-    } else if (sample.type === 'loop' || sampleName.includes('loop')) {
-      // Generate complex rhythmic loop
-      const beatTime = (time * 4) % 1; // 4/4 time
-      let loopAmp = 0;
-      
-      // Kick on 1 and 3
-      if (beatTime < 0.1 || (beatTime > 0.5 && beatTime < 0.6)) {
-        const kickDecay = Math.exp(-(beatTime % 0.5) * 20);
-        loopAmp += Math.sin(beatTime * 2 * Math.PI * 60) * kickDecay * 0.8;
-      }
-      
-      // Snare on 2 and 4
-      if ((beatTime > 0.2 && beatTime < 0.3) || (beatTime > 0.7 && beatTime < 0.8)) {
-        const snareDecay = Math.exp(-((beatTime - 0.25) % 0.5) * 15);
-        loopAmp += ((Math.sin(beatTime * 2 * Math.PI * 200) * 0.6 + 
-                    (Math.random() * 2 - 1) * 0.4) * snareDecay);
-      }
-      
-      // Hi-hats throughout
-      const hatDecay = Math.exp(-(beatTime * 8 % 0.125) * 40);
-      loopAmp += (Math.random() * 2 - 1) * hatDecay * 0.2;
-      
-      amplitude = loopAmp * 0.6;
-      
-    } else {
-      // Generate melodic content with harmonics
-      const vibrato = 1 + 0.03 * Math.sin(time * 2 * Math.PI * 5);
-      const decay = Math.exp(-time * 0.8);
-      const fundamental = Math.sin(time * 2 * Math.PI * 440 * vibrato); // A4
-      const harmonic2 = Math.sin(time * 2 * Math.PI * 880 * vibrato) * 0.3;
-      const harmonic3 = Math.sin(time * 2 * Math.PI * 1320 * vibrato) * 0.15;
-      amplitude = (fundamental + harmonic2 + harmonic3) * decay * 0.6;
-    }
-    
-    // Apply gentle compression and limiting
-    amplitude = Math.tanh(amplitude * 1.2) * 0.8;
-    
-    // Convert to 16-bit PCM with proper range
-    const sample16 = Math.max(-32767, Math.min(32767, amplitude * 32767));
-    view.setInt16(offset, sample16, true);
-    offset += 2;
-  }
-  
-  // Convert to base64
-  return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(buffer))));
-};
 
-const handleGenerate = async (userPrompt: string) => {
-  if (!userPrompt.trim()) {
+  const handlePlayPack = (pack: GeneratedPack) => {
+    console.log("Playing pack:", pack.title);
+    setPlayingPack(pack.id);
+    setTimeout(() => setPlayingPack(null), 8000);
+  };
+
+  const handleDownloadPack = (pack: GeneratedPack) => {
     toast({
-      title: "No prompt entered",
-      description: "Please describe the sample pack you want to create",
-      variant: "destructive",
+      title: `Downloading "${pack.title}"`,
+      description: `${pack.samples.length} samples • ${pack.genre} • ${pack.key}`,
     });
-    return;
-  }
+  };
 
-  try {
-    const response = await fetch("/api/packs/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        prompt: userPrompt,
-        count: packCount,
-        aiProvider: aiProvider
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Pack generation failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    setGeneratedPacks(data.packs || []);
-    toast({
-      title: "Sample packs generated!",
-      description: `Created ${data.packs?.length || 0} unique sample packs`,
-    });
-  } catch (error) {
-    toast({
-      title: "Generation failed",
-      description: (error as Error)?.message || "Unknown error occurred",
-      variant: "destructive",
-    });
-  }
-};
-  console.log(`🎵 Playing real MusicGen audio for "${pack.title}"`);
-  
-  for (const sample of pack.samples) {
-    if (!sample.audioUrl) continue;
-    
+  const generateWithMusicGen = async (userPrompt: string) => {
     try {
-      // Create audio element and play the real AI-generated audio
-      const audio = new Audio(sample.audioUrl);
-      audio.volume = 0.7;
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-      
-      if (playingPack === pack.id) {
-        setPlayingPack(null);
-        return;
+      const response = await fetch("/api/music/generate-with-musicgen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: userPrompt, duration: 10 }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`MusicGen generation failed: ${response.statusText}`);
       }
 
-      setPlayingPack(pack.id);
+      const data = await response.json();
       
-      // Create a realistic preview based on pack genre and instruments
-      await playGenrePreview(pack, audioContext);
-      
+      const musicGenPack: GeneratedPack = {
+        id: `musicgen-${Date.now()}`,
+        title: "MusicGen AI Pack",
+        description: `AI-generated music from prompt: "${userPrompt}"`,
+        bpm: 120,
+        key: "C",
+        genre: "Electronic",
+        samples: [{
+          id: `sample-musicgen-${Date.now()}`,
+          name: "AI Generated Track",
+          type: "loop",
+          duration: 10,
+          audioUrl: data.audioUrl,
+          aiData: {
+            notes: [],
+            pattern: [],
+            intensity: 0.8
+          }
+        }],
+        metadata: {
+          energy: 80,
+          mood: "Dynamic",
+          instruments: ["AI Synth"],
+          tags: ["AI Generated", "MusicGen"]
+        }
+      };
+
+      setGeneratedPacks([musicGenPack]);
       toast({
-        title: `Playing "${pack.title}"`,
-        description: `${pack.genre} • ${pack.bpm} BPM • ${pack.key}`,
+        title: "MusicGen AI Pack Generated!",
+        description: "Real AI-generated audio created and ready to preview.",
       });
-      
-      // Auto-stop after 8 seconds
-      setTimeout(() => {
-        setPlayingPack(null);
-      }, 8000);
-      
     } catch (error) {
-      console.error('Playback error:', error);
       toast({
-        title: "Playback failed", 
-        description: "Could not preview sample pack",
+        title: "MusicGen Generation Failed",
+        description: (error as Error)?.message || "Unknown error occurred",
         variant: "destructive",
       });
-      setPlayingPack(null);
     }
   };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="border-b bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
+        <div className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-lg flex items-center justify-center">
@@ -561,7 +266,7 @@ const handleGenerate = async (userPrompt: string) => {
 
             <Button
               onClick={() => generateWithMusicGen(prompt)}
-              disabled={generateMutation.isPending || !prompt.trim()}
+              disabled={!prompt.trim()}
               className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             >
               <Music className="mr-2 h-5 w-5" />
@@ -674,18 +379,11 @@ const handleGenerate = async (userPrompt: string) => {
                       </Button>
                       
                       <Button
-                        onClick={() => addToLibraryMutation.mutate(pack)}
                         size="sm"
                         variant="outline"
-                        disabled={addToLibraryMutation.isPending}
                         className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                        data-testid={`button-add-to-library-${pack.id}`}
                       >
-                        {addToLibraryMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                        ) : (
-                          <DatabaseIcon className="h-4 w-4 mr-1" />
-                        )}
+                        <DatabaseIcon className="h-4 w-4 mr-1" />
                         Add to Library
                       </Button>
                     </div>
