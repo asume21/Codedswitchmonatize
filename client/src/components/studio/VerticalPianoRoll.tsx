@@ -794,13 +794,13 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
         <CardContent className="h-full overflow-hidden">
           <div className="flex h-full">
             {/* Vertical Piano Keys */}
-            <div className="w-20 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0 relative">
+            <div className="w-24 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0 relative">
               <div className="relative">
                 {PIANO_KEYS.map((key, index) => (
                   <div key={key.key} className="relative">
                     {/* Row number label */}
-                    <div className="absolute -left-6 top-0 w-5 h-full flex items-center justify-center">
-                      <span className="text-xs text-gray-500 font-mono bg-gray-700 px-1 rounded">
+                    <div className="absolute -left-5 top-0 w-4 h-full flex items-center justify-center z-10">
+                      <span className="text-xs text-white font-mono bg-gray-900 px-1 py-0.5 rounded border border-gray-600">
                         {index}
                       </span>
                     </div>
