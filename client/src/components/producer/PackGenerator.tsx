@@ -6,8 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Sparkles, Dice1, Play, Pause, Download, Volume2, 
+import {
+  Sparkles, Dice1, Play, Pause, Download, Volume2,
   Loader2, Zap, Package, Headphones, Music, Plus, DatabaseIcon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -31,14 +31,14 @@ interface GeneratedPack {
       notes?: string[];
       pattern?: number[];
       intensity?: number;
-    }
+    };
   }[];
   metadata: {
     energy: number;
     mood: string;
     instruments: string[];
     tags: string[];
-  }
+  };
 }
 
 const RANDOM_PROMPTS = [
@@ -46,7 +46,7 @@ const RANDOM_PROMPTS = [
   "Intense and suspenseful movie trailer score with big percussion hits and chilling strings.",
   "Dreamy lo-fi hip hop with vinyl crackle, warm pads, and mellow jazz chords, 85 BPM.",
   "Aggressive trap beats with 808s, dark atmosphere, and industrial elements, 140 BPM.",
-  "Uplifting house music with piano melodies, vocal chops, and four-on-the-floor kicks, 128 BPM.",
+  "Uplifting house music with piano melodies, vocal chops, and four-on-the-floor kicks, 128 BPM."
 ];
 
 export default function PackGenerator() {
@@ -90,7 +90,7 @@ export default function PackGenerator() {
       }
 
       const data = await response.json();
-      
+
       const musicGenPack: GeneratedPack = {
         id: `musicgen-${Date.now()}`,
         title: "MusicGen AI Pack",
@@ -154,7 +154,7 @@ export default function PackGenerator() {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">
                 <Sparkles className="h-3 w-3 mr-1" />
@@ -205,7 +205,7 @@ export default function PackGenerator() {
                 rows={4}
                 className="resize-none text-lg border-emerald-200/50 focus:border-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/30"
               />
-              
+
               <Button
                 variant="outline"
                 onClick={handleRandomPrompt}
@@ -231,7 +231,7 @@ export default function PackGenerator() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <label className="text-sm font-medium mb-2 block">AI Provider</label>
                 <Select value={aiProvider} onValueChange={setAiProvider}>
@@ -249,7 +249,7 @@ export default function PackGenerator() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <label className="text-sm font-medium mb-2 block">
                   Preview Volume: {previewVolume[0]}%
@@ -279,7 +279,7 @@ export default function PackGenerator() {
         {generatedPacks.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold">Generated Sample Packs</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {generatedPacks.map((pack) => (
                 <Card key={pack.id} className="border-emerald-200/30 hover:border-emerald-300/50 transition-colors">
@@ -296,7 +296,7 @@ export default function PackGenerator() {
                       </Badge>
                     </div>
                   </CardHeader>
-                  
+
                   <CardContent className="space-y-4">
                     {/* Pack Info */}
                     <div className="grid grid-cols-3 gap-4 text-sm">
@@ -318,8 +318,8 @@ export default function PackGenerator() {
                     <div>
                       <span className="text-sm text-muted-foreground">Instruments:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {(Array.isArray(pack.metadata.instruments) ? pack.metadata.instruments : 
-                          typeof pack.metadata.instruments === 'string' ? (pack.metadata.instruments as string).split(',').map((s: string) => s.trim()) : 
+                        {(Array.isArray(pack.metadata.instruments) ? pack.metadata.instruments :
+                          typeof pack.metadata.instruments === 'string' ? (pack.metadata.instruments as string).split(',').map((s: string) => s.trim()) :
                           ['Unknown']).map((instrument: string, index: number) => (
                           <Badge key={index} variant="secondary" className="text-xs">
                             {instrument}
@@ -368,7 +368,7 @@ export default function PackGenerator() {
                           </>
                         )}
                       </Button>
-                      
+
                       <Button
                         onClick={() => handleDownloadPack(pack)}
                         size="sm"
@@ -377,7 +377,7 @@ export default function PackGenerator() {
                         <Download className="h-4 w-4 mr-1" />
                         Download
                       </Button>
-                      
+
                       <Button
                         size="sm"
                         variant="outline"

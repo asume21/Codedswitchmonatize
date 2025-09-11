@@ -355,11 +355,10 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
-  // Music generation endpoint (gated)
+  // Music generation endpoint (temporarily free)
   app.post(
     "/api/generate-music",
     requireAuth(),
-    requireSubscription(storage, { allowedTiers: ["pro"], allowTrialing: true }),
     async (req: Request, res: Response) => {
       try {
         const { prompt, count } = (req.body || {}) as { prompt?: string; count?: number };
@@ -535,11 +534,10 @@ ${sourceCode}`;
     }
   });
 
-  // Complete professional song generation (structure + metadata)
+  // Complete professional song generation (temporarily free)
   app.post(
     "/api/music/generate-complete",
     requireAuth(),
-    requireSubscription(storage, { allowedTiers: ["pro"], allowTrialing: true }),
     async (req: Request, res: Response) => {
       try {
         const schema = z.object({
@@ -654,14 +652,15 @@ ${sourceCode}`;
         }
 
         // Placeholder for Suno API integration
-        // In production, replace with real API call
+        // TODO: Replace with real Suno API when service is deployed
         const generatedMusic = {
           id: `music-${Date.now()}`,
-          title: "AI Generated Song",
+          title: "AI Generated Song (Placeholder)",
           audioUrl: "https://example.com/generated-song.mp3", // Placeholder
           lyrics: lyrics,
           style: style || "pop",
-          genre: genre || "electronic"
+          genre: genre || "electronic",
+          note: "Suno API integration coming soon - using placeholder for now"
         };
 
         res.json(generatedMusic);
