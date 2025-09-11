@@ -799,9 +799,8 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                     style={{ height: `${KEY_HEIGHT}px` }}
                     onClick={() => {
                       try {
-                        const keyIndex = PIANO_KEYS.findIndex(key => key.key === key.key);
-                        setHighlightedRow(keyIndex); // Highlight the row for alignment
-                        
+                        setHighlightedRow(index); // Use the map index directly for alignment
+
                         if (chordMode) {
                           console.log('🎵 Chord Mode: Trying to play chord for key:', key.note, key.octave);
                           console.log('🎵 Current key:', currentKey);
