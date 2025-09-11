@@ -263,6 +263,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
   const [zoom, setZoom] = useState(1);
   const [isPlayingInternal, setIsPlayingInternal] = useState(false);
   const [selectedTrackInternal, setSelectedTrackInternal] = useState(0);
+  const [highlightedRow, setHighlightedRow] = useState<number | null>(null);
   const [tracks, setTracks] = useState<Track[]>([
     {
       id: 'track1',
@@ -334,7 +335,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
         setIsPlayingInternal(false);
         setCurrentStep(0);
       } else {
-        setIsPlaying(true);
+        setIsPlayingInternal(true);
         const stepDuration = (60 / bpm / 4) * 1000; // 16th note duration in ms
 
         intervalRef.current = setInterval(() => {
@@ -623,6 +624,14 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
               >
                 🎵 Chord Mode
               </Button>
+              <Button 
+                onClick={() => setHighlightedRow(null)}
+                variant="outline" 
+                className="bg-yellow-600 hover:bg-yellow-500"
+                title="Clear row highlight for alignment"
+              >
+                🎯 Clear Highlight
+              </Button>
               <Button onClick={generateProgression} variant="outline" className="bg-green-700 hover:bg-green-600">
                 Generate Progression
               </Button>
@@ -648,6 +657,14 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                   </button>
                 ))}
               </div>
+            </div>
+            
+            {/* Alignment Instructions */}
+            <div className="mt-3 p-2 bg-yellow-900 bg-opacity-30 rounded border border-yellow-600">
+              <p className="text-xs text-yellow-200">
+                🎯 <strong>Alignment Helper:</strong> Press any piano key to highlight its corresponding grid row. 
+                Use this to check if keys align with grid rows. Click "Clear Highlight" to reset.
+              </p>
             </div>
             
             {/* Advanced Controls */}
@@ -782,6 +799,9 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                     style={{ height: `${KEY_HEIGHT}px` }}
                     onClick={() => {
                       try {
+                        const keyIndex = PIANO_KEYS.findIndex(key => key.key === key.key);
+                        setHighlightedRow(keyIndex); // Highlight the row for alignment
+                        
                         if (chordMode) {
                           console.log('🎵 Chord Mode: Trying to play chord for key:', key.note, key.octave);
                           console.log('🎵 Current key:', currentKey);
@@ -855,7 +875,13 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                 {/* Grid - Fixed alignment with piano keys */}
                 <div className="relative">
                   {PIANO_KEYS.map((key, keyIndex) => (
-                    <div key={key.key} className="flex border-b border-gray-700" style={{ height: `${KEY_HEIGHT}px` }}>
+                    <div 
+                      key={key.key} 
+                      className={`flex border-b border-gray-700 transition-colors duration-200 ${
+                        highlightedRow === keyIndex ? 'bg-yellow-400 bg-opacity-20 ring-2 ring-yellow-400' : ''
+                      }`} 
+                      style={{ height: `${KEY_HEIGHT}px` }}
+                    >
                       {Array.from({ length: STEPS }, (_, step) => {
                         const hasNote = tracks[selectedTrack]?.notes.some(
                           note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
@@ -867,13 +893,14 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                         return (
                           <div
                             key={step}
-                            className={`border-r border-gray-700 cursor-pointer transition-colors relative
+                            className={`border-r border-gray-700 cursor-pointer transition-colors relative hover:bg-gray-600
                               ${hasNote
                                 ? 'bg-blue-500 hover:bg-blue-400'
                                 : 'hover:bg-gray-700'
                               }
                               ${step % 4 === 0 ? 'border-r-gray-500' : ''}
                               ${currentStep === step ? 'bg-red-900 bg-opacity-50' : ''}
+                              ${highlightedRow === keyIndex ? 'ring-1 ring-yellow-300 ring-opacity-50' : ''}
                             `}
                             style={{
                               width: `${STEP_WIDTH * zoom}px`,
