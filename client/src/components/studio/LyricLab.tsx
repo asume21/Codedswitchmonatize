@@ -598,7 +598,6 @@ Type here or use AI generation...`);
                       genre,
                       mood,
                       title,
-                      complexity: beatComplexity[0],
                     })}
                     disabled={generateMusicFromLyricsMutation.isPending || !content.trim()}
                     className="w-full bg-purple-600 hover:bg-purple-500"

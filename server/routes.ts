@@ -165,7 +165,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       }
       const { email, name } = parsed.data;
       const file = path.join(LOCAL_OBJECTS_DIR, "waitlist.json");
-      let list: Array<{ email: string; name?: string; ts: string }>();
+      let list: Array<{ email: string; name?: string; ts: string }> = [];
       try {
         const raw = fs.readFileSync(file, "utf8");
         list = JSON.parse(raw);

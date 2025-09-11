@@ -54,18 +54,34 @@ const RANDOM_PROMPTS = [
   "Retro synthwave with nostalgic arpeggios, neon atmosphere, and driving basslines, 120 BPM.",
   "Experimental ambient textures with granular synthesis, field recordings, and evolving drones.",
   "Jazzy neo-soul with smooth Rhodes, walking basslines, and laid-back grooves, 90 BPM.",
-  "Hard-hitting drill beats with sliding 808s, hi-hat rolls, and menacing melodies, 150 BPM."
-];
+  "Hard-hitting drill beats with sliding 808s, hi-hat rolls, and menacing melodies, 150 BPM.",
+  "Epic electronic dance music with driving basslines, soaring synths, and energetic melodies, 130 BPM.",
+  "Mellow indie folk with acoustic guitars, heartfelt lyrics, and soothing vocal harmonies, 100 BPM.",
+  "Dark and ominous industrial music with distorted synths, pounding drums, and haunting atmospheres, 110 BPM.",
+  "Upbeat pop music with catchy melodies, bright synths, and energetic drum patterns, 120 BPM.",
+  "Relaxing ambient music with calming pads, soft textures, and peaceful atmospheres, 80 BPM.",
+  "Complex progressive rock with intricate instrumental passages, conceptual themes, and dramatic vocals, 90 BPM."
+]};
 
 export default function PackGenerator() {
   const [prompt, setPrompt] = useState("");
   const [packCount, setPackCount] = useState(4);
   const [generatedPacks, setGeneratedPacks] = useState<GeneratedPack[]>([]);
-  const [aiProvider, setAiProvider] = useState("musicgen"); // Default to MusicGen for real audio
   const [playingPack, setPlayingPack] = useState<string | null>(null);
+  const [aiProvider, setAiProvider] = useState("musicgen"); // Default to MusicGen for real audio
   const [previewVolume, setPreviewVolume] = useState([75]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleRandomPrompt = () => {
+    const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
+    setPrompt(randomPrompt);
+  };
+
+  const handlePlayPack = (pack: GeneratedPack) => {
+    // Handle playing pack logic
+    console.log("Playing pack:", pack.title);
+  };
 
   const generateMutation = useMutation({
     mutationFn: async (userPrompt: string) => {
@@ -317,8 +333,8 @@ export default function PackGenerator() {
     return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(buffer))));
   };
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
+  const handleGenerate = async (userPrompt: string) => {
+    if (!userPrompt.trim()) {
       toast({
         title: "No prompt entered",
         description: "Please describe the sample pack you want to create",
@@ -327,48 +343,35 @@ export default function PackGenerator() {
       return;
     }
 
-    setPlayingPack(pack.id);
-    
     try {
-      // Create a realistic preview based on pack genre and instruments
-      await playGenrePreview(pack, audioContext);
-      
-      toast({
-        title: `Playing "${pack.title}"`,
-        description: `${pack.genre} • ${pack.bpm} BPM • ${pack.key}`,
+      const response = await fetch("/api/packs/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          prompt: userPrompt,
+          count: packCount,
+          aiProvider: aiProvider
+        }),
       });
-      
-      // Auto-stop after 8 seconds
-      setTimeout(() => {
-        setPlayingPack(null);
-      }, 8000);
-      
-    } catch (error) {
-    console.error('Playback error:', error);
-    toast({
-      title: "Playback failed", 
-      description: "Could not preview sample pack",
-      variant: "destructive",
-    });
-    setPlayingPack(null);
-  }
-};
 
-const playGenrePreview = async (pack: GeneratedPack, audioContext: AudioContext) => {
-  console.log(`🎵 Playing AI-generated pack: "${pack.title}"`);
-  console.log(`🤖 Pack contains ${pack.samples.length} samples:`, pack.samples.map(s => s.name));
-  
-  // Check if this pack has real audio files (MusicGen) or needs synthesis
-  const hasRealAudio = pack.samples.some(sample => sample.audioUrl);
-  
-  if (hasRealAudio) {
-    // Play real AI-generated audio files
-    await playRealAudioSamples(pack);
-  } else {
-    // Fallback to synthesis for metadata-only packs
-    await playSynthesizedSamples(pack, audioContext);
-  }
-};
+      if (!response.ok) {
+        throw new Error(`Pack generation failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setGeneratedPacks(data.packs || []);
+      toast({
+        title: "Sample packs generated!",
+        description: `Created ${data.packs?.length || 0} unique sample packs`,
+      });
+    } catch (error) {
+      toast({
+        title: "Generation failed",
+        description: (error as Error)?.message || "Unknown error occurred",
+        variant: "destructive",
+      });
+    }
+  };
 
 const playRealAudioSamples = async (pack: GeneratedPack) => {
   console.log(`🎵 Playing real MusicGen audio for "${pack.title}"`);
@@ -645,15 +648,60 @@ const playRealAudioSamples = async (pack: GeneratedPack) => {
     noise.start();
   };
 
-  const handleDownloadPack = (pack: GeneratedPack) => {
-    // Simulate pack download
-    toast({
-      title: `Downloading "${pack.title}"`,
-      description: `${pack.samples.length} samples • ${pack.genre} • ${pack.key}`,
-    });
-    
-    // In a real implementation, this would trigger an actual download
-    console.log("Downloading pack:", pack);
+  const generateWithMusicGen = async (userPrompt: string) => {
+    try {
+      const response = await fetch("/api/music/generate-with-musicgen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: userPrompt, duration: 10 }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`MusicGen generation failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Create a pack from MusicGen result
+      const musicGenPack: GeneratedPack = {
+        id: `musicgen-${Date.now()}`,
+        title: "MusicGen AI Pack",
+        description: `AI-generated music from prompt: "${userPrompt}"`,
+        bpm: 120,
+        key: "C",
+        genre: "Electronic",
+        samples: [{
+          id: `sample-musicgen-${Date.now()}`,
+          name: "AI Generated Track",
+          type: "loop",
+          duration: 10,
+          audioUrl: data.audioUrl,
+          aiData: {
+            notes: [],
+            pattern: [],
+            intensity: 0.8
+          }
+        }],
+        metadata: {
+          energy: 80,
+          mood: "Dynamic",
+          instruments: ["AI Synth"],
+          tags: ["AI Generated", "MusicGen"]
+        }
+      };
+
+      setGeneratedPacks([musicGenPack]);
+      toast({
+        title: "MusicGen AI Pack Generated!",
+        description: "Real AI-generated audio created and ready to preview.",
+      });
+    } catch (error) {
+      toast({
+        title: "MusicGen Generation Failed",
+        description: (error as Error)?.message || "Unknown error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
