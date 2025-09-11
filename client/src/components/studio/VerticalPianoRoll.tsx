@@ -794,29 +794,24 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
         <CardContent className="h-full overflow-hidden">
           <div className="flex h-full">
             {/* Vertical Piano Keys */}
-            <div className="w-28 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0 relative">
+            <div className="w-20 bg-gray-800 border-r border-gray-600 overflow-y-auto flex-shrink-0">
               <div className="relative">
                 {PIANO_KEYS.map((key, index) => (
-                  <div key={key.key} className="relative flex">
-                    {/* Row number label - More prominent */}
-                    <div className="w-6 flex items-center justify-center bg-yellow-600 text-black font-bold text-sm border-r border-gray-400">
-                      {index}
-                    </div>
-                    <button
-                      className={`flex-1 text-xs font-mono border-b border-gray-600 hover:bg-gray-600 transition-colors
-                        ${key.isBlack
-                          ? 'bg-gray-900 text-gray-300 border-l-4 border-l-gray-700'
-                          : 'bg-gray-700 text-white'
-                        }
-                        ${chordMode ? 'ring-2 ring-purple-500 ring-opacity-50' : ''}
-                        ${highlightedRow === index ? 'ring-2 ring-yellow-400 ring-opacity-80' : ''}
-                      `}
-                      style={{ height: `${KEY_HEIGHT}px` }}
-                      onClick={() => {
-                        try {
-                          setHighlightedRow(index); // Use the map index directly for alignment
+                  <button
+                    key={key.key}
+                    className={`w-full text-xs font-mono border-b border-gray-600 hover:bg-gray-600 transition-colors
+                      ${key.isBlack
+                        ? 'bg-gray-900 text-gray-300 border-l-4 border-l-gray-700'
+                        : 'bg-gray-700 text-white'
+                      }
+                      ${chordMode ? 'ring-2 ring-purple-500 ring-opacity-50' : ''}
+                    `}
+                    style={{ height: `${KEY_HEIGHT}px` }}
+                    onClick={() => {
+                      try {
+                        setHighlightedRow(index); // Use the map index directly for alignment
 
-                          if (chordMode) {
+                        if (chordMode) {
                           console.log('🎵 Chord Mode: Trying to play chord for key:', key.note, key.octave);
                           console.log('🎵 Current key:', currentKey);
                           console.log('🎵 Current chord index:', currentChordIndex);
@@ -860,14 +855,13 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                   >
                     {key.key}
                   </button>
-                  </div>
                 ))}
               </div>
             </div>
 
             {/* Step Grid - Fixed alignment */}
             <div className="flex-1 overflow-auto">
-              <div className="relative bg-gray-900">
+              <div className="relative bg-gray-900 pt-8">
                 {/* Step Headers */}
                 <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10">
                   {Array.from({ length: STEPS }, (_, step) => (
@@ -888,7 +882,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                 </div>
 
                 {/* Grid - Fixed alignment with piano keys */}
-                <div className="relative" style={{ marginTop: `-${KEY_HEIGHT * 1.5}px` }}>
+                <div className="relative">
                   {PIANO_KEYS.map((key, keyIndex) => (
                     <div 
                       key={key.key} 
