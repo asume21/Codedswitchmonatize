@@ -914,7 +914,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                 </div>
 
                 {/* Unified Piano Keys and Grid Rows */}
-                <div className="relative">
+                <div className="relative pt-8">
                   {PIANO_KEYS.map((key, keyIndex) => (
                     <div key={key.key} className="flex border-b border-gray-700">
                       {/* Piano Key - Part of same unified row */}
