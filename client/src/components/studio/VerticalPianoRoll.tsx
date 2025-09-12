@@ -674,42 +674,427 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                     If this row doesn't match the pressed key, tell me: "Row {highlightedRow} highlighted instead of expected row X"
                   </p>
                 </div>
-              )}
-            </div>
-            
-            {/* Advanced Controls */}
-            <div className="flex items-center gap-4 mt-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-white">BPM:</span>
-                <input
-                  type="number"
-                  value={bpm}
-                  onChange={(e) => setBpm(Math.max(60, Math.min(200, parseInt(e.target.value) || 120)))}
-                  className="w-16 bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
-                  min="60"
-                  max="200"
-                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handlePlay}
+                    className={`${isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}
+                  >
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    {isPlaying ? 'Pause' : 'Play'}
+                  </Button>
+                  <Button onClick={handleStop} variant="outline" className="bg-gray-700 hover:bg-gray-600">
+                    <Square className="h-4 w-4" />
+                    Stop
+                  </Button>
+                  <Button onClick={clearAll} variant="outline" className="bg-gray-700 hover:bg-gray-600">
+                    <RotateCcw className="h-4 w-4" />
+                    Clear
+                  </Button>
+                  <Button
+                    onClick={() => setChordMode(!chordMode)}
+                    variant={chordMode ? "default" : "outline"}
+                    className={chordMode ? "bg-purple-600 hover:bg-purple-500" : "bg-gray-700 hover:bg-gray-600"}
+                  >
+                    🎵 Chord Mode
+                  </Button>
+                  <Button 
+                    onClick={() => setHighlightedRow(null)}
+                    variant="outline" 
+                    className="bg-yellow-600 hover:bg-yellow-500"
+                    title="Clear row highlight for alignment"
+                  >
+                    🎯 Clear Highlight
+                  </Button>
+                  <Button onClick={generateProgression} variant="outline" className="bg-green-700 hover:bg-green-600">
+                    Generate Progression
+                  </Button>
+                </div>
+              </CardTitle>
+              
+              {/* Track Selection - Moved to top for visibility */}
+              <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-600">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-white">Track:</span>
+                  <div className="flex gap-2">
+                    {tracks.map((track, index) => (
+                      <button
+                        key={track.id}
+                        onClick={() => setSelectedTrackInternal(index)}
+                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                          selectedTrack === index
+                            ? `${track.color} text-white`
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        {track.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Alignment Instructions */}
+                <div className="mt-3 p-2 bg-yellow-900 bg-opacity-30 rounded border border-yellow-600">
+                  <p className="text-xs text-yellow-200">
+                    🎯 <strong>Alignment Helper:</strong> Press any piano key to highlight its corresponding grid row. 
+                    Use this to check if keys align with grid rows. Click "Clear Highlight" to reset.
+                  </p>
+                  {highlightedRow !== null && (
+                    <div className="mt-2 p-2 bg-black bg-opacity-50 rounded text-center">
+                      <p className="text-sm text-yellow-300">
+                        🔍 <strong>Debug Info:</strong> Key Row #{highlightedRow} is highlighted
+                      </p>
+                      <p className="text-xs text-yellow-400 mt-1">
+                        If this row doesn't match the pressed key, tell me: "Row {highlightedRow} highlighted instead of expected row X"
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Advanced Controls */}
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-4 mt-3">
+                    <span className="text-sm font-medium text-white">Key:</span>
+                    <select
+                      value={currentKey}
+                      onChange={(e) => setCurrentKey(e.target.value)}
+                      className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
+                    >
+                      {Object.keys(DEFAULT_customKeys).map(key => (
+                        <option key={key} value={key}>{key}</option>
+                      ))}
+                    </select>
+                    
+                    <span className="text-sm font-medium text-white">Progression:</span>
+                    <select
+                      value={selectedProgression.id}
+                      onChange={(e) => setSelectedProgression(CHORD_PROGRESSIONS.find(p => p.id === e.target.value) || CHORD_PROGRESSIONS[0])}
+                      className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
+                    >
+                      {CHORD_PROGRESSIONS.map(progression => (
+                        <option key={progression.id} value={progression.id}>
+                          {progression.name} ({progression.chords.join('-')})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Improved Chord Builder */}
+                  <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-600">
+                    <h4 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
+                      🎵 Chord Builder
+                      <span className="text-xs text-gray-400">(Click chords to add to progression)</span>
+                    </h4>
+                    
+                    <div className="grid grid-cols-7 gap-2 mb-4">
+                      {['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'].map(chord => {
+                        const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+                        const chordNotes = keyData?.chords[chord as keyof typeof keyData.chords];
+                        
+                        return (
+                          <button
+                            key={chord}
+                            onClick={() => {
+                              // Add this chord to the current progression
+                              const newProgression = {
+                                ...selectedProgression,
+                                chords: [...selectedProgression.chords, chord]
+                              };
+                              setSelectedProgression(newProgression);
+                              toast({
+                                title: `Added ${chord} chord`,
+                                description: `Chord ${chord} (${chordNotes?.join('-') || 'N/A'}) added to progression`,
+                              });
+                            }}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+                            title={`${chord} chord: ${chordNotes?.join('-') || 'N/A'}`}
+                          >
+                            {chord}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Current Progression Display */}
+                    <div className="mb-4">
+                      <h5 className="text-sm font-medium text-white mb-2">Current Progression:</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProgression.chords.map((chord, index) => {
+                          const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+                          const chordNotes = keyData?.chords[chord as keyof typeof keyData.chords];
+                          
+                          return (
+                            <div key={index} className="flex items-center gap-1 bg-purple-700 text-white px-3 py-1 rounded">
+                              <span>{chord}</span>
+                              <button
+                                onClick={() => {
+                                  const newChords = selectedProgression.chords.filter((_, i) => i !== index);
+                                  setSelectedProgression({...selectedProgression, chords: newChords});
+                                }}
+                                className="text-red-300 hover:text-red-100 ml-1"
+                                title="Remove chord"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {selectedProgression.chords.length === 0 && (
+                          <span className="text-gray-400 text-sm">No chords added yet</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Quick Action Buttons */}
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={generateProgression}
+                        variant="outline" 
+                        className="bg-green-700 hover:bg-green-600 text-sm"
+                        disabled={selectedProgression.chords.length === 0}
+                      >
+                        🎵 Generate from Progression
+                      </Button>
+                      
+                      <Button 
+                        onClick={() => setSelectedProgression({...selectedProgression, chords: []})}
+                        variant="outline" 
+                        className="bg-red-700 hover:bg-red-600 text-sm"
+                      >
+                        🗑️ Clear All
+                      </Button>
+                      
+                      <Button 
+                        onClick={() => {
+                          // Play current progression
+                          selectedProgression.chords.forEach((chord, index) => {
+                            setTimeout(() => {
+                              const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+                              const chordNotes = keyData?.chords[chord as keyof typeof keyData.chords];
+                              if (chordNotes) {
+                                playChord(chordNotes, 4);
+                              }
+                            }, index * 1000); // 1 second apart
+                          });
+                        }}
+                        variant="outline" 
+                        className="bg-blue-700 hover:bg-blue-600 text-sm"
+                        disabled={selectedProgression.chords.length === 0}
+                      >
+                        🎼 Play Progression
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-white">BPM:</span>
+                    <input
+                      type="number"
+                      value={bpm}
+                      onChange={(e) => setBpm(Math.max(60, Math.min(200, parseInt(e.target.value) || 120)))}
+                      className="w-16 bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
+                      min="60"
+                      max="200"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-white">Quantize:</span>
+                    <select
+                      value={quantization}
+                      onChange={(e) => setQuantization(parseInt(e.target.value))}
+                      className="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
+                    >
+                      <option value="1">1/4</option>
+                      <option value="2">1/8</option>
+                      <option value="4">1/16</option>
+                    </select>
+                  </div>
+                  
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={loopEnabled}
+                      onChange={(e) => setLoopEnabled(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm text-white">Loop</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={autoScroll}
+                      onChange={(e) => setAutoScroll(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm text-white">Auto-Scroll</span>
+                  </label>
+                </div>
+                
+                <div className="flex items-center gap-4 mt-3">
+                  <span className="text-sm font-medium text-white">Instrument:</span>
+                  <select
+                    value={tracks[selectedTrack]?.instrument || 'piano'}
+                    onChange={(e) => {
+                      setTracks(prev => prev.map((track, index) => 
+                        index === selectedTrack 
+                          ? { ...track, instrument: e.target.value }
+                          : track
+                      ));
+                    }}
+                    className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
+                  >
+                    {/* Piano */}
+                    <option value="piano">🎹 Piano</option>
+                    <option value="piano-organ">🎹 Organ</option>
+                    
+                    {/* Strings */}
+                    <option value="strings-violin">🎻 Violin</option>
+                    <option value="strings">🎻 Strings</option>
+                    <option value="guitar">🎸 Guitar</option>
+                    <option value="strings-guitar">🎸 Guitar (Steel)</option>
+                    <option value="guitar-nylon">🎸 Guitar (Nylon)</option>
+                    <option value="pads-strings">🎻 Pad Strings</option>
+                    
+                    {/* Horns */}
+                    <option value="horns-trumpet">🎺 Trumpet</option>
+                    <option value="horns-trombone">🎺 Trombone</option>
+                    <option value="horns-french">🎺 French Horn</option>
+                    
+                    {/* Flutes */}
+                    <option value="flute-concert">🪈 Flute</option>
+                    <option value="flute-recorder">🪈 Recorder</option>
+                    <option value="flute-indian">🪈 Indian Flute</option>
+                    
+                    {/* Bass */}
+                    <option value="bass-electric">🎸 Bass (Electric)</option>
+                    <option value="bass-upright">🎸 Bass (Upright)</option>
+                    <option value="bass-synth">🎸 Bass (Synth)</option>
+                    
+                    {/* Synth */}
+                    <option value="synth-analog">🎛️ Synth (Analog)</option>
+                    <option value="synth-digital">🎛️ Synth (Digital)</option>
+                    <option value="synth-fm">🎛️ Synth (FM)</option>
+                    
+                    {/* Leads */}
+                    <option value="leads-square">🎛️ Lead (Square)</option>
+                    <option value="leads-saw">🎛️ Lead (Saw)</option>
+                    <option value="leads-pluck">🎛️ Lead (Pluck)</option>
+                    
+                    {/* Pads */}
+                    <option value="pads-warm">🎛️ Pad (Warm)</option>
+                    <option value="pads-choir">🎛️ Pad (Choir)</option>
+                    
+                    {/* Drums */}
+                    <option value="drum-kick">🥁 Kick Drum</option>
+                    <option value="drum-snare">🥁 Snare Drum</option>
+                    <option value="drum-hihat">🥁 Hi-Hat</option>
+                    <option value="drum-crash">🥁 Crash</option>
+                    <option value="drum-tom">🥁 Tom</option>
+                    <option value="drum-clap">🥁 Clap</option>
+                  </select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-white">Quantize:</span>
+                  <select
+                    value={quantization}
+                    onChange={(e) => setQuantization(parseInt(e.target.value))}
+                    className="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
+                  >
+                    <option value="1">1/4</option>
+                    <option value="2">1/8</option>
+                    <option value="4">1/16</option>
+                  </select>
+                </div>
+                
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={loopEnabled}
+                    onChange={(e) => setLoopEnabled(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-white">Loop</span>
+                </label>
+                
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={autoScroll}
+                    onChange={(e) => setAutoScroll(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-white">Auto-Scroll</span>
+                </label>
               </div>
               
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-white">Quantize:</span>
+              <div className="flex items-center gap-4 mt-3">
+                <span className="text-sm font-medium text-white">Instrument:</span>
                 <select
-                  value={quantization}
-                  onChange={(e) => setQuantization(parseInt(e.target.value))}
-                  className="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600"
+                  value={tracks[selectedTrack]?.instrument || 'piano'}
+                  onChange={(e) => {
+                    setTracks(prev => prev.map((track, index) => 
+                      index === selectedTrack 
+                        ? { ...track, instrument: e.target.value }
+                        : track
+                    ));
+                  }}
+                  className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
                 >
-                  <option value="1">1/4</option>
-                  <option value="2">1/8</option>
-                  <option value="4">1/16</option>
+                  {/* Piano */}
+                  <option value="piano">🎹 Piano</option>
+                  <option value="piano-organ">🎹 Organ</option>
+                  
+                  {/* Strings */}
+                  <option value="strings-violin">🎻 Violin</option>
+                  <option value="strings">🎻 Strings</option>
+                  <option value="guitar">🎸 Guitar</option>
+                  <option value="strings-guitar">🎸 Guitar (Steel)</option>
+                  <option value="guitar-nylon">🎸 Guitar (Nylon)</option>
+                  <option value="pads-strings">🎻 Pad Strings</option>
+                  
+                  {/* Horns */}
+                  <option value="horns-trumpet">🎺 Trumpet</option>
+                  <option value="horns-trombone">🎺 Trombone</option>
+                  <option value="horns-french">🎺 French Horn</option>
+                  
+                  {/* Flutes */}
+                  <option value="flute-concert">🪈 Flute</option>
+                  <option value="flute-recorder">🪈 Recorder</option>
+                  <option value="flute-indian">🪈 Indian Flute</option>
+                  
+                  {/* Bass */}
+                  <option value="bass-electric">🎸 Bass (Electric)</option>
+                  <option value="bass-upright">🎸 Bass (Upright)</option>
+                  <option value="bass-synth">🎸 Bass (Synth)</option>
+                  
+                  {/* Synth */}
+                  <option value="synth-analog">🎛️ Synth (Analog)</option>
+                  <option value="synth-digital">🎛️ Synth (Digital)</option>
+                  <option value="synth-fm">🎛️ Synth (FM)</option>
+                  
+                  {/* Leads */}
+                  <option value="leads-square">🎛️ Lead (Square)</option>
+                  <option value="leads-saw">🎛️ Lead (Saw)</option>
+                  <option value="leads-pluck">🎛️ Lead (Pluck)</option>
+                  
+                  {/* Pads */}
+                  <option value="pads-warm">🎛️ Pad (Warm)</option>
+                  <option value="pads-choir">🎛️ Pad (Choir)</option>
+                  
+                  {/* Drums */}
+                  <option value="drum-kick">🥁 Kick Drum</option>
+                  <option value="drum-snare">🥁 Snare Drum</option>
+                  <option value="drum-hihat">🥁 Hi-Hat</option>
+                  <option value="drum-crash">🥁 Crash</option>
+                  <option value="drum-tom">🥁 Tom</option>
+                  <option value="drum-clap">🥁 Clap</option>
                 </select>
               </div>
-              
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={loopEnabled}
-                  onChange={(e) => setLoopEnabled(e.target.checked)}
-                  className="rounded"
+            </CardHeader>
                 />
                 <span className="text-sm text-white">Loop</span>
               </label>
