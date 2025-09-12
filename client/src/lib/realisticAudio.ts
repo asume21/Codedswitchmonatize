@@ -408,20 +408,44 @@ export class RealisticAudioEngine {
   }
 
   async playDrumSound(drumType: string, velocity: number = 0.7): Promise<void> {
-if (!this.isInitialized) {
-await this.initialize();
-}
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
 
-// Use synthetic drum engine for "realistic" mode since soundfonts are broken
-console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
-  
-if (!this.audioContext) {
-console.error('AudioContext not available for synthetic drums');
-return;
-}
-      const clampedVolume = Math.max(0, Math.min(1, volume));
-      // Note: soundfont-player manages volume per instrument
-      console.log(`Setting master volume to ${clampedVolume}`);
+    // Use synthetic drum engine for "realistic" mode since soundfonts are broken
+    console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
+    
+    if (!this.audioContext) {
+      console.error('AudioContext not available for synthetic drums');
+      return;
+    }
+
+    const currentTime = this.audioContext.currentTime;
+    
+    switch (drumType) {
+      case 'kick':
+        this.playSyntheticKick(currentTime, velocity);
+        break;
+      case 'snare':
+        this.playSyntheticSnare(currentTime, velocity);
+        break;
+      case 'hihat':
+        this.playSyntheticHihat(currentTime, velocity);
+        break;
+      case 'openhat':
+        this.playSyntheticOpenHat(currentTime, velocity);
+        break;
+      case 'tom':
+        this.playSyntheticTom(currentTime, velocity);
+        break;
+      case 'clap':
+        this.playSyntheticClap(currentTime, velocity);
+        break;
+      case 'crash':
+        this.playSyntheticCrash(currentTime, velocity);
+        break;
+      default:
+        console.warn(`🎵 Unknown drum type: ${drumType}`);
     }
   }
 
