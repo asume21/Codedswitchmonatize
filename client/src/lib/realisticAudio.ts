@@ -286,27 +286,25 @@ export class RealisticAudioEngine {
     try {
       const noteWithOctave = `${note}${adjustedOctave}`;
       console.log(`🎵 Attempting to play realistic ${realInstrument}: ${noteWithOctave} for ${duration}s at velocity ${velocity}`);
-      
+
       const audioNode = this.instruments[realInstrument].play(noteWithOctave, this.audioContext!.currentTime, {
         duration,
         gain: velocity
       });
-      
+
       if (audioNode) {
         console.log(`✅ Successfully triggered realistic ${realInstrument}: ${noteWithOctave}`);
       } else {
         console.error(`❌ Failed to play realistic ${realInstrument}: ${noteWithOctave} - instrumentSampler.play returned null`);
+        // Fallback to synthetic generation for unsupported octaves
+        await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
       }
     } catch (error) {
       console.error(`❌ Error playing realistic ${realInstrument}:`, error);
-      console.log('🎵 DEBUG: Falling back to synthetic drum if this is a drum instrument');
-      
-      // Try synthetic drum fallback for drum instruments
-      const instrumentStr = String(instrument).toLowerCase();
-      if (instrumentStr.includes('drum') || instrumentStr.includes('kick') || instrumentStr.includes('snare') || instrumentStr.includes('hihat')) {
-        console.log('🎵 DEBUG: Attempting synthetic drum fallback');
-        await this.playDrumSound(instrument, velocity);
-      }
+      console.log('🎵 DEBUG: Falling back to synthetic generation for unsupported octave');
+
+      // Fallback to synthetic generation for extreme octaves
+      await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
     }
   }
 
@@ -355,23 +353,72 @@ export class RealisticAudioEngine {
         default:
           console.warn(`🎵 Unknown drum type: ${drumType}`);
       }
+
+  // Fallback to synthetic audio generation for unsupported octaves
+  private async fallbackToSynthetic(note: string, octave: number, duration: number, velocity: number): Promise<void> {
+    console.log(`🎵 Fallback: Generating synthetic ${note}${octave} for ${duration}s`);
+
+    if (!this.audioContext) {
+      console.error('AudioContext not available for synthetic fallback');
+      return;
+    }
+
+    try {
+      const currentTime = this.audioContext.currentTime;
+
+      // Convert note name and octave to frequency
+      const frequency = this.noteToFrequency(note, octave);
+
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine'; // Simple sine wave for fallback
+
+      // Envelope
+      gainNode.gain.setValueAtTime(0, currentTime);
+      gainNode.gain.linearRampToValueAtTime(velocity * 0.3, currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      oscillator.start(currentTime);
+      oscillator.stop(currentTime + duration);
+
+      console.log(`✅ Synthetic fallback played: ${note}${octave} (${frequency}Hz)`);
     } catch (error) {
-      console.error('🎵 Failed to play synthetic drum:', error);
+      console.error('❌ Synthetic fallback failed:', error);
     }
   }
 
-  // Stop all currently playing sounds
-  stopAllSounds(): void {
-    Object.values(this.instruments).forEach(instrument => {
-      if (instrument && instrument.stop) {
-        instrument.stop();
-      }
-    });
+  // Convert note name and octave to frequency
+  private noteToFrequency(note: string, octave: number): number {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const noteIndex = noteNames.indexOf(note.toUpperCase());
+
+    if (noteIndex === -1) {
+      console.warn(`Unknown note: ${note}, defaulting to A`);
+      return 440; // A4
+    }
+
+    // A4 = 440Hz, MIDI note 69
+    const midiNote = (octave + 1) * 12 + noteIndex;
+    return 440 * Math.pow(2, (midiNote - 69) / 12);
   }
 
-  // Set master volume
-  setMasterVolume(volume: number): void {
-    if (this.audioContext) {
+  async playDrumSound(drumType: string, velocity: number = 0.7): Promise<void> {
+if (!this.isInitialized) {
+await this.initialize();
+}
+
+// Use synthetic drum engine for "realistic" mode since soundfonts are broken
+console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
+  
+if (!this.audioContext) {
+console.error('AudioContext not available for synthetic drums');
+return;
+}
       const clampedVolume = Math.max(0, Math.min(1, volume));
       // Note: soundfont-player manages volume per instrument
       console.log(`Setting master volume to ${clampedVolume}`);
