@@ -40,7 +40,7 @@ interface PianoKey {
 }
 
 const PIANO_KEYS: PianoKey[] = [];
-for (let octave = 8; octave >= 0; octave--) {
+for (let octave = 7; octave >= 2; octave--) {
   const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   for (const note of notes) {
     PIANO_KEYS.push({
