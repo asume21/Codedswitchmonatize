@@ -1,7 +1,7 @@
 import Soundfont from 'soundfont-player';
 
 export class RealisticAudioEngine {
-  private instruments: { [key: string]: any } = {};
+  private instruments: { [key: string]: any } = {}
   private audioContext: AudioContext | null = null;
   private isInitialized = false;
   private isLoading = false;
@@ -71,7 +71,7 @@ export class RealisticAudioEngine {
     strings: 'string_ensemble_1',
     flute: 'flute',
     trumpet: 'trumpet'
-  };
+  }
 
   async initialize(): Promise<void> {
     if (this.isInitialized || this.isLoading) return;
@@ -96,12 +96,12 @@ export class RealisticAudioEngine {
               console.log('🎵 Audio context resumed successfully');
             } catch (error) {
               console.error('🎵 Failed to resume audio context:', error);
-            };
-          };
+            }
+          }
           document.removeEventListener('click', resumeAudio, true);
           document.removeEventListener('keydown', resumeAudio, true);
           document.removeEventListener('touchstart', resumeAudio, true);
-        };
+        }
         
         // Listen for user interactions to resume audio
         document.addEventListener('click', resumeAudio, true);
@@ -114,8 +114,8 @@ export class RealisticAudioEngine {
           console.log('🎵 Audio context resumed immediately');
         } catch (error) {
           console.log('🎵 Audio context needs user interaction to resume');
-        };
-      };
+        }
+      }
 
       console.log('🎵 Realistic audio context started, final state:', this.audioContext.state);
 
@@ -138,18 +138,18 @@ export class RealisticAudioEngine {
       console.error('Failed to initialize realistic audio engine:', error);
       this.isLoading = false;
       throw error;
-    };
-  };
+    }
+  }
 
   private async loadInstruments(instrumentNames: string[]): Promise<void> {
     if (!this.audioContext) {
       throw new Error('Audio context not initialized');
-    };
+    }
 
     const loadPromises = instrumentNames.map(async (name) => {
       if (this.instruments[name] || !(name in this.instrumentLibrary)) {
         return;
-      };
+      }
 
       try {
         const soundfontName = this.instrumentLibrary[name];
@@ -165,8 +165,8 @@ export class RealisticAudioEngine {
               // Ensure HTTPS URLs for production compatibility
               const baseUrl = `https://gleitz.github.io/midi-js-soundfonts/${soundfont}`;
               return `${baseUrl}/${name}-${format}.js`;
-            };
-          };
+            }
+          }
         );
         
         this.instruments[name] = instrument;
@@ -182,7 +182,7 @@ export class RealisticAudioEngine {
   async loadAdditionalInstrument(instrumentName: string): Promise<void> {
     if (this.instruments[instrumentName] || !(instrumentName in this.instrumentLibrary) || !this.audioContext) {
       return;
-    };
+    }
 
     try {
       console.log(`Loading additional realistic ${instrumentName} instrument`);
@@ -198,8 +198,8 @@ export class RealisticAudioEngine {
             // Ensure HTTPS URLs for production compatibility
             const baseUrl = `https://gleitz.github.io/midi-js-soundfonts/${soundfont}`;
             return `${baseUrl}/${name}-${format}.js`;
-          };
-        };
+          }
+        }
       );
       
       this.instruments[instrumentName] = instrument;
@@ -262,9 +262,9 @@ export class RealisticAudioEngine {
         realInstrument = 'pads-warm';
       } else {
         realInstrument = 'piano'; // Ultimate fallback
-      };
+      }
       console.log(`🎵 DEBUG: Mapped ${instrument} to ${realInstrument}`);
-    };
+    }
     
     const instrumentSampler = this.instruments[realInstrument];
     if (!instrumentSampler) {
@@ -276,12 +276,12 @@ export class RealisticAudioEngine {
         if (!retrySampler) {
           console.error(`❌ Still failed to load ${realInstrument}`);
           return;
-        };
+        }
       } catch (loadError) {
         console.error(`❌ Failed to load ${realInstrument} on-demand:`, loadError);
         return;
-      };
-    };
+      }
+    }
 
     try {
       const noteWithOctave = `${note}${adjustedOctave}`;
@@ -298,20 +298,20 @@ export class RealisticAudioEngine {
         console.error(`❌ Failed to play realistic ${realInstrument}: ${noteWithOctave} - instrumentSampler.play returned null`);
         // Fallback to synthetic generation for unsupported octaves
         await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
-      };
+      }
     } catch (error) {
       console.error(`❌ Error playing realistic ${realInstrument}:`, error);
       console.log('🎵 DEBUG: Falling back to synthetic generation for unsupported octave');
 
       // Fallback to synthetic generation for extreme octaves
       await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
-    };
-  };
+    }
+  }
 
   async playDrumSound(drumType: string, velocity: number = 0.7): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
-    };
+    }
 
     // Use synthetic drum engine for "realistic" mode since soundfonts are broken
     console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
@@ -319,7 +319,7 @@ export class RealisticAudioEngine {
     if (!this.audioContext) {
       console.error('AudioContext not available for synthetic drums');
       return;
-    };
+    }
 
     const currentTime = this.audioContext.currentTime;
     
@@ -352,7 +352,7 @@ export class RealisticAudioEngine {
           break;
         default:
           console.warn(`🎵 Unknown drum type: ${drumType}`);
-      };
+      }
 
   // Fallback to synthetic audio generation for unsupported octaves
   private async fallbackToSynthetic(note: string, octave: number, duration: number, velocity: number): Promise<void> {
@@ -361,7 +361,7 @@ export class RealisticAudioEngine {
     if (!this.audioContext) {
       console.error('AudioContext not available for synthetic fallback');
       return;
-    };
+    }
 
     try {
       const currentTime = this.audioContext.currentTime;
@@ -389,8 +389,8 @@ export class RealisticAudioEngine {
       console.log(`✅ Synthetic fallback played: ${note}${octave} (${frequency}Hz)`);
     } catch (error) {
       console.error('❌ Synthetic fallback failed:', error);
-    };
-  };
+    }
+  }
 
   // Convert note name and octave to frequency
   private noteToFrequency(note: string, octave: number): number {
@@ -400,17 +400,17 @@ export class RealisticAudioEngine {
     if (noteIndex === -1) {
       console.warn(`Unknown note: ${note}, defaulting to A`);
       return 440; // A4
-    };
+    }
 
     // A4 = 440Hz, MIDI note 69
     const midiNote = (octave + 1) * 12 + noteIndex;
     return 440 * Math.pow(2, (midiNote - 69) / 12);
-  };
+  }
 
   async playDrumSound(drumType: string, velocity: number = 0.7): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
-    };
+    }
 
     // Use synthetic drum engine for "realistic" mode since soundfonts are broken
     console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
@@ -418,7 +418,7 @@ export class RealisticAudioEngine {
     if (!this.audioContext) {
       console.error('AudioContext not available for synthetic drums');
       return;
-    };
+    }
 
     const currentTime = this.audioContext.currentTime;
     
@@ -446,18 +446,18 @@ export class RealisticAudioEngine {
         break;
       default:
         console.warn(`🎵 Unknown drum type: ${drumType}`);
-    };
-  };
+    }
+  }
 
   // Get list of available instruments
   getAvailableInstruments(): string[] {
     return Object.keys(this.instrumentLibrary);
-  };
+  }
 
   // Check if engine is ready
   isReady(): boolean {
     return this.isInitialized && !this.isLoading;
-  };
+  }
   // Professional synthetic drum implementations (to avoid circular imports)
   private playSyntheticKick(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -510,8 +510,8 @@ export class RealisticAudioEngine {
       kickClickOsc.stop(currentTime + 0.015);
     } catch (error) {
       console.error('🎵 Kick drum error:', error);
-    };
-  };
+    }
+  }
 
   private playSyntheticSnare(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -531,7 +531,7 @@ export class RealisticAudioEngine {
       for (let i = 0; i < bufferSize; i++) {
         const envelope = Math.pow(1 - (i / bufferSize), 2);
         data[i] = (Math.random() * 2 - 1) * envelope;
-      };
+      }
 
       snareNoise.buffer = buffer;
 
@@ -567,8 +567,8 @@ export class RealisticAudioEngine {
       snareTone.stop(currentTime + 0.08);
     } catch (error) {
       console.error('🎵 Snare drum error:', error);
-    };
-  };
+    }
+  }
 
   private playSyntheticHihat(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -587,7 +587,7 @@ export class RealisticAudioEngine {
       for (let i = 0; i < bufferSize; i++) {
         const envelope = Math.pow(1 - (i / bufferSize), 4);
         data[i] = (Math.random() * 2 - 1) * envelope;
-      };
+      }
 
       hihatNoise.buffer = buffer;
 
@@ -608,8 +608,8 @@ export class RealisticAudioEngine {
       hihatNoise.start(currentTime);
     } catch (error) {
       console.error('🎵 Hi-hat error:', error);
-    };
-  };
+    }
+  }
 
   private playSyntheticTom(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -644,8 +644,8 @@ export class RealisticAudioEngine {
       tomOsc.stop(currentTime + 0.4);
     } catch (error) {
       console.error('🎵 Tom drum error:', error);
-    };
-  };
+    }
+  }
 
   private playSyntheticOpenHat(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -664,7 +664,7 @@ export class RealisticAudioEngine {
       for (let i = 0; i < bufferSize; i++) {
         const envelope = Math.pow(1 - (i / bufferSize), 2); // Slower decay than closed hat
         data[i] = (Math.random() * 2 - 1) * envelope;
-      };
+      }
 
       openhatNoise.buffer = buffer;
 
@@ -685,8 +685,8 @@ export class RealisticAudioEngine {
       openhatNoise.start(currentTime);
     } catch (error) {
       console.error('🎵 Open hi-hat error:', error);
-    };
-  };
+    }
+  }
 
   private playSyntheticClap(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -707,7 +707,7 @@ export class RealisticAudioEngine {
       for (let i = 0; i < bufferSize; i++) {
         const envelope = i < bufferSize * 0.1 ? 1 : Math.pow(1 - ((i - bufferSize * 0.1) / (bufferSize * 0.9)), 4);
         data[i] = (Math.random() * 2 - 1) * envelope;
-      };
+      }
 
       clapNoise.buffer = buffer;
 
@@ -735,8 +735,8 @@ export class RealisticAudioEngine {
       clapNoise.start(currentTime);
     } catch (error) {
       console.error('🎵 Clap error:', error);
-    };
-  };
+    }
+  }
 
   private playSyntheticCrash(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -756,7 +756,7 @@ export class RealisticAudioEngine {
       for (let i = 0; i < bufferSize; i++) {
         const envelope = Math.pow(1 - (i / bufferSize), 0.3); // Natural crash decay
         data[i] = (Math.random() * 2 - 1) * envelope;
-      };
+      }
 
       crashNoise.buffer = buffer;
 
@@ -779,8 +779,8 @@ export class RealisticAudioEngine {
       crashNoise.start(currentTime);
     } catch (error) {
       console.error('🎵 Crash cymbal error:', error);
-    };
-  };
+    }
+  }
 
   private playSyntheticBassDrum(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
@@ -817,9 +817,9 @@ export class RealisticAudioEngine {
       bassOsc.stop(currentTime + duration);
     } catch (error) {
       console.error('🎵 Bass drum error:', error);
-    };
-  };
-};
+    }
+  }
+}
 
 // Export singleton instance
 export const realisticAudio = new RealisticAudioEngine();
