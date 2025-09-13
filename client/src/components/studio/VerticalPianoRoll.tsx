@@ -854,7 +854,9 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
               </div>
             </div>
           </div>
+        </CardHeader>
 
+        <CardContent className="h-full overflow-hidden">
           <div className="mt-4 flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm">Key:</span>
