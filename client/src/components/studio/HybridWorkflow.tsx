@@ -52,7 +52,7 @@ export default function HybridWorkflow() {
   // AI Generation Mutations
   const generateBeatMutation = useMutation({
     mutationFn: async (data: { style: string; bpm: number; complexity: number }) => {
-      const response = await apiRequest('POST', '/api/beats/generate', data);
+      const response = await apiRequest('POST', '/api/beat/generate', data);
       return await response.json();
     },
     onSuccess: (beat) => {
