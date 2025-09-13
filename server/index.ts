@@ -3,6 +3,7 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
+import { setupSnakeWS } from "./services/snake-ws";
 import { currentUser } from "./middleware/auth";
 
 const app = express();
@@ -26,6 +27,21 @@ app.use(
 // Standard body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Domain-based landing redirect: make snake.codedswitch.com land on /snake-io
+app.use((req, res, next) => {
+  try {
+    const host = (req.headers.host || '').toLowerCase();
+    if (
+      req.method === 'GET' &&
+      (req.path === '/' || req.path === '') &&
+      (host.startsWith('snake.') || host === 'snake.localhost')
+    ) {
+      return res.redirect(302, '/snake-io');
+    }
+  } catch {}
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -67,6 +83,8 @@ app.use((req, res, next) => {
   app.use(currentUser(storage));
 
   const server = await registerRoutes(app, storage);
+  // Attach multiplayer WebSocket server (Snake IO)
+  setupSnakeWS(server);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

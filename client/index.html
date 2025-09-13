@@ -19,10 +19,13 @@
       gtag('js', new Date());
       gtag('config', 'G-9RQVP7EW7S');
     </script>
+    <!-- AdSense loader: script injected dynamically via /src/lib/adsense.ts if configured -->
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Inject AdSense script if configured -->
+    <script type="module" src="/src/lib/adsense.ts"></script>
     <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
     <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
   </body>

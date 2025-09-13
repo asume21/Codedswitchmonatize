@@ -353,6 +353,10 @@ export class RealisticAudioEngine {
         default:
           console.warn(`🎵 Unknown drum type: ${drumType}`);
       }
+    } catch (error) {
+      console.error('🎵 Drum sound error:', error);
+    }
+  }
 
   // Fallback to synthetic audio generation for unsupported octaves
   private async fallbackToSynthetic(note: string, octave: number, duration: number, velocity: number): Promise<void> {

@@ -21,6 +21,11 @@ export function Navigation() {
               <span className="text-xl font-bold">CodedSwitch</span>
             </div>
           </Link>
+          <Link href="/snake-io">
+            <span className="px-3 py-1 text-sm rounded bg-gray-800 hover:bg-gray-700 border border-gray-700 cursor-pointer">
+              Snake IO
+            </span>
+          </Link>
         </div>
 
         <div className="flex items-center space-x-4">
