@@ -713,7 +713,8 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
               </div>
             </div>
           </div>
-          <div className="flex h-full">
+
+          <CardContent className="h-full overflow-hidden">
             {/* Combined Piano Keys and Grid - Perfect Alignment */}
             <div className="flex-1 overflow-auto">
               <div className="relative bg-gray-900">
@@ -1028,4 +1029,3 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
       </Card>
     </div>
   );
-}
