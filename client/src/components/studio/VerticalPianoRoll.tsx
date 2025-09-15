@@ -857,6 +857,145 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
         </CardHeader>
 
         <CardContent className="h-full overflow-hidden">
+          {/* Combined Piano Keys and Grid - Perfect Alignment */}
+          <div className="flex-1 overflow-auto">
+            <div className="relative bg-gray-900">
+              {/* Step Headers */}
+              <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10">
+                <div className="w-28"></div> {/* Space for piano keys */}
+                {Array.from({ length: STEPS }, (_, step) => (
+                  <div
+                    key={step}
+                    className={`flex items-center justify-center text-xs font-mono border-r border-gray-600
+                      ${currentStep === step ? 'bg-red-600 text-white' : 'text-gray-400'}
+                      ${step % 4 === 0 ? 'bg-gray-700' : ''}
+                    `}
+                    style={{
+                      width: `${STEP_WIDTH * zoom}px`,
+                      height: '30px'
+                    }}
+                  >
+                    {step + 1}
+                  </div>
+                ))}
+              </div>
+
+              {/* Unified Piano Keys and Grid Rows */}
+              <div className="relative pt-8">
+                {PIANO_KEYS.map((key, keyIndex) => (
+                  <div key={key.key} className="flex border-b border-gray-700">
+                    {/* Piano Key - Part of same unified row */}
+                    <div className="w-28 flex-shrink-0">
+                      <button
+                        className={`w-full text-xs font-mono border-b border-gray-600 hover:bg-gray-600 transition-colors
+                          ${key.isBlack
+                            ? 'bg-gray-900 text-gray-300 border-l-4 border-l-gray-700'
+                            : 'bg-gray-700 text-white'
+                          }
+                          ${chordMode ? 'ring-2 ring-purple-500 ring-opacity-50' : ''}
+                          ${highlightedRow === keyIndex ? 'ring-2 ring-yellow-400 ring-opacity-80' : ''}
+                        `}
+                        style={{ height: `${KEY_HEIGHT}px` }}
+                        onClick={() => {
+                          try {
+                            setHighlightedRow(keyIndex);
+
+                            if (chordMode) {
+                              console.log('🎵 Chord Mode: Trying to play chord for key:', key.note, key.octave);
+                              console.log('🎵 Current key:', currentKey);
+                              console.log('🎵 Current chord index:', currentChordIndex);
+                              console.log('🎵 Selected progression:', selectedProgression);
+
+                              const currentChord = selectedProgression.chords[currentChordIndex];
+                              console.log('🎵 Current chord symbol:', currentChord);
+
+                              const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+                              console.log('🎵 Key data found:', !!keyData);
+
+                              if (keyData && keyData.chords) {
+                                const chordNotes = keyData.chords[currentChord as keyof typeof keyData.chords];
+                                console.log('🎵 Chord notes found:', chordNotes);
+
+                                if (chordNotes && Array.isArray(chordNotes)) {
+                                  playChord(chordNotes, key.octave);
+                                  console.log('🎵 Successfully played chord:', chordNotes);
+                                } else {
+                                  console.error('🎵 Chord notes not found or not array:', chordNotes);
+                                }
+                              } else {
+                                console.error('🎵 Key data or chords not found for key:', currentKey);
+                              }
+
+                              setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
+                            } else {
+                              console.log('🎵 Single note mode: Playing', key.note, key.octave, 'with instrument:', tracks[selectedTrack]?.instrument);
+                              realisticAudio.playNote(key.note, key.octave, 0.8, tracks[selectedTrack]?.instrument || 'piano', 0.8);
+                            }
+                          } catch (error) {
+                            console.error('❌ Audio playback error:', error);
+                            if (error instanceof Error) {
+                              console.error('Error name:', error.name);
+                              console.error('Error message:', error.message);
+                              console.error('Error stack:', error.stack);
+                            }
+                          }
+                        }}
+                      >
+                        {key.key}
+                      </button>
+                    </div>
+
+                    {/* Grid Row - Same unified row, perfect alignment */}
+                    <div className="flex">
+                      {Array.from({ length: STEPS }, (_, step) => {
+                        const hasNote = tracks[selectedTrack]?.notes.some(
+                          note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
+                        );
+                        const note = tracks[selectedTrack]?.notes.find(
+                          note => note.note === key.note && note.octave === key.octave && Math.floor(note.step) === step
+                        );
+
+                        return (
+                          <div
+                            key={step}
+                            className={`border-r border-gray-700 cursor-pointer transition-colors relative hover:bg-gray-600
+                              ${hasNote
+                                ? 'bg-blue-500 hover:bg-blue-400'
+                                : 'hover:bg-gray-700'
+                              }
+                              ${step % 4 === 0 ? 'border-r-gray-500' : ''}
+                              ${currentStep === step ? 'bg-red-900 bg-opacity-50' : ''}
+                              ${highlightedRow === keyIndex ? 'ring-1 ring-yellow-300 ring-opacity-50' : ''}
+                            `}
+                            style={{
+                              width: `${STEP_WIDTH * zoom}px`,
+                              height: `${KEY_HEIGHT}px`
+                            }}
+                            onClick={() => {
+                              if (hasNote && note) {
+                                removeNote(note.id);
+                              } else if (chordMode) {
+                                addChordToGrid(step);
+                              } else {
+                                addNote(keyIndex, step);
+                              }
+                            }}
+                          >
+                            {hasNote && (
+                              <div className="absolute inset-0 bg-blue-500 rounded-sm m-0.5 flex items-center justify-center">
+                                <div className="w-1 h-1 bg-white rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="mt-4 flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm">Key:</span>
@@ -866,12 +1005,12 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                   try {
                     const newKey = e.target.value;
                     console.log('🎵 Key dropdown: Changing key from', currentKey, 'to', newKey);
-                    
+
                     if (!DEFAULT_customKeys[newKey as keyof typeof DEFAULT_customKeys]) {
                       console.error('❌ Key not found in DEFAULT_customKeys:', newKey);
                       return;
                     }
-                    
+
                     setCurrentKey(newKey);
                     console.log('✅ Key changed successfully to:', newKey);
                   } catch (error) {
@@ -896,7 +1035,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                 })}
               </select>
             </div>
-            
+
             {/* Circle of Fifths */}
             <div className="mb-3">
               <span className="text-xs text-gray-400 mb-2 block">Circle of Fifths:</span>
@@ -929,7 +1068,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                   try {
                     console.log('🎵 Rendering chord progression:', chord, 'for key:', currentKey);
                     const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
-                    
+
                     if (!keyData) {
                       console.error('❌ Key data not found for key:', currentKey);
                       return (
@@ -939,7 +1078,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                         </button>
                       );
                     }
-                    
+
                     if (!keyData.chords) {
                       console.error('❌ Chords not found for key:', currentKey);
                       return (
@@ -949,10 +1088,10 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                         </button>
                       );
                     }
-                    
+
                     const chordNotes = keyData.chords[chord as keyof typeof keyData.chords];
                     console.log('🎵 Chord notes for', chord, ':', chordNotes);
-                    
+
                     if (!chordNotes || !Array.isArray(chordNotes)) {
                       console.error('❌ Invalid chord notes for', chord, ':', chordNotes);
                       return (
@@ -962,7 +1101,7 @@ export default function VerticalPianoRoll(props: VerticalPianoRollProps = {}) {
                         </button>
                       );
                     }
-                    
+
                     return (
                       <button
                         key={index}

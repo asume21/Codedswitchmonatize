@@ -30,6 +30,7 @@ import HybridWorkflow from "@/components/studio/HybridWorkflow";
 import LyricLab from "@/components/studio/LyricLab";
 import Header from "@/components/studio/Header";
 import TestPianoRoll from "@/pages/test-piano-roll";
+import SnakeIOPage from "@/pages/snake-io";
 
 function Router() {
   // Track page views when routes change
@@ -60,6 +61,7 @@ function Router() {
       <Route path="/song-structure" component={Studio} />
       <Route path="/social-hub" component={SocialHub} />
       <Route path="/test-piano-roll" component={TestPianoRoll} />
+      <Route path="/snake-io" component={SnakeIOPage} />
       <Route path="/profile" component={UserProfile} />
       <Route path="/user-profile" component={UserProfile} />
       <Route path="/hybrid-workflow" component={HybridWorkflow} />

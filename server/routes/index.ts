@@ -9,6 +9,9 @@ import { generateLyrics } from "../services/grok";
 import { generateMelody } from "../services/grok";
 import { generateSongStructureWithAI } from "../services/ai-structure-grok";
 
+// In-memory Snake leaderboard (replace with DB for production)
+const snakeScores: { name: string; score: number; ts: number }[] = [];
+
 export async function registerRoutes(app: Express, storage: IStorage) {
   // Register existing billing routes
   app.use("/api/billing", billingRoutes(storage));
@@ -278,6 +281,34 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         error: "Failed to save beat",
         message: error instanceof Error ? error.message : "Unknown error"
       });
+    }
+  });
+
+  // Snake IO endpoints (simple, in-memory)
+  app.get("/api/snake/leaderboard", async (req, res) => {
+    try {
+      const top = [...snakeScores]
+        .sort((a, b) => (b.score - a.score) || (a.ts - b.ts))
+        .slice(0, 20)
+        .map(({ name, score }) => ({ name, score }));
+      res.json({ top });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to load leaderboard" });
+    }
+  });
+
+  app.post("/api/snake/score", async (req, res) => {
+    try {
+      const { name, score } = req.body || {};
+      const cleanName = String(name ?? "Guest").slice(0, 24).replace(/[^\w \-\.]/g, "").trim() || "Guest";
+      const s = Number(score);
+      if (!Number.isFinite(s) || s < 0 || s > 1000000) {
+        return res.status(400).json({ error: "Invalid score" });
+      }
+      snakeScores.push({ name: cleanName, score: Math.floor(s), ts: Date.now() });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to submit score" });
     }
   });
 

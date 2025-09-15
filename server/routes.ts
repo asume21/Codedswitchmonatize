@@ -151,6 +151,96 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     name: z.string().optional(),
   });
 
+  // Beat generation endpoint
+  app.post("/api/beats/generate", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { genre, bpm, duration } = req.body;
+      
+      // Validate required fields
+      if (!genre || bpm === undefined || duration === undefined) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Genre, BPM, and duration are required" 
+        });
+      }
+
+      // Generate a simple beat pattern based on genre and BPM
+      const beatPattern = {
+        kick: generatePattern("kick", genre, bpm),
+        snare: generatePattern("snare", genre, bpm),
+        hihat: generatePattern("hihat", genre, bpm),
+        percussion: generatePattern("percussion", genre, bpm)
+      };
+
+      // Return the beat pattern without audio for now
+      res.json({
+        success: true,
+        beat: {
+          id: `beat-${Date.now()}`,
+          pattern: beatPattern,
+          bpm: Number(bpm),
+          genre: String(genre),
+          duration: Number(duration),
+          audioUrl: null, // Audio generation will be added in a future update
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error: any) {
+      console.error("Beat generation error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Failed to generate beat pattern"
+      });
+    }
+  });
+
+  // Helper function to generate drum patterns
+  function generatePattern(instrument: string, genre: string, bpm: number) {
+    // Simple pattern generation based on genre and BPM
+    const patterns: Record<string, Record<string, number[]>> = {
+      "hip-hop": {
+        kick: [1, 0, 0, 0, 1, 0, 0, 0],
+        snare: [0, 0, 1, 0, 0, 0, 1, 0],
+        hihat: [1, 1, 1, 1, 1, 1, 1, 1],
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      "house": {
+        kick: [1, 0, 0, 0, 1, 0, 0, 0],
+        snare: [0, 0, 1, 0, 0, 0, 1, 0],
+        hihat: [0, 1, 0, 1, 0, 1, 0, 1],
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      "trap": {
+        kick: [1, 0, 0, 1, 0, 1, 0, 0],
+        snare: [0, 0, 1, 0, 0, 0, 1, 0],
+        hihat: [1, 1, 1, 1, 1, 1, 1, 1],
+        percussion: [0, 0, 1, 0, 0, 1, 0, 0]
+      },
+      "dnb": {
+        kick: [1, 0, 0, 0, 1, 0, 0, 0],
+        snare: [0, 0, 1, 0, 0, 0, 1, 0],
+        hihat: [1, 1, 1, 1, 1, 1, 1, 1],
+        percussion: [0, 1, 0, 1, 0, 1, 0, 1]
+      },
+      "techno": {
+        kick: [1, 0, 0, 0, 1, 0, 0, 0],
+        snare: [0, 0, 1, 0, 0, 0, 1, 0],
+        hihat: [0, 1, 0, 1, 0, 1, 0, 1],
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      "ambient": {
+        kick: [1, 0, 0, 0, 0, 0, 0, 0],
+        snare: [0, 0, 0, 0, 1, 0, 0, 0],
+        hihat: [0, 0, 1, 0, 0, 0, 1, 0],
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
+      }
+    };
+
+    // Default to house pattern if genre not found
+    const genrePatterns = patterns[genre.toLowerCase()] || patterns["house"];
+    return genrePatterns[instrument] || [];
+  }
+
   // Health check endpoint
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
