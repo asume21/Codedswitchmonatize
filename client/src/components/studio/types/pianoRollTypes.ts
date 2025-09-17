@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 // Types for Note, Track, and related interfaces
 export interface Note {
   id: string;
@@ -285,3 +287,71 @@ export const CIRCLE_OF_FIFTHS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#',
 export const STEPS = 32;
 export const KEY_HEIGHT = 20;
 export const STEP_WIDTH = 25;
+
+// ----------------------------
+// Helpers
+// ----------------------------
+
+/**
+ * Convert note + octave to pitch string (e.g., "C#4")
+ */
+export function toPitch(note: string, octave: number): string {
+  return `${note}${octave}`;
+}
+
+/**
+ * Convert pitch string to { note, octave } object
+ */
+export function fromPitch(pitch: string): { note: string; octave: number } {
+  const match = pitch.match(/^([A-G][b#]?)(\d+)$/);
+  if (!match) throw new Error(`Invalid pitch: ${pitch}`);
+  return { note: match[1], octave: parseInt(match[2], 10) };
+}
+
+/**
+ * Convert beats to steps (16th notes)
+ */
+export function beatsToSteps(beats: number): number {
+  return Math.round(beats * 4); // 4 steps per beat (16th notes)
+}
+
+/**
+ * Convert steps to beats
+ */
+export function stepsToBeats(steps: number): number {
+  return steps / 4;
+}
+
+/**
+ * Convert bars to steps
+ */
+export function barsToSteps(bars: number): number {
+  return bars * STEPS; // STEPS = 32 per 2 bars
+}
+
+/**
+ * Create a new Note object
+ */
+export function makeNote(
+  pitch: string,
+  startBeats: number,
+  durationBeats: number,
+  velocity: number = 100
+): Note {
+  const { note, octave } = fromPitch(pitch);
+  return {
+    id: uuidv4(),
+    note,
+    octave,
+    step: beatsToSteps(startBeats),
+    velocity,
+    length: beatsToSteps(durationBeats),
+  };
+}
+
+/**
+ * Generate AI clip/region name
+ */
+export function makeClipName(type: "Melody" | "Beat" | "Bass" | "Lyrics", seed: number): string {
+  return `AI ${type} v1 (seed ${seed})`;
+}

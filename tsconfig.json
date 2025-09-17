@@ -12,20 +12,32 @@
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
     "noEmit": true,
     "module": "ESNext",
-    "target": "ES2015",
+    "target": "ES2020",
     "strict": true,
-    "lib": ["esnext", "dom", "dom.iterable"],
+    "lib": ["es2020", "dom", "dom.iterable"],
     "jsx": "preserve",
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "allowImportingTsExtensions": true,
+    "skipLibCheck": false,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmitOnError": false,
     "downlevelIteration": true,
     "baseUrl": ".",
     "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./shared/*"]
-    }
+    },
+    "typeRoots": [
+      "./node_modules/@types",
+      "./types"
+    ]
+  },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
   }
 }
