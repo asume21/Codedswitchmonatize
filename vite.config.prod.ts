@@ -5,19 +5,16 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Explicitly resolve the Babel plugin path
+const babelPluginPath = path.resolve(__dirname, 'node_modules', '@babel', 'plugin-transform-react-jsx');
+
 export default defineConfig({
   plugins: [
     react({
       jsxRuntime: 'automatic',
       babel: {
-        presets: [
-          ['@babel/preset-env', { targets: { node: 'current' } }],
-          ['@babel/preset-react', { runtime: 'automatic' }],
-          '@babel/preset-typescript'
-        ],
         plugins: [
-          ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }],
-          '@babel/plugin-transform-runtime'
+          [babelPluginPath, { runtime: 'automatic' }]
         ]
       }
     }),
@@ -26,54 +23,15 @@ export default defineConfig({
     alias: [
       {
         find: "@",
-        replacement: path.resolve(__dirname, "client/src")
+        replacement: path.resolve(__dirname, "./src"),
       },
-      {
-        find: "@shared",
-        replacement: path.resolve(__dirname, "shared")
-      }
-    ]
-  },
-  root: "./client",
-  build: {
-    outDir: "../dist/client",
-    emptyOutDir: true,
-    sourcemap: true, // Enable sourcemaps for debugging
-    minify: 'esbuild',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          vendor: ['@tanstack/react-query', 'wouter'],
-        },
-      },
-    },
-    commonjsOptions: {
-      transformMixedEsModules: true,
-    },
-  },
-  server: {
-    host: "0.0.0.0",
-    port: 5173,
-    strictPort: true,
-  },
-  define: {
-    'process.env': {},
-    global: 'globalThis',
-  },
-  optimizeDeps: {
-    esbuildOptions: {
-      target: 'es2020',
-    },
-    include: [
-      'react',
-      'react-dom',
-      '@tanstack/react-query',
-      'wouter',
-      'react/jsx-runtime',
     ],
   },
-  esbuild: {
-    logOverride: { 'this-is-undefined-in-esm': 'silent' },
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
   },
+  optimizeDeps: {
+    include: ['@babel/plugin-transform-react-jsx']
+  }
 });
