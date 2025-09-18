@@ -420,6 +420,18 @@ export class RealisticAudioEngine {
   isReady(): boolean {
     return this.isInitialized && !this.isLoading;
   }
+
+  // Stop all playing sounds
+  stopAllSounds() {
+    if (this.audioContext) {
+      this.audioContext.close().then(() => {
+        this.audioContext = null;
+        this.isInitialized = false;
+        this.instruments = {};
+      });
+    }
+  }
+
   // Professional synthetic drum implementations (to avoid circular imports)
   private playSyntheticKick(currentTime: number, velocity: number): void {
     if (!this.audioContext) return;
