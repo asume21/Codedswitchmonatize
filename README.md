@@ -232,4 +232,5 @@ For support, feature requests, or questions:
 
 ---
 
-**CodedSwitch Studio** - Where code meets creativity 🎵✨
+**CodedSwitch Studio** - Where code meets creativity 🎵✨ 
+ 
