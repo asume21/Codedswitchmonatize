@@ -9,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const babelPluginPath = path.resolve(__dirname, 'node_modules', '@babel', 'plugin-transform-react-jsx');
 
 export default defineConfig({
+  root: path.resolve(__dirname, 'client'),
   plugins: [
     react({
       jsxRuntime: 'automatic',
