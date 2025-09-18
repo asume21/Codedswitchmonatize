@@ -10,6 +10,11 @@ export default defineConfig({
     react({
       jsxRuntime: 'automatic',
       babel: {
+        presets: [
+          ['@babel/preset-env', { targets: { node: 'current' } }],
+          ['@babel/preset-react', { runtime: 'automatic' }],
+          '@babel/preset-typescript'
+        ],
         plugins: [
           ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }],
           '@babel/plugin-transform-runtime'
