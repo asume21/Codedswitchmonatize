@@ -5,21 +5,9 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Explicitly resolve the Babel plugin path
-const babelPluginPath = path.resolve(__dirname, 'node_modules', '@babel', 'plugin-transform-react-jsx');
-
 export default defineConfig({
   root: path.resolve(__dirname, 'client'),
-  plugins: [
-    react({
-      jsxRuntime: 'automatic',
-      babel: {
-        plugins: [
-          [babelPluginPath, { runtime: 'automatic' }]
-        ]
-      }
-    }),
-  ],
+  plugins: [react()],
   resolve: {
     alias: [
       {
@@ -32,7 +20,4 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
-  optimizeDeps: {
-    include: ['@babel/plugin-transform-react-jsx']
-  }
 });
