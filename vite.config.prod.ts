@@ -5,24 +5,17 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Custom plugin to explicitly load Babel plugin
-const babelPlugin = () => ({
-  name: 'babel-plugin-loader',
-  async transform(code, id) {
-    if (id.includes('@babel/plugin-transform-react-jsx')) {
-      const pluginPath = path.resolve(__dirname, 'node_modules', '@babel', 'plugin-transform-react-jsx');
-      return require(pluginPath);
-    }
-    return null;
-  }
-});
-
 export default defineConfig({
   root: path.resolve(__dirname, 'client'),
   plugins: [
     react({
       jsxRuntime: 'automatic',
       babel: {
+        presets: [
+          ["@babel/preset-react", { runtime: 'automatic' }],
+          ["@babel/preset-env", { targets: { node: 'current' } }],
+          "@babel/preset-typescript"
+        ],
         plugins: [
           ["@babel/plugin-transform-react-jsx", { runtime: 'automatic' }]
         ]
