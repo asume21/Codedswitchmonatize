@@ -137,7 +137,7 @@
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@types/wouter": "^2.0.1",
-    "date-fns": "^4.1.0",
+    "date-fns": "3.6.0",
     "lucide-react": "^0.544.0"
   }
 }
