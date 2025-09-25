@@ -11,19 +11,12 @@ import { Label } from '@/components/ui/label';
 import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
 import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
-import { realisticAudio } from '@/lib/realisticAudio';
+import { audioEngine } from '@/CodedswitchSvelte/codedswitch-clean/src/lib/audio/RealisticAudioEngine';
 import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-interface Note {
-  id: string;
-  pitch: number;
-  start: number;
-  duration: number;
-  velocity: number;
-  trackId: string;
-}
+import type { Note } from './types/pianoRollTypes';
 
 interface Track {
   id: string;
@@ -35,15 +28,6 @@ interface Track {
   solo: boolean;
 }
 
-interface Toast {
-  title: string;
-  description: string;
-}
-
-const toast = ({ title, description }: Toast) => {
-  console.log(`🎵 ${title}: ${description}`);
-};
-
 function MelodyComposer() {
   // Core state
   const [notes, setNotes] = useState<Note[]>([]);
@@ -53,11 +37,10 @@ function MelodyComposer() {
   const [scale, setScale] = useState('C Major');
   const [key, setKey] = useState('C');
   const [currentBeat, setCurrentBeat] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(80);
+  const [masterVolume, setMasterVolume] = useState(80); // Renamed for clarity
   const [activeTab, setActiveTab] = useState('piano-roll');
   const { toast } = useToast();
-  const playheadRef = useRef<HTMLDivElement>(null);
+  const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Multi-track system
   const [tracks, setTracks] = useState<Track[]>([
@@ -69,7 +52,7 @@ function MelodyComposer() {
 
   // Initialize audio engine
   useEffect(() => {
-    realisticAudio.initialize().then(() => {
+    audioEngine.initialize().then(() => {
       toast({ title: "Audio Engine Ready", description: "Multi-track system initialized" });
     }).catch(error => {
       console.error('Audio initialization failed:', error);
@@ -78,17 +61,27 @@ function MelodyComposer() {
   }, []);
 
   // Audio functions
-  const playNote = async (note: string, octave: number = 4, duration: number = 0.5, instrument: string = 'piano') => {
+  const playNote = async (
+    note: string,
+    octave: number = 4,
+    duration: number | string = 0.5,
+    instrument: string = 'piano'
+  ) => {
     try {
-      await realisticAudio.playNote(note, octave, duration, instrument, 0.8);
+      const toneNote = `${note}${octave}`;
+      const toneDuration = typeof duration === 'number' ? `${duration}s` : duration;
+      await audioEngine.playNote(toneNote, toneDuration, instrument, 0.8);
     } catch (error) {
       console.error('Error playing note:', error);
     }
   };
 
-  const playDrum = async (drumType: string, velocity: number = 0.8) => {
+  const playDrum = async (
+    drumType: Parameters<typeof audioEngine.playDrum>[0],
+    velocity: number = 0.8
+  ) => {
     try {
-      await realisticAudio.playDrumSound(drumType, velocity);
+      await audioEngine.playDrum(drumType, velocity);
     } catch (error) {
       console.error('Error playing drum:', error);
     }
@@ -110,7 +103,7 @@ function MelodyComposer() {
   const togglePlayback = async () => {
     if (!isPlaying) {
       try {
-        await realisticAudio.resumeContext();
+        await audioEngine.resumeContext();
         setIsPlaying(true);
         startPlayback();
         toast({ title: "Playback Started", description: "Multi-track sequencer playing" });
@@ -125,34 +118,62 @@ function MelodyComposer() {
   };
 
   const startPlayback = () => {
-    // Implementation for playback with timing
-    // This would handle the sequencer timing and note triggering
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+    }
+
+    const stepDuration = 60000 / tempo / 4; // 16th notes
+
+    playbackIntervalRef.current = setInterval(() => {
+      setCurrentBeat(beat => {
+        const nextBeat = (beat + 1) % (4 * 4); // 4 bars of 16th notes
+        tracks.forEach(track => {
+          if (!track.muted) {
+            const notesForStep = notes.filter(note => note.step === nextBeat);
+            notesForStep.forEach(note => {
+              const durationInSeconds = (60 / tempo) * (note.length / 4);
+              playNote(note.note, note.octave, durationInSeconds, track.instrument);
+            });
+          }
+        });
+        return nextBeat;
+      });
+    }, stepDuration);
   };
 
   const stopPlayback = () => {
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
+    }
     setIsPlaying(false);
     setCurrentBeat(0);
-    realisticAudio.stopAllSounds();
+    audioEngine.stopPlayback();
     toast({ title: "Playback Stopped", description: "All sounds stopped" });
   };
 
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
-    setVolume(newVolume);
-    // Update the volume for the selected track
-    updateTrack(selectedTrack, { volume: newVolume });
+    setMasterVolume(newVolume);
+    audioEngine.setMasterVolume(newVolume / 100);
   };
 
   const toggleMute = () => {
-    const newMuteState = !isMuted;
-    setIsMuted(newMuteState);
-    // Mute all tracks
-    tracks.forEach(track => {
-      updateTrack(track.id, { muted: newMuteState });
-    });
+    const isAnyTrackMuted = tracks.some(track => track.muted);
+    const newMuteState = !isAnyTrackMuted;
+    setTracks(tracks.map(track => ({ ...track, muted: newMuteState })));
     toast({
-      title: newMuteState ? "Audio Muted" : "Audio Unmuted",
-      description: newMuteState ? "All tracks are muted" : "Sound is enabled"
+      title: newMuteState ? "Muted All" : "Unmuted All",
+      description: newMuteState ? "All tracks are muted" : "All tracks are unmuted"
     });
   };
 
@@ -186,21 +207,21 @@ function MelodyComposer() {
 
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 w-40">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleMute}
-              className="h-8 w-8"
-            >
-              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </Button>
-            <Slider
-              value={[volume]}
-              onValueChange={handleVolumeChange}
-              max={100}
-              step={1}
-              className="flex-1"
-            />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleMute}
+                className="h-8 w-8"
+              >
+                {tracks.some(t => t.muted) ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </Button>
+              <Slider
+                value={[masterVolume]}
+                onValueChange={handleVolumeChange}
+                max={100}
+                step={1}
+                className="flex-1"
+              />
           </div>
           
           <div className="flex items-center space-x-2">
@@ -325,7 +346,7 @@ function MelodyComposer() {
                         onNotesChange={setNotes}
                         selectedTrack={selectedTrack}
                         isPlaying={isPlaying}
-                        currentBeat={currentBeat}
+                        onPlayNote={playNote}
                       />
                     </div>
                   </div>
@@ -336,106 +357,15 @@ function MelodyComposer() {
                     <StepSequencerPlugin
                       tracks={tracks}
                       selectedTrack={selectedTrack}
-                      onTrackSelect={setSelectedTrack}
                       isPlaying={isPlaying}
+                      onPlayDrum={playDrum}
+                      onPlayNote={playNote}
                     />
                   </div>
                 </TabsContent>
               </div>
             </Tabs>
           </div>
-        </div>
-      </div>
-
-        {/* Compact Controls */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div>
-            <label className="text-xs font-medium block mb-1">Scale</label>
-            <Select value={scale} onValueChange={setScale}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="C Major">C Major</SelectItem>
-                <SelectItem value="G Major">G Major</SelectItem>
-                <SelectItem value="D Major">D Major</SelectItem>
-                <SelectItem value="A Major">A Major</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium block mb-1">Tempo: {tempo}</label>
-            <input
-              type="range"
-              min="60"
-              max="200"
-              value={tempo}
-              onChange={(e) => setTempo(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded cursor-pointer"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-medium block mb-1">Key</label>
-            <Select value={key} onValueChange={setKey}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="C">C</SelectItem>
-                <SelectItem value="D">D</SelectItem>
-                <SelectItem value="E">E</SelectItem>
-                <SelectItem value="F">F</SelectItem>
-                <SelectItem value="G">G</SelectItem>
-                <SelectItem value="A">A</SelectItem>
-                <SelectItem value="B">B</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex space-x-1">
-            <Button
-              onClick={togglePlayback}
-              size="sm"
-              className={isPlaying ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-            >
-              {isPlaying ? '⏸️' : '▶️'}
-            </Button>
-            <Button
-              onClick={stopPlayback}
-              size="sm"
-              variant="outline"
-            >
-              ⏹️
-            </Button>
-          </div>
-        </div>
-
-        {/* Compact Plugins */}
-        <TrackControlsPlugin
-          tracks={tracks}
-          onTrackUpdate={updateTrack}
-          selectedTrack={selectedTrack}
-          onTrackSelect={setSelectedTrack}
-        />
-
-        <PianoRollPlugin
-          notes={notes}
-          onNotesChange={setNotes}
-          selectedTrack={selectedTrack}
-          isPlaying={isPlaying}
-          onPlayNote={playNote}
-        />
-
-        <StepSequencerPlugin
-          tracks={tracks}
-          selectedTrack={selectedTrack}
-          isPlaying={isPlaying}
-          onPlayDrum={playDrum}
-          onPlayNote={playNote}
-        />
-
         </div>
       </div>
     </div>

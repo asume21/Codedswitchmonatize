@@ -1,0 +1,25 @@
+{
+  "name": "codedswitch-clean",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.0",
+    "@tsconfig/svelte": "^5.0.5",
+    "svelte": "^5.38.10",
+    "svelte-check": "^4.3.1",
+    "typescript": "~5.8.3",
+    "vite": "^7.1.6"
+  },
+  "dependencies": {
+    "@sveltejs/adapter-auto": "^6.1.0",
+    "@sveltejs/kit": "^2.42.1",
+    "tone": "^15.1.22"
+  }
+}

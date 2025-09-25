@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import * as Tone from "tone";
 import { audioEngine, InstrumentName } from "../lib/audioEngine";
-import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 
 type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
@@ -57,12 +56,10 @@ function getNoteFrequency(note: string, octave: number = 4): number {
 
 interface UseAudioReturn {
   playNote: (note: string | number, octave?: number, duration?: number, instrument?: string, velocity?: number, sustainEnabled?: boolean) => void;
-  playDrumSound: (type: string, volume?: number) => void;
+  playDrum: (type: DrumType, volume?: number) => void;
   setMasterVolume: (volume: number) => void;
   isInitialized: boolean;
   initialize: () => Promise<void>;
-  useRealisticSounds: boolean;
-  toggleRealisticSounds: () => void;
   isIOSDevice: boolean;
   needsIOSAudioEnable: boolean;
   enableIOSAudio: () => Promise<void>;
@@ -79,75 +76,39 @@ interface SequenceStep {
 type PatternType = SequenceStep[] | Record<string, boolean[]>;
 
 export function useSequencer() {
-  const { playDrumSound } = useAudio();
+  const { playDrum } = useAudio();
   const sequenceTimeouts = useRef<NodeJS.Timeout[]>([]);
-  const isSequencePlaying = useRef(false);
-  
+  const isPlayingRef = useRef(false);
+
   const playPattern = useCallback((pattern: PatternType, bpm: number = 120) => {
-    // Clear any existing timeouts
-    sequenceTimeouts.current.forEach(timeout => clearTimeout(timeout));
-    sequenceTimeouts.current = [];
-    
-    if (Array.isArray(pattern)) {
-      // Array format - use Tone.js Transport
-      const events = pattern.map((step: SequenceStep, index: number) => ({
-        time: index * (60 / (bpm * 4)), // Convert to seconds
-        note: step.sound || 'kick',
-        velocity: step.velocity || 0.7,
-        duration: '16n'
-      }));
-      
-      // Clear any existing patterns
-      Tone.Transport.cancel();
-      
-      // Schedule new pattern
-      events.forEach(event => {
-        Tone.Transport.scheduleOnce((time: number) => {
-          if (isSequencePlaying.current) {
-            playDrumSound(event.note, event.velocity);
+    stopPattern(); // Stop any existing pattern
+    isPlayingRef.current = true;
+
+    const stepDuration = 60000 / (bpm * 4); // 16th note duration in ms
+    const totalSteps = 16;
+
+    for (let step = 0; step < totalSteps; step++) {
+      const timeout = setTimeout(() => {
+        if (!isPlayingRef.current) return;
+
+        Object.entries(pattern).forEach(([trackName, steps]) => {
+          if (Array.isArray(steps) && steps[step]) {
+            playDrum(trackName as DrumType, 0.7);
           }
-        }, event.time);
-      });
-      
-      // Start transport if not already running
-      if (Tone.Transport.state !== 'started') {
-        Tone.Transport.start();
-      }
-      
-      isSequencePlaying.current = true;
-    } else if (pattern && typeof pattern === 'object') {
-      // Object format with tracks (kick, snare, etc.)
-      const stepDuration = 60000 / (bpm * 4); // 16th note duration in ms
-      const totalSteps = 16; // Standard 16-step pattern
-      
-      for (let step = 0; step < totalSteps; step++) {
-        const timeout = setTimeout(() => {
-          if (!isSequencePlaying.current) return;
-          
-          // Play all active tracks for this step
-          Object.entries(pattern).forEach(([trackName, steps]: [string, boolean[]]) => {
-            if (Array.isArray(steps) && steps[step]) {
-              playDrumSound(trackName, 0.7);
-            }
-          });
-        }, step * stepDuration);
-        
-        sequenceTimeouts.current.push(timeout);
-      }
+        });
+
+      }, step * stepDuration);
+      sequenceTimeouts.current.push(timeout);
     }
-  }, [playDrumSound]);
-  
+  }, [playDrum]);
+
   const stopPattern = useCallback(() => {
-    isSequencePlaying.current = false;
-    sequenceTimeouts.current.forEach(timeout => clearTimeout(timeout));
+    isPlayingRef.current = false;
+    sequenceTimeouts.current.forEach(clearTimeout);
     sequenceTimeouts.current = [];
-    
-    // Stop Tone.js transport
-    Tone.Transport.stop();
-    Tone.Transport.cancel();
   }, []);
-  
-  const isPlaying = useCallback(() => isSequencePlaying.current, []);
+
+  const isPlaying = useCallback(() => isPlayingRef.current, []);
   
   // Clean up on unmount
   useEffect(() => {
@@ -223,21 +184,13 @@ export function useMelodyPlayer() {
 
 export function useAudio(): UseAudioReturn {
   const [isInitialized, setIsInitialized] = useState(globalAudioInitialized);
-  const [useRealisticSounds, setUseRealisticSounds] = useState(true);
   const { toast } = useToast();
 
   const initialize = useCallback(async () => {
     if (globalAudioInitialized) return;
 
     try {
-      // Initialize both audio engines
       await audioEngine.initialize();
-      await realisticAudio.initialize();
-      
-      // Make synthetic engine globally available for realistic mode fallback
-      if (typeof window !== 'undefined') {
-        (window as any).syntheticAudioEngine = audioEngine;
-      }
       
       globalAudioInitialized = true;
       setIsInitialized(true);
@@ -290,42 +243,24 @@ export function useAudio(): UseAudioReturn {
         noteString = note;
       }
 
-      console.log(`Audio Mode Check: useRealisticSounds=${useRealisticSounds}, realisticAudio.isReady()=${realisticAudio.isReady()}`);
-      
-      if (useRealisticSounds && realisticAudio.isReady()) {
-        // Use realistic sampled instruments
-        console.log(`Playing REALISTIC ${instrument}: ${noteString}${octave}`);
-        await realisticAudio.playNote(noteString, octave, duration as number, instrument, velocity, sustainEnabled);
-      } else {
-        // Use Tone.js audio engine
-        const fullNote = `${noteString}${octave}`;
-        const durationStr = typeof duration === 'number' ? getDurationNotation(duration) : duration;
-        console.log(`Playing SYNTH ${instrument}: ${fullNote} for ${durationStr}`);
-        audioEngine.playNote(fullNote, durationStr, velocity, instrument as any);
-      }
+      const fullNote = `${noteString}${octave}`;
+      const durationStr = typeof duration === 'number' ? getDurationNotation(duration) : duration;
+      audioEngine.playNote(fullNote, durationStr, velocity, instrument as any);
     } catch (error) {
       console.error('Error playing note:', error);
     }
-  }, [useRealisticSounds]);
+  }, []);
 
-  const playDrumSound = useCallback((type: DrumType | string, volume: number = 0.7) => {
-    if (useRealisticSounds) {
-      realisticAudio.playDrumSound(type as string, volume);
-    } else {
-      // Type assertion since we know the DrumType is compatible
-      audioEngine.playDrum(type as DrumType, volume);
-    }
-  }, [useRealisticSounds]);
+  const playDrum = useCallback((type: DrumType, volume: number = 0.7) => {
+    audioEngine.playDrum(type, volume);
+  }, []);
 
   const setMasterVolume = useCallback((volume: number) => {
     // Map 0-1 range to decibels (Tone.js uses -60 to 0)
-    const db = volume * 60 - 60;
+    const db = volume === 0 ? -Infinity : 20 * Math.log10(volume);
     Tone.Destination.volume.value = db;
   }, []);
 
-  const toggleRealisticSounds = useCallback(() => {
-    setUseRealisticSounds(prev => !prev);
-  }, []);
 
   // Helper function to convert duration in seconds to musical notation
   const getDurationNotation = (seconds: number): string => {
@@ -366,12 +301,10 @@ export function useAudio(): UseAudioReturn {
 
   return {
     playNote,
-    playDrumSound,
+    playDrum,
     setMasterVolume,
     isInitialized,
     initialize,
-    useRealisticSounds,
-    toggleRealisticSounds,
     isIOSDevice: isIOS(),
     needsIOSAudioEnable: isIOS() && !iOSAudioInitialized,
     enableIOSAudio,

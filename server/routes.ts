@@ -8,12 +8,19 @@ import {
   handleStripeWebhook,
 } from "./services/stripe";
 import { musicGenService } from "./services/musicgen";
-import { generateMelody } from "./services/grok";
+import { generateMelody, translateCode } from "./services/grok";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
+import { generateMusicFromLyrics } from "./services/lyricsToMusic";
+import { generateChatMusicianMelody } from "./services/chatMusician";
 import fs from "fs";
 import path from "path";
 import { insertPlaylistSchema } from "@shared/schema";
 import { z } from "zod";
+
+// Standardized error response helper
+const sendError = (res: Response, statusCode: number, message: string) => {
+  res.status(statusCode).json({ success: false, message });
+};
 
 // Intelligent pack generation function that creates themed packs based on prompts
 function generateIntelligentPacks(prompt: string, count: number) {
@@ -154,15 +161,18 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   // Beat generation endpoint
   app.post("/api/beats/generate", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { genre, bpm, duration } = req.body;
-      
-      // Validate required fields
-      if (!genre || bpm === undefined || duration === undefined) {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Genre, BPM, and duration are required" 
-        });
+      const beatSchema = z.object({
+        genre: z.string().min(1),
+        bpm: z.number().min(40).max(240),
+        duration: z.number().min(1).max(60),
+      });
+
+      const parsed = beatSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return sendError(res, 400, "Invalid input: " + parsed.error.message);
       }
+
+      const { genre, bpm, duration } = parsed.data;
 
       // Generate a simple beat pattern based on genre and BPM
       const beatPattern = {
@@ -185,12 +195,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           timestamp: new Date().toISOString()
         }
       });
-    } catch (error: any) {
+    }     catch (error: any) {
       console.error("Beat generation error:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message || "Failed to generate beat pattern"
-      });
+      sendError(res, 500, error.message || "Failed to generate beat pattern");
     }
   });
 
@@ -251,7 +258,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     try {
       const parsed = waitlistSchema.safeParse(req.body || {});
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid email." });
+                return sendError(res, 400, "Invalid email.");
       }
       const { email, name } = parsed.data;
       const file = path.join(LOCAL_OBJECTS_DIR, "waitlist.json");
@@ -271,14 +278,14 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       }
       return res.json({ ok: true, already: exists });
     } catch (err: any) {
-      return res.status(500).json({ message: err?.message || "Failed to join waitlist" });
+            return sendError(res, 500, err?.message || "Failed to join waitlist");
     }
   });
 
   // Current user
   app.get("/api/me", requireAuth(), async (req: Request, res: Response) => {
     const user = req.userId ? await storage.getUser(req.userId) : undefined;
-    if (!user) return res.status(404).json({ message: "User not found" });
+        if (!user) return sendError(res, 404, "User not found");
     const {
       id,
       email,
@@ -310,7 +317,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         const { url } = await createCheckoutSession(storage, req.userId!);
         res.json({ url });
       } catch (err: any) {
-        res.status(400).json({ message: err.message || "Failed to create session" });
+                sendError(res, 400, err.message || "Failed to create session");
       }
     },
   );
@@ -321,7 +328,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       const playlists = await storage.getUserPlaylists(req.userId!);
       res.json(playlists);
     } catch (err: any) {
-      res.status(500).json({ message: err?.message || "Failed to fetch playlists" });
+            sendError(res, 500, err?.message || "Failed to fetch playlists");
     }
   });
 
@@ -334,7 +341,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       const playlist = await storage.createPlaylist(req.userId!, parsed.data);
       res.status(201).json(playlist);
     } catch (err: any) {
-      res.status(500).json({ message: err?.message || "Failed to create playlist" });
+            sendError(res, 500, err?.message || "Failed to create playlist");
     }
   });
 
@@ -344,7 +351,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     async (req: Request, res: Response) => {
       try {
         const { id } = req.params as any;
-        if (!id) return res.status(400).json({ message: "Missing playlist id" });
+                if (!id) return sendError(res, 400, "Missing playlist id");
         const playlist = await storage.getPlaylist(id);
         if (!playlist) return res.status(404).json({ message: "Playlist not found" });
         if (playlist.userId !== req.userId)
@@ -352,7 +359,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         const items = await storage.getPlaylistSongs(id);
         res.json(items);
       } catch (err: any) {
-        res.status(500).json({ message: err?.message || "Failed to fetch playlist songs" });
+                sendError(res, 500, err?.message || "Failed to fetch playlist songs");
       }
     },
   );
@@ -364,19 +371,17 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       try {
         const { id } = req.params as any;
         const body = addSongSchema.safeParse(req.body || {});
-        if (!body.success)
-          return res.status(400).json({ message: "Invalid payload" });
+                if (!body.success) return sendError(res, 400, "Invalid payload");
         const playlist = await storage.getPlaylist(id);
         if (!playlist) return res.status(404).json({ message: "Playlist not found" });
         if (playlist.userId !== req.userId)
           return res.status(403).json({ message: "Forbidden" });
         const song = await storage.getSong(body.data.songId);
-        if (!song || song.userId !== req.userId)
-          return res.status(404).json({ message: "Song not found" });
+                if (!song || song.userId !== req.userId) return sendError(res, 404, "Song not found");
         const ps = await storage.addSongToPlaylist(id, body.data.songId);
         res.status(201).json({ ...ps, song });
       } catch (err: any) {
-        res.status(500).json({ message: err?.message || "Failed to add song to playlist" });
+                sendError(res, 500, err?.message || "Failed to add song to playlist");
       }
     },
   );
@@ -396,7 +401,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       } catch (err: any) {
         res
           .status(500)
-          .json({ message: err?.message || "Failed to remove song from playlist" });
+          .json({ success: false, message: err?.message || "Failed to remove song from playlist" });
       }
     },
   );
@@ -409,13 +414,12 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       if (playlist.userId !== req.userId)
         return res.status(403).json({ message: "Forbidden" });
       const parsed = updatePlaylistSchema.safeParse(req.body || {});
-      if (!parsed.success) return res.status(400).json({ message: "Invalid payload" });
-      if (Object.keys(parsed.data).length === 0)
-        return res.status(400).json({ message: "No fields to update" });
+            if (!parsed.success) return sendError(res, 400, "Invalid payload");
+            if (Object.keys(parsed.data).length === 0) return sendError(res, 400, "No fields to update");
       const updated = await storage.updatePlaylist(id, parsed.data as any);
       res.json(updated);
     } catch (err: any) {
-      res.status(500).json({ message: err?.message || "Failed to update playlist" });
+            sendError(res, 500, err?.message || "Failed to update playlist");
     }
   });
 
@@ -429,7 +433,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       await storage.deletePlaylist(id);
       res.status(204).end();
     } catch (err: any) {
-      res.status(500).json({ message: err?.message || "Failed to delete playlist" });
+            sendError(res, 500, err?.message || "Failed to delete playlist");
     }
   });
 
@@ -441,7 +445,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       const result = await handleStripeWebhook(storage, payload, signature);
       res.json(result);
     } catch (err: any) {
-      res.status(400).send(`Webhook Error: ${err.message}`);
+            sendError(res, 400, `Webhook Error: ${err.message}`);
     }
   });
 
@@ -453,7 +457,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       try {
         const { prompt, count } = (req.body || {}) as { prompt?: string; count?: number };
         if (!prompt || typeof prompt !== "string") {
-          return res.status(400).json({ message: "Missing prompt" });
+                    return sendError(res, 400, "Missing prompt");
         }
 
         const packs = await musicGenService.generateSamplePack(prompt, Math.max(1, Math.min(count || 4, 8)));
@@ -483,24 +487,15 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     },
   );
 
-  // Code translation endpoint
-  app.post("/api/ai/translate-code", requireAuth(), async (req: Request, res: Response) => {
+    app.post("/api/ai/translate-code", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { sourceCode, sourceLanguage, targetLanguage, aiProvider } = req.body;
 
       if (!sourceCode || !sourceLanguage || !targetLanguage) {
-        return res.status(400).json({ message: "Missing required parameters" });
+        return sendError(res, 400, "Missing required parameters");
       }
 
-      // For now, return a placeholder translation
-      // In a real implementation, this would use AI to translate the code
-      const translatedCode = `// Translated from ${sourceLanguage} to ${targetLanguage}
-// Original: ${sourceCode}
-
-// Note: This is a placeholder translation
-// Real AI-powered translation would be implemented here
-
-${sourceCode}`;
+            const translatedCode = await translateCode(sourceCode, sourceLanguage, targetLanguage, aiProvider);
 
       res.json({
         translatedCode,
@@ -509,7 +504,7 @@ ${sourceCode}`;
       });
     } catch (err: any) {
       console.error("Code translation error:", err);
-      res.status(500).json({ message: err?.message || "Failed to translate code" });
+      sendError(res, 500, err?.message || "Failed to translate code");
     }
   });
 
@@ -532,7 +527,7 @@ ${sourceCode}`;
         } = req.body;
 
         if (!scale || !style) {
-          return res.status(400).json({ message: "Scale and style are required" });
+                    return sendError(res, 400, "Scale and style are required");
         }
 
         console.log(`🎵 Generating melody: ${style} in ${scale}, complexity: ${complexity}`);
@@ -559,7 +554,7 @@ ${sourceCode}`;
       const melodies = await storage.getUserMelodies(req.userId!);
       res.json(melodies);
     } catch (err: any) {
-      res.status(500).json({ message: err?.message || "Failed to fetch melodies" });
+            sendError(res, 500, err?.message || "Failed to fetch melodies");
     }
   });
 
@@ -569,7 +564,7 @@ ${sourceCode}`;
       const { title, notes, scale } = req.body;
       
       if (!title || !notes) {
-        return res.status(400).json({ message: "Title and notes are required" });
+                return sendError(res, 400, "Title and notes are required");
       }
 
       const melody = await storage.createMelody(req.userId!, {
@@ -580,7 +575,7 @@ ${sourceCode}`;
 
       res.status(201).json(melody);
     } catch (err: any) {
-      res.status(500).json({ message: err?.message || "Failed to save melody" });
+            sendError(res, 500, err?.message || "Failed to save melody");
     }
   });
 
@@ -592,16 +587,17 @@ ${sourceCode}`;
       try {
         const objectKeyEncoded = (req.params as any)[0] as string;
         const objectKey = decodeURIComponent(objectKeyEncoded || "");
-        if (!objectKey || objectKey.includes("..")) {
-          return res.status(400).json({ message: "Invalid object key" });
+        const sanitizedObjectKey = path.normalize(objectKey).replace(/^(\.\.[\\/])+/,'');
+        if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
+                    return sendError(res, 400, "Invalid object key");
         }
-        const fullPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        const fullPath = path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey);
         const dir = path.dirname(fullPath);
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(fullPath, req.body as Buffer);
-        return res.json({ ok: true, path: `/objects/${objectKey}` });
+                return res.json({ ok: true, path: `/objects/${sanitizedObjectKey}` });
       } catch (err: any) {
-        res.status(500).json({ message: err?.message || "Upload failed" });
+                sendError(res, 500, err?.message || "Upload failed");
       }
     },
   );
@@ -610,10 +606,11 @@ ${sourceCode}`;
   app.get("/objects/*", async (req: Request, res: Response) => {
     try {
       const objectKey = (req.params as any)[0] as string;
-      if (!objectKey || objectKey.includes("..")) {
+      const sanitizedObjectKey = path.normalize(objectKey).replace(/^(\.\.[\\/])+/,'');
+      if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
         return res.status(400).send("Invalid path");
       }
-      const fullPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+      const fullPath = path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey);
       if (!fs.existsSync(fullPath)) return res.status(404).send("Not found");
       const ext = path.extname(fullPath).toLowerCase();
       const type = ext === ".wav" ? "audio/wav" : "application/octet-stream";
@@ -721,16 +718,15 @@ ${sourceCode}`;
           return res.json(responseBody);
         } catch (err: any) {
           console.error("Song structure generation failed:", err);
-          return res.status(502).json({ message: err?.message || "AI generation failed" });
+                    return sendError(res, 502, err?.message || "AI generation failed");
         }
       } catch (err: any) {
-        return res.status(500).json({ message: err?.message || "Failed to generate song" });
+                return sendError(res, 500, err?.message || "Failed to generate song");
       }
     }
   );
 
-  // Generate music from lyrics using Suno API
-  app.post(
+    app.post(
     "/api/lyrics/generate-music",
     requireAuth(),
     async (req: Request, res: Response) => {
@@ -738,25 +734,15 @@ ${sourceCode}`;
         const { lyrics, style, genre } = req.body;
 
         if (!lyrics) {
-          return res.status(400).json({ message: "Lyrics are required" });
+          return sendError(res, 400, "Lyrics are required");
         }
 
-        // Placeholder for Suno API integration
-        // TODO: Replace with real Suno API when service is deployed
-        const generatedMusic = {
-          id: `music-${Date.now()}`,
-          title: "AI Generated Song (Placeholder)",
-          audioUrl: "https://example.com/generated-song.mp3", // Placeholder
-          lyrics: lyrics,
-          style: style || "pop",
-          genre: genre || "electronic",
-          note: "Suno API integration coming soon - using placeholder for now"
-        };
+        const generatedMusic = await generateMusicFromLyrics(lyrics, style || 'pop', genre || 'electronic');
 
         res.json(generatedMusic);
       } catch (err: any) {
         console.error("Lyrics to music error:", err);
-        res.status(500).json({ message: err?.message || "Failed to generate music" });
+        sendError(res, 500, err?.message || "Failed to generate music");
       }
     }
   );
@@ -805,7 +791,7 @@ ${sourceCode}`;
         if (result.status === "succeeded") {
           res.json({ audioUrl: result.output });
         } else {
-          res.status(500).json({ message: "Music generation failed" });
+                    sendError(res, 500, "Music generation failed");
         }
       } catch (err: any) {
         console.error("MusicGen error:", err);
@@ -814,8 +800,7 @@ ${sourceCode}`;
     }
   );
 
-  // ChatMusician integration for melody generation
-  app.post(
+    app.post(
     "/api/chatmusician/generate",
     requireAuth(),
     async (req: Request, res: Response) => {
@@ -823,22 +808,15 @@ ${sourceCode}`;
         const { prompt, style } = req.body;
 
         if (!prompt) {
-          return res.status(400).json({ message: "Prompt is required" });
+          return sendError(res, 400, "Prompt is required");
         }
 
-        // Placeholder for ChatMusician integration
-        // In production, integrate with Hugging Face or local inference
-        const generatedMelody = {
-          id: `melody-${Date.now()}`,
-          abcNotation: "X:1\nM:4/4\nK:C\nC2E2G2c2|", // Placeholder ABC
-          description: prompt,
-          style: style || "classical"
-        };
+        const generatedMelody = await generateChatMusicianMelody(prompt, style || 'classical');
 
         res.json(generatedMelody);
       } catch (err: any) {
         console.error("ChatMusician error:", err);
-        res.status(500).json({ message: err?.message || "Failed to generate melody" });
+        sendError(res, 500, err?.message || "Failed to generate melody");
       }
     }
   );

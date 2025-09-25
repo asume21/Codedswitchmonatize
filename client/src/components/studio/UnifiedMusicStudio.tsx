@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function UnifiedMusicStudio() {
   const [activeTab, setActiveTab] = useState("compose");
   const [isPlaying, setIsPlaying] = useState(false);
-  const { initialize, isInitialized, playNote, playDrumSound } = useAudio();
+    const { initialize, isInitialized, playNote, playDrum } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
@@ -130,7 +130,7 @@ export default function UnifiedMusicStudio() {
       
       drumSequence.forEach((drum, index) => {
         setTimeout(() => {
-          playDrumSound(drum, 0.8);
+                    playDrum(drum as any, 0.8);
         }, index * 200);
       });
 
@@ -356,9 +356,9 @@ export default function UnifiedMusicStudio() {
                       });
 
                       // Add some drum sounds
-                      setTimeout(() => playDrumSound("kick", 0.8), 500);
-                      setTimeout(() => playDrumSound("hihat", 0.6), 750);
-                      setTimeout(() => playDrumSound("snare", 0.7), 1000);
+                                            setTimeout(() => playDrum("kick", 0.8), 500);
+                                            setTimeout(() => playDrum("hihat", 0.6), 750);
+                                            setTimeout(() => playDrum("snare", 0.7), 1000);
 
                       toast({
                         title: "Audio Mixer",

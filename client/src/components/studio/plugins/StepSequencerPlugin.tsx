@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
+type DrumType = 'kick' | 'snare' | 'hihat' | 'hihat-open' | 'hihat-closed' | 'clap' | 'crash' | 'ride' | 'tom1' | 'tom2' | 'tom3';
+
 interface StepSequencerPluginProps {
   tracks: Array<{ id: string; name: string; instrument: string }>;
   selectedTrack: string;
   isPlaying: boolean;
-  onPlayDrum: (drumType: string, velocity: number) => void;
+  onPlayDrum: (drumType: DrumType, velocity: number) => void;
   onPlayNote: (note: string, octave: number, duration: number, instrument: string) => void;
 }
 
@@ -21,7 +23,7 @@ export function StepSequencerPlugin({
   const [bpm, setBpm] = useState(120);
 
   const STEPS = 16;
-  const DRUM_SOUNDS = ['kick', 'snare', 'hihat', 'openhat', 'clap', 'crash'];
+  const DRUM_SOUNDS: DrumType[] = ['kick', 'snare', 'hihat-closed', 'hihat-open', 'clap', 'crash'];
   const MELODY_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
   // Initialize patterns

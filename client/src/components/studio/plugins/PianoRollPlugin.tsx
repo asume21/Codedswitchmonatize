@@ -2,14 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import VerticalPianoRoll from '../VerticalPianoRoll';
 
-interface Note {
-  id: string;
-  note: string;
-  octave: number;
-  step: number;
-  velocity: number;
-  length: number;
-}
+import type { Note } from '../types/pianoRollTypes';
 
 interface PianoRollPluginProps {
   notes: Note[];
