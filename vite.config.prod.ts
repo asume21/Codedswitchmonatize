@@ -20,8 +20,7 @@ export default defineConfig({
           ["@babel/plugin-transform-react-jsx", { runtime: 'automatic' }]
         ]
       }
-    }),
-    babelPlugin()
+    })
   ],
   resolve: {
     alias: [
