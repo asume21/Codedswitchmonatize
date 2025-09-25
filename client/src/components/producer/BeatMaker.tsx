@@ -11,6 +11,7 @@ import { useAudio } from '@/hooks/use-audio';
 import { useMIDI } from '@/hooks/use-midi';
 import { StudioAudioContext } from '@/pages/studio';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
+import { DrumType } from '@/hooks/use-audio';
 import OutputSequencer from '@/components/producer/OutputSequencer';
 
 interface BeatPattern {
@@ -78,7 +79,7 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
   });
 
   const { toast } = useToast();
-  const { playDrumSound, initialize, isInitialized } = useAudio();
+  const { playDrum, initialize, isInitialized } = useAudio();
   
   // Use Studio Audio Context
   const studioContext = useContext(StudioAudioContext);
@@ -213,7 +214,7 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
       // Play sounds for active steps
       Object.entries(pattern).forEach(([track, steps]) => {
         if (steps[step]) {
-          playDrumSound(track);
+          playDrum(track as DrumType);
         }
       });
       

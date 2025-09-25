@@ -8,7 +8,7 @@ import {
   Waves, Zap, RotateCcw, Shuffle, 
   Layers, Target, Orbit, Sparkles 
 } from "lucide-react";
-import * as Tone from "tone";
+import { Oscillator, GrainPlayer, start } from "tone";
 
 interface GranularParams {
   grainSize: number;
@@ -85,20 +85,20 @@ export default function GranularEngine() {
     macro4: 20
   });
  
-  const synthRef = useRef<Tone.Oscillator | null>(null);
-  const granularRef = useRef<Tone.GrainPlayer | null>(null);
+  const synthRef = useRef<Oscillator | null>(null);
+  const granularRef = useRef<GrainPlayer | null>(null);
 
   useEffect(() => {
     // Initialize Tone.js synthesizers for Output CO Producer-style sound generation
     const initSynths = async () => {
-      await Tone.start();
+      await start();
       
       // Advanced granular synthesis engine
-      granularRef.current = new Tone.GrainPlayer({
+      granularRef.current = new GrainPlayer({
         url: "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMRN2O+5cuZbDMAH4Xa9NWuVg4TCz2nz+eTaSkHMV+0zMx5WQ4SFz5+7diLYCtEpOD98IlZNA8VGj6vy/KHCz4+rNDqYyUFJHjH8N2QQAoUcefzzZfJJGMLZLbvfgf7+9eJzO7P2C9AGDq6o8dIpOD99I5ZNBISEy9uy+eHCz5Fr+Hztm0iGDKy18eLYCtEpOD98IlZNA8VGj6vy/KHCz5fr+LyuWwjGC6t2M1pRA0UImHO8Nt5WwwSFTeqze2MSSUIKHzK8tv0KAW6nOJ5cBoFbr/K8+GPTAsTIGPP8d5/XwsRFTqDzeKQSCYGH4Qz" }).toDestination();
       
       // Advanced wavetable oscillator
-      synthRef.current = new Tone.Oscillator({
+      synthRef.current = new Oscillator({
         type: "sawtooth",
         frequency: 440
       }).toDestination();

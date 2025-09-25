@@ -3,7 +3,7 @@ import * as Tone from "tone";
 import { audioEngine, InstrumentName } from "../lib/audioEngine";
 import { useToast } from "@/hooks/use-toast";
 
-type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
+export type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
 
 // Global audio state
 let globalAudioInitialized = false;
