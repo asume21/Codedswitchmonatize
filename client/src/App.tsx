@@ -1,35 +1,21 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient.ts";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/layout/navigation";
+import { Sidebar } from "@/components/layout/sidebar";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
-import UserProfile from "@/pages/user-profile";
-import SocialHub from "@/pages/social-hub";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
 import Subscribe from "@/pages/Subscribe";
-import PaymentSuccess from "@/pages/PaymentSuccess";
-import PaymentCancel from "@/pages/PaymentCancel";
 import TestCircular from "@/pages/TestCircular";
 import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
-import MelodyComposerV2Page from "@/pages/melody-composer-v2";
-import CodeToMusicStudioPage from "@/pages/code-to-music-studio";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
-
-// Import the missing components
-import CodeTranslator from "@/components/studio/CodeTranslator";
-import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
-import { MIDIController } from "@/components/studio/MIDIController";
-import HybridWorkflow from "@/components/studio/HybridWorkflow";
-import LyricLab from "@/components/studio/LyricLab";
-import Header from "@/components/studio/Header";
-import TestPianoRoll from "@/pages/test-piano-roll";
 
 function Router() {
   // Track page views when routes change
@@ -43,31 +29,21 @@ function Router() {
       <Route path="/song-uploader" component={Studio} />
       <Route path="/beat-studio" component={Studio} />
       <Route path="/melody-composer" component={Studio} />
-      <Route path="/melody-composer-v2" component={MelodyComposerV2Page} />
       <Route path="/unified-studio" component={Studio} />
-      <Route path="/code-translator" component={CodeTranslator} />
+      <Route path="/code-translator" component={Studio} />
       <Route path="/codebeat-studio" component={Studio} />
       <Route path="/lyric-lab" component={Studio} />
-      <Route path="/vulnerability-scanner" component={VulnerabilityScanner} />
+      <Route path="/vulnerability-scanner" component={Studio} />
       <Route path="/ai-assistant" component={Studio} />
       <Route path="/mix-studio" component={Studio} />
       <Route path="/pro-console" component={Studio} />
-      <Route path="/midi-controller" component={MIDIController} />
+      <Route path="/midi-controller" component={Studio} />
       <Route path="/advanced-sequencer" component={Studio} />
       <Route path="/granular-engine" component={Studio} />
       <Route path="/wavetable-oscillator" component={Studio} />
       <Route path="/pack-generator" component={Studio} />
       <Route path="/song-structure" component={Studio} />
-      <Route path="/social-hub" component={SocialHub} />
-      <Route path="/test-piano-roll" component={TestPianoRoll} />
-      <Route path="/profile" component={UserProfile} />
-      <Route path="/user-profile" component={UserProfile} />
-      <Route path="/hybrid-workflow" component={HybridWorkflow} />
-      <Route path="/lyric-lab" component={LyricLab} />
-      <Route path="/header" component={Header} />
-      <Route path="/subscribe" component={Subscribe} />
-      <Route path="/billing/success" component={PaymentSuccess} />
-      <Route path="/billing/cancel" component={PaymentCancel} />
+      <Route path="/billing" component={Subscribe} />
       <Route path="/settings" component={Studio} />
       <Route path="/studio" component={Studio} />
       <Route path="/subscribe" component={Subscribe} />
@@ -77,13 +53,29 @@ function Router() {
   );
 }
 
+function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-screen">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Navigation />
+        <main className="flex-1 overflow-x-auto overflow-y-auto">
+          <div className="min-w-[1400px] w-full h-full">{children}</div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   // Initialize Google Analytics when app loads
   useEffect(() => {
-    if (!(import.meta as any).env.VITE_GA_MEASUREMENT_ID) {
+    // Verify required environment variable is present
+    if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
       console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
     } else {
       initGA();
+      console.log('🔍 Google Analytics initialized - now tracking website visitors!');
     }
   }, []);
 
@@ -91,8 +83,89 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Navigation />
-        <Router />
+        <Switch>
+          <Route path="/" component={Landing} />
+          <Route path="/music-studio">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/song-uploader">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/beat-studio">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/melody-composer">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/code-translator">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/codebeat-studio">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/lyric-lab">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/vulnerability-scanner">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/ai-assistant">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/mix-studio">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/pro-console">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/midi-controller">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/song-structure">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/pro-audio">
+            <AppLayout>
+              <ProAudio />
+            </AppLayout>
+          </Route>
+          <Route path="/codebeat-studio-direct">
+            <AppLayout>
+              <CodeBeatStudio />
+            </AppLayout>
+          </Route>
+          <Route path="*">
+            <AppLayout>
+              <Router />
+            </AppLayout>
+          </Route>
+        </Switch>
       </TooltipProvider>
     </QueryClientProvider>
   );

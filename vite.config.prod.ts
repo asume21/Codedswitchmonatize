@@ -1,40 +1,50 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { fileURLToPath } from "url";
+import fs from "fs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Fix Render's path resolution issue
+const getCorrectPaths = () => {
+  const currentDir = process.cwd();
+  
+  // Render runs from /opt/render/project/src but files are actually in /opt/render/project
+  if (currentDir.includes('/opt/render/project')) {
+    console.log("🚀 Detected Render environment - using correct paths");
+    // Go up one directory to find the actual project root
+    const projectRoot = path.resolve(currentDir, "..");
+    return {
+      clientSrc: path.resolve(projectRoot, "client", "src"),
+      shared: path.resolve(projectRoot, "shared"),
+      assets: path.resolve(projectRoot, "attached_assets"),
+    };
+  } else {
+    console.log("🏠 Detected local environment");
+    return {
+      clientSrc: path.resolve(__dirname, "client", "src"),
+      shared: path.resolve(__dirname, "shared"),
+      assets: path.resolve(__dirname, "attached_assets"),
+    };
+  }
+};
+
+const paths = getCorrectPaths();
 
 export default defineConfig({
-  root: path.resolve(__dirname, 'client'),
-  plugins: [
-    react({
-      jsxRuntime: 'automatic',
-      babel: {
-        presets: [
-          ["@babel/preset-react", { runtime: 'automatic' }],
-          ["@babel/preset-env", { targets: { node: 'current' } }],
-          "@babel/preset-typescript"
-        ],
-        plugins: [
-          ["@babel/plugin-transform-react-jsx", { runtime: 'automatic' }]
-        ]
-      }
-    })
-  ],
+  plugins: [react()],
   resolve: {
-    alias: [
-      {
-        find: "@",
-        replacement: path.resolve(__dirname, "./src"),
-      },
-    ],
+    alias: {
+      "@": paths.clientSrc,
+      "@shared": paths.shared,
+      "@assets": paths.assets,
+    },
   },
+  root: "./client",
   build: {
-    outDir: "dist",
+    outDir: "../dist/client",
     emptyOutDir: true,
   },
-  optimizeDeps: {
-    include: ['@babel/plugin-transform-react-jsx']
-  }
+  server: {
+    host: "0.0.0.0",
+    port: 5173,
+  },
 });

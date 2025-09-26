@@ -1,6 +1,12 @@
 import { useState, useContext } from "react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
@@ -48,35 +54,175 @@ export default function CodeToMusic() {
   const studioContext = useContext(StudioAudioContext);
 
   const compileMutation = useMutation({
-    mutationFn: async (data: { code: string; language: string; complexity?: number }) => {
+    mutationFn: async (data: {
+      code: string;
+      language: string;
+      complexity?: number;
+    }) => {
       const response = await apiRequest("POST", "/api/code-to-music", data);
       return response.json();
     },
     onSuccess: (data) => {
       setMusicData(data);
-      
+
       // Update studio context with generated music
       if (data.melody) {
         studioContext.setCurrentMelody(data.melody);
       }
-      
+
       // Create a basic drum pattern from the music data
       const generatedPattern = {
-        kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-        snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-        hihat: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-        bass: [true, false, true, false, false, false, true, false, true, false, true, false, false, false, true, false],
-        tom: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-        openhat: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-        clap: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-        crash: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]
+        kick: [
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+        ],
+        snare: [
+          false,
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+        ],
+        hihat: [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+        ],
+        bass: [
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          false,
+        ],
+        tom: [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+        ],
+        openhat: [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+        ],
+        clap: [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+        ],
+        crash: [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+        ],
       };
-      
+
       studioContext.setCurrentPattern(generatedPattern);
-      
+
       // Store generated music data for Music→Code conversion
       studioContext.setCurrentCodeMusic(data);
-      
+
       toast({
         title: "Compilation Complete",
         description: "Code has been converted to music successfully.",
@@ -115,18 +261,23 @@ export default function CodeToMusic() {
     <div className="h-full flex flex-col">
       <div className="p-6 border-b border-gray-600">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-heading font-bold">Code to Music Compiler</h2>
+          <h2 className="text-2xl font-heading font-bold">
+            Code to Music Compiler
+          </h2>
           <div className="flex items-center space-x-4">
             <Button
               onClick={() => {
                 initialize();
-                toast({ title: "Audio Initialized", description: "The audio engine has started." });
+                toast({
+                  title: "Audio Initialized",
+                  description: "The audio engine has started.",
+                });
               }}
               disabled={isInitialized}
               className="bg-studio-accent hover:bg-blue-500"
             >
               <i className="fas fa-power-off mr-2"></i>
-              {isInitialized ? 'Audio Ready' : 'Start Audio'}
+              {isInitialized ? "Audio Ready" : "Start Audio"}
             </Button>
             <Button
               onClick={handleCompile}
@@ -149,47 +300,85 @@ export default function CodeToMusic() {
               onClick={async () => {
                 if (musicData && isInitialized) {
                   console.log("Playing music data:", musicData);
-                  
+
                   // Check if melody is an array of playable notes
-                  if (musicData.melody && Array.isArray(musicData.melody) && musicData.melody.length > 0) {
+                  if (
+                    musicData.melody &&
+                    Array.isArray(musicData.melody) &&
+                    musicData.melody.length > 0
+                  ) {
                     let noteIndex = 0;
                     const playNextNote = () => {
                       if (noteIndex < musicData.melody.length) {
                         const note = musicData.melody[noteIndex];
                         if (note && note.note) {
                           // Extract note name and octave from note like "C4", "D4", etc.
-                          const noteName = note.note.replace(/\d/, '');
-                          const octave = parseInt(note.note.replace(/[A-G]#?/, '')) || 4;
-                          const instrument = note.instrument || 'piano'; // Use specified instrument or default to piano
-                          console.log(`Playing note ${note.note} -> ${noteName}${octave} on ${instrument} for ${note.duration || 0.5}s`);
-                          playNote(noteName, octave, note.duration || 0.5, instrument, 0.7);
+                          const noteName = note.note.replace(/\d/, "");
+                          const octave =
+                            parseInt(note.note.replace(/[A-G]#?/, "")) || 4;
+                          const instrument = note.instrument || "piano"; // Use specified instrument or default to piano
+                          console.log(
+                            `Playing note ${note.note} -> ${noteName}${octave} on ${instrument} for ${note.duration || 0.5}s`,
+                          );
+                          playNote(
+                            noteName,
+                            octave,
+                            note.duration || 0.5,
+                            instrument,
+                            0.7,
+                          );
                         }
                         noteIndex++;
                         if (noteIndex < musicData.melody.length) {
-                          setTimeout(playNextNote, (musicData.melody[noteIndex - 1]?.duration || 0.5) * 1000);
+                          setTimeout(
+                            playNextNote,
+                            (musicData.melody[noteIndex - 1]?.duration || 0.5) *
+                              1000,
+                          );
                         }
                       }
                     };
                     playNextNote();
-                    
+
                     // Also play drum pattern if available
                     if (musicData.drumPattern) {
                       studioContext.setCurrentPattern(musicData.drumPattern);
                       await studioContext.playFullSong();
                     }
-                    
-                    const instrumentCount = [...new Set(musicData.melody.map((note: any) => note.instrument || 'piano'))].length;
-                    toast({ title: "Playing Multi-Instrument Arrangement", description: `Playing ${musicData.melody.length} notes across ${instrumentCount} instruments plus drums.` });
+
+                    const instrumentSet = new Set(
+                      musicData.melody.map(
+                        (note: any) => note.instrument || "piano",
+                      ),
+                    );
+                    const instrumentCount = Array.from(instrumentSet).length;
+                    toast({
+                      title: "Playing Multi-Instrument Arrangement",
+                      description: `Playing ${musicData.melody.length} notes across ${instrumentCount} instruments plus drums.`,
+                    });
                   } else {
                     // If no proper melody, just trigger the drum pattern playback
-                    console.log("No playable melody found, playing drum pattern only");
+                    console.log(
+                      "No playable melody found, playing drum pattern only",
+                    );
                     await studioContext.playFullSong();
-                    toast({ title: "Playing Rhythm", description: "Playing drum pattern from compiled code." });
+                    toast({
+                      title: "Playing Rhythm",
+                      description: "Playing drum pattern from compiled code.",
+                    });
                   }
                 } else if (!musicData) {
-                  toast({ title: "No Music", description: "Please compile code first.", variant: "destructive" });
+                  toast({
+                    title: "No Music",
+                    description: "Please compile code first.",
+                    variant: "destructive",
+                  });
                 } else {
-                  toast({ title: "Audio Not Ready", description: "Please start audio first.", variant: "destructive" });
+                  toast({
+                    title: "Audio Not Ready",
+                    description: "Please start audio first.",
+                    variant: "destructive",
+                  });
                 }
               }}
               disabled={!musicData || !isInitialized}
@@ -212,10 +401,13 @@ export default function CodeToMusic() {
                   tom: Array(16).fill(false),
                   openhat: Array(16).fill(false),
                   clap: Array(16).fill(false),
-                  crash: Array(16).fill(false)
+                  crash: Array(16).fill(false),
                 };
                 studioContext.setCurrentPattern(emptyPattern);
-                toast({ title: "Music Cleared", description: "All compiled music data has been cleared." });
+                toast({
+                  title: "Music Cleared",
+                  description: "All compiled music data has been cleared.",
+                });
               }}
               disabled={!musicData}
               className="bg-gray-600 hover:bg-gray-500"
@@ -258,10 +450,14 @@ export default function CodeToMusic() {
                 <div className="w-2 h-2 bg-studio-success rounded-full"></div>
                 <span>Code analysis complete</span>
                 <div className="flex-1"></div>
-                <span className="text-gray-400">25 lines • 3 functions • 1 class</span>
+                <span className="text-gray-400">
+                  25 lines • 3 functions • 1 class
+                </span>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm">AI Complexity: {complexity[0]}/10</Label>
+                <Label className="text-sm">
+                  AI Complexity: {complexity[0]}/10
+                </Label>
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-gray-400">Simple</span>
                   <Slider
@@ -274,7 +470,9 @@ export default function CodeToMusic() {
                   />
                   <span className="text-xs text-gray-400">Complex</span>
                 </div>
-                <p className="text-xs text-gray-400">Controls how intricate the musical arrangement will be</p>
+                <p className="text-xs text-gray-400">
+                  Controls how intricate the musical arrangement will be
+                </p>
               </div>
             </div>
           </div>
@@ -285,21 +483,43 @@ export default function CodeToMusic() {
             <div className="flex-1 bg-studio-panel border border-gray-600 rounded-lg p-4">
               {musicData ? (
                 <div className="space-y-6">
-                  <div className="text-sm text-gray-400 mb-4">Algorithmic Composition Based on Code Structure</div>
+                  <div className="text-sm text-gray-400 mb-4">
+                    Algorithmic Composition Based on Code Structure
+                  </div>
 
                   {/* Musical Staff Representation */}
                   <svg className="w-full h-32" viewBox="0 0 400 120">
                     {/* Staff Lines */}
                     {[20, 35, 50, 65, 80].map((y) => (
-                      <line key={y} x1="20" y1={y} x2="380" y2={y} stroke="#666" strokeWidth="1"/>
+                      <line
+                        key={y}
+                        x1="20"
+                        y1={y}
+                        x2="380"
+                        y2={y}
+                        stroke="#666"
+                        strokeWidth="1"
+                      />
                     ))}
 
                     {/* Notes */}
                     {[
-                      { x: 50, y: 35 }, { x: 90, y: 50 }, { x: 130, y: 35 }, { x: 170, y: 20 },
-                      { x: 210, y: 35 }, { x: 250, y: 50 }, { x: 290, y: 35 }, { x: 330, y: 20 }
+                      { x: 50, y: 35 },
+                      { x: 90, y: 50 },
+                      { x: 130, y: 35 },
+                      { x: 170, y: 20 },
+                      { x: 210, y: 35 },
+                      { x: 250, y: 50 },
+                      { x: 290, y: 35 },
+                      { x: 330, y: 20 },
                     ].map((note, index) => (
-                      <circle key={index} cx={note.x} cy={note.y} r="4" fill="hsl(203, 100%, 55%)"/>
+                      <circle
+                        key={index}
+                        cx={note.x}
+                        cy={note.y}
+                        r="4"
+                        fill="hsl(203, 100%, 55%)"
+                      />
                     ))}
                   </svg>
 
