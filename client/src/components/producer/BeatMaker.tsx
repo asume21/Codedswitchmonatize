@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Play, Pause, Square, Save, Zap, Volume2, Settings } from 'lucide-react';
+import { Play, Pause, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { beatAPI } from '@/lib/api';
@@ -140,38 +140,9 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
     },
   });
 
-  // Save beat mutation
-  const saveBeatMutation = useMutation({
-    mutationFn: async () => {
-      return beatAPI.save({
-        name: `Beat_${new Date().toISOString().slice(0, 10)}_${bpm}BPM`,
-        pattern,
-        bpm,
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Beat Saved!",
-        description: "Your beat has been saved successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Save Failed",
-        description: error.message || "Failed to save beat",
-        variant: "destructive",
-      });
-    },
-  });
-
   // Handle beat generation
   const handleGenerateAI = () => {
     generateBeatMutation.mutate();
-  };
-
-  // Handle saving
-  const handleSave = () => {
-    saveBeatMutation.mutate();
   };
 
   const toggleStep = (track: keyof BeatPattern, stepIndex: number) => {
@@ -401,15 +372,6 @@ const BeatMaker: React.FC<BeatMakerProps> = ({ onBeatGenerated }) => {
                   >
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                     <span>{isPlaying ? 'Stop' : 'Play'}</span>
-                  </Button>
-                  <Button
-                    onClick={handleSave}
-                    disabled={saveBeatMutation.isPending}
-                    variant="outline"
-                    className="flex items-center space-x-2"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save</span>
                   </Button>
                 </div>
               </div>
