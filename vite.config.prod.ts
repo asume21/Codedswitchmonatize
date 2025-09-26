@@ -36,6 +36,8 @@ const getCorrectPaths = () => {
 };
 
 const paths = getCorrectPaths();
+console.log('VITE CONFIG: paths.root =', paths.root);
+console.log('VITE CONFIG: about to use rollupOptions.input =', path.resolve(paths.root, "index.html"));
 
 export default defineConfig({
   plugins: [react()],
