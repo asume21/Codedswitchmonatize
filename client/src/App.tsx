@@ -1,18 +1,9 @@
-import { Switch, Route } from "wouter";
-import { queryClient } from "@/lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import Landing from "@/pages/landing";
-
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Landing />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <h1 style={{ color: '#333' }}>Hello World!</h1>
+      <p style={{ color: '#666' }}>If you can see this, React is working!</p>
+    </div>
   );
 }
 
