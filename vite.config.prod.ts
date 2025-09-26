@@ -35,9 +35,14 @@ const getCorrectPaths = () => {
   }
 };
 
-const paths = getCorrectPaths();
-console.log('VITE CONFIG: paths.root =', paths.root);
-console.log('VITE CONFIG: about to use rollupOptions.input =', path.resolve(paths.root, "index.html"));
+let viteRoot = paths.root;
+let viteInput = path.resolve(paths.root, "index.html");
+if (process.env.RENDER === 'true' || currentDir.includes('/opt/render/project')) {
+  viteRoot = "/opt/render/project/src/client";
+  viteInput = "/opt/render/project/src/client/index.html";
+}
+console.log('VITE CONFIG: viteRoot =', viteRoot);
+console.log('VITE CONFIG: viteInput =', viteInput);
 
 export default defineConfig({
   plugins: [react()],
@@ -48,12 +53,12 @@ export default defineConfig({
       "@assets": paths.assets,
     },
   },
-  root: paths.root,
+  root: viteRoot,
   build: {
     outDir: paths.outDir,
     emptyOutDir: true,
     rollupOptions: {
-      input: path.resolve(currentDir, "client", "index.html"),
+      input: viteInput,
     },
   },
   server: {
