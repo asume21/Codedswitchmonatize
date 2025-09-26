@@ -16,6 +16,8 @@ const getCorrectPaths = () => {
       clientSrc: path.resolve(projectRoot, "client", "src"),
       shared: path.resolve(projectRoot, "shared"),
       assets: path.resolve(projectRoot, "attached_assets"),
+      root: path.resolve(projectRoot, "client"),
+      projectRoot: projectRoot,
     };
   } else {
     console.log("🏠 Detected local environment");
@@ -23,6 +25,8 @@ const getCorrectPaths = () => {
       clientSrc: path.resolve(__dirname, "client", "src"),
       shared: path.resolve(__dirname, "shared"),
       assets: path.resolve(__dirname, "attached_assets"),
+      root: "./client",
+      projectRoot: __dirname,
     };
   }
 };
@@ -38,7 +42,7 @@ export default defineConfig({
       "@assets": paths.assets,
     },
   },
-  root: "./client",
+  root: paths.root,
   build: {
     outDir: "../dist/client",
     emptyOutDir: true,
