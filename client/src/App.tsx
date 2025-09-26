@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "@/lib/queryClient.ts";
+import { queryClient } from "@/lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,42 +16,6 @@ import CodeBeatStudio from "@/pages/codebeat-studio";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
-
-function Router() {
-  // Track page views when routes change
-  useAnalytics();
-  
-  return (
-    <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/music-studio" component={Studio} />
-      <Route path="/song-uploader" component={Studio} />
-      <Route path="/beat-studio" component={Studio} />
-      <Route path="/melody-composer" component={Studio} />
-      <Route path="/unified-studio" component={Studio} />
-      <Route path="/code-translator" component={Studio} />
-      <Route path="/codebeat-studio" component={Studio} />
-      <Route path="/lyric-lab" component={Studio} />
-      <Route path="/vulnerability-scanner" component={Studio} />
-      <Route path="/ai-assistant" component={Studio} />
-      <Route path="/mix-studio" component={Studio} />
-      <Route path="/pro-console" component={Studio} />
-      <Route path="/midi-controller" component={Studio} />
-      <Route path="/advanced-sequencer" component={Studio} />
-      <Route path="/granular-engine" component={Studio} />
-      <Route path="/wavetable-oscillator" component={Studio} />
-      <Route path="/pack-generator" component={Studio} />
-      <Route path="/song-structure" component={Studio} />
-      <Route path="/billing" component={Subscribe} />
-      <Route path="/settings" component={Studio} />
-      <Route path="/studio" component={Studio} />
-      <Route path="/subscribe" component={Subscribe} />
-      <Route path="/test-circular" component={TestCircular} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -71,7 +35,7 @@ function App() {
   // Initialize Google Analytics when app loads
   useEffect(() => {
     // Verify required environment variable is present
-    if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
+    if (!(import.meta as any).env.VITE_GA_MEASUREMENT_ID) {
       console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
     } else {
       initGA();
@@ -79,12 +43,16 @@ function App() {
     }
   }, []);
 
+  // Track page views when routes change
+  useAnalytics();
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Switch>
           <Route path="/" component={Landing} />
+          <Route path="/dashboard" component={Dashboard} />
           <Route path="/music-studio">
             <AppLayout>
               <Studio />
@@ -101,6 +69,11 @@ function App() {
             </AppLayout>
           </Route>
           <Route path="/melody-composer">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/unified-studio">
             <AppLayout>
               <Studio />
             </AppLayout>
@@ -145,6 +118,26 @@ function App() {
               <Studio />
             </AppLayout>
           </Route>
+          <Route path="/advanced-sequencer">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/granular-engine">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/wavetable-oscillator">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/pack-generator">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
           <Route path="/song-structure">
             <AppLayout>
               <Studio />
@@ -160,11 +153,20 @@ function App() {
               <CodeBeatStudio />
             </AppLayout>
           </Route>
-          <Route path="*">
+          <Route path="/billing" component={Subscribe} />
+          <Route path="/settings">
             <AppLayout>
-              <Router />
+              <Studio />
             </AppLayout>
           </Route>
+          <Route path="/studio">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
+          <Route path="/subscribe" component={Subscribe} />
+          <Route path="/test-circular" component={TestCircular} />
+          <Route component={NotFound} />
         </Switch>
       </TooltipProvider>
     </QueryClientProvider>
