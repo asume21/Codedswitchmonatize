@@ -17,6 +17,7 @@ const getCorrectPaths = () => {
       shared: path.resolve(projectRoot, "shared"),
       assets: path.resolve(projectRoot, "attached_assets"),
       root: path.resolve(projectRoot, "client"),
+      outDir: path.resolve(projectRoot, "dist", "client"),
       projectRoot: projectRoot,
     };
   } else {
@@ -26,6 +27,7 @@ const getCorrectPaths = () => {
       shared: path.resolve(__dirname, "shared"),
       assets: path.resolve(__dirname, "attached_assets"),
       root: "./client",
+      outDir: "../dist/client",
       projectRoot: __dirname,
     };
   }
@@ -44,7 +46,7 @@ export default defineConfig({
   },
   root: paths.root,
   build: {
-    outDir: "../dist/client",
+    outDir: paths.outDir,
     emptyOutDir: true,
   },
   server: {
