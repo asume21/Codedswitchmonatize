@@ -38,18 +38,22 @@ const getCorrectPaths = () => {
 const paths = getCorrectPaths();
 let viteRoot = paths.root;
 let viteInput = path.resolve(paths.root, "index.html");
+let viteAlias = paths.clientSrc;
+
 if (process.env.RENDER === 'true' || currentDir.includes('/opt/render/project')) {
   viteRoot = "/opt/render/project/src/client";
   viteInput = "/opt/render/project/src/client/index.html";
+  viteAlias = "/opt/render/project/src/client/src";
 }
 console.log('VITE CONFIG: viteRoot =', viteRoot);
 console.log('VITE CONFIG: viteInput =', viteInput);
+console.log('VITE CONFIG: viteAlias @ =', viteAlias);
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": paths.clientSrc,
+      "@": viteAlias,
       "@shared": paths.shared,
       "@assets": paths.assets,
     },
