@@ -1,11 +1,12 @@
-// This file is not being used for the static HTML test
-// Keeping it here in case we need to switch back to React
+import React from 'react';
 
-export default function App() {
+function App() {
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1 style={{ color: '#333' }}>Hello World!</h1>
-      <p style={{ color: '#666' }}>If you can see this, React is working!</p>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', background: '#fff', color: '#333' }}>
+      <h1>Hello from React!</h1>
+      <p>If you can see this, the Vite build is working correctly.</p>
     </div>
   );
 }
+
+export default App;
