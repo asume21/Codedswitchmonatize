@@ -27,7 +27,10 @@ export default function Landing() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed, name: name.trim() || undefined }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch((error) => {
+        console.error('Failed to parse response:', error);
+        return {};
+      });
       if (!res.ok) {
         setStatus(data?.message || "Something went wrong. Please try again.");
       } else {

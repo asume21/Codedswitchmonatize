@@ -76,7 +76,7 @@ export default function OutputSequencer() {
     limiter: { threshold: -1, release: 50 }
   });
   
-  const intervalRef = useRef<NodeJS.Timeout>();
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   // Centralized stop logic to ensure timers and audio are cleaned up
@@ -85,7 +85,7 @@ export default function OutputSequencer() {
     setIsPlaying(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
-      intervalRef.current = undefined;
+      intervalRef.current = null;
     }
     setCurrentStep(0);
   };
@@ -174,7 +174,7 @@ export default function OutputSequencer() {
       // Ensure no stray intervals when not playing
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
-        intervalRef.current = undefined;
+        intervalRef.current = null;
       }
       return;
     }
@@ -191,7 +191,7 @@ export default function OutputSequencer() {
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
-        intervalRef.current = undefined;
+        intervalRef.current = null;
       }
     };
   }, [isPlaying, bpm, patternLength]);

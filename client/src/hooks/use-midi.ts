@@ -61,7 +61,7 @@ export function useMIDI() {
   });
   const [autoConnectionEnabled, setAutoConnectionEnabled] = useState(true);
 
-  const { playNote, playDrumSound } = useAudio();
+  const { playNote, playDrum } = useAudio();
 
   // Update settings
   const updateSettings = useCallback((newSettings: Partial<MIDISettings>) => {

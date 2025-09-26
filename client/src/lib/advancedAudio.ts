@@ -292,7 +292,9 @@ export class AdvancedAudioManager {
         (this.trackInstruments.hho as any).volume.value = 6;
         (this.trackInstruments.ride as any).volume.value = 6;
         (this.trackInstruments.crash as any).volume.value = 6;
-      } catch {}
+      } catch (error) {
+        console.error('Failed to set drum kit volumes:', error);
+      }
 
       console.log("Drum kit created:", Object.keys(this.drumKit));
 
