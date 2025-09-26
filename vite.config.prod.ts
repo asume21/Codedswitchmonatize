@@ -35,6 +35,7 @@ const getCorrectPaths = () => {
   }
 };
 
+const paths = getCorrectPaths();
 let viteRoot = paths.root;
 let viteInput = path.resolve(paths.root, "index.html");
 if (process.env.RENDER === 'true' || currentDir.includes('/opt/render/project')) {
