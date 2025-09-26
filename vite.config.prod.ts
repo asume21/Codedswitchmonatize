@@ -4,8 +4,8 @@ import path from "path";
 import fs from "fs";
 
 // Fix Render's path resolution issue
+const currentDir = process.cwd();
 const getCorrectPaths = () => {
-  const currentDir = process.cwd();
   
   // Render runs from /opt/render/project/src but files are actually in /opt/render/project
   if (currentDir.includes('/opt/render/project')) {
@@ -19,6 +19,7 @@ const getCorrectPaths = () => {
       root: path.resolve(projectRoot, "client"),
       outDir: path.resolve(projectRoot, "dist", "client"),
       projectRoot: projectRoot,
+      isRender: true,
     };
   } else {
     console.log("🏠 Detected local environment");
@@ -29,6 +30,7 @@ const getCorrectPaths = () => {
       root: "./client",
       outDir: "../dist/client",
       projectRoot: __dirname,
+      isRender: false,
     };
   }
 };
@@ -48,6 +50,11 @@ export default defineConfig({
   build: {
     outDir: paths.outDir,
     emptyOutDir: true,
+    rollupOptions: {
+      input: paths.isRender ? 
+        path.resolve(paths.projectRoot, "client", "index.html") : 
+        "./client/index.html"
+    },
   },
   server: {
     host: "0.0.0.0",
