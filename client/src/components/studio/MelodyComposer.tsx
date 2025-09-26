@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
 import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
-import { audioEngine } from '@/CodedswitchSvelte/codedswitch-clean/src/lib/audio/RealisticAudioEngine';
+import { useAudio } from '@/hooks/use-audio';
+import type { DrumType } from '@/hooks/use-audio';
 import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -41,6 +42,7 @@ function MelodyComposer() {
   const [activeTab, setActiveTab] = useState('piano-roll');
   const { toast } = useToast();
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { playNote: playNoteHook, playDrum: playDrumHook, setMasterVolume: setMasterVolumeHook, initialize } = useAudio();
 
   // Multi-track system
   const [tracks, setTracks] = useState<Track[]>([
@@ -52,13 +54,13 @@ function MelodyComposer() {
 
   // Initialize audio engine
   useEffect(() => {
-    audioEngine.initialize().then(() => {
+    initialize().then(() => {
       toast({ title: "Audio Engine Ready", description: "Multi-track system initialized" });
     }).catch(error => {
       console.error('Audio initialization failed:', error);
       toast({ title: "Audio Error", description: "Failed to initialize audio engine" });
     });
-  }, []);
+  }, [initialize, toast]);
 
   // Audio functions
   const playNote = async (
@@ -68,20 +70,43 @@ function MelodyComposer() {
     instrument: string = 'piano'
   ) => {
     try {
-      const toneNote = `${note}${octave}`;
-      const toneDuration = typeof duration === 'number' ? `${duration}s` : duration;
-      await audioEngine.playNote(toneNote, toneDuration, instrument, 0.8);
+      // Delegate to audio hook which handles initialization and conversion
+      const durationNum = typeof duration === 'number' ? duration : parseFloat(duration) || 0.5;
+      playNoteHook(note, octave, durationNum, instrument, 0.8);
     } catch (error) {
       console.error('Error playing note:', error);
     }
   };
 
-  const playDrum = async (
-    drumType: Parameters<typeof audioEngine.playDrum>[0],
+  const playDrum = (
+    drumType: any,
     velocity: number = 0.8
   ) => {
     try {
-      await audioEngine.playDrum(drumType, velocity);
+      // Map plugin drum names to audio engine supported types
+      let mapped: DrumType;
+      switch (drumType) {
+        case 'hihat-open':
+        case 'hihat-closed':
+        case 'hihat':
+          mapped = 'hihat';
+          break;
+        case 'tom1':
+        case 'tom2':
+        case 'tom3':
+        case 'tom':
+          mapped = 'tom';
+          break;
+        case 'ride':
+        case 'crash':
+          mapped = 'crash';
+          break;
+        case 'snare':
+        case 'kick':
+        default:
+          mapped = drumType as DrumType;
+      }
+      playDrumHook(mapped, velocity);
     } catch (error) {
       console.error('Error playing drum:', error);
     }
@@ -103,7 +128,7 @@ function MelodyComposer() {
   const togglePlayback = async () => {
     if (!isPlaying) {
       try {
-        await audioEngine.resumeContext();
+        await initialize();
         setIsPlaying(true);
         startPlayback();
         toast({ title: "Playback Started", description: "Multi-track sequencer playing" });
@@ -148,7 +173,6 @@ function MelodyComposer() {
     }
     setIsPlaying(false);
     setCurrentBeat(0);
-    audioEngine.stopPlayback();
     toast({ title: "Playback Stopped", description: "All sounds stopped" });
   };
 
@@ -164,7 +188,7 @@ function MelodyComposer() {
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
     setMasterVolume(newVolume);
-    audioEngine.setMasterVolume(newVolume / 100);
+    setMasterVolumeHook(newVolume / 100);
   };
 
   const toggleMute = () => {
@@ -190,14 +214,13 @@ function MelodyComposer() {
             <Button
               onClick={togglePlayback}
               size="sm"
-              className={`${isPlaying ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} w-10 h-10 p-0 rounded-full`}
+              className={isPlaying ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
             >
               {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </Button>
             <Button
               onClick={stopPlayback}
               size="sm"
-              variant="outline"
               className="w-10 h-10 p-0 rounded-full"
             >
               <Square className="h-4 w-4" />
