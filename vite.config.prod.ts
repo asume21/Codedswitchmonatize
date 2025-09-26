@@ -51,9 +51,7 @@ export default defineConfig({
     outDir: paths.outDir,
     emptyOutDir: true,
     rollupOptions: {
-      input: paths.isRender ? 
-        path.resolve(paths.projectRoot, "client", "index.html") : 
-        "./client/index.html"
+      input: path.resolve(paths.root, "index.html"),
     },
   },
   server: {
