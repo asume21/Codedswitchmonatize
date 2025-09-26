@@ -53,7 +53,7 @@ export default defineConfig({
     outDir: paths.outDir,
     emptyOutDir: true,
     rollupOptions: {
-      input: path.resolve(paths.root, "index.html"),
+      input: path.resolve(currentDir, "client", "index.html"),
     },
   },
   server: {
