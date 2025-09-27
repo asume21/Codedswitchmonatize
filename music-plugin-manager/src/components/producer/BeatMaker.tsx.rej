@@ -1,0 +1,34 @@
+diff a/music-plugin-manager/src/components/producer/BeatMaker.tsx b/music-plugin-manager/src/components/producer/BeatMaker.tsx	(rejected hunks)
+@@ -23,1 +23,1 @@
+-  const [currentPattern, setCurrentPattern] = useState<any>(null);
++  const [currentPattern, setCurrentPattern] = useState<unknown>(null);
+@@ -24,1 +24,1 @@
+-  const [currentBassline, setCurrentBassline] = useState<any>(null);
++  const [currentBassline, setCurrentBassline] = useState<unknown>(null);
+@@ -52,1 +52,1 @@
+-  const playGeneratedSample = async (sample: any) => {
++  const playGeneratedSample = async (sample: unknown) => {
+@@ -55,1 +55,1 @@
+-      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
++      const context = new (window.AudioContext || (window as unknown).webkitAudioContext)();
+@@ -89,1 +89,1 @@
+-    const name = (sampleName || '').toLowerCase();
++    const name = (sampleName ?? '').toLowerCase();
+@@ -536,1 +536,1 @@
+-  const handlePatternChange = (tracks: any[]) => {
++  const handlePatternChange = (tracks: unknown[]) => {
+@@ -555,1 +555,1 @@
+-  const handleBasslineChange = (bassline: any) => {
++  const handleBasslineChange = (bassline: unknown) => {
+@@ -590,1 +590,1 @@
+-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
++      const ctx = new (window.AudioContext || (window as unknown).webkitAudioContext)();
+@@ -770,1 +770,1 @@
+-                        onChange={(e) => setMetadata({...metadata, artist: e.target.value})}
++                        onChange={(e) => { setMetadata({...metadata, artist: e.target.value}); }}
+@@ -857,1 +857,1 @@
+-                      onChange={(e) => setMetadata({...metadata, tags: e.target.value})}
++                      onChange={(e) => { setMetadata({...metadata, tags: e.target.value}); }}
+@@ -964,1 +964,1 @@
+-                    {(samplePacks as any[]).length} Packs â¢ {(allSamples as any[]).length} Samples
++                    {(samplePacks as unknown[]).length} Packs â¢ {(allSamples as any[]).length} Samples

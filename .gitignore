@@ -15,3 +15,10 @@ github-api-push.js
 deploy.js
 deploy.cjs
 !.env.example
+
+
+#Ignore windsurf AI rules
+.windsurfrules
+
+# Context folder for AI assistance (contains reference code)
+Other_half/

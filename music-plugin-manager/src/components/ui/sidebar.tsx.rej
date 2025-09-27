@@ -1,0 +1,10 @@
+diff a/music-plugin-manager/src/components/ui/sidebar.tsx b/music-plugin-manager/src/components/ui/sidebar.tsx	(rejected hunks)
+@@ -99,1 +99,1 @@
+-        ? setOpenMobile((open) => !open)
++        ? setOpenMobile((open) => !open)
+@@ -100,1 +100,1 @@
+-        : setOpen((open) => !open)
++        : setOpen((open) => !open);
+@@ -116,1 +116,1 @@
+-      return () => window.removeEventListener("keydown", handleKeyDown)
++      return () => { window.removeEventListener("keydown", handleKeyDown); }

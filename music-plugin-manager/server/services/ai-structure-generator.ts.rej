@@ -1,0 +1,4 @@
+diff a/music-plugin-manager/server/services/ai-structure-generator.ts b/music-plugin-manager/server/services/ai-structure-generator.ts	(rejected hunks)
+@@ -354,1 +354,1 @@
+-  async generateBeatStructure(style: string, bpm: number, complexity: number = 5): Promise<any> {
++  async generateBeatStructure(style: string, bpm: number, complexity: number = 5): Promise<unknown> {

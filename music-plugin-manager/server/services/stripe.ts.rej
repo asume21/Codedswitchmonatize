@@ -1,0 +1,10 @@
+diff a/music-plugin-manager/server/services/stripe.ts b/music-plugin-manager/server/services/stripe.ts	(rejected hunks)
+@@ -4,1 +4,1 @@
+-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
++const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY ?? "";
+@@ -6,1 +6,1 @@
+-const APP_URL = process.env.APP_URL || "http://localhost:5000";
++const APP_URL = process.env.APP_URL ?? "http://localhost:5000";
+@@ -7,1 +7,1 @@
+-const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO || "";
++const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO ?? "";

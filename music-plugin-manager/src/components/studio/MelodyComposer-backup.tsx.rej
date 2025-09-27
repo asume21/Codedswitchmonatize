@@ -1,0 +1,19 @@
+diff a/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx b/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx	(rejected hunks)
+@@ -48,1 +48,1 @@
+-  const realisticAudioRef = useRef<any>(null);
++  const realisticAudioRef = useRef<unknown>(null);
+@@ -257,1 +257,1 @@
+-                onClick={() => setShowStepSequencer(!showStepSequencer)}
++                onClick={() => { setShowStepSequencer(!showStepSequencer); }}
+@@ -264,1 +264,1 @@
+-                onClick={() => setShowCircleOfFifths(!showCircleOfFifths)}
++                onClick={() => { setShowCircleOfFifths(!showCircleOfFifths); }}
+@@ -282,1 +282,1 @@
+-                onClick={() => setShowCircleOfFifths(false)}
++                onClick={() => { setShowCircleOfFifths(false); }}
+@@ -311,1 +311,1 @@
+-                            onClick={() => setScale(`${key} Major`)}
++                            onClick={() => { setScale(`${key} Major`); }}
+@@ -389,1 +389,1 @@
+-                        onClick={() => playChordFromProgression(chord)}
++                        onClick={() => { playChordFromProgression(chord); }}

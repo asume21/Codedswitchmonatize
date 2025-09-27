@@ -1,0 +1,4 @@
+diff a/music-plugin-manager/src/components/layout/PluginManager.tsx b/music-plugin-manager/src/components/layout/PluginManager.tsx	(rejected hunks)
+@@ -72,1 +72,1 @@
+-            onChange={(e) => setSearchTerm(e.target.value)}
++            onChange={(e) => { setSearchTerm(e.target.value); }}

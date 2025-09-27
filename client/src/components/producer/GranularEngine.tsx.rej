@@ -1,0 +1,40 @@
+diff a/client/src/components/producer/GranularEngine.tsx b/client/src/components/producer/GranularEngine.tsx	(rejected hunks)
+@@ -107,1 +107,1 @@
+-    initSynths();
++    void initSynths();
+@@ -149,1 +149,1 @@
+-        (next as any)[param] = toBoolean(value);
++        (next as unknown)[param] = toBoolean(value);
+@@ -153,1 +153,1 @@
+-        (next as any)[param] = value as string;
++        (next as unknown)[param] = value as string;
+@@ -251,1 +251,1 @@
+-                onClick={() => setSelectedEngine(index)}
++                onClick={() => { setSelectedEngine(index); }}
+@@ -299,1 +299,1 @@
+-                onValueChange={(v) => updateGranularParam("density", v[0])}
++                onValueChange={(v) => { updateGranularParam("density", v[0]); }}
+@@ -325,1 +325,1 @@
+-                onValueChange={(v) => updateGranularParam("pitch", v[0])}
++                onValueChange={(v) => { updateGranularParam("pitch", v[0]); }}
+@@ -338,1 +338,1 @@
+-                onValueChange={(v) => updateGranularParam("spread", v[0])}
++                onValueChange={(v) => { updateGranularParam("spread", v[0]); }}
+@@ -409,1 +409,1 @@
+-                  onValueChange={(v) => setMacroControls(prev => ({ ...prev, macro1: v[0] }))}
++                  onValueChange={(v) => { setMacroControls(prev => ({ ...prev, macro1: v[0] })); }}
+@@ -420,1 +420,1 @@
+-                  onValueChange={(v) => setMacroControls(prev => ({ ...prev, macro2: v[0] }))}
++                  onValueChange={(v) => { setMacroControls(prev => ({ ...prev, macro2: v[0] })); }}
+@@ -431,1 +431,1 @@
+-                  onValueChange={(v) => setMacroControls(prev => ({ ...prev, macro3: v[0] }))}
++                  onValueChange={(v) => { setMacroControls(prev => ({ ...prev, macro3: v[0] })); }}
+@@ -442,1 +442,1 @@
+-                  onValueChange={(v) => setMacroControls(prev => ({ ...prev, macro4: v[0] }))}
++                  onValueChange={(v) => { setMacroControls(prev => ({ ...prev, macro4: v[0] })); }}
+@@ -458,1 +458,1 @@
+-                  onValueChange={(v) => updateGranularParam("texture", v[0])}
++                  onValueChange={(v) => { updateGranularParam("texture", v[0]); }}
+@@ -469,1 +469,1 @@
+-                  onValueChange={(v) => updateGranularParam("feedback", v[0])}
++                  onValueChange={(v) => { updateGranularParam("feedback", v[0]); }}

@@ -1,0 +1,16 @@
+diff a/music-plugin-manager/src/lib/globalSystems.ts b/music-plugin-manager/src/lib/globalSystems.ts	(rejected hunks)
+@@ -81,1 +81,1 @@
+-  private midiAccess: any = null;
++  private midiAccess: unknown = null;
+@@ -116,1 +116,1 @@
+-      input.onmidimessage = (event: any) => {
++      input.onmidimessage = (event: unknown) => {
+@@ -139,1 +139,1 @@
+-    this.listeners.get(pluginId)!.push(callback);
++    this.listeners.get(pluginId)?.push(callback);
+@@ -214,1 +214,1 @@
+-  private plugins: Map<string, any> = new Map();
++  private plugins: Map<string, unknown> = new Map();
+@@ -225,1 +225,1 @@
+-  registerPlugin(id: string, plugin: any) {
++  registerPlugin(id: string, plugin: unknown) {

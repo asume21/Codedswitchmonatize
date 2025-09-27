@@ -1,0 +1,4 @@
+diff a/client/src/components/studio/HybridWorkflow.tsx b/client/src/components/studio/HybridWorkflow.tsx	(rejected hunks)
+@@ -42,1 +42,1 @@
+-  finalResult: any;
++  finalResult: unknown;

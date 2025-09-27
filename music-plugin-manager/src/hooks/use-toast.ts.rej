@@ -1,0 +1,7 @@
+diff a/music-plugin-manager/src/hooks/use-toast.ts b/music-plugin-manager/src/hooks/use-toast.ts	(rejected hunks)
+@@ -150,1 +150,1 @@
+-  const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
++  const dismiss = () => { dispatch({ type: "DISMISS_TOAST", toastId: id }); }
+@@ -187,1 +187,1 @@
+-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
++    dismiss: (toastId?: string) => { dispatch({ type: "DISMISS_TOAST", toastId }); },

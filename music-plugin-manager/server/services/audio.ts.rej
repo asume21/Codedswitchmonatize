@@ -1,0 +1,4 @@
+diff a/music-plugin-manager/server/services/audio.ts b/music-plugin-manager/server/services/audio.ts	(rejected hunks)
+@@ -272,1 +272,1 @@
+-  static analyzeAudioPattern(pattern: any) {
++  static analyzeAudioPattern(pattern: unknown) {

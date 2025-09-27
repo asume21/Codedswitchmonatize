@@ -1,0 +1,19 @@
+diff a/client/src/components/studio/MusicToCode.tsx b/client/src/components/studio/MusicToCode.tsx	(rejected hunks)
+@@ -68,1 +68,1 @@
+-      musicData?: any; 
++      musicData?: unknown; 
+@@ -106,1 +106,1 @@
+-    onError: (error: any) => {
++    onError: (error: unknown) => {
+@@ -306,1 +306,1 @@
+-                onClick={() => setUseCurrentComposition(true)}
++                onClick={() => { setUseCurrentComposition(true); }}
+@@ -416,1 +416,1 @@
+-      {(musicAnalysis || generatedCode) && (
++      {(musicAnalysis ?? generatedCode) && (
+@@ -676,1 +676,1 @@
+-                  {String(generatedCode?.description || "Generated code")}
++                  {String(generatedCode.description || "Generated code")}
+@@ -683,1 +683,1 @@
+-                      {typeof generatedCode?.code === "string"
++                      {typeof generatedCode.code === "string"

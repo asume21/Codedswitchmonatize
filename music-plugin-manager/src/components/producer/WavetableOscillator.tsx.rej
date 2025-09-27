@@ -1,0 +1,46 @@
+diff a/music-plugin-manager/src/components/producer/WavetableOscillator.tsx b/music-plugin-manager/src/components/producer/WavetableOscillator.tsx	(rejected hunks)
+@@ -105,1 +105,1 @@
+-          type: lfoConfig.shape as any
++          type: lfoConfig.shape as unknown
+@@ -137,1 +137,1 @@
+-    initSynths();
++    void initSynths();
+@@ -199,1 +199,1 @@
+-          lfo.type = value as any;
++          lfo.type = value as unknown;
+@@ -260,1 +260,1 @@
+-                onValueChange={(v) => updateWavetableParam("waveform", v)}
++                onValueChange={(v) => { updateWavetableParam("waveform", v); }}
+@@ -281,1 +281,1 @@
+-                onValueChange={(v) => updateWavetableParam("position", v[0])}
++                onValueChange={(v) => { updateWavetableParam("position", v[0]); }}
+@@ -294,1 +294,1 @@
+-                onValueChange={(v) => updateWavetableParam("harmonics", v[0])}
++                onValueChange={(v) => { updateWavetableParam("harmonics", v[0]); }}
+@@ -320,1 +320,1 @@
+-                onValueChange={(v) => updateWavetableParam("brightness", v[0])}
++                onValueChange={(v) => { updateWavetableParam("brightness", v[0]); }}
+@@ -333,1 +333,1 @@
+-                onValueChange={(v) => updateWavetableParam("character", v[0])}
++                onValueChange={(v) => { updateWavetableParam("character", v[0]); }}
+@@ -368,1 +368,1 @@
+-                    onClick={() => setSelectedLFO(index)}
++                    onClick={() => { setSelectedLFO(index); }}
+@@ -403,1 +403,1 @@
+-                    onValueChange={(v) => updateLFO(selectedLFO, "rate", v[0])}
++                    onValueChange={(v) => { updateLFO(selectedLFO, "rate", v[0]); }}
+@@ -459,1 +459,1 @@
+-                onValueChange={(v) => setFilter(prev => ({ ...prev, type: v }))}
++                onValueChange={(v) => { setFilter(prev => ({ ...prev, type: v })); }}
+@@ -493,1 +493,1 @@
+-                onValueChange={(v) => setFilter(prev => ({ ...prev, resonance: v[0] }))}
++                onValueChange={(v) => { setFilter(prev => ({ ...prev, resonance: v[0] })); }}
+@@ -532,1 +532,1 @@
+-                    onValueChange={(v) => setEnvelope(prev => ({ ...prev, decay: v[0] }))}
++                    onValueChange={(v) => { setEnvelope(prev => ({ ...prev, decay: v[0] })); }}
+@@ -543,1 +543,1 @@
+-                    onValueChange={(v) => setEnvelope(prev => ({ ...prev, sustain: v[0] }))}
++                    onValueChange={(v) => { setEnvelope(prev => ({ ...prev, sustain: v[0] })); }}
+@@ -554,1 +554,1 @@
+-                    onValueChange={(v) => setEnvelope(prev => ({ ...prev, release: v[0] }))}
++                    onValueChange={(v) => { setEnvelope(prev => ({ ...prev, release: v[0] })); }}

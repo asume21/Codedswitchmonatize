@@ -1,0 +1,7 @@
+diff a/server/services/audio.ts b/server/services/audio.ts	(rejected hunks)
+@@ -272,1 +272,1 @@
+-  static analyzeAudioPattern(pattern: any) {
++  static analyzeAudioPattern(pattern: unknown) {
+@@ -295,1 +295,1 @@
+-    tracks.forEach(([instrument, steps]: [string, any]) => {
++    tracks.forEach(([instrument, steps]: [string, unknown]) => {

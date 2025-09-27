@@ -1,0 +1,19 @@
+diff a/music-plugin-manager/src/components/ui/chart.tsx b/music-plugin-manager/src/components/ui/chart.tsx	(rejected hunks)
+@@ -47,1 +47,1 @@
+-  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
++  const chartId = `chart-${id ?? uniqueId.replace(/:/g, "")}`
+@@ -72,1 +72,1 @@
+-    ([, config]) => config.theme || config.color
++    ([, config]) => config.theme ?? config.color
+@@ -89,1 +89,1 @@
+-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
++      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ??
+@@ -146,1 +146,1 @@
+-          ? config[label as keyof typeof config]?.label || label
++          ? config[label as keyof typeof config]?.label ?? label
+@@ -238,1 +238,1 @@
+-                          {itemConfig?.label || item.name}
++                          {itemConfig?.label ?? item.name}
+@@ -289,1 +289,1 @@
+-          const key = `${nameKey || item.dataKey || "value"}`
++          const key = `${(nameKey ?? item.dataKey) || "value"}`

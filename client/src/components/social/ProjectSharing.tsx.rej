@@ -1,0 +1,13 @@
+diff a/client/src/components/social/ProjectSharing.tsx b/client/src/components/social/ProjectSharing.tsx	(rejected hunks)
+@@ -73,1 +73,1 @@
+-      refetchShares();
++      void refetchShares();
+@@ -75,1 +75,1 @@
+-    onError: (error: any) => {
++    onError: (error: unknown) => {
+@@ -193,1 +193,1 @@
+-                  <Select value={sharePermission} onValueChange={(value: any) => setSharePermission(value)}>
++                  <Select value={sharePermission} onValueChange={(value: any) => { setSharePermission(value); }}>
+@@ -229,1 +229,1 @@
+-                  onClick={() => setShowInviteForm(false)}
++                  onClick={() => { setShowInviteForm(false); }}

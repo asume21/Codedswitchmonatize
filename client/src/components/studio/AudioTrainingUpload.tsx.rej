@@ -1,0 +1,22 @@
+diff a/client/src/components/studio/AudioTrainingUpload.tsx b/client/src/components/studio/AudioTrainingUpload.tsx	(rejected hunks)
+@@ -102,1 +102,1 @@
+-    } catch (error: any) {
++    } catch (error: unknown) {
+@@ -359,1 +359,1 @@
+-                  onValueChange={(value) => setMetadata({ ...metadata, key: value })}
++                  onValueChange={(value) => { setMetadata({ ...metadata, key: value }); }}
+@@ -474,1 +474,1 @@
+-                    .catch(error => {
++                    .catch((error: unknown) => {
+@@ -659,1 +659,1 @@
+-            onClick={() => processAttachedAssetsMutation.mutate()}
++            onClick={() => { processAttachedAssetsMutation.mutate(); }}
+@@ -747,1 +747,1 @@
+-                    handleFileUpload(files);
++                    void handleFileUpload(files);
+@@ -750,1 +750,1 @@
+-                onDragOver={(e) => e.preventDefault()}
++                onDragOver={(e) => { e.preventDefault(); }}
+@@ -767,1 +767,1 @@
+-                      const files = Array.from(e.target.files || []);
++                      const files = Array.from(e.target.files ?? []);
