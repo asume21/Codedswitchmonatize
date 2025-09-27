@@ -466,11 +466,11 @@ export default function ProfessionalStudio() {
           }
           
           // Play each drum sound if active at current step
-          if (drums.kick?.[currentStep]) playDrumSound('kick', 0.8);
-          if (drums.snare?.[currentStep]) playDrumSound('snare', 0.7);
-          if (drums.hihat?.[currentStep]) playDrumSound('hihat', 0.4);
-          if (drums.bass?.[currentStep]) playDrumSound('bass', 0.6);
-          if (drums.perc?.[currentStep]) playDrumSound('perc', 0.5);
+          if (drums.kick?.[currentStep]) playDrum('kick', 0.8);
+          if (drums.snare?.[currentStep]) playDrum('snare', 0.7);
+          if (drums.hihat?.[currentStep]) playDrum('hihat', 0.4);
+          if (drums.bass?.[currentStep]) playDrum('bass', 0.6);
+          if (drums.perc?.[currentStep]) playDrum('perc', 0.5);
           
           currentStep++;
         };
@@ -490,8 +490,8 @@ export default function ProfessionalStudio() {
           let percStep = 0;
           const playPercussion = () => {
             if (percStep >= 16) percStep = 0;
-            if (drums.shaker?.[percStep]) playDrumSound('perc', 0.3);
-            if (drums.tambourine?.[percStep]) playDrumSound('perc', 0.4);
+            if (drums.shaker?.[percStep]) playDrum('perc', 0.3);
+            if (drums.tambourine?.[percStep]) playDrum('perc', 0.4);
             percStep++;
           };
           setInterval(playPercussion, stepDuration * 1000);
@@ -513,7 +513,7 @@ export default function ProfessionalStudio() {
         // Try to play a simple test sound instead
         console.log('🎵 Playing fallback test sound...');
         try {
-          await playDrumSound('kick', 0.8);
+          await playDrum('kick', 0.8);
           console.log('✅ Test kick sound played successfully');
           
           toast({
@@ -566,11 +566,11 @@ export default function ProfessionalStudio() {
           }
           
           // Play each drum sound if active at current step
-          if (drums.kick?.[currentStep]) playDrumSound('kick', 0.8);
-          if (drums.snare?.[currentStep]) playDrumSound('snare', 0.7);
-          if (drums.hihat?.[currentStep]) playDrumSound('hihat', 0.4);
-          if (drums.bass?.[currentStep]) playDrumSound('bass', 0.6);
-          if (drums.perc?.[currentStep]) playDrumSound('perc', 0.5);
+          if (drums.kick?.[currentStep]) playDrum('kick', 0.8);
+          if (drums.snare?.[currentStep]) playDrum('snare', 0.7);
+          if (drums.hihat?.[currentStep]) playDrum('hihat', 0.4);
+          if (drums.bass?.[currentStep]) playDrum('bass', 0.6);
+          if (drums.perc?.[currentStep]) playDrum('perc', 0.5);
           
           currentStep++;
         };
@@ -797,23 +797,23 @@ export default function ProfessionalStudio() {
           
           if (kick && (kick[currentStep] === 1 || kick[currentStep] === true)) {
             console.log(`🥁 Playing KICK at step ${currentStep}`);
-            playDrumSound('kick');
+            playDrum('kick');
           }
           
           if (snare && (snare[currentStep] === 1 || snare[currentStep] === true)) {
             console.log(`🥁 Playing SNARE at step ${currentStep}`);
-            playDrumSound('snare');
+            playDrum('snare');
           }
           
           if (hihat && (hihat[currentStep] === 1 || hihat[currentStep] === true)) {
             console.log(`🥁 Playing HIHAT at step ${currentStep}`);
-            playDrumSound('hihat');
+            playDrum('hihat');
           }
           
           // Add bass pattern for full instrumentals
           if (bass && (bass[currentStep] === 1 || bass[currentStep] === true)) {
             console.log(`🎸 Playing BASS at step ${currentStep}`);
-            playDrumSound('bass'); // Play bass sound if available
+            playDrum('bass'); // Play bass sound if available
           }
         }, (measure * totalSteps * stepDuration) + (step * stepDuration));
       }
@@ -1537,7 +1537,7 @@ export default function ProfessionalStudio() {
                               console.log('🔧 Audio initialized successfully');
                             }
                             console.log('🔧 Playing test kick...');
-                            playDrumSound('kick', 0.8);
+                            playDrum('kick', 0.8);
                             console.log('🔧 Test kick command sent');
                             toast({
                               title: "Audio Test",
