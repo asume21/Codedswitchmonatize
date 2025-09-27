@@ -266,7 +266,7 @@ export default function Studio() {
       case "translator":
         return <CodeTranslator />;
       case "beatmaker":
-        return <BeatMaker onBeatGenerated={(beat) => setCurrentPattern(beat)} />;
+        return <BeatMaker />;
       case "melody":
         return <MelodyComposerV2 />;
       case "codebeat":

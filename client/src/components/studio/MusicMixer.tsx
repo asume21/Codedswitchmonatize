@@ -1,15 +1,14 @@
-import { useState, useContext, useRef } from 'react';
+import { useContext, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { StudioAudioContext } from '@/pages/studio';
-import { useAudio } from '@/hooks/use-audio';
-import { Play, Pause, Square, Download, Settings as MixerIcon, Volume2 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Play, Pause, RotateCcw, Square, Download, Settings as MixerIcon, Volume2, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAudio, type DrumType } from '@/hooks/use-audio';
 
 interface MixerTrack {
   id: string;
@@ -22,8 +21,7 @@ interface MixerTrack {
 }
 
 export default function MusicMixer() {
-  const studioContext = useContext(StudioAudioContext);
-  const { playDrumSound, initialize, isInitialized } = useAudio();
+  const { playDrum, initialize, isInitialized } = useAudio();
   const { toast } = useToast();
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -34,13 +32,8 @@ export default function MusicMixer() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mixerRef = useRef<HTMLDivElement>(null);
 
-  // Get data from studio context and localStorage
+  // Get data from localStorage
   const getBeatData = () => {
-    if (studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0) {
-      const hasRealData = Object.values(studioContext.currentPattern).some(arr =>
-        Array.isArray(arr) && arr.some(val => val === true));
-      return hasRealData ? studioContext.currentPattern : null;
-    }
 
     const stored = localStorage.getItem('generatedMusicData');
     if (stored) {
@@ -51,9 +44,6 @@ export default function MusicMixer() {
   };
 
   const getMelodyData = () => {
-    if (studioContext.currentMelody && studioContext.currentMelody.length > 0) {
-      return studioContext.currentMelody;
-    }
 
     const stored = localStorage.getItem('generatedMusicData');
     if (stored) {
@@ -71,10 +61,12 @@ export default function MusicMixer() {
     }
     return '';
   };
-
+  
   const getCodeMusicData = () => {
-    if (studioContext.currentCodeMusic && Object.keys(studioContext.currentCodeMusic).length > 0) {
-      return studioContext.currentCodeMusic;
+    const stored = localStorage.getItem('generatedMusicData');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.codeMusic || {};
     }
     return {};
   };
@@ -151,7 +143,7 @@ export default function MusicMixer() {
       if (beatTrack && beatTrack.data) {
         Object.entries(beatTrack.data).forEach(([drum, pattern]) => {
           if (Array.isArray(pattern) && (pattern as boolean[])[step % 16]) {
-            playDrumSound(drum);
+            playDrum(drum as DrumType);
           }
         });
       }
@@ -165,7 +157,7 @@ export default function MusicMixer() {
           const note = (melodyTrack.data as any[])[melodyStep];
           if (note && (note as any).note) {
             // Simple melody playback using drum sounds for now
-            playDrumSound('kick');
+            playDrum('kick');
           }
         }
       }

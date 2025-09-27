@@ -365,6 +365,7 @@ function MelodyComposer() {
                     />
                     <div className="flex-1 overflow-auto">
                       <PianoRollPlugin
+                        tracks={tracks}
                         notes={notes}
                         onNotesChange={setNotes}
                         selectedTrack={selectedTrack}

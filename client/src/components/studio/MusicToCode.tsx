@@ -59,7 +59,7 @@ export default function MusicToCode() {
   const [useCurrentComposition, setUseCurrentComposition] = useState(false);
 
   const { toast } = useToast();
-  const { playNote, playDrumSound, initialize, isInitialized } = useAudio();
+  const { playNote, playDrum, initialize, isInitialized } = useAudio();
   const studioContext = useContext(StudioAudioContext);
 
   const analyzeMutation = useMutation({
@@ -477,7 +477,7 @@ export default function MusicToCode() {
                         // Test basic note
                         // Let audio system use selected instrument
                         playNote("C", 4, 1.0, undefined, 0.8);
-                        playDrumSound("kick", 0.8);
+                        playDrum("kick", 0.8);
 
                         toast({
                           title: "Audio Test",
@@ -625,11 +625,11 @@ export default function MusicToCode() {
                               for (let beat = 0; beat < 16; beat++) {
                                 setTimeout(() => {
                                   if (beat % 4 === 0)
-                                    playDrumSound("kick", 0.8);
+                                    playDrum("kick", 0.8);
                                   if (beat % 4 === 2)
-                                    playDrumSound("snare", 0.7);
+                                    playDrum("snare", 0.7);
                                   if (beat % 2 === 1)
-                                    playDrumSound("hihat", 0.4);
+                                    playDrum("hihat", 0.4);
                                 }, beat * drumInterval);
                               }
                             }

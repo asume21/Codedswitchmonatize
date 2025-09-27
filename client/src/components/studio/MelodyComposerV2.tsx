@@ -77,7 +77,7 @@ function MelodyComposerV2() {
 
   const playDrum = async (drumType: string, velocity: number = 0.8) => {
     try {
-      await realisticAudio.playDrumSound(drumType, velocity);
+      await realisticAudio.playDrum(drumType, velocity);
     } catch (error) {
       console.error('Error playing drum:', error);
     }

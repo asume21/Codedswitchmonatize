@@ -47,7 +47,7 @@ interface Track {
 
 export default function MixerStudio() {
   const { toast } = useToast();
-  const { playDrumSound, initialize, isInitialized } = useAudio();
+  const { playDrum, initialize, isInitialized } = useAudio();
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterVolumeRef = useRef<number>(75);
   
