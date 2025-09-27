@@ -1,0 +1,129 @@
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { 
+  Home,
+  LayoutDashboard,
+  Code, 
+  Music, 
+  Zap, 
+  Shield, 
+  Settings,
+  Menu,
+  X
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const navigationItems = [
+  { title: "Landing", url: createPageUrl("Landing"), icon: Home },
+  { title: "Dashboard", url: createPageUrl("Dashboard"), icon: LayoutDashboard },
+  { title: "Studio", url: createPageUrl("Studio"), icon: Music },
+  { title: "Code Translator", url: createPageUrl("CodeTranslator"), icon: Code },
+  { title: "AI Assistant", url: createPageUrl("AIAssistant"), icon: Zap },
+  { title: "Security Scanner", url: createPageUrl("SecurityScanner"), icon: Shield },
+  { title: "Settings", url: createPageUrl("Settings"), icon: Settings },
+];
+
+export default function Layout({ children, currentPageName }) {
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const isLanding = currentPageName === "Landing";
+
+  // Don't show layout on landing page
+  if (isLanding) {
+    return <div className="min-h-screen bg-slate-950">{children}</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white">
+      <style>
+        {`
+          :root {
+            --primary: 240 100% 67%;
+            --secondary: 217 100% 67%; 
+            --accent: 267 84% 81%;
+            --background: 222 84% 5%;
+            --card: 222 84% 8%;
+            --border: 217 32% 17%;
+          }
+          
+          .glassmorphism {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+          }
+          
+          .gradient-bg {
+            background: linear-gradient(135deg, #6366f1 0%, #3b82f6 50%, #a855f7 100%);
+          }
+        `}
+      </style>
+
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 glassmorphism border-b border-slate-800">
+        <div className="flex items-center justify-between p-4">
+          <Link to={createPageUrl("Dashboard")} className="flex items-center gap-2">
+            <div className="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
+              <Code className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-bold text-xl">CodedSwitch</span>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </Button>
+        </div>
+      </div>
+      
+      {/* Sidebar */}
+      <aside className={`fixed top-0 left-0 h-full z-40 lg:z-10 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 w-64`}>
+        <div className="h-full glassmorphism flex flex-col pt-20 lg:pt-6">
+          <div className="px-6 mb-8 hidden lg:flex items-center gap-2">
+            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <Code className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-bold text-2xl">CodedSwitch</span>
+          </div>
+
+          <nav className="flex-1 px-4 space-y-2">
+            {navigationItems.map(item => {
+              // Hide Landing page link from sidebar nav
+              if (item.title === 'Landing') return null;
+
+              const isActive = location.pathname === item.url;
+              return (
+                <Link
+                  key={item.title}
+                  to={item.url}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? "bg-indigo-600/30 text-white"
+                      : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.title}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="p-4 border-t border-slate-800">
+            {/* User profile placeholder */}
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="lg:pl-64 pt-20 lg:pt-0">
+        <div className="p-2 md:p-6">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}

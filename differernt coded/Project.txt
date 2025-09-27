@@ -1,0 +1,41 @@
+{
+  "name": "Project",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Project title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Project description"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "code",
+        "music",
+        "hybrid"
+      ],
+      "description": "Project type"
+    },
+    "bpm": {
+      "type": "number",
+      "default": 120,
+      "description": "Project tempo in BPM"
+    },
+    "key": {
+      "type": "string",
+      "default": "C",
+      "description": "Musical key"
+    },
+    "data": {
+      "type": "object",
+      "description": "Project data (code, patterns, etc.)"
+    }
+  },
+  "required": [
+    "title",
+    "type"
+  ]
+}
