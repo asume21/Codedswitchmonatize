@@ -25,9 +25,10 @@ interface Track {
 }
 
 interface VerticalPianoRollProps {
+  tracks: Track[];
   notes?: Note[];
   onNotesChange?: (notes: Note[]) => void;
-  selectedTrack?: number;
+  selectedTrack?: string; // Changed to string to match parent
   isPlaying?: boolean;
   onPlayNote?: (note: string, octave: number, duration: number, instrument?: string) => void;
   noteDuration?: number;
@@ -48,9 +49,10 @@ interface VerticalPianoRollProps {
 
 
 const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
+  tracks,
   notes: externalNotes = [],
   onNotesChange = () => {},
-  selectedTrack = 0,
+  selectedTrack = '1',
   isPlaying: externalIsPlaying = false,
   onPlayNote = () => {},
   noteDuration = 0.5,
@@ -61,18 +63,6 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   onCountInToggle = () => {},
   onChordModeToggle = () => {},
 }) => {
-  // State
-  const [tracks, setTracks] = useState<Track[]>([
-    {
-      id: '1',
-      name: 'Piano',
-      notes: [],
-      muted: false,
-      solo: false,
-      volume: 0.7,
-      pan: 0,
-    },
-  ]);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpm, setBpm] = useState(120);
@@ -127,17 +117,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     }
   }, [externalIsPlaying]);
 
-  // Sync with external notes
-  useEffect(() => {
-    if (externalNotes.length > 0) {
-      setTracks((prevTracks) =>
-        prevTracks.map((track, i) =>
-          i === selectedTrack ? { ...track, notes: [...externalNotes] } : track
-        )
-      );
-    }
-  }, [externalNotes, selectedTrack]);
-
+  
   // Playback functions
   const startPlayback = useCallback(() => {
     if (playbackInterval.current) {
@@ -173,7 +153,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   }, []);
 
   const playStep = useCallback((step: number) => {
-    const currentTrack = tracks[selectedTrack];
+    const currentTrack = tracks.find(t => t.id === String(selectedTrack));
     if (!currentTrack) return;
 
     // Play notes for current step
@@ -205,7 +185,7 @@ audioEngine.current.playNote(noteName, octave, noteDuration);
   };
 
   const toggleNote = (step: number, pitch: number) => {
-    const currentTrack = tracks[selectedTrack];
+    const currentTrack = tracks.find(t => t.id === String(selectedTrack));
     if (!currentTrack) return;
 
     const octave = Math.floor(pitch / 12) - 1;
@@ -221,20 +201,11 @@ audioEngine.current.playNote(noteName, octave, noteDuration);
       newNotes.push(newNote);
     }
 
-    const newTracks = [...tracks];
-    newTracks[selectedTrack] = { ...currentTrack, notes: newNotes };
-    setTracks(newTracks);
-    onNotesChange(newNotes);
+        onNotesChange(newNotes);
   };
 
   const clearAll = () => {
-    setTracks((prevTracks) =>
-      prevTracks.map((track) => ({
-        ...track,
-        notes: [],
-      }))
-    );
-
+    
     if (onNotesChange) {
       onNotesChange([]);
     }
@@ -342,7 +313,7 @@ audioEngine.current.playNote(noteName, octave, noteDuration);
                       const pitch = 127 - i;
                       const octave = Math.floor(pitch / 12) - 1;
                       const noteName = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][pitch % 12];
-                      const noteExists = tracks[selectedTrack]?.notes.some(
+                      const noteExists = tracks.find(t => t.id === String(selectedTrack))?.notes.some(
                         (note) => note.step === step && note.note === noteName && note.octave === octave
                       );
 

@@ -253,6 +253,7 @@ function MelodyComposerV2() {
         {/* Piano Roll Plugin */}
         {activePlugins.pianoRoll && (
           <PianoRollPlugin
+            tracks={tracks}
             notes={notes}
             onNotesChange={setNotes}
             selectedTrack={selectedTrack}

@@ -4,7 +4,18 @@ import VerticalPianoRoll from '../VerticalPianoRoll';
 
 import type { Note } from '../types/pianoRollTypes';
 
+interface Track {
+  id: string;
+  name: string;
+  instrument: string;
+  volume: number;
+  pan: number;
+  muted: boolean;
+  solo: boolean;
+}
+
 interface PianoRollPluginProps {
+  tracks: Track[];
   notes: Note[];
   onNotesChange: (notes: Note[]) => void;
   selectedTrack: string;
@@ -13,6 +24,7 @@ interface PianoRollPluginProps {
 }
 
 export function PianoRollPlugin({ 
+  tracks,
   notes, 
   onNotesChange, 
   selectedTrack, 
@@ -75,6 +87,7 @@ export function PianoRollPlugin({
 
       {/* Use the full VerticalPianoRoll component with proper props */}
       <VerticalPianoRoll
+        tracks={tracks}
         notes={notes}
         onNotesChange={onNotesChange}
         selectedTrack={selectedTrack}
