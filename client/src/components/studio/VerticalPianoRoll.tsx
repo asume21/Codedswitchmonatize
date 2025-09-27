@@ -7,6 +7,7 @@ import { Play, Pause, Square } from 'lucide-react';
 import type { Note } from './types/pianoRollTypes';
 import { DEFAULT_customKeys } from './types/pianoRollTypes';
 import { useToast } from '@/hooks/use-toast';
+import { useAudio } from '@/hooks/use-audio';
 import { cn } from '@/lib/utils';
 
 const STEPS = 16;
@@ -80,14 +81,19 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // Refs
   const playbackInterval = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+  const { playNote: audioPlayNote, initialize, isInitialized } = useAudio();
 
   // Audio engine
   const audioEngine = useRef({
-    playNote: (note: string, octave: number, duration: number) => {
+    playNote: async (note: string, octave: number, duration: number) => {
+      if (!isInitialized) {
+        await initialize();
+      }
       if (onPlayNote) {
         onPlayNote(note, octave, duration);
       } else {
-        console.log(`Playing note: ${note}${octave} for ${duration}s`);
+        // @ts-ignore
+        audioPlayNote(note, octave, duration, 'piano', 0.8);
       }
     },
     stopAllNotes: () => {

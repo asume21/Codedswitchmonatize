@@ -107,7 +107,7 @@ export default function ProfessionalStudio() {
 
   // Integrated AI Music Generation Mutations 
   const generateFullSongMutation = useMutation({
-    mutationFn: async (data: { prompt?: string; lyrics?: string; options: any }) => {
+    mutationFn: async (data: { prompt?: string; lyrics?: string; options: Record<string, unknown> }) => {
       const response = await apiRequest('POST', '/api/audio/generate-song', data);
       const parsedResponse = await response.json();
       console.log('🎵 Parsed API response:', parsedResponse);
@@ -160,7 +160,7 @@ export default function ProfessionalStudio() {
   });
 
   const generateAIMelodyMutation = useMutation({
-    mutationFn: async (data: { scale: string; style: string; complexity: number; lyrics?: string; beatData?: any }) => {
+    mutationFn: async (data: { scale: string; style: string; complexity: number; lyrics?: string; beatData?: Record<string, unknown> }) => {
       const response = await apiRequest('POST', '/api/melodies/generate', data);
       return await response.json(); 
     },

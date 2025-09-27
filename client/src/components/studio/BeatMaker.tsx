@@ -1,27 +1,21 @@
 import { useState, useRef, useEffect, useContext } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useAudio } from "@/hooks/use-audio";
+import { useAudio, type DrumType } from "@/hooks/use-audio";
 import { useMIDI } from "@/hooks/use-midi";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { StudioAudioContext } from "@/pages/studio";
-import { realisticAudio } from "@/lib/realisticAudio";
-import OutputSequencer from "@/components/producer/OutputSequencer";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 
 interface BeatPattern {
   kick: boolean[];
   snare: boolean[];
   hihat: boolean[];
-  openhat: boolean[];
-  tom1: boolean[];
-  tom2: boolean[];
-  tom3: boolean[];
-  ride: boolean[];
+  clap: boolean[];
+  tom: boolean[];
+  crash: boolean[];
 }
 
 const drumKits = {
@@ -29,12 +23,10 @@ const drumKits = {
     name: 'Acoustic',
     sounds: [
       { id: 'kick', name: 'Kick', color: 'bg-red-500' },
-      { id: 'bass', name: 'Bass Drum', color: 'bg-red-700' },
-      { id: 'tom', name: 'Tom', color: 'bg-purple-600' },
       { id: 'snare', name: 'Snare', color: 'bg-blue-500' },
       { id: 'hihat', name: 'Hi-Hat', color: 'bg-yellow-500' },
-      { id: 'openhat', name: 'Open Hat', color: 'bg-green-500' },
-      { id: 'clap', name: 'Clap', color: 'bg-pink-500' },
+      { id: 'clap', name: 'Clap', color: 'bg-green-500' },
+      { id: 'tom', name: 'Tom', color: 'bg-purple-600' },
       { id: 'crash', name: 'Crash', color: 'bg-orange-500' },
     ]
   }
@@ -43,12 +35,10 @@ const drumKits = {
 const defaultTracks = [
   { id: "kick", name: "Kick", color: "bg-red-500" },
   { id: "snare", name: "Snare", color: "bg-blue-500" },
-  { id: "hihat", name: "Hi-hat (Closed)", color: "bg-yellow-500" },
-  { id: "openhat", name: "Hi-hat (Open)", color: "bg-green-500" },
-  { id: "tom1", name: "Tom 1", color: "bg-purple-600" },
-  { id: "tom2", name: "Tom 2", color: "bg-purple-700" },
-  { id: "tom3", name: "Tom 3", color: "bg-purple-800" },
-  { id: "ride", name: "Ride", color: "bg-orange-500" },
+  { id: "hihat", name: "Hi-hat", color: "bg-yellow-500" },
+  { id: "clap", name: "Clap", color: "bg-green-500" },
+  { id: "tom", name: "Tom", color: "bg-purple-600" },
+  { id: "crash", name: "Crash", color: "bg-orange-500" },
 ];
 
 export default function BeatMaker() {
@@ -90,11 +80,9 @@ export default function BeatMaker() {
             kick: parsed.beatPattern.kick || Array(16).fill(false),
             snare: parsed.beatPattern.snare || Array(16).fill(false),
             hihat: parsed.beatPattern.hihat || Array(16).fill(false),
-            openhat: parsed.beatPattern.openhat || Array(16).fill(false),
-            tom1: parsed.beatPattern.tom1 || Array(16).fill(false),
-            tom2: parsed.beatPattern.tom2 || Array(16).fill(false),
-            tom3: parsed.beatPattern.tom3 || Array(16).fill(false),
-            ride: parsed.beatPattern.ride || Array(16).fill(false),
+            clap: parsed.beatPattern.clap || parsed.beatPattern.openhat || Array(16).fill(false),
+            tom: parsed.beatPattern.tom || parsed.beatPattern.tom1 || Array(16).fill(false),
+            crash: parsed.beatPattern.crash || parsed.beatPattern.ride || Array(16).fill(false),
           };
         }
       } catch (error) {
@@ -107,11 +95,9 @@ export default function BeatMaker() {
       kick: Array(16).fill(false),
       snare: Array(16).fill(false),
       hihat: Array(16).fill(false),
-      openhat: Array(16).fill(false),
-      tom1: Array(16).fill(false),
-      tom2: Array(16).fill(false),
-      tom3: Array(16).fill(false),
-      ride: Array(16).fill(false),
+      clap: Array(16).fill(false),
+      tom: Array(16).fill(false),
+      crash: Array(16).fill(false),
     };
   });
 
@@ -259,7 +245,7 @@ export default function BeatMaker() {
       // Play sounds for active steps
       Object.entries(pattern).forEach(([track, steps]) => {
         if (steps[step]) {
-          playDrum(track as any);
+          playDrum(track as DrumType);
         }
       });
       
@@ -475,9 +461,18 @@ export default function BeatMaker() {
                 {tracks.map((track) => (
                   <div key={track.id} className="flex items-center space-x-4">
                     <div className="w-24 text-sm font-medium flex items-center space-x-2">
-                      <div className={`w-5 h-5 rounded ${track.color} flex items-center justify-center text-xs font-bold text-white shadow-lg`}>
-                        {track.name[0]}
-                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!isInitialized) {
+                            await initialize();
+                          }
+                          playDrum(track.id as DrumType);
+                        }}
+                        className={`w-8 h-8 rounded ${track.color} flex items-center justify-center text-xs font-bold text-white shadow-lg hover:scale-110 transition-transform`}
+                        title={`Test ${track.name} sound`}
+                      >
+                        ▶
+                      </button>
                       <span className="text-gray-200">{track.name}</span>
                     </div>
 
@@ -488,7 +483,7 @@ export default function BeatMaker() {
                           onClick={() => {
                             toggleStep(track.id as keyof BeatPattern, index);
                             if (!active && isInitialized) {
-                              playDrum(track.id as any);
+                              playDrum(track.id as DrumType);
                             }
                           }}
                           className={`beat-pad w-10 h-10 rounded border-2 transition-all relative flex items-center justify-center text-xs font-bold ${

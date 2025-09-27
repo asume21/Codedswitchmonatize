@@ -139,14 +139,12 @@ export default function SocialDiscovery() {
                 <Input
                   placeholder="Search for music, artists, or genres..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-gray-700 border-gray-600"
                 />
               </div>
             </div>
 
-            <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
-              <SelectTrigger className="w-32 bg-gray-700 border-gray-600">
+            <Select value={searchType} onValueChange={(value: any) => { setSearchType(value); }}>
+              <SelectTrigger className="w-32 bg-gray-700 border-gray-600 rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
