@@ -10,6 +10,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     { id: "translator", icon: "fas fa-code", label: "Code Translator" },
     { id: "beatmaker", icon: "fas fa-drum", label: "Beat Maker" },
     { id: "melody", icon: "fas fa-music", label: "Melody Composer" },
+    { id: "multitrack", icon: "fas fa-layer-group", label: "Multi-Track Studio" },
     { id: "codebeat", icon: "fas fa-exchange-alt", label: "Code to Music" },
     { id: "musiccode", icon: "fas fa-code-branch", label: "Music to Code" },
     { id: "layers", icon: "fas fa-layer-group", label: "Dynamic Layering" },

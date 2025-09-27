@@ -5,6 +5,7 @@ import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
 import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
 import { realisticAudio } from '@/lib/realisticAudio';
+import { useToast } from '@/hooks/use-toast';
 
 interface Note {
   id: string;
@@ -25,16 +26,10 @@ interface Track {
   solo: boolean;
 }
 
-interface Toast {
-  title: string;
-  description: string;
-}
-
-const toast = ({ title, description }: Toast) => {
-  console.log(`🎵 ${title}: ${description}`);
-};
 
 function MelodyComposerV2() {
+  const { toast } = useToast();
+  
   // Core state
   const [notes, setNotes] = useState<Note[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);

@@ -5,6 +5,7 @@ import Sidebar from "@/components/studio/Sidebar";
 import TransportControls from "@/components/studio/TransportControls";
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import BeatMaker from "@/components/studio/BeatMaker";
+import MelodyComposer from "@/components/studio/MelodyComposer";
 import MelodyComposerV2 from "@/components/studio/MelodyComposerV2";
 import CodeToMusic from "@/components/studio/CodeToMusic";
 import MusicToCode from "@/components/studio/MusicToCode";
@@ -63,7 +64,7 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-type Tab = "translator" | "beatmaker" | "melody" | "codebeat" | "musiccode" | "assistant" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
+type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "codebeat" | "musiccode" | "assistant" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
 
 export default function Studio() {
   const [location] = useLocation();
@@ -175,6 +176,7 @@ export default function Studio() {
       "translator": "Code Translator",
       "beatmaker": "Beat Maker", 
       "melody": "Melody Composer",
+      "multitrack": "Multi-Track Studio",
       "codebeat": "Code to Music",
       "musiccode": "Music to Code",
       "assistant": "Song Uploader & AI Assistant",
@@ -268,6 +270,8 @@ export default function Studio() {
       case "beatmaker":
         return <BeatMaker />;
       case "melody":
+        return <MelodyComposer />;
+      case "multitrack":
         return <MelodyComposerV2 />;
       case "codebeat":
         return <CodeBeatStudio />;
