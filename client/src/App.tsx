@@ -13,6 +13,7 @@ import Subscribe from "@/pages/Subscribe";
 import TestCircular from "@/pages/TestCircular";
 import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
+import Settings from "@/pages/settings";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
@@ -156,7 +157,7 @@ function App() {
           <Route path="/billing" component={Subscribe} />
           <Route path="/settings">
             <AppLayout>
-              <Studio />
+              <Settings />
             </AppLayout>
           </Route>
           <Route path="/studio">
