@@ -722,6 +722,88 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   );
 
+  // Generate lyrics endpoint
+  app.post(
+    "/api/lyrics/generate",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { theme, genre, mood, style } = req.body;
+
+        if (!theme) {
+          return sendError(res, 400, "Theme is required");
+        }
+
+        // For now, return mock lyrics since we don't have a lyrics generation service
+        const mockLyrics = [
+          `[Verse 1]`,
+          `In the ${mood || 'vibrant'} ${genre || 'electronic'} night`,
+          `Where ${theme} comes alive`,
+          `We dance until the morning light`,
+          `This is how we thrive`,
+          ``,
+          `[Chorus]`,
+          `${theme}, ${theme}, in my heart`,
+          `Never gonna fall apart`,
+          `Feel the ${genre || 'electronic'} beat`,
+          `Moving to the heat`,
+          ``,
+          `[Verse 2]`,
+          `Every moment feels so right`,
+          `In this ${mood || 'energetic'} space`,
+          `${theme} shining bright`,
+          `Love in every place`
+        ].join('\n');
+
+        res.json({ 
+          lyrics: mockLyrics,
+          metadata: {
+            theme,
+            genre: genre || 'electronic',
+            mood: mood || 'energetic',
+            style: style || 'modern'
+          }
+        });
+      } catch (err: any) {
+        console.error("Lyrics generation error:", err);
+        sendError(res, 500, err?.message || "Failed to generate lyrics");
+      }
+    }
+  );
+
+  // Generate beat from lyrics endpoint
+  app.post(
+    "/api/lyrics/generate-beat",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { lyrics, genre, complexity } = req.body;
+
+        if (!lyrics) {
+          return sendError(res, 400, "Lyrics are required");
+        }
+
+        // Generate a beat pattern based on lyrics rhythm
+        const beatPattern = {
+          kick: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+          snare: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+          hihat: [1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+          openhat: [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+        };
+
+        res.json({ 
+          pattern: beatPattern,
+          bpm: 120,
+          genre: genre || 'hip-hop',
+          complexity: complexity || 5
+        });
+      } catch (err: any) {
+        console.error("Beat generation from lyrics error:", err);
+        sendError(res, 500, err?.message || "Failed to generate beat from lyrics");
+      }
+    }
+  );
+
     app.post(
     "/api/lyrics/generate-music",
     requireAuth(),

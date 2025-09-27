@@ -19,6 +19,28 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  // Check if response is HTML (error page) instead of JSON
+  const contentType = res.headers.get("content-type");
+  if (!res.ok && contentType && contentType.includes("text/html")) {
+    // For development, if we get a 401, try to get the default user session
+    if (res.status === 401) {
+      // First try to get the current user to establish a session
+      const meRes = await fetch("/api/me", { credentials: "include" });
+      if (meRes.ok) {
+        // Retry the original request
+        const retryRes = await fetch(url, {
+          method,
+          headers: data ? { "Content-Type": "application/json" } : {},
+          body: data ? JSON.stringify(data) : undefined,
+          credentials: "include",
+        });
+        await throwIfResNotOk(retryRes);
+        return retryRes;
+      }
+    }
+    throw new Error(`Server returned HTML instead of JSON. Status: ${res.status}`);
+  }
+
   await throwIfResNotOk(res);
   return res;
 }

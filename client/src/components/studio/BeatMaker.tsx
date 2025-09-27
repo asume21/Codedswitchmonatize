@@ -116,7 +116,7 @@ export default function BeatMaker() {
   });
 
   const { toast } = useToast();
-  const { playDrumSound, initialize, isInitialized } = useAudio();
+  const { playDrum, initialize, isInitialized } = useAudio();
   
   // MIDI Controller Integration  
   const { isConnected: midiConnected, activeNotes, settings: midiSettings } = useMIDI();
@@ -142,7 +142,7 @@ export default function BeatMaker() {
   // Beat generation mutation
   const generateBeatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/beat/generate", {
+      const response = await apiRequest("POST", "/api/beats/generate", {
         genre: "trap",
         bpm,
         complexity: complexity[0],
@@ -259,7 +259,7 @@ export default function BeatMaker() {
       // Play sounds for active steps
       Object.entries(pattern).forEach(([track, steps]) => {
         if (steps[step]) {
-          playDrumSound(track);
+          playDrum(track as any);
         }
       });
       
@@ -488,7 +488,7 @@ export default function BeatMaker() {
                           onClick={() => {
                             toggleStep(track.id as keyof BeatPattern, index);
                             if (!active && isInitialized) {
-                              playDrumSound(track.id);
+                              playDrum(track.id as any);
                             }
                           }}
                           className={`beat-pad w-10 h-10 rounded border-2 transition-all relative flex items-center justify-center text-xs font-bold ${
