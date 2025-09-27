@@ -820,4 +820,6 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       }
     }
   );
+
+  return createServer(app);
 }
