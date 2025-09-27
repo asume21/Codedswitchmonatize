@@ -5,8 +5,19 @@ import { randomUUID } from 'crypto';
 import { ObjectStorageService } from '../objectStorage';
 import { localMusicGenService, LocalMusicGenPack } from './local-musicgen';
 
-// Initialize Hugging Face client
-const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+// Initialize Hugging Face client only if valid API key is provided
+let hf: any = null;
+try {
+  if (process.env.HUGGINGFACE_API_KEY && !process.env.HUGGINGFACE_API_KEY.includes('your-') && process.env.HUGGINGFACE_API_KEY.length > 20) {
+    hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+    console.log('✅ Hugging Face client initialized successfully');
+  } else {
+    console.log('⚠️ Hugging Face API key not configured - using metadata-only generation');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize Hugging Face client:', error);
+  hf = null;
+}
 
 export interface MusicGenSample {
   id: string;
@@ -319,6 +330,22 @@ export class MusicGenService {
    */
   private async generateAudioSample(samplePrompt: any, packId: string): Promise<MusicGenSample> {
     const sampleId = `sample_${randomUUID()}`;
+
+    // Check if Hugging Face client is available
+    if (!hf) {
+      console.log(`⚠️ Hugging Face client not available - using metadata-only generation for: ${samplePrompt.name}`);
+      return {
+        id: sampleId,
+        name: samplePrompt.name,
+        prompt: samplePrompt.prompt,
+        audioUrl: undefined, // No real audio - will use synthesis
+        duration: samplePrompt.duration,
+        type: samplePrompt.type,
+        instrument: samplePrompt.instrument,
+        // Include AI musical data for intelligent synthesis
+        aiData: samplePrompt.aiData
+      };
+    }
 
     try {
       console.log(`🎵 Calling MusicGen API for: "${samplePrompt.prompt}"`);

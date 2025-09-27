@@ -4,7 +4,9 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "set NODE_ENV=development && tsx server/index.ts",
+    "dev": "concurrently \"npm:dev:client\" \"npm:dev:server\"",
+    "dev:client": "vite dev",
+    "dev:server": "set NODE_ENV=development && tsx server/index.ts",
     "build": "vite build --config vite.config.prod.ts && esbuild server/index.prod.ts --platform=node --bundle --format=cjs --outfile=dist/index.cjs",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
@@ -12,6 +14,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
+    "@babel/core": "^7.28.4",
+    "@babel/plugin-transform-react-jsx": "^7.27.1",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.27.1",
     "@google-cloud/storage": "^7.17.0",
     "@google/genai": "^1.15.0",
     "@google/generative-ai": "^0.24.1",
@@ -53,6 +60,7 @@
     "@stripe/stripe-js": "^7.9.0",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.0.0-alpha.30",
+    "@tanstack/react-query": "^5.89.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.0",
@@ -79,6 +87,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
+    "date-fns": "3.6.0",
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.39.1",
     "drizzle-zod": "^0.7.0",
@@ -90,6 +99,7 @@
     "google-auth-library": "^10.3.0",
     "googleapis": "^156.0.0",
     "input-otp": "^1.4.2",
+    "lucide-react": "^0.544.0",
     "memoizee": "^0.4.17",
     "memorystore": "^1.6.7",
     "multer": "^2.0.2",
@@ -123,15 +133,7 @@
     "wouter": "^3.3.8",
     "ws": "^8.18.0",
     "zod": "^3.24.1",
-    "zod-validation-error": "^3.4.0",
-    "@babel/core": "^7.28.4",
-    "@babel/plugin-transform-react-jsx": "^7.27.1",
-    "@babel/preset-env": "^7.28.3",
-    "@babel/preset-react": "^7.27.1",
-    "@babel/preset-typescript": "^7.27.1",
-    "@tanstack/react-query": "^5.89.0",
-    "date-fns": "3.6.0",
-    "lucide-react": "^0.544.0"
+    "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
     "@babel/plugin-transform-runtime": "^7.28.3",
@@ -139,6 +141,7 @@
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@types/uuid": "^10.0.0",
-    "@types/wouter": "^2.0.1"
+    "@types/wouter": "^2.0.1",
+    "concurrently": "^9.2.1"
   }
 }
