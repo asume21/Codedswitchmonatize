@@ -469,8 +469,8 @@ export default function ProfessionalStudio() {
           if (drums.kick?.[currentStep]) playDrum('kick', 0.8);
           if (drums.snare?.[currentStep]) playDrum('snare', 0.7);
           if (drums.hihat?.[currentStep]) playDrum('hihat', 0.4);
-          if (drums.bass?.[currentStep]) playDrum('bass', 0.6);
-          if (drums.perc?.[currentStep]) playDrum('perc', 0.5);
+          if (drums.bass?.[currentStep]) playDrum('tom', 0.6);
+          if (drums.perc?.[currentStep]) playDrum('clap', 0.5);
           
           currentStep++;
         };
@@ -490,8 +490,8 @@ export default function ProfessionalStudio() {
           let percStep = 0;
           const playPercussion = () => {
             if (percStep >= 16) percStep = 0;
-            if (drums.shaker?.[percStep]) playDrum('perc', 0.3);
-            if (drums.tambourine?.[percStep]) playDrum('perc', 0.4);
+            if (drums.shaker?.[percStep]) playDrum('clap', 0.3);
+            if (drums.tambourine?.[percStep]) playDrum('crash', 0.4);
             percStep++;
           };
           setInterval(playPercussion, stepDuration * 1000);
@@ -569,8 +569,8 @@ export default function ProfessionalStudio() {
           if (drums.kick?.[currentStep]) playDrum('kick', 0.8);
           if (drums.snare?.[currentStep]) playDrum('snare', 0.7);
           if (drums.hihat?.[currentStep]) playDrum('hihat', 0.4);
-          if (drums.bass?.[currentStep]) playDrum('bass', 0.6);
-          if (drums.perc?.[currentStep]) playDrum('perc', 0.5);
+          if (drums.bass?.[currentStep]) playDrum('tom', 0.6);
+          if (drums.perc?.[currentStep]) playDrum('clap', 0.5);
           
           currentStep++;
         };
@@ -813,7 +813,7 @@ export default function ProfessionalStudio() {
           // Add bass pattern for full instrumentals
           if (bass && (bass[currentStep] === 1 || bass[currentStep] === true)) {
             console.log(`🎸 Playing BASS at step ${currentStep}`);
-            playDrum('bass'); // Play bass sound if available
+            playDrum('tom'); // Play bass sound if available
           }
         }, (measure * totalSteps * stepDuration) + (step * stepDuration));
       }
