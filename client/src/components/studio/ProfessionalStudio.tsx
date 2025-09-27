@@ -850,12 +850,12 @@ export default function ProfessionalStudio() {
           AI-Powered Beat Generation • Electronic Music Creation • Code-Music Translation
         </p>
         <div className="flex justify-center gap-3 mb-4">
-          <Link href="/code-to-music-studio">
+          <Link href="/codebeat-studio">
             <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
               🎵 Multi-Track Studio
             </Button>
           </Link>
-          <Link href="/melody-composer-v2">
+          <Link href="/melody-composer">
             <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
               🎹 Plugin Studio
             </Button>
