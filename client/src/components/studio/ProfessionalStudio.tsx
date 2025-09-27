@@ -20,7 +20,7 @@ import { Link } from 'wouter';
 // Professional Studio Component - Professional-Grade AI Music Generation Integrated in Main Studio
 export default function ProfessionalStudio() {
   const { toast } = useToast();
-  const { playDrumSound, initialize, isInitialized } = useAudio();
+  const { playDrum, initialize, isInitialized } = useAudio();
   const [activeTab, setActiveTab] = useState('full-song');
 
   // Full Song Generation State
@@ -125,7 +125,7 @@ export default function ProfessionalStudio() {
     },
     onError: (error: any) => {
       toast({
-        title: "Generation Failed", 
+        title: "Generation Failed",
         description: error.message || "Failed to generate AI song",
         variant: "destructive"
       });
@@ -134,7 +134,13 @@ export default function ProfessionalStudio() {
 
   const generateAIBeatMutation = useMutation({
     mutationFn: async (data: { style: string; lyrics?: string; bpm?: number; complexity?: number }) => {
-      const response = await apiRequest('POST', '/api/beats/generate', data);
+      // Transform data to match API expectations
+      const beatData = {
+        genre: data.style || 'electronic',
+        bpm: data.bpm || 120,
+        duration: 30 // Default 30 seconds
+      };
+      const response = await apiRequest('POST', '/api/beats/generate', beatData);
       return await response.json();
     },
     onSuccess: (result) => {

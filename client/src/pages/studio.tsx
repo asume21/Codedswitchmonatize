@@ -24,6 +24,7 @@ import { WavetableOscillator } from "@/components/producer/WavetableOscillator";
 import PackGenerator from "@/components/producer/PackGenerator";
 import ProfessionalMixer from "@/components/studio/ProfessionalMixer";
 import { SongStructureManager } from "@/components/studio/SongStructureManager";
+import CodeBeatStudio from "@/pages/codebeat-studio";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import MobileNav from "@/components/studio/MobileNav";
 // PlaylistManager integrated into TransportControls
@@ -269,13 +270,12 @@ export default function Studio() {
       case "melody":
         return <MelodyComposerV2 />;
       case "codebeat":
-        return <CodeToMusic />;
+        return <CodeBeatStudio />;
       case "musiccode":
         return <MusicToCode />;
       case "assistant":
         return <AIAssistant />;
       case "security":
-        return <VulnerabilityScanner />;
       case "lyrics":
         return <LyricLab />;
       case "musicmixer":
