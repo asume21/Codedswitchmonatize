@@ -282,30 +282,26 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
-  // Current user
-  app.get("/api/me", requireAuth(), async (req: Request, res: Response) => {
-    const user = req.userId ? await storage.getUser(req.userId) : undefined;
-        if (!user) return sendError(res, 404, "User not found");
-    const {
-      id,
-      email,
-      stripeCustomerId,
-      stripeSubscriptionId,
-      subscriptionStatus,
-      subscriptionTier,
-      monthlyUploads,
-      monthlyGenerations,
-    } = user as any;
-    res.json({
-      id,
-      email,
-      stripeCustomerId,
-      stripeSubscriptionId,
-      subscriptionStatus,
-      subscriptionTier,
-      monthlyUploads,
-      monthlyGenerations,
-    });
+  // Subscription status endpoint
+  app.get("/api/subscription-status", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const user = req.userId ? await storage.getUser(req.userId) : undefined;
+      if (!user) {
+        return sendError(res, 404, "User not found");
+      }
+      
+      const subscriptionStatus = {
+        hasActiveSubscription: user.subscriptionTier === 'pro' || user.subscriptionStatus === 'active',
+        tier: user.subscriptionTier || 'free',
+        monthlyUploads: user.monthlyUploads || 0,
+        monthlyGenerations: user.monthlyGenerations || 0,
+        lastUsageReset: user.lastUsageReset,
+      };
+      
+      res.json(subscriptionStatus);
+    } catch (err: any) {
+      sendError(res, 500, err?.message || "Failed to fetch subscription status");
+    }
   });
 
   // Create Checkout Session
