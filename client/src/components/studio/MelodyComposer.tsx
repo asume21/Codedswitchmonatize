@@ -286,7 +286,7 @@ function MelodyComposer() {
                 <div className="flex items-center space-x-2">
                   <Slider
                     value={[tempo]}
-                    onValueChange={(value) => setTempo(value[0])}
+                    onValueChange={(value) => { setTempo(value[0]); }}
                     min={60}
                     max={200}
                     step={1}

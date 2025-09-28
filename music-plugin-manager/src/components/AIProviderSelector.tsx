@@ -101,7 +101,7 @@ export function AIProviderSelector() {
                     ? "border-primary bg-primary/5"
                     : "border-border"
                 }`}
-                onClick={() => setSelectedProvider(provider.id)}
+                onClick={() => { setSelectedProvider(provider.id); }}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">

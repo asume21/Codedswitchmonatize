@@ -8,7 +8,7 @@ import {
   Pause, 
   Square, 
   RotateCcw, 
-  Metronome,
+  Timer,
   Volume2,
   ChevronDown,
   ChevronUp,
@@ -61,7 +61,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   const decrementBpm = () => handleBpmChange(bpm - BPM_STEP);
 
   // Keyboard shortcuts
-  useHotkeys('space', (e) => {
+  useHotkeys('space', (e: React.KeyboardEvent) => {
     e.preventDefault();
     if (isPlaying) onStop();
     else onPlay();
@@ -153,7 +153,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
               min={BPM_MIN}
               max={BPM_MAX}
               step={BPM_STEP}
-              onValueChange={([value]) => handleBpmChange(value)}
+              onValueChange={([value]) => { handleBpmChange(value); }}
               className="w-full"
             />
           </div>
@@ -170,7 +170,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           />
           <div className="flex flex-col">
             <Label htmlFor="metronome" className="flex items-center gap-1 cursor-pointer">
-              <Metronome className="h-4 w-4" />
+              <Timer className="h-4 w-4" />
               <span>Metronome</span>
               <kbd className="ml-1 text-xs opacity-70">M</kbd>
             </Label>

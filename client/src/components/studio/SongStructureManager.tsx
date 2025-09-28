@@ -124,7 +124,7 @@ export function SongStructureManager() {
             const parsed = JSON.parse(content);
             if (parsed.intro || parsed.verse1 || parsed.chorus) {
               // Convert from your attached format to our format
-              const sections = Object.entries(parsed).map(([key, value]: [string, any]) => ({
+              const sections = Object.entries(parsed).map(([key, value]: [string, unknown]) => ({
                 id: key,
                 name: key.charAt(0).toUpperCase() + key.slice(1),
                 duration: value.duration || 16,
@@ -248,7 +248,7 @@ export function SongStructureManager() {
                                 <Label>Section Name</Label>
                                 <Input
                                   value={section.name}
-                                  onChange={(e) => updateSection(section.id, { name: e.target.value })}
+                                  onChange={(e) => { updateSection(section.id, { name: e.target.value }); }}
                                   className="bg-gray-700 border-gray-600"
                                 />
                               </div>
@@ -364,7 +364,7 @@ export function SongStructureManager() {
                 <Label>Title</Label>
                 <Input
                   value={metadata.title}
-                  onChange={(e) => setMetadata({...metadata, title: e.target.value})}
+                  onChange={(e) => { setMetadata({...metadata, title: e.target.value}); }}
                   placeholder="Song Title"
                   className="bg-gray-700 border-gray-600"
                   data-testid="input-song-title"
@@ -409,7 +409,7 @@ export function SongStructureManager() {
                 <Label>Key</Label>
                 <Input
                   value={metadata.key}
-                  onChange={(e) => setMetadata({...metadata, key: e.target.value})}
+                  onChange={(e) => { setMetadata({...metadata, key: e.target.value}); }}
                   placeholder="C Major"
                   className="bg-gray-700 border-gray-600"
                 />
@@ -453,7 +453,7 @@ export function SongStructureManager() {
                 <Label>Mixing</Label>
                 <Input
                   value={productionNotes.mixing}
-                  onChange={(e) => setProductionNotes({...productionNotes, mixing: e.target.value})}
+                  onChange={(e) => { setProductionNotes({...productionNotes, mixing: e.target.value}); }}
                   className="bg-gray-700 border-gray-600"
                 />
               </div>
@@ -461,7 +461,7 @@ export function SongStructureManager() {
                 <Label>Mastering</Label>
                 <Input
                   value={productionNotes.mastering}
-                  onChange={(e) => setProductionNotes({...productionNotes, mastering: e.target.value})}
+                  onChange={(e) => { setProductionNotes({...productionNotes, mastering: e.target.value}); }}
                   className="bg-gray-700 border-gray-600"
                 />
               </div>
@@ -469,13 +469,13 @@ export function SongStructureManager() {
                 <Label>Effects</Label>
                 <Input
                   value={productionNotes.effects}
-                  onChange={(e) => setProductionNotes({...productionNotes, effects: e.target.value})}
+                  onChange={(e) => { setProductionNotes({...productionNotes, effects: e.target.value}); }}
                   className="bg-gray-700 border-gray-600"
                 />
               </div>
               <div>
                 <Label>Style</Label>
-                <Select value={productionNotes.style} onValueChange={(value) => setProductionNotes({...productionNotes, style: value})}>
+                <Select value={productionNotes.style} onValueChange={(value) => { setProductionNotes({...productionNotes, style: value}); }}>
                   <SelectTrigger className="bg-gray-700 border-gray-600">
                     <SelectValue />
                   </SelectTrigger>

@@ -748,7 +748,7 @@ export default function VerticalPianoRoll() {
                     // Preview entire progression
                     let delay = 0;
                     progressionSteps.forEach((step) => {
-                      setTimeout(() => playProgressionStep(step), delay);
+                      setTimeout(() => { playProgressionStep(step); }, delay);
                       delay += 800; // 800ms between chords
                     });
                   }}
@@ -771,7 +771,7 @@ export default function VerticalPianoRoll() {
                 <span className="text-sm">Key:</span>
                 <select 
                   value={currentKey} 
-                  onChange={(e) => setCurrentKey(e.target.value)}
+                  onChange={(e) => { setCurrentKey(e.target.value); }}
                   className="bg-gray-700 text-white px-2 py-1 rounded text-sm"
                 >
                   {Object.keys(customKeys).map(key => (
@@ -996,7 +996,7 @@ export default function VerticalPianoRoll() {
                           : track
                       ));
                     }}
-                    onMouseUp={() => setIsMouseDown(false)}
+                    onMouseUp={() => { setIsMouseDown(false); }}
                   >
                     <div className={`mx-0.5 w-full ${avgVel > 0 ? 'bg-green-500' : 'bg-gray-600'}`} style={{ height: `${barHeight}px` }} />
                   </div>

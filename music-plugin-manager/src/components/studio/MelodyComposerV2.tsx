@@ -177,7 +177,7 @@ function MelodyComposerV2() {
               <label className="block text-sm font-medium mb-2 text-gray-300">Active Plugins</label>
               <div className="flex space-x-2">
                 <Button
-                  onClick={() => togglePlugin('trackControls')}
+                  onClick={() => { togglePlugin('trackControls'); }}
                   variant={activePlugins.trackControls ? "default" : "outline"}
                   size="sm"
                 >
@@ -191,7 +191,7 @@ function MelodyComposerV2() {
                   🎹
                 </Button>
                 <Button
-                  onClick={() => togglePlugin('stepSequencer')}
+                  onClick={() => { togglePlugin('stepSequencer'); }}
                   variant={activePlugins.stepSequencer ? "default" : "outline"}
                   size="sm"
                 >

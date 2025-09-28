@@ -131,7 +131,7 @@ function WavetableOscillator() {
       });
     };
 
-    initSynths();
+    void initSynths();
 
     return () => {
       if (synthRef.current) {
@@ -193,7 +193,7 @@ function WavetableOscillator() {
           lfo.amplitude.value = Number(value) / 100;
           break;
         case "shape":
-          lfo.type = value as any;
+          lfo.type = value as Tone.ToneOscillatorType;
           break;
       }
     }
@@ -288,7 +288,7 @@ function WavetableOscillator() {
               </label>
               <Slider
                 value={[wavetableParams.harmonics]}
-                onValueChange={(v) => updateWavetableParam("harmonics", v[0])}
+                onValueChange={(v) => { updateWavetableParam("harmonics", v[0]); }}
                 min={0}
                 max={100}
                 step={0.1}
@@ -314,7 +314,7 @@ function WavetableOscillator() {
               </label>
               <Slider
                 value={[wavetableParams.brightness]}
-                onValueChange={(v) => updateWavetableParam("brightness", v[0])}
+                onValueChange={(v) => { updateWavetableParam("brightness", v[0]); }}
                 min={0}
                 max={100}
                 step={0.1}
@@ -453,7 +453,7 @@ function WavetableOscillator() {
               <label className="text-sm font-medium mb-2 block">Filter Type</label>
               <Select 
                 value={filter.type}
-                onValueChange={(v) => setFilter(prev => ({ ...prev, type: v }))}
+                onValueChange={(v) => { setFilter(prev => ({ ...prev, type: v })); }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -500,7 +500,7 @@ function WavetableOscillator() {
               </label>
               <Slider
                 value={[filter.drive]}
-                onValueChange={(v) => setFilter(prev => ({ ...prev, drive: v[0] }))}
+                onValueChange={(v) => { setFilter(prev => ({ ...prev, drive: v[0] })); }}
                 min={0}
                 max={100}
                 step={1}

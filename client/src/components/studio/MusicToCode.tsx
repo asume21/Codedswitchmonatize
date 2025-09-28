@@ -25,7 +25,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
-import SongUploader from "./SongUploader.tsx";
+import SongUploader from "./SongUploader";
 
 interface MusicAnalysis {
   tempo: number;
@@ -103,11 +103,11 @@ export default function MusicToCode() {
         description: `Generated ${data.code?.language || "JavaScript"} code from musical composition.`,
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Analysis Failed",
         description:
-          error.message || "Failed to analyze music and generate code.",
+          (error as Error).message || "Failed to analyze music and generate code.",
         variant: "destructive",
       });
     },
@@ -303,7 +303,7 @@ export default function MusicToCode() {
                 </div>
               </div>
               <Button
-                onClick={() => setUseCurrentComposition(true)}
+                onClick={() => { setUseCurrentComposition(true); }}
                 className="mt-4"
                 disabled={
                   !studioContext.currentPattern && !studioContext.currentMelody

@@ -143,7 +143,7 @@ for (let i = 0; i < 10; i++) {
           </div>
           <Textarea
             value={sourceCode}
-            onChange={(e) => setSourceCode(e.target.value)}
+            onChange={(e) => { setSourceCode(e.target.value); }}
             className="flex-1 bg-studio-panel border-gray-600 font-mono text-sm resize-none"
             placeholder="Enter your source code here..."
           />

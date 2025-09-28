@@ -175,7 +175,7 @@ Type here or use AI generation...`);
   // NEW: Mastering function to optimize the full song
   const masterSongMutation = useMutation({
     mutationFn: async (data: { 
-      pattern: any; 
+      pattern: unknown; 
       melody: any[]; 
       lyrics: string; 
       codeMusic: any;
@@ -431,7 +431,7 @@ Type here or use AI generation...`);
             <div className="bg-studio-panel border border-gray-600 rounded-lg p-4">
               <h3 className="font-medium mb-3">Song Structure</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between p-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600" onClick={() => goToSection("intro")}>
+                <div className="flex items-center justify-between p-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600" onClick={() => { goToSection("intro"); }}>
                   <span>Intro</span>
                   <span className="text-gray-400">8 bars</span>
                 </div>
@@ -700,7 +700,7 @@ Type here or use AI generation...`);
                   </span>
                 </div>
                 <Button
-                  onClick={() => generateBeatFromLyricsMutation.mutate({ lyrics: content, genre })}
+                  onClick={() => { generateBeatFromLyricsMutation.mutate({ lyrics: content, genre }); }}
                   disabled={generateBeatFromLyricsMutation.isPending || !content.trim()}
                   className="w-full bg-green-600 hover:bg-green-500"
                   size="sm"
@@ -719,7 +719,7 @@ Type here or use AI generation...`);
                   {["algorithm", "digital", "syntax", "binary", "electric", "function", "variable", "execute"].map((word) => (
                     <button
                       key={word}
-                      onClick={() => insertRhyme(word)}
+                      onClick={() => { insertRhyme(word); }}
                       className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600 cursor-pointer transition-colors"
                     >
                       {word}

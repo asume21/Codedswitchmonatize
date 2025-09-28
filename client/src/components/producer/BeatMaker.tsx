@@ -40,6 +40,11 @@ interface BeatMakerProps {
   onBeatGenerated?: (beat: any) => void;
 }
 
+const getSecureRandom = () => {
+  const array = new Uint32Array(1);
+  window.crypto.getRandomValues(array);
+  return array[0] / 4294967296;
+}
 export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpm, setBpm] = useState(90);
@@ -132,12 +137,12 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
     // First check sample name for specific keywords
     if (name.includes("kick") || name.includes("drum")) {
       const drumTypes = ["amen", "funky", "apache"];
-      return drumTypes[Math.floor(Math.random() * drumTypes.length)];
+      return drumTypes[Math.floor(getSecureRandom() * drumTypes.length)];
     }
 
     if (name.includes("bass") || name.includes("sub") || name.includes("808")) {
       const bassTypes = ["808", "moog", "sub"];
-      return bassTypes[Math.floor(Math.random() * bassTypes.length)];
+      return bassTypes[Math.floor(getSecureRandom() * bassTypes.length)];
     }
 
     if (
@@ -147,7 +152,7 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
       name.includes("check")
     ) {
       const vocalTypes = ["vocal1", "vocal2", "vocal3"];
-      return vocalTypes[Math.floor(Math.random() * vocalTypes.length)];
+      return vocalTypes[Math.floor(getSecureRandom() * vocalTypes.length)];
     }
 
     // Then check category/type with more variety
@@ -157,23 +162,23 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
       type === "drums"
     ) {
       const drumTypes = ["amen", "funky", "apache"];
-      return drumTypes[Math.floor(Math.random() * drumTypes.length)];
+      return drumTypes[Math.floor(getSecureRandom() * drumTypes.length)];
     }
 
     if (category.includes("bass") || type === "bass") {
       const bassTypes = ["808", "moog", "sub"];
-      return bassTypes[Math.floor(Math.random() * bassTypes.length)];
+      return bassTypes[Math.floor(getSecureRandom() * bassTypes.length)];
     }
 
     if (category.includes("vocal") || category.includes("voice")) {
       const vocalTypes = ["vocal1", "vocal2", "vocal3"];
-      return vocalTypes[Math.floor(Math.random() * vocalTypes.length)];
+      return vocalTypes[Math.floor(getSecureRandom() * vocalTypes.length)];
     }
 
     if (category.includes("melody") || type === "melody") {
       // Use vocal sounds for melody since they're more tonal
       const melodyTypes = ["vocal1", "vocal2", "vocal3"];
-      return melodyTypes[Math.floor(Math.random() * melodyTypes.length)];
+      return melodyTypes[Math.floor(getSecureRandom() * melodyTypes.length)];
     }
 
     // For unknown categories, randomly pick any available sound
@@ -188,7 +193,7 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
       "vocal2",
       "vocal3",
     ];
-    return allTypes[Math.floor(Math.random() * allTypes.length)];
+    return allTypes[Math.floor(getSecureRandom() * allTypes.length)];
   };
 
   // Use the original realistic audio synthesis
@@ -343,7 +348,7 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
     );
     const breathData = breathBuffer.getChannelData(0);
     for (let i = 0; i < breathData.length; i++) {
-      breathData[i] = (Math.random() * 2 - 1) * 0.3;
+      breathData[i] = (getSecureRandom() * 2 - 1) * 0.3;
     }
     breathNoise.buffer = breathBuffer;
 
@@ -520,7 +525,7 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
     );
     const noiseData = noiseBuffer.getChannelData(0);
     for (let i = 0; i < noiseData.length; i++) {
-      noiseData[i] = Math.random() * 2 - 1;
+      noiseData[i] = getSecureRandom() * 2 - 1;
     }
     noise.buffer = noiseBuffer;
 
@@ -748,7 +753,7 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
         );
         const snareData = snareBuffer.getChannelData(0);
         for (let i = 0; i < snareBuffer.length; i++) {
-          snareData[i] = Math.random() * 2 - 1;
+          snareData[i] = getSecureRandom() * 2 - 1;
         }
         snareNoise.buffer = snareBuffer;
         const snareGain = ctx.createGain();
@@ -771,7 +776,7 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
         );
         const hihatData = hihatBuffer.getChannelData(0);
         for (let i = 0; i < hihatBuffer.length; i++) {
-          hihatData[i] = (Math.random() * 2 - 1) * 0.3;
+          hihatData[i] = (getSecureRandom() * 2 - 1) * 0.3;
         }
         hihatNoise.buffer = hihatBuffer;
         const hihatFilter = ctx.createBiquadFilter();

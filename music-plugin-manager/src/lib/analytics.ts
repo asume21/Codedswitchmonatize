@@ -1,7 +1,7 @@
 // Define the gtag function globally
 declare global {
   interface Window {
-    dataLayer: any[];
+    dataLayer: unknown[];
     gtag: (...args: any[]) => void;
   }
 }

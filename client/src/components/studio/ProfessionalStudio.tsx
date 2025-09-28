@@ -16,6 +16,11 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Music, Mic, Volume2, Sparkles, Users, Play, Download, Star, Zap, Layers } from 'lucide-react';
 import { Link } from 'wouter';
+import PianoRollPreview from './PianoRollPreview';
+import DAWMultiTrackPianoRoll, { demoDAWSession } from './DAWMultiTrackPianoRoll';
+import ModularChordProgression from './ModularChordProgression';
+import ModularPianoRoll from './ModularPianoRoll';
+import ModularDrumMachine from './ModularDrumMachine';
 
 // Professional Studio Component - Professional-Grade AI Music Generation Integrated in Main Studio
 export default function ProfessionalStudio() {
@@ -1129,6 +1134,16 @@ export default function ProfessionalStudio() {
                   </CardContent>
                 </Card>
               )}
+              <PianoRollPreview generatedSong={generatedSong} />
+              <ModularChordProgression
+                progression={chordProgression}
+                onAISuggest={handleAISuggestChordProgression}
+                onPlay={handlePlayChordProgression}
+                onProgressionChange={setChordProgression}
+              />
+              <ModularPianoRoll notes={[]} onAISuggest={() => { /* TODO: AI hook */ }} onNotesChange={() => {}} />
+              <ModularDrumMachine pattern={[]} onAISuggest={() => { /* TODO: AI hook */ }} onPatternChange={() => {}} />
+
             </CardContent>
           </Card>
         </TabsContent>

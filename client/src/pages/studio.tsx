@@ -74,7 +74,7 @@ export default function Studio() {
     if (path.includes('/code-translator')) return 'translator';
     if (path.includes('/beat-studio')) return 'beatmaker';
     if (path.includes('/melody-composer')) return 'melody';
-    if (path.includes('/codebeat-studio')) return 'codebeat';
+    if (path.includes('/codebeat-studio')) return 'multitrack'; // Rerouted to fix broken button
     if (path.includes('/music-studio')) return 'musicmixer';
     if (path.includes('/pro-console')) return 'mixer';
     if (path.includes('/song-uploader')) return 'assistant';
@@ -283,7 +283,7 @@ export default function Studio() {
       case "lyrics":
         return <LyricLab />;
       case "musicmixer":
-        return <ProfessionalStudio />;
+        return <ProfessionalStudio onTabChange={setActiveTab} />;
       case "professionalmixer":
         return <ProfessionalMixer />;
       case "mixer":

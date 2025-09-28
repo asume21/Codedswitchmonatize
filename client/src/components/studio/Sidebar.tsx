@@ -32,7 +32,6 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     <div className="w-48 md:w-56 lg:w-64 bg-studio-panel border-r border-gray-700 flex flex-col py-4 space-y-2 overflow-y-auto h-screen">
       <div className="px-4 mb-4">
         <h3 className="text-sm font-medium text-gray-300 mb-2">Studio Tools</h3>
-        <p className="text-xs text-gray-500">Click any tool to switch</p>
       </div>
       
       {tabs.map((tab) => (
@@ -44,7 +43,6 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               ? "bg-studio-accent hover:bg-blue-500 text-white"
               : "bg-gray-700 hover:bg-gray-600 text-gray-300"
           }`}
-          title={tab.label}
         >
           <i className={`${tab.icon} text-lg mr-2 md:mr-3 flex-shrink-0`}></i>
           <span className="text-xs md:text-sm font-medium hidden sm:block">{tab.label}</span>

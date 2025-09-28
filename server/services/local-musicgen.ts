@@ -272,18 +272,18 @@ export class LocalMusicGenService {
   /**
    * Synthesize audio based on prompt characteristics
    */
-  private async synthesizeAudio(samplePrompt: any, bpm: number, key: string): Promise<Buffer> {
+  private async synthesizeAudio(samplePrompt: unknown, bpm: number, key: string): Promise<Buffer> {
     const sampleRate = 44100;
-    const duration = samplePrompt.duration;
+    const duration = (samplePrompt as { duration: number }).duration;
     const numSamples = Math.floor(sampleRate * duration);
     const audioData = new Float32Array(numSamples);
 
-    const characteristics = samplePrompt.characteristics || {};
+    const characteristics = (samplePrompt as { characteristics: any }).characteristics || {};
     const intensity = characteristics.intensity || 0.5;
     const complexity = characteristics.complexity || 0.5;
 
     // Generate audio based on instrument type
-    switch (samplePrompt.instrument) {
+    switch ((samplePrompt as { instrument: string }).instrument) {
       case 'drums':
         this.generateDrumPattern(audioData, sampleRate, bpm, intensity);
         break;
