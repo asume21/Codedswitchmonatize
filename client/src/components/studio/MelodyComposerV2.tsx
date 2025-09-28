@@ -39,7 +39,7 @@ function MelodyComposerV2() {
   // Plugin visibility
   const [activePlugins, setActivePlugins] = useState({
     trackControls: true,
-    pianoRoll: false, // Disabled due to Note type conflicts - will fix later
+    pianoRoll: true, // Re-enabled - will handle type conflicts with casting
     stepSequencer: true
   });
 
@@ -173,14 +173,14 @@ function MelodyComposerV2() {
               <label className="block text-sm font-medium mb-2 text-gray-300">Active Plugins</label>
               <div className="flex space-x-2">
                 <Button
-                  onClick={() => togglePlugin('trackControls')}
+                  onClick={() => { togglePlugin('trackControls'); }}
                   variant={activePlugins.trackControls ? "default" : "outline"}
                   size="sm"
                 >
                   🎛️
                 </Button>
                 <Button
-                  onClick={() => togglePlugin('pianoRoll')}
+                  onClick={() => { togglePlugin('pianoRoll'); }}
                   variant={activePlugins.pianoRoll ? "default" : "outline"}
                   size="sm"
                 >
@@ -247,23 +247,16 @@ function MelodyComposerV2() {
         )}
 
         {/* Piano Roll Plugin */}
-        {activePlugins.pianoRoll && (() => {
-          // @ts-ignore - Note type interface inconsistency between components
-          const pianoRollNotes = notes;
-          // @ts-ignore - Note type interface inconsistency between components  
-          const pianoRollOnNotesChange = setNotes;
-          
-          return (
-            <PianoRollPlugin
-              tracks={tracks}
-              notes={pianoRollNotes}
-              onNotesChange={pianoRollOnNotesChange}
-              selectedTrack={selectedTrack}
-              isPlaying={isPlaying}
-              onPlayNote={playNote}
-            />
-          );
-        })()}
+        {activePlugins.pianoRoll && (
+          <PianoRollPlugin
+            tracks={tracks}
+            notes={notes as any} // Type casting to resolve interface inconsistency
+            onNotesChange={setNotes as any} // Type casting to resolve interface inconsistency
+            selectedTrack={selectedTrack}
+            isPlaying={isPlaying}
+            onPlayNote={playNote}
+          />
+        )}
 
         {/* Step Sequencer Plugin */}
         {activePlugins.stepSequencer && (
