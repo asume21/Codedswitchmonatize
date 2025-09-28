@@ -37,7 +37,7 @@ export const StudioAudioContext = createContext({
   currentPattern: {} as any,
   currentMelody: [] as any[],
   currentLyrics: "" as string,
-  currentCodeMusic: {} as any,
+  currentCodeMusic: {} as unknown,
   currentLayers: [] as any[],
   currentTracks: [] as any[],
   currentKey: "C" as string,

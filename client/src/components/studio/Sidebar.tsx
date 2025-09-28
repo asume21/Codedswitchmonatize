@@ -38,7 +38,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       {tabs.map((tab) => (
         <Button
           key={tab.id}
-          onClick={() => onTabChange(tab.id)}
+          onClick={() => { onTabChange(tab.id); }}
           className={`mx-2 h-12 rounded-lg flex items-center justify-start px-3 md:px-4 transition-colors touch-target ${
             activeTab === tab.id
               ? "bg-studio-accent hover:bg-blue-500 text-white"
@@ -54,7 +54,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       <div className="px-4 mt-6 pt-4 border-t border-gray-600">
         <div className="text-xs text-gray-500">
           <div className="mb-2">
-            <strong className="text-gray-400">Current:</strong> {tabs.find(tab => tab.id === activeTab)?.label || "Unknown"}
+            <strong className="text-gray-400">Current:</strong> {tabs.find(tab => tab.id === activeTab)?.label ?? "Unknown"}
           </div>
           <div>
             {activeTab === "beatmaker" && "Create drum patterns and beats"}

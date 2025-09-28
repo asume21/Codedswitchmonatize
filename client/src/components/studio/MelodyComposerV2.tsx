@@ -187,7 +187,7 @@ function MelodyComposerV2() {
                   🎹
                 </Button>
                 <Button
-                  onClick={() => togglePlugin('stepSequencer')}
+                  onClick={() => { togglePlugin('stepSequencer'); }}
                   variant={activePlugins.stepSequencer ? "default" : "outline"}
                   size="sm"
                 >

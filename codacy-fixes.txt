@@ -22,9 +22,6 @@ diff --git a/client/src/components/studio/SongStructureManager.tsx b/client/src/
 @@ -251,1 +251,1 @@
 -                                  onChange={(e) => updateSection(section.id, { name: e.target.value })}
 +                                  onChange={(e) => { updateSection(section.id, { name: e.target.value }); }}
-@@ -278,1 +278,1 @@
--                                <Select value={section.dynamics} onValueChange={(value) => updateSection(section.id, { dynamics: value })}>
-+                                <Select value={section.dynamics} onValueChange={(value) => { updateSection(section.id, { dynamics: value }); }}>
 @@ -367,1 +367,1 @@
 -                  onChange={(e) => setMetadata({...metadata, title: e.target.value})}
 +                  onChange={(e) => { setMetadata({...metadata, title: e.target.value}); }}
@@ -73,9 +70,6 @@ diff --git a/client/src/components/producer/WavetableOscillator.tsx b/client/src
 @@ -503,1 +503,1 @@
 -                onValueChange={(v) => setFilter(prev => ({ ...prev, drive: v[0] }))}
 +                onValueChange={(v) => { setFilter(prev => ({ ...prev, drive: v[0] })); }}
-@@ -540,1 +540,1 @@
--                    onValueChange={(v) => setEnvelope(prev => ({ ...prev, sustain: v[0] }))}
-+                    onValueChange={(v) => { setEnvelope(prev => ({ ...prev, sustain: v[0] })); }}
 diff --git a/music-plugin-manager/src/components/AIProviderSelector.tsx b/music-plugin-manager/src/components/AIProviderSelector.tsx
 --- a/music-plugin-manager/src/components/AIProviderSelector.tsx
 +++ b/music-plugin-manager/src/components/AIProviderSelector.tsx
@@ -100,9 +94,6 @@ diff --git a/music-plugin-manager/src/components/studio/MelodyComposerV2.tsx b/m
 @@ -180,1 +180,1 @@
 -                  onClick={() => togglePlugin('trackControls')}
 +                  onClick={() => { togglePlugin('trackControls'); }}
-@@ -187,1 +187,1 @@
--                  onClick={() => togglePlugin('pianoRoll')}
-+                  onClick={() => { togglePlugin('pianoRoll'); }}
 @@ -194,1 +194,1 @@
 -                  onClick={() => togglePlugin('stepSequencer')}
 +                  onClick={() => { togglePlugin('stepSequencer'); }}
@@ -118,18 +109,9 @@ diff --git a/client/src/components/studio/LyricLab.tsx b/client/src/components/s
 @@ -178,1 +178,1 @@
 -      pattern: any; 
 +      pattern: unknown; 
-@@ -393,1 +393,1 @@
--                onChange={(e) => setTitle(e.target.value)}
-+                onChange={(e) => { setTitle(e.target.value); }}
 @@ -434,1 +434,1 @@
 -                <div className="flex items-center justify-between p-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600" onClick={() => goToSection("intro")}>
 +                <div className="flex items-center justify-between p-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600" onClick={() => { goToSection("intro"); }}>
-@@ -471,1 +471,1 @@
--                    <label className="text-sm cursor-pointer" onClick={() => setRhymeScheme(scheme.value)}>
-+                    <label className="text-sm cursor-pointer" onClick={() => { setRhymeScheme(scheme.value); }}>
-@@ -652,1 +652,1 @@
--                    onChange={(e) => setCurrentWord(e.target.value)}
-+                    onChange={(e) => { setCurrentWord(e.target.value); }}
 @@ -703,1 +703,1 @@
 -                  onClick={() => generateBeatFromLyricsMutation.mutate({ lyrics: content, genre })}
 +                  onClick={() => { generateBeatFromLyricsMutation.mutate({ lyrics: content, genre }); }}
@@ -166,9 +148,6 @@ diff --git a/client/src/pages/landing.tsx b/client/src/pages/landing.tsx
 @@ -30,1 +30,1 @@
 -      const data = await res.json().catch((error) => {
 +      const data = await res.json().catch((error: unknown) => {
-@@ -153,1 +153,1 @@
--                onChange={(e) => setName(e.target.value)}
-+                onChange={(e) => { setName(e.target.value); }}
 diff --git a/music-plugin-manager/server/index.ts b/music-plugin-manager/server/index.ts
 --- a/music-plugin-manager/server/index.ts
 +++ b/music-plugin-manager/server/index.ts
@@ -214,15 +193,9 @@ diff --git a/client/src/components/studio/ProfessionalStudio.tsx b/client/src/co
 @@ -186,1 +186,1 @@
 -    onSuccess: (data: any) => {
 +    onSuccess: (data: unknown) => {
-@@ -523,1 +523,1 @@
--        } catch (audioError: any) {
-+        } catch (audioError: unknown) {
 diff --git a/server/services/translationTester.ts b/server/services/translationTester.ts
 --- a/server/services/translationTester.ts
 +++ b/server/services/translationTester.ts
-@@ -121,1 +121,1 @@
--    elements.variables = (code.match(/(?:let|const|var)\s+\w+/g) || []).length;
-+    elements.variables = (code.match(/(?:let|const|var)\s+\w+/g) ?? []).length;
 @@ -122,1 +122,1 @@
 -    elements.loops = (code.match(/for\s*\(|while\s*\(/g) || []).length;
 +    elements.loops = (code.match(/for\s*\(|while\s*\(/g) ?? []).length;
@@ -277,9 +250,6 @@ diff --git a/client/src/components/studio/Mixer.tsx b/client/src/components/stud
 @@ -218,1 +218,1 @@
 -                        onValueChange={([value]) => updateChannelEQ(channel.id, "high", value)}
 +                        onValueChange={([value]) => { updateChannelEQ(channel.id, "high", value); }}
-@@ -232,1 +232,1 @@
--                        onValueChange={([value]) => updateChannelEQ(channel.id, "mid", value)}
-+                        onValueChange={([value]) => { updateChannelEQ(channel.id, "mid", value); }}
 diff --git a/music-plugin-manager/src/components/studio/MusicToCode.tsx b/music-plugin-manager/src/components/studio/MusicToCode.tsx
 --- a/music-plugin-manager/src/components/studio/MusicToCode.tsx
 +++ b/music-plugin-manager/src/components/studio/MusicToCode.tsx
@@ -292,30 +262,18 @@ diff --git a/music-plugin-manager/src/components/studio/MusicToCode.tsx b/music-
 diff --git a/client/src/components/producer/BeatMaker.tsx b/client/src/components/producer/BeatMaker.tsx
 --- a/client/src/components/producer/BeatMaker.tsx
 +++ b/client/src/components/producer/BeatMaker.tsx
-@@ -832,1 +832,1 @@
--                onValueChange={(value) => setBpm(value[0])}
-+                onValueChange={(value) => { setBpm(value[0]); }}
-@@ -897,1 +897,1 @@
--                          setMetadata({ ...metadata, artist: e.target.value })
-+                          { setMetadata({ ...metadata, artist: e.target.value }); }
 @@ -942,1 +942,1 @@
 -                          setMetadata({ ...metadata, key: e.target.value })
 +                          { setMetadata({ ...metadata, key: e.target.value }); }
 @@ -1137,1 +1137,1 @@
 -                    {(allSamples as any[]).length} Samples
 +                    {(allSamples as unknown[]).length} Samples
-@@ -1266,1 +1266,1 @@
--                        {(samplePacks as any[]).slice(0, 6).map((pack: any) => (
-+                        {(samplePacks as unknown[]).slice(0, 6).map((pack: any) => (
 @@ -1285,1 +1285,1 @@
 -                              {(allSamples as any[])
 +                              {(allSamples as unknown[])
 diff --git a/server/services/grok.ts b/server/services/grok.ts
 --- a/server/services/grok.ts
 +++ b/server/services/grok.ts
-@@ -358,1 +358,1 @@
--    const scaleRoot = musicalParams?.scaleRoot || scale.split(' ')[0];
-+    const scaleRoot = musicalParams?.scaleRoot ?? scale.split(' ')[0];
 @@ -359,1 +359,1 @@
 -    const beatsPerMeasure = musicalParams?.beatsPerMeasure || 4;
 +    const beatsPerMeasure = musicalParams?.beatsPerMeasure ?? 4;
@@ -328,9 +286,6 @@ diff --git a/music-plugin-manager/src/hooks/use-audio.ts b/music-plugin-manager/
 @@ -98,1 +98,1 @@
 -      sequenceTimeouts.forEach(timeout => clearTimeout(timeout));
 +      sequenceTimeouts.forEach(timeout => { clearTimeout(timeout); });
-@@ -168,1 +168,1 @@
--      Object.entries(notesByTime).forEach(([startTime, notesAtTime]: [string, any]) => {
-+      Object.entries(notesByTime).forEach(([startTime, notesAtTime]: [string, unknown]) => {
 @@ -187,1 +187,1 @@
 -    playChord: (notes: any[], instrument: string = 'piano') => {
 +    playChord: (notes: unknown[], instrument: string = 'piano') => {
@@ -358,12 +313,6 @@ diff --git a/music-plugin-manager/src/components/producer/GranularEngine.tsx b/m
 @@ -312,1 +312,1 @@
 -                onValueChange={(v) => updateGranularParam("position", v[0])}
 +                onValueChange={(v) => { updateGranularParam("position", v[0]); }}
-@@ -409,1 +409,1 @@
--                  onValueChange={(v) => setMacroControls(prev => ({ ...prev, macro1: v[0] }))}
-+                  onValueChange={(v) => { setMacroControls(prev => ({ ...prev, macro1: v[0] })); }}
-@@ -469,1 +469,1 @@
--                  onValueChange={(v) => updateGranularParam("feedback", v[0])}
-+                  onValueChange={(v) => { updateGranularParam("feedback", v[0]); }}
 @@ -480,1 +480,1 @@
 -                  onValueChange={(v) => updateGranularParam("modulation", v[0])}
 +                  onValueChange={(v) => { updateGranularParam("modulation", v[0]); }}
@@ -385,12 +334,6 @@ diff --git a/client/src/lib/audio.ts b/client/src/lib/audio.ts
 @@ -1668,1 +1668,1 @@
 -    this.activeOscillators.get(instrument)!.push(...data);
 +    this.activeOscillators.get(instrument)?.push(...data);
-diff --git a/server/index.prod.ts b/server/index.prod.ts
---- a/server/index.prod.ts
-+++ b/server/index.prod.ts
-@@ -18,1 +18,1 @@
--    secret: process.env.SESSION_SECRET || "prod_session_secret",
-+    secret: process.env.SESSION_SECRET ?? "prod_session_secret",
 diff --git a/music-plugin-manager/src/components/studio/BeatMaker.tsx b/music-plugin-manager/src/components/studio/BeatMaker.tsx
 --- a/music-plugin-manager/src/components/studio/BeatMaker.tsx
 +++ b/music-plugin-manager/src/components/studio/BeatMaker.tsx
@@ -412,12 +355,6 @@ diff --git a/music-plugin-manager/src/components/studio/PlaylistManager.tsx b/mu
 @@ -238,1 +238,1 @@
 -                          onClick={() => deletePlaylistMutation.mutate(playlist.id)}
 +                          onClick={() => { deletePlaylistMutation.mutate(playlist.id); }}
-diff --git a/music-plugin-manager/src/components/ui/sidebar.tsx b/music-plugin-manager/src/components/ui/sidebar.tsx
---- a/music-plugin-manager/src/components/ui/sidebar.tsx
-+++ b/music-plugin-manager/src/components/ui/sidebar.tsx
-@@ -99,1 +99,1 @@
--        ? setOpenMobile((open) => !open)
-+        ? setOpenMobile((open) => !open)
 diff --git a/shared/studioTypes.ts b/shared/studioTypes.ts
 --- a/shared/studioTypes.ts
 +++ b/shared/studioTypes.ts
@@ -433,24 +370,12 @@ diff --git a/music-plugin-manager/src/components/studio/CodeToMusicStudio.tsx b/
 @@ -281,1 +281,1 @@
 -                onChange={(e) => setProject(prev => ({ ...prev, name: e.target.value }))}
 +                onChange={(e) => { setProject(prev => ({ ...prev, name: e.target.value })); }}
-@@ -354,1 +354,1 @@
--                onChange={(e) => setProject(prev => ({ ...prev, code: e.target.value }))}
-+                onChange={(e) => { setProject(prev => ({ ...prev, code: e.target.value })); }}
 @@ -402,1 +402,1 @@
 -                onClick={() => togglePlugin(pluginId as keyof typeof activePlugins)}
 +                onClick={() => { togglePlugin(pluginId as keyof typeof activePlugins); }}
 diff --git a/music-plugin-manager/src/components/studio/LyricLab.tsx b/music-plugin-manager/src/components/studio/LyricLab.tsx
 --- a/music-plugin-manager/src/components/studio/LyricLab.tsx
 +++ b/music-plugin-manager/src/components/studio/LyricLab.tsx
-@@ -197,1 +197,1 @@
--      pattern: any; 
-+      pattern: unknown; 
-@@ -412,1 +412,1 @@
--                onChange={(e) => setTitle(e.target.value)}
-+                onChange={(e) => { setTitle(e.target.value); }}
-@@ -419,1 +419,1 @@
--                onChange={(e) => setContent(e.target.value)}
-+                onChange={(e) => { setContent(e.target.value); }}
 @@ -436,1 +436,1 @@
 -                      onClick={() => insertRhyme(suggestion.word)}
 +                      onClick={() => { insertRhyme(suggestion.word); }}
@@ -475,9 +400,6 @@ diff --git a/music-plugin-manager/src/components/studio/ProfessionalMixer.tsx b/
 @@ -268,1 +268,1 @@
 -                onValueChange={(v) => handleChannelEQ(channel.id, 'highMid', v)}
 +                onValueChange={(v) => { handleChannelEQ(channel.id, 'highMid', v); }}
-@@ -286,1 +286,1 @@
--                onValueChange={(v) => handleChannelEQ(channel.id, 'low', v)}
-+                onValueChange={(v) => { handleChannelEQ(channel.id, 'low', v); }}
 @@ -354,1 +354,1 @@
 -              onValueChange={(v) => handleChannelVolume(channel.id, v)}
 +              onValueChange={(v) => { handleChannelVolume(channel.id, v); }}
@@ -487,15 +409,12 @@ diff --git a/music-plugin-manager/src/components/studio/ProfessionalMixer.tsx b/
 diff --git a/client/src/components/studio/MusicMixer.tsx b/client/src/components/studio/MusicMixer.tsx
 --- a/client/src/components/studio/MusicMixer.tsx
 +++ b/client/src/components/studio/MusicMixer.tsx
-@@ -153,1 +153,1 @@
--      if (melodyTrack && melodyTrack.data && (melodyTrack.data as any[]).length > 0) {
-+      if (melodyTrack?.data && (melodyTrack.data as any[]).length > 0) {
 @@ -261,1 +261,1 @@
 -              onChange={(e) => setBpm(Number(e.target.value))}
 +              onChange={(e) => { setBpm(Number(e.target.value)); }}
 @@ -349,1 +349,1 @@
 -                          `${(track.data as any[])?.length || 0} notes` :
-+                          `${(track.data as unknown[])?.length || 0} notes` :
++                          `${(track.data as any[]).length || 0} notes` :
 diff --git a/music-plugin-manager/src/lib/openai.ts b/music-plugin-manager/src/lib/openai.ts
 --- a/music-plugin-manager/src/lib/openai.ts
 +++ b/music-plugin-manager/src/lib/openai.ts
@@ -505,12 +424,6 @@ diff --git a/music-plugin-manager/src/lib/openai.ts b/music-plugin-manager/src/l
 @@ -270,1 +270,1 @@
 -  static generateMelodyFromCode(code: string): any {
 +  static generateMelodyFromCode(code: string): unknown {
-diff --git a/client/src/lib/queryClient.ts b/client/src/lib/queryClient.ts
---- a/client/src/lib/queryClient.ts
-+++ b/client/src/lib/queryClient.ts
-@@ -24,1 +24,1 @@
--  if (!res.ok && contentType && contentType.includes("text/html")) {
-+  if (!res.ok && contentType?.includes("text/html")) {
 diff --git a/music-plugin-manager/src/components/studio/plugins/PianoRollPlugin.tsx b/music-plugin-manager/src/components/studio/plugins/PianoRollPlugin.tsx
 --- a/music-plugin-manager/src/components/studio/plugins/PianoRollPlugin.tsx
 +++ b/music-plugin-manager/src/components/studio/plugins/PianoRollPlugin.tsx
@@ -523,30 +436,18 @@ diff --git a/client/src/components/studio/ProfessionalMixer.tsx b/client/src/com
 @@ -221,1 +221,1 @@
 -    const meters = meterData.get(channel.id) || { peak: 0, rms: 0, spectrum: [] };
 +    const meters = meterData.get(channel.id) ?? { peak: 0, rms: 0, spectrum: [] };
-@@ -268,1 +268,1 @@
--                onValueChange={(v) => handleChannelEQ(channel.id, 'highMid', v)}
-+                onValueChange={(v) => { handleChannelEQ(channel.id, 'highMid', v); }}
 diff --git a/client/src/pages/studio.tsx b/client/src/pages/studio.tsx
 --- a/client/src/pages/studio.tsx
 +++ b/client/src/pages/studio.tsx
-@@ -36,1 +36,1 @@
--  currentPattern: {} as any,
-+  currentPattern: {} as unknown,
 @@ -39,1 +39,1 @@
 -  currentCodeMusic: {} as any,
 +  currentCodeMusic: {} as unknown,
-@@ -40,1 +40,1 @@
--  currentLayers: [] as any[],
-+  currentLayers: [] as unknown[],
 diff --git a/client/src/components/studio/ProAudioGenerator.tsx b/client/src/components/studio/ProAudioGenerator.tsx
 --- a/client/src/components/studio/ProAudioGenerator.tsx
 +++ b/client/src/components/studio/ProAudioGenerator.tsx
 @@ -312,1 +312,1 @@
 -                    onClick={() => setSongDescription(prompt)}
 +                    onClick={() => { setSongDescription(prompt); }}
-@@ -323,1 +323,1 @@
--                onClick={() => generateMutation.mutate()}
-+                onClick={() => { generateMutation.mutate(); }}
 @@ -354,1 +354,1 @@
 -                    onClick={() => setGeneratedSong(null)}
 +                    onClick={() => { setGeneratedSong(null); }}
@@ -568,27 +469,15 @@ diff --git a/music-plugin-manager/server/routes/billing.ts b/music-plugin-manage
 diff --git a/server/routes.ts b/server/routes.ts
 --- a/server/routes.ts
 +++ b/server/routes.ts
-@@ -281,1 +281,1 @@
--            return sendError(res, 500, err?.message || "Failed to join waitlist");
-+            sendError(res, 500, err?.message || "Failed to join waitlist"); return;
 @@ -349,1 +349,1 @@
 -        const { id } = req.params as any;
 +        const { id } = req.params as unknown;
-@@ -376,1 +376,1 @@
--                if (!song || song.userId !== req.userId) return sendError(res, 404, "Song not found");
-+                if (!song || song.userId !== req.userId) { sendError(res, 404, "Song not found"); return; }
 @@ -413,1 +413,1 @@
 -            if (!parsed.success) return sendError(res, 400, "Invalid payload");
 +            if (!parsed.success) { sendError(res, 400, "Invalid payload"); return; }
 @@ -456,1 +456,1 @@
 -                    return sendError(res, 400, "Missing prompt");
 +                    sendError(res, 400, "Missing prompt"); return;
-diff --git a/client/src/components/studio/PlaylistManager.tsx b/client/src/components/studio/PlaylistManager.tsx
---- a/client/src/components/studio/PlaylistManager.tsx
-+++ b/client/src/components/studio/PlaylistManager.tsx
-@@ -277,1 +277,1 @@
--                                  onClick={() => handleAddSongToPlaylist(playlist.id, song.id)}
-+                                  onClick={() => { handleAddSongToPlaylist(playlist.id, song.id); }}
 diff --git a/music-plugin-manager/src/pages/studio.tsx b/music-plugin-manager/src/pages/studio.tsx
 --- a/music-plugin-manager/src/pages/studio.tsx
 +++ b/music-plugin-manager/src/pages/studio.tsx
@@ -613,9 +502,6 @@ diff --git a/music-plugin-manager/src/pages/studio.tsx b/music-plugin-manager/sr
 diff --git a/music-plugin-manager/src/components/studio/MixerStudio.tsx b/music-plugin-manager/src/components/studio/MixerStudio.tsx
 --- a/music-plugin-manager/src/components/studio/MixerStudio.tsx
 +++ b/music-plugin-manager/src/components/studio/MixerStudio.tsx
-@@ -368,1 +368,1 @@
--                      onValueChange={([value]) => updateTrack(track.id, { volume: value })}
-+                      onValueChange={([value]) => { updateTrack(track.id, { volume: value }); }}
 @@ -524,1 +524,1 @@
 -                        setMasterEQ(prev => ({ ...prev, mid: value }))
 +                        { setMasterEQ(prev => ({ ...prev, mid: value })); }
@@ -625,15 +511,9 @@ diff --git a/music-plugin-manager/src/components/studio/MixerStudio.tsx b/music-
 diff --git a/music-plugin-manager/src/components/producer/PackGenerator.tsx b/music-plugin-manager/src/components/producer/PackGenerator.tsx
 --- a/music-plugin-manager/src/components/producer/PackGenerator.tsx
 +++ b/music-plugin-manager/src/components/producer/PackGenerator.tsx
-@@ -32,1 +32,1 @@
--    pattern?: any;
-+    pattern?: unknown;
 @@ -456,1 +456,1 @@
 -        pattern = sample.aiData.pattern || pattern;
 +        pattern = sample.aiData.pattern ?? pattern;
-@@ -457,1 +457,1 @@
--        intensity = sample.aiData.intensity || intensity;
-+        intensity = sample.aiData.intensity ?? intensity;
 @@ -704,1 +704,1 @@
 -                <Select value={packCount.toString()} onValueChange={(v) => setPackCount(parseInt(v))}>
 +                <Select value={packCount.toString()} onValueChange={(v) => { setPackCount(parseInt(v)); }}>
@@ -649,6 +529,15 @@ diff --git a/music-plugin-manager/src/components/studio/TransportControls.tsx b/
 @@ -628,1 +628,1 @@
 -                {playlists?.map((playlist) => (
 +                {playlists.map((playlist) => (
+diff --git a/client/src/lib/advancedAudio.ts b/client/src/lib/advancedAudio.ts
+--- a/client/src/lib/advancedAudio.ts
++++ b/client/src/lib/advancedAudio.ts
+@@ -49,1 +49,1 @@
+-  private drumKit: { [key: string]: any };
++  private drumKit: { [key: string]: unknown };
+@@ -292,1 +292,1 @@
+-        (this.trackInstruments.hho as any).volume.value = 6;
++        (this.trackInstruments.hho as unknown).volume.value = 6;
 diff --git a/client/src/components/producer/StepSequencer.tsx b/client/src/components/producer/StepSequencer.tsx
 --- a/client/src/components/producer/StepSequencer.tsx
 +++ b/client/src/components/producer/StepSequencer.tsx
@@ -661,33 +550,6 @@ diff --git a/client/src/components/producer/StepSequencer.tsx b/client/src/compo
 @@ -459,1 +459,1 @@
 -            onValueChange={(value) => setSwing(value[0])}
 +            onValueChange={(value) => { setSwing(value[0]); }}
-@@ -482,1 +482,1 @@
--                onClick={() => toggleMute(trackIndex)}
-+                onClick={() => { toggleMute(trackIndex); }}
-diff --git a/client/src/components/studio/MIDIController.tsx b/client/src/components/studio/MIDIController.tsx
---- a/client/src/components/studio/MIDIController.tsx
-+++ b/client/src/components/studio/MIDIController.tsx
-@@ -105,1 +105,1 @@
--            onClick={() => setShowSettings(!showSettings)} 
-+            onClick={() => { setShowSettings(!showSettings); }} 
-diff --git a/music-plugin-manager/src/components/studio/Mixer.tsx b/music-plugin-manager/src/components/studio/Mixer.tsx
---- a/music-plugin-manager/src/components/studio/Mixer.tsx
-+++ b/music-plugin-manager/src/components/studio/Mixer.tsx
-@@ -232,1 +232,1 @@
--                        onValueChange={([value]) => updateChannelEQ(channel.id, "mid", value)}
-+                        onValueChange={([value]) => { updateChannelEQ(channel.id, "mid", value); }}
-diff --git a/client/src/lib/advancedAudio.ts b/client/src/lib/advancedAudio.ts
---- a/client/src/lib/advancedAudio.ts
-+++ b/client/src/lib/advancedAudio.ts
-@@ -49,1 +49,1 @@
--  private drumKit: { [key: string]: any };
-+  private drumKit: { [key: string]: unknown };
-@@ -291,1 +291,1 @@
--        (this.trackInstruments.hhc as any).volume.value = 6;
-+        (this.trackInstruments.hhc as unknown).volume.value = 6;
-@@ -292,1 +292,1 @@
--        (this.trackInstruments.hho as any).volume.value = 6;
-+        (this.trackInstruments.hho as unknown).volume.value = 6;
 diff --git a/client/src/components/sequencer/Sequencer.tsx b/client/src/components/sequencer/Sequencer.tsx
 --- a/client/src/components/sequencer/Sequencer.tsx
 +++ b/client/src/components/sequencer/Sequencer.tsx
@@ -703,24 +565,6 @@ diff --git a/client/src/components/sequencer/Sequencer.tsx b/client/src/componen
 @@ -276,1 +276,1 @@
 -                        onClick={() => addClipAt(tIdx, i)}
 +                        onClick={() => { addClipAt(tIdx, i); }}
-diff --git a/music-plugin-manager/src/components/studio/SongUploader.tsx b/music-plugin-manager/src/components/studio/SongUploader.tsx
---- a/music-plugin-manager/src/components/studio/SongUploader.tsx
-+++ b/music-plugin-manager/src/components/studio/SongUploader.tsx
-@@ -323,1 +323,1 @@
--      audioElement.play();
-+      void audioElement.play();
-diff --git a/client/src/components/studio/BeatMaker.tsx b/client/src/components/studio/BeatMaker.tsx
---- a/client/src/components/studio/BeatMaker.tsx
-+++ b/client/src/components/studio/BeatMaker.tsx
-@@ -173,1 +173,1 @@
--    onError: (error: any) => {
-+    onError: (error: unknown) => {
-@@ -320,1 +320,1 @@
--              onClick={() => setActiveTab('sequencer')}
-+              onClick={() => { setActiveTab('sequencer'); }}
-@@ -365,1 +365,1 @@
--                      onChange={(e) => setBpm(Number(e.target.value))}
-+                      onChange={(e) => { setBpm(Number(e.target.value)); }}
 diff --git a/server/services/musicgen.ts b/server/services/musicgen.ts
 --- a/server/services/musicgen.ts
 +++ b/server/services/musicgen.ts
@@ -739,27 +583,12 @@ diff --git a/client/src/hooks/use-midi.ts b/client/src/hooks/use-midi.ts
 @@ -130,1 +130,1 @@
 -          (window as any).webkitAudioContext)();
 +          (window as unknown).webkitAudioContext)();
-@@ -364,1 +364,1 @@
--    (access: any) => {
-+    (access: unknown) => {
-diff --git a/client/src/components/social/SocialDiscovery.tsx b/client/src/components/social/SocialDiscovery.tsx
---- a/client/src/components/social/SocialDiscovery.tsx
-+++ b/client/src/components/social/SocialDiscovery.tsx
-@@ -148,1 +148,1 @@
--            <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
-+            <Select value={searchType} onValueChange={(value: any) => { setSearchType(value); }}>
 diff --git a/client/src/components/producer/PackGenerator.tsx b/client/src/components/producer/PackGenerator.tsx
 --- a/client/src/components/producer/PackGenerator.tsx
 +++ b/client/src/components/producer/PackGenerator.tsx
 @@ -356,1 +356,1 @@
 -                        onClick={() => handlePlayPack(pack)}
 +                        onClick={() => { handlePlayPack(pack); }}
-diff --git a/server/services/snake-ws.ts b/server/services/snake-ws.ts
---- a/server/services/snake-ws.ts
-+++ b/server/services/snake-ws.ts
-@@ -117,1 +117,1 @@
--  function broadcast(message: any, excludePlayerId?: string) {
-+  function broadcast(message: unknown, excludePlayerId?: string) {
 diff --git a/client/src/lib/professionalAudio.ts b/client/src/lib/professionalAudio.ts
 --- a/client/src/lib/professionalAudio.ts
 +++ b/client/src/lib/professionalAudio.ts
@@ -790,30 +619,12 @@ diff --git a/client/src/components/studio/ExportStudio.tsx b/client/src/componen
 @@ -23,1 +23,1 @@
 -  tracks: any[];
 +  tracks: unknown[];
-@@ -135,1 +135,1 @@
--    const existingProjects = JSON.parse(localStorage.getItem('codedswitch_projects') || '[]');
-+    const existingProjects = JSON.parse(localStorage.getItem('codedswitch_projects') ?? '[]');
-@@ -280,1 +280,1 @@
--                  setExportOptions({...exportOptions, quality: value})
-+                  { setExportOptions({...exportOptions, quality: value}); }
-diff --git a/music-plugin-manager/server/middleware/auth.ts b/music-plugin-manager/server/middleware/auth.ts
---- a/music-plugin-manager/server/middleware/auth.ts
-+++ b/music-plugin-manager/server/middleware/auth.ts
-@@ -10,1 +10,1 @@
--        return next();
-+        next(); return;
 diff --git a/server/services/gemini.ts b/server/services/gemini.ts
 --- a/server/services/gemini.ts
 +++ b/server/services/gemini.ts
 @@ -64,1 +64,1 @@
 -export async function generateBeatWithGemini(style: string, bpm: number, complexity: number = 5): Promise<any> {
 +export async function generateBeatWithGemini(style: string, bpm: number, complexity: number = 5): Promise<unknown> {
-diff --git a/server/db.ts b/server/db.ts
---- a/server/db.ts
-+++ b/server/db.ts
-@@ -8,1 +8,1 @@
--export const db: any = (() => {
-+export const db: unknown = (() => {
 diff --git a/client/src/components/studio/CodeToMusic.tsx b/client/src/components/studio/CodeToMusic.tsx
 --- a/client/src/components/studio/CodeToMusic.tsx
 +++ b/client/src/components/studio/CodeToMusic.tsx
@@ -847,9 +658,6 @@ diff --git a/client/src/components/studio/MixerStudio.tsx b/client/src/component
 @@ -45,1 +45,1 @@
 -  audioBuffer?: any;
 +  audioBuffer?: unknown;
-@@ -154,1 +154,1 @@
--  const loadCompositionIntoMixer = (composition: any) => {
-+  const loadCompositionIntoMixer = (composition: unknown) => {
 @@ -368,1 +368,1 @@
 -                      onValueChange={([value]) => updateTrack(track.id, { volume: value })}
 +                      onValueChange={([value]) => { updateTrack(track.id, { volume: value }); }}
@@ -859,12 +667,6 @@ diff --git a/music-plugin-manager/server/services/translationTester.ts b/music-p
 @@ -122,1 +122,1 @@
 -    elements.loops = (code.match(/for\s*\(|while\s*\(/g) || []).length;
 +    elements.loops = (code.match(/for\s*\(|while\s*\(/g) ?? []).length;
-@@ -128,1 +128,1 @@
--    elements.loops = (code.match(/for\s+\w+\s+in|while\s+/g) || []).length;
-+    elements.loops = (code.match(/for\s+\w+\s+in|while\s+/g) ?? []).length;
-@@ -129,1 +129,1 @@
--    elements.conditionals = (code.match(/if\s+/g) || []).length;
-+    elements.conditionals = (code.match(/if\s+/g) ?? []).length;
 diff --git a/client/src/components/studio/plugins/TrackControlsPlugin.tsx b/client/src/components/studio/plugins/TrackControlsPlugin.tsx
 --- a/client/src/components/studio/plugins/TrackControlsPlugin.tsx
 +++ b/client/src/components/studio/plugins/TrackControlsPlugin.tsx
@@ -889,9 +691,6 @@ diff --git a/music-plugin-manager/src/lib/professionalAudio.ts b/music-plugin-ma
 diff --git a/music-plugin-manager/src/components/studio/CodeToMusic.tsx b/music-plugin-manager/src/components/studio/CodeToMusic.tsx
 --- a/music-plugin-manager/src/components/studio/CodeToMusic.tsx
 +++ b/music-plugin-manager/src/components/studio/CodeToMusic.tsx
-@@ -42,1 +42,1 @@
--  const [musicData, setMusicData] = useState<any>(null);
-+  const [musicData, setMusicData] = useState<unknown>(null);
 @@ -159,1 +159,1 @@
 -                        if (note && note.note) {
 +                        if (note?.note) {
@@ -913,33 +712,9 @@ diff --git a/client/src/components/studio/MelodyComposerV2.tsx b/client/src/comp
 @@ -194,1 +194,1 @@
 -                  onClick={() => togglePlugin('stepSequencer')}
 +                  onClick={() => { togglePlugin('stepSequencer'); }}
-diff --git a/client/src/components/studio/PluginHub.tsx b/client/src/components/studio/PluginHub.tsx
---- a/client/src/components/studio/PluginHub.tsx
-+++ b/client/src/components/studio/PluginHub.tsx
-@@ -75,1 +75,1 @@
--                onChange={(e) => setQuery(e.target.value)}
-+                onChange={(e) => { setQuery(e.target.value); }}
-@@ -132,1 +132,1 @@
--              <Button onClick={() => setShowCompiler(false)} className="bg-gray-700 hover:bg-gray-600">
-+              <Button onClick={() => { setShowCompiler(false); }} className="bg-gray-700 hover:bg-gray-600">
-diff --git a/music-plugin-manager/server/services/local-musicgen.ts b/music-plugin-manager/server/services/local-musicgen.ts
---- a/music-plugin-manager/server/services/local-musicgen.ts
-+++ b/music-plugin-manager/server/services/local-musicgen.ts
-@@ -275,1 +275,1 @@
--  private async synthesizeAudio(samplePrompt: any, bpm: number, key: string): Promise<Buffer> {
-+  private async synthesizeAudio(samplePrompt: unknown, bpm: number, key: string): Promise<Buffer> {
-diff --git a/server/index.ts b/server/index.ts
---- a/server/index.ts
-+++ b/server/index.ts
-@@ -18,1 +18,1 @@
--    secret: process.env.SESSION_SECRET || "dev_session_secret",
-+    secret: process.env.SESSION_SECRET ?? "dev_session_secret",
 diff --git a/server/services/ai-structure-grok.ts b/server/services/ai-structure-grok.ts
 --- a/server/services/ai-structure-grok.ts
 +++ b/server/services/ai-structure-grok.ts
-@@ -119,1 +119,1 @@
--  const aiTimeoutMs = parseInt(process.env.XAI_TIMEOUT_MS || "28000", 10);
-+  const aiTimeoutMs = parseInt(process.env.XAI_TIMEOUT_MS ?? "28000", 10);
 @@ -130,1 +130,1 @@
 -  } as any);
 +  } as unknown);
@@ -949,15 +724,15 @@ diff --git a/server/services/ai-structure-grok.ts b/server/services/ai-structure
 @@ -154,1 +154,1 @@
 -  if (!data || !data.structure || !data.metadata) {
 +  if (!data?.structure || !data.metadata) {
+diff --git a/music-plugin-manager/server/services/local-musicgen.ts b/music-plugin-manager/server/services/local-musicgen.ts
+--- a/music-plugin-manager/server/services/local-musicgen.ts
++++ b/music-plugin-manager/server/services/local-musicgen.ts
+@@ -275,1 +275,1 @@
+-  private async synthesizeAudio(samplePrompt: any, bpm: number, key: string): Promise<Buffer> {
++  private async synthesizeAudio(samplePrompt: unknown, bpm: number, key: string): Promise<Buffer> {
 diff --git a/client/src/hooks/use-audio.ts b/client/src/hooks/use-audio.ts
 --- a/client/src/hooks/use-audio.ts
 +++ b/client/src/hooks/use-audio.ts
-@@ -136,1 +136,1 @@
--      melodyTimeouts.forEach(timeout => clearTimeout(timeout));
-+      melodyTimeouts.forEach(timeout => { clearTimeout(timeout); });
-@@ -149,1 +149,1 @@
--      Object.entries(notesByTime).forEach(([startTime, notesAtTime]: [string, any]) => {
-+      Object.entries(notesByTime).forEach(([startTime, notesAtTime]: [string, unknown]) => {
 @@ -153,1 +153,1 @@
 -          (notesAtTime as any[]).forEach(note => {
 +          (notesAtTime as unknown[]).forEach(note => {
@@ -982,24 +757,9 @@ diff --git a/client/src/components/social/UserProfile.tsx b/client/src/component
 @@ -110,1 +110,1 @@
 -      favoriteGenres: prev.favoriteGenres?.filter(g => g !== genre) || []
 +      favoriteGenres: prev.favoriteGenres?.filter(g => g !== genre) ?? []
-@@ -126,1 +126,1 @@
--      instruments: prev.instruments?.filter(i => i !== instrument) || []
-+      instruments: prev.instruments?.filter(i => i !== instrument) ?? []
-@@ -162,1 +162,1 @@
--              onClick={() => setIsEditing(true)}
-+              onClick={() => { setIsEditing(true); }}
-@@ -248,1 +248,1 @@
--            <div className="text-2xl font-bold text-blue-400">{profileData.followersCount || 0}</div>
-+            <div className="text-2xl font-bold text-blue-400">{profileData.followersCount ?? 0}</div>
 @@ -252,1 +252,1 @@
 -            <div className="text-2xl font-bold text-green-400">{profileData.followingCount || 0}</div>
 +            <div className="text-2xl font-bold text-green-400">{profileData.followingCount ?? 0}</div>
-@@ -256,1 +256,1 @@
--            <div className="text-2xl font-bold text-purple-400">{profileData.projectsCount || 0}</div>
-+            <div className="text-2xl font-bold text-purple-400">{profileData.projectsCount ?? 0}</div>
-@@ -347,1 +347,1 @@
--                    onClick={() => removeGenre(genre)}
-+                    onClick={() => { removeGenre(genre); }}
 @@ -412,1 +412,1 @@
 -                value={profileData.socialLinks?.twitter || ''}
 +                value={profileData.socialLinks?.twitter ?? ''}
@@ -1054,12 +814,18 @@ diff --git a/client/src/lib/globalSystems.ts b/client/src/lib/globalSystems.ts
 @@ -225,1 +225,1 @@
 -  registerPlugin(id: string, plugin: any) {
 +  registerPlugin(id: string, plugin: unknown) {
-diff --git a/server/services/ai-structure-generator.ts b/server/services/ai-structure-generator.ts
---- a/server/services/ai-structure-generator.ts
-+++ b/server/services/ai-structure-generator.ts
-@@ -359,1 +359,1 @@
--  async generateBeatStructure(style: string, bpm: number, complexity: number = 5): Promise<any> {
-+  async generateBeatStructure(style: string, bpm: number, complexity: number = 5): Promise<unknown> {
+diff --git a/music-plugin-manager/src/components/producer/StepSequencer.tsx b/music-plugin-manager/src/components/producer/StepSequencer.tsx
+--- a/music-plugin-manager/src/components/producer/StepSequencer.tsx
++++ b/music-plugin-manager/src/components/producer/StepSequencer.tsx
+@@ -106,1 +106,1 @@
+-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
++      audioContextRef.current = new (window.AudioContext || (window as unknown).webkitAudioContext)();
+@@ -320,1 +320,1 @@
+-    const masterPlayHandler = (event: any) => {
++    const masterPlayHandler = (event: unknown) => {
+@@ -491,1 +491,1 @@
+-                onClick={() => toggleSolo(trackIndex)}
++                onClick={() => { toggleSolo(trackIndex); }}
 diff --git a/client/src/components/studio/CodeToMusicStudio.tsx b/client/src/components/studio/CodeToMusicStudio.tsx
 --- a/client/src/components/studio/CodeToMusicStudio.tsx
 +++ b/client/src/components/studio/CodeToMusicStudio.tsx
@@ -1072,9 +838,6 @@ diff --git a/client/src/components/studio/CodeToMusicStudio.tsx b/client/src/com
 @@ -310,1 +310,1 @@
 -                onClick={() => setIsPlaying(false)}
 +                onClick={() => { setIsPlaying(false); }}
-@@ -332,1 +332,1 @@
--              onChange={(e) => setProject(prev => ({ ...prev, code: e.target.value }))}
-+              onChange={(e) => { setProject(prev => ({ ...prev, code: e.target.value })); }}
 diff --git a/server/services/stripe.ts b/server/services/stripe.ts
 --- a/server/services/stripe.ts
 +++ b/server/services/stripe.ts
@@ -1084,54 +847,21 @@ diff --git a/server/services/stripe.ts b/server/services/stripe.ts
 @@ -64,1 +64,1 @@
 -      let userId = (session.metadata && (session.metadata as any).userId) || undefined;
 +      let userId = (session.metadata && (session.metadata as unknown).userId) || undefined;
-diff --git a/client/src/components/studio/MixStudio.tsx b/client/src/components/studio/MixStudio.tsx
---- a/client/src/components/studio/MixStudio.tsx
-+++ b/client/src/components/studio/MixStudio.tsx
-@@ -105,1 +105,1 @@
--      name: name || `${type.charAt(0).toUpperCase() + type.slice(1)} Track`,
-+      name: name ?? `${type.charAt(0).toUpperCase() + type.slice(1)} Track`,
-@@ -288,1 +288,1 @@
--                    onClick={() => addLayer("melody")}
-+                    onClick={() => { addLayer("melody"); }}
-@@ -355,1 +355,1 @@
--                              updateLayer(layer.id, { muted: !layer.muted })
-+                              { updateLayer(layer.id, { muted: !layer.muted }); }
-@@ -397,1 +397,1 @@
--                              updateLayer(layer.id, { pan: v[0] })
-+                              { updateLayer(layer.id, { pan: v[0] }); }
-@@ -533,1 +533,1 @@
--                  onChange={(e) => setMixName(e.target.value)}
-+                  onChange={(e) => { setMixName(e.target.value); }}
-diff --git a/music-plugin-manager/src/components/producer/StepSequencer.tsx b/music-plugin-manager/src/components/producer/StepSequencer.tsx
---- a/music-plugin-manager/src/components/producer/StepSequencer.tsx
-+++ b/music-plugin-manager/src/components/producer/StepSequencer.tsx
-@@ -106,1 +106,1 @@
--      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-+      audioContextRef.current = new (window.AudioContext || (window as unknown).webkitAudioContext)();
-@@ -291,1 +291,1 @@
--              playDrumSound(track.id, track.velocity[currentStep], track.volume);
-+              void playDrumSound(track.id, track.velocity[currentStep], track.volume);
-@@ -320,1 +320,1 @@
--    const masterPlayHandler = (event: any) => {
-+    const masterPlayHandler = (event: unknown) => {
-@@ -381,1 +381,1 @@
--    playDrumSound(track.id, 100, volume);
-+    void playDrumSound(track.id, 100, volume);
-@@ -491,1 +491,1 @@
--                onClick={() => toggleSolo(trackIndex)}
-+                onClick={() => { toggleSolo(trackIndex); }}
 diff --git a/client/src/components/studio/ChordProgressionDisplay.tsx b/client/src/components/studio/ChordProgressionDisplay.tsx
 --- a/client/src/components/studio/ChordProgressionDisplay.tsx
 +++ b/client/src/components/studio/ChordProgressionDisplay.tsx
 @@ -53,1 +53,1 @@
 -        {progression.name} in {DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys]?.name || currentKey}:
 +        {progression.name} in {DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys].name || currentKey}:
+diff --git a/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx b/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx
+--- a/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx
++++ b/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx
+@@ -257,1 +257,1 @@
+-                onClick={() => setShowStepSequencer(!showStepSequencer)}
++                onClick={() => { setShowStepSequencer(!showStepSequencer); }}
 diff --git a/client/src/pages/test-ws.tsx b/client/src/pages/test-ws.tsx
 --- a/client/src/pages/test-ws.tsx
 +++ b/client/src/pages/test-ws.tsx
-@@ -183,1 +183,1 @@
--                onClick={() => updateScore(10)}
-+                onClick={() => { updateScore(10); }}
 @@ -190,1 +190,1 @@
 -                onClick={() => updateScore(-5)}
 +                onClick={() => { updateScore(-5); }}
@@ -1144,9 +874,6 @@ diff --git a/music-plugin-manager/src/components/producer/BeatMaker.tsx b/music-
 @@ -55,1 +55,1 @@
 -      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
 +      const context = new (window.AudioContext || (window as unknown).webkitAudioContext)();
-@@ -555,1 +555,1 @@
--  const handleBasslineChange = (bassline: any) => {
-+  const handleBasslineChange = (bassline: unknown) => {
 @@ -770,1 +770,1 @@
 -                        onChange={(e) => setMetadata({...metadata, artist: e.target.value})}
 +                        onChange={(e) => { setMetadata({...metadata, artist: e.target.value}); }}
@@ -1171,30 +898,12 @@ diff --git a/music-plugin-manager/src/components/studio/MixStudio.tsx b/music-pl
 @@ -513,1 +513,1 @@
 -                  onValueChange={(v) => setMasterVolume(v[0])}
 +                  onValueChange={(v) => { setMasterVolume(v[0]); }}
-@@ -522,1 +522,1 @@
--                  onValueChange={(v) => setBpm(v[0])}
-+                  onValueChange={(v) => { setBpm(v[0]); }}
 diff --git a/music-plugin-manager/server/storage.ts b/music-plugin-manager/server/storage.ts
 --- a/music-plugin-manager/server/storage.ts
 +++ b/music-plugin-manager/server/storage.ts
 @@ -96,1 +96,1 @@
 -    scan: InsertVulnerabilityScan & { results: any },
 +    scan: InsertVulnerabilityScan & { results: unknown },
-diff --git a/client/src/lib/audioEngine.ts b/client/src/lib/audioEngine.ts
---- a/client/src/lib/audioEngine.ts
-+++ b/client/src/lib/audioEngine.ts
-@@ -62,1 +62,1 @@
--      realisticAudio.playNote(note, 4, duration as number, 'piano', velocity);
-+      void realisticAudio.playNote(note, 4, duration as number, 'piano', velocity);
-diff --git a/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx b/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx
---- a/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx
-+++ b/music-plugin-manager/src/components/studio/MelodyComposer-backup.tsx
-@@ -257,1 +257,1 @@
--                onClick={() => setShowStepSequencer(!showStepSequencer)}
-+                onClick={() => { setShowStepSequencer(!showStepSequencer); }}
-@@ -282,1 +282,1 @@
--                onClick={() => setShowCircleOfFifths(false)}
-+                onClick={() => { setShowCircleOfFifths(false); }}
 diff --git a/music-plugin-manager/src/components/ui/chart.tsx b/music-plugin-manager/src/components/ui/chart.tsx
 --- a/music-plugin-manager/src/components/ui/chart.tsx
 +++ b/music-plugin-manager/src/components/ui/chart.tsx
@@ -1216,15 +925,9 @@ diff --git a/music-plugin-manager/src/components/sequencer/Sequencer.tsx b/music
 @@ -127,1 +127,1 @@
 -    onError: (err: any) => {
 +    onError: (err: unknown) => {
-@@ -222,1 +222,1 @@
--                  onClick={() => setSelectedLength(len)}
-+                  onClick={() => { setSelectedLength(len); }}
 diff --git a/music-plugin-manager/server/services/stripe.ts b/music-plugin-manager/server/services/stripe.ts
 --- a/music-plugin-manager/server/services/stripe.ts
 +++ b/music-plugin-manager/server/services/stripe.ts
-@@ -6,1 +6,1 @@
--const APP_URL = process.env.APP_URL || "http://localhost:5000";
-+const APP_URL = process.env.APP_URL ?? "http://localhost:5000";
 @@ -7,1 +7,1 @@
 -const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO || "";
 +const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO ?? "";
@@ -1234,9 +937,6 @@ diff --git a/client/src/components/producer/OutputSequencer.tsx b/client/src/com
 @@ -271,1 +271,1 @@
 -                    onValueChange={(v) => setBpm(v[0])} 
 +                    onValueChange={(v) => { setBpm(v[0]); }} 
-@@ -304,1 +304,1 @@
--                  <Button variant="outline" size="sm" onClick={() => randomizePattern(selectedTrack)}>
-+                  <Button variant="outline" size="sm" onClick={() => { randomizePattern(selectedTrack); }}>
 @@ -365,1 +365,1 @@
 -                        onClick={() => toggleStep(trackIndex, stepIndex)}
 +                        onClick={() => { toggleStep(trackIndex, stepIndex); }}
@@ -1249,9 +949,6 @@ diff --git a/server/services/audio.ts b/server/services/audio.ts
 @@ -272,1 +272,1 @@
 -  static analyzeAudioPattern(pattern: any) {
 +  static analyzeAudioPattern(pattern: unknown) {
-@@ -295,1 +295,1 @@
--    tracks.forEach(([instrument, steps]: [string, any]) => {
-+    tracks.forEach(([instrument, steps]: [string, unknown]) => {
 diff --git a/music-plugin-manager/server/services/gemini.ts b/music-plugin-manager/server/services/gemini.ts
 --- a/music-plugin-manager/server/services/gemini.ts
 +++ b/music-plugin-manager/server/services/gemini.ts
@@ -1270,9 +967,6 @@ diff --git a/music-plugin-manager/src/pages/PaymentSuccess.tsx b/music-plugin-ma
 diff --git a/client/src/components/studio/plugins/StepSequencerPlugin.tsx b/client/src/components/studio/plugins/StepSequencerPlugin.tsx
 --- a/client/src/components/studio/plugins/StepSequencerPlugin.tsx
 +++ b/client/src/components/studio/plugins/StepSequencerPlugin.tsx
-@@ -52,1 +52,1 @@
--          if (patterns[track.id]?.[nextStep]) {
-+          if (patterns[track.id][nextStep]) {
 @@ -164,1 +164,1 @@
 -                    ${patterns[track.id]?.[stepIndex] 
 +                    ${patterns[track.id][stepIndex] 
@@ -1285,9 +979,6 @@ diff --git a/music-plugin-manager/server/routes.ts b/music-plugin-manager/server
 @@ -224,1 +224,1 @@
 -        const { id } = req.params as any;
 +        const { id } = req.params as unknown;
-@@ -267,1 +267,1 @@
--        const { id, songId } = req.params as any;
-+        const { id, songId } = req.params as unknown;
 @@ -293,1 +293,1 @@
 -      const updated = await storage.updatePlaylist(id, parsed.data as any);
 +      const updated = await storage.updatePlaylist(id, parsed.data as unknown);
@@ -1297,9 +988,6 @@ diff --git a/music-plugin-manager/server/routes.ts b/music-plugin-manager/server
 diff --git a/client/src/components/producer/BasslineGenerator.tsx b/client/src/components/producer/BasslineGenerator.tsx
 --- a/client/src/components/producer/BasslineGenerator.tsx
 +++ b/client/src/components/producer/BasslineGenerator.tsx
-@@ -207,1 +207,1 @@
--      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-+      audioContextRef.current = new (window.AudioContext || (window as unknown).webkitAudioContext)();
 @@ -245,1 +245,1 @@
 -    const masterPlayHandler = (event: any) => {
 +    const masterPlayHandler = (event: unknown) => {
@@ -1330,27 +1018,12 @@ diff --git a/music-plugin-manager/src/components/studio/ProfessionalStudio.tsx b
 @@ -100,1 +100,1 @@
 -  const [generatedSong, setGeneratedSong] = useState<any>(null);
 +  const [generatedSong, setGeneratedSong] = useState<unknown>(null);
-@@ -102,1 +102,1 @@
--  const [generatedBeat, setGeneratedBeat] = useState<any>(null);
-+  const [generatedBeat, setGeneratedBeat] = useState<unknown>(null);
-diff --git a/music-plugin-manager/server/types/express.d.ts b/music-plugin-manager/server/types/express.d.ts
---- a/music-plugin-manager/server/types/express.d.ts
-+++ b/music-plugin-manager/server/types/express.d.ts
-@@ -5,1 +5,1 @@
--    session?: any;
-+    session?: unknown;
 diff --git a/music-plugin-manager/src/lib/audio.ts b/music-plugin-manager/src/lib/audio.ts
 --- a/music-plugin-manager/src/lib/audio.ts
 +++ b/music-plugin-manager/src/lib/audio.ts
 @@ -114,1 +114,1 @@
 -      const currentTime = this.audioContext!.currentTime;
 +      const currentTime = this.audioContext?.currentTime;
-@@ -1344,1 +1344,1 @@
--      startTime: this.audioContext!.currentTime
-+      startTime: this.audioContext?.currentTime
-@@ -1350,1 +1350,1 @@
--    this.activeOscillators.get(instrument)!.push(...data);
-+    this.activeOscillators.get(instrument)?.push(...data);
 @@ -2014,1 +2014,1 @@
 -      this.masterGain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.audioContext!.currentTime);
 +      this.masterGain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.audioContext?.currentTime);
@@ -1366,30 +1039,15 @@ diff --git a/client/src/pages/settings.tsx b/client/src/pages/settings.tsx
 @@ -178,1 +178,1 @@
 -                    <Select value={settings.language} onValueChange={(value) => setSettings({...settings, language: value})}>
 +                    <Select value={settings.language} onValueChange={(value) => { setSettings({...settings, language: value}); }}>
-@@ -234,1 +234,1 @@
--                    onValueChange={([value]) => setSettings({...settings, masterVolume: value})}
-+                    onValueChange={([value]) => { setSettings({...settings, masterVolume: value}); }}
 @@ -244,1 +244,1 @@
 -                    <Select value={settings.latency} onValueChange={(value) => setSettings({...settings, latency: value})}>
 +                    <Select value={settings.latency} onValueChange={(value) => { setSettings({...settings, latency: value}); }}>
 @@ -350,1 +350,1 @@
 -                        onClick={() => setSettings({...settings, theme: 'light'})}
 +                        onClick={() => { setSettings({...settings, theme: 'light'}); }}
-@@ -364,1 +364,1 @@
--                        onClick={() => setSettings({...settings, theme: 'auto'})}
-+                        onClick={() => { setSettings({...settings, theme: 'auto'}); }}
-@@ -381,1 +381,1 @@
--                      onCheckedChange={(checked) => setSettings({...settings, animations: checked})}
-+                      onCheckedChange={(checked) => { setSettings({...settings, animations: checked}); }}
-@@ -442,1 +442,1 @@
--                      onCheckedChange={(checked) => setSettings({...settings, multiThreading: checked})}
-+                      onCheckedChange={(checked) => { setSettings({...settings, multiThreading: checked}); }}
 @@ -469,1 +469,1 @@
 -                    <p>Memory: {(navigator as any).deviceMemory ? `${(navigator as any).deviceMemory} GB` : 'Unknown'}</p>
 +                    <p>Memory: {(navigator as unknown).deviceMemory ? `${(navigator as any).deviceMemory} GB` : 'Unknown'}</p>
-@@ -497,1 +497,1 @@
--                      onCheckedChange={(checked) => setSettings({...settings, saveLocally: checked})}
-+                      onCheckedChange={(checked) => { setSettings({...settings, saveLocally: checked}); }}
 diff --git a/music-plugin-manager/src/components/producer/WavetableOscillator.tsx b/music-plugin-manager/src/components/producer/WavetableOscillator.tsx
 --- a/music-plugin-manager/src/components/producer/WavetableOscillator.tsx
 +++ b/music-plugin-manager/src/components/producer/WavetableOscillator.tsx
@@ -1399,18 +1057,12 @@ diff --git a/music-plugin-manager/src/components/producer/WavetableOscillator.ts
 @@ -199,1 +199,1 @@
 -          lfo.type = value as any;
 +          lfo.type = value as unknown;
-@@ -281,1 +281,1 @@
--                onValueChange={(v) => updateWavetableParam("position", v[0])}
-+                onValueChange={(v) => { updateWavetableParam("position", v[0]); }}
 @@ -294,1 +294,1 @@
 -                onValueChange={(v) => updateWavetableParam("harmonics", v[0])}
 +                onValueChange={(v) => { updateWavetableParam("harmonics", v[0]); }}
 @@ -320,1 +320,1 @@
 -                onValueChange={(v) => updateWavetableParam("brightness", v[0])}
 +                onValueChange={(v) => { updateWavetableParam("brightness", v[0]); }}
-@@ -333,1 +333,1 @@
--                onValueChange={(v) => updateWavetableParam("character", v[0])}
-+                onValueChange={(v) => { updateWavetableParam("character", v[0]); }}
 @@ -368,1 +368,1 @@
 -                    onClick={() => setSelectedLFO(index)}
 +                    onClick={() => { setSelectedLFO(index); }}
@@ -1435,9 +1087,6 @@ diff --git a/client/src/lib/realisticAudio.ts b/client/src/lib/realisticAudio.ts
 diff --git a/client/src/components/social/ProjectSharing.tsx b/client/src/components/social/ProjectSharing.tsx
 --- a/client/src/components/social/ProjectSharing.tsx
 +++ b/client/src/components/social/ProjectSharing.tsx
-@@ -73,1 +73,1 @@
--      refetchShares();
-+      void refetchShares();
 @@ -75,1 +75,1 @@
 -    onError: (error: any) => {
 +    onError: (error: unknown) => {
@@ -1447,12 +1096,15 @@ diff --git a/music-plugin-manager/src/pages/Subscribe.tsx b/music-plugin-manager
 @@ -152,1 +152,1 @@
 -                  onClick={() => setSelectedTier('basic')}
 +                  onClick={() => { setSelectedTier('basic'); }}
+diff --git a/client/src/components/studio/AIAssistant.tsx b/client/src/components/studio/AIAssistant.tsx
+--- a/client/src/components/studio/AIAssistant.tsx
++++ b/client/src/components/studio/AIAssistant.tsx
+@@ -91,1 +91,1 @@
+-    mutationFn: async (songData: any) => {
++    mutationFn: async (songData: unknown) => {
 diff --git a/music-plugin-manager/src/lib/globalSystems.ts b/music-plugin-manager/src/lib/globalSystems.ts
 --- a/music-plugin-manager/src/lib/globalSystems.ts
 +++ b/music-plugin-manager/src/lib/globalSystems.ts
-@@ -116,1 +116,1 @@
--      input.onmidimessage = (event: any) => {
-+      input.onmidimessage = (event: unknown) => {
 @@ -139,1 +139,1 @@
 -    this.listeners.get(pluginId)!.push(callback);
 +    this.listeners.get(pluginId)?.push(callback);
@@ -1474,24 +1126,12 @@ diff --git a/client/src/components/studio/AudioTrainingUpload.tsx b/client/src/c
 @@ -747,1 +747,1 @@
 -                    handleFileUpload(files);
 +                    void handleFileUpload(files);
-@@ -750,1 +750,1 @@
--                onDragOver={(e) => e.preventDefault()}
-+                onDragOver={(e) => { e.preventDefault(); }}
-@@ -767,1 +767,1 @@
--                      const files = Array.from(e.target.files || []);
-+                      const files = Array.from(e.target.files ?? []);
 diff --git a/client/src/components/producer/GranularEngine.tsx b/client/src/components/producer/GranularEngine.tsx
 --- a/client/src/components/producer/GranularEngine.tsx
 +++ b/client/src/components/producer/GranularEngine.tsx
-@@ -107,1 +107,1 @@
--    initSynths();
-+    void initSynths();
 @@ -153,1 +153,1 @@
 -        (next as any)[param] = value as string;
 +        (next as unknown)[param] = value as string;
-@@ -299,1 +299,1 @@
--                onValueChange={(v) => updateGranularParam("density", v[0])}
-+                onValueChange={(v) => { updateGranularParam("density", v[0]); }}
 @@ -325,1 +325,1 @@
 -                onValueChange={(v) => updateGranularParam("pitch", v[0])}
 +                onValueChange={(v) => { updateGranularParam("pitch", v[0]); }}
@@ -1507,15 +1147,9 @@ diff --git a/client/src/components/producer/GranularEngine.tsx b/client/src/comp
 @@ -431,1 +431,1 @@
 -                  onValueChange={(v) => setMacroControls(prev => ({ ...prev, macro3: v[0] }))}
 +                  onValueChange={(v) => { setMacroControls(prev => ({ ...prev, macro3: v[0] })); }}
-@@ -442,1 +442,1 @@
--                  onValueChange={(v) => setMacroControls(prev => ({ ...prev, macro4: v[0] }))}
-+                  onValueChange={(v) => { setMacroControls(prev => ({ ...prev, macro4: v[0] })); }}
 @@ -458,1 +458,1 @@
 -                  onValueChange={(v) => updateGranularParam("texture", v[0])}
 +                  onValueChange={(v) => { updateGranularParam("texture", v[0]); }}
-@@ -469,1 +469,1 @@
--                  onValueChange={(v) => updateGranularParam("feedback", v[0])}
-+                  onValueChange={(v) => { updateGranularParam("feedback", v[0]); }}
 diff --git a/music-plugin-manager/src/components/producer/OutputSequencer.tsx b/music-plugin-manager/src/components/producer/OutputSequencer.tsx
 --- a/music-plugin-manager/src/components/producer/OutputSequencer.tsx
 +++ b/music-plugin-manager/src/components/producer/OutputSequencer.tsx
