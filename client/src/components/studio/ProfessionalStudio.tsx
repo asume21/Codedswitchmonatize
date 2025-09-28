@@ -31,6 +31,19 @@ export default function ProfessionalStudio() {
   // Chord Progression State
   const [chordProgression, setChordProgression] = useState([]);
 
+  function handleAISuggestChordProgression() {
+    setChordProgression([
+      { root: 'C', quality: 'maj' },
+      { root: 'F', quality: 'maj7' },
+      { root: 'Dm', quality: 'min' },
+      { root: 'G', quality: '7' }
+    ]);
+  }
+
+  function handlePlayChordProgression() {
+    // Optionally implement playback logic here, or leave empty for now
+  }
+
   // Full Song Generation State
   const [songPrompt, setSongPrompt] = useState('');
   const [songOptions, setSongOptions] = useState({
