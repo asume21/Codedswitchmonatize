@@ -28,6 +28,9 @@ export default function ProfessionalStudio() {
   const { playDrum, initialize, isInitialized } = useAudio();
   const [activeTab, setActiveTab] = useState('full-song');
 
+  // Chord Progression State
+  const [chordProgression, setChordProgression] = useState([]);
+
   // Full Song Generation State
   const [songPrompt, setSongPrompt] = useState('');
   const [songOptions, setSongOptions] = useState({
