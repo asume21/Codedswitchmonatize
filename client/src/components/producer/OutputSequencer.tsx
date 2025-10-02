@@ -323,17 +323,17 @@ export default function OutputSequencer() {
             <CardContent>
               <div className="space-y-4">
                 {/* Step Headers */}
-                <div className="grid grid-cols-17 gap-1">
-                  <div className="text-xs text-center font-medium">Track</div>
+                <div className="grid grid-cols-17 gap-1 border-b border-gray-700 pb-2">
+                  <div className="text-xs text-center font-medium text-muted-foreground">Track</div>
                   {Array.from({ length: 16 }, (_, i) => (
                     <div 
                       key={i}
-                      className={`text-xs text-center font-medium p-1 rounded ${
+                      className={`text-xs text-center font-medium p-1 rounded border ${
                         currentStep === i && isPlaying 
-                          ? "bg-orange-500 text-white" 
+                          ? "bg-orange-500 text-white border-orange-400" 
                           : i % 4 === 0 
-                            ? "bg-primary/20" 
-                            : "bg-secondary/50"
+                            ? "bg-gray-700 text-white border-gray-500" 
+                            : "bg-gray-800 text-gray-200 border-gray-700"
                       }`}
                     >
                       {i + 1}
@@ -343,11 +343,11 @@ export default function OutputSequencer() {
                 
                 {/* Track Rows */}
                 {tracks.map((track, trackIndex) => (
-                  <div key={track.id} className="grid grid-cols-17 gap-1 items-center">
+                  <div key={track.id} className="grid grid-cols-17 gap-1 items-center border-b border-gray-800 py-1">
                     <Button
                       variant={selectedTrack === trackIndex ? "default" : "outline"}
                       size="sm"
-                      className="text-xs justify-start"
+                      className={`text-xs justify-start ${selectedTrack === trackIndex ? "bg-orange-500 hover:bg-orange-600 border-orange-400" : "border-gray-600 text-gray-200"}`}
                       onClick={() => setSelectedTrack(trackIndex)}
                     >
                       {track.name}
@@ -357,10 +357,10 @@ export default function OutputSequencer() {
                       <Button
                         key={stepIndex}
                         size="sm"
-                        className={`w-8 h-8 p-0 relative ${
+                        className={`w-8 h-8 p-0 relative border ${
                           step.active 
-                            ? "bg-orange-500 hover:bg-orange-600" 
-                            : "bg-secondary hover:bg-secondary/80"
+                            ? "bg-orange-500 hover:bg-orange-600 border-orange-400 text-white" 
+                            : "bg-gray-900 hover:bg-gray-800 border-gray-700 text-gray-400"
                         }`}
                         onClick={() => toggleStep(trackIndex, stepIndex)}
                         onContextMenu={(e) => {

@@ -407,9 +407,17 @@ export default function VerticalPianoRoll() {
   }, [resizingNoteId, zoom, selectedTrack]);
 
   const getChordWithVoicing = (step: ProgressionStep): { note: string, octave: number }[] => {
-    const baseChord = customKeys[currentKey].chords[step.chordSymbol as keyof typeof customKeys[typeof currentKey]['chords']];
-    if (!baseChord) return [];
-    
+    const keyDefinition = customKeys[currentKey];
+    if (!keyDefinition) {
+      return [];
+    }
+
+    const chords = keyDefinition.chords;
+    const baseChord = chords?.[step.chordSymbol as keyof typeof chords];
+    if (!baseChord) {
+      return [];
+    }
+
     const invertedChord = applyInversion(baseChord, step.inversion);
     return applyVoicing(invertedChord, step.voicing, step.octave);
   };
@@ -613,7 +621,11 @@ export default function VerticalPianoRoll() {
     if (chordSequence.length > 0) {
       // Use chord from custom sequence
       const chordToUse = chordSequence[sequenceIndex % chordSequence.length];
-      const chordNotes = customKeys[currentKey].chords[chordToUse as keyof typeof customKeys[typeof currentKey]['chords']];
+      const keyDefinition = customKeys[currentKey];
+      const chordNotes = keyDefinition?.chords?.[chordToUse as keyof typeof keyDefinition.chords];
+      if (!chordNotes) {
+        return;
+      }
       setSequenceIndex((prev) => (prev + 1) % chordSequence.length);
       
       chordNotes.forEach((noteName: string, noteIndex: number) => {
@@ -1011,7 +1023,7 @@ export default function VerticalPianoRoll() {
               <div className="flex items-center gap-4">
                 <span className="text-sm font-medium">🎼 Chord Progression</span>
                 <span className="text-sm text-gray-400">
-                  Key: {customKeys[currentKey].name}
+                  Key: {customKeys[currentKey]?.name ?? currentKey}
                 </span>
                 <span className="text-sm text-gray-400">
                   Current: {progressionSteps[currentChordIndex]?.chordSymbol || 'N/A'} ({currentChordIndex + 1}/{progressionSteps.length})

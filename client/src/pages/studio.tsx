@@ -280,10 +280,11 @@ export default function Studio() {
       case "assistant":
         return <AIAssistant />;
       case "security":
+        return <VulnerabilityScanner />;
       case "lyrics":
         return <LyricLab />;
       case "musicmixer":
-        return <ProfessionalStudio onTabChange={setActiveTab} />;
+        return <ProfessionalStudio />;
       case "professionalmixer":
         return <ProfessionalMixer />;
       case "mixer":

@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect, useContext } from "react";
+import { useState, useRef, useEffect, useContext, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +10,16 @@ import { useMIDI } from "@/hooks/use-midi";
 import { Slider } from "@/components/ui/slider";
 import { StudioAudioContext } from "@/pages/studio";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
+import OutputSequencer from "@/components/producer/OutputSequencer";
+
+const GENRE_OPTIONS = [
+  { value: "hip-hop", label: "Hip-Hop" },
+  { value: "trap", label: "Trap" },
+  { value: "house", label: "House" },
+  { value: "techno", label: "Techno" },
+  { value: "dnb", label: "Drum & Bass" },
+  { value: "ambient", label: "Ambient" },
+];
 
 interface BeatPattern {
   kick: boolean[];
@@ -41,6 +53,39 @@ const defaultTracks = [
   { id: "crash", name: "Crash", color: "bg-orange-500" },
 ];
 
+const createEmptyPattern = (): BeatPattern => ({
+  kick: Array(16).fill(false),
+  snare: Array(16).fill(false),
+  hihat: Array(16).fill(false),
+  clap: Array(16).fill(false),
+  tom: Array(16).fill(false),
+  crash: Array(16).fill(false),
+});
+
+const toBooleanSteps = (source?: Array<number | boolean>) => {
+  const length = 16;
+  if (!Array.isArray(source) || source.length === 0) {
+    return Array(length).fill(false);
+  }
+
+  return Array.from({ length }, (_, index) => Boolean(source[index % source.length]));
+};
+
+const normalizeToBeatPattern = (source?: Record<string, any>): BeatPattern => {
+  if (!source || typeof source !== "object") {
+    return createEmptyPattern();
+  }
+
+  return {
+    kick: toBooleanSteps(source.kick),
+    snare: toBooleanSteps(source.snare),
+    hihat: toBooleanSteps(source.hihat ?? source.hiHat ?? source.closedHat),
+    clap: toBooleanSteps(source.clap ?? source.percussion ?? source.openhat),
+    tom: toBooleanSteps(source.tom ?? source.tom1 ?? source.tom2 ?? source.tom3),
+    crash: toBooleanSteps(source.crash ?? source.ride ?? source.cymbal),
+  };
+};
+
 export default function BeatMaker() {
   const studioContext = useContext(StudioAudioContext);
   const [bpm, setBpm] = useState(120);
@@ -53,52 +98,27 @@ export default function BeatMaker() {
   const [bars, setBars] = useState(4);
   const [activeTab, setActiveTab] = useState('generate');
   const [aiProvider, setAiProvider] = useState("grok");
+  const [selectedGenre, setSelectedGenre] = useState(GENRE_OPTIONS[0].value);
 
   // Initialize pattern with default structure or load from studio context
   const [pattern, setPattern] = useState<BeatPattern>(() => {
-    // Check for pattern from studio context first
     if (studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0) {
-      return {
-        kick: studioContext.currentPattern.kick || Array(16).fill(false),
-        snare: studioContext.currentPattern.snare || Array(16).fill(false),
-        hihat: studioContext.currentPattern.hihat || Array(16).fill(false),
-        openhat: studioContext.currentPattern.openhat || Array(16).fill(false),
-        tom1: studioContext.currentPattern.tom1 || Array(16).fill(false),
-        tom2: studioContext.currentPattern.tom2 || Array(16).fill(false),
-        tom3: studioContext.currentPattern.tom3 || Array(16).fill(false),
-        ride: studioContext.currentPattern.ride || Array(16).fill(false),
-      };
+      return normalizeToBeatPattern(studioContext.currentPattern);
     }
-    
-    // Check localStorage for persisted data
-    const storedData = localStorage.getItem('generatedMusicData');
+
+    const storedData = localStorage.getItem("generatedMusicData");
     if (storedData) {
       try {
         const parsed = JSON.parse(storedData);
-        if (parsed.beatPattern) {
-          return {
-            kick: parsed.beatPattern.kick || Array(16).fill(false),
-            snare: parsed.beatPattern.snare || Array(16).fill(false),
-            hihat: parsed.beatPattern.hihat || Array(16).fill(false),
-            clap: parsed.beatPattern.clap || parsed.beatPattern.openhat || Array(16).fill(false),
-            tom: parsed.beatPattern.tom || parsed.beatPattern.tom1 || Array(16).fill(false),
-            crash: parsed.beatPattern.crash || parsed.beatPattern.ride || Array(16).fill(false),
-          };
+        if (parsed?.beatPattern) {
+          return normalizeToBeatPattern(parsed.beatPattern);
         }
       } catch (error) {
         console.error("Error loading stored pattern:", error);
       }
     }
-    
-    // Default empty pattern
-    return {
-      kick: Array(16).fill(false),
-      snare: Array(16).fill(false),
-      hihat: Array(16).fill(false),
-      clap: Array(16).fill(false),
-      tom: Array(16).fill(false),
-      crash: Array(16).fill(false),
-    };
+
+    return createEmptyPattern();
   });
 
   const { toast } = useToast();
@@ -125,34 +145,61 @@ export default function BeatMaker() {
     };
   }, []);
 
+  const calculatedDuration = useMemo(() => {
+    const safeBpm = Math.max(40, Math.min(240, bpm || 120));
+    const barCount = Math.max(1, bars || 1);
+    const totalBeats = barCount * 4;
+    const seconds = (totalBeats * 60) / safeBpm;
+    return Math.max(1, Math.round(seconds));
+  }, [bars, bpm]);
+
   // Beat generation mutation
   const generateBeatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/beats/generate", {
-        genre: "trap",
-        bpm,
-        complexity: complexity[0],
-        pattern_length: 16,
-        instruments: ["kick", "snare", "hihat", "openhat", "tom1", "tom2", "tom3", "ride"],
-        aiProvider
-      });
-      
+      const normalizedBpm = Math.max(40, Math.min(240, bpm || 120));
+      const payload = {
+        genre: selectedGenre,
+        bpm: normalizedBpm,
+        duration: calculatedDuration,
+      };
+
+      const response = await apiRequest("POST", "/api/beats/generate", payload);
+
       if (!response.ok) {
-        throw new Error("Failed to generate beat");
+        const errorBody = await response.json().catch(() => ({}));
+        const message = errorBody?.error || "Failed to generate beat";
+        throw new Error(message);
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
-      if (data.beat_pattern) {
-        setPattern(data.beat_pattern);
-        // Update studio context
+      const beatPattern = data?.beat?.pattern;
+      if (beatPattern) {
+        const normalizedPattern = normalizeToBeatPattern(beatPattern);
+        setPattern(normalizedPattern);
+
         if (studioContext.setCurrentPattern) {
-          studioContext.setCurrentPattern(data.beat_pattern);
+          studioContext.setCurrentPattern(normalizedPattern);
         }
+
+        try {
+          localStorage.setItem(
+            "generatedMusicData",
+            JSON.stringify({ beatPattern: beatPattern })
+          );
+        } catch (error) {
+          console.warn("Unable to cache generated beat pattern:", error);
+        }
+
         toast({
           title: "Beat Generated!",
-          description: "Your AI-powered beat is ready to play",
+          description: `Fresh ${selectedGenre} groove at ${bpm} BPM`,
+        });
+      } else {
+        toast({
+          title: "Beat Generation",
+          description: "Response received, but no beat pattern was returned.",
         });
       }
     },

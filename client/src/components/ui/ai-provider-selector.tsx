@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
 import { Bot, Sparkles, Zap, FileText, Music } from "lucide-react";
 
 interface AIProvider {
@@ -10,6 +9,7 @@ interface AIProvider {
   description: string;
   features: string[];
   available: boolean;
+  isDefault?: boolean;
 }
 
 interface AIProviderSelectorProps {
@@ -18,19 +18,56 @@ interface AIProviderSelectorProps {
   className?: string;
 }
 
-export function AIProviderSelector({ value, onValueChange, className }: AIProviderSelectorProps) {
-  const { data: providers = [] } = useQuery<AIProvider[]>({
-    queryKey: ["/api/ai/providers"],
-  });
+const STATIC_PROVIDERS: AIProvider[] = [
+  {
+    id: "grok",
+    name: "Grok",
+    description: "Edgy rhythmic ideas with quick turnaround.",
+    features: ["Beat ideation", "High-energy patterns", "Percussive fills"],
+    available: true,
+    isDefault: true,
+  },
+  {
+    id: "openai",
+    name: "OpenAI Sound Studio",
+    description: "Balanced grooves and adaptive arrangements.",
+    features: ["Adaptive grooves", "Humanized velocity", "Arrangement suggestions"],
+    available: true,
+  },
+  {
+    id: "gemini",
+    name: "Gemini Audio",
+    description: "Melodic-forward beats with lush textures.",
+    features: ["Melodic layers", "Texture pads", "Atmospheric FX"],
+    available: true,
+  },
+  {
+    id: "musicgen",
+    name: "MusicGen Beta",
+    description: "Experimental generator for genre-bending ideas.",
+    features: ["Genre blending", "AI stems", "Sketch exports"],
+    available: false,
+  },
+];
 
-  const availableProviders = providers.filter(p => p.available);
+export function AIProviderSelector({ value, onValueChange, className }: AIProviderSelectorProps) {
+  const availableProviders = STATIC_PROVIDERS.filter((provider) => provider.available);
 
   // Set default to first available provider if current value is not available
   useEffect(() => {
-    if (availableProviders.length > 0 && !availableProviders.some(p => p.id === value)) {
-      onValueChange(availableProviders[0].id);
+    if (availableProviders.length === 0) {
+      return;
+    }
+
+    const isCurrentAvailable = availableProviders.some((provider) => provider.id === value);
+    if (!isCurrentAvailable) {
+      const fallback =
+        availableProviders.find((provider) => provider.isDefault) ?? availableProviders[0];
+      onValueChange(fallback.id);
     }
   }, [availableProviders, value, onValueChange]);
+
+  const selectedProvider = availableProviders.find((provider) => provider.id === value);
 
   const getProviderIcon = (id: string) => {
     switch (id) {
@@ -79,12 +116,12 @@ export function AIProviderSelector({ value, onValueChange, className }: AIProvid
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger className={`w-48 ${className}`}>
         <SelectValue>
-          {availableProviders.find(p => p.id === value) && (
+          {selectedProvider && (
             <div className="flex items-center space-x-2">
-              <span className={getProviderColor(value)}>
-                {getProviderIcon(value)}
+              <span className={getProviderColor(selectedProvider.id)}>
+                {getProviderIcon(selectedProvider.id)}
               </span>
-              <span>{availableProviders.find(p => p.id === value)?.name}</span>
+              <span>{selectedProvider.name}</span>
             </div>
           )}
         </SelectValue>

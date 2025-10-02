@@ -22,6 +22,8 @@ class AudioEngine {
   private reverb: Tone.Reverb | null = null;
   private delay: Tone.PingPongDelay | null = null;
   private volume: Tone.Volume;
+  private drumVoices: Partial<Record<DrumType, Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth>> = {};
+  private drumBus: Tone.Volume | null = null;
 
   constructor() {
     this.volume = new Tone.Volume(0);
@@ -32,6 +34,12 @@ class AudioEngine {
   async initialize() {
     if (this.isInitialized) return;
     await Tone.start(); // Required on iOS/Chrome
+    try {
+      await realisticAudio.initialize();
+    } catch (error) {
+      console.warn('Realistic audio engine unavailable, using synthetic fallback', error);
+    }
+    this.setupDrumVoices();
     this.isInitialized = true;
   }
 
@@ -69,16 +77,49 @@ class AudioEngine {
     }
   }
 
-  // Drum playback
   playDrum(drum: DrumType, velocity = 0.8) {
     if (!this.isInitialized) {
       console.warn('AudioEngine not initialized');
       return;
     }
-    
+
+    if (realisticAudio.isReady()) {
+      realisticAudio.playDrumSound(drum, velocity).catch(() => {
+        this.playFallbackDrum(drum, velocity);
+      });
+      return;
+    }
+
+    this.playFallbackDrum(drum, velocity);
+  }
+
+  private playFallbackDrum(drum: DrumType, velocity: number) {
     const drumSampler = this.samplers['drums'];
     if (drumSampler) {
       drumSampler.triggerAttackRelease(drum, '8n', undefined, velocity);
+      return;
+    }
+
+    const drumVoice = this.drumVoices[drum];
+    if (drumVoice) {
+      const levelDb = Tone.gainToDb(Math.max(0.05, Math.min(1, velocity)));
+      if (this.drumBus) {
+        this.drumBus.volume.rampTo(levelDb, 0.02);
+      }
+
+      const duration =
+        drum === 'crash' ? '2n' : drum === 'tom' ? '4n' : drum === 'clap' ? '8n' : '16n';
+
+      if (drumVoice instanceof Tone.MembraneSynth) {
+        const note = drum === 'kick' ? 'C1' : drum === 'tom' ? 'A2' : 'C2';
+        drumVoice.triggerAttackRelease(note, duration);
+      } else if (drumVoice instanceof Tone.NoiseSynth) {
+        drumVoice.triggerAttackRelease(duration);
+      } else if (drumVoice instanceof Tone.MetalSynth) {
+        const pitch = drum === 'crash' ? 'G5' : 'E5';
+        drumVoice.triggerAttackRelease(pitch, duration, undefined, velocity);
+      }
+      return;
     }
   }
 
@@ -139,8 +180,76 @@ class AudioEngine {
     this.reverb?.dispose();
     this.delay?.dispose();
     this.volume.dispose();
+    Object.values(this.drumVoices).forEach(voice => voice.dispose());
+    this.drumVoices = {};
+    this.drumBus?.dispose();
+    this.drumBus = null;
     Tone.Transport.cancel();
     this.isInitialized = false;
+  }
+
+  private setupDrumVoices() {
+    this.drumBus?.dispose();
+    this.drumBus = new Tone.Volume(-6).toDestination();
+
+    const connect = <T extends Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth>(voice: T) => {
+      voice.connect(this.drumBus!);
+      return voice;
+    };
+
+    const kick = connect(new Tone.MembraneSynth());
+    kick.pitchDecay = 0.02;
+    kick.octaves = 4;
+    kick.oscillator.type = 'sine';
+    kick.envelope.attack = 0.001;
+    kick.envelope.decay = 0.4;
+    kick.envelope.sustain = 0.01;
+    kick.envelope.release = 0.4;
+    this.drumVoices.kick = kick;
+
+    const snare = connect(new Tone.NoiseSynth());
+    snare.noise.type = 'white';
+    snare.envelope.attack = 0.001;
+    snare.envelope.decay = 0.2;
+    snare.envelope.sustain = 0;
+    this.drumVoices.snare = snare;
+
+    const hihat = connect(new Tone.MetalSynth());
+    hihat.frequency.setValueAtTime(250, Tone.now());
+    hihat.envelope.attack = 0.001;
+    hihat.envelope.decay = 0.1;
+    hihat.envelope.release = 0.01;
+    hihat.harmonicity = 5.1;
+    hihat.modulationIndex = 32;
+    this.drumVoices.hihat = hihat;
+
+    const clap = connect(new Tone.NoiseSynth());
+    clap.noise.type = 'pink';
+    clap.envelope.attack = 0.001;
+    clap.envelope.decay = 0.25;
+    clap.envelope.sustain = 0;
+    this.drumVoices.clap = clap;
+
+    const tom = connect(new Tone.MembraneSynth());
+    tom.pitchDecay = 0.008;
+    tom.octaves = 2;
+    tom.oscillator.type = 'sine';
+    tom.envelope.attack = 0.001;
+    tom.envelope.decay = 0.5;
+    tom.envelope.sustain = 0.1;
+    tom.envelope.release = 0.3;
+    this.drumVoices.tom = tom;
+
+    const crash = connect(new Tone.MetalSynth());
+    crash.frequency.setValueAtTime(200, Tone.now());
+    crash.envelope.attack = 0.001;
+    crash.envelope.decay = 1.4;
+    crash.envelope.release = 1;
+    crash.harmonicity = 12;
+    crash.modulationIndex = 20;
+    crash.resonance = 7000;
+    crash.octaves = 2;
+    this.drumVoices.crash = crash;
   }
 
   // Alias for initialize for backward compatibility
