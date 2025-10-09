@@ -32,37 +32,41 @@ const INSTRUMENTS = [
 ];
 
 export function TrackControlsPlugin({ 
-  tracks, 
+  tracks,
   onTrackUpdate, 
   selectedTrack, 
   onTrackSelect 
 }: TrackControlsPluginProps) {
   return (
-    <div className="bg-gray-800 rounded-lg p-6">
+    <div className="bg-gray-800 rounded-lg p-6 space-y-5">
       <h3 className="text-xl font-semibold mb-4 text-white flex items-center">
         🎛️ Multi-Track Controls
         <span className="ml-2 text-sm bg-green-600 px-2 py-1 rounded">PLUGIN</span>
       </h3>
-      
-      <div className="space-y-4">
+
+      <div className="grid gap-4">
         {tracks.map((track) => (
           <div 
             key={track.id}
-            className={`p-4 rounded-lg border-2 transition-all ${
+            className={`relative overflow-hidden p-5 rounded-xl border-2 transition-all shadow-lg ${
               selectedTrack === track.id 
-                ? 'border-blue-500 bg-gray-700' 
+                ? 'border-blue-400 bg-gray-700/95 ring-2 ring-blue-300/40' 
                 : 'border-gray-600 bg-gray-750'
             }`}
           >
+            {selectedTrack === track.id && (
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-blue-400/10 via-transparent to-blue-400/10" />
+            )}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-3">
                 <Button
                   onClick={() => onTrackSelect(track.id)}
                   variant={selectedTrack === track.id ? "default" : "outline"}
                   size="sm"
-                  className="min-w-[80px]"
+                  className="min-w-[80px] flex flex-col items-start"
                 >
-                  {track.name}
+                  <span className="text-sm font-semibold">{track.name}</span>
+                  <span className="text-[11px] text-white/70">{track.instrument.toUpperCase()}</span>
                 </Button>
                 
                 <Select
@@ -102,38 +106,73 @@ export function TrackControlsPlugin({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Volume: {track.volume}%</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs text-gray-300 uppercase tracking-wide">
+                  <span>Volume</span>
+                  <span className="text-sm font-semibold text-white">{track.volume}%</span>
+                </div>
                 <Slider
                   value={[track.volume]}
                   onValueChange={([value]) => onTrackUpdate(track.id, { volume: value })}
                   max={100}
                   step={1}
-                  className="w-full"
+                  className="w-full h-2 [&_.slider-track]:bg-gray-600 [&_.slider-range]:bg-blue-500"
                 />
               </div>
               
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Pan: {track.pan > 0 ? 'R' : track.pan < 0 ? 'L' : 'C'}{Math.abs(track.pan)}</label>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs text-gray-300 uppercase tracking-wide">
+                  <span>Pan</span>
+                  <span className="text-sm font-semibold text-white">
+                    {track.pan > 0 ? 'R' : track.pan < 0 ? 'L' : 'C'}{Math.abs(track.pan)}
+                  </span>
+                </div>
                 <Slider
                   value={[track.pan]}
                   onValueChange={([value]) => onTrackUpdate(track.id, { pan: value })}
                   min={-50}
                   max={50}
                   step={1}
-                  className="w-full"
+                  className="w-full h-2 [&_.slider-track]:bg-gray-600 [&_.slider-range]:bg-purple-500"
                 />
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-400">
+              <div className="bg-gray-700/70 rounded-md px-3 py-2">
+                <p className="uppercase tracking-wide text-[10px] text-gray-400">Instrument</p>
+                <p className="text-white text-sm font-semibold">{track.instrument}</p>
+              </div>
+              <div className="bg-gray-700/70 rounded-md px-3 py-2">
+                <p className="uppercase tracking-wide text-[10px] text-gray-400">Muted</p>
+                <p className="text-white text-sm font-semibold">{track.muted ? 'Yes' : 'No'}</p>
+              </div>
+              <div className="bg-gray-700/70 rounded-md px-3 py-2">
+                <p className="uppercase tracking-wide text-[10px] text-gray-400">Solo</p>
+                <p className="text-white text-sm font-semibold">{track.solo ? 'Active' : 'Off'}</p>
+              </div>
+              <div className="bg-gray-700/70 rounded-md px-3 py-2">
+                <p className="uppercase tracking-wide text-[10px] text-gray-400">Track ID</p>
+                <p className="text-white text-sm font-semibold">{track.id.toUpperCase()}</p>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 p-3 bg-gray-700 rounded text-center">
-        <p className="text-sm text-gray-300">
-          ✅ Multi-Track System Active | Selected: <strong>{tracks.find(t => t.id === selectedTrack)?.name}</strong>
-        </p>
+      <div className="p-4 bg-gray-900/80 rounded-xl border border-gray-700 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="text-sm text-gray-300 flex items-center gap-2">
+          <span className="text-green-400 text-lg">✅</span>
+          <span>
+            Multi-Track System Active · Selected Track: <strong>{tracks.find(t => t.id === selectedTrack)?.name}</strong>
+          </span>
+        </div>
+        <div className="flex gap-2 text-xs text-gray-400">
+          <span className="bg-gray-700/80 px-2 py-1 rounded">🎚️ Volume & Pan Linked</span>
+          <span className="bg-gray-700/80 px-2 py-1 rounded">🔁 Sync with Sequencer</span>
+          <span className="bg-gray-700/80 px-2 py-1 rounded">🎹 Piano Roll Ready</span>
+        </div>
       </div>
     </div>
   );

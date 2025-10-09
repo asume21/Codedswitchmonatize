@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
@@ -6,15 +6,8 @@ import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { useToast } from '@/hooks/use-toast';
-
-interface Note {
-  id: string;
-  pitch: number;
-  start: number;
-  duration: number;
-  velocity: number;
-  trackId: string;
-}
+import { StudioAudioContext } from '@/pages/studio';
+import type { Note } from './types/pianoRollTypes';
 
 interface Track {
   id: string;
@@ -24,17 +17,20 @@ interface Track {
   pan: number;
   muted: boolean;
   solo: boolean;
+  notes: Note[];
 }
 
 
 function MelodyComposerV2() {
   const { toast } = useToast();
+  const studioContext = useContext(StudioAudioContext);
   
   // Core state
   const [notes, setNotes] = useState<Note[]>([]);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState('track1');
-  const [tempo, setTempo] = useState(120);
+  const [tempo, setTempo] = useState(studioContext.bpm);
+
+  const isPlaying = studioContext.isPlaying;
 
   // Plugin visibility
   const [activePlugins, setActivePlugins] = useState({
@@ -44,12 +40,19 @@ function MelodyComposerV2() {
   });
 
   // Multi-track system
-  const [tracks, setTracks] = useState<Track[]>([
-    { id: 'track1', name: 'Lead', instrument: 'piano', volume: 80, pan: 0, muted: false, solo: false },
-    { id: 'track2', name: 'Bass', instrument: 'bass', volume: 75, pan: -10, muted: false, solo: false },
-    { id: 'track3', name: 'Drums', instrument: 'drums', volume: 85, pan: 0, muted: false, solo: false },
-    { id: 'track4', name: 'Harmony', instrument: 'synth', volume: 65, pan: 15, muted: false, solo: false }
+  const [localTracks, setLocalTracks] = useState<Track[]>([
+    { id: 'track1', name: 'Lead', instrument: 'piano', volume: 80, pan: 0, muted: false, solo: false, notes: [] },
+    { id: 'track2', name: 'Bass', instrument: 'bass', volume: 75, pan: -10, muted: false, solo: false, notes: [] },
+    { id: 'track3', name: 'Drums', instrument: 'drums', volume: 85, pan: 0, muted: false, solo: false, notes: [] },
+    { id: 'track4', name: 'Harmony', instrument: 'synth', volume: 65, pan: 15, muted: false, solo: false, notes: [] }
   ]);
+
+  const tracks = useMemo(() => {
+    if (studioContext.currentTracks && (studioContext.currentTracks as Track[]).length > 0) {
+      return studioContext.currentTracks as Track[];
+    }
+    return localTracks;
+  }, [studioContext.currentTracks, localTracks]);
 
   // Initialize audio engine
   useEffect(() => {
@@ -60,6 +63,14 @@ function MelodyComposerV2() {
       toast({ title: "Audio Error", description: "Failed to initialize audio engine" });
     });
   }, []);
+
+  useEffect(() => {
+    studioContext.setCurrentTracks(localTracks);
+  }, [localTracks, studioContext]);
+
+  useEffect(() => {
+    studioContext.setBpm(tempo);
+  }, [tempo, studioContext]);
 
   // Audio functions
   const playNote = async (note: string, octave: number = 4, duration: number = 0.5, instrument: string = 'piano') => {
@@ -81,9 +92,13 @@ function MelodyComposerV2() {
 
   // Track management
   const updateTrack = (trackId: string, updates: Partial<Track>) => {
-    setTracks(prev => prev.map(track => 
+    setLocalTracks(prev => prev.map(track => 
       track.id === trackId ? { ...track, ...updates } : track
     ));
+
+    const baseTracks = (studioContext.currentTracks as Track[])?.length > 0 ? (studioContext.currentTracks as Track[]) : localTracks;
+    const updated = baseTracks.map(track => track.id === trackId ? { ...track, ...updates } : track);
+    studioContext.setCurrentTracks(updated);
     
     toast({ 
       title: "Track Updated", 
@@ -100,24 +115,50 @@ function MelodyComposerV2() {
 
   // Playback controls
   const togglePlayback = () => {
-    setIsPlaying(!isPlaying);
-    if (!isPlaying) {
+    if (!studioContext.isPlaying) {
+      studioContext.playCurrentAudio();
       toast({ title: "Playback Started", description: "Multi-track sequencer playing" });
     } else {
+      studioContext.stopCurrentAudio();
       toast({ title: "Playback Stopped", description: "Sequencer paused" });
     }
   };
 
   const stopPlayback = () => {
-    setIsPlaying(false);
+    studioContext.stopCurrentAudio();
     realisticAudio.stopAllSounds();
     toast({ title: "Playback Stopped", description: "All sounds stopped" });
   };
 
   const clearAllNotes = () => {
     setNotes([]);
+    setLocalTracks(prev => prev.map(track => ({ ...track, notes: [] })));
+    const baseTracks = (studioContext.currentTracks as Track[])?.length > 0 ? (studioContext.currentTracks as Track[]) : localTracks;
+    const cleared = baseTracks.map(track => ({ ...track, notes: [] }));
+    studioContext.setCurrentTracks(cleared);
     toast({ title: "All Notes Cleared", description: "Composition reset" });
   };
+
+  const handleTrackNotesUpdate = (trackId: string, updatedNotes: Note[]) => {
+    setLocalTracks(prev => prev.map(track =>
+      track.id === trackId ? { ...track, notes: updatedNotes } : track
+    ));
+
+    const baseTracks = (studioContext.currentTracks as Track[])?.length > 0 ? (studioContext.currentTracks as Track[]) : localTracks;
+    const updated = baseTracks.map(track => track.id === trackId ? { ...track, notes: updatedNotes } : track);
+    studioContext.setCurrentTracks(updated);
+
+    if (trackId === selectedTrack) {
+      setNotes(updatedNotes);
+    }
+  };
+
+  const totalNotes = tracks.reduce((sum, track) => sum + (track.notes?.length || 0), 0);
+
+  useEffect(() => {
+    const activeTrack = tracks.find(track => track.id === selectedTrack);
+    setNotes(activeTrack?.notes ?? []);
+  }, [selectedTrack, tracks]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black p-6">
@@ -196,40 +237,24 @@ function MelodyComposerV2() {
               </div>
             </div>
 
-            {/* Master Controls */}
-            <div className="flex items-end space-x-2">
-              <Button
-                onClick={togglePlayback}
-                size="lg"
-                className={isPlaying ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-              >
-                {isPlaying ? '⏸️ Pause' : '▶️ Play'}
-              </Button>
-              <Button
-                onClick={stopPlayback}
-                size="lg"
-                variant="outline"
-              >
-                ⏹️ Stop
-              </Button>
-            </div>
           </div>
 
-          {/* Status Bar */}
-          <div className="mt-4 p-3 bg-gray-700 rounded-lg">
-            <div className="flex justify-between items-center text-sm">
-              <div className="text-gray-300">
-                <strong>Status:</strong> {isPlaying ? '🟢 Playing' : '🔴 Stopped'} | 
-                <strong> Tracks:</strong> {tracks.length} | 
-                <strong> Notes:</strong> {notes.length} | 
-                <strong> Active:</strong> {tracks.find(t => t.id === selectedTrack)?.name}
-              </div>
+        {/* Status Bar */}
+        <div className="mt-4 p-3 bg-gray-700 rounded-lg">
+          <div className="flex justify-between items-center text-sm">
+            <div className="text-gray-300">
+              <strong>Status:</strong> {isPlaying ? '🟢 Playing' : '🔴 Stopped'} | 
+              <strong> Tracks:</strong> {tracks.length} | 
+              <strong> Notes:</strong> {totalNotes} | 
+              <strong> Active:</strong> {tracks.find(t => t.id === selectedTrack)?.name}
+            </div>
               <Button
                 onClick={clearAllNotes}
                 variant="outline"
                 size="sm"
                 className="border-red-600 text-red-400 hover:bg-red-900"
               >
+                {activePlugins.pianoRoll && activePlugins.stepSequencer ? '🎹 & 🥁' : activePlugins.pianoRoll ? '🎹' : activePlugins.stepSequencer ? '🥁' : 'Disabled'}
                 🗑️ Clear All
               </Button>
             </div>
@@ -250,8 +275,8 @@ function MelodyComposerV2() {
         {activePlugins.pianoRoll && (
           <PianoRollPlugin
             tracks={tracks}
-            notes={notes as any} // Type casting to resolve interface inconsistency
-            onNotesChange={setNotes as any} // Type casting to resolve interface inconsistency
+            notes={notes}
+            onNotesChange={(updated) => handleTrackNotesUpdate(selectedTrack, updated)}
             selectedTrack={selectedTrack}
             isPlaying={isPlaying}
             onPlayNote={playNote}
@@ -266,6 +291,8 @@ function MelodyComposerV2() {
             isPlaying={isPlaying}
             onPlayDrum={playDrum}
             onPlayNote={playNote}
+            onStartPlayback={togglePlayback}
+            onStopPlayback={stopPlayback}
           />
         )}
 
