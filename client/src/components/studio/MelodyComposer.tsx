@@ -202,7 +202,7 @@ function MelodyComposer() {
   };
 
   return (
-    <div className="h-screen bg-gray-900 text-white flex flex-col">
+    <div className="h-full bg-gray-900 text-white flex flex-col">
       {/* Top Bar */}
       <div className="bg-gray-800 p-3 border-b border-gray-700 flex justify-between items-center">
         <div className="flex items-center space-x-4">

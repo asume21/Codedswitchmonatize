@@ -161,7 +161,7 @@ function MelodyComposerV2() {
   }, [selectedTrack, tracks]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black p-6">
+    <div className="h-full bg-gradient-to-br from-gray-900 to-black p-6 overflow-auto">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Header */}
