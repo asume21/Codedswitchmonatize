@@ -74,6 +74,7 @@
         "@uppy/file-input": "^4.2.2",
         "@uppy/progress-bar": "^4.3.2",
         "@uppy/react": "^4.5.2",
+        "@uppy/xhr-upload": "^4.2.1",
         "@vitejs/plugin-react": "^4.3.4",
         "adm-zip": "^0.5.16",
         "autoprefixer": "^10.4.20",
@@ -5379,7 +5380,7 @@
       "version": "19.1.9",
       "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.1.9.tgz",
       "integrity": "sha512-qXRuZaOsAdXKFyOhRBg6Lqqc0yay13vN7KrIg4L7N4aaHN68ma9OK3NE1BoDFgFOTfM7zg+3/8+2n8rLUH3OKQ==",
-      "devOptional": true,
+      "dev": true,
       "license": "MIT",
       "peerDependencies": {
         "@types/react": "^19.0.0"
@@ -5926,6 +5927,19 @@
       },
       "peerDependencies": {
         "@uppy/core": "^4.5.2"
+      }
+    },
+    "node_modules/@uppy/xhr-upload": {
+      "version": "4.2.1",
+      "resolved": "https://registry.npmjs.org/@uppy/xhr-upload/-/xhr-upload-4.2.1.tgz",
+      "integrity": "sha512-pafgk0vLr+FKDHo+xmBMwNncj68oRNoaTnj0por7LPND0QGXV7xwBZnGGkQhiHLooV2MNBEhFQtx93A76cEINg==",
+      "license": "MIT",
+      "dependencies": {
+        "@uppy/companion-client": "^4.1.0",
+        "@uppy/utils": "^6.0.3"
+      },
+      "peerDependencies": {
+        "@uppy/core": "^4.2.2"
       }
     },
     "node_modules/@uppy/zoom": {

@@ -4,7 +4,7 @@ import Uppy from "@uppy/core";
 import { DashboardModal } from "@uppy/react";
 import "@uppy/core/dist/style.min.css";
 import "@uppy/dashboard/dist/style.min.css";
-import AwsS3 from "@uppy/aws-s3";
+import XHRUpload from "@uppy/xhr-upload";
 import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
 
@@ -59,24 +59,66 @@ export function ObjectUploader({
   children,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
-  const [uppy] = useState(() =>
-    new Uppy({
-      restrictions: {
-        maxNumberOfFiles,
-        maxFileSize,
-        allowedFileTypes: ['audio/*', '.mp3', '.wav', '.m4a', '.ogg', '.flac'],
-      },
-      autoProceed: false,
-    })
-      .use(AwsS3, {
-        shouldUseMultipart: false,
-        getUploadParameters: onGetUploadParameters,
+  const [initError, setInitError] = useState<string | null>(null);
+  
+  const [uppy] = useState(() => {
+    try {
+      const uppyInstance = new Uppy({
+        restrictions: {
+          maxNumberOfFiles,
+          maxFileSize,
+          allowedFileTypes: ['audio/*', '.mp3', '.wav', '.m4a', '.ogg', '.flac'],
+        },
+        autoProceed: false,
       })
-      .on("complete", (result) => {
-        onComplete?.(result);
-        setShowModal(false);
-      })
-  );
+        .use(XHRUpload, {
+          endpoint: 'dummy', // Will be replaced per-file
+          method: 'PUT',
+          fieldName: 'file',
+          getResponseData: (responseText: string) => {
+            try {
+              return JSON.parse(responseText);
+            } catch {
+              return { success: true };
+            }
+          },
+        })
+        .on('file-added', async (file) => {
+          try {
+            // Get upload URL for this specific file
+            const params = await onGetUploadParameters();
+            // @ts-ignore - Uppy's internal API
+            uppy.setFileState(file.id, {
+              xhrUpload: {
+                endpoint: params.url,
+                method: params.method,
+              }
+            });
+            console.log(`📤 Upload URL set for ${file.name}:`, params.url);
+          } catch (error) {
+            console.error('Failed to get upload URL:', error);
+            uppy.emit('upload-error', file, error);
+          }
+        })
+        .on("complete", (result) => {
+          console.log('✅ Upload complete:', result);
+          onComplete?.(result);
+          setShowModal(false);
+        })
+        .on("error", (error) => {
+          console.error('❌ Uppy error:', error);
+          setInitError(error?.message || 'Upload failed');
+        });
+      
+      console.log('✅ Uppy initialized successfully with XHR upload');
+      return uppyInstance;
+    } catch (error) {
+      console.error('❌ Uppy initialization failed:', error);
+      setInitError(error instanceof Error ? error.message : 'Failed to initialize uploader');
+      // Return a dummy Uppy instance to prevent crashes
+      return new Uppy();
+    }
+  });
 
   // Cleanup Uppy instance on unmount
   useEffect(() => {
@@ -87,17 +129,35 @@ export function ObjectUploader({
 
   return (
     <div>
-      <Button onClick={() => setShowModal(true)} className={buttonClassName}>
+      <Button 
+        onClick={() => {
+          if (initError) {
+            console.error('Cannot open uploader due to init error:', initError);
+            return;
+          }
+          setShowModal(true);
+        }} 
+        className={buttonClassName}
+        disabled={!!initError}
+      >
         {children}
       </Button>
 
-      <DashboardModal
-        uppy={uppy}
-        open={showModal}
-        onRequestClose={() => setShowModal(false)}
-        proudlyDisplayPoweredByUppy={false}
-        note="Upload audio files (MP3, WAV, M4A, OGG, FLAC) up to 50MB"
-      />
+      {initError && (
+        <p className="text-xs text-red-500 mt-1">
+          Upload unavailable: {initError}
+        </p>
+      )}
+
+      {!initError && (
+        <DashboardModal
+          uppy={uppy}
+          open={showModal}
+          onRequestClose={() => setShowModal(false)}
+          proudlyDisplayPoweredByUppy={false}
+          note="Upload audio files (MP3, WAV, M4A, OGG, FLAC) up to 50MB"
+        />
+      )}
     </div>
   );
 }
