@@ -285,11 +285,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const handleNoteMouseDown = (event: React.MouseEvent<HTMLDivElement>, note: Note) => {
     event.stopPropagation();
     setSelectedNoteId(note.id);
-    
-    // Play note preview when selecting
-    if (!activeTrack) return;
-    const instrument = activeTrack.instrument ?? 'piano';
-    audioEngine.current.playNote(note.note, note.octave, getSecondsPerStep() * (note.length ?? 1), instrument);
+    // Note: User can click Play button to hear the note - removed auto-play for better UX
   };
 
   const handleNoteRightClick = (event: React.MouseEvent<HTMLDivElement>, note: Note) => {
@@ -316,15 +312,25 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       note.id === selectedNote.id ? { ...note, length: clampedLength } : note
     );
     onNotesChange(updatedNotes);
+  };
+
+  const playSelectedNote = () => {
+    if (!selectedNote || !activeTrack) return;
     
-    // Play note preview at new length so user can hear it
     const instrument = activeTrack.instrument ?? 'piano';
+    const duration = getSecondsPerStep() * (selectedNote.length ?? 1);
     audioEngine.current.playNote(
       selectedNote.note, 
       selectedNote.octave, 
-      getSecondsPerStep() * clampedLength, 
+      duration, 
       instrument
     );
+    
+    toast({
+      title: 'Preview',
+      description: `Playing ${selectedNote.note}${selectedNote.octave} for ${selectedNote.length} step${selectedNote.length === 1 ? '' : 's'}`,
+      duration: 1500,
+    });
   };
 
   const handleDeleteSelectedNote = () => {
@@ -433,14 +439,17 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
                 Selected Note: {selectedNote.note}{selectedNote.octave}
               </span>
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                Step {selectedNote.step + 1} · Length {selectedNote.length ?? 1} step(s)
+                Step {selectedNote.step + 1} · Right-click any note to delete
               </span>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Length</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Length:</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-white min-w-[2rem]">
+                  {selectedNote.length ?? 1}
+                </span>
                 <Slider
-                  className="w-40"
+                  className="w-32"
                   value={[selectedNote.length ?? 1]}
                   onValueChange={([value]) => handleNoteLengthChange(value)}
                   min={1}
@@ -448,7 +457,21 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
                   step={1}
                 />
               </div>
-              <Button variant="outline" size="sm" onClick={handleDeleteSelectedNote}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={playSelectedNote}
+                className="bg-green-600 hover:bg-green-700 text-white border-green-700"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Play
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleDeleteSelectedNote}
+                className="bg-red-600 hover:bg-red-700 text-white border-red-700"
+              >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
               </Button>
