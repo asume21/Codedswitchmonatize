@@ -1,7 +1,0 @@
-diff a/client/src/components/studio/SongUploader.tsx b/client/src/components/studio/SongUploader.tsx	(rejected hunks)
-@@ -39,1 +39,1 @@
--    mutationFn: async (songData: any) => {
-+    mutationFn: async (songData: unknown) => {
-@@ -323,1 +323,1 @@
--      audioElement.play();
-+      void audioElement.play();

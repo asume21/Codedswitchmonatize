@@ -1,4 +1,0 @@
-diff a/client/src/lib/audioEngine.ts b/client/src/lib/audioEngine.ts	(rejected hunks)
-@@ -62,1 +62,1 @@
--      realisticAudio.playNote(note, 4, duration as number, 'piano', velocity);
-+      void realisticAudio.playNote(note, 4, duration as number, 'piano', velocity);

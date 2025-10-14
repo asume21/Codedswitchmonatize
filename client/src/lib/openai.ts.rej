@@ -1,7 +1,0 @@
-diff a/client/src/lib/openai.ts b/client/src/lib/openai.ts	(rejected hunks)
-@@ -198,1 +198,1 @@
--    const templates: { [key: string]: any } = {
-+    const templates: { [key: string]: unknown } = {
-@@ -352,1 +352,1 @@
--  static parseVulnerabilityResponse(response: any): any {
-+  static parseVulnerabilityResponse(response: unknown): any {

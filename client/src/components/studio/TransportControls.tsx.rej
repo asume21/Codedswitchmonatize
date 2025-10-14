@@ -1,7 +1,0 @@
-diff a/client/src/components/studio/TransportControls.tsx b/client/src/components/studio/TransportControls.tsx	(rejected hunks)
-@@ -150,1 +150,1 @@
--        if (studioContext.currentPlaylist && studioContext.currentPlaylist.songs) {
-+        if (studioContext.currentPlaylist?.songs) {
-@@ -628,1 +628,1 @@
--                {playlists?.map((playlist) => (
-+                {playlists.map((playlist) => (

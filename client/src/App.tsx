@@ -17,6 +17,7 @@ import Settings from "@/pages/settings";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -49,9 +50,10 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Switch>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Switch>
           <Route path="/" component={Landing} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/music-studio">
@@ -168,8 +170,9 @@ function App() {
           <Route path="/subscribe" component={Subscribe} />
           <Route path="/test-circular" component={TestCircular} />
           <Route component={NotFound} />
-        </Switch>
-      </TooltipProvider>
+          </Switch>
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

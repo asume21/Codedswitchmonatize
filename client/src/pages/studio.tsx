@@ -1,4 +1,5 @@
 import { useState, createContext, useContext, useEffect } from "react";
+import type { JSX } from "react";
 import { useLocation } from "wouter";
 import Header from "@/components/studio/Header";
 import Sidebar from "@/components/studio/Sidebar";
@@ -28,6 +29,7 @@ import { SongStructureManager } from "@/components/studio/SongStructureManager";
 import CodeBeatStudio from "@/pages/codebeat-studio";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import MobileNav from "@/components/studio/MobileNav";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 // PlaylistManager integrated into TransportControls
 import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
@@ -65,6 +67,23 @@ export const StudioAudioContext = createContext({
 });
 
 type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "codebeat" | "musiccode" | "assistant" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
+
+const tabAccess: Partial<Record<Tab, { requireAuth?: boolean; requirePro?: boolean }>> = {
+  assistant: { requireAuth: true },
+  security: { requireAuth: true },
+  lyrics: { requireAuth: true },
+  musicmixer: { requirePro: true },
+  professionalmixer: { requirePro: true },
+  mixer: { requirePro: true },
+  layers: { requireAuth: true },
+  "advanced-sequencer": { requireAuth: true },
+  "granular-engine": { requireAuth: true },
+  "wavetable-oscillator": { requireAuth: true },
+  "pack-generator": { requireAuth: true },
+  "song-structure": { requirePro: true },
+  codebeat: { requireAuth: true },
+  musiccode: { requireAuth: true },
+};
 
 export default function Studio() {
   const [location] = useLocation();
@@ -264,51 +283,87 @@ export default function Studio() {
   };
 
   const renderTabContent = () => {
+    let content: JSX.Element;
+
     switch (activeTab) {
       case "translator":
-        return <CodeTranslator />;
+        content = <CodeTranslator />;
+        break;
       case "beatmaker":
-        return <BeatMaker />;
+        content = <BeatMaker />;
+        break;
       case "melody":
-        return <MelodyComposer />;
+        content = <MelodyComposer />;
+        break;
       case "multitrack":
-        return <MelodyComposerV2 />;
+        content = <MelodyComposerV2 />;
+        break;
       case "codebeat":
-        return <CodeBeatStudio />;
+        content = <CodeBeatStudio />;
+        break;
       case "musiccode":
-        return <MusicToCode />;
+        content = <MusicToCode />;
+        break;
       case "assistant":
-        return <AIAssistant />;
+        content = <AIAssistant />;
+        break;
       case "security":
-        return <VulnerabilityScanner />;
+        content = <VulnerabilityScanner />;
+        break;
       case "lyrics":
-        return <LyricLab />;
+        content = <LyricLab />;
+        break;
       case "musicmixer":
-        return <ProfessionalStudio />;
+        content = <ProfessionalStudio />;
+        break;
       case "professionalmixer":
-        return <ProfessionalMixer />;
+        content = <ProfessionalMixer />;
+        break;
       case "mixer":
-        return <Mixer />;
+        content = <Mixer />;
+        break;
       case "layers":
-        return <DynamicLayering />;
-
+        content = <DynamicLayering />;
+        break;
       case "midi":
-        return <MIDIController />;
+        content = <MIDIController />;
+        break;
       case "metrics":
-        return <PerformanceMetrics />;
+        content = <PerformanceMetrics />;
+        break;
       case "advanced-sequencer":
-        return <OutputSequencer />;
+        content = <OutputSequencer />;
+        break;
       case "granular-engine":
-        return <GranularEngine />;
+        content = <GranularEngine />;
+        break;
       case "wavetable-oscillator":
-        return <WavetableOscillator />;
+        content = <WavetableOscillator />;
+        break;
       case "pack-generator":
-        return <PackGenerator />;
+        content = <PackGenerator />;
+        break;
       case "song-structure":
-        return <SongStructureManager />;
+        content = <SongStructureManager />;
+        break;
       default:
-        return <BeatMaker />;
+        content = <BeatMaker />;
     }
+
+    const access = tabAccess[activeTab];
+    if (!access) {
+      return content;
+    }
+
+    if (access.requirePro) {
+      return <RequireAuth requirePro>{content}</RequireAuth>;
+    }
+
+    if (access.requireAuth) {
+      return <RequireAuth>{content}</RequireAuth>;
+    }
+
+    return content;
   };
 
   return (

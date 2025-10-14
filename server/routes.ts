@@ -282,12 +282,30 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
-  // Subscription status endpoint
-  app.get("/api/subscription-status", requireAuth(), async (req: Request, res: Response) => {
+  // Subscription status endpoint (public - returns free tier for guests)
+  app.get("/api/subscription-status", async (req: Request, res: Response) => {
     try {
-      const user = req.userId ? await storage.getUser(req.userId) : undefined;
+      // If no userId, return free tier status
+      if (!req.userId) {
+        return res.json({
+          hasActiveSubscription: false,
+          tier: 'free',
+          monthlyUploads: 0,
+          monthlyGenerations: 0,
+          lastUsageReset: null,
+        });
+      }
+
+      const user = await storage.getUser(req.userId);
       if (!user) {
-        return sendError(res, 404, "User not found");
+        // User ID in session but user doesn't exist - return free tier
+        return res.json({
+          hasActiveSubscription: false,
+          tier: 'free',
+          monthlyUploads: 0,
+          monthlyGenerations: 0,
+          lastUsageReset: null,
+        });
       }
       
       const subscriptionStatus = {

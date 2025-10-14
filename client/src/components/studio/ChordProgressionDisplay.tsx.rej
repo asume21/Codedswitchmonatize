@@ -1,7 +1,0 @@
-diff a/client/src/components/studio/ChordProgressionDisplay.tsx b/client/src/components/studio/ChordProgressionDisplay.tsx	(rejected hunks)
-@@ -53,1 +53,1 @@
--        {progression.name} in {DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys]?.name || currentKey}:
-+        {progression.name} in {DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys].name || currentKey}:
-@@ -59,1 +59,1 @@
--          const chordNotes = keyData?.chords?.[chord];
-+          const chordNotes = keyData.chords?.[chord];
