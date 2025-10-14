@@ -14,12 +14,12 @@ import { cn } from '@/lib/utils';
 import { ChordProgressionDisplay } from './ChordProgressionDisplay';
 
 const STEPS = 16;
-const STEP_WIDTH = 40;
-const KEY_HEIGHT = 24;
+const STEP_WIDTH = 30; // Reduced from 40 for more compact view
+const KEY_HEIGHT = 18; // Reduced from 24 for more compact view
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const CIRCLE_OF_FIFTHS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'];
-const HIGHEST_MIDI = 108; // C8
-const LOWEST_MIDI = 21; // A0
+const HIGHEST_MIDI = 84; // C7 - More practical range
+const LOWEST_MIDI = 36; // C2 - More practical range  
 const MIDI_RANGE = Array.from({ length: HIGHEST_MIDI - LOWEST_MIDI + 1 }, (_, idx) => HIGHEST_MIDI - idx);
 const MIDI_TO_ROW_INDEX: Record<number, number> = MIDI_RANGE.reduce((acc, pitch, idx) => {
   acc[pitch] = idx;
@@ -537,7 +537,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
         {/* Piano roll grid */}
         <div className="flex-1 relative bg-gray-50 dark:bg-slate-950">
-          <div className="absolute left-0 top-0 bottom-0 w-20 bg-gray-100 dark:bg-slate-900 border-r border-gray-300/60 dark:border-gray-700/80 z-10">
+          <div className="absolute left-0 top-0 bottom-0 w-16 bg-gray-100 dark:bg-slate-900 border-r border-gray-300/60 dark:border-gray-700/80 z-10">
             {MIDI_RANGE.map((pitch, i) => {
               const octave = Math.floor(pitch / 12) - 1;
               const noteName = NOTE_NAMES[pitch % 12];
@@ -546,7 +546,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
               return (
                 <div
                   key={pitch}
-                  className={`flex items-center px-2 text-sm font-medium border-b ${
+                  className={`flex items-center px-1 text-xs font-medium border-b ${
                     isBlackKey ? 'bg-black text-white dark:bg-black' : 'bg-white dark:bg-slate-950 text-gray-900 dark:text-gray-100'
                   } ${highlightedRow === i ? 'bg-blue-100 dark:bg-blue-900/70' : ''}`}
                   style={{ height: KEY_HEIGHT }}
@@ -559,7 +559,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             })}
           </div>
 
-          <div className="ml-20 h-full overflow-auto" ref={gridWrapperRef}>
+          <div className="ml-16 h-full overflow-auto" ref={gridWrapperRef}>
             <div
               ref={gridContentRef}
               className="relative"

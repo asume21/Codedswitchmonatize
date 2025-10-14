@@ -9,15 +9,24 @@ import { useLocation } from "wouter";
 export function SubscriptionButton() {
   const [, setLocation] = useLocation();
   
+  // Don't show subscription button in dev mode (localhost)
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
   const { data: subscriptionStatus, isLoading } = useQuery({
     queryKey: ['/api/subscription-status'],
     queryFn: () => apiRequest("GET", "/api/subscription-status").then(res => res.json()),
     refetchInterval: 30000, // Check every 30 seconds
+    enabled: !isDev, // Don't run query in dev mode
   });
 
   const handleUpgrade = () => {
     setLocation('/subscribe');
   };
+
+  // Hide in development
+  if (isDev) {
+    return null;
+  }
 
   if (isLoading) {
     return (
