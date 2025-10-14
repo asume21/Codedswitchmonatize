@@ -39,22 +39,26 @@ export function PianoRollPlugin({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6 space-y-4">
-      <h3 className="text-xl font-semibold mb-4 text-white flex items-center">
-        🎹 Advanced Piano Roll
-      </h3>
+    <div className="h-full flex flex-col bg-gray-800 rounded-lg overflow-hidden">
+      <div className="px-6 pt-6 pb-3">
+        <h3 className="text-xl font-semibold text-white flex items-center">
+          🎹 Advanced Piano Roll
+        </h3>
+      </div>
 
-      <div className="bg-gray-900/70 rounded-lg p-4 shadow-inner border border-gray-700/60">
-        <VerticalPianoRoll
-          tracks={tracks}
-          notes={notes}
-          onNotesChange={onNotesChange}
-          selectedTrack={selectedTrack}
-          isPlaying={isPlaying}
-          onPlayNote={onPlayNote}
-          noteDuration={noteDuration}
-          className="h-[520px] xl:h-[600px]"
-        />
+      <div className="flex-1 px-6 pb-6 overflow-hidden">
+        <div className="h-full bg-gray-900/70 rounded-lg p-4 shadow-inner border border-gray-700/60">
+          <VerticalPianoRoll
+            tracks={tracks}
+            notes={notes}
+            onNotesChange={onNotesChange}
+            selectedTrack={selectedTrack}
+            isPlaying={isPlaying}
+            onPlayNote={onPlayNote}
+            noteDuration={noteDuration}
+            className="h-full"
+          />
+        </div>
       </div>
     </div>
   );
