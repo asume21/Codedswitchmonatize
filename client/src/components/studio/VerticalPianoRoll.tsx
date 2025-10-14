@@ -103,6 +103,9 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
   const [customKeys, setCustomKeys] = useState(DEFAULT_customKeys);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
+  const [resizeStartX, setResizeStartX] = useState(0);
+  const [resizeStartLength, setResizeStartLength] = useState(0);
 
   // Refs
   const playbackInterval = useRef<NodeJS.Timeout | null>(null);
@@ -285,7 +288,12 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const handleNoteMouseDown = (event: React.MouseEvent<HTMLDivElement>, note: Note) => {
     event.stopPropagation();
     setSelectedNoteId(note.id);
-    // Note: User can click Play button to hear the note - removed auto-play for better UX
+    
+    // Play note every time user clicks it
+    if (!activeTrack) return;
+    const instrument = activeTrack.instrument ?? 'piano';
+    const duration = getSecondsPerStep() * (note.length ?? 1);
+    audioEngine.current.playNote(note.note, note.octave, duration, instrument);
   };
 
   const handleNoteRightClick = (event: React.MouseEvent<HTMLDivElement>, note: Note) => {
@@ -303,6 +311,54 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       description: `${note.note}${note.octave} removed` 
     });
   };
+
+  const handleResizeStart = (event: React.MouseEvent<HTMLDivElement>, note: Note) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setResizingNoteId(note.id);
+    setResizeStartX(event.clientX);
+    setResizeStartLength(note.length ?? 1);
+  };
+
+  const handleMouseMove = useCallback((event: MouseEvent) => {
+    if (!resizingNoteId || !gridWrapperRef.current) return;
+
+    const deltaX = event.clientX - resizeStartX;
+    const deltaSteps = Math.round(deltaX / STEP_WIDTH);
+    const newLength = Math.max(1, Math.min(resizeStartLength + deltaSteps, STEPS));
+
+    const updatedNotes = activeNotes.map(note =>
+      note.id === resizingNoteId 
+        ? { ...note, length: Math.min(newLength, STEPS - note.step) }
+        : note
+    );
+    onNotesChange(updatedNotes);
+  }, [resizingNoteId, resizeStartX, resizeStartLength, activeNotes, onNotesChange]);
+
+  const handleMouseUp = useCallback(() => {
+    if (resizingNoteId) {
+      setResizingNoteId(null);
+      // Play the note to hear the new length
+      const note = activeNotes.find(n => n.id === resizingNoteId);
+      if (note && activeTrack) {
+        const instrument = activeTrack.instrument ?? 'piano';
+        const duration = getSecondsPerStep() * (note.length ?? 1);
+        audioEngine.current.playNote(note.note, note.octave, duration, instrument);
+      }
+    }
+  }, [resizingNoteId, activeNotes, activeTrack]);
+
+  // Add global mouse listeners for resize
+  useEffect(() => {
+    if (resizingNoteId) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [resizingNoteId, handleMouseMove, handleMouseUp]);
 
   const handleNoteLengthChange = (length: number) => {
     if (!selectedNote || !activeTrack) return;
@@ -551,11 +607,18 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
                     key={note.id}
                     className={`absolute rounded-sm border ${
                       isSelected ? 'bg-blue-500/80 border-blue-200 shadow-lg' : 'bg-blue-400/70 border-blue-500/60'
-                    } transition-all cursor-pointer hover:bg-blue-500/90`}
+                    } transition-all cursor-pointer hover:bg-blue-500/90 group`}
                     style={position}
                     onMouseDown={(event) => handleNoteMouseDown(event, note)}
                     onContextMenu={(event) => handleNoteRightClick(event, note)}
-                  />
+                  >
+                    {/* Resize handle on right edge */}
+                    <div
+                      className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onMouseDown={(event) => handleResizeStart(event, note)}
+                      title="Drag to resize"
+                    />
+                  </div>
                 );
               })}
             </div>
