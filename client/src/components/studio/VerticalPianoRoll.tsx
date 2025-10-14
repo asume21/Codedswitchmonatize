@@ -514,17 +514,21 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   return (
     <div className={`h-full flex flex-col ${className}`}>
       {/* Chord Progression Display */}
-      <div className="px-4 py-3 bg-slate-900 border-b border-slate-700">
-        <div className="flex items-center gap-4 mb-3">
+      <div className="px-4 py-2 bg-slate-900 border-b border-slate-700">
+        <div className="flex items-center gap-3 mb-2">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-300">Key:</label>
+            <label className="text-xs font-medium text-gray-300">Key:</label>
             <Select value={currentKey} onValueChange={setCurrentKey}>
-              <SelectTrigger className="w-24 bg-slate-800 border-slate-600 text-white">
+              <SelectTrigger className="h-8 w-32 text-sm bg-slate-800 border-slate-600 text-white">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-600">
+              <SelectContent className="bg-slate-800 border-slate-600 max-h-60">
                 {Object.keys(DEFAULT_customKeys).map(key => (
-                  <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
+                  <SelectItem 
+                    key={key} 
+                    value={key} 
+                    className="text-sm text-white hover:bg-slate-700 focus:bg-slate-700 cursor-pointer"
+                  >
                     {DEFAULT_customKeys[key as keyof typeof DEFAULT_customKeys].name}
                   </SelectItem>
                 ))}
@@ -532,7 +536,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-300">Progression:</label>
+            <label className="text-xs font-medium text-gray-300">Progression:</label>
             <Select 
               value={selectedProgression.id} 
               onValueChange={(id) => {
@@ -540,12 +544,16 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
                 if (prog) setSelectedProgression(prog);
               }}
             >
-              <SelectTrigger className="w-48 bg-slate-800 border-slate-600 text-white">
+              <SelectTrigger className="h-8 w-44 text-sm bg-slate-800 border-slate-600 text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-600">
                 {CHORD_PROGRESSIONS.map(prog => (
-                  <SelectItem key={prog.id} value={prog.id} className="text-white hover:bg-slate-700">
+                  <SelectItem 
+                    key={prog.id} 
+                    value={prog.id} 
+                    className="text-sm text-white hover:bg-slate-700 focus:bg-slate-700 cursor-pointer"
+                  >
                     {prog.name}
                   </SelectItem>
                 ))}
