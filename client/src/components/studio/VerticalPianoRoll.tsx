@@ -285,16 +285,46 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const handleNoteMouseDown = (event: React.MouseEvent<HTMLDivElement>, note: Note) => {
     event.stopPropagation();
     setSelectedNoteId(note.id);
+    
+    // Play note preview when selecting
+    if (!activeTrack) return;
+    const instrument = activeTrack.instrument ?? 'piano';
+    audioEngine.current.playNote(note.note, note.octave, getSecondsPerStep() * (note.length ?? 1), instrument);
+  };
+
+  const handleNoteRightClick = (event: React.MouseEvent<HTMLDivElement>, note: Note) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Delete note on right-click
+    const updatedNotes = activeNotes.filter(n => n.id !== note.id);
+    onNotesChange(updatedNotes);
+    if (selectedNoteId === note.id) {
+      setSelectedNoteId(null);
+    }
+    toast({ 
+      title: 'Note Deleted', 
+      description: `${note.note}${note.octave} removed` 
+    });
   };
 
   const handleNoteLengthChange = (length: number) => {
-    if (!selectedNote) return;
+    if (!selectedNote || !activeTrack) return;
 
     const clampedLength = Math.max(1, Math.min(length, STEPS - selectedNote.step));
     const updatedNotes = activeNotes.map(note =>
       note.id === selectedNote.id ? { ...note, length: clampedLength } : note
     );
     onNotesChange(updatedNotes);
+    
+    // Play note preview at new length so user can hear it
+    const instrument = activeTrack.instrument ?? 'piano';
+    audioEngine.current.playNote(
+      selectedNote.note, 
+      selectedNote.octave, 
+      getSecondsPerStep() * clampedLength, 
+      instrument
+    );
   };
 
   const handleDeleteSelectedNote = () => {
@@ -501,6 +531,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
                     } transition-all cursor-pointer hover:bg-blue-500/90`}
                     style={position}
                     onMouseDown={(event) => handleNoteMouseDown(event, note)}
+                    onContextMenu={(event) => handleNoteRightClick(event, note)}
                   />
                 );
               })}
