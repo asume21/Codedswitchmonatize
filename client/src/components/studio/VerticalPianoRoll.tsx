@@ -2,14 +2,16 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Play, Pause, Square, Trash2 } from 'lucide-react';
 
 // Constants
-import type { Note } from './types/pianoRollTypes';
+import type { Note, ChordProgression } from './types/pianoRollTypes';
 import { DEFAULT_customKeys } from './types/pianoRollTypes';
 import { useToast } from '@/hooks/use-toast';
 import { useAudio } from '@/hooks/use-audio';
 import { cn } from '@/lib/utils';
+import { ChordProgressionDisplay } from './ChordProgressionDisplay';
 
 const STEPS = 16;
 const STEP_WIDTH = 40;
@@ -23,6 +25,15 @@ const MIDI_TO_ROW_INDEX: Record<number, number> = MIDI_RANGE.reduce((acc, pitch,
   acc[pitch] = idx;
   return acc;
 }, {} as Record<number, number>);
+
+// Chord progressions
+const CHORD_PROGRESSIONS: ChordProgression[] = [
+  { id: 'classic', name: 'Classic Pop (I-V-vi-IV)', chords: ['I', 'V', 'vi', 'IV'], key: 'C' },
+  { id: 'jazz', name: 'Jazz ii-V-I', chords: ['ii', 'V', 'I'], key: 'C' },
+  { id: 'pop', name: 'Alt Pop (vi-IV-I-V)', chords: ['vi', 'IV', 'I', 'V'], key: 'C' },
+  { id: 'blues', name: 'Blues (I-IV-V)', chords: ['I', 'IV', 'V'], key: 'C' },
+  { id: 'simple', name: 'Simple (I-IV-I-V)', chords: ['I', 'IV', 'I', 'V'], key: 'C' },
+];
 
 interface Track {
   id: string;
@@ -89,7 +100,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [currentKey, setCurrentKey] = useState('C');
-  const [selectedProgression, setSelectedProgression] = useState('I-IV-V-I');
+  const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
   const [customKeys, setCustomKeys] = useState(DEFAULT_customKeys);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
 
@@ -299,6 +310,40 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     toast({ title: 'Cleared', description: 'All notes have been cleared.' });
   };
 
+  const handleChordClick = (chordSymbol: string, chordNotes: string[]) => {
+    if (!activeTrack) return;
+
+    // Place chord notes at the current step
+    const octaveStart = 4; // Start at middle C octave
+    const newNotes: Note[] = chordNotes.map((noteName, index) => ({
+      id: uuidv4(),
+      step: currentStep,
+      note: noteName.replace(/[0-9]/g, ''), // Remove any octave numbers from note name
+      octave: octaveStart,
+      velocity: 100,
+      length: 4, // Full beat
+    }));
+
+    const updatedNotes = [...activeNotes, ...newNotes];
+    onNotesChange(updatedNotes);
+
+    // Play the chord
+    const instrument = activeTrack.instrument ?? 'piano';
+    newNotes.forEach((note, i) => {
+      setTimeout(() => {
+        audioEngine.current.playNote(note.note, note.octave, getSecondsPerStep() * 4, instrument);
+      }, i * 50); // Slight delay between notes for better sound
+    });
+
+    // Move to next step
+    setCurrentStep((prev) => Math.min(prev + 4, STEPS - 1));
+    
+    toast({ 
+      title: 'Chord Added', 
+      description: `${chordSymbol} chord placed at step ${currentStep + 1}` 
+    });
+  };
+
   const getNotePosition = (note: Note) => {
     const midiValue = (note.octave + 1) * 12 + NOTE_NAMES.indexOf(note.note);
     const rowIndex = MIDI_TO_ROW_INDEX[midiValue];
@@ -468,6 +513,53 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
+      {/* Chord Progression Display */}
+      <div className="px-4 py-3 bg-slate-900 border-b border-slate-700">
+        <div className="flex items-center gap-4 mb-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-300">Key:</label>
+            <Select value={currentKey} onValueChange={setCurrentKey}>
+              <SelectTrigger className="w-24 bg-slate-800 border-slate-600 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-600">
+                {Object.keys(DEFAULT_customKeys).map(key => (
+                  <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
+                    {DEFAULT_customKeys[key as keyof typeof DEFAULT_customKeys].name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-300">Progression:</label>
+            <Select 
+              value={selectedProgression.id} 
+              onValueChange={(id) => {
+                const prog = CHORD_PROGRESSIONS.find(p => p.id === id);
+                if (prog) setSelectedProgression(prog);
+              }}
+            >
+              <SelectTrigger className="w-48 bg-slate-800 border-slate-600 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-600">
+                {CHORD_PROGRESSIONS.map(prog => (
+                  <SelectItem key={prog.id} value={prog.id} className="text-white hover:bg-slate-700">
+                    {prog.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <ChordProgressionDisplay
+          progression={selectedProgression}
+          currentKey={currentKey}
+          currentChordIndex={currentChordIndex}
+          onChordClick={handleChordClick}
+        />
+      </div>
       {renderPianoRoll()}
     </div>
   );
