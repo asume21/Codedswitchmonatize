@@ -123,7 +123,12 @@ export function ObjectUploader({
   // Cleanup Uppy instance on unmount
   useEffect(() => {
     return () => {
-      uppy.cancelAll();
+      try {
+        uppy.cancelAll();
+        uppy.close();
+      } catch (error) {
+        console.warn('Uppy cleanup error:', error);
+      }
     };
   }, [uppy]);
 
