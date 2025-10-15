@@ -13,7 +13,6 @@ import { useAIMessages } from "@/contexts/AIMessageContext";
 import { StudioAudioContext } from "@/pages/studio";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import type { UploadResult } from "@uppy/core";
-// import type { Song } from "@shared/schema";
 import { Upload, Music, Play, Pause, RotateCcw, Volume2 } from "lucide-react";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 
@@ -29,6 +28,13 @@ interface UploadContext {
   fileSize?: number;
   format?: string;
   mimeType?: string;
+}
+
+interface Song {
+  id?: string;
+  name?: string;
+  url?: string;
+  duration?: number;
 }
 
 export default function AIAssistant() {
