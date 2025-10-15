@@ -8,7 +8,7 @@ import {
   handleStripeWebhook,
 } from "./services/stripe";
 import { musicGenService } from "./services/musicgen";
-import { generateMelody, translateCode } from "./services/grok";
+import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
@@ -251,6 +251,74 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   // Health check endpoint
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // AI Assistant Chat endpoint
+  app.post("/api/assistant/chat", async (req: Request, res: Response) => {
+    try {
+      const { message, context, aiProvider } = req.body;
+
+      if (!message || !message.trim()) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      console.log(`💬 AI Chat request (${aiProvider || 'auto'}): ${message.substring(0, 50)}...`);
+
+      // Get AI client
+      const client = getAIClient();
+      
+      if (!client) {
+        return res.status(503).json({
+          error: "AI service unavailable",
+          message: "No AI provider configured. Please set XAI_API_KEY or OPENAI_API_KEY environment variables."
+        });
+      }
+
+      // Determine model based on provider
+      const model = aiProvider === "openai" ? "gpt-4" : "grok-2-1212";
+
+      // Create chat completion
+      const response = await client.chat.completions.create({
+        model: model,
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI assistant for CodedSwitch, a platform that bridges coding and music creation. You help users with:
+- Code translation and optimization
+- Music composition and theory
+- Beat pattern suggestions
+- Lyric writing assistance
+- Song analysis and structure
+- General music production questions
+
+${context ? `Current context: ${context}` : ''}
+
+Be helpful, creative, and provide actionable advice. When discussing music, use proper terminology. When discussing code, provide clear examples.`
+          },
+          {
+            role: "user",
+            content: message
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      });
+
+      const aiResponse = response.choices[0]?.message?.content || "I apologize, but I couldn't generate a response. Please try again.";
+
+      res.json({
+        success: true,
+        response: aiResponse,
+        provider: aiProvider || 'auto'
+      });
+
+    } catch (error: any) {
+      console.error("AI chat error:", error);
+      res.status(500).json({
+        error: "Failed to get AI response",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
   });
 
   // Waitlist endpoint
