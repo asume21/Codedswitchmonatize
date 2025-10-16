@@ -253,6 +253,65 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     res.json({ status: "ok" });
   });
 
+  // Code to Music endpoint
+  app.post("/api/code-to-music", async (req: Request, res: Response) => {
+    try {
+      const { code, language, complexity = 5 } = req.body;
+
+      if (!code) {
+        return sendError(res, 400, "Code is required");
+      }
+
+      console.log(`🎵 Converting ${language} code to music (complexity: ${complexity})`);
+
+      // Analyze code to generate music
+      const codeLines = code.split('\n').filter((line: string) => line.trim());
+      const codeLength = code.length;
+      const lineCount = codeLines.length;
+
+      // Generate melody based on code characteristics
+      const notes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+      const melody = [];
+
+      for (let i = 0; i < Math.min(lineCount, 16); i++) {
+        const line = codeLines[i];
+        const noteIndex = (line.length * i) % notes.length;
+        
+        melody.push({
+          note: notes[noteIndex],
+          duration: 0.25,
+          time: i * 0.25,
+          velocity: Math.min(1, line.length / 50)
+        });
+      }
+
+      // Generate rhythm pattern based on code structure
+      const pattern = {
+        kick: Array(16).fill(false).map((_, i) => i % 4 === 0),
+        snare: Array(16).fill(false).map((_, i) => i % 4 === 2),
+        hihat: Array(16).fill(false).map((_, i) => i % 2 === 1),
+        bass: Array(16).fill(false).map((_, i) => i % 3 === 0),
+      };
+
+      res.json({
+        melody,
+        pattern,
+        bpm: 120,
+        key: 'C Major',
+        metadata: {
+          codeLength,
+          lineCount,
+          language,
+          complexity
+        }
+      });
+
+    } catch (error: any) {
+      console.error("Code to music error:", error);
+      sendError(res, 500, error?.message || "Failed to convert code to music");
+    }
+  });
+
   // AI Assistant Chat endpoint
   app.post("/api/assistant/chat", async (req: Request, res: Response) => {
     try {

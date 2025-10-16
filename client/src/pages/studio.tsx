@@ -93,7 +93,7 @@ export default function Studio() {
     if (path.includes('/code-translator')) return 'translator';
     if (path.includes('/beat-studio')) return 'beatmaker';
     if (path.includes('/melody-composer')) return 'melody';
-    if (path.includes('/codebeat-studio')) return 'multitrack'; // Rerouted to fix broken button
+    if (path.includes('/codebeat-studio')) return 'codebeat'; // Code to Music feature
     if (path.includes('/music-studio')) return 'musicmixer';
     if (path.includes('/pro-console')) return 'mixer';
     if (path.includes('/song-uploader')) return 'assistant';
@@ -293,13 +293,13 @@ export default function Studio() {
         content = <BeatMaker />;
         break;
       case "melody":
-        content = <MelodyComposer />;
-        break;
-      case "multitrack":
         content = <MelodyComposerV2 />;
         break;
-      case "codebeat":
+      case "multitrack":
         content = <CodeBeatStudio />;
+        break;
+      case "codebeat":
+        content = <CodeToMusic />;
         break;
       case "musiccode":
         content = <MusicToCode />;
