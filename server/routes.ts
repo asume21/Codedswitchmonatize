@@ -14,6 +14,7 @@ import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { insertPlaylistSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -21,6 +22,14 @@ import { z } from "zod";
 const sendError = (res: Response, statusCode: number, message: string) => {
   res.status(statusCode).json({ success: false, message });
 };
+
+// SECURITY: Cryptographically secure random number generator
+// Returns a random float between 0 and 1 using crypto.randomBytes
+function secureRandom(): number {
+  const buffer = crypto.randomBytes(4);
+  const randomValue = buffer.readUInt32BE(0);
+  return randomValue / 0xFFFFFFFF;
+}
 
 // Intelligent pack generation function that creates themed packs based on prompts
 function generateIntelligentPacks(prompt: string, count: number) {
@@ -69,7 +78,7 @@ function generateIntelligentPacks(prompt: string, count: number) {
   }
 
   return Array.from({ length: count }, (_, i) => {
-    const bpm = selectedGenre.bpmRange[0] + Math.floor(Math.random() * (selectedGenre.bpmRange[1] - selectedGenre.bpmRange[0]));
+    const bpm = selectedGenre.bpmRange[0] + Math.floor(secureRandom() * (selectedGenre.bpmRange[1] - selectedGenre.bpmRange[0]));
     const key = selectedGenre.keys[i % selectedGenre.keys.length];
     
     return {
@@ -81,7 +90,7 @@ function generateIntelligentPacks(prompt: string, count: number) {
       genre: selectedGenre.genre,
       samples: generateSamples(selectedGenre.genre, selectedMood.instruments, i),
       metadata: {
-        energy: Math.max(10, Math.min(100, selectedMood.energy + (Math.random() * 20 - 10))),
+        energy: Math.max(10, Math.min(100, selectedMood.energy + (secureRandom() * 20 - 10))),
         mood: selectedMood.mood,
         instruments: selectedMood.instruments,
         tags: generateTags(prompt, selectedGenre.genre, selectedMood.mood)
@@ -122,7 +131,7 @@ function generateSamples(genre: string, instruments: string[], packIndex: number
     id: `sample-${packIndex}-${i}`,
     name: names[i % names.length] + ` ${Math.floor(i / names.length) + 1}`,
     type: sampleTypes[i % sampleTypes.length],
-    duration: 1.5 + (Math.random() * 3)
+    duration: 1.5 + (secureRandom() * 3)
   }));
 }
 
@@ -322,11 +331,15 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       }
 
       console.log(`💬 AI Chat request (${aiProvider || 'auto'}): ${message.substring(0, 50)}...`);
+      console.log(`🔑 XAI_API_KEY present: ${!!process.env.XAI_API_KEY}`);
+      console.log(`🔑 OPENAI_API_KEY present: ${!!process.env.OPENAI_API_KEY}`);
 
       // Get AI client
       const client = getAIClient();
+      console.log(`🤖 AI Client initialized: ${!!client}`);
       
       if (!client) {
+        console.error("❌ No AI client available - check API keys");
         return res.status(503).json({
           error: "AI service unavailable",
           message: "No AI provider configured. Please set XAI_API_KEY or OPENAI_API_KEY environment variables."
@@ -751,7 +764,13 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
       if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
         return res.status(400).send("Invalid path");
       }
-      const fullPath = path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey);
+      const fullPath = path.resolve(path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey));
+      
+      // SECURITY: Ensure the resolved path is still within LOCAL_OBJECTS_DIR
+      if (!fullPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+        return res.status(403).send("Access denied");
+      }
+      
       if (!fs.existsSync(fullPath)) return res.status(404).send("Not found");
       const ext = path.extname(fullPath).toLowerCase();
       const type = ext === ".wav" ? "audio/wav" : "application/octet-stream";
