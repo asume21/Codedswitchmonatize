@@ -1020,11 +1020,17 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
 
         const prediction = await response.json();
 
+        // SECURITY: Validate prediction ID format to prevent SSRF
+        if (!prediction.id || typeof prediction.id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(prediction.id)) {
+          return res.status(500).json({ message: "Invalid prediction ID received from API" });
+        }
+
         // Poll for result
         let result;
+        const REPLICATE_API_BASE = 'https://api.replicate.com';
         do {
           await new Promise(resolve => setTimeout(resolve, 2000));
-          const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+          const statusResponse = await fetch(`${REPLICATE_API_BASE}/v1/predictions/${prediction.id}`, {
             headers: { "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}` },
           });
           result = await statusResponse.json();
@@ -1033,7 +1039,7 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
         if (result.status === "succeeded") {
           res.json({ audioUrl: result.output });
         } else {
-                    sendError(res, 500, "Music generation failed");
+          return res.status(500).json({ message: "Music generation failed" });
         }
       } catch (err: any) {
         console.error("MusicGen error:", err);
