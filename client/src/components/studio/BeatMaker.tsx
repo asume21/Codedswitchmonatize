@@ -271,33 +271,59 @@ export default function BeatMaker() {
   };
 
   const playPattern = async () => {
-    if (!isInitialized) {
-      await initialize();
-    }
+    try {
+      if (!isInitialized) {
+        await initialize();
+      }
 
-    if (isPlaying) {
-      stopPattern();
-      return;
-    }
+      if (isPlaying) {
+        stopPattern();
+        return;
+      }
 
-    setIsPlaying(true);
-    stepCounterRef.current = 0;
+      setIsPlaying(true);
+      stepCounterRef.current = 0;
 
-    const stepTime = (60 / bpm / 4) * 1000; // 16th note timing
-    
-    intervalRef.current = setInterval(() => {
-      const step = stepCounterRef.current % 16;
-      setCurrentStep(step);
+      const stepTime = (60 / bpm / 4) * 1000; // 16th note timing
       
-      // Play sounds for active steps
-      Object.entries(pattern).forEach(([track, steps]) => {
-        if (steps[step]) {
-          playDrum(track as DrumType);
+      intervalRef.current = setInterval(() => {
+        try {
+          const step = stepCounterRef.current % 16;
+          setCurrentStep(step);
+          
+          // Play sounds for active steps with mobile-safe error handling
+          Object.entries(pattern).forEach(([track, steps]) => {
+            if (steps[step]) {
+              try {
+                playDrum(track as DrumType);
+              } catch (drumError) {
+                console.warn(`Failed to play ${track}:`, drumError);
+                // Don't crash the whole interval if one drum fails
+              }
+            }
+          });
+          
+          stepCounterRef.current++;
+        } catch (stepError) {
+          console.error('Step playback error:', stepError);
+          // If step fails, stop playback to prevent crashes
+          stopPattern();
+          toast({
+            title: "Playback Error",
+            description: "Audio playback stopped due to an error. Try restarting.",
+            variant: "destructive"
+          });
         }
+      }, stepTime);
+    } catch (error) {
+      console.error('Failed to start playback:', error);
+      setIsPlaying(false);
+      toast({
+        title: "Audio Error",
+        description: "Failed to initialize audio. Please try again.",
+        variant: "destructive"
       });
-      
-      stepCounterRef.current++;
-    }, stepTime);
+    }
   };
 
   const stopPattern = () => {
