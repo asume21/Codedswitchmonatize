@@ -8,16 +8,16 @@ import {
 } from "lucide-react";
 
 export function IOSAudioEnable() {
-  const [isIOS, setIsIOS] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // Detect iOS devices
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    setIsIOS(iOS);
+    // Detect ALL mobile devices (iOS + Android)
+    const mobile = /iPad|iPhone|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    setIsMobile(mobile);
     
-    if (iOS) {
+    if (mobile) {
       // Check if audio context is already enabled
       const checkAudioContext = () => {
         try {
@@ -64,7 +64,7 @@ export function IOSAudioEnable() {
     }
   };
 
-  if (!isIOS || audioEnabled || !showPrompt) {
+  if (!isMobile || audioEnabled || !showPrompt) {
     return null;
   }
 
@@ -76,7 +76,7 @@ export function IOSAudioEnable() {
             <Smartphone className="h-12 w-12 mx-auto mb-2 text-blue-500" />
             <h2 className="text-lg font-semibold mb-2">Enable Audio</h2>
             <p className="text-sm text-gray-600">
-              iOS requires user interaction to enable audio. 
+              Mobile browsers require user interaction to enable audio. 
               Tap the button below to activate audio for the music studio.
             </p>
           </div>
