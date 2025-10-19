@@ -13,15 +13,9 @@ export default function HeroV2() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size
+    // Set canvas size (fixed, no resize listener to prevent restarts)
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', resizeCanvas);
 
     // Create CodedSwitch text + logo with particles (called ONCE)
     const createLogoPoints = () => {
@@ -248,7 +242,6 @@ export default function HeroV2() {
     animate();
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
       cancelAnimationFrame(animationId);
     };
   }, []);
