@@ -25,46 +25,46 @@ export default function HeroV2() {
     const createLogoPoints = () => {
       const points: Array<{ x: number; y: number }> = [];
       const centerX = canvas.width / 2;
-      const centerY = canvas.height / 3 - 30;
+      const centerY = 150; // Fixed position at top
       
-      // Draw "CodedSwitch" text to sample pixels
-      const fontSize = 70;
+      // Create "CodedSwitch" text by drawing it
+      const fontSize = 80;
       ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       const text = "CodedSwitch";
-      const textWidth = ctx.measureText(text).width;
-      const textX = centerX - textWidth / 2;
-      const textY = centerY;
       
-      // Render text in white on black
+      // Draw text to get its shape
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#fff';
-      ctx.fillText(text, textX, textY);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, centerX, centerY);
       
-      // Sample pixels to find text points
-      const samplingStep = 3; // Sample every 3 pixels
-      for (let x = 0; x < textWidth; x += samplingStep) {
-        for (let y = -fontSize + 10; y < fontSize / 2; y += samplingStep) {
-          const pixelX = Math.floor(textX + x);
-          const pixelY = Math.floor(textY + y);
-          
-          if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-            const pixel = ctx.getImageData(pixelX, pixelY, 1, 1).data;
-            if (pixel[0] > 128) { // If bright (part of text)
-              points.push({ x: pixelX, y: pixelY });
+      // Sample the text at every 2 pixels for dense coverage
+      const textMetrics = ctx.measureText(text);
+      const textWidth = textMetrics.width;
+      const startX = centerX - textWidth / 2;
+      const endX = centerX + textWidth / 2;
+      
+      for (let x = startX; x < endX; x += 2) {
+        for (let y = centerY - fontSize / 2; y < centerY + fontSize / 2; y += 2) {
+          if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+            const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+            if (pixel[0] > 100) { // If pixel is part of text
+              points.push({ x, y });
             }
           }
         }
       }
       
-      // Clear canvas
+      // Clear canvas after sampling
       ctx.fillStyle = 'rgba(10, 15, 27, 1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Add LOGO eye above text
-      const logoSize = 50;
+      // Add LOGO eye below text
+      const logoSize = 60;
       const logoX = centerX;
-      const logoY = centerY - fontSize - 60;
+      const logoY = centerY + fontSize;
       
       // Logo eye outline (almond shape)
       for (let angle = 0; angle < Math.PI * 2; angle += 0.15) {
