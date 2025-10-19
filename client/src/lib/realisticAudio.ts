@@ -1,10 +1,11 @@
 import Soundfont from 'soundfont-player';
 
 export class RealisticAudioEngine {
-  private instruments: { [key: string]: any } = {}
+  private instruments: { [key: string]: any} = {}
   private audioContext: AudioContext | null = null;
   private isInitialized = false;
   private isLoading = false;
+  private initPromise: Promise<void> | null = null; // Track initialization promise
   public bassDrumDuration = 0.8; // Configurable bass drum duration
 
   // Map our instrument names to General MIDI soundfont names
@@ -74,9 +75,22 @@ export class RealisticAudioEngine {
   }
 
   async initialize(): Promise<void> {
-    if (this.isInitialized || this.isLoading) return;
+    // Return immediately if already initialized
+    if (this.isInitialized) {
+      console.log('🎵 Audio already initialized, skipping');
+      return;
+    }
+    
+    // If initialization is in progress, return the existing promise
+    if (this.initPromise) {
+      console.log('🎵 Audio initialization in progress, waiting...');
+      return this.initPromise;
+    }
+    
+    // Mark as loading and create initialization promise
     this.isLoading = true;
-
+    
+    this.initPromise = (async () => {
     try {
       // Create Web Audio context
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -148,7 +162,12 @@ export class RealisticAudioEngine {
       this.isLoading = false;
       // Don't throw - allow app to continue with limited functionality
       this.isInitialized = true; // Mark as initialized anyway
+    } finally {
+      this.initPromise = null; // Clear promise after completion
     }
+    })(); // End of async IIFE
+    
+    return this.initPromise; // Return the initialization promise
   }
 
   private async loadInstruments(instrumentNames: string[]): Promise<void> {
