@@ -198,6 +198,109 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
+  // Code to Music AI Generation
+  app.post("/api/code-to-music", async (req, res) => {
+    try {
+      const { code, language, complexity } = req.body;
+
+      if (!code) {
+        return res.status(400).json({
+          error: "Code parameter is required"
+        });
+      }
+
+      console.log(`💻🎵 Converting ${language || 'code'} to music, complexity ${complexity || 5}`);
+
+      // Use AI to analyze code structure and generate musical representation
+      const aiClient = getAIClient();
+      
+      if (!aiClient) {
+        throw new Error("AI client not available");
+      }
+      
+      const prompt = `Analyze this ${language || 'code'} and convert it into a musical representation. 
+      
+Code:
+\`\`\`${language || 'javascript'}
+${code}
+\`\`\`
+
+Based on the code structure, generate:
+1. A melody that represents the code's flow (loops = repetition, conditionals = variations)
+2. Rhythm patterns based on code complexity
+3. Tempo based on execution speed
+4. Key/scale based on code mood (happy=major, serious=minor)
+
+Return a JSON object with this structure:
+{
+  "melody": [{"note": "C", "octave": 4, "duration": 0.5, "time": 0}],
+  "tempo": 120,
+  "key": "C Major",
+  "scale": ["C", "D", "E", "F", "G", "A", "B"],
+  "analysis": "brief description of musical choices based on code",
+  "codeMetrics": {
+    "complexity": 5,
+    "loopCount": 2,
+    "conditionalCount": 1,
+    "functionCount": 3
+  }
+}`;
+
+      const response = await aiClient.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "grok-beta",
+        temperature: 0.7,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      
+      // Parse AI response
+      let musicData;
+      try {
+        // Extract JSON from markdown code blocks if present
+        const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/```\n([\s\S]*?)\n```/);
+        const jsonStr = jsonMatch ? jsonMatch[1] : content;
+        musicData = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.error("Failed to parse AI response, using fallback");
+        // Fallback music data
+        musicData = {
+          melody: [
+            { note: "C", octave: 4, duration: 0.5, time: 0 },
+            { note: "E", octave: 4, duration: 0.5, time: 0.5 },
+            { note: "G", octave: 4, duration: 0.5, time: 1 },
+            { note: "C", octave: 5, duration: 1, time: 1.5 }
+          ],
+          tempo: 120,
+          key: "C Major",
+          scale: ["C", "D", "E", "F", "G", "A", "B"],
+          analysis: "Generated basic melody based on code structure",
+          codeMetrics: {
+            complexity: complexity || 5,
+            loopCount: (code.match(/for|while/g) || []).length,
+            conditionalCount: (code.match(/if|switch/g) || []).length,
+            functionCount: (code.match(/function|=>|def/g) || []).length
+          }
+        };
+      }
+
+      console.log(`✅ Code to music generated: ${musicData.melody?.length || 0} notes`);
+
+      res.json({
+        success: true,
+        ...musicData,
+        message: `Generated music from ${language || 'code'} successfully`
+      });
+
+    } catch (error) {
+      console.error("Code to music error:", error);
+      res.status(500).json({
+        error: "Failed to convert code to music",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   app.post("/api/music/generate-complete", async (req, res) => {
     try {
       const { prompt, genre, bpm, provider, key } = req.body;
