@@ -119,25 +119,35 @@ export class RealisticAudioEngine {
 
       console.log('🎵 Realistic audio context started, final state:', this.audioContext.state);
 
-      // Load essential instruments first (piano, guitar, and a few more)
-      await this.loadInstruments([
-        'piano', 'guitar', 'strings-guitar', 'violin', 'flute', 'trumpet', 
-        'piano-organ', 'bass-electric', 'strings-violin',
-        'horns-trumpet', 'horns-trombone', 'horns-french',
-        'flute-concert', 'flute-recorder', 'flute-indian',
-        'strings', 'pads-strings', 'choir_aahs',
-        'synth-analog', 'synth-digital', 'synth-fm',
-        'leads-square', 'leads-saw', 'leads-pluck',
-        'drum-kick', 'drum-snare', 'drum-hihat', 'drum-crash'
-      ]);
+      // Load ONLY essential instruments on mobile for better performance
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const essentialInstruments = isMobile
+        ? ['piano', 'guitar', 'bass-electric', 'strings'] // Minimal set for mobile
+        : ['piano', 'guitar', 'strings-guitar', 'violin', 'flute', 'trumpet', 
+           'piano-organ', 'bass-electric', 'strings-violin',
+           'horns-trumpet', 'flute-concert', 'strings', 
+           'synth-analog', 'leads-square'];
+      
+      console.log(`🎵 Loading ${essentialInstruments.length} instruments (mobile: ${isMobile})`);
+      
+      // Load instruments with timeout protection for mobile
+      await Promise.race([
+        this.loadInstruments(essentialInstruments),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Instrument loading timeout')), isMobile ? 10000 : 20000)
+        )
+      ]).catch(error => {
+        console.warn('⚠️ Some instruments failed to load, continuing anyway:', error);
+      });
       
       this.isInitialized = true;
       this.isLoading = false;
-      console.log('Realistic audio engine initialized with sampled instruments');
+      console.log('🎵 Realistic audio engine initialized');
     } catch (error) {
       console.error('Failed to initialize realistic audio engine:', error);
       this.isLoading = false;
-      throw error;
+      // Don't throw - allow app to continue with limited functionality
+      this.isInitialized = true; // Mark as initialized anyway
     }
   }
 
@@ -217,15 +227,17 @@ export class RealisticAudioEngine {
     velocity: number = 0.7,
     sustainEnabled: boolean = true
   ): Promise<void> {
-    console.log(`🎵 DEBUG: playNote called with: note=${note}, octave=${octave}, duration=${duration}, instrument=${instrument}, velocity=${velocity}`);
+    console.log(`🎵 playNote: ${note}${octave} on ${instrument}`);
 
     if (!this.isInitialized) {
-      console.log('🎵 DEBUG: Audio not initialized, initializing now...');
+      console.log('🎵 Audio not initialized, initializing...');
       await this.initialize();
     }
 
-    // DEBUG: Log all parameters received
-    console.log(`🎵 DEBUG playNote called with: note=${note}, octave=${octave}, duration=${duration}, instrument=${instrument}, velocity=${velocity}`);
+    if (!this.audioContext) {
+      console.warn('🎵 Audio context not available, skipping playback');
+      return;
+    }
     
     // NOTE: Removed octave clamping to allow full octave range (0-8)
     // Soundfonts support wider range than originally assumed
