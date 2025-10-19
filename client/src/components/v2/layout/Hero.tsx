@@ -14,14 +14,16 @@ export default function HeroV2() {
     if (!ctx) return;
 
     // Set canvas size
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
-    resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Create CodedSwitch text + logo with particles
+    // Create CodedSwitch text + logo with particles (called ONCE)
     const createLogoPoints = () => {
       const points: Array<{ x: number; y: number }> = [];
       const centerX = canvas.width / 2;
