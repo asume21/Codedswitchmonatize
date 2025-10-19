@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import Uppy from "@uppy/core";
-import { DashboardModal } from "@uppy/react";
+import Dashboard from "@uppy/dashboard";
 import "@uppy/core/dist/style.min.css";
 import "@uppy/dashboard/dist/style.min.css";
 import XHRUpload from "@uppy/xhr-upload";
 import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface ObjectUploaderProps {
   maxNumberOfFiles?: number;
@@ -60,6 +61,8 @@ export function ObjectUploader({
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const dashboardInstanceRef = useRef<any>(null);
   
   const [uppy] = useState(() => {
     try {
@@ -75,9 +78,9 @@ export function ObjectUploader({
           endpoint: 'dummy', // Will be replaced per-file
           method: 'PUT',
           fieldName: 'file',
-          getResponseData: (responseText: string) => {
+          getResponseData: (xhr: XMLHttpRequest) => {
             try {
-              return JSON.parse(responseText);
+              return JSON.parse(xhr.responseText);
             } catch {
               return { success: true };
             }
@@ -97,7 +100,8 @@ export function ObjectUploader({
             console.log(`📤 Upload URL set for ${file.name}:`, params.url);
           } catch (error) {
             console.error('Failed to get upload URL:', error);
-            uppy.emit('upload-error', file, error);
+            const errorObj = error instanceof Error ? error : new Error('Upload failed');
+            uppy.emit('upload-error', file, errorObj);
           }
         })
         .on("complete", (result) => {
@@ -120,19 +124,38 @@ export function ObjectUploader({
     }
   });
 
+  // Mount Dashboard when modal opens
+  useEffect(() => {
+    if (showModal && dashboardRef.current && uppy && !dashboardInstanceRef.current) {
+      try {
+        const dashboard = uppy.use(Dashboard, {
+          inline: false,
+          target: dashboardRef.current,
+          proudlyDisplayPoweredByUppy: false,
+          note: 'Upload audio files (MP3, WAV, M4A, OGG, FLAC) up to 50MB',
+        });
+        dashboardInstanceRef.current = dashboard;
+        console.log('✅ Dashboard mounted');
+      } catch (error) {
+        console.error('Dashboard mount error:', error);
+      }
+    }
+  }, [showModal, uppy]);
+
   // Cleanup Uppy instance on unmount
   useEffect(() => {
     return () => {
       try {
-        // Only cleanup if uppy instance is valid and has methods
+        // Cleanup dashboard plugin
+        if (dashboardInstanceRef.current && uppy) {
+          uppy.removePlugin(dashboardInstanceRef.current);
+          dashboardInstanceRef.current = null;
+        }
+        // Cancel all uploads
         if (uppy && typeof uppy.cancelAll === 'function') {
           uppy.cancelAll();
         }
-        if (uppy && typeof uppy.close === 'function') {
-          uppy.close();
-        }
       } catch (error) {
-        // Silently handle cleanup errors to prevent console spam
         console.debug('Uppy cleanup:', error instanceof Error ? error.message : 'cleanup completed');
       }
     };
@@ -160,14 +183,12 @@ export function ObjectUploader({
         </p>
       )}
 
-      {!initError && uppy && showModal && (
-        <DashboardModal
-          uppy={uppy}
-          open={showModal}
-          onRequestClose={() => setShowModal(false)}
-          proudlyDisplayPoweredByUppy={false}
-          note="Upload audio files (MP3, WAV, M4A, OGG, FLAC) up to 50MB"
-        />
+      {!initError && (
+        <Dialog open={showModal} onOpenChange={setShowModal}>
+          <DialogContent className="max-w-4xl">
+            <div ref={dashboardRef} className="uppy-dashboard-container" />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
