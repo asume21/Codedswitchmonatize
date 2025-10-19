@@ -124,10 +124,16 @@ export function ObjectUploader({
   useEffect(() => {
     return () => {
       try {
-        uppy.cancelAll();
-        uppy.close();
+        // Only cleanup if uppy instance is valid and has methods
+        if (uppy && typeof uppy.cancelAll === 'function') {
+          uppy.cancelAll();
+        }
+        if (uppy && typeof uppy.close === 'function') {
+          uppy.close();
+        }
       } catch (error) {
-        console.warn('Uppy cleanup error:', error);
+        // Silently handle cleanup errors to prevent console spam
+        console.debug('Uppy cleanup:', error instanceof Error ? error.message : 'cleanup completed');
       }
     };
   }, [uppy]);

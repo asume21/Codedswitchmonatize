@@ -28,6 +28,14 @@ export function currentUser(storage: IStorage) {
 
 export function requireAuth() {
   return (req: Request, res: Response, next: NextFunction) => {
+    // 🔓 DEV MODE: Bypass auth in development
+    if (process.env.NODE_ENV !== "production") {
+      if (!req.userId) {
+        req.userId = "default-user"; // Set default user for dev
+      }
+      return next();
+    }
+    
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }

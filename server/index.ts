@@ -6,6 +6,10 @@ import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { setupSnakeWS } from "./services/snake-ws";
 import { currentUser } from "./middleware/auth";
 
+// Load environment variables from .env file
+import { config } from 'dotenv';
+config();
+
 const app = express();
 
 // Stripe webhook must receive the raw body for signature verification.

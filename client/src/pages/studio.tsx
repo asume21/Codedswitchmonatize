@@ -30,6 +30,7 @@ import CodeBeatStudio from "@/pages/codebeat-studio";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import MobileNav from "@/components/studio/MobileNav";
 import { RequireAuth } from "@/components/auth/RequireAuth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 // PlaylistManager integrated into TransportControls
 import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
@@ -351,19 +352,23 @@ export default function Studio() {
     }
 
     const access = tabAccess[activeTab];
+    
+    // Wrap content in ErrorBoundary to prevent crashes
+    const wrappedContent = <ErrorBoundary>{content}</ErrorBoundary>;
+    
     if (!access) {
-      return content;
+      return wrappedContent;
     }
 
     if (access.requirePro) {
-      return <RequireAuth requirePro>{content}</RequireAuth>;
+      return <RequireAuth requirePro>{wrappedContent}</RequireAuth>;
     }
 
     if (access.requireAuth) {
-      return <RequireAuth>{content}</RequireAuth>;
+      return <RequireAuth>{wrappedContent}</RequireAuth>;
     }
 
-    return content;
+    return wrappedContent;
   };
 
   return (

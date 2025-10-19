@@ -26,7 +26,18 @@
     <script type="module" src="/src/main.tsx"></script>
     <!-- Inject AdSense script if configured -->
     <script type="module" src="/src/lib/adsense.ts"></script>
-    <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
-    <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+    <!-- Replit dev banner: only load in development -->
+    <script>
+      // Only load Replit banner in development mode
+      if (window.location.hostname.includes('replit') || window.location.hostname === 'localhost') {
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = 'https://replit.com/public/js/replit-dev-banner.js';
+        script.onerror = function() {
+          console.debug('Replit banner not loaded (expected in production)');
+        };
+        document.body.appendChild(script);
+      }
+    </script>
   </body>
 </html>
