@@ -144,7 +144,7 @@ export default function HeroV2() {
             ))}
           </div>
           <p className="hero-v2__social-text">
-            Trusted by <strong>50,000+</strong> bedroom producers and professionals
+            Join creators building the future of AI music production
           </p>
         </div>
       </div>
