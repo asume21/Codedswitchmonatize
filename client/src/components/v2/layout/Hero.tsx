@@ -27,41 +27,30 @@ export default function HeroV2() {
     const createLogoPoints = () => {
       const points: Array<{ x: number; y: number }> = [];
       const centerX = canvas.width / 2;
-      const centerY = 150; // Fixed position at top
+      const centerY = 200; // Position for text
       
-      // Create "CodedSwitch" text by drawing it
-      const fontSize = 80;
-      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      // Create "CodedSwitch" text - SIMPLE APPROACH
+      // Draw text outline with particles
       const text = "CodedSwitch";
+      const fontSize = 60;
+      const letterSpacing = 45;
+      const startX = centerX - (text.length * letterSpacing) / 2;
       
-      // Draw text to get its shape
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, centerX, centerY);
-      
-      // Sample the text at every 2 pixels for dense coverage
-      const textMetrics = ctx.measureText(text);
-      const textWidth = textMetrics.width;
-      const startX = centerX - textWidth / 2;
-      const endX = centerX + textWidth / 2;
-      
-      for (let x = startX; x < endX; x += 2) {
-        for (let y = centerY - fontSize / 2; y < centerY + fontSize / 2; y += 2) {
-          if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-            const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-            if (pixel[0] > 100) { // If pixel is part of text
-              points.push({ x, y });
-            }
+      // Create particles along text path (simple block letters)
+      for (let i = 0; i < text.length; i++) {
+        const letterX = startX + i * letterSpacing;
+        const letterY = centerY;
+        
+        // Create a dense cluster of points for each letter position
+        for (let dx = -15; dx <= 15; dx += 3) {
+          for (let dy = -20; dy <= 20; dy += 3) {
+            points.push({
+              x: letterX + dx,
+              y: letterY + dy
+            });
           }
         }
       }
-      
-      // Clear canvas after sampling
-      ctx.fillStyle = 'rgba(10, 15, 27, 1)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Add LOGO eye below text
       const logoSize = 60;
