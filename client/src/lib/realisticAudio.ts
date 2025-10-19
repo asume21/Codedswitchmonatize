@@ -98,15 +98,15 @@ export class RealisticAudioEngine {
               console.error('🎵 Failed to resume audio context:', error);
             }
           }
-          document.removeEventListener('click', resumeAudio, true);
-          document.removeEventListener('keydown', resumeAudio, true);
-          document.removeEventListener('touchstart', resumeAudio, true);
+          document.removeEventListener('click', resumeAudio);
+          document.removeEventListener('keydown', resumeAudio);
+          document.removeEventListener('touchstart', resumeAudio, { passive: true } as any);
         }
         
-        // Listen for user interactions to resume audio
-        document.addEventListener('click', resumeAudio, true);
-        document.addEventListener('keydown', resumeAudio, true);
-        document.addEventListener('touchstart', resumeAudio, true);
+        // Listen for user interactions to resume audio (passive listeners for mobile)
+        document.addEventListener('click', resumeAudio, { once: true });
+        document.addEventListener('keydown', resumeAudio, { once: true });
+        document.addEventListener('touchstart', resumeAudio, { once: true, passive: true });
         
         // Try to resume immediately in case we already have permission
         try {

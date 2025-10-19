@@ -485,12 +485,11 @@ This analysis has been saved and can be used with other studio tools for remixin
         {/* Song Upload Section */}
         <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-600">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Upload className="w-5 h-5" />
+            <h3 className="text-sm font-semibold text-white mb-1">
               Upload Song for AI Analysis
             </h3>
             <div className="text-xs text-gray-400">
-              Supported: MP3, WAV, M4A, OGG (Max 50MB)
+              📱 iPhone Compatible! MP3, M4A, MOV, WAV + more (Max 50MB)
             </div>
           </div>
 

@@ -70,9 +70,20 @@ export function ObjectUploader({
         restrictions: {
           maxNumberOfFiles,
           maxFileSize,
-          allowedFileTypes: ['audio/*', '.mp3', '.wav', '.m4a', '.ogg', '.flac'],
+          // Support all audio formats including iPhone/iOS formats
+          allowedFileTypes: [
+            'audio/*', 
+            'video/*',  // iOS voice memos sometimes saved as video
+            '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac',
+            '.mp4', '.mov',  // iOS camera roll videos with audio
+            '.caf',  // Core Audio Format (iOS)
+            '.aiff', '.aif',  // Audio Interchange File Format
+            '.wma', '.webm'  // Additional formats
+          ],
         },
         autoProceed: false,
+        // Mobile-friendly settings
+        allowMultipleUploadBatches: false,
       })
         .use(XHRUpload, {
           endpoint: 'dummy', // Will be replaced per-file
@@ -132,7 +143,14 @@ export function ObjectUploader({
           inline: false,
           target: dashboardRef.current,
           proudlyDisplayPoweredByUppy: false,
-          note: 'Upload audio files (MP3, WAV, M4A, OGG, FLAC) up to 50MB',
+          note: '📱 iPhone Compatible! Upload audio/video files (MP3, M4A, MOV, etc.) up to 50MB',
+          // Mobile-friendly settings
+          showProgressDetails: true,
+          hideUploadButton: false,
+          hideCancelButton: false,
+          hideRetryButton: false,
+          showRemoveButtonAfterComplete: true,
+          browserBackButtonClose: true,
         });
         dashboardInstanceRef.current = dashboard;
         console.log('✅ Dashboard mounted');

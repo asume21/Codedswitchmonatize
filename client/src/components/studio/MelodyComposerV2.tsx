@@ -65,12 +65,16 @@ function MelodyComposerV2() {
   }, []);
 
   useEffect(() => {
-    studioContext.setCurrentTracks(localTracks);
-  }, [localTracks, studioContext]);
+    if (studioContext.setCurrentTracks) {
+      studioContext.setCurrentTracks(localTracks);
+    }
+  }, [localTracks]); // Remove studioContext from dependencies to prevent infinite loop
 
   useEffect(() => {
-    studioContext.setBpm(tempo);
-  }, [tempo, studioContext]);
+    if (studioContext.setBpm) {
+      studioContext.setBpm(tempo);
+    }
+  }, [tempo]); // Remove studioContext from dependencies to prevent infinite loop
 
   // Audio functions
   const playNote = async (note: string, octave: number = 4, duration: number = 0.5, instrument: string = 'piano') => {
