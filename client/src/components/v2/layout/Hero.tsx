@@ -27,21 +27,22 @@ export default function HeroV2() {
       const centerX = canvas.width / 2;
       const centerY = 200; // Position for text
       
-      // Create "CodedSwitch" text - SIMPLE APPROACH
-      // Draw text outline with particles
+      // Create "CodedSwitch" text - spread across screen
       const text = "CodedSwitch";
-      const fontSize = 60;
-      const letterSpacing = 45;
-      const startX = centerX - (text.length * letterSpacing) / 2;
+      const letterSpacing = 60; // More spacing between letters
+      const letterWidth = 40; // Width of each letter
+      const letterHeight = 50; // Height of each letter
+      const totalWidth = text.length * letterSpacing;
+      const startX = centerX - totalWidth / 2;
       
-      // Create particles along text path (simple block letters)
+      // Create particles for each letter (spread out horizontally)
       for (let i = 0; i < text.length; i++) {
         const letterX = startX + i * letterSpacing;
         const letterY = centerY;
         
-        // Create a dense cluster of points for each letter position
-        for (let dx = -15; dx <= 15; dx += 3) {
-          for (let dy = -20; dy <= 20; dy += 3) {
+        // Create particles for this letter (vertical bars for now)
+        for (let dx = -letterWidth/2; dx <= letterWidth/2; dx += 4) {
+          for (let dy = -letterHeight/2; dy <= letterHeight/2; dy += 4) {
             points.push({
               x: letterX + dx,
               y: letterY + dy
@@ -53,7 +54,7 @@ export default function HeroV2() {
       // Add LOGO eye below text
       const logoSize = 60;
       const logoX = centerX;
-      const logoY = centerY + fontSize;
+      const logoY = centerY + letterHeight + 40; // Position below text
       
       // Logo eye outline (almond shape)
       for (let angle = 0; angle < Math.PI * 2; angle += 0.15) {
