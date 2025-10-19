@@ -27,22 +27,22 @@ export default function HeroV2() {
       const centerX = canvas.width / 2;
       const centerY = 200; // Position for text
       
-      // Create "CodedSwitch" text - spread across screen
+      // Create "CodedSwitch" text - WIDE spacing so letters are visible
       const text = "CodedSwitch";
-      const letterSpacing = 60; // More spacing between letters
-      const letterWidth = 40; // Width of each letter
-      const letterHeight = 50; // Height of each letter
+      const letterSpacing = 80; // WIDE spacing between letters
+      const letterWidth = 30; // Width of each letter block
+      const letterHeight = 60; // Height of each letter block
       const totalWidth = text.length * letterSpacing;
       const startX = centerX - totalWidth / 2;
       
-      // Create particles for each letter (spread out horizontally)
+      // Create particles for each letter (spread WAY out horizontally)
       for (let i = 0; i < text.length; i++) {
         const letterX = startX + i * letterSpacing;
         const letterY = centerY;
         
-        // Create particles for this letter (vertical bars for now)
-        for (let dx = -letterWidth/2; dx <= letterWidth/2; dx += 4) {
-          for (let dy = -letterHeight/2; dy <= letterHeight/2; dy += 4) {
+        // Create particles for this letter (simple vertical bar)
+        for (let dx = -letterWidth/2; dx <= letterWidth/2; dx += 5) {
+          for (let dy = -letterHeight/2; dy <= letterHeight/2; dy += 5) {
             points.push({
               x: letterX + dx,
               y: letterY + dy
@@ -158,13 +158,13 @@ export default function HeroV2() {
           const dy = particle.targetY - particle.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (distance > 2) {
-            // Smooth easing toward target (stronger force = faster convergence)
-            const force = cyclePhase === 2 ? 0.12 : 0.1;
+          if (distance > 5) {
+            // Strong force to reach target quickly
+            const force = cyclePhase === 2 ? 0.15 : 0.12;
             particle.vx = dx * force;
             particle.vy = dy * force;
           } else {
-            // Lock in place when very close to target
+            // Lock in place when close to target
             particle.vx = 0;
             particle.vy = 0;
             particle.x = particle.targetX;
