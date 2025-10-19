@@ -86,38 +86,8 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen min-w-[1400px] bg-gradient-to-br from-background to-secondary/20">
-      {/* V2 Hero - Conditionally rendered based on feature flag */}
-      {FEATURES.useNewHero && <HeroV2 />}
-      
-      {/* V1 Hero - Show when V2 is disabled */}
-      {!FEATURES.useNewHero && (
-        <div className="container mx-auto px-4 py-16 w-full">
-          {/* Hero Section */}
-          <div className="text-center mb-16">
-            <div className="h-16 w-16 mx-auto mb-8 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
-              <Music className="h-8 w-8 text-white" />
-            </div>
-            <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              CodedSwitch
-            </h1>
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              The world's first AI-powered bidirectional translation platform that bridges code development with music creation
-            </p>
-            <div className="flex justify-center gap-4">
-              <Link href="/dashboard">
-                <Button size="lg" className="text-lg px-8">
-                  Get Started
-                </Button>
-              </Link>
-              <Link href="/music-studio">
-                <Button variant="outline" size="lg" className="text-lg px-8">
-                  Try Music Studio
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* TEMPORARY: Force V2 Hero to test */}
+      <HeroV2 />
       
       <div className="container mx-auto px-4 py-16 w-full">
 
