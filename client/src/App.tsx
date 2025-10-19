@@ -19,6 +19,9 @@ import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { AuthProvider } from "@/contexts/AuthContext";
 
+// Import V2 Design System
+import "@/styles/design-tokens.css";
+
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen">
