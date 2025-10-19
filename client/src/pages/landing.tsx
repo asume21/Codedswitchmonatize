@@ -85,31 +85,73 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen min-w-[1400px] bg-gradient-to-br from-background to-secondary/20">
+    <div className="min-h-screen min-w-[1400px]" style={{ background: 'var(--bg-base)' }}>
       {/* TEMPORARY: Force V2 Hero to test */}
       <HeroV2 />
       
       <div className="container mx-auto px-4 py-16 w-full">
 
-        {/* Features Grid */}
+        {/* Features Grid - V2 Style */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           {features.map((feature, index) => (
-            <Card key={index} className="transition-transform hover:scale-105">
-              <CardHeader>
-                <feature.icon className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription>{feature.description}</CardDescription>
-              </CardContent>
-            </Card>
+            <div 
+              key={index} 
+              className="glass transition-all duration-300 hover:scale-105 rounded-xl p-6"
+              style={{
+                background: 'var(--glass-bg)',
+                border: '1px solid var(--glass-border)',
+                backdropFilter: 'var(--glass-blur)'
+              }}
+            >
+              <div className="mb-4">
+                <div 
+                  className="inline-flex p-3 rounded-lg mb-4"
+                  style={{
+                    background: 'var(--gradient-card)',
+                    boxShadow: '0 0 20px rgba(123, 97, 255, 0.2)'
+                  }}
+                >
+                  <feature.icon 
+                    className="h-6 w-6" 
+                    style={{ color: 'var(--accent-primary)' }}
+                  />
+                </div>
+                <h3 
+                  className="text-lg font-semibold mb-2"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  {feature.title}
+                </h3>
+              </div>
+              <p 
+                className="text-sm"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {feature.description}
+              </p>
+            </div>
           ))}
         </div>
 
-        {/* Waitlist Section */}
-        <div className="text-center bg-card rounded-2xl p-12 border mb-12">
-          <h2 className="text-3xl font-bold mb-2">Join the Waitlist</h2>
-          <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+        {/* Waitlist Section - V2 Style */}
+        <div 
+          className="glass text-center rounded-2xl p-12 mb-12"
+          style={{
+            background: 'var(--glass-bg)',
+            border: '1px solid var(--glass-border)',
+            backdropFilter: 'var(--glass-blur)'
+          }}
+        >
+          <h2 
+            className="text-3xl font-bold mb-2"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Join the Waitlist
+          </h2>
+          <p 
+            className="mb-6 max-w-xl mx-auto"
+            style={{ color: 'var(--text-secondary)' }}
+          >
             Be the first to get access, product updates, and early adopter perks.
           </p>
           <div className="mx-auto max-w-xl flex flex-col sm:flex-row gap-3 items-stretch">
@@ -122,6 +164,11 @@ export default function Landing() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={submitting}
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--glass-border)',
+                  color: 'var(--text-primary)'
+                }}
               />
             </div>
             <div className="flex-1">
@@ -133,26 +180,68 @@ export default function Landing() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={submitting}
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--glass-border)',
+                  color: 'var(--text-primary)'
+                }}
               />
             </div>
-            <Button onClick={submitWaitlist} disabled={submitting} className="min-w-36">
+            <Button 
+              onClick={submitWaitlist} 
+              disabled={submitting} 
+              className="min-w-36"
+              style={{
+                background: 'var(--accent-primary)',
+                color: 'var(--text-primary)'
+              }}
+            >
               <Send className="h-4 w-4 mr-2" />
               {submitting ? "Joining..." : "Join Waitlist"}
             </Button>
           </div>
           {status && (
-            <p className="mt-3 text-sm text-muted-foreground">{status}</p>
+            <p 
+              className="mt-3 text-sm"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {status}
+            </p>
           )}
         </div>
 
-        {/* CTA Section */}
-        <div className="text-center bg-card rounded-2xl p-12 border">
-          <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Workflow?</h2>
-          <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+        {/* CTA Section - V2 Style */}
+        <div 
+          className="glass text-center rounded-2xl p-12"
+          style={{
+            background: 'var(--gradient-card)',
+            border: '1px solid var(--glass-border)',
+            backdropFilter: 'var(--glass-blur)',
+            boxShadow: '0 0 40px rgba(123, 97, 255, 0.2)'
+          }}
+        >
+          <h2 
+            className="text-3xl font-bold mb-4"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            Ready to Transform Your Workflow?
+          </h2>
+          <p 
+            className="mb-6 max-w-xl mx-auto"
+            style={{ color: 'var(--text-secondary)' }}
+          >
             Experience the future of creative development with AI-powered tools that bridge the gap between code and music.
           </p>
           <Link href="/dashboard">
-            <Button size="lg" className="text-lg px-8">
+            <Button 
+              size="lg" 
+              className="text-lg px-8"
+              style={{
+                background: 'var(--gradient-hero)',
+                color: 'var(--text-primary)',
+                boxShadow: 'var(--shadow-glow-primary)'
+              }}
+            >
               Start Creating Now
             </Button>
           </Link>
