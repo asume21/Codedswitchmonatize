@@ -119,11 +119,12 @@ export default function HeroV2() {
     }> = [];
 
     // Create particles with dark red color scheme
+    // Each particle gets ONE dedicated target point (letter position)
     const colors = ['#8B0000', '#B22222', '#DC143C', '#FF6347']; // Dark red variations
-    const totalParticles = Math.min(logoPoints.length * 2, 150); // More particles
+    const totalParticles = logoPoints.length; // ONE particle per logo point
     
     for (let i = 0; i < totalParticles; i++) {
-      const targetPoint = logoPoints[i % logoPoints.length];
+      const targetPoint = logoPoints[i]; // Each particle assigned to specific point
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
@@ -164,26 +165,29 @@ export default function HeroV2() {
       particles.forEach((particle, i) => {
         // Apply logo formation force
         if (cyclePhase === 1 || cyclePhase === 2) {
-          // Attract to target position
+          // Move directly toward assigned target position (smooth interpolation)
           const dx = particle.targetX - particle.x;
           const dy = particle.targetY - particle.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (distance > 5) {
-            const force = cyclePhase === 2 ? 0.15 : 0.08;
-            particle.vx += (dx / distance) * force;
-            particle.vy += (dy / distance) * force;
+          if (distance > 2) {
+            // Smooth easing toward target (stronger force = faster convergence)
+            const force = cyclePhase === 2 ? 0.12 : 0.1;
+            particle.vx = dx * force;
+            particle.vy = dy * force;
           } else {
-            // Slow down when close to target
-            particle.vx *= 0.9;
-            particle.vy *= 0.9;
+            // Lock in place when very close to target
+            particle.vx = 0;
+            particle.vy = 0;
+            particle.x = particle.targetX;
+            particle.y = particle.targetY;
           }
         } else {
-          // Random wandering
+          // Random wandering when not forming logo
           particle.vx *= 0.98;
           particle.vy *= 0.98;
-          particle.vx += (Math.random() - 0.5) * 0.1;
-          particle.vy += (Math.random() - 0.5) * 0.1;
+          particle.vx += (Math.random() - 0.5) * 0.15;
+          particle.vy += (Math.random() - 0.5) * 0.15;
         }
 
         // Limit velocity
