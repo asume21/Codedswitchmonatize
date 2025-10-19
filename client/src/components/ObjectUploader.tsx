@@ -160,7 +160,7 @@ export function ObjectUploader({
         </p>
       )}
 
-      {!initError && (
+      {!initError && uppy && showModal && (
         <DashboardModal
           uppy={uppy}
           open={showModal}

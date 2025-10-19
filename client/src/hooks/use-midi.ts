@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAudio } from "./use-audio.ts";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useAudio } from "./use-audio";
 
 interface MIDIDevice {
   id: string;
@@ -576,23 +576,38 @@ export function useMIDI() {
   }, [midiAccess, updateDeviceList, setupMIDIInputs, initializeMIDI]);
 
   // Enhanced auto-initialization with multiple detection methods
+  // Use ref to prevent infinite initialization loop
+  const hasInitialized = useRef(false);
+  
   useEffect(() => {
-    console.log("🚀 MIDI HOOK INITIALIZING...");
+    // Only initialize once
+    if (!hasInitialized.current) {
+      console.log("🚀 MIDI HOOK INITIALIZING...");
+      hasInitialized.current = true;
+      
+      // Immediate initialization
+      initializeMIDI();
 
-    // Immediate initialization
-    initializeMIDI();
+      // Additional detection after delay (for devices that connect slowly)
+      const delayedDetection = setTimeout(() => {
+        console.log("🔍 Secondary MIDI device scan...");
+        if (midiAccess) {
+          refreshDevices();
+        }
+      }, 2000);
 
-    // Additional detection after delay (for devices that connect slowly)
-    const delayedDetection = setTimeout(() => {
-      console.log("🔍 Secondary MIDI device scan...");
-      if (midiAccess) {
-        refreshDevices();
-      }
-    }, 2000);
+      // Cleanup delayed detection on unmount
+      return () => {
+        clearTimeout(delayedDetection);
+      };
+    }
+  }, []); // Empty dependency array - only run once on mount
 
+  // Separate effect for visibility/focus handlers
+  useEffect(() => {
     // Enhanced visibility change handler
     const handleVisibilityChange = () => {
-      if (!document.hidden && autoConnectionEnabled) {
+      if (!document.hidden && autoConnectionEnabled && hasInitialized.current) {
         console.log("🔄 Tab became visible - forcing MIDI rescan...");
         setTimeout(() => {
           refreshDevices();
@@ -602,7 +617,7 @@ export function useMIDI() {
 
     // Focus handler for additional detection
     const handleWindowFocus = () => {
-      if (autoConnectionEnabled) {
+      if (autoConnectionEnabled && hasInitialized.current) {
         console.log("🎯 Window focused - checking MIDI devices...");
         setTimeout(() => {
           refreshDevices();
@@ -615,11 +630,10 @@ export function useMIDI() {
 
     // Cleanup
     return () => {
-      clearTimeout(delayedDetection);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [initializeMIDI, autoConnectionEnabled, midiAccess, refreshDevices]);
+  }, [autoConnectionEnabled, midiAccess, refreshDevices]);
 
   return {
     isSupported,
