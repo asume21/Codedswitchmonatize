@@ -25,8 +25,8 @@ export default function HeroV2() {
     const createLogoPoints = () => {
       const points: Array<{ x: number; y: number }> = [];
       const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2 - 150;
-      const size = 80;
+      const centerY = canvas.height / 3 - 50; // Move higher, away from text
+      const size = 100; // Make it bigger
 
       // SQUARE FRAME - connecting the nodes
       // Top edge
@@ -121,9 +121,9 @@ export default function HeroV2() {
       formLogo: boolean;
     }> = [];
 
-    // Create particles
-    const colors = ['#7B61FF', '#00E0C6', '#FF9F6E'];
-    const totalParticles = Math.min(logoPoints.length * 2, 120);
+    // Create particles with dark red color scheme
+    const colors = ['#8B0000', '#B22222', '#DC143C', '#FF6347']; // Dark red variations
+    const totalParticles = Math.min(logoPoints.length * 2, 150); // More particles
     
     for (let i = 0; i < totalParticles; i++) {
       const targetPoint = logoPoints[i % logoPoints.length];
@@ -134,7 +134,7 @@ export default function HeroV2() {
         vy: (Math.random() - 0.5) * 0.5,
         targetX: targetPoint.x,
         targetY: targetPoint.y,
-        size: Math.random() * 2 + 1,
+        size: Math.random() * 3 + 1.5, // Bigger particles
         color: colors[Math.floor(Math.random() * colors.length)],
         formLogo: false,
       });
@@ -207,18 +207,23 @@ export default function HeroV2() {
         particle.y = Math.max(0, Math.min(canvas.height, particle.y));
 
         // Draw particle with size variation based on phase
-        const sizeMultiplier = cyclePhase === 2 ? 1.5 : 1;
+        const sizeMultiplier = cyclePhase === 2 ? 2 : 1; // Even bigger when forming logo
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, particle.size * sizeMultiplier, 0, Math.PI * 2);
-        ctx.fillStyle = particle.color;
-        ctx.fill();
-
-        // Glow effect in logo phase
+        
+        // Stronger glow effect in logo phase
         if (cyclePhase === 2) {
-          ctx.shadowBlur = 10;
+          ctx.shadowBlur = 20;
           ctx.shadowColor = particle.color;
+          ctx.fillStyle = particle.color;
+          ctx.fill();
+          // Double draw for extra glow
+          ctx.shadowBlur = 30;
           ctx.fill();
           ctx.shadowBlur = 0;
+        } else {
+          ctx.fillStyle = particle.color;
+          ctx.fill();
         }
 
         // Draw connections (only in scattered phase for cleaner logo)
