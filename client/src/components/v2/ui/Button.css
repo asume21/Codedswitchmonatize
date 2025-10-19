@@ -1,0 +1,292 @@
+/* Button V2 - Elite Design System */
+
+.button-v2 {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-weight: var(--font-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all var(--duration-base) var(--ease-smooth);
+  outline: none;
+  user-select: none;
+}
+
+.button-v2:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.button-v2:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ============================================
+   SIZES
+   ============================================ */
+
+.button-v2--sm {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  gap: var(--space-1);
+}
+
+.button-v2--md {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-base);
+  gap: var(--space-2);
+}
+
+.button-v2--lg {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-lg);
+  gap: var(--space-2);
+}
+
+.button-v2--xl {
+  padding: var(--space-5) var(--space-8);
+  font-size: var(--text-xl);
+  gap: var(--space-3);
+}
+
+/* ============================================
+   VARIANTS
+   ============================================ */
+
+/* Primary - Electric Purple */
+.button-v2--primary {
+  background: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.button-v2--primary:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.button-v2--primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Secondary - Cyan */
+.button-v2--secondary {
+  background: var(--accent-secondary);
+  color: var(--bg-base);
+}
+
+.button-v2--secondary:hover:not(:disabled) {
+  background: var(--accent-secondary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Outline */
+.button-v2--outline {
+  background: transparent;
+  color: var(--text-primary);
+  border: 2px solid var(--bg-panel);
+}
+
+.button-v2--outline:hover:not(:disabled) {
+  background: var(--bg-panel);
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-md);
+}
+
+/* Ghost */
+.button-v2--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.button-v2--ghost:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* Danger */
+.button-v2--danger {
+  background: var(--error);
+  color: var(--text-primary);
+}
+
+.button-v2--danger:hover:not(:disabled) {
+  background: #ff6675;
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(255, 71, 87, 0.5);
+}
+
+/* ============================================
+   MODIFIERS
+   ============================================ */
+
+/* Gradient Effect */
+.button-v2--gradient.button-v2--primary {
+  background: var(--gradient-hero);
+}
+
+.button-v2--gradient.button-v2--secondary {
+  background: var(--gradient-warm);
+  color: var(--text-primary);
+}
+
+/* Glow Effect */
+.button-v2--glow.button-v2--primary {
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.button-v2--glow.button-v2--secondary {
+  box-shadow: var(--shadow-glow-secondary);
+}
+
+.button-v2--glow.button-v2--danger {
+  box-shadow: 0 0 20px rgba(255, 71, 87, 0.5);
+}
+
+/* ============================================
+   CONTENT & LAYOUT
+   ============================================ */
+
+.button-v2__content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
+  z-index: 1;
+}
+
+.button-v2__text {
+  display: inline-block;
+}
+
+.button-v2__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  height: 1.25em;
+}
+
+.button-v2__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+
+.button-v2--loading {
+  pointer-events: none;
+}
+
+.button-v2__loader {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  height: 1.25em;
+}
+
+.button-v2__spinner {
+  animation: button-spinner 0.8s linear infinite;
+  width: 100%;
+  height: 100%;
+}
+
+.button-v2__spinner-circle {
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-dasharray: 63;
+  stroke-dashoffset: 63;
+  animation: button-spinner-dash 1.5s ease-in-out infinite;
+}
+
+@keyframes button-spinner {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes button-spinner-dash {
+  0% {
+    stroke-dashoffset: 63;
+  }
+  50% {
+    stroke-dashoffset: 15.75;
+  }
+  100% {
+    stroke-dashoffset: 63;
+  }
+}
+
+/* ============================================
+   RIPPLE EFFECT
+   ============================================ */
+
+.button-v2__ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.button-v2:active:not(:disabled) .button-v2__ripple {
+  animation: button-ripple 0.6s ease-out;
+}
+
+@keyframes button-ripple {
+  from {
+    width: 0;
+    height: 0;
+    opacity: 0.5;
+  }
+  to {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .button-v2,
+  .button-v2__ripple,
+  .button-v2__spinner {
+    animation: none;
+    transition: none;
+  }
+  
+  .button-v2:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .button-v2 {
+    border: 2px solid currentColor;
+  }
+}
