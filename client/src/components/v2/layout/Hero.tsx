@@ -21,85 +21,80 @@ export default function HeroV2() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Create CodedSwitch logo shape with particles (Eye + Nodes + Frame)
+    // Create CodedSwitch text + logo with particles
     const createLogoPoints = () => {
       const points: Array<{ x: number; y: number }> = [];
       const centerX = canvas.width / 2;
-      const centerY = canvas.height / 3 - 50; // Move higher, away from text
-      const size = 100; // Make it bigger
-
-      // SQUARE FRAME - connecting the nodes
-      // Top edge
-      for (let i = 0; i <= 15; i++) {
-        points.push({
-          x: centerX - size + (i / 15) * (size * 2),
-          y: centerY - size,
-        });
+      const centerY = canvas.height / 3 - 30;
+      
+      // Draw "CodedSwitch" text to sample pixels
+      const fontSize = 70;
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      const text = "CodedSwitch";
+      const textWidth = ctx.measureText(text).width;
+      const textX = centerX - textWidth / 2;
+      const textY = centerY;
+      
+      // Render text in white on black
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(text, textX, textY);
+      
+      // Sample pixels to find text points
+      const samplingStep = 3; // Sample every 3 pixels
+      for (let x = 0; x < textWidth; x += samplingStep) {
+        for (let y = -fontSize + 10; y < fontSize / 2; y += samplingStep) {
+          const pixelX = Math.floor(textX + x);
+          const pixelY = Math.floor(textY + y);
+          
+          if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+            const pixel = ctx.getImageData(pixelX, pixelY, 1, 1).data;
+            if (pixel[0] > 128) { // If bright (part of text)
+              points.push({ x: pixelX, y: pixelY });
+            }
+          }
+        }
       }
-      // Right edge
-      for (let i = 0; i <= 15; i++) {
-        points.push({
-          x: centerX + size,
-          y: centerY - size + (i / 15) * (size * 2),
-        });
+      
+      // Clear canvas
+      ctx.fillStyle = 'rgba(10, 15, 27, 1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Add LOGO eye above text
+      const logoSize = 50;
+      const logoX = centerX;
+      const logoY = centerY - fontSize - 60;
+      
+      // Logo eye outline (almond shape)
+      for (let angle = 0; angle < Math.PI * 2; angle += 0.15) {
+        const x = Math.cos(angle) * logoSize * 0.9;
+        const y = Math.sin(angle) * logoSize * 0.45;
+        points.push({ x: logoX + x, y: logoY + y });
       }
-      // Bottom edge
-      for (let i = 0; i <= 15; i++) {
-        points.push({
-          x: centerX + size - (i / 15) * (size * 2),
-          y: centerY + size,
-        });
-      }
-      // Left edge
-      for (let i = 0; i <= 15; i++) {
-        points.push({
-          x: centerX - size,
-          y: centerY + size - (i / 15) * (size * 2),
-        });
-      }
-
-      // TOP-RIGHT NODE (circle)
-      for (let angle = 0; angle < Math.PI * 2; angle += 0.3) {
-        points.push({
-          x: centerX + size + Math.cos(angle) * 15,
-          y: centerY - size + Math.sin(angle) * 15,
-        });
-      }
-
-      // BOTTOM-LEFT NODE (circle)
-      for (let angle = 0; angle < Math.PI * 2; angle += 0.3) {
-        points.push({
-          x: centerX - size + Math.cos(angle) * 15,
-          y: centerY + size + Math.sin(angle) * 15,
-        });
-      }
-
-      // CENTER EYE SHAPE
-      // Outer eye outline (almond shape)
-      for (let angle = 0; angle < Math.PI; angle += 0.15) {
-        const x = Math.cos(angle) * 50;
-        const y = Math.sin(angle) * 25;
-        points.push({ x: centerX + x, y: centerY + y });
-      }
-      for (let angle = Math.PI; angle < Math.PI * 2; angle += 0.15) {
-        const x = Math.cos(angle) * 50;
-        const y = Math.sin(angle) * 25;
-        points.push({ x: centerX + x, y: centerY + y });
-      }
-
-      // Eye pupil (circle)
+      
+      // Eye pupil
       for (let angle = 0; angle < Math.PI * 2; angle += 0.2) {
         points.push({
-          x: centerX + Math.cos(angle) * 20,
-          y: centerY + Math.sin(angle) * 20,
+          x: logoX + Math.cos(angle) * 15,
+          y: logoY + Math.sin(angle) * 15,
         });
       }
-
-      // Inner pupil detail
-      for (let angle = 0; angle < Math.PI * 2; angle += 0.4) {
+      
+      // Logo frame corners (nodes)
+      const frameSize = logoSize * 0.9;
+      // Top-right node
+      for (let angle = 0; angle < Math.PI * 2; angle += 0.35) {
         points.push({
-          x: centerX + Math.cos(angle) * 8,
-          y: centerY + Math.sin(angle) * 8,
+          x: logoX + frameSize + Math.cos(angle) * 10,
+          y: logoY - frameSize + Math.sin(angle) * 10,
+        });
+      }
+      // Bottom-left node
+      for (let angle = 0; angle < Math.PI * 2; angle += 0.35) {
+        points.push({
+          x: logoX - frameSize + Math.cos(angle) * 10,
+          y: logoY + frameSize + Math.sin(angle) * 10,
         });
       }
 
