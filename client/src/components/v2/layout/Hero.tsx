@@ -13,9 +13,13 @@ export default function HeroV2() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size (fixed, no resize listener to prevent restarts)
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // Set canvas size to match viewport (fixed, no resize listener to prevent restarts)
+    const setCanvasSize = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width || window.innerWidth;
+      canvas.height = rect.height || window.innerHeight;
+    };
+    setCanvasSize();
 
     // Create CodedSwitch text + logo with particles (called ONCE)
     const createLogoPoints = () => {
@@ -87,7 +91,6 @@ export default function HeroV2() {
     };
 
     const logoPoints = createLogoPoints();
-    console.log('Created logo points:', logoPoints.length);
 
     // Enhanced particle system with logo formation
     const particles: Array<{
@@ -135,7 +138,6 @@ export default function HeroV2() {
       // Cycle phases: 0-3s scatter, 3-6s form, 6-9s hold, 9-12s scatter
       const cycleDuration = 12;
       const phaseTime = time % cycleDuration;
-      const oldPhase = cyclePhase;
 
       if (phaseTime < 3) {
         cyclePhase = 0; // Scattered
@@ -145,11 +147,6 @@ export default function HeroV2() {
         cyclePhase = 2; // Holding logo
       } else {
         cyclePhase = 3; // Scattering from logo
-      }
-      
-      // Log phase changes
-      if (oldPhase !== cyclePhase) {
-        console.log('Phase change:', cyclePhase, 'at time:', phaseTime.toFixed(2));
       }
 
       particles.forEach((particle, i) => {
