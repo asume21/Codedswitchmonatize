@@ -32,26 +32,66 @@ const getDatabaseSSL = () => {
   return isRailway ? { rejectUnauthorized: false } : true;
 };
 
-app.use(
-  session({
-    store: new PgSession({
-      conObject: {
-        connectionString: process.env.DATABASE_URL,
-        ssl: getDatabaseSSL()
-      },
-      tableName: 'session', // Will auto-create table if needed
-      createTableIfMissing: true
-    }),
-    secret: process.env.SESSION_SECRET || "dev_session_secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      secure: process.env.NODE_ENV === 'production' // HTTPS only in production
+// Verify DATABASE_URL is set
+if (!process.env.DATABASE_URL) {
+  console.error('❌ CRITICAL: DATABASE_URL is not set! Sessions will not work properly.');
+  console.error('Please set DATABASE_URL in your environment variables.');
+} else {
+  console.log('✅ DATABASE_URL is configured');
+}
+
+try {
+  const sessionStore = new PgSession({
+    conObject: {
+      connectionString: process.env.DATABASE_URL,
+      ssl: getDatabaseSSL()
     },
-  }),
-);
+    tableName: 'session',
+    createTableIfMissing: true
+  });
+
+  // Log when session store is ready
+  sessionStore.on('connect', () => {
+    console.log('✅ PostgreSQL session store connected successfully');
+  });
+
+  sessionStore.on('error', (error) => {
+    console.error('❌ PostgreSQL session store error:', error);
+  });
+
+  app.use(
+    session({
+      store: sessionStore,
+      secret: process.env.SESSION_SECRET || "dev_session_secret",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        secure: process.env.NODE_ENV === 'production' // HTTPS only in production
+      },
+    }),
+  );
+
+  console.log('✅ Session middleware configured with PostgreSQL store');
+} catch (error) {
+  console.error('❌ Failed to initialize PostgreSQL session store:', error);
+  console.error('Falling back to default MemoryStore (NOT RECOMMENDED FOR PRODUCTION)');
+  
+  // Fallback to memory store with warning
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || "dev_session_secret",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        secure: process.env.NODE_ENV === 'production'
+      },
+    }),
+  );
+}
 
 // Standard body parsers
 app.use(express.json());
