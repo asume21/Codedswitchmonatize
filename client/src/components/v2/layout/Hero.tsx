@@ -25,13 +25,13 @@ export default function HeroV2() {
     const createLogoPoints = () => {
       const points: Array<{ x: number; y: number }> = [];
       const centerX = canvas.width / 2;
-      const centerY = 200; // Position for text
+      const centerY = 120; // Higher position - top of screen
       
-      // Create "CodedSwitch" text - WIDE spacing so letters are visible
+      // Create "CodedSwitch" text - MASSIVE spacing so letters are clearly separated
       const text = "CodedSwitch";
-      const letterSpacing = 80; // WIDE spacing between letters
-      const letterWidth = 30; // Width of each letter block
-      const letterHeight = 60; // Height of each letter block
+      const letterSpacing = 120; // MASSIVE spacing between letters
+      const letterWidth = 30; // Wider letter blocks
+      const letterHeight = 90; // Much taller letter blocks
       const totalWidth = text.length * letterSpacing;
       const startX = centerX - totalWidth / 2;
       
