@@ -26,7 +26,6 @@ export default function ModularDrumMachine({ pattern, onPatternChange, onAISugge
           <Button size="sm" onClick={onAISuggest}>AI Suggest</Button>
           <Button size="sm" onClick={() => onPatternChange && onPatternChange([])}>Clear</Button>
         </div>
-        <div className="text-gray-400 text-sm">[Drum grid and step editing coming next]</div>
       </CardContent>
     </Card>
   );

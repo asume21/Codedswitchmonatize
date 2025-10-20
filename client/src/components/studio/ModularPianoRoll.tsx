@@ -68,7 +68,6 @@ export default function ModularPianoRoll({ notes, onNotesChange, onAISuggest }: 
           <Button size="sm" onClick={handleRecord} disabled={isRecording}><Circle className="w-4 h-4 mr-1" /> {isRecording ? 'Recording...' : 'Pedal Record'}</Button>
           <Button size="sm" onClick={handlePlayLoop} disabled={isPlaying || loop.length === 0}><Repeat className="w-4 h-4 mr-1" /> Play Loop</Button>
         </div>
-        <div className="text-gray-400 text-sm">[Piano roll grid and note editing coming next]</div>
       </CardContent>
     </Card>
   );
