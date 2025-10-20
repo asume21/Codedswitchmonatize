@@ -164,6 +164,66 @@ function MelodyComposerV2() {
     setNotes(activeTrack?.notes ?? []);
   }, [selectedTrack, tracks]);
 
+  // AI Melody Generation
+  const generateAIMelody = async () => {
+    try {
+      toast({ title: "Generating melody...", description: "AI is composing your melody" });
+      
+      const response = await fetch('/api/melody/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          scale: 'C Major',
+          style: 'melodic',
+          complexity: 'medium',
+          availableTracks: tracks.map(t => ({
+            instrument: t.instrument,
+            name: t.name
+          })),
+          musicalParams: {
+            bpm: tempo,
+            key: 'C',
+            timeSignature: '4/4'
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Generation failed');
+      }
+
+      const result = await response.json();
+      const data = result.data; // Server wraps response in { success, data, message }
+      
+      // Convert API response to Note format for the selected track
+      if (data && data.notes && Array.isArray(data.notes)) {
+        const generatedNotes: Note[] = data.notes.map((n: any, index: number) => ({
+          id: `note-${Date.now()}-${index}`,
+          pitch: n.note || n.pitch,
+          octave: n.octave || 4,
+          start: n.time || n.start || 0,
+          duration: n.duration || 0.5,
+          velocity: n.velocity || 0.8
+        }));
+
+        handleTrackNotesUpdate(selectedTrack, generatedNotes);
+        
+        toast({ 
+          title: "Melody Generated!", 
+          description: `Added ${generatedNotes.length} notes to ${tracks.find(t => t.id === selectedTrack)?.name}` 
+        });
+      }
+    } catch (error) {
+      console.error('AI generation error:', error);
+      toast({ 
+        title: "Generation Failed", 
+        description: "Could not generate melody. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="h-full bg-gradient-to-br from-gray-900 to-black p-6 overflow-auto">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -211,6 +271,18 @@ function MelodyComposerV2() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* AI Generate */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-300">AI Tools</label>
+              <Button
+                onClick={generateAIMelody}
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                size="sm"
+              >
+                ✨ AI Generate Melody
+              </Button>
             </div>
 
             {/* Plugin Toggles */}

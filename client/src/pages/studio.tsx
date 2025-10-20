@@ -6,6 +6,7 @@ import Sidebar from "@/components/studio/Sidebar";
 import TransportControls from "@/components/studio/TransportControls";
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import BeatMaker from "@/components/studio/BeatMaker";
+import BeatStudio from "@/pages/beat-studio";
 import MelodyComposer from "@/components/studio/MelodyComposer";
 import MelodyComposerV2 from "@/components/studio/MelodyComposerV2";
 import CodeToMusic from "@/components/studio/CodeToMusic";
@@ -92,24 +93,28 @@ export default function Studio() {
   
   // Determine active tab based on current route
   const getTabFromRoute = (path: string): Tab => {
-    if (path.includes('/code-translator')) return 'translator';
-    if (path.includes('/beat-studio')) return 'beatmaker';
-    if (path.includes('/melody-composer')) return 'melody';
-    if (path.includes('/codebeat-studio')) return 'codebeat'; // Code to Music feature
-    if (path.includes('/music-studio')) return 'musicmixer';
-    if (path.includes('/pro-console')) return 'professionalmixer';
-    if (path.includes('/song-uploader')) return 'uploader';
-    if (path.includes('/ai-assistant')) return 'assistant';
-    if (path.includes('/vulnerability-scanner')) return 'security';
-    if (path.includes('/lyric-lab')) return 'lyrics';
-    if (path.includes('/mix-studio')) return 'mixer';
-    if (path.includes('/midi-controller')) return 'midi';
-    if (path.includes('/pack-generator')) return 'pack-generator';
-    if (path.includes('/advanced-sequencer')) return 'advanced-sequencer';
-    if (path.includes('/granular-engine')) return 'granular-engine';
-    if (path.includes('/wavetable-oscillator')) return 'wavetable-oscillator';
-    if (path.includes('/song-structure')) return 'song-structure';
-    return 'beatmaker'; // default
+    const routeMap: Record<string, Tab> = {
+      '/code-translator': 'translator',
+      '/beat-studio': 'beatmaker',
+      '/melody-composer': 'melody',
+      '/codebeat-studio': 'codebeat',
+      '/music-studio': 'musicmixer',
+      '/pro-console': 'professionalmixer',
+      '/song-uploader': 'uploader',
+      '/ai-assistant': 'assistant',
+      '/vulnerability-scanner': 'security',
+      '/lyric-lab': 'lyrics',
+      '/mix-studio': 'mixer',
+      '/midi-controller': 'midi',
+      '/pack-generator': 'pack-generator',
+      '/advanced-sequencer': 'advanced-sequencer',
+      '/granular-engine': 'granular-engine',
+      '/wavetable-oscillator': 'wavetable-oscillator',
+      '/song-structure': 'song-structure'
+    };
+    
+    const matchedRoute = Object.keys(routeMap).find(route => path.includes(route));
+    return matchedRoute ? routeMap[matchedRoute] : 'beatmaker';
   };
 
   const [activeTab, setActiveTab] = useState<Tab>(() => getTabFromRoute(location));
@@ -287,76 +292,31 @@ export default function Studio() {
   };
 
   const renderTabContent = () => {
-    let content: JSX.Element;
+    const componentMap: Record<Tab, JSX.Element> = {
+      translator: <CodeTranslator />,
+      beatmaker: <BeatStudio />,
+      melody: <MelodyComposerV2 />,
+      multitrack: <CodeBeatStudio />,
+      codebeat: <CodeToMusic />,
+      musiccode: <MusicToCode />,
+      assistant: <AIAssistant />,
+      uploader: <SongUploader />,
+      security: <VulnerabilityScanner />,
+      lyrics: <LyricLab />,
+      musicmixer: <ProfessionalStudio />,
+      professionalmixer: <ProfessionalMixer />,
+      mixer: <Mixer />,
+      layers: <DynamicLayering />,
+      midi: <MIDIController />,
+      metrics: <PerformanceMetrics />,
+      "advanced-sequencer": <OutputSequencer />,
+      "granular-engine": <GranularEngine />,
+      "wavetable-oscillator": <WavetableOscillator />,
+      "pack-generator": <PackGenerator />,
+      "song-structure": <SongStructureManager />
+    };
 
-    switch (activeTab) {
-      case "translator":
-        content = <CodeTranslator />;
-        break;
-      case "beatmaker":
-        content = <BeatMaker />;
-        break;
-      case "melody":
-        content = <MelodyComposerV2 />;
-        break;
-      case "multitrack":
-        content = <CodeBeatStudio />;
-        break;
-      case "codebeat":
-        content = <CodeToMusic />;
-        break;
-      case "musiccode":
-        content = <MusicToCode />;
-        break;
-      case "assistant":
-        content = <AIAssistant />;
-        break;
-      case "uploader":
-        content = <SongUploader />;
-        break;
-      case "security":
-        content = <VulnerabilityScanner />;
-        break;
-      case "lyrics":
-        content = <LyricLab />;
-        break;
-      case "musicmixer":
-        content = <ProfessionalStudio />;
-        break;
-      case "professionalmixer":
-        content = <ProfessionalMixer />;
-        break;
-      case "mixer":
-        content = <Mixer />;
-        break;
-      case "layers":
-        content = <DynamicLayering />;
-        break;
-      case "midi":
-        content = <MIDIController />;
-        break;
-      case "metrics":
-        content = <PerformanceMetrics />;
-        break;
-      case "advanced-sequencer":
-        content = <OutputSequencer />;
-        break;
-      case "granular-engine":
-        content = <GranularEngine />;
-        break;
-      case "wavetable-oscillator":
-        content = <WavetableOscillator />;
-        break;
-      case "pack-generator":
-        content = <PackGenerator />;
-        break;
-      case "song-structure":
-        content = <SongStructureManager />;
-        break;
-      default:
-        content = <BeatMaker />;
-    }
-
+    const content = componentMap[activeTab] || <BeatMaker />;
     const access = tabAccess[activeTab];
     
     // Wrap content in ErrorBoundary to prevent crashes

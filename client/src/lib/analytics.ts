@@ -24,7 +24,7 @@ export const initGA = () => {
 
     // Initialize gtag
     const script2 = document.createElement('script');
-    script2.innerHTML = `
+    script2.textContent = `
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
