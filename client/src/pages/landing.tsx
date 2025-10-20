@@ -85,7 +85,7 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen min-w-[1400px]" style={{ background: 'var(--bg-base)' }}>
+    <div className="min-h-screen w-full" style={{ background: 'var(--bg-base)' }}>
       {/* TEMPORARY: Force V2 Hero to test */}
       <HeroV2 />
       
