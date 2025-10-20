@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { db } from "../db";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
@@ -16,14 +18,37 @@ const app = express();
 // Mount this BEFORE json/urlencoded parsers.
 app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 
-// Sessions (simple in-memory store for dev)
+// Sessions with PostgreSQL store (production-ready)
+const PgSession = connectPgSimple(session);
+
+// Determine SSL configuration based on environment
+const getDatabaseSSL = () => {
+  if (process.env.NODE_ENV !== 'production') {
+    return false; // No SSL in development
+  }
+  // In production, use SSL but handle Railway's self-signed certs
+  // Only disable rejectUnauthorized if DATABASE_URL contains railway.app
+  const isRailway = process.env.DATABASE_URL?.includes('railway.app');
+  return isRailway ? { rejectUnauthorized: false } : true;
+};
+
 app.use(
   session({
+    store: new PgSession({
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+        ssl: getDatabaseSSL()
+      },
+      tableName: 'session', // Will auto-create table if needed
+      createTableIfMissing: true
+    }),
     secret: process.env.SESSION_SECRET || "dev_session_secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
       sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      secure: process.env.NODE_ENV === 'production' // HTTPS only in production
     },
   }),
 );
