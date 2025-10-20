@@ -11,6 +11,7 @@ import MelodyComposerV2 from "@/components/studio/MelodyComposerV2";
 import CodeToMusic from "@/components/studio/CodeToMusic";
 import MusicToCode from "@/components/studio/MusicToCode";
 import AIAssistant from "@/components/studio/AIAssistant";
+import SongUploader from "@/components/studio/SongUploader";
 import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
 import LyricLab from "@/components/studio/LyricLab";
 import MusicMixer from "@/components/studio/MusicMixer";
@@ -67,7 +68,7 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "codebeat" | "musiccode" | "assistant" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
+type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "codebeat" | "musiccode" | "assistant" | "uploader" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
 
 const tabAccess: Partial<Record<Tab, { requireAuth?: boolean; requirePro?: boolean }>> = {
   assistant: { requireAuth: true },
@@ -96,12 +97,13 @@ export default function Studio() {
     if (path.includes('/melody-composer')) return 'melody';
     if (path.includes('/codebeat-studio')) return 'codebeat'; // Code to Music feature
     if (path.includes('/music-studio')) return 'musicmixer';
-    if (path.includes('/pro-console')) return 'mixer';
-    if (path.includes('/song-uploader')) return 'assistant';
+    if (path.includes('/pro-console')) return 'professionalmixer';
+    if (path.includes('/song-uploader')) return 'uploader';
     if (path.includes('/ai-assistant')) return 'assistant';
     if (path.includes('/vulnerability-scanner')) return 'security';
     if (path.includes('/lyric-lab')) return 'lyrics';
     if (path.includes('/mix-studio')) return 'mixer';
+    if (path.includes('/midi-controller')) return 'midi';
     if (path.includes('/pack-generator')) return 'pack-generator';
     if (path.includes('/advanced-sequencer')) return 'advanced-sequencer';
     if (path.includes('/granular-engine')) return 'granular-engine';
@@ -199,7 +201,8 @@ export default function Studio() {
       "multitrack": "Multi-Track Studio",
       "codebeat": "Code to Music",
       "musiccode": "Music to Code",
-      "assistant": "Song Uploader & AI Assistant",
+      "assistant": "AI Assistant",
+      "uploader": "Song Uploader",
       "security": "Security Scanner",
       "lyrics": "Lyric Lab",
       "musicmixer": "Music Studio",
@@ -307,6 +310,9 @@ export default function Studio() {
         break;
       case "assistant":
         content = <AIAssistant />;
+        break;
+      case "uploader":
+        content = <SongUploader />;
         break;
       case "security":
         content = <VulnerabilityScanner />;
