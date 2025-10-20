@@ -13,13 +13,9 @@ export default function HeroV2() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size to match viewport (fixed, no resize listener to prevent restarts)
-    const setCanvasSize = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width || window.innerWidth;
-      canvas.height = rect.height || window.innerHeight;
-    };
-    setCanvasSize();
+    // Set canvas size to viewport (prevent any overflow)
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
     // Create CodedSwitch text + logo with particles (called ONCE)
     const createLogoPoints = () => {

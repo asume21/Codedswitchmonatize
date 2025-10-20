@@ -133,10 +133,12 @@
     background-color: hsl(0, 0%, 10%);
     color: hsl(0, 0%, 100%);
     overflow-x: hidden;
-    margin: 0;
-    padding: 0;
-    width: 100%;
+    overflow-y: auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100vw !important;
     min-height: 100vh;
+    position: relative;
   }
   
   /* iPhone specific fixes */
