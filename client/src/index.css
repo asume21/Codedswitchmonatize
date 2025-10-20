@@ -122,6 +122,10 @@
   html {
     -webkit-text-size-adjust: 100%;
     touch-action: manipulation;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
   }
   
   body {
@@ -129,6 +133,10 @@
     background-color: hsl(0, 0%, 10%);
     color: hsl(0, 0%, 100%);
     overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
   }
   
   /* iPhone specific fixes */
