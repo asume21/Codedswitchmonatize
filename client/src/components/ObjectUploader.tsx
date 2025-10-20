@@ -140,17 +140,18 @@ export function ObjectUploader({
     if (showModal && dashboardRef.current && uppy && !dashboardInstanceRef.current) {
       try {
         const dashboard = uppy.use(Dashboard, {
-          inline: false,
+          inline: true,
           target: dashboardRef.current,
           proudlyDisplayPoweredByUppy: false,
           note: '📱 iPhone Compatible! Upload audio/video files (MP3, M4A, MOV, etc.) up to 50MB',
+          width: '100%',
+          height: 450,
           // Mobile-friendly settings
           showProgressDetails: true,
           hideUploadButton: false,
           hideCancelButton: false,
           hideRetryButton: false,
           showRemoveButtonAfterComplete: true,
-          browserBackButtonClose: true,
         });
         dashboardInstanceRef.current = dashboard;
         console.log('✅ Dashboard mounted');
@@ -203,8 +204,8 @@ export function ObjectUploader({
 
       {!initError && (
         <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-4xl">
-            <div ref={dashboardRef} className="uppy-dashboard-container" />
+          <DialogContent className="max-w-4xl min-h-[500px]">
+            <div ref={dashboardRef} className="uppy-dashboard-container min-h-[450px]" />
           </DialogContent>
         </Dialog>
       )}
