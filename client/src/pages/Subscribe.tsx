@@ -19,7 +19,7 @@ const SubscribeForm = ({ selectedTier }: SubscribeFormProps) => {
     
     try {
       // Create checkout session and redirect to Stripe
-      const response = await apiRequest("POST", "/api/create-checkout-session", { 
+      const response = await apiRequest("POST", "/api/billing/create-checkout-session", { 
         tier: selectedTier 
       });
       
