@@ -3,6 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import type { IStorage } from "./storage";
 import { requireAuth, requireSubscription } from "./middleware/auth";
+import { createAuthRoutes } from "./routes/auth";
 import {
   createCheckoutSession,
   handleStripeWebhook,
@@ -153,6 +154,9 @@ function generateTags(prompt: string, genre: string, mood: string) {
 }
 
 export async function registerRoutes(app: Express, storage: IStorage) {
+  // Mount auth routes
+  app.use("/api/auth", createAuthRoutes(storage));
+
   // Ensure local objects directory exists for fallback
   const LOCAL_OBJECTS_DIR = path.resolve(process.cwd(), "objects");
   try {

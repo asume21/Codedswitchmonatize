@@ -18,6 +18,7 @@ export const users = pgTable("users", {
     .default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
+  password: text("password").notNull(),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   subscriptionStatus: text("subscription_status"), // active, inactive, canceled, past_due
@@ -100,6 +101,7 @@ export const lyrics = pgTable("lyrics", {
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
+  password: true,
 });
 
 export const insertProjectSchema = createInsertSchema(projects).pick({

@@ -51,7 +51,7 @@ export default function ProfessionalMixer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState('channels');
   
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const spectrumCanvasRef = useRef<HTMLCanvasElement>(null);
   
   // Initialize professional audio engine
@@ -182,15 +182,42 @@ export default function ProfessionalMixer() {
   };
   
   const handleChannelVolume = (channelId: string, volume: number[]) => {
-    professionalAudio.setChannelVolume(channelId, volume[0] / 100);
+    const normalizedVolume = volume[0] / 100;
+    professionalAudio.setChannelVolume(channelId, normalizedVolume);
+    setMixerState(prev => ({
+      ...prev,
+      channels: prev.channels.map(ch => 
+        ch.id === channelId ? { ...ch, volume: normalizedVolume } : ch
+      )
+    }));
   };
   
   const handleChannelPan = (channelId: string, pan: number[]) => {
-    professionalAudio.setChannelPan(channelId, (pan[0] - 50) / 50);
+    const normalizedPan = (pan[0] - 50) / 50;
+    professionalAudio.setChannelPan(channelId, normalizedPan);
+    setMixerState(prev => ({
+      ...prev,
+      channels: prev.channels.map(ch => 
+        ch.id === channelId ? { ...ch, pan: normalizedPan } : ch
+      )
+    }));
   };
   
   const handleChannelEQ = (channelId: string, band: 'low' | 'lowMid' | 'highMid' | 'high', gain: number[]) => {
-    professionalAudio.setChannelEQ(channelId, band, (gain[0] - 50) / 5); // Convert to ±10dB range
+    const normalizedGain = (gain[0] - 50) / 5; // Convert to ±10dB range
+    professionalAudio.setChannelEQ(channelId, band, normalizedGain);
+    setMixerState(prev => ({
+      ...prev,
+      channels: prev.channels.map(ch => {
+        if (ch.id === channelId) {
+          return {
+            ...ch,
+            eq: { ...ch.eq, [band]: normalizedGain }
+          };
+        }
+        return ch;
+      })
+    }));
   };
   
   const handleChannelMute = (channelId: string, muted: boolean) => {
