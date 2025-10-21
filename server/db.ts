@@ -9,6 +9,11 @@ function getDb() {
       "DATABASE_URL not set. DatabaseStorage cannot be used without a configured database.",
     );
   }
+  // Log the URL being used (without the password)
+  const urlObj = new URL(url);
+  const safeUrl = `${urlObj.protocol}//${urlObj.username}:***@${urlObj.hostname}:${urlObj.port}${urlObj.pathname}`;
+  console.log('🔗 Creating Neon client with URL:', safeUrl);
+  
   // Always create a fresh Neon client with current DATABASE_URL
   const sql = neon(url);
   return drizzle(sql);
