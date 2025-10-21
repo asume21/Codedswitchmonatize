@@ -11,6 +11,8 @@ import { currentUser } from "./middleware/auth";
 import { config } from 'dotenv';
 config();
 
+// Force rebuild - PostgreSQL sessions v2
+
 const app = express();
 
 // Stripe webhook must receive the raw body for signature verification.
