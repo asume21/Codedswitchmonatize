@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm:dev:client\" \"npm:dev:server\"",
     "dev:client": "vite dev",
     "dev:server": "set NODE_ENV=development && tsx server/index.ts",
-    "build": "vite build --config vite.config.prod.ts && esbuild server/index.prod.ts --platform=node --bundle --format=cjs --outfile=dist/index.cjs",
+    "build": "vite build --config vite.config.prod.ts && node esbuild.config.js",
     "start": "npm run db:push && NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push"
