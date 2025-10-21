@@ -4,13 +4,22 @@ import fs from 'fs';
 import path from 'path';
 
 // Get all node_modules to mark as external
-const nodeModulesDir = path.join(process.cwd(), 'node_modules');
-const nodeModules = fs.readdirSync(nodeModulesDir).filter(dir => {
-  return fs.statSync(path.join(nodeModulesDir, dir)).isDirectory();
-});
+const nodeModulesDir = path.resolve(process.cwd(), 'node_modules');
+let external = [];
 
-// Mark all node_modules as external to prevent bundling
-const external = nodeModules.map(mod => mod);
+if (fs.existsSync(nodeModulesDir)) {
+  const nodeModules = fs.readdirSync(nodeModulesDir).filter(dir => {
+    try {
+      return fs.statSync(path.join(nodeModulesDir, dir)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+  external = nodeModules.map(mod => mod);
+  console.log(`Found ${external.length} node_modules to mark as external`);
+} else {
+  console.warn('node_modules directory not found, bundling without external modules');
+}
 
 esbuild.build({
   entryPoints: ['server/index.prod.ts'],
