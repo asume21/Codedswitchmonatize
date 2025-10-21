@@ -178,6 +178,7 @@ export class MemStorage implements IStorage {
       id: "default-user",
       username: "CodeTuneUser",
       email: "user@codetune.studio",
+      password: "default-password-not-used",
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       subscriptionStatus: null,
