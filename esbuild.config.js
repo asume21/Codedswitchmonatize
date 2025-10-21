@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
@@ -7,17 +8,6 @@ const nodeModulesDir = path.join(process.cwd(), 'node_modules');
 const nodeModules = fs.readdirSync(nodeModulesDir).filter(dir => {
   return fs.statSync(path.join(nodeModulesDir, dir)).isDirectory();
 });
-
-// Packages that MUST be external (not bundled) to avoid env var issues
-const externalPackages = [
-  '@neondatabase/serverless',
-  'drizzle-orm',
-  'express',
-  'express-session',
-  'connect-pg-simple',
-  'pg',
-  'dotenv'
-];
 
 // Mark all node_modules as external to prevent bundling
 const external = nodeModules.map(mod => mod);
