@@ -9,6 +9,7 @@ function getDb() {
       "DATABASE_URL not set. DatabaseStorage cannot be used without a configured database.",
     );
   }
+  // Always create a fresh Neon client with current DATABASE_URL
   const sql = neon(url);
   return drizzle(sql);
 }
