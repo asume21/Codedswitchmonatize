@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+/* eslint-disable no-undef, no-console */
 import esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
