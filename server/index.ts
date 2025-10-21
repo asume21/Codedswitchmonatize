@@ -23,6 +23,8 @@ app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 const PgSession = connectPgSimple(session);
 
 let sessionStore;
+console.log('🔍 DEBUG: DATABASE_URL exists?', !!process.env.DATABASE_URL);
+console.log('🔍 DEBUG: DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
 const hasDatabase = process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
 
 if (hasDatabase) {
