@@ -24,6 +24,7 @@ const hasDatabase = process.env.DATABASE_URL && process.env.DATABASE_URL.length 
 if (hasDatabase) {
   console.log('🔄 Initializing PostgreSQL session store...');
   try {
+    // Force rebuild - PostgreSQL sessions v2 + PUBLIC URL fix
     sessionStore = new PgSession({
       conString: process.env.DATABASE_URL,
       tableName: 'session',
