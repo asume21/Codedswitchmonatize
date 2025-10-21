@@ -29,7 +29,7 @@ export default function ProfessionalStudio() {
   const [activeTab, setActiveTab] = useState('full-song');
 
   // Chord Progression State
-  const [chordProgression, setChordProgression] = useState([]);
+  const [chordProgression, setChordProgression] = useState<Array<{ root: string; quality: string }>>([]);
 
   function handleAISuggestChordProgression() {
     setChordProgression([
