@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { currentUser } from "./middleware/auth";
@@ -12,17 +13,49 @@ const app = express();
 // Mount this BEFORE json/urlencoded parsers.
 app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 
-// Sessions (simple in-memory store for prod unless DATABASE_URL used with DB storage-backed session elsewhere)
+// Sessions with PostgreSQL - properly configured
+const PgSession = connectPgSimple(session);
+
+let sessionStore;
+console.log('🔍 DEBUG: DATABASE_URL exists?', !!process.env.DATABASE_URL);
+console.log('🔍 DEBUG: DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
+const hasDatabase = process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
+
+if (hasDatabase) {
+  console.log('🔄 Initializing PostgreSQL session store...');
+  try {
+    sessionStore = new PgSession({
+      conString: process.env.DATABASE_URL,
+      tableName: 'session',
+      createTableIfMissing: true,
+      pruneSessionInterval: 60,
+      errorLog: (...args) => console.error('Session store error:', ...args)
+    });
+    console.log('✅ PostgreSQL session store initialized');
+  } catch (error) {
+    console.error('❌ Failed to create PostgreSQL session store:', error);
+    console.log('⚠️ Falling back to MemoryStore');
+    sessionStore = undefined;
+  }
+} else {
+  console.log('⚠️ DATABASE_URL not set - using MemoryStore (not recommended for production)');
+}
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || "prod_session_secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
       sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production'
     },
   }),
 );
+
+console.log(sessionStore ? '✅ Session middleware: PostgreSQL' : '⚠️ Session middleware: MemoryStore (temporary)');
 
 // Standard body parsers
 app.use(express.json());
