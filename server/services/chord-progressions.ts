@@ -125,8 +125,8 @@ function getChordSuffix(romanNumeral: string, mode: 'major' | 'minor'): string {
   const qualities = mode === 'major' ? MAJOR_CHORD_QUALITIES : MINOR_CHORD_QUALITIES;
   
   // Check for exact match first
-  if (qualities[romanNumeral]) {
-    return qualities[romanNumeral];
+  if (romanNumeral in qualities) {
+    return qualities[romanNumeral as keyof typeof qualities];
   }
   
   // Handle complex roman numerals
@@ -149,19 +149,21 @@ export function generateChordProgression(keyString: string, genre: string = 'pop
   const { root, mode } = parseKey(keyString);
   
   // Get appropriate key notes
-  const keyNotes = mode === 'major' ? MAJOR_KEYS[root] : MINOR_KEYS[root];
+  const keyNotes = mode === 'major' ? MAJOR_KEYS[root as keyof typeof MAJOR_KEYS] : MINOR_KEYS[root as keyof typeof MINOR_KEYS];
   if (!keyNotes) {
     throw new Error(`Unsupported key: ${keyString}`);
   }
   
   // Get progressions for genre
-  const genreProgressions = PROGRESSIONS[genre.toLowerCase()] || PROGRESSIONS.pop;
+  const genreLower = genre.toLowerCase() as keyof typeof PROGRESSIONS;
+  const genreProgressions = PROGRESSIONS[genreLower] || PROGRESSIONS.pop;
   
   // Select a random progression
-  const selectedProgression = genreProgressions[Math.floor(Math.random() * genreProgressions.length)];
+  const randomIndex = require('crypto').randomInt(0, genreProgressions.length);
+  const selectedProgression = genreProgressions[randomIndex];
   
   // Convert roman numerals to actual chords
-  const actualChords = selectedProgression.chords.map(romanNumeral => {
+  const actualChords = selectedProgression.chords.map((romanNumeral: string) => {
     const note = getRomanNumeralNote(romanNumeral, keyNotes);
     const suffix = getChordSuffix(romanNumeral, mode);
     

@@ -36,7 +36,7 @@ export default function BeatStudio() {
   const [aiProvider, setAiProvider] = useState<"grok" | "openai" | "gemini">("grok");
   const [audioInitialized, setAudioInitialized] = useState(false);
   const { toast } = useToast();
-  const intervalRef = useRef<NodeJS.Timeout>();
+  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const generateMutation = useMutation({
     mutationFn: async (params: { genre: string; bpm: number; duration: number; aiProvider: string }) => {

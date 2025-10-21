@@ -17,80 +17,47 @@ const app = express();
 // Mount this BEFORE json/urlencoded parsers.
 app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 
-// Sessions with PostgreSQL store (production-ready)
+// Sessions with PostgreSQL - properly configured
 const PgSession = connectPgSimple(session);
 
-// Determine SSL configuration based on environment
-const getDatabaseSSL = () => {
-  if (process.env.NODE_ENV !== 'production') {
-    return false; // No SSL in development
+let sessionStore;
+const hasDatabase = process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
+
+if (hasDatabase) {
+  console.log('🔄 Initializing PostgreSQL session store...');
+  try {
+    sessionStore = new PgSession({
+      conString: process.env.DATABASE_URL,
+      tableName: 'session',
+      createTableIfMissing: true,
+      pruneSessionInterval: 60, // Prune expired sessions every 60 seconds
+      errorLog: (...args) => console.error('Session store error:', ...args)
+    });
+    console.log('✅ PostgreSQL session store initialized');
+  } catch (error) {
+    console.error('❌ Failed to create PostgreSQL session store:', error);
+    console.log('⚠️ Falling back to MemoryStore');
+    sessionStore = undefined;
   }
-  // In production, use SSL but handle Railway's self-signed certs
-  // Only disable rejectUnauthorized if DATABASE_URL contains railway.app
-  const isRailway = process.env.DATABASE_URL?.includes('railway.app');
-  return isRailway ? { rejectUnauthorized: false } : true;
-};
-
-// Verify DATABASE_URL is set
-if (!process.env.DATABASE_URL) {
-  console.error('❌ CRITICAL: DATABASE_URL is not set! Sessions will not work properly.');
-  console.error('Please set DATABASE_URL in your environment variables.');
 } else {
-  console.log('✅ DATABASE_URL is configured');
+  console.log('⚠️ DATABASE_URL not set - using MemoryStore (not recommended for production)');
 }
 
-try {
-  const sessionStore = new PgSession({
-    conObject: {
-      connectionString: process.env.DATABASE_URL,
-      ssl: getDatabaseSSL()
+app.use(
+  session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET || "dev_session_secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      secure: process.env.NODE_ENV === 'production'
     },
-    tableName: 'session',
-    createTableIfMissing: true
-  });
+  }),
+);
 
-  // Log when session store is ready
-  sessionStore.on('connect', () => {
-    console.log('✅ PostgreSQL session store connected successfully');
-  });
-
-  sessionStore.on('error', (error) => {
-    console.error('❌ PostgreSQL session store error:', error);
-  });
-
-  app.use(
-    session({
-      store: sessionStore,
-      secret: process.env.SESSION_SECRET || "dev_session_secret",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        sameSite: "lax",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        secure: process.env.NODE_ENV === 'production' // HTTPS only in production
-      },
-    }),
-  );
-
-  console.log('✅ Session middleware configured with PostgreSQL store');
-} catch (error) {
-  console.error('❌ Failed to initialize PostgreSQL session store:', error);
-  console.error('Falling back to default MemoryStore (NOT RECOMMENDED FOR PRODUCTION)');
-  
-  // Fallback to memory store with warning
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "dev_session_secret",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        sameSite: "lax",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        secure: process.env.NODE_ENV === 'production'
-      },
-    }),
-  );
-}
+console.log(sessionStore ? '✅ Session middleware: PostgreSQL' : '⚠️ Session middleware: MemoryStore (temporary)');
 
 // Standard body parsers
 app.use(express.json());
