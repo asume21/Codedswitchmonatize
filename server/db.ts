@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool } from "@neondatabase/serverless";
 
 // Create a fresh database connection getter that reads DATABASE_URL at runtime
 function getDb() {
@@ -12,11 +12,11 @@ function getDb() {
   // Log the URL being used (without the password)
   const urlObj = new URL(url);
   const safeUrl = `${urlObj.protocol}//${urlObj.username}:***@${urlObj.hostname}:${urlObj.port}${urlObj.pathname}`;
-  console.log('🔗 Creating Neon client with URL:', safeUrl);
+  console.log('🔗 Creating Neon Pool with URL:', safeUrl);
   
-  // Always create a fresh Neon client with current DATABASE_URL
-  const sql = neon(url);
-  return drizzle(sql);
+  // Always create a fresh Neon Pool with current DATABASE_URL
+  const pool = new Pool({ connectionString: url });
+  return drizzle(pool);
 }
 
 // Export a getter that always uses the current DATABASE_URL
