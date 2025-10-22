@@ -197,6 +197,7 @@ export function ObjectUploader({
             console.error('Cannot open uploader due to init error:', initError);
             return;
           }
+          console.log('Opening uploader modal');
           setShowModal(true);
         }} 
         className={buttonClassName}
@@ -211,10 +212,12 @@ export function ObjectUploader({
         </p>
       )}
 
-      {!initError && (
+      {!initError && showModal && (
         <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-4xl min-h-[500px]">
-            <div ref={dashboardRef} className="uppy-dashboard-container min-h-[450px]" />
+          <DialogContent className="max-w-4xl min-h-[500px] p-0">
+            <div className="w-full h-full">
+              <div ref={dashboardRef} className="uppy-dashboard-container w-full min-h-[450px]" />
+            </div>
           </DialogContent>
         </Dialog>
       )}
