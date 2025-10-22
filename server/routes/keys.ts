@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import type { IStorage } from "../storage";
 import { requireAuth } from "../middleware/auth";
+import { generateActivationKey, generateActivationKeys, validateKeyFormat } from "../services/keyGenerator";
 
 const activateKeySchema = z.object({
   activationKey: z.string().min(1, "Activation key is required"),
@@ -85,6 +86,70 @@ export function createKeyRoutes(storage: IStorage) {
     } catch (error) {
       console.error("Get key status error:", error);
       res.status(500).json({ message: "Failed to get key status" });
+    }
+  });
+
+  // Generate new activation keys (owner only)
+  router.post("/generate", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      // Only owner can generate keys
+      if (req.userId !== 'owner-user') {
+        return res.status(403).json({ message: "Only owner can generate keys" });
+      }
+
+      const schema = z.object({
+        tier: z.enum(['pro', 'basic', 'trial']),
+        count: z.number().min(1).max(100).optional().default(1)
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Invalid input", 
+          errors: parsed.error.errors 
+        });
+      }
+
+      const { tier, count } = parsed.data;
+      const keys = generateActivationKeys(count, tier);
+
+      console.log(`🔑 Generated ${count} ${tier} activation keys`);
+
+      res.json({
+        message: `Generated ${count} activation key(s)`,
+        tier: tier.toUpperCase(),
+        count,
+        keys,
+        generatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Key generation error:", error);
+      res.status(500).json({ message: "Failed to generate keys" });
+    }
+  });
+
+  // Validate a key format (no auth needed)
+  router.post("/validate", async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({
+        key: z.string().min(1)
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid input" });
+      }
+
+      const { key } = parsed.data;
+      const validation = validateKeyFormat(key);
+
+      res.json({
+        key,
+        ...validation
+      });
+    } catch (error) {
+      console.error("Key validation error:", error);
+      res.status(500).json({ message: "Failed to validate key" });
     }
   });
 
