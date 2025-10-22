@@ -7,7 +7,8 @@ import "@uppy/dashboard/dist/style.min.css";
 import XHRUpload from "@uppy/xhr-upload";
 import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 interface ObjectUploaderProps {
   maxNumberOfFiles?: number;
@@ -214,9 +215,12 @@ export function ObjectUploader({
 
       {!initError && showModal && (
         <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-4xl min-h-[500px] p-0">
-            <div className="w-full h-full">
-              <div ref={dashboardRef} className="uppy-dashboard-container w-full min-h-[450px]" />
+          <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+            <VisuallyHidden>
+              <DialogTitle>Upload Song</DialogTitle>
+            </VisuallyHidden>
+            <div className="w-full h-full overflow-auto">
+              <div ref={dashboardRef} className="uppy-dashboard-container w-full" />
             </div>
           </DialogContent>
         </Dialog>
