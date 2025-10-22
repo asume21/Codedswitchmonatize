@@ -107,7 +107,9 @@
         "openid-client": "^6.6.4",
         "passport": "^0.7.0",
         "passport-local": "^1.0.0",
+        "pg": "^8.16.3",
         "postcss": "^8.5.1",
+        "postgres": "^3.4.7",
         "react": "^18.3.1",
         "react-day-picker": "^8.10.1",
         "react-dom": "^18.3.1",
@@ -10198,6 +10200,19 @@
       },
       "engines": {
         "node": "^10 || ^12 || ^13.7 || ^14 || >=15.0.1"
+      }
+    },
+    "node_modules/postgres": {
+      "version": "3.4.7",
+      "resolved": "https://registry.npmjs.org/postgres/-/postgres-3.4.7.tgz",
+      "integrity": "sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw==",
+      "license": "Unlicense",
+      "engines": {
+        "node": ">=12"
+      },
+      "funding": {
+        "type": "individual",
+        "url": "https://github.com/sponsors/porsager"
       }
     },
     "node_modules/postgres-array": {
