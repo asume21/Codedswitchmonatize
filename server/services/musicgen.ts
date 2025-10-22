@@ -4,6 +4,7 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { ObjectStorageService } from '../objectStorage';
 import { localMusicGenService, LocalMusicGenPack } from './local-musicgen';
+import { replicateMusicGenService } from './replicate-musicgen';
 
 // Initialize Hugging Face client only if valid API key is provided
 let hf: any = null;
@@ -65,56 +66,52 @@ export class MusicGenService {
     console.log(`🎵 MusicGen: Generating ${packCount} packs for prompt: "${prompt}"`);
 
     try {
-      // Use local synthesis for REAL audio generation
-      console.log(`🎵 Using Local MusicGen for real audio synthesis...`);
-      const localPacks = await Promise.race([
-        localMusicGenService.generateSamplePack(prompt, packCount),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Generation timeout')), 30000))
-      ]) as LocalMusicGenPack[];
+      // Use Replicate for REAL AI audio generation
+      console.log(`🎵 Using Replicate MusicGen for real AI audio synthesis...`);
+      const audioUrls = await replicateMusicGenService.generateMusicBatch(prompt, packCount, 10);
       
-      if (!localPacks || localPacks.length === 0) {
-        throw new Error('No packs generated');
+      if (!audioUrls || audioUrls.length === 0) {
+        throw new Error('No audio generated from Replicate');
       }
       
-      // Convert LocalMusicGenPack to MusicGenPack format
-      const convertedPacks: MusicGenPack[] = localPacks.map((pack: LocalMusicGenPack) => ({
-        id: pack.id,
-        title: pack.title,
-        description: pack.description,
-        bpm: pack.bpm,
-        key: pack.key,
-        genre: pack.genre,
-        samples: pack.samples.map((sample: any) => ({
-          id: sample.id,
-          name: sample.name,
-          prompt: sample.prompt,
-          audioUrl: sample.audioUrl,
-          duration: sample.duration,
-          type: sample.type,
-          instrument: sample.instrument
-        })),
-        metadata: pack.metadata
-      }));
+      // Convert audio URLs to sample packs
+      const packs: MusicGenPack[] = [];
+      const variations = ['Original', 'Energetic', 'Ambient', 'Upbeat'];
+      
+      for (let i = 0; i < audioUrls.length; i++) {
+        packs.push({
+          id: `pack_${randomUUID()}`,
+          title: `${prompt} - ${variations[i % variations.length]}`,
+          description: `AI-generated ${prompt} pack (${variations[i % variations.length]} version)`,
+          bpm: this.getBpmForGenre(prompt.toLowerCase()),
+          key: this.getKeyForGenre(prompt.toLowerCase()),
+          genre: this.detectGenre(prompt.toLowerCase()),
+          samples: [
+            {
+              id: `sample_${randomUUID()}`,
+              name: `${prompt} Audio`,
+              prompt: prompt,
+              audioUrl: audioUrls[i],
+              duration: 10,
+              type: 'loop',
+              instrument: 'ai-generated'
+            }
+          ],
+          metadata: {
+            energy: 70,
+            mood: variations[i % variations.length].toLowerCase(),
+            instruments: ['AI Generated'],
+            tags: [prompt, 'replicate', 'musicgen']
+          }
+        });
+      }
 
-      console.log(`✅ Local MusicGen generated ${convertedPacks.length} packs with REAL AUDIO`);
-      return convertedPacks;
+      console.log(`✅ Replicate MusicGen generated ${packs.length} packs with REAL AI AUDIO`);
+      return packs;
 
     } catch (error) {
-      console.error(`❌ Local MusicGen failed, falling back to metadata-only:`, error);
-      
-      try {
-        // Fallback to old method (metadata only) as last resort
-        const fallbackPacks = await this.generateSamplePackFallback(prompt, packCount);
-        if (fallbackPacks && fallbackPacks.length > 0) {
-          return fallbackPacks;
-        }
-      } catch (fallbackError) {
-        console.error(`❌ Fallback also failed:`, fallbackError);
-      }
-      
-      // Final fallback: return empty but valid response
-      console.log(`⚠️ Returning empty pack array`);
-      return [];
+      console.error(`❌ Replicate MusicGen failed:`, error);
+      throw error; // Don't fall back - fail loudly so user knows AI isn't working
     }
   }
 
