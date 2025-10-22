@@ -120,6 +120,50 @@ export function createAuthRoutes(storage: IStorage) {
     }
   });
 
+  // Owner/Demo access - special login for app owner
+  router.post("/owner-login", async (req: Request, res: Response) => {
+    try {
+      const { ownerKey } = req.body;
+      
+      // Owner key is set via environment variable
+      const validOwnerKey = process.env.OWNER_KEY || 'codedswitch-owner-2024';
+      
+      if (ownerKey !== validOwnerKey) {
+        return res.status(401).json({ message: "Invalid owner key" });
+      }
+
+      // Create or get owner user
+      const ownerEmail = 'owner@codedswitch.local';
+      let ownerUser = await storage.getUser('owner-user');
+      
+      if (!ownerUser) {
+        // Create owner user if it doesn't exist
+        const hashedPassword = await bcrypt.hash(validOwnerKey, 10);
+        ownerUser = await storage.createUser({
+          email: ownerEmail,
+          password: hashedPassword,
+          username: 'CodedSwitch Owner'
+        });
+      }
+
+      // Create session
+      if (req.session) {
+        req.session.userId = ownerUser.id;
+      }
+
+      // Return user without password
+      const { password: _, ...userWithoutPassword } = ownerUser;
+      res.json({ 
+        message: "Owner access granted",
+        user: userWithoutPassword,
+        isOwner: true
+      });
+    } catch (error) {
+      console.error("Owner login error:", error);
+      res.status(500).json({ message: "Owner login failed" });
+    }
+  });
+
   // Get current user
   router.get("/me", async (req: Request, res: Response) => {
     try {
