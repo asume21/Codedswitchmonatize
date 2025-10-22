@@ -67,17 +67,24 @@ export class MusicGenService {
     try {
       // Use local synthesis for REAL audio generation
       console.log(`🎵 Using Local MusicGen for real audio synthesis...`);
-      const localPacks = await localMusicGenService.generateSamplePack(prompt, packCount);
+      const localPacks = await Promise.race([
+        localMusicGenService.generateSamplePack(prompt, packCount),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Generation timeout')), 30000))
+      ]) as LocalMusicGenPack[];
+      
+      if (!localPacks || localPacks.length === 0) {
+        throw new Error('No packs generated');
+      }
       
       // Convert LocalMusicGenPack to MusicGenPack format
-      const convertedPacks: MusicGenPack[] = localPacks.map(pack => ({
+      const convertedPacks: MusicGenPack[] = localPacks.map((pack: LocalMusicGenPack) => ({
         id: pack.id,
         title: pack.title,
         description: pack.description,
         bpm: pack.bpm,
         key: pack.key,
         genre: pack.genre,
-        samples: pack.samples.map(sample => ({
+        samples: pack.samples.map((sample: any) => ({
           id: sample.id,
           name: sample.name,
           prompt: sample.prompt,
@@ -95,8 +102,19 @@ export class MusicGenService {
     } catch (error) {
       console.error(`❌ Local MusicGen failed, falling back to metadata-only:`, error);
       
-      // Fallback to old method (metadata only) as last resort
-      return this.generateSamplePackFallback(prompt, packCount);
+      try {
+        // Fallback to old method (metadata only) as last resort
+        const fallbackPacks = await this.generateSamplePackFallback(prompt, packCount);
+        if (fallbackPacks && fallbackPacks.length > 0) {
+          return fallbackPacks;
+        }
+      } catch (fallbackError) {
+        console.error(`❌ Fallback also failed:`, fallbackError);
+      }
+      
+      // Final fallback: return empty but valid response
+      console.log(`⚠️ Returning empty pack array`);
+      return [];
     }
   }
 
