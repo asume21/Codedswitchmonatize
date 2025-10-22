@@ -28,6 +28,11 @@ export function currentUser(storage: IStorage) {
 
 export function requireAuth() {
   return (req: Request, res: Response, next: NextFunction) => {
+    // Allow owner users to bypass auth
+    if (req.userId === 'owner-user') {
+      return next();
+    }
+    
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }

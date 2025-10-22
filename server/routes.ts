@@ -669,7 +669,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Melody generation endpoint for Melody Composer
   app.post(
     "/api/melodies/generate",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const {
