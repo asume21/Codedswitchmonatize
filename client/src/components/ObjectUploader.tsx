@@ -139,11 +139,19 @@ export function ObjectUploader({
   useEffect(() => {
     if (showModal && dashboardRef.current && uppy && !dashboardInstanceRef.current) {
       try {
+        // Clear any existing plugins first
+        const existingPlugins = uppy.getPlugins();
+        existingPlugins.forEach(plugin => {
+          if (plugin.name === 'Dashboard') {
+            uppy.removePlugin(plugin);
+          }
+        });
+
         const dashboard = uppy.use(Dashboard, {
           inline: true,
           target: dashboardRef.current,
           proudlyDisplayPoweredByUppy: false,
-          note: '📱 iPhone Compatible! Upload audio/video files (MP3, M4A, MOV, etc.) up to 50MB',
+          note: '📱 Drag & drop your audio file here or click to browse (MP3, M4A, WAV, OGG up to 50MB)',
           width: '100%',
           height: 450,
           // Mobile-friendly settings
@@ -152,9 +160,10 @@ export function ObjectUploader({
           hideCancelButton: false,
           hideRetryButton: false,
           showRemoveButtonAfterComplete: true,
+          autoOpen: true,
         });
         dashboardInstanceRef.current = dashboard;
-        console.log('✅ Dashboard mounted');
+        console.log('✅ Dashboard mounted successfully');
       } catch (error) {
         console.error('Dashboard mount error:', error);
       }
