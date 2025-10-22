@@ -435,11 +435,9 @@ Return a JSON object with this structure:
   });
 
   // Song management endpoints
-  app.get("/api/songs", async (req, res) => {
+  app.get("/api/songs", requireAuth(), async (req, res) => {
     try {
-      // Use authenticated user ID if available, otherwise use demo user
-      const userId = req.userId || 'demo-user';
-      const songs = await storage.getUserSongs(userId);
+      const songs = await storage.getUserSongs(req.userId!);
       res.json(songs);
     } catch (error) {
       console.error("Error fetching songs:", error);
@@ -447,7 +445,7 @@ Return a JSON object with this structure:
     }
   });
 
-  app.post("/api/songs/upload", async (req, res) => {
+  app.post("/api/songs/upload", requireAuth(), async (req, res) => {
     try {
       const { songURL, name, fileSize, format, mimeType } = req.body;
 
@@ -457,9 +455,7 @@ Return a JSON object with this structure:
 
       console.log('🎵 Saving song:', { name, fileSize, format, mimeType });
 
-      // Use authenticated user ID if available, otherwise use demo user
-      const userId = req.userId || 'demo-user';
-      const song = await storage.createSong(userId, {
+      const song = await storage.createSong(req.userId!, {
         name,
         originalUrl: songURL,
         accessibleUrl: songURL, // For now, same as original
@@ -475,7 +471,7 @@ Return a JSON object with this structure:
     }
   });
 
-  app.post("/api/songs/analyze", async (req, res) => {
+  app.post("/api/songs/analyze", requireAuth(), async (req, res) => {
     try {
       const { songId, songURL, songName } = req.body;
 
