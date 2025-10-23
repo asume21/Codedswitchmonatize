@@ -138,15 +138,20 @@ export function ObjectUploader({
 
   // Mount Dashboard when modal opens
   useEffect(() => {
-    if (showModal && dashboardRef.current && uppy && !dashboardInstanceRef.current) {
+    if (showModal && dashboardRef.current && uppy) {
       try {
-        // Clear any existing plugins first
-        const existingPlugins = uppy.getPlugins();
-        existingPlugins.forEach(plugin => {
-          if (plugin.name === 'Dashboard') {
-            uppy.removePlugin(plugin);
+        console.log('📦 Attempting to mount Uppy Dashboard...');
+        
+        // Remove existing Dashboard plugin if it exists
+        try {
+          const existingDashboard = uppy.getPlugin('Dashboard');
+          if (existingDashboard) {
+            console.log('Removing existing Dashboard plugin');
+            uppy.removePlugin(existingDashboard);
           }
-        });
+        } catch (e) {
+          // Plugin doesn't exist, that's fine
+        }
 
         const dashboard = uppy.use(Dashboard, {
           inline: true,
@@ -155,18 +160,16 @@ export function ObjectUploader({
           note: '📱 Drag & drop your audio file here or click to browse (MP3, M4A, WAV, OGG up to 50MB)',
           width: '100%',
           height: 450,
-          // Mobile-friendly settings
           showProgressDetails: true,
           hideUploadButton: false,
           hideCancelButton: false,
           hideRetryButton: false,
           showRemoveButtonAfterComplete: true,
-          autoOpen: true,
         });
         dashboardInstanceRef.current = dashboard;
-        console.log('✅ Dashboard mounted successfully');
+        console.log('✅ Dashboard mounted successfully!');
       } catch (error) {
-        console.error('Dashboard mount error:', error);
+        console.error('❌ Dashboard mount error:', error);
       }
     }
   }, [showModal, uppy]);
