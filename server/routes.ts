@@ -3,6 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import type { IStorage } from "./storage";
 import { requireAuth, requireSubscription } from "./middleware/auth";
+import { requireFeature, checkUsageLimit } from "./middleware/featureGating";
 import { createAuthRoutes } from "./routes/auth";
 import { createKeyRoutes } from "./routes/keys";
 import {
@@ -192,11 +193,11 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   });
 
   // Song upload endpoint - saves uploaded song metadata to database
-  app.post("/api/songs/upload", async (req, res) => {
+  app.post("/api/songs/upload", checkUsageLimit(storage, 'uploads'), async (req, res) => {
     // Check if user is authenticated
     if (!req.userId) {
       console.error('❌ Song upload failed: User not authenticated');
-      return res.status(401).json({ error: "Please log in to upload songs" });
+      return res.status(401).json({ error: "Please activate your account to upload songs" });
     }
     try {
       const { songURL, name, fileSize, format } = req.body;
@@ -215,6 +216,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         fileSize: fileSize || 0,
         format: format || 'audio',
       });
+
+      // Increment upload count for usage tracking
+      await storage.incrementUserUsage(req.userId!, 'uploads');
 
       console.log('✅ Song saved successfully:', newSong.id);
 
