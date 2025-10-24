@@ -24,8 +24,14 @@ export function createKeyRoutes(storage: IStorage) {
 
       const { activationKey } = parsed.data;
 
-      // Check if it's the owner key
-      const ownerKey = process.env.OWNER_KEY || 'codedswitch-owner-2024';
+      // Check if it's the owner key (must be set in environment variables)
+      const ownerKey = process.env.OWNER_KEY;
+      
+      if (!ownerKey) {
+        console.error('🚨 SECURITY ERROR: OWNER_KEY not set in environment variables');
+        return res.status(500).json({ message: "Server configuration error" });
+      }
+      
       if (activationKey === ownerKey) {
         // Create or get owner user
         let ownerUser = await storage.getUser('owner-user');
