@@ -97,14 +97,19 @@ export default function Landing() {
             The world's first AI-powered bidirectional translation platform that bridges code development with music creation
           </p>
           <div className="flex justify-center gap-4">
-            <Link href="/dashboard">
+            <Link href="/signup">
               <Button size="lg" className="text-lg px-8">
                 Get Started
               </Button>
             </Link>
-            <Link href="/music-studio">
-              <Button variant="outline" size="lg" className="text-lg px-8">
-                Try Music Studio
+            <Link href="/login">
+              <Button size="lg" variant="outline" className="text-lg px-8">
+                Sign In
+              </Button>
+            </Link>
+            <Link href="/subscribe">
+              <Button size="lg" variant="ghost" className="text-lg px-8">
+                View Pricing
               </Button>
             </Link>
           </div>

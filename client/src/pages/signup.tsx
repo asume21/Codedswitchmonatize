@@ -16,6 +16,7 @@ export default function Signup() {
     username: "",
     password: "",
     confirmPassword: "",
+    activationKey: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,10 +61,41 @@ export default function Signup() {
         throw new Error(data.message || "Registration failed");
       }
 
-      toast({
-        title: "Account created!",
-        description: "Welcome to CodedSwitch. You're now logged in.",
-      });
+      // If activation key provided, activate the account
+      if (formData.activationKey.trim()) {
+        try {
+          const activationResponse = await fetch("/api/keys/activate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activationKey: formData.activationKey.trim() }),
+            credentials: "include",
+          });
+
+          if (activationResponse.ok) {
+            toast({
+              title: "Account created with Pro access!",
+              description: "Welcome to CodedSwitch Pro. You're now logged in.",
+            });
+          } else {
+            toast({
+              title: "Account created (Free tier)",
+              description: "Invalid activation key - you're on the free tier. You can upgrade later.",
+              variant: "default",
+            });
+          }
+        } catch (activationError) {
+          // Account created but activation failed - not critical
+          toast({
+            title: "Account created (Free tier)",
+            description: "Activation key invalid - you can upgrade later in settings.",
+          });
+        }
+      } else {
+        toast({
+          title: "Account created!",
+          description: "Welcome to CodedSwitch Free. Upgrade anytime with an activation key.",
+        });
+      }
 
       // Redirect to home
       setLocation("/");
@@ -146,6 +178,26 @@ export default function Signup() {
                 disabled={isLoading}
                 className="bg-gray-800 border-gray-700 text-white"
               />
+            </div>
+            
+            <div className="border-t border-gray-700 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="activationKey" className="text-gray-200">
+                  Activation Key <span className="text-gray-500">(Optional)</span>
+                </Label>
+                <Input
+                  id="activationKey"
+                  type="text"
+                  placeholder="CS-XXXX-XXXX-XXXX-XXXX"
+                  value={formData.activationKey}
+                  onChange={(e) => setFormData({ ...formData, activationKey: e.target.value.toUpperCase() })}
+                  disabled={isLoading}
+                  className="bg-gray-800 border-gray-700 text-white font-mono"
+                />
+                <p className="text-xs text-gray-500">
+                  Have a Pro activation key? Enter it now or upgrade later
+                </p>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
