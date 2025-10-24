@@ -191,6 +191,49 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // Song upload endpoint - saves uploaded song metadata to database
+  app.post("/api/songs/upload", requireAuth(), async (req, res) => {
+    try {
+      const { songURL, name, fileSize, format } = req.body;
+      
+      if (!songURL || !name) {
+        return res.status(400).json({ error: "Missing required fields: songURL and name" });
+      }
+
+      console.log('🎵 Saving song to database:', { name, songURL });
+
+      // Create song using storage method
+      const newSong = await storage.createSong(req.userId!, {
+        name,
+        originalUrl: songURL,
+        accessibleUrl: songURL, // Same as original for local storage
+        fileSize: fileSize || 0,
+        format: format || 'audio',
+      });
+
+      console.log('✅ Song saved successfully:', newSong.id);
+
+      res.json(newSong);
+    } catch (error) {
+      console.error('Song upload error:', error);
+      res.status(500).json({
+        error: "Failed to save song",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Get all songs for current user
+  app.get("/api/songs", requireAuth(), async (req, res) => {
+    try {
+      const songs = await storage.getUserSongs(req.userId!);
+      res.json(songs);
+    } catch (error) {
+      console.error('Failed to fetch songs:', error);
+      res.status(500).json({ error: "Failed to fetch songs" });
+    }
+  });
+
   // Ensure local objects directory exists for fallback
   const LOCAL_OBJECTS_DIR = path.resolve(process.cwd(), "objects");
   try {
