@@ -89,6 +89,18 @@ export default function SongUploader() {
         throw new Error(errorData.error || "Failed to generate upload URL");
       }
       
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text.substring(0, 200));
+        toast({
+          title: "Server Error",
+          description: "Server returned an invalid response. The upload service may be down.",
+          variant: "destructive",
+        });
+        throw new Error("Server returned HTML instead of JSON - upload endpoint may not be deployed");
+      }
+      
       const data = await response.json();
       
       if (!data.uploadURL) {

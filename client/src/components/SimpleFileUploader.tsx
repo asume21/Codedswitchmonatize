@@ -53,7 +53,10 @@ export function SimpleFileUploader({
       setError(null);
 
       console.log('Getting upload parameters...');
-      const params = await onGetUploadParameters();
+      const params = await onGetUploadParameters().catch(err => {
+        console.error('Failed to get upload parameters:', err);
+        throw new Error(`Upload setup failed: ${err.message}`);
+      });
 
       console.log('Uploading file:', selectedFile.name);
       
