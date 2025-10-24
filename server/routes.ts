@@ -192,7 +192,12 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   });
 
   // Song upload endpoint - saves uploaded song metadata to database
-  app.post("/api/songs/upload", requireAuth(), async (req, res) => {
+  app.post("/api/songs/upload", async (req, res) => {
+    // Check if user is authenticated
+    if (!req.userId) {
+      console.error('❌ Song upload failed: User not authenticated');
+      return res.status(401).json({ error: "Please log in to upload songs" });
+    }
     try {
       const { songURL, name, fileSize, format } = req.body;
       
@@ -224,7 +229,10 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   });
 
   // Get all songs for current user
-  app.get("/api/songs", requireAuth(), async (req, res) => {
+  app.get("/api/songs", async (req, res) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in to view songs" });
+    }
     try {
       const songs = await storage.getUserSongs(req.userId!);
       res.json(songs);

@@ -47,11 +47,17 @@ export default function SongUploader() {
         description: `${newSong.name} has been added to your library!`,
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Upload mutation error:', error);
+      const isAuthError = error?.response?.status === 401 || error?.message?.includes('log in');
+      
       toast({
         title: "Upload Failed",
-        description: "Failed to save your song. Please try again.",
+        description: isAuthError 
+          ? "Please log in to upload songs. Refresh the page and sign in."
+          : "Failed to save your song. Please try again.",
         variant: "destructive",
+        duration: isAuthError ? 10000 : 5000,
       });
     },
   });
