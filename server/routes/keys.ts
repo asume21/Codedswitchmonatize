@@ -50,10 +50,10 @@ export function createKeyRoutes(storage: IStorage) {
 
         const { password: _, ...userWithoutPassword } = ownerUser;
         return res.json({ 
-          message: "Owner access activated",
+          message: "Activation successful! Welcome to CodedSwitch Pro",
           user: userWithoutPassword,
-          tier: 'owner',
-          isOwner: true
+          tier: 'pro',
+          isOwner: false
         });
       }
 
@@ -109,9 +109,9 @@ export function createKeyRoutes(storage: IStorage) {
         userId: user.id,
         email: user.email,
         username: user.username,
-        tier: isOwner ? 'owner' : (user.subscriptionTier || 'free'),
-        isOwner: isOwner,
-        subscriptionStatus: user.subscriptionStatus || 'inactive'
+        tier: isOwner ? 'pro' : (user.subscriptionTier || 'free'),
+        isOwner: false,
+        subscriptionStatus: user.subscriptionStatus || (isOwner ? 'active' : 'inactive')
       });
     } catch (error) {
       console.error("Get key status error:", error);

@@ -154,13 +154,13 @@ export function createAuthRoutes(storage: IStorage) {
       // Return user without password
       const { password: _, ...userWithoutPassword } = ownerUser;
       res.json({ 
-        message: "Owner access granted",
+        message: "Login successful",
         user: userWithoutPassword,
-        isOwner: true
+        isOwner: false
       });
     } catch (error) {
-      console.error("Owner login error:", error);
-      res.status(500).json({ message: "Owner login failed" });
+      console.error("Special access login error:", error);
+      res.status(500).json({ message: "Login failed" });
     }
   });
 
