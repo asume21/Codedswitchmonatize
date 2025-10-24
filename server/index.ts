@@ -15,6 +15,9 @@ config();
 
 const app = express();
 
+// Trust Railway proxy for secure cookies
+app.set('trust proxy', 1);
+
 // Stripe webhook must receive the raw body for signature verification.
 // Mount this BEFORE json/urlencoded parsers.
 app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
@@ -56,8 +59,11 @@ app.use(
     cookie: {
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      secure: process.env.NODE_ENV === 'production'
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      path: '/',
     },
+    proxy: true, // Trust Railway's proxy
   }),
 );
 
