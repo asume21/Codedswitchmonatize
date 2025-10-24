@@ -8,8 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { StudioAudioContext } from "@/pages/studio";
 import { useAIMessages } from "@/contexts/AIMessageContext";
-import { ObjectUploader } from "@/components/ObjectUploader";
-import type { UploadResult } from "@uppy/core";
+import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import type { Song } from "@shared/schema";
 
 interface UploadContext {
@@ -414,18 +413,27 @@ This analysis has been saved and can be used with other studio tools for remixin
         </div>
 
         <div className="flex items-center space-x-4">
-          <ObjectUploader
-            maxNumberOfFiles={1}
+          <SimpleFileUploader
             maxFileSize={50485760} // 50MB max for audio files
             onGetUploadParameters={getUploadParameters}
-            onComplete={handleUploadComplete}
+            onComplete={(result) => {
+              console.log('🎵 Upload complete:', result);
+              const songData = {
+                songURL: result.url,
+                name: result.name,
+                fileSize: 0,
+                format: result.name.split('.').pop() || 'audio',
+                mimeType: 'audio/*'
+              };
+              uploadSongMutation.mutate(songData);
+            }}
             buttonClassName="bg-studio-accent hover:bg-blue-500"
           >
             <div className="flex items-center gap-2">
               <i className="fas fa-upload"></i>
               <span>Upload Song</span>
             </div>
-          </ObjectUploader>
+          </SimpleFileUploader>
 
           {songs && songs.length > 0 && (
             <Badge variant="secondary">{songs.length} song{songs.length > 1 ? 's' : ''} uploaded</Badge>
