@@ -23,6 +23,9 @@ export const users = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   subscriptionStatus: text("subscription_status"), // active, inactive, canceled, past_due
   subscriptionTier: text("subscription_tier").default("free"), // free, basic, pro
+  // Activation key system for premium access
+  activationKey: text("activation_key").unique(), // Generated after payment
+  activatedAt: timestamp("activated_at"), // When key was first used
   // Usage tracking for sustainable freemium model
   monthlyUploads: integer("monthly_uploads").default(0),
   monthlyGenerations: integer("monthly_generations").default(0),

@@ -1,10 +1,19 @@
 import Stripe from "stripe";
 import type { IStorage } from "../storage";
+import crypto from "crypto";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO || "";
+
+// Generate cryptographically secure activation key
+function generateActivationKey(): string {
+  const prefix = "CS"; // CodedSwitch
+  const randomPart = crypto.randomBytes(16).toString('hex').toUpperCase();
+  // Format: CS-XXXX-XXXX-XXXX-XXXX
+  return `${prefix}-${randomPart.slice(0,4)}-${randomPart.slice(4,8)}-${randomPart.slice(8,12)}-${randomPart.slice(12,16)}`;
+}
 
 function getStripe(): Stripe {
   if (!STRIPE_SECRET_KEY) {
@@ -73,12 +82,21 @@ export async function handleStripeWebhook(
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         const status = sub.status;
         const tier = status === "active" || status === "trialing" ? "pro" : "free";
+        
+        // Generate activation key for new pro subscribers
+        const activationKey = generateActivationKey();
+        console.log(`🔑 Generated activation key for user ${userId}: ${activationKey}`);
+        
         await storage.updateUserStripeInfo(userId, {
           customerId,
           subscriptionId,
           status,
           tier,
         });
+        
+        // Store the activation key (will add this to schema next)
+        // TODO: Send activation key via email to user
+        console.log(`📧 TODO: Email activation key ${activationKey} to user`);
       }
       break;
     }

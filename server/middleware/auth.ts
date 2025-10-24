@@ -10,15 +10,7 @@ export function currentUser(storage: IStorage) {
         return next();
       }
 
-      // Dev fallback: use the in-memory default user
-      if (process.env.NODE_ENV !== "production") {
-        const devUserId = "default-user";
-        const user = await storage.getUser(devUserId);
-        if (user) {
-          req.userId = devUserId;
-          if (req.session) req.session.userId = devUserId;
-        }
-      }
+      // No auto-login - users must activate with a key
       next();
     } catch (err) {
       next(err);
