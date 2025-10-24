@@ -87,6 +87,7 @@ export async function handleStripeWebhook(
         const activationKey = generateActivationKey();
         console.log(`🔑 Generated activation key for user ${userId}: ${activationKey}`);
         
+        // Update user with Stripe info AND activation key
         await storage.updateUserStripeInfo(userId, {
           customerId,
           subscriptionId,
@@ -94,7 +95,9 @@ export async function handleStripeWebhook(
           tier,
         });
         
-        // Store the activation key (will add this to schema next)
+        // Store the activation key in user record
+        await storage.setUserActivationKey(userId, activationKey);
+        
         // TODO: Send activation key via email to user
         console.log(`📧 TODO: Email activation key ${activationKey} to user`);
       }

@@ -57,6 +57,9 @@ export interface IStorage {
   ): Promise<User>;
   updateUserUsage(userId: string, uploads: number, generations: number): Promise<User>;
   incrementUserUsage(userId: string, type: 'uploads' | 'generations'): Promise<User>;
+  getUserByActivationKey(activationKey: string): Promise<User | undefined>;
+  activateUserKey(userId: string): Promise<User>;
+  setUserActivationKey(userId: string, activationKey: string): Promise<User>;
 
   // Projects
   getProject(id: string): Promise<Project | undefined>;
@@ -183,6 +186,8 @@ export class MemStorage implements IStorage {
       stripeSubscriptionId: null,
       subscriptionStatus: null,
       subscriptionTier: "free",
+      activationKey: null,
+      activatedAt: null,
       monthlyUploads: 0,
       monthlyGenerations: 0,
       lastUsageReset: new Date(),
@@ -213,6 +218,8 @@ export class MemStorage implements IStorage {
       stripeSubscriptionId: null,
       subscriptionStatus: null,
       subscriptionTier: "free",
+      activationKey: null,
+      activatedAt: null,
       monthlyUploads: 0,
       monthlyGenerations: 0,
       lastUsageReset: new Date(),
@@ -282,6 +289,36 @@ export class MemStorage implements IStorage {
       ...user,
       monthlyUploads: type === 'uploads' ? (user.monthlyUploads || 0) + 1 : (user.monthlyUploads || 0),
       monthlyGenerations: type === 'generations' ? (user.monthlyGenerations || 0) + 1 : (user.monthlyGenerations || 0),
+    };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
+  async getUserByActivationKey(activationKey: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.activationKey === activationKey
+    );
+  }
+
+  async activateUserKey(userId: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+
+    const updated: User = {
+      ...user,
+      activatedAt: new Date(),
+    };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
+  async setUserActivationKey(userId: string, activationKey: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+
+    const updated: User = {
+      ...user,
+      activationKey,
     };
     this.users.set(userId, updated);
     return updated;
@@ -1209,6 +1246,39 @@ export class DatabaseStorage implements IStorage {
       .set({
         ...(type === 'uploads' && { monthlyUploads: sql`COALESCE(${users.monthlyUploads}, 0) + 1` }),
         ...(type === 'generations' && { monthlyGenerations: sql`COALESCE(${users.monthlyGenerations}, 0) + 1` }),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!user) throw new Error("User not found");
+    return user;
+  }
+
+  async getUserByActivationKey(activationKey: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.activationKey, activationKey))
+      .limit(1);
+    return user || undefined;
+  }
+
+  async activateUserKey(userId: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({
+        activatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!user) throw new Error("User not found");
+    return user;
+  }
+
+  async setUserActivationKey(userId: string, activationKey: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({
+        activationKey,
       })
       .where(eq(users.id, userId))
       .returning();
