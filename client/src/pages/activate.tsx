@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "wouter";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Loader2, Key, Check } from "lucide-react";
 export default function ActivatePage() {
   const [activationKey, setActivationKey] = useState("");
   const [isActivating, setIsActivating] = useState(false);
-  const [, navigate] = useNavigate();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const handleActivate = async (e: React.FormEvent) => {
@@ -47,7 +47,7 @@ export default function ActivatePage() {
       });
 
       // Redirect to dashboard after successful activation
-      setTimeout(() => navigate("/"), 1000);
+      setTimeout(() => setLocation("/"), 1000);
 
     } catch (error: any) {
       toast({
