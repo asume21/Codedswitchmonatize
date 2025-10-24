@@ -161,6 +161,33 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   // Mount key activation routes
   app.use("/api/keys", createKeyRoutes(storage));
 
+  // Upload parameter generation endpoint
+  app.post("/api/objects/upload", async (req, res) => {
+    try {
+      console.log('🎵 Upload parameters requested');
+
+      // Generate a unique object key for the upload using crypto for security
+      const objectKey = `songs/${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+
+      // For local storage (when GCS is not configured), return local upload URL
+      const uploadURL = `${req.protocol}://${req.get('host')}/api/internal/uploads/${encodeURIComponent(objectKey)}`;
+
+      console.log('🎵 Generated upload URL:', uploadURL);
+
+      res.json({
+        uploadURL,
+        objectKey
+      });
+
+    } catch (error) {
+      console.error('Upload parameter generation error:', error);
+      res.status(500).json({
+        error: "Failed to generate upload parameters",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Ensure local objects directory exists for fallback
   const LOCAL_OBJECTS_DIR = path.resolve(process.cwd(), "objects");
   try {
