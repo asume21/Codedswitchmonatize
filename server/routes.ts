@@ -6,6 +6,7 @@ import { requireAuth, requireSubscription } from "./middleware/auth";
 import { requireFeature, checkUsageLimit } from "./middleware/featureGating";
 import { createAuthRoutes } from "./routes/auth";
 import { createKeyRoutes } from "./routes/keys";
+import { createSongRoutes } from "./routes/songs";
 import {
   createCheckoutSession,
   handleStripeWebhook,
@@ -161,6 +162,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   
   // Mount key activation routes
   app.use("/api/keys", createKeyRoutes(storage));
+  
+  // Mount song routes
+  app.use("/api/songs", createSongRoutes(storage));
 
   // Upload parameter generation endpoint
   app.post("/api/objects/upload", async (req, res) => {
@@ -189,60 +193,6 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         error: "Failed to generate upload parameters",
         message: error instanceof Error ? error.message : "Unknown error"
       });
-    }
-  });
-
-  // Song upload endpoint - saves uploaded song metadata to database
-  app.post("/api/songs/upload", checkUsageLimit(storage, 'uploads'), async (req, res) => {
-    // Check if user is authenticated
-    if (!req.userId) {
-      console.error('❌ Song upload failed: User not authenticated');
-      return res.status(401).json({ error: "Please activate your account to upload songs" });
-    }
-    try {
-      const { songURL, name, fileSize, format } = req.body;
-      
-      if (!songURL || !name) {
-        return res.status(400).json({ error: "Missing required fields: songURL and name" });
-      }
-
-      console.log('🎵 Saving song to database:', { name, songURL });
-
-      // Create song using storage method
-      const newSong = await storage.createSong(req.userId!, {
-        name,
-        originalUrl: songURL,
-        accessibleUrl: songURL, // Same as original for local storage
-        fileSize: fileSize || 0,
-        format: format || 'audio',
-      });
-
-      // Increment upload count for usage tracking
-      await storage.incrementUserUsage(req.userId!, 'uploads');
-
-      console.log('✅ Song saved successfully:', newSong.id);
-
-      res.json(newSong);
-    } catch (error) {
-      console.error('Song upload error:', error);
-      res.status(500).json({
-        error: "Failed to save song",
-        message: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-
-  // Get all songs for current user
-  app.get("/api/songs", async (req, res) => {
-    if (!req.userId) {
-      return res.status(401).json({ error: "Please log in to view songs" });
-    }
-    try {
-      const songs = await storage.getUserSongs(req.userId!);
-      res.json(songs);
-    } catch (error) {
-      console.error('Failed to fetch songs:', error);
-      res.status(500).json({ error: "Failed to fetch songs" });
     }
   });
 
