@@ -59,11 +59,13 @@ app.use(
     cookie: {
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // DISABLE secure cookies temporarily to test
       httpOnly: true,
       path: '/',
+      domain: undefined, // Don't restrict domain
     },
-    proxy: true, // Trust Railway's proxy
+    proxy: true,
+    name: 'codedswitch.sid', // Custom session name
   }),
 );
 

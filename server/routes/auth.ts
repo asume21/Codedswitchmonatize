@@ -49,6 +49,12 @@ export function createAuthRoutes(storage: IStorage) {
       // Create session
       if (req.session) {
         req.session.userId = user.id;
+        await new Promise<void>((resolve, reject) => {
+          req.session!.save((err: Error | null) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
       }
 
       // Return user without password
@@ -91,6 +97,12 @@ export function createAuthRoutes(storage: IStorage) {
       // Create session
       if (req.session) {
         req.session.userId = user.id;
+        await new Promise<void>((resolve, reject) => {
+          req.session!.save((err: Error | null) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
       }
 
       // Return user without password
