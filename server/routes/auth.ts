@@ -97,10 +97,16 @@ export function createAuthRoutes(storage: IStorage) {
       // Create session
       if (req.session) {
         req.session.userId = user.id;
+        console.log('💾 Setting session.userId:', user.id);
         await new Promise<void>((resolve, reject) => {
           req.session!.save((err: Error | null) => {
-            if (err) reject(err);
-            else resolve();
+            if (err) {
+              console.error('❌ Session save error:', err);
+              reject(err);
+            } else {
+              console.log('✅ Session saved with userId:', req.session!.userId);
+              resolve();
+            }
           });
         });
       }

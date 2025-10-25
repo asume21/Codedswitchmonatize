@@ -59,10 +59,9 @@ app.use(
     cookie: {
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      secure: false, // DISABLE secure cookies temporarily to test
+      secure: true, // HTTPS required on Railway
       httpOnly: true,
       path: '/',
-      domain: undefined, // Don't restrict domain
     },
     proxy: true,
     name: 'codedswitch.sid', // Custom session name
