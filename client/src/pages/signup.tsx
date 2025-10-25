@@ -61,6 +61,11 @@ export default function Signup() {
         throw new Error(data.message || "Registration failed");
       }
 
+      // Store auth token for subsequent requests
+      if (data.token) {
+        localStorage.setItem('authToken', data.token);
+      }
+
       // If activation key provided, activate the account
       if (formData.activationKey.trim()) {
         try {

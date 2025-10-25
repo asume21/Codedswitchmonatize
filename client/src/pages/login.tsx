@@ -33,6 +33,11 @@ export default function Login() {
         throw new Error(data.message || "Login failed");
       }
 
+      // Store auth token for subsequent requests
+      if (data.token) {
+        localStorage.setItem('authToken', data.token);
+      }
+
       toast({
         title: "Welcome back!",
         description: "You've successfully logged in.",

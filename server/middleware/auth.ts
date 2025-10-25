@@ -10,6 +10,16 @@ export function currentUser(storage: IStorage) {
         return next();
       }
 
+      // Fallback: Check Authorization header for userId (format: "Bearer userId")
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const userId = authHeader.substring(7);
+        if (userId) {
+          req.userId = userId;
+          return next();
+        }
+      }
+
       // No auto-login - users must activate with a key
       next();
     } catch (err) {

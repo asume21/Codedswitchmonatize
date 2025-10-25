@@ -103,7 +103,9 @@ export function createAuthRoutes(storage: IStorage) {
       const { password: _, ...userWithoutPassword } = user;
       res.json({ 
         message: "Login successful",
-        user: userWithoutPassword 
+        user: userWithoutPassword,
+        userId: user.id,
+        token: `Bearer ${user.id}` // Frontend should send this in Authorization header
       });
     } catch (error) {
       console.error("Login error:", error);
