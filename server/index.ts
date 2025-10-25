@@ -57,7 +57,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      sameSite: "lax",
+      sameSite: "none", // Allow cross-site cookies
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       secure: true, // HTTPS required on Railway
       httpOnly: true,
@@ -67,6 +67,8 @@ app.use(
     name: 'codedswitch.sid', // Custom session name
   }),
 );
+
+console.log('🍪 Session cookie config: sameSite=none, secure=true, httpOnly=true');
 
 console.log(sessionStore ? '✅ Session middleware: PostgreSQL' : '⚠️ Session middleware: MemoryStore (temporary)');
 
