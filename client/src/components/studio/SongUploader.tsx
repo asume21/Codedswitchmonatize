@@ -258,8 +258,12 @@ export default function SongUploader() {
         console.log(`🎵 Song ready to play: ${song.name}`);
       });
 
-      // Set source and load
+      // Set source with proper codec type for m4a files
       audio.src = accessibleURL;
+      // Explicitly set the type for m4a files to help browser recognize format
+      if (accessibleURL.toLowerCase().endsWith('.m4a')) {
+        audio.type = 'audio/mp4';
+      }
       audio.load();
       
       // Wait for audio to be ready before playing
