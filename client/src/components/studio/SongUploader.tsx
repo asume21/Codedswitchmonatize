@@ -1,4 +1,5 @@
 import { useState, useContext, useEffect } from "react";
+import * as Tone from "tone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -194,133 +195,36 @@ export default function SongUploader() {
   };
 
   const playSong = async (song: Song) => {
-    if (audioElement) {
-      audioElement.pause();
-      audioElement.src = '';
-    }
-
     try {
-      // Use the accessible URL that's already stored in the song record
-      const accessibleURL = song.accessibleUrl;
-      console.log('🎵 Using accessible URL:', accessibleURL);
-      
-      const audio = new Audio();
-      
-      // Add comprehensive error handling
-      audio.addEventListener('error', (e) => {
-        console.error('Audio playback error:', e);
-        const error = (e.target as HTMLAudioElement).error;
-        let errorMessage = 'Unknown error occurred';
-        
-        if (error) {
-          switch (error.code) {
-            case error.MEDIA_ERR_ABORTED:
-              errorMessage = 'Audio playback aborted';
-              break;
-            case error.MEDIA_ERR_NETWORK:
-              errorMessage = 'Network error while loading audio';
-              break;
-            case error.MEDIA_ERR_DECODE:
-              errorMessage = 'Audio format not supported or corrupted';
-              break;
-            case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-              errorMessage = 'Audio format not supported by browser';
-              break;
-          }
-        }
-        
-        toast({
-          title: "Playback Error",
-          description: `Cannot play ${song.name}: ${errorMessage}`,
-          variant: "destructive",
-        });
-        
-        setIsPlaying(false);
-        setCurrentSong(null);
-      });
-
-      audio.addEventListener('loadedmetadata', () => {
-        console.log(`🎵 Song loaded: ${song.name}, duration: ${audio.duration}s`);
-        setDuration(audio.duration);
-      });
-      
-      audio.addEventListener('timeupdate', () => {
-        setCurrentTime(audio.currentTime);
-      });
-      
-      audio.addEventListener('ended', () => {
-        setIsPlaying(false);
-        setCurrentSong(null);
-        setCurrentTime(0);
-      });
-
-      audio.addEventListener('canplaythrough', () => {
-        console.log(`🎵 Song ready to play: ${song.name}`);
-      });
-
-      // Clear existing sources
-      audio.innerHTML = '';
-      
-      // Create source element with proper MIME type
-      const source = document.createElement('source');
-      source.src = accessibleURL;
-      
-      // Set MIME type based on file extension
-      if (accessibleURL.toLowerCase().endsWith('.m4a')) {
-        source.type = 'audio/mp4';
-      } else if (accessibleURL.toLowerCase().endsWith('.mp3')) {
-        source.type = 'audio/mpeg';
-      } else if (accessibleURL.toLowerCase().endsWith('.wav')) {
-        source.type = 'audio/wav';
-      } else if (accessibleURL.toLowerCase().endsWith('.ogg')) {
-        source.type = 'audio/ogg';
-      } else {
-        source.type = 'audio/mpeg'; // Default to mp3
+      const accessibleURL = song.accessibleUrl || song.originalUrl;
+      if (!accessibleURL) {
+        throw new Error("No URL available for this song");
       }
-      
-      audio.appendChild(source);
-      audio.load();
-      
-      // Wait for audio to be ready before playing
-      await new Promise((resolve, reject) => {
-        const onCanPlay = () => {
-          audio.removeEventListener('canplaythrough', onCanPlay);
-          audio.removeEventListener('error', onError);
-          resolve(void 0);
-        };
-        
-        const onError = (e: Event) => {
-          audio.removeEventListener('canplaythrough', onCanPlay);
-          audio.removeEventListener('error', onError);
-          const error = (e.target as HTMLAudioElement).error;
-          let errorMessage = 'Audio loading failed';
-          
-          if (error) {
-            switch (error.code) {
-              case error.MEDIA_ERR_ABORTED:
-                errorMessage = 'Audio loading aborted';
-                break;
-              case error.MEDIA_ERR_NETWORK:
-                errorMessage = 'Network error while loading audio';
-                break;
-              case error.MEDIA_ERR_DECODE:
-                errorMessage = 'Audio format not supported or corrupted';
-                break;
-              case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                errorMessage = 'Audio format not supported by browser';
-                break;
-            }
-          }
-          
-          reject(new Error(errorMessage));
-        };
-        
-        audio.addEventListener('canplaythrough', onCanPlay);
-        audio.addEventListener('error', onError);
-      });
 
-      await audio.play();
-      setAudioElement(audio);
+      // Initialize Tone.js if needed
+      if (Tone.getContext().state !== 'running') {
+        await Tone.start();
+      }
+
+      // Use Tone.js Player for better format support (including m4a)
+      const player = new Tone.Player(accessibleURL).toDestination();
+      
+      // Wait for player to load
+      await Tone.loaded();
+      
+      console.log(`🎵 Song loaded: ${song.name}, duration: ${player.buffer.duration}s`);
+      setDuration(player.buffer.duration);
+      
+      // Set up playback tracking
+      const updateInterval = setInterval(() => {
+        if (player.state === 'started') {
+          setCurrentTime(player.now() - (player as any).startTime || 0);
+        }
+      }, 100);
+      
+      // Play the song
+      player.start();
+      setAudioElement(player as any);
       setCurrentSong(song);
       setIsPlaying(true);
       
@@ -328,6 +232,15 @@ export default function SongUploader() {
         title: "Now Playing",
         description: `Playing ${song.name}`,
       });
+      
+      // Handle end of playback
+      player.onstop = () => {
+        clearInterval(updateInterval);
+        setIsPlaying(false);
+        setCurrentSong(null);
+        setCurrentTime(0);
+        player.dispose();
+      };
       
     } catch (error) {
       console.error('Audio playback error:', error instanceof Error ? error.message : 'Unknown error');
