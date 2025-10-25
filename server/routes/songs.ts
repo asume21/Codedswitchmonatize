@@ -6,7 +6,7 @@ export function createSongRoutes(storage: IStorage) {
   const router = Router();
 
   // Song upload endpoint - saves uploaded song metadata to database
-  router.post("/upload", checkUsageLimit(storage, 'uploads'), async (req: Request, res: Response) => {
+  router.post("/upload", async (req: Request, res: Response) => {
     // Debug logging
     console.log('🔍 Song upload attempt:');
     console.log('  - req.userId:', req.userId);
