@@ -258,12 +258,27 @@ export default function SongUploader() {
         console.log(`🎵 Song ready to play: ${song.name}`);
       });
 
-      // Set source with proper codec type for m4a files
-      audio.src = accessibleURL;
-      // Explicitly set the type for m4a files to help browser recognize format
+      // Clear existing sources
+      audio.innerHTML = '';
+      
+      // Create source element with proper MIME type
+      const source = document.createElement('source');
+      source.src = accessibleURL;
+      
+      // Set MIME type based on file extension
       if (accessibleURL.toLowerCase().endsWith('.m4a')) {
-        audio.type = 'audio/mp4';
+        source.type = 'audio/mp4';
+      } else if (accessibleURL.toLowerCase().endsWith('.mp3')) {
+        source.type = 'audio/mpeg';
+      } else if (accessibleURL.toLowerCase().endsWith('.wav')) {
+        source.type = 'audio/wav';
+      } else if (accessibleURL.toLowerCase().endsWith('.ogg')) {
+        source.type = 'audio/ogg';
+      } else {
+        source.type = 'audio/mpeg'; // Default to mp3
       }
+      
+      audio.appendChild(source);
       audio.load();
       
       // Wait for audio to be ready before playing
