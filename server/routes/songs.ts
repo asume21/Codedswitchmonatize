@@ -2,9 +2,10 @@ import { Router, type Request, type Response } from "express";
 import type { IStorage } from "../storage";
 import { checkUsageLimit } from "../middleware/featureGating";
 import ffmpeg from "fluent-ffmpeg";
-import { createWriteStream, existsSync, mkdirSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { createReadStream } from "fs";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
@@ -92,6 +93,32 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
+  // Serve converted audio files
+  router.get("/converted/:fileId", (req: Request, res: Response) => {
+    try {
+      const { fileId } = req.params;
+      const tempDir = join(tmpdir(), 'codedswitch-conversions');
+      const filePath = join(tempDir, `${fileId}.mp3`);
+
+      // Security: ensure file is in temp directory
+      if (!filePath.startsWith(tempDir)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      if (!existsSync(filePath)) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      const stream = createReadStream(filePath);
+      stream.pipe(res);
+    } catch (error) {
+      console.error('Error serving converted file:', error);
+      res.status(500).json({ error: "Failed to serve file" });
+    }
+  });
+
   return router;
 }
 
@@ -103,7 +130,8 @@ async function convertToMp3(inputURL: string): Promise<string> {
       mkdirSync(tempDir, { recursive: true });
     }
 
-    const outputPath = join(tempDir, `${Date.now()}.mp3`);
+    const fileId = Date.now().toString();
+    const outputPath = join(tempDir, `${fileId}.mp3`);
 
     ffmpeg(inputURL)
       .toFormat('mp3')
@@ -113,8 +141,9 @@ async function convertToMp3(inputURL: string): Promise<string> {
       })
       .on('end', () => {
         console.log('✅ FFmpeg conversion finished');
-        // Return the local file path - you may need to adjust this based on your storage setup
-        resolve(outputPath);
+        // Return a URL that can be served by the browser
+        const serveURL = `/api/songs/converted/${fileId}`;
+        resolve(serveURL);
       })
       .save(outputPath);
   });
