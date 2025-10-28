@@ -35,12 +35,15 @@ export function createSongRoutes(storage: IStorage) {
 
       console.log('🎵 Saving song to database:', { name, songURL, format });
 
-      // If m4a format, convert to MP3 for browser compatibility
+      // Convert non-MP3 formats to MP3 for browser compatibility
       let finalURL = songURL;
-      if (format === 'm4a' || songURL.toLowerCase().endsWith('.m4a')) {
-        console.log('🔄 Converting m4a to MP3...');
+      const lowerFormat = format?.toLowerCase() || '';
+      const lowerURL = songURL.toLowerCase();
+      
+      if (lowerFormat !== 'mp3' && !lowerURL.endsWith('.mp3')) {
+        console.log(`🔄 Converting ${lowerFormat || 'unknown'} to MP3...`);
         try {
-          finalURL = await convertM4aToMp3(songURL);
+          finalURL = await convertToMp3(songURL);
           console.log('✅ Conversion complete:', finalURL);
           format = 'mp3';
         } catch (conversionError) {
@@ -91,8 +94,8 @@ export function createSongRoutes(storage: IStorage) {
   return router;
 }
 
-// Helper function to convert m4a to MP3
-async function convertM4aToMp3(inputURL: string): Promise<string> {
+// Helper function to convert any audio format to MP3
+async function convertToMp3(inputURL: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const tempDir = join(tmpdir(), 'codedswitch-conversions');
     if (!existsSync(tempDir)) {
