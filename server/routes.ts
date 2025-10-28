@@ -815,8 +815,18 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
       
       if (!fs.existsSync(fullPath)) return res.status(404).send("Not found");
       const ext = path.extname(fullPath).toLowerCase();
-      const type = ext === ".wav" ? "audio/wav" : "application/octet-stream";
+      
+      // Set proper Content-Type for audio files
+      let type = "application/octet-stream";
+      if (ext === ".mp3") type = "audio/mpeg";
+      else if (ext === ".wav") type = "audio/wav";
+      else if (ext === ".m4a") type = "audio/mp4";
+      else if (ext === ".ogg") type = "audio/ogg";
+      else if (ext === ".flac") type = "audio/flac";
+      
       res.setHeader("Content-Type", type);
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Cache-Control", "public, max-age=86400");
       fs.createReadStream(fullPath).pipe(res);
     } catch (err: any) {
       res.status(500).send("Server error");
