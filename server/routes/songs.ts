@@ -49,7 +49,9 @@ export function createSongRoutes(storage: IStorage) {
           format = 'mp3';
         } catch (conversionError) {
           console.warn('⚠️ Conversion failed, using original:', conversionError);
+          console.warn('   Error details:', conversionError instanceof Error ? conversionError.message : conversionError);
           // Fall back to original URL if conversion fails
+          finalURL = songURL;
         }
       }
 
@@ -133,16 +135,28 @@ async function convertToMp3(inputURL: string): Promise<string> {
     const fileId = Date.now().toString();
     const outputPath = join(tempDir, `${fileId}.mp3`);
 
+    // Set a timeout for the conversion (30 seconds)
+    const timeout = setTimeout(() => {
+      console.error('❌ FFmpeg conversion timeout');
+      reject(new Error('FFmpeg conversion timeout'));
+    }, 30000);
+
     ffmpeg(inputURL)
       .toFormat('mp3')
+      .audioCodec('libmp3lame')
+      .audioBitrate('192k')
       .on('error', (err: Error) => {
-        console.error('FFmpeg error:', err);
+        clearTimeout(timeout);
+        console.error('❌ FFmpeg error:', err.message);
         reject(err);
       })
       .on('end', () => {
+        clearTimeout(timeout);
         console.log('✅ FFmpeg conversion finished');
         // Return a URL that can be served by the browser
+        // Use relative URL so it works in any environment
         const serveURL = `/api/songs/converted/${fileId}`;
+        console.log('📡 Converted file will be served at:', serveURL);
         resolve(serveURL);
       })
       .save(outputPath);
