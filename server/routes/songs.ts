@@ -1,6 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import type { IStorage } from "../storage";
 import { checkUsageLimit } from "../middleware/featureGating";
+import ffmpeg from "fluent-ffmpeg";
+import { createWriteStream, existsSync, mkdirSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
@@ -23,19 +27,33 @@ export function createSongRoutes(storage: IStorage) {
     }
     
     try {
-      const { songURL, name, fileSize, format } = req.body;
+      let { songURL, name, fileSize, format } = req.body;
       
       if (!songURL || !name) {
         return res.status(400).json({ error: "Missing required fields: songURL and name" });
       }
 
-      console.log('🎵 Saving song to database:', { name, songURL });
+      console.log('🎵 Saving song to database:', { name, songURL, format });
+
+      // If m4a format, convert to MP3 for browser compatibility
+      let finalURL = songURL;
+      if (format === 'm4a' || songURL.toLowerCase().endsWith('.m4a')) {
+        console.log('🔄 Converting m4a to MP3...');
+        try {
+          finalURL = await convertM4aToMp3(songURL);
+          console.log('✅ Conversion complete:', finalURL);
+          format = 'mp3';
+        } catch (conversionError) {
+          console.warn('⚠️ Conversion failed, using original:', conversionError);
+          // Fall back to original URL if conversion fails
+        }
+      }
 
       // Create song using storage method
       const newSong = await storage.createSong(req.userId!, {
         name,
         originalUrl: songURL,
-        accessibleUrl: songURL, // Same as original for local storage
+        accessibleUrl: finalURL, // Use converted URL if available
         fileSize: fileSize || 0,
         format: format || 'audio',
       });
@@ -71,4 +89,29 @@ export function createSongRoutes(storage: IStorage) {
   });
 
   return router;
+}
+
+// Helper function to convert m4a to MP3
+async function convertM4aToMp3(inputURL: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const tempDir = join(tmpdir(), 'codedswitch-conversions');
+    if (!existsSync(tempDir)) {
+      mkdirSync(tempDir, { recursive: true });
+    }
+
+    const outputPath = join(tempDir, `${Date.now()}.mp3`);
+
+    ffmpeg(inputURL)
+      .toFormat('mp3')
+      .on('error', (err: Error) => {
+        console.error('FFmpeg error:', err);
+        reject(err);
+      })
+      .on('end', () => {
+        console.log('✅ FFmpeg conversion finished');
+        // Return the local file path - you may need to adjust this based on your storage setup
+        resolve(outputPath);
+      })
+      .save(outputPath);
+  });
 }
