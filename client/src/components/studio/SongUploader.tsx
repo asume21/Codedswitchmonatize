@@ -30,10 +30,15 @@ export default function SongUploader() {
   const studioContext = useContext(StudioAudioContext);
   const { addMessage } = useAIMessages();
 
-  const { data: songs, isLoading: songsLoading } = useQuery<Song[]>({
+  const { data: songs, isLoading: songsLoading, refetch } = useQuery<Song[]>({
     queryKey: ['/api/songs'],
     initialData: [],
   });
+
+  // Load songs when component mounts
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
   const uploadSongMutation = useMutation({
     mutationFn: async (songData: any) => {
