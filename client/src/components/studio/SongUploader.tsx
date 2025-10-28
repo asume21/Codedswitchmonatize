@@ -184,17 +184,39 @@ export default function SongUploader() {
       setUploadContext(fileInfo);
       
       if (songURL) {
-        // Upload with proper metadata
-        const songData = {
-          songURL,
-          name: fileInfo.name,
-          fileSize: fileInfo.fileSize,
-          format: fileInfo.format,
-          mimeType: fileInfo.mimeType
-        };
+        // Get audio duration before uploading
+        const audio = new Audio();
+        audio.crossOrigin = "anonymous";
+        audio.src = songURL;
         
-        console.log('🎵 Sending song data:', songData);
-        uploadSongMutation.mutate(songData);
+        audio.addEventListener('loadedmetadata', () => {
+          const songData = {
+            songURL,
+            name: fileInfo.name,
+            fileSize: fileInfo.fileSize,
+            format: fileInfo.format,
+            mimeType: fileInfo.mimeType,
+            duration: audio.duration || 0
+          };
+          
+          console.log('🎵 Sending song data with duration:', songData);
+          uploadSongMutation.mutate(songData);
+        });
+        
+        audio.addEventListener('error', () => {
+          // If we can't get duration, upload anyway
+          const songData = {
+            songURL,
+            name: fileInfo.name,
+            fileSize: fileInfo.fileSize,
+            format: fileInfo.format,
+            mimeType: fileInfo.mimeType,
+            duration: 0
+          };
+          
+          console.log('🎵 Could not get duration, uploading anyway:', songData);
+          uploadSongMutation.mutate(songData);
+        });
       }
     }
   };

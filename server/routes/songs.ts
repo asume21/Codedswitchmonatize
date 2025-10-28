@@ -27,7 +27,7 @@ export function createSongRoutes(storage: IStorage) {
     }
     
     try {
-      let { songURL, name, fileSize, format } = req.body;
+      let { songURL, name, fileSize, format, duration } = req.body;
       
       if (!songURL || !name) {
         return res.status(400).json({ error: "Missing required fields: songURL and name" });
@@ -59,6 +59,7 @@ export function createSongRoutes(storage: IStorage) {
         accessibleUrl: finalURL, // Use converted URL if available
         fileSize: fileSize || 0,
         format: format || 'audio',
+        duration: duration || null,
       });
 
       // Increment upload count for usage tracking
