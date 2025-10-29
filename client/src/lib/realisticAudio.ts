@@ -122,13 +122,8 @@ export class RealisticAudioEngine {
         document.addEventListener('keydown', resumeAudio, { once: true });
         document.addEventListener('touchstart', resumeAudio, { once: true, passive: true });
         
-        // Try to resume immediately in case we already have permission
-        try {
-          await this.audioContext.resume();
-          console.log('🎵 Audio context resumed immediately');
-        } catch (error) {
-          console.log('🎵 Audio context needs user interaction to resume');
-        }
+        // Don't try to resume immediately - wait for user interaction
+        console.log('🎵 Audio context needs user interaction to resume');
       }
 
       console.log('🎵 Realistic audio context started, final state:', this.audioContext.state);

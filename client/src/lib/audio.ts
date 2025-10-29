@@ -57,15 +57,10 @@ export class AudioEngine {
         document.addEventListener("keydown", resumeAudio, true);
         document.addEventListener("touchstart", resumeAudio, true);
 
-        // Try to resume immediately in case we already have permission
-        try {
-          await this.audioContext.resume();
-          console.log("🎵 Synthetic audio context resumed immediately");
-        } catch (error) {
-          console.log(
-            "🎵 Synthetic audio context needs user interaction to resume",
-          );
-        }
+        // Don't try to resume immediately - wait for user interaction
+        console.log(
+          "🎵 Synthetic audio context needs user interaction to resume",
+        );
       }
 
       this.masterGain = this.audioContext.createGain();
