@@ -294,7 +294,7 @@ export default function Studio() {
   const renderTabContent = () => {
     const componentMap: Record<Tab, JSX.Element> = {
       translator: <CodeTranslator />,
-      beatmaker: <BeatStudio />,
+      beatmaker: <BeatMaker />,
       melody: <MelodyComposerV2 />,
       multitrack: <CodeBeatStudio />,
       codebeat: <CodeToMusic />,
@@ -303,7 +303,7 @@ export default function Studio() {
       uploader: <SongUploader />,
       security: <VulnerabilityScanner />,
       lyrics: <LyricLab />,
-      musicmixer: <ProfessionalStudio />,
+      musicmixer: <UnifiedMusicStudio />,
       professionalmixer: <ProfessionalMixer />,
       mixer: <Mixer />,
       layers: <DynamicLayering />,
