@@ -33,7 +33,7 @@ class AudioEngine {
   // Core initialization
   async initialize() {
     if (this.isInitialized) return;
-    await Tone.start(); // Required on iOS/Chrome
+    // Don't start Tone.js here - let it start when user interacts
     try {
       await realisticAudio.initialize();
     } catch (error) {
@@ -41,6 +41,14 @@ class AudioEngine {
     }
     this.setupDrumVoices();
     this.isInitialized = true;
+  }
+
+  // Start Tone.js when needed (called from user interaction)
+  async startAudio() {
+    if (Tone.context.state !== 'running') {
+      await Tone.start();
+      console.log('🎵 Tone.js AudioContext started from user interaction');
+    }
   }
 
   // Transport control

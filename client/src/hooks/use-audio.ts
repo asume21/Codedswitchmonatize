@@ -25,7 +25,8 @@ async function enableIOSAudio(): Promise<void> {
   
   try {
     // Initialize Tone.js which handles iOS audio context
-    await audioEngine.init();
+    await audioEngine.initialize();
+    await audioEngine.startAudio();
     iOSAudioInitialized = true;
     console.log('✅ iOS audio enabled successfully');
     
@@ -191,6 +192,7 @@ export function useAudio(): UseAudioReturn {
 
     try {
       await audioEngine.initialize();
+      await audioEngine.startAudio(); // Start Tone.js from user interaction
       
       globalAudioInitialized = true;
       setIsInitialized(true);
