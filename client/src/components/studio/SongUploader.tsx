@@ -249,6 +249,13 @@ export default function SongUploader() {
           : `${accessibleURL}?t=${timestamp}&direct=true`;
       }
 
+      // For M4A files, try to add format parameter to help browser
+      if (accessibleURL.includes('.m4a')) {
+        accessibleURL = accessibleURL.includes('?') 
+          ? `${accessibleURL}&format=mp4`
+          : `${accessibleURL}?format=mp4`;
+      }
+
       console.log(`🎵 Attempting to play: ${song.name} from URL: ${accessibleURL.substring(0, 100)}...`);
 
       // Stop any currently playing audio
