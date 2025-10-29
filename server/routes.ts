@@ -1071,7 +1071,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Generate music with MusicGen via Replicate
   app.post(
     "/api/music/generate-with-musicgen",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const { prompt, duration } = req.body;
