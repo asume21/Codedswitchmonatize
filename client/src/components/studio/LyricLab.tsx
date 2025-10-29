@@ -43,15 +43,18 @@ Type here or use AI generation...`);
 
   // Update studio context whenever lyrics content changes
   React.useEffect(() => {
-    studioContext.setCurrentLyrics(content);
-  }, [content, studioContext]);
+    if (studioContext.currentLyrics !== content) {
+      studioContext.setCurrentLyrics(content);
+    }
+  }, [content]);
 
-  // Load persisted lyrics from studio context on component mount
+  // Load persisted lyrics from studio context on component mount (once)
   React.useEffect(() => {
     if (studioContext.currentLyrics && studioContext.currentLyrics !== content) {
       setContent(studioContext.currentLyrics);
     }
-  }, [studioContext.currentLyrics]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on mount
   const [genre, setGenre] = useState("hip-hop");
   const [rhymeScheme, setRhymeScheme] = useState("ABAB");
   const [theme, setTheme] = useState("technology, coding");

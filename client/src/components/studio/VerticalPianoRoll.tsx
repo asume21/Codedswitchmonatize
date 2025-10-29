@@ -26,6 +26,20 @@ const MIDI_TO_ROW_INDEX: Record<number, number> = MIDI_RANGE.reduce((acc, pitch,
   return acc;
 }, {} as Record<number, number>);
 
+// Keyboard shortcut mapping for POLYPHONY
+const KEYBOARD_TO_NOTE: Record<string, { note: string; octave: number }> = {
+  'z': { note: 'C', octave: 3 }, 's': { note: 'C#', octave: 3 }, 'x': { note: 'D', octave: 3 },
+  'd': { note: 'D#', octave: 3 }, 'c': { note: 'E', octave: 3 }, 'v': { note: 'F', octave: 3 },
+  'g': { note: 'F#', octave: 3 }, 'b': { note: 'G', octave: 3 }, 'h': { note: 'G#', octave: 3 },
+  'n': { note: 'A', octave: 3 }, 'j': { note: 'A#', octave: 3 }, 'm': { note: 'B', octave: 3 },
+  'q': { note: 'C', octave: 4 }, '2': { note: 'C#', octave: 4 }, 'w': { note: 'D', octave: 4 },
+  '3': { note: 'D#', octave: 4 }, 'e': { note: 'E', octave: 4 }, 'r': { note: 'F', octave: 4 },
+  '5': { note: 'F#', octave: 4 }, 't': { note: 'G', octave: 4 }, '6': { note: 'G#', octave: 4 },
+  'y': { note: 'A', octave: 4 }, '7': { note: 'A#', octave: 4 }, 'u': { note: 'B', octave: 4 },
+  'i': { note: 'C', octave: 5 }, '9': { note: 'C#', octave: 5 }, 'o': { note: 'D', octave: 5 },
+  '0': { note: 'D#', octave: 5 }, 'p': { note: 'E', octave: 5 },
+};
+
 // Chord progressions
 const CHORD_PROGRESSIONS: ChordProgression[] = [
   { id: 'classic', name: 'Classic Pop (I-V-vi-IV)', chords: ['I', 'V', 'vi', 'IV'], key: 'C' },
@@ -103,6 +117,13 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
   const [customKeys, setCustomKeys] = useState(DEFAULT_customKeys);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+  const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set());
+  const [currentOctave, setCurrentOctave] = useState(4);
+  const [noteLength, setNoteLength] = useState(1);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [history, setHistory] = useState<Note[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
   const [resizeStartX, setResizeStartX] = useState(0);
   const [resizeStartLength, setResizeStartLength] = useState(0);
@@ -128,9 +149,171 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       }
     },
     stopAllNotes: () => {
-      console.log('Stopping all notes');
+      audioEngine.current.stopAllNotes();
     },
   });
+
+  // Get active track and notes (must be defined before using in callbacks)
+  const activeTrack = tracks.find(t => t.id === String(selectedTrack));
+  const activeNotes = activeTrack?.notes ?? [];
+  const selectedNote = activeNotes.find(note => note.id === selectedNoteId) ?? null;
+
+  // Add to history for undo/redo
+  const addToHistory = useCallback((notes: Note[]) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push(JSON.parse(JSON.stringify(notes)));
+      return newHistory.slice(-50); // Keep last 50 states
+    });
+    setHistoryIndex(prev => Math.min(prev + 1, 49));
+  }, [historyIndex]);
+
+  // Undo
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      setHistoryIndex(prev => prev - 1);
+      const previousState = history[historyIndex - 1];
+      onNotesChange(previousState);
+    }
+  }, [historyIndex, history, onNotesChange]);
+
+  // Redo
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(prev => prev + 1);
+      const nextState = history[historyIndex + 1];
+      onNotesChange(nextState);
+    }
+  }, [historyIndex, history, onNotesChange]);
+
+  // Duplicate selected notes
+  const duplicateSelected = useCallback(() => {
+    if (selectedNoteIds.size === 0) return;
+    const selectedNotes = activeNotes.filter(n => selectedNoteIds.has(n.id));
+    const newNotes = selectedNotes.map(note => ({
+      ...note,
+      id: uuidv4(),
+      step: Math.min(note.step + 4, STEPS - 1),
+    }));
+    const updatedNotes = [...activeNotes, ...newNotes];
+    onNotesChange(updatedNotes);
+    addToHistory(updatedNotes);
+    setSelectedNoteIds(new Set(newNotes.map(n => n.id)));
+    toast({ title: 'Notes Duplicated', description: `${newNotes.length} note${newNotes.length === 1 ? '' : 's'} copied` });
+  }, [selectedNoteIds, activeNotes, onNotesChange, addToHistory, toast]);
+
+  // Delete selected notes
+  const deleteSelected = useCallback(() => {
+    if (selectedNoteIds.size === 0) return;
+    const updatedNotes = activeNotes.filter(n => !selectedNoteIds.has(n.id));
+    onNotesChange(updatedNotes);
+    addToHistory(updatedNotes);
+    setSelectedNoteIds(new Set());
+    toast({ title: 'Notes Deleted', description: `${selectedNoteIds.size} note${selectedNoteIds.size === 1 ? '' : 's'} removed` });
+  }, [selectedNoteIds, activeNotes, onNotesChange, addToHistory, toast]);
+
+  // 🎹 KEYBOARD SHORTCUTS - POLYPHONY SUPPORT!
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const key = e.key.toLowerCase();
+      if (activeKeys.has(key)) return; // Prevent repeats
+
+      // SPACE - Play/Pause
+      if (key === ' ') { 
+        e.preventDefault(); 
+        if (isPlaying) { stopPlayback(); } else { startPlayback(); }
+        return; 
+      }
+      // ENTER - Stop
+      if (key === 'enter') { e.preventDefault(); stopPlayback(); return; }
+      
+      // CTRL/CMD shortcuts
+      if (e.ctrlKey || e.metaKey) {
+        if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+        if (key === 'y' || (key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); return; }
+        if (key === 'a') { e.preventDefault(); setSelectedNoteIds(new Set(activeNotes.map(n => n.id))); toast({ title: 'All Selected' }); return; }
+        if (key === 'd') { e.preventDefault(); duplicateSelected(); return; }
+      }
+
+      // DELETE/BACKSPACE
+      if (key === 'delete' || key === 'backspace') {
+        if (selectedNoteIds.size > 0) { e.preventDefault(); deleteSelected(); return; }
+      }
+
+      // ARROW UP/DOWN - Octave control
+      if (key === 'arrowup') { 
+        e.preventDefault(); 
+        setCurrentOctave(prev => Math.min(prev + 1, 7)); 
+        toast({ title: 'Octave Up', description: `Now at octave ${Math.min(currentOctave + 1, 7)}`, duration: 1000 }); 
+        return; 
+      }
+      if (key === 'arrowdown') { 
+        e.preventDefault(); 
+        setCurrentOctave(prev => Math.max(prev - 1, 1)); 
+        toast({ title: 'Octave Down', description: `Now at octave ${Math.max(currentOctave - 1, 1)}`, duration: 1000 }); 
+        return; 
+      }
+
+      // 1-9 - Note length
+      if (!isNaN(Number(key)) && Number(key) > 0 && Number(key) <= 9) {
+        e.preventDefault();
+        setNoteLength(Number(key));
+        toast({ title: 'Note Length', description: `Set to ${key} step${key === '1' ? '' : 's'}`, duration: 1000 });
+        return;
+      }
+
+      // 🎹 PIANO KEYS - POLYPHONY! (Can play multiple at once!)
+      if (KEYBOARD_TO_NOTE[key]) {
+        e.preventDefault();
+        setActiveKeys(prev => new Set(Array.from(prev).concat(key)));
+        
+        const noteData = KEYBOARD_TO_NOTE[key];
+        const adjustedOctave = noteData.octave + (currentOctave - 4);
+        
+        if (!activeTrack) return;
+        const instrument = activeTrack.instrument ?? 'piano';
+        // Play sound immediately
+        audioEngine.current.playNote(noteData.note, adjustedOctave, 0.5, instrument);
+
+        // If SHIFT held, add note to grid (build chords!)
+        if (e.shiftKey) {
+          const newNote: Note = {
+            id: uuidv4(),
+            step: currentStep,
+            note: noteData.note,
+            octave: adjustedOctave,
+            velocity: 100,
+            length: noteLength,
+          };
+          const updatedNotes = [...activeNotes, newNote];
+          onNotesChange(updatedNotes);
+          addToHistory(updatedNotes);
+          setSelectedNoteIds(new Set([newNote.id]));
+        }
+      }
+
+      // ? - Show shortcuts help
+      if (key === '?') {
+        e.preventDefault();
+        setShowShortcuts(prev => !prev);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      setActiveKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKeys, currentOctave, noteLength, selectedNoteIds, isPlaying, currentStep, tracks, selectedTrack, undo, redo, duplicateSelected, deleteSelected, onNotesChange, addToHistory, toast]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -177,10 +360,6 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       audioEngine.current.playNote('C', 6, getSecondsPerStep() / 2, currentTrack.instrument ?? 'piano');
     }
   }, [tracks, selectedTrack, getSecondsPerStep, metronomeEnabled]);
-
-  const activeTrack = tracks.find(t => t.id === String(selectedTrack));
-  const activeNotes = activeTrack?.notes ?? [];
-  const selectedNote = activeNotes.find(note => note.id === selectedNoteId) ?? null;
 
   const startPlayback = useCallback(() => {
     if (playbackInterval.current) {

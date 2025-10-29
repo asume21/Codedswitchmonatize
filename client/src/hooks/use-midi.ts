@@ -633,7 +633,8 @@ export function useMIDI() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [autoConnectionEnabled, midiAccess, refreshDevices]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoConnectionEnabled]); // Removed refreshDevices to prevent infinite loop
 
   return {
     isSupported,
