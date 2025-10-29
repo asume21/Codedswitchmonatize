@@ -278,25 +278,22 @@ export function useAudio(): UseAudioReturn {
 
   // Initialize audio on component mount
   useEffect(() => {
-    if (isIOS()) {
-      // On iOS, we need a user gesture to initialize audio
-      const handleFirstInteraction = () => {
-        enableIOSAudio();
-        window.removeEventListener('touchstart', handleFirstInteraction);
-        window.removeEventListener('click', handleFirstInteraction);
-      };
-      
-      window.addEventListener('touchstart', handleFirstInteraction);
-      window.addEventListener('click', handleFirstInteraction);
-      
-      return () => {
-        window.removeEventListener('touchstart', handleFirstInteraction);
-        window.removeEventListener('click', handleFirstInteraction);
-      };
-    } else {
-      // On other platforms, initialize immediately
-      initialize();
-    }
+    // On ALL platforms, we now need a user gesture to initialize audio due to browser policies
+    const handleFirstInteraction = () => {
+      if (!globalAudioInitialized) {
+        initialize();
+      }
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('click', handleFirstInteraction);
+    };
+    
+    window.addEventListener('touchstart', handleFirstInteraction);
+    window.addEventListener('click', handleFirstInteraction);
+    
+    return () => {
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('click', handleFirstInteraction);
+    };
   }, [initialize]);
 
   return {
