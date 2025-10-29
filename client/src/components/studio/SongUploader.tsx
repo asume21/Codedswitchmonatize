@@ -233,16 +233,26 @@ export default function SongUploader() {
 
   const playSong = async (song: Song) => {
     try {
-      const accessibleURL = song.accessibleUrl || song.originalUrl;
+      // Try multiple URL sources in order of preference
+      let accessibleURL = song.accessibleUrl || song.originalUrl || song.songURL;
+      
       if (!accessibleURL) {
         throw new Error("No URL available for this song");
+      }
+
+      console.log(`🎵 Attempting to play: ${song.name} from URL: ${accessibleURL.substring(0, 100)}...`);
+
+      // Stop any currently playing audio
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.src = '';
       }
 
       const audio = new Audio();
       audio.crossOrigin = "anonymous";
       
       audio.addEventListener('loadedmetadata', () => {
-        console.log(`🎵 Song loaded: ${song.name}, duration: ${audio.duration}s`);
+        console.log(`✅ Song loaded: ${song.name}, duration: ${audio.duration}s`);
         setDuration(audio.duration);
       });
       
@@ -251,6 +261,7 @@ export default function SongUploader() {
       });
       
       audio.addEventListener('ended', () => {
+        console.log(`✅ Song finished: ${song.name}`);
         setIsPlaying(false);
         setCurrentSong(null);
         setCurrentTime(0);
@@ -266,18 +277,18 @@ export default function SongUploader() {
               errorMessage = 'Audio loading aborted';
               break;
             case error.MEDIA_ERR_NETWORK:
-              errorMessage = 'Network error while loading audio';
+              errorMessage = 'Network error - check your connection';
               break;
             case error.MEDIA_ERR_DECODE:
-              errorMessage = 'Audio format not supported or corrupted';
+              errorMessage = 'Audio format not supported or file corrupted';
               break;
             case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-              errorMessage = 'Audio format not supported by browser';
+              errorMessage = 'Audio format not supported by your browser';
               break;
           }
         }
         
-        console.error('Audio error:', errorMessage);
+        console.error('🚫 Audio error:', errorMessage, 'URL:', accessibleURL);
         toast({
           title: "Playback Error",
           description: `Cannot play ${song.name}: ${errorMessage}`,
@@ -288,10 +299,16 @@ export default function SongUploader() {
         setCurrentSong(null);
       });
 
+      // Set source and attempt to load
       audio.src = accessibleURL;
-      audio.load();
+      audio.preload = "metadata";
       
-      await audio.play();
+      // Attempt to play
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
+      
       setAudioElement(audio);
       setCurrentSong(song);
       setIsPlaying(true);
@@ -302,7 +319,7 @@ export default function SongUploader() {
       });
       
     } catch (error) {
-      console.error('Audio playback error:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('🚫 Audio playback error:', error instanceof Error ? error.message : 'Unknown error');
       toast({
         title: "Playback Failed",
         description: `Cannot play ${song.name}. ${error instanceof Error ? error.message : 'The file may be corrupted or unsupported.'}`,
