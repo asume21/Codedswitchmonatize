@@ -1087,9 +1087,8 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
             "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}`,
           },
           body: JSON.stringify({
-            version: "7a76a8258b23fae65c5a22debb8841d1d7e816b75c2f24218cd2bd85737879072", // MusicGen melody version
+            version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb", // MusicGen stereo-melody-large
             input: {
-              model_version: "melody",
               prompt: prompt,
               duration: duration || 10,
             },
@@ -1098,9 +1097,25 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
 
         const prediction = await response.json();
 
+        // Log the response for debugging
+        console.log('[MusicGen] Replicate API response:', JSON.stringify(prediction, null, 2));
+
+        // Check if Replicate returned an error
+        if (prediction.error || prediction.detail) {
+          console.error('[MusicGen] Replicate API error:', prediction.error || prediction.detail);
+          return res.status(500).json({ 
+            message: `Replicate API error: ${prediction.error || prediction.detail}`,
+            details: prediction
+          });
+        }
+
         // SECURITY: Validate prediction ID format to prevent SSRF
         if (!prediction.id || typeof prediction.id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(prediction.id)) {
-          return res.status(500).json({ message: "Invalid prediction ID received from API" });
+          console.error('[MusicGen] Invalid prediction response:', prediction);
+          return res.status(500).json({ 
+            message: "Invalid prediction ID received from API",
+            details: prediction
+          });
         }
 
         // Poll for result
