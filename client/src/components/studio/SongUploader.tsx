@@ -240,6 +240,15 @@ export default function SongUploader() {
         throw new Error("No URL available for this song");
       }
 
+      // Fix internal URLs to ensure they're accessible
+      if (accessibleURL.includes('/api/internal/uploads/')) {
+        // Add timestamp and proper headers for internal URLs
+        const timestamp = Date.now();
+        accessibleURL = accessibleURL.includes('?') 
+          ? `${accessibleURL}&t=${timestamp}&direct=true`
+          : `${accessibleURL}?t=${timestamp}&direct=true`;
+      }
+
       console.log(`🎵 Attempting to play: ${song.name} from URL: ${accessibleURL.substring(0, 100)}...`);
 
       // Stop any currently playing audio
@@ -270,6 +279,7 @@ export default function SongUploader() {
       audio.addEventListener('error', (e) => {
         const error = (e.target as HTMLAudioElement).error;
         let errorMessage = 'Audio loading failed';
+        let isFormatIssue = false;
         
         if (error) {
           switch (error.code) {
@@ -281,11 +291,18 @@ export default function SongUploader() {
               break;
             case error.MEDIA_ERR_DECODE:
               errorMessage = 'Audio format not supported or file corrupted';
+              isFormatIssue = true;
               break;
             case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
               errorMessage = 'Audio format not supported by your browser';
+              isFormatIssue = true;
               break;
           }
+        }
+        
+        // Check if it's an M4A format issue and suggest conversion
+        if (isFormatIssue && (accessibleURL.includes('.m4a') || accessibleURL.includes('.mp4'))) {
+          errorMessage += '. M4A files may not work in all browsers. Try converting to MP3 or WAV format.';
         }
         
         console.error('🚫 Audio error:', errorMessage, 'URL:', accessibleURL);
@@ -293,6 +310,7 @@ export default function SongUploader() {
           title: "Playback Error",
           description: `Cannot play ${song.name}: ${errorMessage}`,
           variant: "destructive",
+          duration: 8000,
         });
         
         setIsPlaying(false);
@@ -302,6 +320,12 @@ export default function SongUploader() {
       // Set source and attempt to load
       audio.src = accessibleURL;
       audio.preload = "metadata";
+      
+      // Initialize Tone.js if needed (requires user interaction)
+      if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+        await Tone.start();
+        console.log('🎵 Tone.js AudioContext started');
+      }
       
       // Attempt to play
       const playPromise = audio.play();
