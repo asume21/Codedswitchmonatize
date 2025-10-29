@@ -211,7 +211,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   });
 
   // Beat generation endpoint
-  app.post("/api/beats/generate", requireAuth(), async (req: Request, res: Response) => {
+  app.post("/api/beats/generate", async (req: Request, res: Response) => {
     try {
       const beatSchema = z.object({
         genre: z.string().min(1),
@@ -254,7 +254,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   });
 
   // Melody generation endpoint
-  app.post("/api/melody/generate", requireAuth(), async (req: Request, res: Response) => {
+  app.post("/api/melody/generate", async (req: Request, res: Response) => {
     try {
       // Generate a simple melody pattern
       const melody = {
@@ -676,7 +676,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Music generation endpoint (temporarily free)
   app.post(
     "/api/generate-music",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const { prompt, count } = (req.body || {}) as { prompt?: string; count?: number };
@@ -863,7 +862,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Complete professional song generation (temporarily free)
   app.post(
     "/api/music/generate-complete",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const schema = z.object({
@@ -968,7 +966,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Generate lyrics endpoint
   app.post(
     "/api/lyrics/generate",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const { theme, genre, mood, style } = req.body;
@@ -1017,7 +1014,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Generate beat from lyrics endpoint
   app.post(
     "/api/lyrics/generate-beat",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const { lyrics, genre, complexity } = req.body;
@@ -1049,7 +1045,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
 
     app.post(
     "/api/lyrics/generate-music",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const { lyrics, style, genre } = req.body;
@@ -1143,7 +1138,6 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
 
     app.post(
     "/api/chatmusician/generate",
-    requireAuth(),
     async (req: Request, res: Response) => {
       try {
         const { prompt, style } = req.body;
