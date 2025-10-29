@@ -11,9 +11,23 @@ export async function generateMusicFromLyrics(
   style: string,
   genre: string
 ): Promise<{ id: string; title: string; audioUrl: string; lyrics: string; style: string; genre: string; note: string; }> {
+  // Return mock data for dev - Replicate API requires credits
+  console.log(`[Lyrics to Music Mock] Generating ${style} ${genre} music for lyrics`);
+  return {
+    id: `mock-${Date.now()}`,
+    title: `${style} ${genre} Track`,
+    audioUrl: 'https://example.com/mock-audio.mp3',
+    lyrics,
+    style,
+    genre,
+    note: 'Mock audio generated (Replicate API integration pending)'
+  };
+  
+  /* Real implementation - uncomment when ready
   if (!REPLICATE_API_TOKEN) {
     throw new Error("REPLICATE_API_TOKEN is not set.");
   }
+  */
 
   const prompt = `${lyrics}\n\nStyle: ${style}\nGenre: ${genre}`;
 

@@ -748,9 +748,9 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
           musicalParams
         } = req.body;
 
-        if (!scale || !style) {
-                    return sendError(res, 400, "Scale and style are required");
-        }
+        // Use defaults if not provided
+        const finalScale = scale || 'C Major';
+        const finalStyle = style || 'melodic';
 
         console.log(`🎵 Generating melody: ${style} in ${scale}, complexity: ${complexity}`);
 
