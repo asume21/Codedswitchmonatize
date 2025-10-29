@@ -1038,6 +1038,44 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     },
   );
 
+  // Serve files from internal uploads path (for song playback)
+  app.get("/api/internal/uploads/*", async (req: Request, res: Response) => {
+    try {
+      const objectKey = (req.params as any)[0] as string;
+      const sanitizedObjectKey = path.normalize(objectKey).replace(/^(\.\.[\\/])+/,'');
+      if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
+        return res.status(400).send("Invalid path");
+      }
+      const fullPath = path.resolve(path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey));
+      
+      // SECURITY: Ensure the resolved path is still within LOCAL_OBJECTS_DIR
+      if (!fullPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+        return res.status(403).send("Access denied");
+      }
+      
+      if (!fs.existsSync(fullPath)) return res.status(404).send("Not found");
+      const ext = path.extname(fullPath).toLowerCase();
+      
+      // Set proper Content-Type for audio files
+      let type = "application/octet-stream";
+      if (ext === ".mp3") type = "audio/mpeg";
+      else if (ext === ".wav") type = "audio/wav";
+      else if (ext === ".m4a") type = "audio/mp4";
+      else if (ext === ".ogg") type = "audio/ogg";
+      else if (ext === ".flac") type = "audio/flac";
+      
+      res.setHeader("Content-Type", type);
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET");
+      res.setHeader("Access-Control-Allow-Headers", "Range");
+      fs.createReadStream(fullPath).pipe(res);
+    } catch (err: any) {
+      res.status(500).send("Server error");
+    }
+  });
+
   // Serve locally stored objects (audio)
   app.get("/objects/*", async (req: Request, res: Response) => {
     try {
