@@ -253,6 +253,33 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // Melody generation endpoint
+  app.post("/api/melody/generate", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      // Generate a simple melody pattern
+      const melody = {
+        notes: [
+          { note: 'C4', duration: 0.5, time: 0 },
+          { note: 'E4', duration: 0.5, time: 0.5 },
+          { note: 'G4', duration: 0.5, time: 1 },
+          { note: 'C5', duration: 1, time: 1.5 },
+        ],
+        key: 'C',
+        scale: 'major',
+        bpm: 120
+      };
+
+      res.json({
+        success: true,
+        melody,
+        message: "Melody generated successfully"
+      });
+    } catch (error: any) {
+      console.error("Melody generation error:", error);
+      sendError(res, 500, error.message || "Failed to generate melody");
+    }
+  });
+
   // Helper function to generate drum patterns
   function generatePattern(instrument: string, genre: string, bpm: number) {
     // Simple pattern generation based on genre and BPM
