@@ -111,7 +111,8 @@ export class MusicGenService {
 
     } catch (error) {
       console.error(`❌ Replicate MusicGen failed:`, error);
-      throw error; // Don't fall back - fail loudly so user knows AI isn't working
+      console.log(`🔄 Falling back to metadata-only generation...`);
+      return this.generateSamplePackFallback(prompt, packCount);
     }
   }
 

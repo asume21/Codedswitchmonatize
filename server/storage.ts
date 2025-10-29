@@ -57,6 +57,7 @@ export interface IStorage {
   ): Promise<User>;
   updateUserUsage(userId: string, uploads: number, generations: number): Promise<User>;
   incrementUserUsage(userId: string, type: 'uploads' | 'generations'): Promise<User>;
+  updateUserCredits(userId: string, creditsDelta: number): Promise<User>;
   getUserByActivationKey(activationKey: string): Promise<User | undefined>;
   activateUserKey(userId: string): Promise<User>;
   setUserActivationKey(userId: string, activationKey: string): Promise<User>;
@@ -191,6 +192,8 @@ export class MemStorage implements IStorage {
       monthlyUploads: 0,
       monthlyGenerations: 0,
       lastUsageReset: new Date(),
+      credits: 10, // Free credits on signup
+      totalCreditsSpent: 0,
       createdAt: new Date(),
     };
     this.users.set(defaultUser.id, defaultUser);
@@ -223,6 +226,8 @@ export class MemStorage implements IStorage {
       monthlyUploads: 0,
       monthlyGenerations: 0,
       lastUsageReset: new Date(),
+      credits: 10, // Free credits on signup
+      totalCreditsSpent: 0,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -289,6 +294,19 @@ export class MemStorage implements IStorage {
       ...user,
       monthlyUploads: type === 'uploads' ? (user.monthlyUploads || 0) + 1 : (user.monthlyUploads || 0),
       monthlyGenerations: type === 'generations' ? (user.monthlyGenerations || 0) + 1 : (user.monthlyGenerations || 0),
+    };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
+  async updateUserCredits(userId: string, creditsDelta: number): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+
+    const updated: User = {
+      ...user,
+      credits: Math.max(0, (user.credits || 10) + creditsDelta),
+      totalCreditsSpent: (user.totalCreditsSpent || 0) + Math.abs(creditsDelta),
     };
     this.users.set(userId, updated);
     return updated;
@@ -1246,6 +1264,19 @@ export class DatabaseStorage implements IStorage {
       .set({
         ...(type === 'uploads' && { monthlyUploads: sql`COALESCE(${users.monthlyUploads}, 0) + 1` }),
         ...(type === 'generations' && { monthlyGenerations: sql`COALESCE(${users.monthlyGenerations}, 0) + 1` }),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!user) throw new Error("User not found");
+    return user;
+  }
+
+  async updateUserCredits(userId: string, creditsDelta: number): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({
+        credits: sql`GREATEST(0, COALESCE(${users.credits}, 10) + ${creditsDelta})`,
+        totalCreditsSpent: sql`COALESCE(${users.totalCreditsSpent}, 0) + ${Math.abs(creditsDelta)}`,
       })
       .where(eq(users.id, userId))
       .returning();

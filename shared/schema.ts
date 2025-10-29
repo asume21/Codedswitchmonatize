@@ -30,6 +30,9 @@ export const users = pgTable("users", {
   monthlyUploads: integer("monthly_uploads").default(0),
   monthlyGenerations: integer("monthly_generations").default(0),
   lastUsageReset: timestamp("last_usage_reset").defaultNow(),
+  // Credit system for AI generation
+  credits: integer("credits").default(10), // Free credits on signup
+  totalCreditsSpent: integer("total_credits_spent").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

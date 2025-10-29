@@ -159,7 +159,7 @@ export function generateChordProgression(keyString: string, genre: string = 'pop
   const genreProgressions = PROGRESSIONS[genreLower] || PROGRESSIONS.pop;
   
   // Select a random progression
-  const randomIndex = require('crypto').randomInt(0, genreProgressions.length);
+  const randomIndex = Math.floor(Math.random() * genreProgressions.length);
   const selectedProgression = genreProgressions[randomIndex];
   
   // Convert roman numerals to actual chords

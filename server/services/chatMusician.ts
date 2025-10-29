@@ -10,20 +10,11 @@ export async function generateChatMusicianMelody(
   prompt: string,
   style: string
 ): Promise<{ id: string; abcNotation: string; description: string; style: string; }> {
-  // Return mock data for dev
-  console.log(`[ChatMusician Mock] Generating ${style} melody for: ${prompt}`);
-  return {
-    id: `mock-${Date.now()}`,
-    abcNotation: 'X:1\nT:Mock Melody\nM:4/4\nL:1/8\nK:C\nCDEF GABc|',
-    description: `${style} melody: ${prompt}`,
-    style
-  };
-  
-  /* Real implementation - uncomment when ready
-  if (!HUGGING_FACE_API_TOKEN) {
+  // Check token at runtime, not import time
+  const token = process.env.HUGGING_FACE_API_TOKEN;
+  if (!token) {
     throw new Error("HUGGING_FACE_API_TOKEN is not set.");
   }
-  */
 
   const fullPrompt = `Style: ${style}\nPrompt: ${prompt}`;
 

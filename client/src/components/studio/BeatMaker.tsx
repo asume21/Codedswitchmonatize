@@ -161,6 +161,7 @@ export default function BeatMaker() {
         genre: selectedGenre,
         bpm: normalizedBpm,
         duration: calculatedDuration,
+        aiProvider: aiProvider,
       };
 
       const response = await apiRequest("POST", "/api/beats/generate", payload);

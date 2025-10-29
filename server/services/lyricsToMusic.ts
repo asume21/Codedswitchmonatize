@@ -11,62 +11,69 @@ export async function generateMusicFromLyrics(
   style: string,
   genre: string
 ): Promise<{ id: string; title: string; audioUrl: string; lyrics: string; style: string; genre: string; note: string; }> {
-  // Return mock data for dev - Replicate API requires credits
-  console.log(`[Lyrics to Music Mock] Generating ${style} ${genre} music for lyrics`);
-  return {
-    id: `mock-${Date.now()}`,
-    title: `${style} ${genre} Track`,
-    audioUrl: 'https://example.com/mock-audio.mp3',
-    lyrics,
-    style,
-    genre,
-    note: 'Mock audio generated (Replicate API integration pending)'
-  };
-  
-  /* Real implementation - uncomment when ready
-  if (!REPLICATE_API_TOKEN) {
+  // Check token at runtime, not import time
+  const token = process.env.REPLICATE_API_TOKEN;
+  if (!token) {
     throw new Error("REPLICATE_API_TOKEN is not set.");
   }
-  */
 
-  const prompt = `${lyrics}\n\nStyle: ${style}\nGenre: ${genre}`;
+  // Use MusicGen instead of Riffusion for better quality
+  const prompt = `${genre} ${style} music inspired by: ${lyrics.substring(0, 200)}`;
+
+  console.log(`🎵 Generating music from lyrics with MusicGen: "${prompt}"`);
 
   try {
     const response = await axios.post(
       'https://api.replicate.com/v1/predictions',
       {
-        version: 'riffusion/riffusion:8cf61ea6c56afd61d8f5b9ffd14d7c216c0a93844ce2d82ac1c9ecc9c7f24e05',
+        version: '671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb', // MusicGen stereo-melody-large
         input: {
-          prompt_a: prompt,
+          prompt: prompt,
+          duration: 30,
+          model_version: 'stereo-melody-large',
         },
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
+          'Authorization': `Token ${token}`,
         },
       }
     );
 
     let prediction = response.data;
-    while (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    while ((prediction.status === 'starting' || prediction.status === 'processing') && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000));
-      const statusResponse = await axios.get(prediction.urls.get, {
-        headers: {
-          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-        },
-      });
+      const statusResponse = await axios.get(
+        `https://api.replicate.com/v1/predictions/${prediction.id}`,
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+          },
+        }
+      );
       prediction = statusResponse.data;
+      attempts++;
     }
 
     if (prediction.status === 'failed') {
       throw new Error('Music generation failed');
     }
 
+    if (prediction.status !== 'succeeded') {
+      throw new Error('Music generation timeout');
+    }
+
+    // Handle both array and string output formats
+    const audioUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+
     return {
       id: `music-${Date.now()}`,
       title: "AI Generated Song",
-      audioUrl: prediction.output.audio,
+      audioUrl: audioUrl,
       lyrics,
       style,
       genre,

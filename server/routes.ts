@@ -210,13 +210,101 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     name: z.string().optional(),
   });
 
-  // Beat generation endpoint
+  // Beat generation endpoint using MusicGen AI with model selection
+  // Credit purchase endpoint
+  app.post("/api/credits/purchase", async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required");
+      }
+
+      const { amount } = req.body;
+      if (!amount || amount <= 0) {
+        return sendError(res, 400, "Invalid credit amount");
+      }
+
+      // Get user to check subscription status
+      const user = await storage.getUser(req.userId);
+      if (!user) {
+        return sendError(res, 404, "User not found");
+      }
+
+      // Credit packages with subscriber bonuses
+      let creditPackages = {
+        10: { price: 4.99, credits: 10 },
+        25: { price: 9.99, credits: 25 },
+        50: { price: 17.99, credits: 50 },
+        100: { price: 29.99, credits: 100 },
+      };
+
+      // Add bonus credits for active subscribers
+      if (user.subscriptionStatus === 'active' && user.subscriptionTier !== 'free') {
+        creditPackages = {
+          10: { price: 4.99, credits: 12 },  // +2 bonus
+          25: { price: 9.99, credits: 30 },  // +5 bonus
+          50: { price: 17.99, credits: 65 }, // +15 bonus
+          100: { price: 29.99, credits: 140 }, // +40 bonus
+        };
+      }
+
+      const packageInfo = creditPackages[amount];
+      if (!packageInfo) {
+        return sendError(res, 400, "Invalid credit package");
+      }
+
+      // Add credits to user account
+      const updatedUser = await storage.updateUserCredits(req.userId, packageInfo.credits);
+
+      const bonusText = user.subscriptionStatus === 'active' ? ' (includes subscriber bonus!)' : '';
+
+      res.json({
+        success: true,
+        creditsAdded: packageInfo.credits,
+        newBalance: updatedUser.credits,
+        price: packageInfo.price,
+        isSubscriber: user.subscriptionStatus === 'active',
+        message: `Successfully purchased ${packageInfo.credits} credits for $${packageInfo.price}${bonusText}`
+      });
+    } catch (error: any) {
+      console.error("Credit purchase error:", error);
+      sendError(res, 500, error.message || "Failed to purchase credits");
+    }
+  });
+
+  // Get user credits
+  app.get("/api/credits", async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required");
+      }
+
+      const user = await storage.getUser(req.userId);
+      if (!user) {
+        return sendError(res, 404, "User not found");
+      }
+
+      res.json({
+        credits: user.credits || 10,
+        totalCreditsSpent: user.totalCreditsSpent || 0
+      });
+    } catch (error: any) {
+      console.error("Get credits error:", error);
+      sendError(res, 500, error.message || "Failed to get credits");
+    }
+  });
+
   app.post("/api/beats/generate", async (req: Request, res: Response) => {
     try {
+      // Check authentication
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required - please log in");
+      }
+
       const beatSchema = z.object({
         genre: z.string().min(1),
         bpm: z.number().min(40).max(240),
         duration: z.number().min(1).max(60),
+        aiProvider: z.string().optional(),
       });
 
       const parsed = beatSchema.safeParse(req.body);
@@ -224,56 +312,182 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         return sendError(res, 400, "Invalid input: " + parsed.error.message);
       }
 
-      const { genre, bpm, duration } = parsed.data;
+      const { genre, bpm, duration, aiProvider = 'musicgen' } = parsed.data;
 
-      // Generate a simple beat pattern based on genre and BPM
-      const beatPattern = {
-        kick: generatePattern("kick", genre, bpm),
-        snare: generatePattern("snare", genre, bpm),
-        hihat: generatePattern("hihat", genre, bpm),
-        percussion: generatePattern("percussion", genre, bpm)
-      };
+      // Check user credits (Beat Generator costs 1 credit)
+      const BEAT_COST = 1;
+      const user = await storage.getUser(req.userId!);
+      if (!user) {
+        return sendError(res, 401, "User not found");
+      }
 
-      // Return the beat pattern without audio for now
-      res.json({
-        success: true,
-        beat: {
-          id: `beat-${Date.now()}`,
-          pattern: beatPattern,
-          bpm: Number(bpm),
-          genre: String(genre),
-          duration: Number(duration),
-          audioUrl: null, // Audio generation will be added in a future update
-          timestamp: new Date().toISOString()
-        }
+      // Check if user has enough credits OR active subscription
+      const userCredits = user.credits || 10; // Default to 10 for existing users
+      const hasSubscription = user.subscriptionStatus === 'active' && user.subscriptionTier !== 'free';
+      
+      let canGenerate = false;
+      let paymentMethod = '';
+      
+      if (userCredits >= BEAT_COST) {
+        canGenerate = true;
+        paymentMethod = 'credits';
+      } else if (hasSubscription) {
+        canGenerate = true;
+        paymentMethod = 'subscription';
+      }
+      
+      if (!canGenerate) {
+        const message = hasSubscription 
+          ? `Subscription active, but monthly credit limit reached. Purchase more credits to continue.`
+          : `Insufficient credits. Need ${BEAT_COST} credits, have ${userCredits}. Purchase credits or subscribe to continue.`;
+        return sendError(res, 402, message);
+      }
+
+      console.log(`🎵 User ${req.userId} generating beat - Credits: ${userCredits} - Subscription: ${user.subscriptionTier} - Payment: ${paymentMethod}`);
+
+      // Use MusicGen AI for REAL beat generation
+      const token = process.env.REPLICATE_API_TOKEN;
+      if (!token) {
+        return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
+      }
+
+      const prompt = `${genre} drum beat, ${bpm} BPM, energetic drums and percussion`;
+      console.log(`🥁 Generating AI beat with MusicGen: "${prompt}"`);
+
+      const response = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${token}`,
+        },
+        body: JSON.stringify({
+          version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+          input: {
+            prompt: prompt,
+            duration: Math.min(duration, 30),
+            model_version: "stereo-melody-large",
+          },
+        }),
       });
-    }     catch (error: any) {
+
+      const prediction = await response.json();
+
+      if (!prediction.id) {
+        return sendError(res, 500, "Failed to start beat generation");
+      }
+
+      // Poll for result
+      let result = prediction;
+      let attempts = 0;
+      while ((result.status === "starting" || result.status === "processing") && attempts < 30) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+          headers: { "Authorization": `Token ${token}` },
+        });
+        result = await statusResponse.json();
+        attempts++;
+      }
+
+      if (result.status === "succeeded" && result.output) {
+        // Only deduct credits if payment method was credits (not subscription)
+        let remainingCredits = userCredits;
+        if (paymentMethod === 'credits') {
+          await storage.updateUserCredits(req.userId!, -BEAT_COST);
+          remainingCredits = Math.max(0, userCredits - BEAT_COST);
+        }
+        
+        res.json({
+          success: true,
+          beat: {
+            id: `beat-${Date.now()}`,
+            audioUrl: result.output,
+            bpm: Number(bpm),
+            genre: String(genre),
+            duration: Number(duration),
+            provider: 'MusicGen AI',
+            timestamp: new Date().toISOString()
+          },
+          paymentMethod,
+          creditsRemaining: remainingCredits,
+          subscriptionStatus: user.subscriptionStatus
+        });
+      } else {
+        return sendError(res, 500, "Beat generation failed");
+      }
+    } catch (error: any) {
       console.error("Beat generation error:", error);
-      sendError(res, 500, error.message || "Failed to generate beat pattern");
+      sendError(res, 500, error.message || "Failed to generate beat");
     }
   });
 
-  // Melody generation endpoint
+  // Melody generation endpoint using MusicGen AI
   app.post("/api/melody/generate", async (req: Request, res: Response) => {
     try {
-      // Generate a simple melody pattern
-      const melody = {
-        notes: [
-          { note: 'C4', duration: 0.5, time: 0 },
-          { note: 'E4', duration: 0.5, time: 0.5 },
-          { note: 'G4', duration: 0.5, time: 1 },
-          { note: 'C5', duration: 1, time: 1.5 },
-        ],
-        key: 'C',
-        scale: 'major',
-        bpm: 120
-      };
+      // Check authentication
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required - please log in");
+      }
 
-      res.json({
-        success: true,
-        melody,
-        message: "Melody generated successfully"
+      const { genre, mood, key } = req.body;
+
+      // Use MusicGen AI for REAL melody generation
+      const token = process.env.REPLICATE_API_TOKEN;
+      if (!token) {
+        return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
+      }
+
+      const prompt = `${mood || 'melodic'} ${genre || 'pop'} melody in ${key || 'C major'}, beautiful and catchy`;
+      console.log(`🎹 Generating AI melody with MusicGen: "${prompt}"`);
+
+      const response = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${token}`,
+        },
+        body: JSON.stringify({
+          version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+          input: {
+            prompt: prompt,
+            duration: 15,
+            model_version: "stereo-melody-large",
+          },
+        }),
       });
+
+      const prediction = await response.json();
+
+      if (!prediction.id) {
+        return sendError(res, 500, "Failed to start melody generation");
+      }
+
+      // Poll for result
+      let result = prediction;
+      let attempts = 0;
+      while ((result.status === "starting" || result.status === "processing") && attempts < 30) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+          headers: { "Authorization": `Token ${token}` },
+        });
+        result = await statusResponse.json();
+        attempts++;
+      }
+
+      if (result.status === "succeeded" && result.output) {
+        res.json({
+          success: true,
+          data: {
+            audioUrl: result.output,
+            key: key || 'C major',
+            genre: genre || 'pop',
+            mood: mood || 'melodic',
+            provider: 'MusicGen AI'
+          },
+          message: "Melody generated successfully"
+        });
+      } else {
+        return sendError(res, 500, "Melody generation failed");
+      }
     } catch (error: any) {
       console.error("Melody generation error:", error);
       sendError(res, 500, error.message || "Failed to generate melody");
@@ -859,22 +1073,21 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
-  // Complete professional song generation (temporarily free)
+  // Complete professional song generation using Suno AI via Replicate
   app.post(
     "/api/music/generate-complete",
     async (req: Request, res: Response) => {
       try {
+        // Check authentication
+        if (!req.userId) {
+          return sendError(res, 401, "Authentication required - please log in");
+        }
         const schema = z.object({
           songDescription: z.string().min(1, "songDescription is required"),
           genre: z.string().optional(),
           mood: z.string().optional(),
-          aiProvider: z.string().optional(),
-          duration: z.number().optional(), // seconds
-          bpm: z.number().optional(),
-          key: z.string().optional(),
-          style: z.string().optional(),
+          duration: z.number().optional(),
           includeVocals: z.boolean().optional(),
-          instruments: z.array(z.string()).optional(),
         });
 
         const parsed = schema.safeParse(req.body || {});
@@ -886,122 +1099,192 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
           songDescription,
           genre,
           mood,
-          aiProvider,
           duration,
-          bpm,
-          key,
-          style,
-          includeVocals,
-          instruments = [],
+          includeVocals = true,
         } = parsed.data;
 
-        // Build a richer prompt for structure generation
-        const details: string[] = [];
-        if (mood) details.push(`Mood: ${mood}`);
-        if (key) details.push(`Key: ${key}`);
-        if (style) details.push(`Style: ${style}`);
-        details.push(`Vocals: ${includeVocals ? "include" : "no"} vocals`);
-        if (instruments.length) details.push(`Instruments: ${instruments.join(", ")}`);
-        const combinedPrompt = [songDescription, details.join(". ")].filter(Boolean).join(". ");
+        // Build prompt for Suno AI
+        const promptParts = [songDescription];
+        if (genre) promptParts.push(`Genre: ${genre}`);
+        if (mood) promptParts.push(`Mood: ${mood}`);
+        if (!includeVocals) promptParts.push("Instrumental only");
+        const prompt = promptParts.join(", ");
 
-        // Helper to parse mm:ss to seconds
-        const parseDurationToSeconds = (val?: string): number | undefined => {
-          if (!val) return undefined;
-          const m = val.match(/^(\d+):(\d{1,2})$/);
-          if (!m) return undefined;
-          const min = parseInt(m[1], 10);
-          const sec = parseInt(m[2], 10);
-          return min * 60 + sec;
-        };
+        console.log(`🎵 Generating complete song with Suno AI: "${prompt}"`);
+
+        // Call Replicate Suno AI
+        const replicateToken = process.env.REPLICATE_API_TOKEN;
+        if (!replicateToken) {
+          return res.status(500).json({ message: "REPLICATE_API_TOKEN not configured" });
+        }
 
         try {
-          const data = await generateSongStructureWithAI(
-            combinedPrompt,
-            genre || "Electronic",
-            bpm || 120,
-            aiProvider
-          );
-
-          const chordsArray = Array.isArray((data as any).chordProgression)
-            ? (data as any).chordProgression
-            : typeof (data as any).chordProgression === "string"
-            ? (data as any).chordProgression
-                .split(/[-,>]+/)
-                .map((s: string) => s.trim())
-                .filter(Boolean)
-            : [];
-
-          const computedDuration =
-            typeof duration === "number"
-              ? duration
-              : parseDurationToSeconds((data as any)?.metadata?.duration) || 200;
-
-          const responseBody = {
-            id: `song-${Date.now()}`,
-            title: (data as any)?.metadata?.title || "AI Generated Song",
-            description: songDescription,
-            structure: (data as any).structure,
-            metadata: {
-              duration: computedDuration,
-              key: key || (data as any)?.metadata?.key || "C Major",
-              bpm: bpm || (data as any)?.metadata?.bpm || 120,
-              format: (data as any)?.metadata?.format || "WAV",
+          // Use Suno AI model on Replicate (bark or similar)
+          const response = await fetch("https://api.replicate.com/v1/predictions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Token ${replicateToken}`,
             },
-            chordProgression: chordsArray,
-            productionNotes: (data as any).productionNotes,
-            audioFeatures: (data as any).audioFeatures,
-          };
+            body: JSON.stringify({
+              version: "b76242b40d67c76ab6742e987628a2a9ac019e11d56ab96c4e91ce03b79b2787", // Bark text-to-audio
+              input: {
+                prompt: prompt,
+                text_temp: 0.7,
+                waveform_temp: 0.7,
+              },
+            }),
+          });
 
-          return res.json(responseBody);
+          const prediction = await response.json();
+
+          // Validate prediction ID
+          if (!prediction.id || typeof prediction.id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(prediction.id)) {
+            console.error('[Suno] Invalid prediction response:', prediction);
+            return res.status(500).json({ message: "Invalid prediction ID from Replicate" });
+          }
+
+          // Poll for result (Suno takes longer, so we need more time)
+          let result;
+          const REPLICATE_API_BASE = 'https://api.replicate.com';
+          let attempts = 0;
+          const maxAttempts = 240; // 8 minutes max for Suno
+
+          do {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const statusResponse = await fetch(`${REPLICATE_API_BASE}/v1/predictions/${prediction.id}`, {
+              headers: { "Authorization": `Token ${replicateToken}` },
+            });
+            result = await statusResponse.json();
+            attempts++;
+
+            if (attempts >= maxAttempts) {
+              return res.status(500).json({ message: "Song generation timeout - Suno took too long" });
+            }
+          } while (result.status === "starting" || result.status === "processing");
+
+          if (result.status === "succeeded" && result.output) {
+            const data = {
+              success: true,
+              audioUrl: result.output.audio_out || result.output,
+              title: `${genre || 'AI'} Song`,
+              description: songDescription,
+              genre: genre || 'AI Generated',
+              prompt,
+              provider: 'Suno AI (Replicate)'
+            };
+
+            console.log(`✅ Suno AI generated complete song`);
+            return res.json(data);
+          } else {
+            console.error('[Suno] Generation failed:', result);
+            return res.status(500).json({ message: `Song generation failed: ${result.error || 'Unknown error'}` });
+          }
         } catch (err: any) {
-          console.error("Song structure generation failed:", err);
-                    return sendError(res, 502, err?.message || "AI generation failed");
+          console.error("Suno AI generation error:", err);
+          return res.status(500).json({ message: err?.message || "Failed to generate song with Suno AI" });
         }
       } catch (err: any) {
-                return sendError(res, 500, err?.message || "Failed to generate song");
+        console.error("Complete song generation error:", err);
+        return res.status(500).json({ message: err?.message || "Failed to generate complete song" });
       }
     }
   );
 
-  // Generate lyrics endpoint
+  // Generate lyrics endpoint with AI model selection
   app.post(
     "/api/lyrics/generate",
     async (req: Request, res: Response) => {
       try {
-        const { theme, genre, mood, style } = req.body;
+        // Check authentication
+        if (!req.userId) {
+          return sendError(res, 401, "Authentication required - please log in");
+        }
+
+        const { theme, genre, mood, style, aiProvider = 'gpt-4' } = req.body;
 
         if (!theme) {
           return sendError(res, 400, "Theme is required");
         }
 
-        // For now, return mock lyrics since we don't have a lyrics generation service
-        const mockLyrics = [
-          `[Verse 1]`,
-          `In the ${mood || 'vibrant'} ${genre || 'electronic'} night`,
-          `Where ${theme} comes alive`,
-          `We dance until the morning light`,
-          `This is how we thrive`,
-          ``,
-          `[Chorus]`,
-          `${theme}, ${theme}, in my heart`,
-          `Never gonna fall apart`,
-          `Feel the ${genre || 'electronic'} beat`,
-          `Moving to the heat`,
-          ``,
-          `[Verse 2]`,
-          `Every moment feels so right`,
-          `In this ${mood || 'energetic'} space`,
-          `${theme} shining bright`,
-          `Love in every place`
-        ].join('\n');
+        const prompt = `Write song lyrics about "${theme}".
+Genre: ${genre || 'pop'}
+Mood: ${mood || 'uplifting'}
+Style: ${style || 'modern'}
+
+Create complete lyrics with:
+- 2 verses
+- 1 chorus (repeat after each verse)
+- 1 bridge
+- Final chorus
+
+Make it creative, emotional, and fitting for the genre and mood.`;
+
+        let lyrics = '';
+        let providerUsed = '';
+
+        // Use Replicate's Llama model for reliable lyrics generation
+        const token = process.env.REPLICATE_API_TOKEN;
+        if (!token) {
+          return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
+        }
+
+        console.log(`🎵 Generating lyrics with Replicate Llama: "${theme}"`);
+
+        const response = await fetch("https://api.replicate.com/v1/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Token ${token}`,
+          },
+          body: JSON.stringify({
+            version: "2d19859030ff705a87c746f7e96eea03aefb71f166725aee39692f1476566d48", // Llama 3.2 3B
+            input: {
+              prompt: prompt,
+              max_tokens: 800,
+              temperature: 0.8
+            },
+          }),
+        });
+
+        const prediction = await response.json();
+        
+        // Poll for result
+        let result;
+        let attempts = 0;
+        const maxAttempts = 60;
+
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { "Authorization": `Token ${token}` },
+          });
+          result = await statusResponse.json();
+          attempts++;
+
+          if (attempts >= maxAttempts) {
+            return sendError(res, 500, "Lyrics generation timeout");
+          }
+        } while (result.status === "starting" || result.status === "processing");
+
+        if (result.status === "succeeded" && result.output) {
+          lyrics = Array.isArray(result.output) ? result.output.join('') : result.output;
+          providerUsed = 'Replicate Llama';
+        } else {
+          throw new Error('Lyrics generation failed');
+        }
+
+        console.log(`✅ Generated lyrics with ${providerUsed}`);
 
         res.json({ 
-          lyrics: mockLyrics,
+          content: lyrics,
+          lyrics,
           metadata: {
             theme,
-            genre: genre || 'electronic',
-            mood: mood || 'energetic',
-            style: style || 'modern'
+            genre: genre || 'pop',
+            mood: mood || 'uplifting',
+            style: style || 'modern',
+            provider: providerUsed
           }
         });
       } catch (err: any) {
@@ -1011,30 +1294,105 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   );
 
-  // Generate beat from lyrics endpoint
+  // Generate beat from lyrics endpoint using Replicate Llama
   app.post(
     "/api/lyrics/generate-beat",
     async (req: Request, res: Response) => {
       try {
+        // Check authentication
+        if (!req.userId) {
+          return sendError(res, 401, "Authentication required - please log in");
+        }
+
         const { lyrics, genre, complexity } = req.body;
 
         if (!lyrics) {
           return sendError(res, 400, "Lyrics are required");
         }
 
-        // Generate a beat pattern based on lyrics rhythm
-        const beatPattern = {
-          kick: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
-          snare: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
-          hihat: [1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
-          openhat: [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0]
-        };
+        // Use Replicate Llama to analyze lyrics and generate beat pattern
+        const token = process.env.REPLICATE_API_TOKEN;
+        if (!token) {
+          return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
+        }
+
+        const prompt = `Analyze these lyrics and create a drum beat pattern. Return ONLY valid JSON with no other text.
+
+Lyrics: ${lyrics.substring(0, 300)}
+
+Genre: ${genre || 'hip-hop'}
+
+Return this exact JSON format:
+{
+  "kick": [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+  "snare": [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+  "hihat": [1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1],
+  "bpm": 120
+}`;
+
+        console.log(`🥁 Generating beat from lyrics with Replicate Llama`);
+
+        const response = await fetch("https://api.replicate.com/v1/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Token ${token}`,
+          },
+          body: JSON.stringify({
+            version: "2d19859030ff705a87c746f7e96eea03aefb71f166725aee39692f1476566d48", // Llama 3.2 3B
+            input: {
+              prompt: prompt,
+              max_tokens: 500,
+              temperature: 0.7
+            },
+          }),
+        });
+
+        const prediction = await response.json();
+        
+        // Poll for result
+        let result;
+        let attempts = 0;
+        const maxAttempts = 60;
+
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { "Authorization": `Token ${token}` },
+          });
+          result = await statusResponse.json();
+          attempts++;
+
+          if (attempts >= maxAttempts) {
+            return sendError(res, 500, "Beat generation timeout");
+          }
+        } while (result.status === "starting" || result.status === "processing");
+
+        let beatPattern;
+        if (result.status === "succeeded" && result.output) {
+          const content = Array.isArray(result.output) ? result.output.join('') : result.output;
+          try {
+            beatPattern = JSON.parse(content);
+          } catch {
+            beatPattern = {
+              kick: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+              snare: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+              hihat: [1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+              bpm: 120
+            };
+          }
+        } else {
+          throw new Error('Beat generation failed');
+        }
+
+        console.log(`✅ Generated beat pattern with Replicate Llama`);
 
         res.json({ 
           pattern: beatPattern,
-          bpm: 120,
+          bpm: beatPattern.bpm || 120,
           genre: genre || 'hip-hop',
-          complexity: complexity || 5
+          complexity: complexity || 5,
+          provider: 'Replicate Llama'
         });
       } catch (err: any) {
         console.error("Beat generation from lyrics error:", err);
@@ -1043,10 +1401,15 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   );
 
-    app.post(
+  app.post(
     "/api/lyrics/generate-music",
     async (req: Request, res: Response) => {
       try {
+        // Check authentication
+        if (!req.userId) {
+          return sendError(res, 401, "Authentication required - please log in");
+        }
+
         const { lyrics, style, genre } = req.body;
 
         if (!lyrics) {
@@ -1068,6 +1431,11 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     "/api/music/generate-with-musicgen",
     async (req: Request, res: Response) => {
       try {
+        // Check authentication
+        if (!req.userId) {
+          return sendError(res, 401, "Authentication required - please log in");
+        }
+
         const { prompt, duration } = req.body;
 
         if (!prompt) {
@@ -1140,6 +1508,11 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     "/api/chatmusician/generate",
     async (req: Request, res: Response) => {
       try {
+        // Check authentication
+        if (!req.userId) {
+          return sendError(res, 401, "Authentication required - please log in");
+        }
+
         const { prompt, style } = req.body;
 
         if (!prompt) {
