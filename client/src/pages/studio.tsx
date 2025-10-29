@@ -344,8 +344,8 @@ export default function Studio() {
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header />
             
-            <div className="flex-1 overflow-x-auto overflow-y-auto pb-16 md:pb-0">
-              <div className="min-w-[1600px] p-3 md:p-6 studio-content">
+            <div className="flex-1 overflow-x-auto overflow-y-auto pb-16 md:pb-0 bg-studio-bg">
+              <div className="min-w-[1600px] p-3 md:p-6 studio-content bg-studio-bg">
                 {renderTabContent()}
               </div>
             </div>
