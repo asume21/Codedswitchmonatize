@@ -112,9 +112,17 @@ export function createSongRoutes(storage: IStorage) {
       }
 
       console.log('🎵 Starting REAL audio analysis for:', { songId, songName });
+      console.log('📍 Song URL:', songURL);
 
       // Download the audio file temporarily for analysis
-      const tempFilePath = await downloadAudioFile(songURL, songName);
+      let tempFilePath;
+      try {
+        tempFilePath = await downloadAudioFile(songURL, songName);
+        console.log('✅ File ready for analysis:', tempFilePath);
+      } catch (downloadError) {
+        console.error('❌ Download failed:', downloadError);
+        throw new Error(`Failed to download audio file: ${downloadError instanceof Error ? downloadError.message : 'Unknown error'}`);
+      }
       
       try {
         // Extract metadata using music-metadata
@@ -267,20 +275,49 @@ async function downloadAudioFile(url: string, filename: string): Promise<string>
   // Handle both internal and external URLs
   let fileURL = url;
   if (url.startsWith('/api/internal/')) {
-    // Internal URL - need to construct full path
-    fileURL = `https://www.codedswitch.com${url}`;
+    // Internal URL - need to read from local filesystem instead
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Get the file path from the URL
+    const relativePath = url.replace('/api/internal/uploads/', '');
+    const LOCAL_OBJECTS_DIR = existsSync('/data/objects') 
+      ? path.resolve('/data', 'objects')
+      : path.resolve(process.cwd(), "objects");
+    const sourcePath = path.join(LOCAL_OBJECTS_DIR, relativePath);
+    
+    console.log('📂 Reading from local file:', sourcePath);
+    
+    if (!existsSync(sourcePath)) {
+      throw new Error(`Audio file not found at: ${sourcePath}`);
+    }
+    
+    // Copy file to temp location
+    fs.copyFileSync(sourcePath, tempFilePath);
+    console.log('✅ Audio file copied to temp location');
+    return tempFilePath;
   }
 
+  // External URL - download it
   const response = await fetch(fileURL);
   if (!response.ok) {
     throw new Error(`Failed to download audio file: ${response.statusText}`);
   }
 
   const buffer = await response.buffer();
-  createWriteStream(tempFilePath).write(buffer);
-
-  console.log('✅ Audio file downloaded to:', tempFilePath);
-  return tempFilePath;
+  const writeStream = createWriteStream(tempFilePath);
+  
+  return new Promise((resolve, reject) => {
+    writeStream.write(buffer, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        writeStream.end();
+        console.log('✅ Audio file downloaded to:', tempFilePath);
+        resolve(tempFilePath);
+      }
+    });
+  });
 }
 
 // Helper function to analyze audio with AI - COMPREHENSIVE ANALYSIS
