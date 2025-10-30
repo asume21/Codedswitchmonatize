@@ -1259,6 +1259,99 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   );
 
+  // Save lyrics endpoint
+  app.post("/api/lyrics", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { title, content, genre, rhymeScheme } = req.body;
+      
+      if (!title || !content) {
+        return sendError(res, 400, "Missing required fields: title and content");
+      }
+
+      const newLyric = await storage.createLyrics(req.userId!, {
+        title,
+        content,
+        genre: genre || 'Unknown',
+        rhymeScheme: rhymeScheme || 'AABB'
+      });
+
+      console.log('✅ Lyrics saved:', title);
+      res.json(newLyric);
+    } catch (error) {
+      console.error('❌ Save lyrics error:', error);
+      sendError(res, 500, "Failed to save lyrics");
+    }
+  });
+
+  // Get saved lyrics endpoint
+  app.get("/api/lyrics", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const lyrics = await storage.getUserLyrics(req.userId!);
+      res.json(lyrics);
+    } catch (error) {
+      console.error('❌ Get lyrics error:', error);
+      sendError(res, 500, "Failed to fetch lyrics");
+    }
+  });
+
+  // Get rhyming words endpoint
+  app.post("/api/lyrics/rhymes", async (req: Request, res: Response) => {
+    try {
+      const { word } = req.body;
+      
+      if (!word) {
+        return sendError(res, 400, "Missing required field: word");
+      }
+
+      // Use AI to generate rhyming words
+      const XAI_API_KEY = process.env.XAI_API_KEY;
+      
+      if (!XAI_API_KEY) {
+        return res.json({
+          rhymes: ['cat', 'bat', 'hat', 'mat', 'sat', 'fat', 'rat', 'pat']
+        });
+      }
+
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${XAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'grok-beta',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a rap/songwriting assistant. Generate rhyming words for songwriting.'
+            },
+            {
+              role: 'user',
+              content: `Give me 12 words that rhyme with "${word}". Include perfect rhymes, near rhymes, and slant rhymes. Respond ONLY with a JSON array of words, no explanation: ["word1", "word2", ...]`
+            }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      
+      // Parse the rhymes from AI response
+      const jsonMatch = content.match(/\[[\s\S]*?\]/);
+      const rhymes = jsonMatch ? JSON.parse(jsonMatch[0]) : ['cat', 'bat', 'hat', 'mat', 'sat'];
+
+      console.log('✅ Rhymes generated for:', word);
+      res.json({ rhymes });
+    } catch (error) {
+      console.error('❌ Rhyme generation error:', error);
+      // Fallback rhymes
+      res.json({
+        rhymes: ['way', 'day', 'say', 'play', 'stay', 'lay', 'pay', 'may']
+      });
+    }
+  });
+
   // Generate lyrics endpoint with AI model selection
   app.post(
     "/api/lyrics/generate",
