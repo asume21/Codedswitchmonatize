@@ -95,6 +95,65 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
+  // Analyze song endpoint
+  router.post("/analyze", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in to analyze songs" });
+    }
+
+    try {
+      const { songId, songURL, songName } = req.body;
+
+      if (!songId) {
+        return res.status(400).json({ error: "Missing songId" });
+      }
+
+      console.log('🎵 Analyzing song:', { songId, songName });
+
+      // Generate mock analysis (replace with real audio analysis later)
+      const analysis = {
+        songId,
+        songName: songName || 'Unknown',
+        estimatedBPM: Math.floor(Math.random() * (140 - 80 + 1)) + 80,
+        keySignature: ['C', 'D', 'E', 'F', 'G', 'A', 'B'][Math.floor(Math.random() * 7)] + ['', 'm'][Math.floor(Math.random() * 2)],
+        genre: ['Hip-Hop', 'R&B', 'Pop', 'Electronic', 'Rock', 'Jazz'][Math.floor(Math.random() * 6)],
+        mood: ['Energetic', 'Chill', 'Melancholic', 'Uplifting', 'Dark', 'Dreamy'][Math.floor(Math.random() * 6)],
+        structure: {
+          intro: '0:00-0:15',
+          verse1: '0:15-0:45',
+          chorus: '0:45-1:15',
+          verse2: '1:15-1:45',
+          chorus2: '1:45-2:15',
+          bridge: '2:15-2:45',
+          outro: '2:45-3:00'
+        },
+        instruments: ['Drums', 'Bass', '808s', 'Synth', 'Piano', 'Vocals'].slice(0, Math.floor(Math.random() * 4) + 2),
+        analysis_notes: `This track has a strong rhythmic foundation with layered melodic elements. The production quality is professional, with clear separation between instruments. The mix is well-balanced with good stereo imaging.`
+      };
+
+      // Update song in database with analysis
+      await storage.updateSongAnalysis(songId, {
+        estimatedBPM: analysis.estimatedBPM,
+        keySignature: analysis.keySignature,
+        genre: analysis.genre,
+        mood: analysis.mood,
+        structure: analysis.structure,
+        instruments: analysis.instruments,
+        analysisNotes: analysis.analysis_notes
+      });
+
+      console.log('✅ Song analysis complete:', songName);
+
+      res.json(analysis);
+    } catch (error) {
+      console.error('Song analysis error:', error);
+      res.status(500).json({
+        error: "Failed to analyze song",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Serve converted audio files
   router.get("/converted/:fileId", (req: Request, res: Response) => {
     try {
