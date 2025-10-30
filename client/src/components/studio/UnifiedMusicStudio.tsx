@@ -156,229 +156,258 @@ export default function UnifiedMusicStudio() {
   };
 
   return (
-    <div className="h-full w-full p-6 bg-gray-50">
-      <Card className="h-full">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Music className="h-6 w-6" />
-              Unified Music Studio
+    <div className="flex flex-col h-full w-full p-4 bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+      <Card className="flex-1 shadow-lg border-0">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center justify-between text-xl font-bold">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-600 rounded-lg">
+                <Music className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Unified Music Studio
+              </span>
             </div>
             <Button 
               onClick={handlePlayDemo}
-              className={`flex items-center gap-2 ${isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}
+              size="lg"
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                isPlaying 
+                  ? 'bg-red-600 hover:bg-red-700 shadow-red-200' 
+                  : 'bg-green-600 hover:bg-green-700 shadow-green-200'
+              } shadow-lg hover:shadow-xl transform hover:scale-105`}
             >
               {isPlaying ? (
                 <>
-                  <Square className="h-4 w-4" />
+                  <Square className="h-5 w-5" />
                   Stop Demo
                 </>
               ) : (
                 <>
-                  <Play className="h-4 w-4" />
+                  <Play className="h-5 w-5" />
                   Play Demo
                 </>
               )}
             </Button>
           </CardTitle>
         </CardHeader>
-        <CardContent className="h-full">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="compose" className="flex items-center gap-2">
+        <CardContent className="flex-1 p-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+            <TabsList className="grid w-full grid-cols-4 mb-6 bg-white shadow-md rounded-xl p-1">
+              <TabsTrigger 
+                value="compose" 
+                className="flex items-center gap-2 py-3 px-4 rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all duration-200"
+              >
                 <Music className="h-4 w-4" />
                 Compose
               </TabsTrigger>
-              <TabsTrigger value="code" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="code" 
+                className="flex items-center gap-2 py-3 px-4 rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all duration-200"
+              >
                 <Code className="h-4 w-4" />
                 Code
               </TabsTrigger>
-              <TabsTrigger value="record" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="record" 
+                className="flex items-center gap-2 py-3 px-4 rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all duration-200"
+              >
                 <Mic className="h-4 w-4" />
                 Record
               </TabsTrigger>
-              <TabsTrigger value="mix" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="mix" 
+                className="flex items-center gap-2 py-3 px-4 rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all duration-200"
+              >
                 <Headphones className="h-4 w-4" />
                 Mix
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="compose" className="mt-6 h-full">
-              <div className="grid grid-cols-2 gap-6 h-full">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Melody Composer</CardTitle>
+            <TabsContent value="compose" className="flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+                <Card className="bg-white shadow-lg border-0 hover:shadow-xl transition-shadow duration-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg text-blue-700">
+                      <Music className="h-5 w-5" />
+                      Melody Composer
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <Button onClick={handleStartComposing} className="w-full">
-                        <Music className="h-4 w-4 mr-2" />
-                        Start Composing
-                      </Button>
-                      <p className="text-sm text-gray-600">
-                        Create melodies with AI assistance
-                      </p>
-                    </div>
+                  <CardContent className="space-y-4">
+                    <Button 
+                      onClick={handleStartComposing} 
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 hover:shadow-lg transform hover:scale-105"
+                    >
+                      <Music className="h-4 w-4 mr-2" />
+                      Start Composing
+                    </Button>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Create melodies with AI assistance
+                    </p>
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Beat Maker</CardTitle>
+                <Card className="bg-white shadow-lg border-0 hover:shadow-xl transition-shadow duration-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg text-blue-700">
+                      <Headphones className="h-5 w-5" />
+                      Beat Maker
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <Button onClick={handleCreateBeats} className="w-full">
-                        <Headphones className="h-4 w-4 mr-2" />
-                        Create Beats
-                      </Button>
-                      <p className="text-sm text-gray-600">
-                        Generate rhythmic patterns
-                      </p>
-                    </div>
+                  <CardContent className="space-y-4">
+                    <Button 
+                      onClick={handleCreateBeats} 
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 hover:shadow-lg transform hover:scale-105"
+                    >
+                      <Headphones className="h-4 w-4 mr-2" />
+                      Create Beats
+                    </Button>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Generate rhythmic patterns
+                    </p>
                   </CardContent>
                 </Card>
               </div>
             </TabsContent>
 
-            <TabsContent value="code" className="mt-6 h-full">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Code to Music</CardTitle>
+            <TabsContent value="code" className="flex-1">
+              <Card className="bg-white shadow-lg border-0 hover:shadow-xl transition-shadow duration-200 h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg text-blue-700">
+                    <Code className="h-5 w-5" />
+                    Code to Music
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Button onClick={() => {
-                      // Play algorithmic music based on code patterns
-                      const codePattern = [
-                        { note: "C", octave: 3, duration: 0.25 },
-                        { note: "D", octave: 3, duration: 0.25 },
-                        { note: "E", octave: 3, duration: 0.25 },
-                        { note: "F", octave: 3, duration: 0.25 },
-                      ];
-                      
-                      codePattern.forEach((note, index) => {
-                        setTimeout(() => {
-                          playNote(note.note, note.octave, note.duration);
-                        }, index * 300);
-                      });
+                <CardContent className="space-y-4">
+                  <Button onClick={() => {
+                    // Play algorithmic music based on code patterns
+                    const codePattern = [
+                      { note: "C", octave: 3, duration: 0.25 },
+                      { note: "D", octave: 3, duration: 0.25 },
+                      { note: "E", octave: 3, duration: 0.25 },
+                      { note: "F", octave: 3, duration: 0.25 },
+                    ];
+                    
+                    codePattern.forEach((note, index) => {
+                      setTimeout(() => {
+                        playNote(note.note, note.octave, note.duration);
+                      }, index * 300);
+                    });
 
-                      toast({
-                        title: "Code to Music",
-                        description: "Playing algorithmic music pattern",
-                      });
+                    toast({
+                      title: "Code to Music",
+                      description: "Playing algorithmic music pattern",
+                    });
 
-                      // Navigate to Code to Music tool in Studio
-                      if (window.dispatchEvent) {
-                        window.dispatchEvent(
-                          new CustomEvent("navigateToTab", { detail: "codebeat" }),
-                        );
-                      }
-                    }} className="w-full">
-                      <Code className="h-4 w-4 mr-2" />
-                      Convert Code
-                    </Button>
-                    <p className="text-sm text-gray-600">
-                      Transform your code into musical compositions
-                    </p>
-                  </div>
+                    // Navigate to Code to Music tool in Studio
+                    if (window.dispatchEvent) {
+                      window.dispatchEvent(
+                        new CustomEvent("navigateToTab", { detail: "codebeat" }),
+                      );
+                    }
+                  }} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 hover:shadow-lg transform hover:scale-105">
+                    <Code className="h-4 w-4 mr-2" />
+                    Convert Code
+                  </Button>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    Transform your code into musical compositions
+                  </p>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="record" className="mt-6 h-full">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Recording Studio</CardTitle>
+            <TabsContent value="record" className="flex-1">
+              <Card className="bg-white shadow-lg border-0 hover:shadow-xl transition-shadow duration-200 h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg text-blue-700">
+                    <Mic className="h-5 w-5" />
+                    Recording Studio
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Button onClick={() => {
-                      // Simulate recording with a simple melody
-                      const recordingMelody = [
-                        { note: "A", octave: 4, duration: 0.5 },
-                        { note: "B", octave: 4, duration: 0.5 },
-                        { note: "C", octave: 5, duration: 0.5 },
-                        { note: "D", octave: 5, duration: 1.0 },
-                      ];
-                      
-                      recordingMelody.forEach((note, index) => {
-                        setTimeout(() => {
-                          playNote(note.note, note.octave, note.duration);
-                        }, index * 600);
-                      });
+                <CardContent className="space-y-4">
+                  <Button onClick={() => {
+                    // Simulate recording with a simple melody
+                    const recordingMelody = [
+                      { note: "A", octave: 4, duration: 0.5 },
+                      { note: "B", octave: 4, duration: 0.5 },
+                      { note: "C", octave: 5, duration: 0.5 },
+                      { note: "D", octave: 5, duration: 1.0 },
+                    ];
+                    
+                    recordingMelody.forEach((note, index) => {
+                      setTimeout(() => {
+                        playNote(note.note, note.octave, note.duration);
+                      }, index * 600);
+                    });
 
-                      toast({
-                        title: "Recording Studio",
-                        description: "Playing recorded melody demo",
-                      });
+                    toast({
+                      title: "Recording Studio",
+                      description: "Playing recorded melody demo",
+                    });
 
-                      // Navigate to Song Uploader & AI Assistant (recording area)
-                      if (window.dispatchEvent) {
-                        window.dispatchEvent(
-                          new CustomEvent("navigateToTab", { detail: "assistant" }),
-                        );
-                      }
-                    }} className="w-full">
-                      <Mic className="h-4 w-4 mr-2" />
-                      Start Recording
-                    </Button>
-                    <p className="text-sm text-gray-600">
-                      Record audio with professional quality
-                    </p>
-                  </div>
+                    // Navigate to Song Uploader & AI Assistant (recording area)
+                    if (window.dispatchEvent) {
+                      window.dispatchEvent(
+                        new CustomEvent("navigateToTab", { detail: "assistant" }),
+                      );
+                    }
+                  }} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 hover:shadow-lg transform hover:scale-105">
+                    <Mic className="h-4 w-4 mr-2" />
+                    Start Recording
+                  </Button>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    Record audio with professional quality
+                  </p>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="mix" className="mt-6 h-full">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Headphones className="h-6 w-6" />
+            <TabsContent value="mix" className="flex-1">
+              <Card className="bg-white shadow-lg border-0 hover:shadow-xl transition-shadow duration-200 h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg text-blue-700">
+                    <Headphones className="h-5 w-5" />
                     Audio Mixer
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Button onClick={() => {
-                      // Play layered sounds to demonstrate mixing
-                      const mixLayers = [
-                        { note: "C", octave: 2, duration: 2.0 }, // Bass
-                        { note: "E", octave: 4, duration: 1.5 }, // Mid
-                        { note: "G", octave: 5, duration: 1.0 }, // High
-                      ];
-                      
-                      mixLayers.forEach((layer, index) => {
-                        setTimeout(() => {
-                          playNote(layer.note, layer.octave, layer.duration);
-                        }, index * 100);
-                      });
+                <CardContent className="space-y-4">
+                  <Button onClick={() => {
+                    // Play layered sounds to demonstrate mixing
+                    const mixLayers = [
+                      { note: "C", octave: 2, duration: 2.0 }, // Bass
+                      { note: "E", octave: 4, duration: 1.5 }, // Mid
+                      { note: "G", octave: 5, duration: 1.0 }, // High
+                    ];
+                    
+                    mixLayers.forEach((layer, index) => {
+                      setTimeout(() => {
+                        playNote(layer.note, layer.octave, layer.duration);
+                      }, index * 100);
+                    });
 
-                      // Add some drum sounds
-                                            setTimeout(() => playDrum("kick", 0.8), 500);
-                                            setTimeout(() => playDrum("hihat", 0.6), 750);
-                                            setTimeout(() => playDrum("snare", 0.7), 1000);
+                    // Add some drum sounds
+                    setTimeout(() => playDrum("kick", 0.8), 500);
+                    setTimeout(() => playDrum("hihat", 0.6), 750);
+                    setTimeout(() => playDrum("snare", 0.7), 1000);
 
-                      toast({
-                        title: "Audio Mixer",
-                        description: "Playing layered mix demo",
-                      });
+                    toast({
+                      title: "Audio Mixer",
+                      description: "Playing layered mix demo",
+                    });
 
-                      // Navigate to Mix Studio tool in Studio
-                      if (window.dispatchEvent) {
-                        window.dispatchEvent(
-                          new CustomEvent("navigateToTab", { detail: "mix-studio" }),
-                        );
-                      }
-                    }} className="w-full">
-                      <Headphones className="h-4 w-4 mr-2" />
-                      Open Mixer
-                    </Button>
-                    <p className="text-sm text-gray-600">
-                      Mix and master your audio tracks
-                    </p>
-                  </div>
+                    // Navigate to Mix Studio tool in Studio
+                    if (window.dispatchEvent) {
+                      window.dispatchEvent(
+                        new CustomEvent("navigateToTab", { detail: "mix-studio" }),
+                      );
+                    }
+                  }} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 hover:shadow-lg transform hover:scale-105">
+                    <Headphones className="h-4 w-4 mr-2" />
+                    Open Mixer
+                  </Button>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    Mix and master your audio tracks
+                  </p>
                 </CardContent>
               </Card>
             </TabsContent>
