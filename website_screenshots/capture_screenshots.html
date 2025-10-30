@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodedSwitch Screenshot Capture Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .pages-list {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .page-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .page-item input {
+            margin-right: 12px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .page-item label {
+            cursor: pointer;
+            flex: 1;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .page-item .status {
+            font-size: 12px;
+            color: #999;
+            margin-left: auto;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .progress-bar.active {
+            display: block;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .log {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            color: #666;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .log.active {
+            display: block;
+        }
+        
+        .log-entry {
+            margin-bottom: 4px;
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .log-entry.success {
+            color: #27ae60;
+        }
+        
+        .log-entry.error {
+            color: #e74c3c;
+        }
+        
+        .log-entry.info {
+            color: #3498db;
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1565c0;
+            margin-bottom: 20px;
+        }
+        
+        .select-all {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #f0f7ff;
+            border-radius: 8px;
+        }
+        
+        .select-all input {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .select-all label {
+            cursor: pointer;
+            flex: 1;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 CodedSwitch Screenshots</h1>
+        <p class="subtitle">Capture and download website screenshots</p>
+        
+        <div class="info-box">
+            ℹ️ Select the pages you want to capture, then click "Capture Screenshots" to download them as PNG files.
+        </div>
+        
+        <div class="select-all">
+            <input type="checkbox" id="selectAll" checked>
+            <label for="selectAll">Select All Pages</label>
+        </div>
+        
+        <div class="pages-list" id="pagesList"></div>
+        
+        <div class="buttons">
+            <button class="btn-primary" id="captureBtn">Capture Screenshots</button>
+            <button class="btn-secondary" id="resetBtn">Reset</button>
+        </div>
+        
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        const pages = [
+            { url: 'https://www.codedswitch.com', name: '01_homepage' },
+            { url: 'https://www.codedswitch.com/studio', name: '02_studio_beatmaker' },
+            { url: 'https://www.codedswitch.com/song-uploader', name: '03_song_uploader' },
+            { url: 'https://www.codedswitch.com/studio?tab=melody', name: '04_melody_composer' },
+            { url: 'https://www.codedswitch.com/studio?tab=mixer', name: '05_professional_mixer' },
+            { url: 'https://www.codedswitch.com/studio?tab=mix-studio', name: '06_mix_studio' },
+            { url: 'https://www.codedswitch.com/studio?tab=pro-console', name: '07_unified_studio' },
+            { url: 'https://www.codedswitch.com/dashboard', name: '08_dashboard' },
+        ];
+
+        const pagesList = document.getElementById('pagesList');
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const captureBtn = document.getElementById('captureBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const log = document.getElementById('log');
+
+        // Initialize page list
+        function initPageList() {
+            pagesList.innerHTML = '';
+            pages.forEach((page, index) => {
+                const div = document.createElement('div');
+                div.className = 'page-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="page${index}" class="page-checkbox" checked>
+                    <label for="page${index}">${page.name}</label>
+                    <span class="status" id="status${index}"></span>
+                `;
+                pagesList.appendChild(div);
+            });
+        }
+
+        // Select all functionality
+        selectAllCheckbox.addEventListener('change', () => {
+            document.querySelectorAll('.page-checkbox').forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+            });
+        });
+
+        // Update select all checkbox
+        document.addEventListener('change', () => {
+            const allChecked = document.querySelectorAll('.page-checkbox:checked').length === pages.length;
+            selectAllCheckbox.checked = allChecked;
+        });
+
+        // Log function
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Capture screenshots
+        captureBtn.addEventListener('click', async () => {
+            const selectedPages = [];
+            document.querySelectorAll('.page-checkbox:checked').forEach((cb, index) => {
+                if (cb.checked) {
+                    selectedPages.push(pages[Array.from(document.querySelectorAll('.page-checkbox')).indexOf(cb)]);
+                }
+            });
+
+            if (selectedPages.length === 0) {
+                alert('Please select at least one page');
+                return;
+            }
+
+            captureBtn.disabled = true;
+            progressBar.classList.add('active');
+            log.classList.add('active');
+            log.innerHTML = '';
+
+            addLog(`Starting capture of ${selectedPages.length} page(s)...`, 'info');
+
+            for (let i = 0; i < selectedPages.length; i++) {
+                const page = selectedPages[i];
+                const progress = ((i + 1) / selectedPages.length) * 100;
+                progressFill.style.width = progress + '%';
+
+                try {
+                    addLog(`Capturing: ${page.name}...`, 'info');
+                    
+                    // Open page in new window
+                    const win = window.open(page.url, '_blank');
+                    
+                    // Wait for page to load
+                    await new Promise(resolve => {
+                        setTimeout(() => {
+                            try {
+                                // Capture the page
+                                html2canvas(win.document.body, {
+                                    backgroundColor: '#ffffff',
+                                    scale: 2,
+                                    width: 1920,
+                                    height: 1080,
+                                    windowHeight: 1080,
+                                    windowWidth: 1920
+                                }).then(canvas => {
+                                    // Download as PNG
+                                    const link = document.createElement('a');
+                                    link.href = canvas.toDataURL('image/png');
+                                    link.download = `${page.name}.png`;
+                                    link.click();
+                                    
+                                    addLog(`✓ Downloaded: ${page.name}.png`, 'success');
+                                    win.close();
+                                    resolve();
+                                }).catch(err => {
+                                    addLog(`✗ Error capturing ${page.name}: ${err.message}`, 'error');
+                                    win.close();
+                                    resolve();
+                                });
+                            } catch (err) {
+                                addLog(`✗ Error: ${err.message}`, 'error');
+                                win.close();
+                                resolve();
+                            }
+                        }, 2000); // Wait 2 seconds for page to load
+                    });
+                } catch (err) {
+                    addLog(`✗ Failed to capture ${page.name}`, 'error');
+                }
+            }
+
+            addLog('✓ Capture complete!', 'success');
+            captureBtn.disabled = false;
+            progressFill.style.width = '100%';
+        });
+
+        // Reset button
+        resetBtn.addEventListener('click', () => {
+            initPageList();
+            selectAllCheckbox.checked = true;
+            progressBar.classList.remove('active');
+            log.classList.remove('active');
+            progressFill.style.width = '0%';
+            captureBtn.disabled = false;
+        });
+
+        // Initialize
+        initPageList();
+    </script>
+</body>
+</html>

@@ -197,9 +197,14 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   });
 
   // Ensure local objects directory exists for fallback
-  const LOCAL_OBJECTS_DIR = path.resolve(process.cwd(), "objects");
+  // Use /data if available (Railway persistent volume), otherwise use local objects
+  const LOCAL_OBJECTS_DIR = fs.existsSync('/data') 
+    ? path.resolve('/data', 'objects')
+    : path.resolve(process.cwd(), "objects");
+  
   try {
     fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
+    console.log('📁 Using storage directory:', LOCAL_OBJECTS_DIR);
   } catch {}
 
   // Validation schemas
@@ -1042,8 +1047,9 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   app.get("/api/internal/uploads/*", async (req: Request, res: Response) => {
     try {
       const objectKey = (req.params as any)[0] as string;
-      console.log('🎵 Internal upload request:', objectKey);
+      console.log('🎵 Internal upload GET request:', objectKey);
       console.log('📁 LOCAL_OBJECTS_DIR:', LOCAL_OBJECTS_DIR);
+      console.log('📁 CWD:', process.cwd());
       
       const sanitizedObjectKey = path.normalize(objectKey).replace(/^(\.\.[\\/])+/,'');
       if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
@@ -1059,7 +1065,18 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
         return res.status(403).send("Access denied");
       }
       
-      if (!fs.existsSync(fullPath)) {
+      // Check if file exists
+      const fileExists = fs.existsSync(fullPath);
+      console.log('📂 File exists?', fileExists);
+      
+      if (!fileExists) {
+        // List files in the directory for debugging
+        try {
+          const files = fs.readdirSync(LOCAL_OBJECTS_DIR);
+          console.log('📂 Files in LOCAL_OBJECTS_DIR:', files.slice(0, 10));
+        } catch (e) {
+          console.error('❌ Could not list directory:', e);
+        }
         console.error('❌ File not found:', fullPath);
         return res.status(404).send("Not found");
       }

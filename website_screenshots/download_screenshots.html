@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodedSwitch Screenshot Downloader</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1565c0;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        
+        .pages-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+        
+        .page-card {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .page-card input {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .page-card label {
+            cursor: pointer;
+            flex: 1;
+            color: #333;
+            font-size: 13px;
+        }
+        
+        .page-card .status {
+            font-size: 11px;
+            color: #999;
+            margin-left: auto;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .progress-section {
+            display: none;
+            margin-bottom: 20px;
+        }
+        
+        .progress-section.active {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .log {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            color: #666;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .log.active {
+            display: block;
+        }
+        
+        .log-entry {
+            margin-bottom: 6px;
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .log-entry.success {
+            color: #27ae60;
+        }
+        
+        .log-entry.error {
+            color: #e74c3c;
+        }
+        
+        .log-entry.info {
+            color: #3498db;
+        }
+        
+        .download-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #27ae60;
+            color: white;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .download-link:hover {
+            background: #229954;
+        }
+        
+        .select-all {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #f0f7ff;
+            border-radius: 8px;
+        }
+        
+        .select-all input {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .select-all label {
+            cursor: pointer;
+            flex: 1;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Screenshot Downloader</h1>
+        <p class="subtitle">Capture CodedSwitch website pages as PNG files</p>
+        
+        <div class="info-box">
+            <strong>📥 How it works:</strong><br>
+            1. Select pages below<br>
+            2. Click "Download All as ZIP"<br>
+            3. A ZIP file will download with all PNG screenshots<br>
+            4. Extract the ZIP to get individual PNG files
+        </div>
+        
+        <div class="select-all">
+            <input type="checkbox" id="selectAll" checked>
+            <label for="selectAll">Select All Pages</label>
+        </div>
+        
+        <div class="pages-grid" id="pagesList"></div>
+        
+        <div class="buttons">
+            <button class="btn-primary" id="downloadBtn">Download All as ZIP</button>
+            <button class="btn-secondary" id="resetBtn">Reset</button>
+        </div>
+        
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">0%</div>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        const pages = [
+            { url: 'https://www.codedswitch.com', name: '01_homepage' },
+            { url: 'https://www.codedswitch.com/studio', name: '02_studio_beatmaker' },
+            { url: 'https://www.codedswitch.com/song-uploader', name: '03_song_uploader' },
+            { url: 'https://www.codedswitch.com/studio?tab=melody', name: '04_melody_composer' },
+            { url: 'https://www.codedswitch.com/studio?tab=mixer', name: '05_professional_mixer' },
+            { url: 'https://www.codedswitch.com/studio?tab=mix-studio', name: '06_mix_studio' },
+            { url: 'https://www.codedswitch.com/studio?tab=pro-console', name: '07_unified_studio' },
+            { url: 'https://www.codedswitch.com/dashboard', name: '08_dashboard' },
+        ];
+
+        const pagesList = document.getElementById('pagesList');
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const log = document.getElementById('log');
+
+        // Initialize page list
+        function initPageList() {
+            pagesList.innerHTML = '';
+            pages.forEach((page, index) => {
+                const div = document.createElement('div');
+                div.className = 'page-card';
+                div.innerHTML = `
+                    <input type="checkbox" id="page${index}" class="page-checkbox" checked>
+                    <label for="page${index}">${page.name}</label>
+                `;
+                pagesList.appendChild(div);
+            });
+        }
+
+        // Select all functionality
+        selectAllCheckbox.addEventListener('change', () => {
+            document.querySelectorAll('.page-checkbox').forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+            });
+        });
+
+        // Update select all checkbox
+        document.addEventListener('change', () => {
+            const allChecked = document.querySelectorAll('.page-checkbox:checked').length === pages.length;
+            selectAllCheckbox.checked = allChecked;
+        });
+
+        // Log function
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Capture and download
+        downloadBtn.addEventListener('click', async () => {
+            const selectedPages = [];
+            document.querySelectorAll('.page-checkbox:checked').forEach((cb) => {
+                const index = Array.from(document.querySelectorAll('.page-checkbox')).indexOf(cb);
+                if (index >= 0) {
+                    selectedPages.push(pages[index]);
+                }
+            });
+
+            if (selectedPages.length === 0) {
+                alert('Please select at least one page');
+                return;
+            }
+
+            downloadBtn.disabled = true;
+            progressSection.classList.add('active');
+            log.classList.add('active');
+            log.innerHTML = '';
+
+            addLog(`Starting capture of ${selectedPages.length} page(s)...`, 'info');
+
+            const zip = new JSZip();
+            let completed = 0;
+
+            for (const page of selectedPages) {
+                try {
+                    addLog(`Capturing: ${page.name}...`, 'info');
+                    
+                    // Fetch the page
+                    const response = await fetch(page.url);
+                    const html = await response.text();
+                    
+                    // Create a temporary container
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    tempDiv.style.display = 'none';
+                    document.body.appendChild(tempDiv);
+                    
+                    // Capture with html2canvas
+                    const canvas = await html2canvas(tempDiv, {
+                        backgroundColor: '#ffffff',
+                        scale: 2,
+                        width: 1920,
+                        height: 1080,
+                        windowHeight: 1080,
+                        windowWidth: 1920,
+                        useCORS: true,
+                        allowTaint: true
+                    });
+                    
+                    // Convert to blob and add to zip
+                    canvas.toBlob(blob => {
+                        zip.file(`${page.name}.png`, blob);
+                        addLog(`✓ Captured: ${page.name}.png`, 'success');
+                        
+                        completed++;
+                        const progress = (completed / selectedPages.length) * 100;
+                        progressFill.style.width = progress + '%';
+                        progressText.textContent = Math.round(progress) + '%';
+                        
+                        // Clean up
+                        document.body.removeChild(tempDiv);
+                        
+                        // If all done, generate zip
+                        if (completed === selectedPages.length) {
+                            addLog('Generating ZIP file...', 'info');
+                            zip.generateAsync({ type: 'blob' }).then(blob => {
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = 'codedswitch_screenshots.zip';
+                                link.click();
+                                URL.revokeObjectURL(url);
+                                
+                                addLog('✓ ZIP file downloaded! Extract it to get PNG files.', 'success');
+                                downloadBtn.disabled = false;
+                            });
+                        }
+                    });
+                    
+                } catch (err) {
+                    addLog(`✗ Error capturing ${page.name}: ${err.message}`, 'error');
+                    completed++;
+                }
+            }
+        });
+
+        // Reset button
+        resetBtn.addEventListener('click', () => {
+            initPageList();
+            selectAllCheckbox.checked = true;
+            progressSection.classList.remove('active');
+            log.classList.remove('active');
+            progressFill.style.width = '0%';
+            progressText.textContent = '0%';
+            downloadBtn.disabled = false;
+        });
+
+        // Initialize
+        initPageList();
+    </script>
+</body>
+</html>
