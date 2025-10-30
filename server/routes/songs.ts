@@ -283,7 +283,7 @@ async function downloadAudioFile(url: string, filename: string): Promise<string>
   return tempFilePath;
 }
 
-// Helper function to analyze audio with AI
+// Helper function to analyze audio with AI - COMPREHENSIVE ANALYSIS
 async function analyzeWithAI(songName: string, metadata: any): Promise<any> {
   const XAI_API_KEY = process.env.XAI_API_KEY;
   
@@ -293,39 +293,164 @@ async function analyzeWithAI(songName: string, metadata: any): Promise<any> {
   }
 
   try {
-    const prompt = `Analyze this audio file and provide detailed musical insights:
+    const prompt = `You are a professional music producer, audio engineer, and vocal coach. Provide a COMPREHENSIVE analysis of this song:
 
+**SONG DETAILS:**
 Song Name: ${songName}
 Duration: ${Math.floor(metadata.duration / 60)}:${Math.floor(metadata.duration % 60).toString().padStart(2, '0')}
 Bitrate: ${metadata.bitrate} kbps
 Sample Rate: ${metadata.sampleRate} Hz
 Codec: ${metadata.codec}
 
-Based on the song name and audio properties, provide a professional music analysis with:
-1. Estimated BPM (a realistic number between 60-180)
-2. Key signature (e.g., "C Major", "Am", "F# minor")
-3. Genre (e.g., Hip-Hop, R&B, Pop, Electronic, Rock, Jazz)
-4. Mood (e.g., Energetic, Chill, Melancholic, Uplifting, Dark, Dreamy)
-5. Song structure with timestamps (intro, verse, chorus, bridge, outro)
-6. Likely instruments used
-7. Production quality notes
+**REQUIRED COMPREHENSIVE ANALYSIS:**
 
-Respond ONLY with valid JSON in this exact format:
+1. **MUSIC THEORY:**
+   - BPM (realistic 60-180)
+   - Key signature (e.g., "C Major", "F# minor")
+   - Time signature (e.g., "4/4", "3/4")
+   - Genre and sub-genre
+   - Mood and energy level
+
+2. **VOCAL ANALYSIS** (if vocals present):
+   - Vocal range and register
+   - Delivery style (aggressive, laid-back, melodic, etc.)
+   - Flow and timing (on-beat, offbeat, syncopated)
+   - Breath control and phrasing
+   - Vocal effects used (autotune, reverb, delay, etc.)
+   - Vocal clarity and pronunciation
+   - Emotional delivery and expression
+   - Timing issues or strengths
+
+3. **LYRICS QUALITY** (if available):
+   - Rhyme scheme quality
+   - Wordplay and metaphors
+   - Theme and storytelling
+   - Syllable count and rhythm
+   - Hook catchiness
+   - Lyrical complexity
+   
+4. **PRODUCTION QUALITY:**
+   - Mix quality (1-10 score)
+   - Master quality (1-10 score)
+   - Frequency balance (bass, mids, highs)
+   - Dynamic range
+   - Stereo imaging
+   - Clarity and separation
+   - Professional vs amateur production
+   - Issues: muddy mix, harsh highs, weak bass, etc.
+
+5. **ARRANGEMENT:**
+   - Song structure with accurate timestamps
+   - Transitions quality
+   - Build-ups and drops
+   - Layering complexity
+   - Space and breathing room
+
+6. **INSTRUMENTS & SOUNDS:**
+   - All instruments used
+   - Sound quality (synthetic vs organic)
+   - 808s/drums quality
+   - Melody instruments
+   - Sound selection rating
+
+7. **COMMERCIAL VIABILITY:**
+   - Radio-ready? (yes/no + why)
+   - Target audience
+   - Comparable artists/songs
+   - Streaming potential (1-10)
+   - Areas for improvement
+
+8. **SPECIFIC ISSUES TO FIX:**
+   - List 3-5 specific problems
+   - Priority order (high/medium/low)
+   - Suggested fixes
+
+Respond ONLY with valid JSON in this EXACT format:
 {
-  "estimatedBPM": 120,
-  "keySignature": "C Major",
+  "estimatedBPM": 128,
+  "keySignature": "F# minor",
+  "timeSignature": "4/4",
   "genre": "Hip-Hop",
-  "mood": "Energetic",
-  "structure": {
-    "intro": "0:00-0:15",
-    "verse1": "0:15-0:45",
-    "chorus": "0:45-1:15",
-    "verse2": "1:15-1:45",
-    "bridge": "2:15-2:45",
-    "outro": "2:45-3:00"
+  "subGenre": "Trap",
+  "mood": "Dark and Aggressive",
+  "energyLevel": 8,
+  "vocalAnalysis": {
+    "hasVocals": true,
+    "vocalRange": "Tenor (C3-C5)",
+    "deliveryStyle": "Aggressive and confident",
+    "flowTiming": "Syncopated with triplet flows",
+    "breathControl": "Good phrasing with consistent energy",
+    "vocalEffects": ["Autotune", "Reverb", "Delay"],
+    "clarity": "Clear pronunciation, slight mumble in verse 2",
+    "emotionalDelivery": "Intense and emotional, connects with listener",
+    "timingIssues": "Slightly rushed on bridge, otherwise tight"
   },
-  "instruments": ["Drums", "Bass", "Synth"],
-  "analysis_notes": "Detailed professional analysis of the track..."
+  "lyricsQuality": {
+    "rhymeScheme": "Complex multisyllabic rhymes (AABB)",
+    "wordplay": "Strong metaphors and double entendres",
+    "theme": "Street struggles and triumph",
+    "syllableRhythm": "Varied cadence keeps it interesting",
+    "hookCatchiness": 9,
+    "complexity": "Advanced vocabulary with street slang"
+  },
+  "productionQuality": {
+    "mixQuality": 8,
+    "masterQuality": 7,
+    "frequencyBalance": "Heavy bass, clear highs, slightly thin mids",
+    "dynamicRange": "Compressed but not overly squashed",
+    "stereoImaging": "Wide stereo field, good use of panning",
+    "clarity": "Clean separation between elements",
+    "professionalLevel": "Professional quality, minor improvements needed",
+    "issues": ["Kick and 808 clash slightly", "Vocals sit slightly behind beat in verse 1"]
+  },
+  "structure": {
+    "intro": "0:00-0:12",
+    "verse1": "0:12-0:45",
+    "chorus": "0:45-1:15",
+    "verse2": "1:15-1:48",
+    "bridge": "1:48-2:15",
+    "chorus2": "2:15-2:45",
+    "outro": "2:45-3:05"
+  },
+  "arrangement": {
+    "transitionQuality": "Smooth transitions with fills",
+    "buildUps": "Effective build before chorus",
+    "layering": "Complex with 8-12 simultaneous elements",
+    "breathing": "Good use of space, not overcrowded"
+  },
+  "instruments": ["808s", "Hi-Hats", "Snare", "Synth Bass", "Piano", "String Section", "Vocal Chops"],
+  "soundQuality": {
+    "type": "Mostly synthetic with some organic samples",
+    "drums": "Punchy 808s, crisp hi-hats",
+    "melody": "Dark synths with atmospheric pads",
+    "rating": 8
+  },
+  "commercialViability": {
+    "radioReady": "Yes - clean version needed",
+    "targetAudience": "18-34 hip-hop fans",
+    "comparableArtists": ["Travis Scott", "21 Savage", "Future"],
+    "streamingPotential": 8,
+    "improvements": "Stronger hook melody, clearer vocal mix"
+  },
+  "specificIssues": [
+    {
+      "issue": "Vocals buried in mix during verse 1",
+      "priority": "high",
+      "fix": "Boost vocal presence 2-3dB, cut competing frequencies in beat"
+    },
+    {
+      "issue": "808 and kick drum clash around 60Hz",
+      "priority": "high",
+      "fix": "Sidechain kick to 808 or EQ separation"
+    },
+    {
+      "issue": "Timing slightly rushed in bridge section",
+      "priority": "medium",
+      "fix": "Re-record bridge with metronome, or use time-stretch"
+    }
+  ],
+  "overallScore": 8.5,
+  "analysis_notes": "This is a professional-quality track with strong production and vocal performance. The dark, aggressive tone fits the genre perfectly. Main areas for improvement: vocal mix clarity in verse 1, and tightening up the low-end clash between kick and 808. The lyrics are well-crafted with complex rhyme schemes, and the vocal delivery shows confidence and emotion. Flow timing is mostly excellent with creative syncopation. Commercial potential is high - with minor mixing adjustments, this could be radio-ready. The hook is catchy but could be strengthened melodically. Overall, this shows professional-level production with room for refinement to reach A-list quality."
 }`;
 
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
