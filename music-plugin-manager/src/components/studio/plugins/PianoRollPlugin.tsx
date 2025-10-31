@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface Note {
@@ -19,30 +19,30 @@ interface PianoRollPluginProps {
 }
 
 const PIANO_KEYS = [
-  { note: 'C', octave: 5, isBlack: false },
-  { note: 'C#', octave: 5, isBlack: true },
-  { note: 'D', octave: 5, isBlack: false },
-  { note: 'D#', octave: 5, isBlack: true },
-  { note: 'E', octave: 5, isBlack: false },
-  { note: 'F', octave: 5, isBlack: false },
-  { note: 'F#', octave: 5, isBlack: true },
-  { note: 'G', octave: 5, isBlack: false },
-  { note: 'G#', octave: 5, isBlack: true },
-  { note: 'A', octave: 5, isBlack: false },
-  { note: 'A#', octave: 5, isBlack: true },
-  { note: 'B', octave: 5, isBlack: false },
-  { note: 'C', octave: 4, isBlack: false },
-  { note: 'C#', octave: 4, isBlack: true },
-  { note: 'D', octave: 4, isBlack: false },
-  { note: 'D#', octave: 4, isBlack: true },
-  { note: 'E', octave: 4, isBlack: false },
-  { note: 'F', octave: 4, isBlack: false },
-  { note: 'F#', octave: 4, isBlack: true },
-  { note: 'G', octave: 4, isBlack: false },
-  { note: 'G#', octave: 4, isBlack: true },
-  { note: 'A', octave: 4, isBlack: false },
-  { note: 'A#', octave: 4, isBlack: true },
-  { note: 'B', octave: 4, isBlack: false },
+  { note: 'C', octave: 5, isBlack: false, key: 'z' },
+  { note: 'C#', octave: 5, isBlack: true, key: 's' },
+  { note: 'D', octave: 5, isBlack: false, key: 'x' },
+  { note: 'D#', octave: 5, isBlack: true, key: 'd' },
+  { note: 'E', octave: 5, isBlack: false, key: 'c' },
+  { note: 'F', octave: 5, isBlack: false, key: 'v' },
+  { note: 'F#', octave: 5, isBlack: true, key: 'g' },
+  { note: 'G', octave: 5, isBlack: false, key: 'b' },
+  { note: 'G#', octave: 5, isBlack: true, key: 'h' },
+  { note: 'A', octave: 5, isBlack: false, key: 'n' },
+  { note: 'A#', octave: 5, isBlack: true, key: 'j' },
+  { note: 'B', octave: 5, isBlack: false, key: 'm' },
+  { note: 'C', octave: 4, isBlack: false, key: 'q' },
+  { note: 'C#', octave: 4, isBlack: true, key: '2' },
+  { note: 'D', octave: 4, isBlack: false, key: 'w' },
+  { note: 'D#', octave: 4, isBlack: true, key: '3' },
+  { note: 'E', octave: 4, isBlack: false, key: 'e' },
+  { note: 'F', octave: 4, isBlack: false, key: 'r' },
+  { note: 'F#', octave: 4, isBlack: true, key: '5' },
+  { note: 'G', octave: 4, isBlack: false, key: 't' },
+  { note: 'G#', octave: 4, isBlack: true, key: '6' },
+  { note: 'A', octave: 4, isBlack: false, key: 'y' },
+  { note: 'A#', octave: 4, isBlack: true, key: '7' },
+  { note: 'B', octave: 4, isBlack: false, key: 'u' },
 ];
 
 export function PianoRollPlugin({ 
@@ -53,6 +53,38 @@ export function PianoRollPlugin({
   onPlayNote 
 }: PianoRollPluginProps) {
   const [noteDuration, setNoteDuration] = useState(0.5);
+  const [activePianoKey, setActivePianoKey] = useState<string | null>(null);
+
+  // Keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const pianoKey = PIANO_KEYS.find(pk => pk.key === key);
+      
+      if (pianoKey) {
+        e.preventDefault();
+        playKey(pianoKey.note, pianoKey.octave);
+        setActivePianoKey(`${pianoKey.note}${pianoKey.octave}`);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const pianoKey = PIANO_KEYS.find(pk => pk.key === key);
+      
+      if (pianoKey) {
+        setActivePianoKey(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [noteDuration, selectedTrack, notes]);
 
   const playKey = (note: string, octave: number) => {
     onPlayNote(note, octave, noteDuration, 'piano');
@@ -100,8 +132,8 @@ export function PianoRollPlugin({
           <div className="flex items-center space-x-2">
             <label className="text-sm text-gray-400">Duration:</label>
             <select 
-              value={selectedDuration}
-              onChange={(e) => setSelectedDuration(parseFloat(e.target.value))}
+              value={noteDuration}
+              onChange={(e) => setNoteDuration(parseFloat(e.target.value))}
               className="bg-gray-600 text-white px-2 py-1 rounded text-sm"
             >
               <option value={0.25}>1/16</option>
@@ -125,24 +157,31 @@ export function PianoRollPlugin({
 
       {/* Virtual Piano */}
       <div className="bg-gray-900 rounded-lg p-4 mb-4">
-        <h4 className="text-sm font-medium mb-3 text-gray-300">Virtual Piano</h4>
+        <h4 className="text-sm font-medium mb-3 text-gray-300">🎹 Virtual Piano (Press Keys: Q-U, Z-M, 2,3,5,6,7)</h4>
         <div className="flex flex-wrap gap-1">
-          {PIANO_KEYS.map((key, index) => (
-            <button
-              key={`${key.note}${key.octave}-${index}`}
-              onClick={() => addNote(key.note, key.octave)}
-              className={`
-                px-3 py-6 text-xs font-medium rounded transition-all
-                ${key.isBlack 
-                  ? 'bg-gray-900 text-white border border-gray-600 hover:bg-gray-700' 
-                  : 'bg-white text-black border border-gray-300 hover:bg-gray-100'
-                }
-                ${isPlaying ? 'animate-pulse' : ''}
-              `}
-            >
-              {key.note}{key.octave}
-            </button>
-          ))}
+          {PIANO_KEYS.map((key, index) => {
+            const isActive = activePianoKey === `${key.note}${key.octave}`;
+            return (
+              <button
+                key={`${key.note}${key.octave}-${index}`}
+                onClick={() => playKey(key.note, key.octave)}
+                className={`
+                  px-3 py-6 text-xs font-medium rounded transition-all transform
+                  ${key.isBlack 
+                    ? isActive
+                      ? 'bg-yellow-500 text-black border-2 border-yellow-400 scale-105 shadow-lg shadow-yellow-500'
+                      : 'bg-gray-900 text-white border border-gray-600 hover:bg-gray-700' 
+                    : isActive
+                      ? 'bg-yellow-300 text-black border-2 border-yellow-500 scale-105 shadow-lg shadow-yellow-400'
+                      : 'bg-white text-black border border-gray-300 hover:bg-gray-100'
+                  }
+                `}
+              >
+                <div className="font-bold">{key.note}{key.octave}</div>
+                <div className="text-xs mt-1 opacity-75">{key.key}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
