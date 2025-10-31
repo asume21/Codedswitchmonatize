@@ -184,20 +184,20 @@ export default function UnifiedMusicStudio() {
         </CardHeader>
         <CardContent className="h-full bg-gray-800">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full bg-gray-800">
-            <TabsList className="grid w-full grid-cols-4 bg-gray-700">
-              <TabsTrigger value="compose" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
+            <TabsList className="grid w-full grid-cols-4 bg-gray-700 p-1">
+              <TabsTrigger value="compose" className="flex items-center gap-2 text-white bg-gray-600 hover:bg-gray-500 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Music className="h-4 w-4" />
                 Compose
               </TabsTrigger>
-              <TabsTrigger value="code" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
+              <TabsTrigger value="code" className="flex items-center gap-2 text-white bg-gray-600 hover:bg-gray-500 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Code className="h-4 w-4" />
                 Code
               </TabsTrigger>
-              <TabsTrigger value="record" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
+              <TabsTrigger value="record" className="flex items-center gap-2 text-white bg-gray-600 hover:bg-gray-500 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Mic className="h-4 w-4" />
                 Record
               </TabsTrigger>
-              <TabsTrigger value="mix" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
+              <TabsTrigger value="mix" className="flex items-center gap-2 text-white bg-gray-600 hover:bg-gray-500 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Headphones className="h-4 w-4" />
                 Mix
               </TabsTrigger>
