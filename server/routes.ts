@@ -1352,25 +1352,24 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
-  // Professional song generation endpoint
+  // Professional song generation endpoint (Suno via Replicate)
   app.post("/api/songs/generate-professional", async (req: Request, res: Response) => {
     try {
-      const { prompt, genre, mood, duration, style, instruments, vocals, bpm, key } = req.body;
+      const { prompt, genre, mood, duration, style, vocals, bpm, key } = req.body;
       
       if (!prompt) {
         return sendError(res, 400, "Missing prompt");
       }
 
-      console.log('🎵 Generating professional song...');
+      console.log('🎵 Generating professional song with Suno via Replicate...');
       
-      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
       
-      const song = await professionalAudio.generateFullSong(prompt, {
+      const song = await replicateMusic.generateFullSong(prompt, {
         genre: genre || 'pop',
         mood: mood || 'uplifting',
         duration: duration || 180,
         style: style || 'modern',
-        instruments: instruments || ['piano', 'guitar', 'bass', 'drums'],
         vocals: vocals !== false,
         bpm: bpm || 120,
         key: key || 'C Major'
@@ -1388,72 +1387,71 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
-  // Add vocals to instrumental
-  app.post("/api/songs/add-vocals", async (req: Request, res: Response) => {
+  // Generate beat and melody (MusicGen via Replicate)
+  app.post("/api/songs/generate-beat", async (req: Request, res: Response) => {
     try {
-      const { instrumentalData, style, lyrics, melody, harmonies, adLibs } = req.body;
+      const { prompt, genre, duration, style, energy } = req.body;
       
-      if (!instrumentalData) {
-        return sendError(res, 400, "Missing instrumental data");
+      if (!prompt) {
+        return sendError(res, 400, "Missing prompt");
       }
 
-      console.log('🎤 Adding vocals to instrumental...');
+      console.log('🎼 Generating beat and melody with MusicGen via Replicate...');
       
-      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
       
-      const result = await professionalAudio.addVocalsToInstrumental(instrumentalData, {
-        style: style || 'pop',
-        lyrics: lyrics || '',
-        melody: melody !== false,
-        harmonies: harmonies !== false,
-        adLibs: adLibs || false
-      });
-
-      console.log('✅ Vocals added');
-      res.json({
-        status: 'success',
-        result: result
-      });
-
-    } catch (error) {
-      console.error('❌ Add vocals error:', error);
-      sendError(res, 500, "Failed to add vocals");
-    }
-  });
-
-  // Add instrumentals to vocals
-  app.post("/api/songs/add-instrumentals", async (req: Request, res: Response) => {
-    try {
-      const { vocalData, genre, energy, instruments, complexity } = req.body;
-      
-      if (!vocalData) {
-        return sendError(res, 400, "Missing vocal data");
-      }
-
-      console.log('🎼 Adding instrumentals to vocals...');
-      
-      const { professionalAudio } = await import('./services/professionalAudioGenerator');
-      
-      const result = await professionalAudio.addInstrumentalsToVocals(vocalData, {
+      const result = await replicateMusic.generateBeatAndMelody(prompt, {
         genre: genre || 'pop',
-        energy: energy || 'medium',
-        instruments: instruments || ['piano', 'guitar', 'bass', 'drums'],
-        complexity: complexity || 5
+        duration: duration || 30,
+        style: style || 'modern',
+        energy: energy || 'medium'
       });
 
-      console.log('✅ Instrumentals added');
+      console.log('✅ Beat and melody generated');
       res.json({
         status: 'success',
         result: result
       });
 
     } catch (error) {
-      console.error('❌ Add instrumentals error:', error);
-      sendError(res, 500, "Failed to add instrumentals");
+      console.error('❌ Beat generation error:', error);
+      sendError(res, 500, "Failed to generate beat");
     }
   });
 
-  // Genre blending
+  // Generate instrumental (MusicGen via Replicate)
+  app.post("/api/songs/generate-instrumental", async (req: Request, res: Response) => {
+    try {
+      const { prompt, genre, duration, instruments, energy } = req.body;
+      
+      if (!prompt) {
+        return sendError(res, 400, "Missing prompt");
+      }
+
+      console.log('🎹 Generating instrumental with MusicGen via Replicate...');
+      
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
+      
+      const result = await replicateMusic.generateInstrumental(prompt, {
+        genre: genre || 'pop',
+        duration: duration || 60,
+        instruments: instruments || ['piano', 'guitar', 'bass', 'drums'],
+        energy: energy || 'medium'
+      });
+
+      console.log('✅ Instrumental generated');
+      res.json({
+        status: 'success',
+        result: result
+      });
+
+    } catch (error) {
+      console.error('❌ Instrumental generation error:', error);
+      sendError(res, 500, "Failed to generate instrumental");
+    }
+  });
+
+  // Genre blending (MusicGen via Replicate)
   app.post("/api/songs/blend-genres", async (req: Request, res: Response) => {
     try {
       const { primaryGenre, secondaryGenres, prompt } = req.body;
@@ -1462,11 +1460,11 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
         return sendError(res, 400, "Missing required parameters");
       }
 
-      console.log('🎭 Blending genres...');
+      console.log('🎭 Blending genres with MusicGen via Replicate...');
       
-      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
       
-      const result = await professionalAudio.blendGenres(primaryGenre, secondaryGenres, prompt);
+      const result = await replicateMusic.blendGenres(primaryGenre, secondaryGenres, prompt);
 
       console.log('✅ Genres blended');
       res.json({
@@ -1480,30 +1478,66 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
-  // Generate advanced lyrics
-  app.post("/api/songs/generate-advanced-lyrics", async (req: Request, res: Response) => {
+  // Generate drum pattern (MusicGen via Replicate)
+  app.post("/api/songs/generate-drums", async (req: Request, res: Response) => {
     try {
-      const { theme, genre, mood, songStructure } = req.body;
+      const { prompt, genre, bpm, duration } = req.body;
       
-      if (!theme || !genre || !mood) {
-        return sendError(res, 400, "Missing required parameters");
+      if (!prompt) {
+        return sendError(res, 400, "Missing prompt");
       }
 
-      console.log('✍️ Generating advanced lyrics...');
+      console.log('🥁 Generating drum pattern with MusicGen via Replicate...');
       
-      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
       
-      const result = await professionalAudio.generateAdvancedLyrics(theme, genre, mood, songStructure || {});
+      const result = await replicateMusic.generateDrumPattern(prompt, {
+        genre: genre || 'pop',
+        bpm: bpm || 120,
+        duration: duration || 30
+      });
 
-      console.log('✅ Advanced lyrics generated');
+      console.log('✅ Drum pattern generated');
       res.json({
         status: 'success',
         result: result
       });
 
     } catch (error) {
-      console.error('❌ Lyric generation error:', error);
-      sendError(res, 500, "Failed to generate lyrics");
+      console.error('❌ Drum generation error:', error);
+      sendError(res, 500, "Failed to generate drums");
+    }
+  });
+
+  // Generate melody (MusicGen via Replicate)
+  app.post("/api/songs/generate-melody", async (req: Request, res: Response) => {
+    try {
+      const { prompt, genre, key, duration, instrument } = req.body;
+      
+      if (!prompt) {
+        return sendError(res, 400, "Missing prompt");
+      }
+
+      console.log('🎵 Generating melody with MusicGen via Replicate...');
+      
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
+      
+      const result = await replicateMusic.generateMelody(prompt, {
+        genre: genre || 'pop',
+        key: key || 'C Major',
+        duration: duration || 30,
+        instrument: instrument || 'piano'
+      });
+
+      console.log('✅ Melody generated');
+      res.json({
+        status: 'success',
+        result: result
+      });
+
+    } catch (error) {
+      console.error('❌ Melody generation error:', error);
+      sendError(res, 500, "Failed to generate melody");
     }
   });
 

@@ -1,7 +1,9 @@
-import OpenAI from "openai";
+import Replicate from "replicate";
 
-// xAI (Grok) client
-const openai = new OpenAI({ baseURL: "https://api.x.ai/v1", apiKey: process.env.XAI_API_KEY });
+// Replicate client for music generation
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN,
+});
 
 // Professional Audio Generation Service - Suno-Level Quality
 export class ProfessionalAudioGenerator {
