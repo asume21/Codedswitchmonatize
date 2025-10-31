@@ -34,7 +34,7 @@ export default function Settings() {
           <div className="flex items-center gap-3">
             <SettingsIcon className="h-8 w-8 text-purple-400" />
             <div>
-              <h1 className="text-2xl font-bold text-white">Settings</h1>
+              <h1 className="text-2xl font-bold text-white">⚙️ Settings</h1>
               <p className="text-sm text-gray-400">Manage your account and preferences</p>
             </div>
           </div>
