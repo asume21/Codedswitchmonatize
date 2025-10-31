@@ -156,12 +156,12 @@ export default function UnifiedMusicStudio() {
   };
 
   return (
-    <div className="h-full w-full p-6 bg-gray-50">
-      <Card className="h-full">
+    <div className="h-full w-full p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+      <Card className="h-full bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between text-white">
             <div className="flex items-center gap-2">
-              <Music className="h-6 w-6" />
+              <Music className="h-6 w-6 text-purple-400" />
               Unified Music Studio
             </div>
             <Button 
@@ -184,20 +184,20 @@ export default function UnifiedMusicStudio() {
         </CardHeader>
         <CardContent className="h-full">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="compose" className="flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-4 bg-gray-700">
+              <TabsTrigger value="compose" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Music className="h-4 w-4" />
                 Compose
               </TabsTrigger>
-              <TabsTrigger value="code" className="flex items-center gap-2">
+              <TabsTrigger value="code" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Code className="h-4 w-4" />
                 Code
               </TabsTrigger>
-              <TabsTrigger value="record" className="flex items-center gap-2">
+              <TabsTrigger value="record" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Mic className="h-4 w-4" />
                 Record
               </TabsTrigger>
-              <TabsTrigger value="mix" className="flex items-center gap-2">
+              <TabsTrigger value="mix" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Headphones className="h-4 w-4" />
                 Mix
               </TabsTrigger>
@@ -205,34 +205,34 @@ export default function UnifiedMusicStudio() {
 
             <TabsContent value="compose" className="mt-6 h-full">
               <div className="grid grid-cols-2 gap-6 h-full">
-                <Card>
+                <Card className="bg-gray-700 border-gray-600">
                   <CardHeader>
-                    <CardTitle>Melody Composer</CardTitle>
+                    <CardTitle className="text-white">🎵 Melody Composer</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <Button onClick={handleStartComposing} className="w-full">
+                      <Button onClick={handleStartComposing} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                         <Music className="h-4 w-4 mr-2" />
                         Start Composing
                       </Button>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-300">
                         Create melodies with AI assistance
                       </p>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-gray-700 border-gray-600">
                   <CardHeader>
-                    <CardTitle>Beat Maker</CardTitle>
+                    <CardTitle className="text-white">🥁 Beat Maker</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <Button onClick={handleCreateBeats} className="w-full">
+                      <Button onClick={handleCreateBeats} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                         <Headphones className="h-4 w-4 mr-2" />
                         Create Beats
                       </Button>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-300">
                         Generate rhythmic patterns
                       </p>
                     </div>
@@ -242,9 +242,9 @@ export default function UnifiedMusicStudio() {
             </TabsContent>
 
             <TabsContent value="code" className="mt-6 h-full">
-              <Card className="h-full">
+              <Card className="h-full bg-gray-700 border-gray-600">
                 <CardHeader>
-                  <CardTitle>Code to Music</CardTitle>
+                  <CardTitle className="text-white">💻 Code to Music</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -274,11 +274,11 @@ export default function UnifiedMusicStudio() {
                           new CustomEvent("navigateToTab", { detail: "codebeat" }),
                         );
                       }
-                    }} className="w-full">
+                    }} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                       <Code className="h-4 w-4 mr-2" />
                       Convert Code
                     </Button>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-300">
                       Transform your code into musical compositions
                     </p>
                   </div>
@@ -287,9 +287,9 @@ export default function UnifiedMusicStudio() {
             </TabsContent>
 
             <TabsContent value="record" className="mt-6 h-full">
-              <Card className="h-full">
+              <Card className="h-full bg-gray-700 border-gray-600">
                 <CardHeader>
-                  <CardTitle>Recording Studio</CardTitle>
+                  <CardTitle className="text-white">🎙️ Recording Studio</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -319,11 +319,11 @@ export default function UnifiedMusicStudio() {
                           new CustomEvent("navigateToTab", { detail: "assistant" }),
                         );
                       }
-                    }} className="w-full">
+                    }} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                       <Mic className="h-4 w-4 mr-2" />
                       Start Recording
                     </Button>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-300">
                       Record audio with professional quality
                     </p>
                   </div>
@@ -332,10 +332,10 @@ export default function UnifiedMusicStudio() {
             </TabsContent>
 
             <TabsContent value="mix" className="mt-6 h-full">
-              <Card className="h-full">
+              <Card className="h-full bg-gray-700 border-gray-600">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Headphones className="h-6 w-6" />
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <Headphones className="h-6 w-6 text-purple-400" />
                     Audio Mixer
                   </CardTitle>
                 </CardHeader>
@@ -371,11 +371,11 @@ export default function UnifiedMusicStudio() {
                           new CustomEvent("navigateToTab", { detail: "mix-studio" }),
                         );
                       }
-                    }} className="w-full">
+                    }} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                       <Headphones className="h-4 w-4 mr-2" />
                       Open Mixer
                     </Button>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-300">
                       Mix and master your audio tracks
                     </p>
                   </div>
