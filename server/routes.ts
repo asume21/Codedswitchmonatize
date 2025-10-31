@@ -1352,6 +1352,65 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
+  // Advanced lyrics analysis endpoint
+  app.post("/api/lyrics/analyze", async (req: Request, res: Response) => {
+    try {
+      const { lyrics, genre, enhanceWithAI = true } = req.body;
+      
+      if (!lyrics || !lyrics.trim()) {
+        return sendError(res, 400, "Missing lyrics text");
+      }
+
+      console.log('🎵 Analyzing lyrics with advanced system...');
+      
+      // Import the advanced analyzer
+      const { advancedLyricAnalyzer } = await import('./services/advancedLyricAnalyzer');
+      
+      // Perform basic analysis
+      const basicAnalysis = advancedLyricAnalyzer.analyzeLyrics(lyrics);
+      console.log('✅ Basic analysis complete');
+      
+      // Enhance with AI if requested
+      let enhancedAnalysis;
+      if (enhanceWithAI) {
+        console.log('🤖 Enhancing with AI insights...');
+        enhancedAnalysis = await advancedLyricAnalyzer.enhanceWithAI(
+          basicAnalysis, 
+          lyrics, 
+          genre || 'unknown'
+        );
+        console.log('✅ AI enhancement complete');
+      } else {
+        enhancedAnalysis = {
+          ...basicAnalysis,
+          ai_insights: {
+            vocal_delivery: "AI enhancement disabled",
+            musical_suggestions: ["Enable AI enhancement for suggestions"],
+            production_notes: ["Enable AI enhancement for production tips"],
+            genre_recommendations: [genre || 'unknown'],
+            improvement_areas: []
+          },
+          overall_rating: {
+            score: basicAnalysis.quality_score,
+            strengths: [],
+            weaknesses: [],
+            commercial_potential: basicAnalysis.quality_score / 10
+          }
+        };
+      }
+
+      console.log('✅ Advanced lyrics analysis complete');
+      res.json({
+        status: 'success',
+        analysis: enhancedAnalysis
+      });
+
+    } catch (error) {
+      console.error('❌ Lyrics analysis error:', error);
+      sendError(res, 500, "Failed to analyze lyrics");
+    }
+  });
+
   // Generate lyrics endpoint with AI model selection
   app.post(
     "/api/lyrics/generate",

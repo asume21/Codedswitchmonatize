@@ -7,7 +7,7 @@ import "@uppy/dashboard/dist/style.min.css";
 import XHRUpload from "@uppy/xhr-upload";
 import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 interface ObjectUploaderProps {
@@ -221,6 +221,7 @@ export function ObjectUploader({
           <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
             <VisuallyHidden>
               <DialogTitle>Upload Song</DialogTitle>
+              <DialogDescription>Upload audio files to your library</DialogDescription>
             </VisuallyHidden>
             <div className="w-full h-full overflow-auto">
               <div ref={dashboardRef} className="uppy-dashboard-container w-full" />

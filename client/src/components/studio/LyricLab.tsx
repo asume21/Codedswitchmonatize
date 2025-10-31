@@ -65,6 +65,8 @@ Type here or use AI generation...`);
   const [lyricComplexity, setLyricComplexity] = useState([5]);
   const [beatComplexity, setBeatComplexity] = useState([5]);
   const [aiProvider, setAiProvider] = useState("grok");
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   // Check if there's already generated music in studio context and localStorage
   React.useEffect(() => {
@@ -213,11 +215,36 @@ Type here or use AI generation...`);
       return response.json();
     },
     onSuccess: (data) => {
-      const suggestions: RhymeSuggestion[] = data.rhymes.map((rhyme: string) => ({
-        word: rhyme,
-        type: "perfect" as const,
-      }));
-      setRhymeSuggestions(suggestions);
+      setRhymeSuggestions(data.rhymes.slice(0, 8));
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Rhyme Finder Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const analyzeLyricsMutation = useMutation({
+    mutationFn: async (data: { lyrics: string; genre: string; enhanceWithAI?: boolean }) => {
+      const response = await apiRequest("POST", "/api/lyrics/analyze", data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setAnalysis(data.analysis);
+      setShowAnalysis(true);
+      toast({
+        title: "Analysis Complete",
+        description: "Advanced lyrics analysis finished successfully!",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Analysis Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -315,6 +342,23 @@ Type here or use AI generation...`);
         textarea.scrollTop = (sectionIndex / content.length) * textarea.scrollHeight;
       }
     }
+  };
+
+  const handleAnalyzeLyrics = () => {
+    if (!content.trim()) {
+      toast({
+        title: "No Lyrics",
+        description: "Please write some lyrics before analyzing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    analyzeLyricsMutation.mutate({
+      lyrics: content,
+      genre: genre,
+      enhanceWithAI: true
+    });
   };
 
   const wordCount = content.split(/\s+/).filter(word => word.length > 0).length;
@@ -596,6 +640,23 @@ Type here or use AI generation...`);
                     )}
                   </Button>
                   <Button
+                    onClick={handleAnalyzeLyrics}
+                    disabled={analyzeLyricsMutation.isPending || !content.trim()}
+                    className="w-full bg-green-600 hover:bg-green-500"
+                  >
+                    {analyzeLyricsMutation.isPending ? (
+                      <>
+                        <i className="fas fa-spinner animate-spin mr-2"></i>
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-chart-line mr-2"></i>
+                        Analyze Lyrics
+                      </>
+                    )}
+                  </Button>
+                  <Button
                     onClick={() => generateMusicFromLyricsMutation.mutate({
                       lyrics: content,
                       genre,
@@ -734,6 +795,209 @@ Type here or use AI generation...`);
           </div>
         </div>
       </ScrollArea>
+
+      {/* Analysis Results Modal */}
+      {showAnalysis && analysis && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 border border-gray-600 rounded-lg max-w-4xl max-h-[90vh] overflow-auto w-full">
+            <div className="p-6 border-b border-gray-600 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Advanced Lyric Analysis</h3>
+              <button
+                onClick={() => setShowAnalysis(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Overall Score */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="text-lg font-semibold text-studio-accent mb-2">Overall Rating</h4>
+                <div className="flex items-center space-x-4">
+                  <div className="text-3xl font-bold text-white">
+                    {Math.round(analysis.overall_rating?.score || analysis.quality_score)}/100
+                  </div>
+                  <div className="flex-1">
+                    <div className="w-full bg-gray-600 rounded-full h-3">
+                      <div 
+                        className="bg-gradient-to-r from-red-500 to-green-500 h-3 rounded-full"
+                        style={{ width: `${analysis.overall_rating?.score || analysis.quality_score}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Basic Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-studio-accent mb-2">Basic Statistics</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Lines:</span>
+                      <span className="text-white">{analysis.basic_stats?.line_count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Words:</span>
+                      <span className="text-white">{analysis.basic_stats?.word_count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Unique Words:</span>
+                      <span className="text-white">{analysis.basic_stats?.unique_word_count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Avg Words/Line:</span>
+                      <span className="text-white">{Math.round((analysis.basic_stats?.avg_words_per_line || 0) * 10) / 10}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-studio-accent mb-2">Rhyme & Rhythm</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Rhyme Scheme:</span>
+                      <span className="text-white font-mono">{analysis.rhyme_scheme}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Avg Syllables:</span>
+                      <span className="text-white">{Math.round((analysis.syllable_analysis?.avg_syllables || 0) * 10) / 10}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Lexical Diversity:</span>
+                      <span className="text-white">{Math.round((analysis.lexical_diversity || 0) * 100)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Quality Score:</span>
+                      <span className="text-white">{Math.round(analysis.quality_score || 0)}/100</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Themes */}
+              {analysis.themes && analysis.themes.length > 0 && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-studio-accent mb-2">Detected Themes</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.themes.map((theme: any, index: number) => (
+                      <div key={index} className="bg-gray-600 px-3 py-1 rounded-full text-sm">
+                        <span className="text-white capitalize">{theme.theme}</span>
+                        <span className="text-gray-400 ml-2">({Math.round(theme.confidence * 100)}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Flow Analysis */}
+              {analysis.flow_analysis && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-studio-accent mb-2">Flow & Rhythm Analysis</h4>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <div className="text-gray-400 mb-1">Rhythm Consistency</div>
+                      <div className="text-white font-semibold">
+                        {Math.round((analysis.flow_analysis.rhythm_consistency || 0) * 100)}%
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400 mb-1">Cadence Variety</div>
+                      <div className="text-white font-semibold">
+                        {Math.round((analysis.flow_analysis.cadence_variety || 0) * 100)}%
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400 mb-1">Breath Control</div>
+                      <div className="text-white font-semibold">
+                        {Math.round((analysis.flow_analysis.breath_control || 0) * 100)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Insights */}
+              {analysis.ai_insights && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-studio-accent mb-2">AI Insights</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="text-gray-400 mb-1">Vocal Delivery</div>
+                      <div className="text-white">{analysis.ai_insights.vocal_delivery}</div>
+                    </div>
+                    
+                    {analysis.ai_insights.musical_suggestions && (
+                      <div>
+                        <div className="text-gray-400 mb-1">Musical Suggestions</div>
+                        <ul className="list-disc list-inside text-white space-y-1">
+                          {analysis.ai_insights.musical_suggestions.map((suggestion: string, index: number) => (
+                            <li key={index} className="text-sm">{suggestion}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {analysis.ai_insights.production_notes && (
+                      <div>
+                        <div className="text-gray-400 mb-1">Production Notes</div>
+                        <ul className="list-disc list-inside text-white space-y-1">
+                          {analysis.ai_insights.production_notes.map((note: string, index: number) => (
+                            <li key={index} className="text-sm">{note}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Strengths & Weaknesses */}
+              {analysis.overall_rating && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h4 className="text-lg font-semibold text-green-400 mb-2">Strengths</h4>
+                    <ul className="list-disc list-inside text-white space-y-1 text-sm">
+                      {(analysis.overall_rating.strengths || []).map((strength: string, index: number) => (
+                        <li key={index}>{strength}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h4 className="text-lg font-semibold text-red-400 mb-2">Areas to Improve</h4>
+                    <ul className="list-disc list-inside text-white space-y-1 text-sm">
+                      {(analysis.overall_rating.weaknesses || []).map((weakness: string, index: number) => (
+                        <li key={index}>{weakness}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setShowAnalysis(false)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded-lg"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(analysis, null, 2));
+                    alert('Analysis copied to clipboard!');
+                  }}
+                  className="flex-1 bg-studio-accent hover:bg-blue-500 text-white py-2 px-4 rounded-lg"
+                >
+                  Copy Analysis
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

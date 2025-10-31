@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Progress } from "@/components/ui/progress";
 
@@ -114,6 +114,7 @@ export function SimpleFileUploader({
         <DialogContent className="max-w-2xl">
           <VisuallyHidden>
             <DialogTitle>Upload Song</DialogTitle>
+            <DialogDescription>Upload audio files to your library</DialogDescription>
           </VisuallyHidden>
           
           <div className="p-6 space-y-6">

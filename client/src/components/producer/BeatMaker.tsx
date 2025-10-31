@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -879,6 +880,9 @@ export function BeatMaker({ onBeatGenerated }: BeatMakerProps) {
                     <Tags className="h-5 w-5" />
                     Beat Metadata
                   </DialogTitle>
+                  <DialogDescription className="text-gray-400">
+                    Add tags and metadata to organize your beat
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="grid grid-cols-2 gap-4">
