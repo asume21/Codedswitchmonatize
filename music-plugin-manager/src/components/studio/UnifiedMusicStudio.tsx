@@ -156,8 +156,8 @@ export default function UnifiedMusicStudio() {
   };
 
   return (
-    <div className="h-full w-full p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-      <Card className="h-full bg-gray-800 border-gray-700">
+    <div className="h-full w-full p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-black overflow-hidden">
+      <Card className="h-full bg-gray-800 border-gray-700 shadow-2xl">
         <CardHeader>
           <CardTitle className="flex items-center justify-between text-white">
             <div className="flex items-center gap-2">
@@ -182,8 +182,8 @@ export default function UnifiedMusicStudio() {
             </Button>
           </CardTitle>
         </CardHeader>
-        <CardContent className="h-full">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+        <CardContent className="h-full bg-gray-800">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full bg-gray-800">
             <TabsList className="grid w-full grid-cols-4 bg-gray-700">
               <TabsTrigger value="compose" className="flex items-center gap-2 text-gray-300 data-[state=active]:text-white data-[state=active]:bg-purple-600">
                 <Music className="h-4 w-4" />
