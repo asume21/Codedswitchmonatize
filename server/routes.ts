@@ -1352,6 +1352,161 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
+  // Professional song generation endpoint
+  app.post("/api/songs/generate-professional", async (req: Request, res: Response) => {
+    try {
+      const { prompt, genre, mood, duration, style, instruments, vocals, bpm, key } = req.body;
+      
+      if (!prompt) {
+        return sendError(res, 400, "Missing prompt");
+      }
+
+      console.log('🎵 Generating professional song...');
+      
+      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      
+      const song = await professionalAudio.generateFullSong(prompt, {
+        genre: genre || 'pop',
+        mood: mood || 'uplifting',
+        duration: duration || 180,
+        style: style || 'modern',
+        instruments: instruments || ['piano', 'guitar', 'bass', 'drums'],
+        vocals: vocals !== false,
+        bpm: bpm || 120,
+        key: key || 'C Major'
+      });
+
+      console.log('✅ Professional song generated');
+      res.json({
+        status: 'success',
+        song: song
+      });
+
+    } catch (error) {
+      console.error('❌ Song generation error:', error);
+      sendError(res, 500, "Failed to generate professional song");
+    }
+  });
+
+  // Add vocals to instrumental
+  app.post("/api/songs/add-vocals", async (req: Request, res: Response) => {
+    try {
+      const { instrumentalData, style, lyrics, melody, harmonies, adLibs } = req.body;
+      
+      if (!instrumentalData) {
+        return sendError(res, 400, "Missing instrumental data");
+      }
+
+      console.log('🎤 Adding vocals to instrumental...');
+      
+      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      
+      const result = await professionalAudio.addVocalsToInstrumental(instrumentalData, {
+        style: style || 'pop',
+        lyrics: lyrics || '',
+        melody: melody !== false,
+        harmonies: harmonies !== false,
+        adLibs: adLibs || false
+      });
+
+      console.log('✅ Vocals added');
+      res.json({
+        status: 'success',
+        result: result
+      });
+
+    } catch (error) {
+      console.error('❌ Add vocals error:', error);
+      sendError(res, 500, "Failed to add vocals");
+    }
+  });
+
+  // Add instrumentals to vocals
+  app.post("/api/songs/add-instrumentals", async (req: Request, res: Response) => {
+    try {
+      const { vocalData, genre, energy, instruments, complexity } = req.body;
+      
+      if (!vocalData) {
+        return sendError(res, 400, "Missing vocal data");
+      }
+
+      console.log('🎼 Adding instrumentals to vocals...');
+      
+      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      
+      const result = await professionalAudio.addInstrumentalsToVocals(vocalData, {
+        genre: genre || 'pop',
+        energy: energy || 'medium',
+        instruments: instruments || ['piano', 'guitar', 'bass', 'drums'],
+        complexity: complexity || 5
+      });
+
+      console.log('✅ Instrumentals added');
+      res.json({
+        status: 'success',
+        result: result
+      });
+
+    } catch (error) {
+      console.error('❌ Add instrumentals error:', error);
+      sendError(res, 500, "Failed to add instrumentals");
+    }
+  });
+
+  // Genre blending
+  app.post("/api/songs/blend-genres", async (req: Request, res: Response) => {
+    try {
+      const { primaryGenre, secondaryGenres, prompt } = req.body;
+      
+      if (!primaryGenre || !secondaryGenres || !prompt) {
+        return sendError(res, 400, "Missing required parameters");
+      }
+
+      console.log('🎭 Blending genres...');
+      
+      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      
+      const result = await professionalAudio.blendGenres(primaryGenre, secondaryGenres, prompt);
+
+      console.log('✅ Genres blended');
+      res.json({
+        status: 'success',
+        result: result
+      });
+
+    } catch (error) {
+      console.error('❌ Genre blending error:', error);
+      sendError(res, 500, "Failed to blend genres");
+    }
+  });
+
+  // Generate advanced lyrics
+  app.post("/api/songs/generate-advanced-lyrics", async (req: Request, res: Response) => {
+    try {
+      const { theme, genre, mood, songStructure } = req.body;
+      
+      if (!theme || !genre || !mood) {
+        return sendError(res, 400, "Missing required parameters");
+      }
+
+      console.log('✍️ Generating advanced lyrics...');
+      
+      const { professionalAudio } = await import('./services/professionalAudioGenerator');
+      
+      const result = await professionalAudio.generateAdvancedLyrics(theme, genre, mood, songStructure || {});
+
+      console.log('✅ Advanced lyrics generated');
+      res.json({
+        status: 'success',
+        result: result
+      });
+
+    } catch (error) {
+      console.error('❌ Lyric generation error:', error);
+      sendError(res, 500, "Failed to generate lyrics");
+    }
+  });
+
   // Advanced lyrics analysis endpoint
   app.post("/api/lyrics/analyze", async (req: Request, res: Response) => {
     try {
