@@ -1541,6 +1541,80 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
+  // Get available AI providers
+  app.get("/api/ai-providers", async (req: Request, res: Response) => {
+    try {
+      const { aiProviderManager } = await import('./services/aiProviderManager');
+      
+      const providers = aiProviderManager.getAvailableProviders();
+      const authenticated = aiProviderManager.getAuthenticatedProviders();
+      
+      res.json({
+        status: 'success',
+        providers: providers,
+        authenticated: authenticated.map(p => p.name),
+        message: 'Available AI providers'
+      });
+    } catch (error) {
+      console.error('❌ Error fetching providers:', error);
+      sendError(res, 500, "Failed to fetch AI providers");
+    }
+  });
+
+  // Set user's AI provider preference
+  app.post("/api/ai-provider/set", async (req: Request, res: Response) => {
+    try {
+      const { feature, provider } = req.body;
+      
+      if (!feature || !provider) {
+        return sendError(res, 400, "Missing feature or provider");
+      }
+
+      const { aiProviderManager } = await import('./services/aiProviderManager');
+      
+      // Validate provider exists
+      if (!aiProviderManager.getAvailableProviders().find(p => p.name === provider)) {
+        return sendError(res, 400, "Invalid provider");
+      }
+
+      // Check if provider is authenticated
+      if (!aiProviderManager.isAuthenticated(provider)) {
+        return sendError(res, 401, `Provider ${provider} is not authenticated`);
+      }
+
+      aiProviderManager.setProvider(feature, provider);
+      
+      res.json({
+        status: 'success',
+        message: `AI provider set to ${provider} for ${feature}`,
+        feature: feature,
+        provider: provider
+      });
+    } catch (error) {
+      console.error('❌ Error setting provider:', error);
+      sendError(res, 500, "Failed to set AI provider");
+    }
+  });
+
+  // Get user's AI provider preference
+  app.get("/api/ai-provider/:feature", async (req: Request, res: Response) => {
+    try {
+      const { feature } = req.params;
+      const { aiProviderManager } = await import('./services/aiProviderManager');
+      
+      const provider = aiProviderManager.getProvider(feature);
+      
+      res.json({
+        status: 'success',
+        feature: feature,
+        provider: provider
+      });
+    } catch (error) {
+      console.error('❌ Error getting provider:', error);
+      sendError(res, 500, "Failed to get AI provider");
+    }
+  });
+
   // Advanced lyrics analysis endpoint
   app.post("/api/lyrics/analyze", async (req: Request, res: Response) => {
     try {
