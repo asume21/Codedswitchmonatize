@@ -58,7 +58,7 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-type Tab = "translator" | "beatmaker" | "melody" | "codebeat" | "musiccode" | "assistant" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
+type Tab = "translator" | "beatmaker" | "melody" | "codebeat" | "musiccode" | "assistant" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure" | "unified-studio";
 
 export default function Studio() {
   const [location] = useLocation();
@@ -81,6 +81,7 @@ export default function Studio() {
     if (path.includes('/granular-engine')) return 'granular-engine';
     if (path.includes('/wavetable-oscillator')) return 'wavetable-oscillator';
     if (path.includes('/song-structure')) return 'song-structure';
+    if (path.includes('/unified-studio')) return 'unified-studio';
     return 'beatmaker'; // default
   };
 
@@ -183,7 +184,8 @@ export default function Studio() {
       "granular-engine": "Granular Engine",
       "wavetable-oscillator": "Wavetable Oscillator",
       "pack-generator": "Pack Generator",
-      "song-structure": "Song Structure Manager"
+      "song-structure": "Song Structure Manager",
+      "unified-studio": "Unified Music Studio"
     };
     return toolNames[tab] || "Beat Maker";
   };
@@ -275,7 +277,8 @@ export default function Studio() {
         return <Mixer />;
       case "layers":
         return <DynamicLayering />;
-
+      case "unified-studio":
+        return <UnifiedMusicStudio />;
       case "midi":
         return <MIDIController />;
       case "metrics":
