@@ -19,12 +19,15 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5000,
     host: '0.0.0.0',
     strictPort: false,
+    hmr: {
+      clientPort: 443,
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },
