@@ -252,7 +252,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         };
       }
 
-      const packageInfo = creditPackages[amount];
+      const packageInfo = creditPackages[amount as keyof typeof creditPackages];
       if (!packageInfo) {
         return sendError(res, 400, "Invalid credit package");
       }
@@ -401,11 +401,21 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           remainingCredits = Math.max(0, userCredits - BEAT_COST);
         }
         
+        // Generate a matching pattern for the step sequencer UI
+        const generatedPattern = generatePattern('kick', genre, bpm);
+        const pattern = {
+          kick: generatedPattern,
+          snare: generatePattern('snare', genre, bpm),
+          hihat: generatePattern('hihat', genre, bpm),
+          percussion: generatePattern('percussion', genre, bpm)
+        };
+        
         res.json({
           success: true,
           beat: {
             id: `beat-${Date.now()}`,
             audioUrl: result.output,
+            pattern: pattern,
             bpm: Number(bpm),
             genre: String(genre),
             duration: Number(duration),

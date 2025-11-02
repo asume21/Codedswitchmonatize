@@ -176,6 +176,8 @@ export default function BeatMaker() {
     },
     onSuccess: (data) => {
       const beatPattern = data?.beat?.pattern;
+      const audioUrl = data?.beat?.audioUrl;
+      
       if (beatPattern) {
         const normalizedPattern = normalizeToBeatPattern(beatPattern);
         setPattern(normalizedPattern);
@@ -187,16 +189,25 @@ export default function BeatMaker() {
         try {
           localStorage.setItem(
             "generatedMusicData",
-            JSON.stringify({ beatPattern: beatPattern })
+            JSON.stringify({ 
+              beatPattern: beatPattern,
+              audioUrl: audioUrl,
+              creditsRemaining: data?.creditsRemaining
+            })
           );
         } catch (error) {
           console.warn("Unable to cache generated beat pattern:", error);
         }
 
         toast({
-          title: "Beat Generated!",
-          description: `Fresh ${selectedGenre} groove at ${bpm} BPM`,
+          title: "Beat Generated! 🎵",
+          description: `Fresh ${selectedGenre} groove at ${bpm} BPM. ${audioUrl ? 'AI audio ready!' : 'Pattern loaded.'}`,
         });
+        
+        // If there's an AI-generated audio URL, optionally play it
+        if (audioUrl) {
+          console.log('✅ AI-generated beat audio available:', audioUrl);
+        }
       } else {
         toast({
           title: "Beat Generation",
