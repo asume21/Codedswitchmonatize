@@ -3,7 +3,7 @@
  * Allows users to select which AI service to use for music generation
  */
 
-export type AIProvider = 'replicate-suno' | 'replicate-musicgen' | 'openai' | 'grok' | 'local';
+export type AIProvider = 'replicate-suno' | 'replicate-musicgen' | 'openai' | 'grok' | 'huggingface' | 'local';
 
 export interface AIProviderConfig {
   name: string;
@@ -76,6 +76,20 @@ export const AI_PROVIDERS: Record<AIProvider, AIProviderConfig> = {
     },
     requiresAuth: true,
     envVar: 'OPENAI_API_KEY'
+  },
+  'huggingface': {
+    name: 'huggingface',
+    label: 'Hugging Face',
+    description: 'Music generation and audio processing',
+    capabilities: {
+      fullSongs: false,
+      beats: true,
+      instrumentals: true,
+      lyrics: false,
+      analysis: true
+    },
+    requiresAuth: true,
+    envVar: 'HUGGINGFACE_API_KEY'
   },
   'local': {
     name: 'local',
