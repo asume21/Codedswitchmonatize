@@ -433,66 +433,103 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         return sendError(res, 401, "Authentication required - please log in");
       }
 
-      const { genre, mood, key } = req.body;
+      // Handle both old and new parameter formats
+      const { genre, mood, key, scale, style, complexity, musicalParams } = req.body;
+      
+      // Extract parameters with fallbacks
+      const finalKey = key || musicalParams?.key || 'C';
+      const finalScale = scale || 'C Major';
+      const finalStyle = style || mood || 'melodic';
+      const finalGenre = genre || 'pop';
+      const finalComplexity = complexity || 'medium';
 
-      // Use MusicGen AI for REAL melody generation
-      const token = process.env.REPLICATE_API_TOKEN;
-      if (!token) {
-        return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
+      // Use Grok AI for melody generation (more reliable than Replicate polling)
+      const xaiKey = process.env.XAI_API_KEY;
+      if (!xaiKey) {
+        return sendError(res, 500, "XAI_API_KEY not configured");
       }
 
-      const prompt = `${mood || 'melodic'} ${genre || 'pop'} melody in ${key || 'C major'}, beautiful and catchy`;
-      console.log(`🎹 Generating AI melody with MusicGen: "${prompt}"`);
+      const prompt = `Generate a ${finalStyle} ${finalGenre} melody in ${finalScale} (${finalKey} key) with ${finalComplexity} complexity. 
+      Return a JSON object with:
+      {
+        "notes": [
+          {"note": "C", "octave": 4, "duration": 0.5, "time": 0, "velocity": 0.8},
+          ...
+        ],
+        "bpm": 120,
+        "timeSignature": "4/4"
+      }
+      Generate 8-16 notes that form a coherent, catchy melody.`;
 
-      const response = await fetch("https://api.replicate.com/v1/predictions", {
+      console.log(`🎹 Generating AI melody with Grok: ${finalStyle} ${finalGenre} in ${finalScale}`);
+
+      const response = await fetch("https://api.x.ai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Token ${token}`,
+          "Authorization": `Bearer ${xaiKey}`,
         },
         body: JSON.stringify({
-          version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
-          input: {
-            prompt: prompt,
-            duration: 15,
-            model_version: "stereo-melody-large",
-          },
+          model: "grok-2-1212",
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
         }),
       });
 
-      const prediction = await response.json();
-
-      if (!prediction.id) {
-        return sendError(res, 500, "Failed to start melody generation");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Grok API error:", response.status, errorText);
+        return sendError(res, 500, "Failed to generate melody with AI");
       }
 
-      // Poll for result
-      let result = prediction;
-      let attempts = 0;
-      while ((result.status === "starting" || result.status === "processing") && attempts < 30) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-          headers: { "Authorization": `Token ${token}` },
-        });
-        result = await statusResponse.json();
-        attempts++;
+      const aiResponse = await response.json();
+      const content = aiResponse.choices?.[0]?.message?.content || "";
+
+      // Parse JSON from response
+      let melodyData;
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          melodyData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON found in response");
+        }
+      } catch (parseError) {
+        console.error("Failed to parse melody JSON:", parseError);
+        // Return fallback melody
+        melodyData = {
+          notes: [
+            { note: "C", octave: 4, duration: 0.5, time: 0, velocity: 0.8 },
+            { note: "E", octave: 4, duration: 0.5, time: 0.5, velocity: 0.8 },
+            { note: "G", octave: 4, duration: 0.5, time: 1, velocity: 0.8 },
+            { note: "C", octave: 5, duration: 1, time: 1.5, velocity: 0.8 }
+          ],
+          bpm: 120,
+          timeSignature: "4/4"
+        };
       }
 
-      if (result.status === "succeeded" && result.output) {
-        res.json({
-          success: true,
-          data: {
-            audioUrl: result.output,
-            key: key || 'C major',
-            genre: genre || 'pop',
-            mood: mood || 'melodic',
-            provider: 'MusicGen AI'
-          },
-          message: "Melody generated successfully"
-        });
-      } else {
-        return sendError(res, 500, "Melody generation failed");
-      }
+      res.json({
+        success: true,
+        data: {
+          notes: melodyData.notes || [],
+          bpm: melodyData.bpm || 120,
+          timeSignature: melodyData.timeSignature || "4/4",
+          key: finalKey,
+          scale: finalScale,
+          genre: finalGenre,
+          style: finalStyle,
+          complexity: finalComplexity,
+          provider: 'Grok AI'
+        },
+        message: "Melody generated successfully"
+      });
     } catch (error: any) {
       console.error("Melody generation error:", error);
       sendError(res, 500, error.message || "Failed to generate melody");
