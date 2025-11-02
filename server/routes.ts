@@ -445,6 +445,37 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
       const { genre, mood, key } = req.body;
 
+      // Check user credits (Melody Generator costs 2 credits)
+      const MELODY_COST = 2;
+      const user = await storage.getUser(req.userId!);
+      if (!user) {
+        return sendError(res, 401, "User not found");
+      }
+
+      // Check if user has enough credits OR active subscription
+      const userCredits = user.credits || 10; // Default to 10 for existing users
+      const hasSubscription = user.subscriptionStatus === 'active' && user.subscriptionTier !== 'free';
+      
+      let canGenerate = false;
+      let paymentMethod = '';
+      
+      if (userCredits >= MELODY_COST) {
+        canGenerate = true;
+        paymentMethod = 'credits';
+      } else if (hasSubscription) {
+        canGenerate = true;
+        paymentMethod = 'subscription';
+      }
+      
+      if (!canGenerate) {
+        const message = hasSubscription 
+          ? `Subscription active, but monthly credit limit reached. Purchase more credits to continue.`
+          : `Insufficient credits. Need ${MELODY_COST} credits, have ${userCredits}. Purchase credits or subscribe to continue.`;
+        return sendError(res, 402, message);
+      }
+
+      console.log(`🎹 User ${req.userId} generating melody - Credits: ${userCredits} - Subscription: ${user.subscriptionTier} - Payment: ${paymentMethod}`);
+
       // Use MusicGen AI for REAL melody generation
       const token = process.env.REPLICATE_API_TOKEN;
       if (!token) {
@@ -489,6 +520,13 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       }
 
       if (result.status === "succeeded" && result.output) {
+        // Only deduct credits if payment method was credits (not subscription)
+        let remainingCredits = userCredits;
+        if (paymentMethod === 'credits') {
+          await storage.updateUserCredits(req.userId!, -MELODY_COST);
+          remainingCredits = Math.max(0, userCredits - MELODY_COST);
+        }
+
         res.json({
           success: true,
           data: {
@@ -498,7 +536,10 @@ export async function registerRoutes(app: Express, storage: IStorage) {
             mood: mood || 'melodic',
             provider: 'MusicGen AI'
           },
-          message: "Melody generated successfully"
+          message: "Melody generated successfully",
+          paymentMethod,
+          creditsRemaining: remainingCredits,
+          subscriptionStatus: user.subscriptionStatus
         });
       } else {
         return sendError(res, 500, "Melody generation failed");
