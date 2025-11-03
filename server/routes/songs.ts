@@ -504,7 +504,13 @@ Respond ONLY with valid JSON in this EXACT format:
     });
 
     if (!response.ok) {
-      throw new Error(`AI API error: ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error('❌ xAI API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody
+      });
+      throw new Error(`AI API error: ${response.status} ${response.statusText} - ${errorBody}`);
     }
 
     const data = await response.json();
