@@ -160,11 +160,14 @@ export default function SongUploader() {
         uploadURL: songURL
       });
 
-      // Extract proper file information
+      // Extract proper file information - get from the actual File object
+      const actualFile = uploadedFile.data as File;
       const fileName = uploadedFile.name || `Uploaded Song ${Date.now()}`;
       const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'unknown';
-      const fileSize = uploadedFile.size || 0;
-      const mimeType = uploadedFile.type || '';
+      const fileSize = (actualFile && actualFile.size) || uploadedFile.size || 0;
+      const mimeType = (actualFile && actualFile.type) || uploadedFile.type || '';
+      
+      console.log('📊 File size detected:', fileSize, 'bytes (', Math.round(fileSize / (1024 * 1024) * 10) / 10, 'MB )');
       
       // Determine format from file extension and MIME type
       let format = fileExtension;
