@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { StudioAudioContext } from "@/pages/studio";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import OutputSequencer from "@/components/producer/OutputSequencer";
+import { AudioPlayer } from "@/components/ui/audio-player";
 
 const GENRE_OPTIONS = [
   { value: "hip-hop", label: "Hip-Hop" },
@@ -99,6 +100,7 @@ export default function BeatMaker() {
   const [activeTab, setActiveTab] = useState('generate');
   const [aiProvider, setAiProvider] = useState("grok");
   const [selectedGenre, setSelectedGenre] = useState(GENRE_OPTIONS[0].value);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
 
   // Initialize pattern with default structure or load from studio context
   const [pattern, setPattern] = useState<BeatPattern>(() => {
@@ -204,8 +206,9 @@ export default function BeatMaker() {
           description: `Fresh ${selectedGenre} groove at ${bpm} BPM. ${audioUrl ? 'AI audio ready!' : 'Pattern loaded.'}`,
         });
         
-        // If there's an AI-generated audio URL, optionally play it
+        // Set the generated audio URL to display the player
         if (audioUrl) {
+          setGeneratedAudioUrl(audioUrl);
           console.log('✅ AI-generated beat audio available:', audioUrl);
         }
       } else {
@@ -460,6 +463,15 @@ export default function BeatMaker() {
                 </div>
               </div>
             </div>
+
+            {/* AI Generated Audio Player */}
+            {generatedAudioUrl && (
+              <AudioPlayer 
+                audioUrl={generatedAudioUrl}
+                title={`AI Beat - ${selectedGenre} (${bpm} BPM)`}
+                className="mt-6"
+              />
+            )}
           </div>
         )}
 
