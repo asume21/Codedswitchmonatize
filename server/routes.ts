@@ -527,10 +527,14 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           remainingCredits = Math.max(0, userCredits - MELODY_COST);
         }
 
+        // Generate MIDI notes for the piano roll based on key and mood
+        const generatedNotes = generateMelodyNotes(key || 'C major', mood || 'melodic', genre || 'pop');
+
         res.json({
           success: true,
           data: {
             audioUrl: result.output,
+            notes: generatedNotes,
             key: key || 'C major',
             genre: genre || 'pop',
             mood: mood || 'melodic',
@@ -595,6 +599,49 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     // Default to house pattern if genre not found
     const genrePatterns = patterns[genre.toLowerCase()] || patterns["house"];
     return genrePatterns[instrument] || [];
+  }
+
+  // Helper function to generate melody notes for piano roll
+  function generateMelodyNotes(key: string, mood: string, genre: string) {
+    // Define scale notes for different keys
+    const scales: Record<string, string[]> = {
+      'C major': ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+      'G major': ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+      'D major': ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+      'A major': ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
+      'E major': ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
+      'F major': ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+      'A minor': ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+      'E minor': ['E', 'F#', 'G', 'A', 'B', 'C', 'D'],
+    };
+
+    const scaleNotes = scales[key] || scales['C major'];
+    const octaveRange = mood === 'dark' ? [3, 4] : mood === 'bright' ? [4, 5] : [3, 5];
+    
+    // Generate melody pattern based on genre and mood
+    const noteCount = genre === 'ambient' ? 8 : mood === 'energetic' ? 24 : 16;
+    const notes = [];
+    
+    let currentTime = 0;
+    for (let i = 0; i < noteCount; i++) {
+      const noteIndex = i % scaleNotes.length;
+      const octave = octaveRange[0] + Math.floor(Math.random() * (octaveRange[1] - octaveRange[0] + 1));
+      const duration = mood === 'ambient' ? 1.0 : 0.5;
+      
+      notes.push({
+        note: scaleNotes[noteIndex],
+        pitch: scaleNotes[noteIndex],
+        octave: octave,
+        time: currentTime,
+        start: currentTime,
+        duration: duration,
+        velocity: 0.7 + Math.random() * 0.3
+      });
+      
+      currentTime += duration;
+    }
+    
+    return notes;
   }
 
   // Health check endpoint
