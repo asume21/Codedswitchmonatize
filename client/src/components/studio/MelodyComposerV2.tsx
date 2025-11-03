@@ -8,6 +8,7 @@ import { realisticAudio } from '@/lib/realisticAudio';
 import { useToast } from '@/hooks/use-toast';
 import { StudioAudioContext } from '@/pages/studio';
 import type { Note } from './types/pianoRollTypes';
+import { AudioPlayer } from '@/components/ui/audio-player';
 
 interface Track {
   id: string;
@@ -29,6 +30,7 @@ function MelodyComposerV2() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedTrack, setSelectedTrack] = useState('track1');
   const [tempo, setTempo] = useState(studioContext.bpm);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
 
   const isPlaying = studioContext.isPlaying;
 
@@ -196,6 +198,11 @@ function MelodyComposerV2() {
       const result = await response.json();
       const data = result.data; // Server wraps response in { success, data, message }
       
+      // Set the audio URL if available
+      if (data && data.audioUrl) {
+        setGeneratedAudioUrl(data.audioUrl);
+      }
+      
       // Convert API response to Note format for the selected track
       if (data && data.notes && Array.isArray(data.notes)) {
         const generatedNotes: Note[] = data.notes.map((n: any, index: number) => ({
@@ -211,7 +218,7 @@ function MelodyComposerV2() {
         
         toast({ 
           title: "Melody Generated!", 
-          description: `Added ${generatedNotes.length} notes to ${tracks.find(t => t.id === selectedTrack)?.name}` 
+          description: `Added ${generatedNotes.length} notes to ${tracks.find(t => t.id === selectedTrack)?.name}. ${data.audioUrl ? 'AI audio ready!' : ''}` 
         });
       }
     } catch (error) {
@@ -336,6 +343,15 @@ function MelodyComposerV2() {
             </div>
           </div>
         </div>
+
+        {/* AI Generated Audio Player */}
+        {generatedAudioUrl && (
+          <AudioPlayer 
+            audioUrl={generatedAudioUrl}
+            title={`AI Melody - ${tracks.find(t => t.id === selectedTrack)?.name}`}
+            className="mb-6"
+          />
+        )}
 
         {/* Track Controls Plugin */}
         {activePlugins.trackControls && (
