@@ -551,17 +551,7 @@ ${analysis.instruments.join(', ')}
           <SimpleFileUploader
             maxFileSize={50485760} // 50MB max for audio files
             onGetUploadParameters={getUploadParameters}
-            onComplete={(result) => {
-              console.log('🎵 Upload complete:', result);
-              const songData = {
-                songURL: result.url,
-                name: result.name,
-                fileSize: 0,
-                format: result.name.split('.').pop() || 'audio',
-                mimeType: 'audio/*'
-              };
-              uploadSongMutation.mutate(songData);
-            }}
+            onComplete={handleUploadComplete}
             buttonClassName="bg-studio-accent hover:bg-blue-500"
           >
             <div className="flex items-center gap-2">
