@@ -416,24 +416,75 @@ export default function SongUploader() {
       });
 
       // Send analysis to AI Assistant by posting a message
-      const analysisMessage = `📊 **Song Analysis Complete: ${song.name}**
+      let analysisMessage = `📊 **Song Analysis Complete: ${song.name}**
 
 🎵 **Musical Properties:**
 • BPM: ${analysis.estimatedBPM}
 • Key: ${analysis.keySignature} 
 • Genre: ${analysis.genre}
 • Mood: ${analysis.mood}
+${analysis.energyLevel ? `• Energy Level: ${analysis.energyLevel}/10` : ''}
 
 🎼 **Song Structure:**
 ${Object.entries(analysis.structure).map(([section, timing]) => `• ${section}: ${timing}`).join('\n')}
 
 🎺 **Instruments Detected:**
 ${analysis.instruments.join(', ')}
+`;
 
-🤖 **AI Analysis Notes:**
-${analysis.analysis_notes}
+      // Add production quality feedback if available
+      if (analysis.productionQuality) {
+        analysisMessage += `\n🎚️ **Production Quality:**\n`;
+        analysisMessage += `• Mix Quality: ${analysis.productionQuality.mixQuality}/10\n`;
+        analysisMessage += `• Master Quality: ${analysis.productionQuality.masterQuality}/10\n`;
+        
+        if (analysis.productionQuality.strengths && analysis.productionQuality.strengths.length > 0) {
+          analysisMessage += `\n✅ **What's Working:**\n`;
+          analysisMessage += analysis.productionQuality.strengths.map((s: string) => `• ${s}`).join('\n') + '\n';
+        }
+        
+        if (analysis.productionQuality.issues && analysis.productionQuality.issues.length > 0) {
+          analysisMessage += `\n⚠️ **Issues Found:**\n`;
+          analysisMessage += analysis.productionQuality.issues.map((i: string) => `• ${i}`).join('\n') + '\n';
+        }
+        
+        if (analysis.productionQuality.recommendations && analysis.productionQuality.recommendations.length > 0) {
+          analysisMessage += `\n🎯 **Recommendations:**\n`;
+          analysisMessage += analysis.productionQuality.recommendations.map((r: string) => `• ${r}`).join('\n') + '\n';
+        }
+      }
 
-This analysis has been saved and can be used with other studio tools for remixing, layering, and composition inspiration!`;
+      // Add specific issues to fix
+      if (analysis.specificIssues && analysis.specificIssues.length > 0) {
+        analysisMessage += `\n🛠️ **Specific Issues to Fix:**\n`;
+        analysis.specificIssues.forEach((issue: any, index: number) => {
+          const priorityIcon = issue.priority === 'high' ? '🔴' : issue.priority === 'medium' ? '🟡' : '🟢';
+          analysisMessage += `\n${index + 1}. ${priorityIcon} **${issue.issue}** (${issue.priority} priority)\n`;
+          analysisMessage += `   💡 How to fix: ${issue.fix}\n`;
+        });
+      }
+
+      // Add commercial viability if available
+      if (analysis.commercialViability) {
+        analysisMessage += `\n💰 **Commercial Viability:**\n`;
+        analysisMessage += `• Streaming Potential: ${analysis.commercialViability.streamingPotential}/10\n`;
+        if (analysis.commercialViability.improvements && analysis.commercialViability.improvements.length > 0) {
+          analysisMessage += `• Improvements:\n`;
+          analysisMessage += analysis.commercialViability.improvements.map((i: string) => `  - ${i}`).join('\n') + '\n';
+        }
+      }
+
+      // Add overall score
+      if (analysis.overallScore) {
+        analysisMessage += `\n📈 **Overall Quality Score: ${analysis.overallScore}/10**\n`;
+      }
+
+      // Add AI analysis notes
+      if (analysis.analysis_notes) {
+        analysisMessage += `\n🤖 **Detailed Analysis:**\n${analysis.analysis_notes}\n`;
+      }
+
+      analysisMessage += `\nThis analysis has been saved and can be used with other studio tools for remixing, layering, and composition inspiration!`;
 
       // Add message to AI Assistant using context
       console.log('🎵 Sending analysis to AI Assistant via context:', analysisMessage.substring(0, 100) + '...');

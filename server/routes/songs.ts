@@ -524,12 +524,14 @@ Respond ONLY with valid JSON in this EXACT format:
   }
 }
 
-// Fallback basic analysis based on metadata
+// Fallback basic analysis based on metadata - COMPREHENSIVE VERSION
 function generateBasicAnalysis(metadata: any): any {
   const duration = metadata.duration || 180;
+  const bitrate = Math.round(metadata.bitrate || 0);
+  const sampleRate = metadata.sampleRate || 44100;
   
   // Estimate BPM based on typical ranges
-  const estimatedBPM = metadata.sampleRate > 44100 ? 128 : 110;
+  const estimatedBPM = sampleRate > 44100 ? 128 : 110;
   
   // Generate structure based on duration
   const structure: any = {};
@@ -549,13 +551,103 @@ function generateBasicAnalysis(metadata: any): any {
   }
   structure.outro = `${Math.floor((duration - 15) / 60)}:${Math.floor((duration - 15) % 60).toString().padStart(2, '0')}-${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`;
 
+  // Assess quality based on bitrate
+  let qualityScore = 5;
+  let qualityIssues = [];
+  let qualityStrengths = [];
+  
+  if (bitrate < 128000) {
+    qualityScore = 4;
+    qualityIssues.push("Low bitrate (< 128kbps) - may sound compressed or tinny");
+    qualityIssues.push("Recommended: Re-export at 320kbps for professional quality");
+  } else if (bitrate >= 128000 && bitrate < 192000) {
+    qualityScore = 6;
+    qualityIssues.push("Medium bitrate (128-192kbps) - acceptable for demos but not release quality");
+    qualityIssues.push("Recommended: Export at 256-320kbps for streaming platforms");
+  } else if (bitrate >= 192000 && bitrate < 256000) {
+    qualityScore = 7;
+    qualityStrengths.push("Good bitrate (192-256kbps) - suitable for most streaming platforms");
+  } else {
+    qualityScore = 8;
+    qualityStrengths.push("High bitrate (256kbps+) - professional quality, excellent for streaming");
+  }
+  
+  if (sampleRate >= 48000) {
+    qualityStrengths.push("High sample rate (48kHz+) - professional studio quality");
+  } else if (sampleRate < 44100) {
+    qualityIssues.push("Low sample rate - may lack high-frequency detail");
+  }
+
+  // Generate detailed production feedback
+  const productionFeedback = {
+    mixQuality: qualityScore,
+    masterQuality: qualityScore - 1,
+    strengths: qualityStrengths.length > 0 ? qualityStrengths : ["Audio file successfully uploaded and playable"],
+    issues: qualityIssues.length > 0 ? qualityIssues : ["Cannot detect specific mix issues without AI analysis"],
+    recommendations: [
+      "For deeper analysis including vocal timing, frequency balance, and commercial viability, AI analysis is recommended",
+      bitrate < 256000 ? "Re-export at 320kbps CBR or 256kbps+ VBR for best quality" : "Bitrate is excellent for professional release",
+      "Consider running through professional mastering for loudness optimization",
+      "Test playback on multiple devices (headphones, car, phone speakers) to check mix translation"
+    ]
+  };
+
+  // Specific actionable improvements
+  const specificIssues = [];
+  if (bitrate < 192000) {
+    specificIssues.push({
+      issue: "Audio bitrate is below streaming platform standards",
+      priority: "high",
+      fix: "Re-export your audio at 320kbps MP3 or 256kbps AAC for professional quality. In your DAW: File > Export > Audio Settings > Bitrate: 320kbps"
+    });
+  }
+  
+  specificIssues.push({
+    issue: "Limited metadata analysis without AI",
+    priority: "medium",
+    fix: "For comprehensive vocal analysis, mix critique, and commercial viability assessment, enable AI analysis with xAI Grok API"
+  });
+
+  if (duration < 120) {
+    specificIssues.push({
+      issue: "Track length is under 2 minutes",
+      priority: "low",
+      fix: "Most streaming platforms favor tracks 2:30-4:00 for playlist placement. Consider extending sections or adding a bridge."
+    });
+  } else if (duration > 300) {
+    specificIssues.push({
+      issue: "Track length exceeds 5 minutes",
+      priority: "low",
+      fix: "Radio and playlists prefer 2:30-4:00. Consider trimming intro/outro or creating a radio edit version."
+    });
+  }
+
   return {
     estimatedBPM,
     keySignature: 'C Major',
     genre: 'Unknown',
     mood: 'Neutral',
+    energyLevel: 5,
     structure,
     instruments: ['Drums', 'Bass', 'Melody'],
-    analysis_notes: `Audio file analyzed. Duration: ${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}. Bitrate: ${metadata.bitrate || 'unknown'} kbps. For more accurate analysis, please ensure the audio file is complete and high quality.`
+    productionQuality: productionFeedback,
+    specificIssues,
+    overallScore: qualityScore,
+    commercialViability: {
+      streamingPotential: qualityScore,
+      improvements: [
+        "Upload full high-quality version (320kbps) for professional distribution",
+        "Get professional mixing/mastering for competitive loudness and clarity",
+        "A/B test your mix against commercial reference tracks in your genre"
+      ]
+    },
+    analysis_notes: `**TECHNICAL ANALYSIS:**\n\n` +
+      `✅ **What's Working:**\n` +
+      (qualityStrengths.length > 0 ? qualityStrengths.map(s => `• ${s}`).join('\n') : '• File successfully uploaded and analyzed') + '\n\n' +
+      (qualityIssues.length > 0 ? `⚠️ **Issues Found:**\n${qualityIssues.map(i => `• ${i}`).join('\n')}\n\n` : '') +
+      `🎯 **How to Improve:**\n` +
+      productionFeedback.recommendations.map(r => `• ${r}`).join('\n') + '\n\n' +
+      `📊 **File Stats:** ${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')} duration | ${Math.round(bitrate / 1000)}kbps bitrate | ${Math.round(sampleRate / 1000)}kHz sample rate\n\n` +
+      `💡 **Next Steps:** For detailed vocal analysis, frequency balance critique, and professional mixing recommendations, enable AI-powered analysis.`
   };
 }
