@@ -33,6 +33,15 @@ export function createSongRoutes(storage: IStorage) {
     try {
       let { songURL, name, fileSize, format, duration } = req.body;
       
+      console.log('📦 SERVER RECEIVED:', {
+        name,
+        fileSize: fileSize,
+        duration: duration,
+        format: format,
+        hasFileSize: !!fileSize,
+        hasDuration: !!duration
+      });
+      
       if (!songURL || !name) {
         return res.status(400).json({ error: "Missing required fields: songURL and name" });
       }

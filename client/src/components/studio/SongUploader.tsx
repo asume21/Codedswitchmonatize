@@ -42,6 +42,12 @@ export default function SongUploader() {
 
   const uploadSongMutation = useMutation({
     mutationFn: async (songData: any) => {
+      console.log('🚀 MUTATION: Sending to server:', {
+        name: songData.name,
+        fileSize: songData.fileSize,
+        duration: songData.duration,
+        format: songData.format
+      });
       const response = await apiRequest("POST", "/api/songs/upload", songData);
       return response.json();
     },
