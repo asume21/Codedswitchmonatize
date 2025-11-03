@@ -184,49 +184,67 @@ export default function SongUploader() {
       setUploadContext(fileInfo);
       
       if (songURL) {
-        // Try multiple methods to get audio duration
-        let durationFound = false;
+        // Try to get audio duration from the uploaded file
+        const file = uploadedFile.data as File;
         
-        // Method 1: Try with Audio API with timeout
-        const audio = new Audio();
-        audio.crossOrigin = "anonymous";
-        
-        const audioTimeout = setTimeout(() => {
-          if (!durationFound) {
-            console.warn('⏱️ Audio metadata timeout, uploading without duration');
-            uploadWithData(0);
-          }
-        }, 5000);
-        
-        const uploadWithData = (duration: number) => {
-          if (durationFound) return;
-          durationFound = true;
-          clearTimeout(audioTimeout);
+        if (file && file instanceof File) {
+          // Use FileReader to get duration from the actual file
+          const audioEl = document.createElement('audio');
+          const objectURL = URL.createObjectURL(file);
           
+          let durationFound = false;
+          const audioTimeout = setTimeout(() => {
+            if (!durationFound) {
+              console.warn('⏱️ Audio metadata timeout, uploading without duration');
+              URL.revokeObjectURL(objectURL);
+              uploadWithData(0);
+            }
+          }, 8000);
+          
+          const uploadWithData = (duration: number) => {
+            if (durationFound) return;
+            durationFound = true;
+            clearTimeout(audioTimeout);
+            URL.revokeObjectURL(objectURL);
+            
+            const songData = {
+              songURL,
+              name: fileInfo.name,
+              fileSize: fileInfo.fileSize,
+              format: fileInfo.format,
+              mimeType: fileInfo.mimeType,
+              duration: duration || 0
+            };
+            
+            console.log('🎵 Sending song data with file size:', fileInfo.fileSize, 'bytes');
+            uploadSongMutation.mutate(songData);
+          };
+          
+          audioEl.addEventListener('loadedmetadata', () => {
+            console.log('✅ Got duration from file:', audioEl.duration);
+            uploadWithData(audioEl.duration);
+          });
+          
+          audioEl.addEventListener('error', (e) => {
+            console.warn('⚠️ Audio metadata error, uploading without duration');
+            uploadWithData(0);
+          });
+          
+          audioEl.src = objectURL;
+        } else {
+          // Fallback: upload without duration
           const songData = {
             songURL,
             name: fileInfo.name,
             fileSize: fileInfo.fileSize,
             format: fileInfo.format,
             mimeType: fileInfo.mimeType,
-            duration: duration || 0
+            duration: 0
           };
           
-          console.log('🎵 Sending song data:', songData);
+          console.log('🎵 Sending song data (no duration available)');
           uploadSongMutation.mutate(songData);
-        };
-        
-        audio.addEventListener('loadedmetadata', () => {
-          console.log('✅ Got duration from Audio API:', audio.duration);
-          uploadWithData(audio.duration);
-        });
-        
-        audio.addEventListener('error', (e) => {
-          console.warn('⚠️ Audio API error:', e);
-          // Continue with other methods
-        });
-        
-        audio.src = songURL;
+        }
       }
     }
   };
