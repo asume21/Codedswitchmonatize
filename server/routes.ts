@@ -174,11 +174,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       // Generate a unique object key for the upload using crypto for security
       const objectKey = `songs/${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
-      // Determine protocol - check X-Forwarded-Proto header for proxied requests (Railway, etc.)
-      const protocol = req.get('x-forwarded-proto') || req.protocol;
-      
-      // For local storage (when GCS is not configured), return local upload URL
-      const uploadURL = `${protocol}://${req.get('host')}/api/internal/uploads/${encodeURIComponent(objectKey)}`;
+      // Use relative URL for Replit environment compatibility
+      // This works in both development and production
+      const uploadURL = `/api/internal/uploads/${encodeURIComponent(objectKey)}`;
 
       console.log('🎵 Generated upload URL:', uploadURL);
 
