@@ -2,8 +2,8 @@ import { Router, type Request, type Response } from "express";
 import type { IStorage } from "../storage";
 import { checkUsageLimit } from "../middleware/featureGating";
 import ffmpeg from "fluent-ffmpeg";
-import { createWriteStream, existsSync, mkdirSync, readFileSync } from "fs";
-import { join } from "path";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, copyFileSync } from "fs";
+import { join, resolve } from "path";
 import { tmpdir } from "os";
 import { createReadStream } from "fs";
 import { parseFile } from "music-metadata";
@@ -276,15 +276,12 @@ async function downloadAudioFile(url: string, filename: string): Promise<string>
   let fileURL = url;
   if (url.startsWith('/api/internal/')) {
     // Internal URL - need to read from local filesystem instead
-    const fs = require('fs');
-    const path = require('path');
-    
     // Get the file path from the URL
-    const relativePath = url.replace('/api/internal/uploads/', '');
+    const relativePath = decodeURIComponent(url.replace('/api/internal/uploads/', ''));
     const LOCAL_OBJECTS_DIR = existsSync('/data/objects') 
-      ? path.resolve('/data', 'objects')
-      : path.resolve(process.cwd(), "objects");
-    const sourcePath = path.join(LOCAL_OBJECTS_DIR, relativePath);
+      ? resolve('/data', 'objects')
+      : resolve(process.cwd(), "objects");
+    const sourcePath = join(LOCAL_OBJECTS_DIR, relativePath);
     
     console.log('📂 Reading from local file:', sourcePath);
     
@@ -293,7 +290,7 @@ async function downloadAudioFile(url: string, filename: string): Promise<string>
     }
     
     // Copy file to temp location
-    fs.copyFileSync(sourcePath, tempFilePath);
+    copyFileSync(sourcePath, tempFilePath);
     console.log('✅ Audio file copied to temp location');
     return tempFilePath;
   }
