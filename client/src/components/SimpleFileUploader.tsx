@@ -45,9 +45,16 @@ export function SimpleFileUploader({
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    console.log('🎯 handleUpload called!');
+    console.log('📁 Selected file:', selectedFile);
+    
+    if (!selectedFile) {
+      console.error('❌ No file selected!');
+      return;
+    }
 
     try {
+      console.log('✅ Starting upload process...');
       setUploading(true);
       setProgress(0);
       setError(null);
@@ -116,6 +123,7 @@ export function SimpleFileUploader({
       });
 
       xhr.open(params.method, params.url);
+      xhr.withCredentials = true; // Enable cookies/auth for cross-origin requests
       xhr.timeout = 120000; // 2 minute timeout
       xhr.setRequestHeader('Content-Type', selectedFile.type || 'application/octet-stream');
       console.log('🚀 Sending XHR request...');
@@ -132,7 +140,10 @@ export function SimpleFileUploader({
   return (
     <div>
       <Button
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          console.log('🔘 Upload button clicked - opening modal');
+          setShowModal(true);
+        }}
         className={buttonClassName}
       >
         {children}
