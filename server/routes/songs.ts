@@ -160,13 +160,7 @@ export function createSongRoutes(storage: IStorage) {
         const analysis = {
           songId,
           songName: songName || 'Unknown',
-          estimatedBPM: aiAnalysis.estimatedBPM,
-          keySignature: aiAnalysis.keySignature,
-          genre: aiAnalysis.genre,
-          mood: aiAnalysis.mood,
-          structure: aiAnalysis.structure,
-          instruments: aiAnalysis.instruments,
-          analysis_notes: aiAnalysis.analysis_notes
+          ...aiAnalysis  // Include ALL fields from AI analysis
         };
 
         // Update song in database with analysis
