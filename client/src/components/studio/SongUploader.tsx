@@ -583,7 +583,7 @@ ${analysis.instruments.join(', ')}
                   songURL: result.url,
                   name: result.name,
                   fileSize: fileSize,
-                  duration: duration || 0,
+                  duration: Math.round(duration) || 0, // Round to integer for database
                   format: format,
                   mimeType: mimeType
                 };
