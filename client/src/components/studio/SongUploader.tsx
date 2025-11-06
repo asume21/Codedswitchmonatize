@@ -551,7 +551,64 @@ ${analysis.instruments.join(', ')}
           <SimpleFileUploader
             maxFileSize={50485760} // 50MB max for audio files
             onGetUploadParameters={getUploadParameters}
-            onComplete={handleUploadComplete}
+            onComplete={(result) => {
+              console.log('🎵 SimpleFileUploader complete:', result);
+              
+              const fileSize = result.file.size;
+              const format = result.name.split('.').pop()?.toLowerCase() || 'audio';
+              const mimeType = result.file.type || 'audio/*';
+              
+              console.log('📊 File size detected:', fileSize, 'bytes (', Math.round(fileSize / (1024 * 1024) * 10) / 10, 'MB )');
+              
+              // Try to get duration from the File object
+              const audioEl = document.createElement('audio');
+              const objectURL = URL.createObjectURL(result.file);
+              
+              let durationFound = false;
+              const audioTimeout = setTimeout(() => {
+                if (!durationFound) {
+                  console.warn('⏱️ Audio metadata timeout, uploading without duration');
+                  URL.revokeObjectURL(objectURL);
+                  uploadSong(0);
+                }
+              }, 8000);
+              
+              const uploadSong = (duration: number) => {
+                if (durationFound) return;
+                durationFound = true;
+                clearTimeout(audioTimeout);
+                URL.revokeObjectURL(objectURL);
+                
+                const songData = {
+                  songURL: result.url,
+                  name: result.name,
+                  fileSize: fileSize,
+                  duration: duration || 0,
+                  format: format,
+                  mimeType: mimeType
+                };
+                
+                console.log('🚀 MUTATION: Sending to server:', {
+                  name: songData.name,
+                  fileSize: songData.fileSize,
+                  duration: songData.duration,
+                  format: songData.format
+                });
+                uploadSongMutation.mutate(songData);
+              };
+              
+              audioEl.addEventListener('loadedmetadata', () => {
+                console.log('✅ Got duration from file:', audioEl.duration);
+                uploadSong(audioEl.duration);
+              });
+              
+              audioEl.addEventListener('error', (e) => {
+                console.warn('⚠️ Audio metadata error, uploading without duration');
+                uploadSong(0);
+              });
+              
+              audioEl.src = objectURL;
+            }}
             buttonClassName="bg-studio-accent hover:bg-blue-500"
           >
             <div className="flex items-center gap-2">

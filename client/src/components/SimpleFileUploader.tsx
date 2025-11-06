@@ -9,7 +9,7 @@ interface SimpleFileUploaderProps {
     method: "PUT";
     url: string;
   }>;
-  onComplete?: (result: { url: string; name: string }) => void;
+  onComplete?: (result: { url: string; name: string; file: File }) => void;
   maxFileSize?: number;
   accept?: string;
   buttonClassName?: string;
@@ -75,6 +75,7 @@ export function SimpleFileUploader({
           onComplete?.({
             url: params.url.split('?')[0], // Remove query params
             name: selectedFile.name,
+            file: selectedFile, // Pass the File object so we can get size and duration
           });
           setShowModal(false);
           setSelectedFile(null);
