@@ -525,10 +525,15 @@ Respond ONLY with valid JSON in this EXACT format:
     const data = await response.json();
     const content = data.choices[0].message.content;
     
+    console.log('🔍 RAW AI RESPONSE (first 500 chars):', content.substring(0, 500));
+    
     // Parse JSON from AI response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log('✅ PARSED AI DATA - Has vocals?', parsed.vocalAnalysis?.hasVocals);
+      console.log('✅ PARSED AI DATA - Has lyrics?', !!parsed.lyricsQuality);
+      return parsed;
     }
     
     throw new Error('Could not parse AI response');
