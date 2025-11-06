@@ -460,11 +460,16 @@ export default function SongUploader() {
 • Mood: ${analysis.mood}
 ${analysis.energyLevel ? `• Energy Level: ${analysis.energyLevel}/10` : ''}
 
-🎼 **Song Structure:**
-${Object.entries(analysis.structure).map(([section, timing]) => `• ${section}: ${timing}`).join('\n')}
 
-🎺 **Instruments Detected:**
-${analysis.instruments.join(', ')}
+${analysis.structure ? `🎼 **Song Structure:**
+${typeof analysis.structure === 'object' && !Array.isArray(analysis.structure) 
+  ? Object.entries(analysis.structure).map(([section, timing]) => `• ${section}: ${timing}`).join('\n')
+  : Array.isArray(analysis.structure)
+    ? analysis.structure.map((s: any) => `• ${s}`).join('\n')
+    : analysis.structure}
+` : ''}
+${analysis.instruments ? `🎺 **Instruments Detected:**
+${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analysis.instruments}` : ''}
 `;
 
       // Add vocal analysis if available
