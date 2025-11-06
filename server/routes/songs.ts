@@ -503,7 +503,7 @@ Respond ONLY with valid JSON in this EXACT format:
         'Authorization': `Bearer ${XAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'grok-beta',
+        model: 'grok-2-1212',
         messages: [
           { role: 'system', content: 'You are a professional music analyst and audio engineer. Provide accurate, realistic analysis.' },
           { role: 'user', content: prompt }
