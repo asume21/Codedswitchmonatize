@@ -430,6 +430,14 @@ export default function SongUploader() {
       });
       const analysis = await response.json();
       
+      console.log('🔍 FRONTEND RECEIVED ANALYSIS:', {
+        hasVocalAnalysis: !!analysis.vocalAnalysis,
+        hasVocals: analysis.vocalAnalysis?.hasVocals,
+        hasLyricsQuality: !!analysis.lyricsQuality,
+        vocalAnalysis: analysis.vocalAnalysis,
+        lyricsQuality: analysis.lyricsQuality
+      });
+      
       toast({
         title: "Song Analysis Complete",
         description: `AI analyzed ${song.name} - check the AI Assistant for insights!`,
