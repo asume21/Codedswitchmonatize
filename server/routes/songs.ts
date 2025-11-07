@@ -176,6 +176,10 @@ export function createSongRoutes(storage: IStorage) {
 
         console.log('✅ Song analysis saved to database');
 
+        console.log('📤 SENDING TO FRONTEND - Has vocalAnalysis?', !!analysis.vocalAnalysis);
+        console.log('📤 SENDING TO FRONTEND - Has lyricsQuality?', !!analysis.lyricsQuality);
+        console.log('📤 SENDING TO FRONTEND - Keys:', Object.keys(analysis));
+
         res.json(analysis);
       } finally {
         // Clean up temp file
