@@ -316,25 +316,110 @@ export default function AIAssistant() {
         originalSong: song
       });
 
-      // Add analysis as AI message
-      const analysisMessage = `📊 **Song Analysis Complete: ${song.name}**
+      // Add analysis as AI message with FULL details
+      let analysisMessage = `📊 **Song Analysis Complete: ${song.name}**
 
 🎵 **Musical Properties:**
 • BPM: ${analysis.estimatedBPM}
 • Key: ${analysis.keySignature} 
 • Genre: ${analysis.genre}
 • Mood: ${analysis.mood}
+${analysis.energyLevel ? `• Energy Level: ${analysis.energyLevel}/10` : ''}
 
-🎼 **Song Structure:**
-${Object.entries(analysis.structure).map(([section, timing]) => `• ${section}: ${timing}`).join('\n')}
+${analysis.structure ? `🎼 **Song Structure:**
+${typeof analysis.structure === 'object' && !Array.isArray(analysis.structure) 
+  ? Object.entries(analysis.structure).map(([section, timing]) => `• ${section}: ${timing}`).join('\n')
+  : Array.isArray(analysis.structure)
+    ? analysis.structure.map((s: any) => `• ${s}`).join('\n')
+    : analysis.structure}
+` : ''}
+${analysis.instruments ? `🎺 **Instruments Detected:**
+${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analysis.instruments}` : ''}
+`;
 
-🎺 **Instruments Detected:**
-${analysis.instruments.join(', ')}
+      // Add vocal analysis if available
+      if (analysis.vocalAnalysis && analysis.vocalAnalysis.hasVocals) {
+        analysisMessage += `\n🎤 **Vocal Analysis:**\n`;
+        analysisMessage += `• Vocal Range: ${analysis.vocalAnalysis.vocalRange}\n`;
+        analysisMessage += `• Delivery Style: ${analysis.vocalAnalysis.deliveryStyle}\n`;
+        analysisMessage += `• Flow & Timing: ${analysis.vocalAnalysis.flowTiming}\n`;
+        analysisMessage += `• Breath Control: ${analysis.vocalAnalysis.breathControl}\n`;
+        if (analysis.vocalAnalysis.vocalEffects && analysis.vocalAnalysis.vocalEffects.length > 0) {
+          analysisMessage += `• Effects Used: ${analysis.vocalAnalysis.vocalEffects.join(', ')}\n`;
+        }
+        analysisMessage += `• Clarity: ${analysis.vocalAnalysis.clarity}\n`;
+        analysisMessage += `• Emotional Delivery: ${analysis.vocalAnalysis.emotionalDelivery}\n`;
+        if (analysis.vocalAnalysis.timingIssues) {
+          analysisMessage += `• Timing Notes: ${analysis.vocalAnalysis.timingIssues}\n`;
+        }
+      }
 
-🤖 **AI Analysis Notes:**
-${analysis.analysis_notes}
+      // Add lyrics quality if available
+      if (analysis.lyricsQuality) {
+        analysisMessage += `\n📝 **Lyrics Analysis:**\n`;
+        analysisMessage += `• Rhyme Scheme: ${analysis.lyricsQuality.rhymeScheme}\n`;
+        analysisMessage += `• Wordplay: ${analysis.lyricsQuality.wordplay}\n`;
+        analysisMessage += `• Theme: ${analysis.lyricsQuality.theme}\n`;
+        analysisMessage += `• Syllable & Rhythm: ${analysis.lyricsQuality.syllableRhythm}\n`;
+        if (analysis.lyricsQuality.hookCatchiness) {
+          analysisMessage += `• Hook Catchiness: ${analysis.lyricsQuality.hookCatchiness}/10\n`;
+        }
+        analysisMessage += `• Complexity: ${analysis.lyricsQuality.complexity}\n`;
+      }
 
-This analysis has been saved and can be used with other studio tools for remixing, layering, and composition inspiration!`;
+      // Add production quality feedback if available
+      if (analysis.productionQuality) {
+        analysisMessage += `\n🎚️ **Production Quality:**\n`;
+        analysisMessage += `• Mix Quality: ${analysis.productionQuality.mixQuality}/10\n`;
+        analysisMessage += `• Master Quality: ${analysis.productionQuality.masterQuality}/10\n`;
+        
+        if (analysis.productionQuality.strengths && analysis.productionQuality.strengths.length > 0) {
+          analysisMessage += `\n✅ **What's Working:**\n`;
+          analysisMessage += analysis.productionQuality.strengths.map((s: string) => `• ${s}`).join('\n') + '\n';
+        }
+        
+        if (analysis.productionQuality.issues && analysis.productionQuality.issues.length > 0) {
+          analysisMessage += `\n⚠️ **Issues Found:**\n`;
+          analysisMessage += analysis.productionQuality.issues.map((i: string) => `• ${i}`).join('\n') + '\n';
+        }
+        
+        if (analysis.productionQuality.recommendations && analysis.productionQuality.recommendations.length > 0) {
+          analysisMessage += `\n🎯 **Recommendations:**\n`;
+          analysisMessage += analysis.productionQuality.recommendations.map((r: string) => `• ${r}`).join('\n') + '\n';
+        }
+      }
+
+      // Add specific issues to fix
+      if (analysis.specificIssues && analysis.specificIssues.length > 0) {
+        analysisMessage += `\n🛠️ **Specific Issues to Fix:**\n`;
+        analysis.specificIssues.forEach((issue: any, index: number) => {
+          const priorityIcon = issue.priority === 'high' ? '🔴' : issue.priority === 'medium' ? '🟡' : '🟢';
+          analysisMessage += `\n${index + 1}. ${priorityIcon} **${issue.issue}** (${issue.priority} priority)\n`;
+          analysisMessage += `   💡 How to fix: ${issue.fix}\n`;
+        });
+      }
+
+      // Add commercial viability if available
+      if (analysis.commercialViability) {
+        analysisMessage += `\n💰 **Commercial Viability:**\n`;
+        analysisMessage += `• Streaming Potential: ${analysis.commercialViability.streamingPotential}/10\n`;
+        if (analysis.commercialViability.improvements && analysis.commercialViability.improvements.length > 0) {
+          analysisMessage += `• Improvements:\n`;
+          analysisMessage += analysis.commercialViability.improvements.map((i: string) => `  - ${i}`).join('\n') + '\n';
+        }
+      }
+
+      // Add overall score
+      if (analysis.overallScore) {
+        analysisMessage += `\n📈 **Overall Quality Score: ${analysis.overallScore}/10**\n`;
+      }
+
+      // Add AI analysis notes
+      if (analysis.analysis_notes) {
+        analysisMessage += `\n🤖 **Detailed Analysis:**\n${analysis.analysis_notes}\n`;
+      }
+
+      analysisMessage += `\nThis analysis has been saved and can be used with other studio tools for remixing, layering, and composition inspiration!`;
 
       const aiMessage: Message = {
         id: Date.now().toString(),
