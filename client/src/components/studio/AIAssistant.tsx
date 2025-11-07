@@ -340,31 +340,27 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
       // Add vocal analysis if available
       if (analysis.vocalAnalysis && analysis.vocalAnalysis.hasVocals) {
         analysisMessage += `\n🎤 **Vocal Analysis:**\n`;
-        analysisMessage += `• Vocal Range: ${analysis.vocalAnalysis.vocalRange}\n`;
-        analysisMessage += `• Delivery Style: ${analysis.vocalAnalysis.deliveryStyle}\n`;
-        analysisMessage += `• Flow & Timing: ${analysis.vocalAnalysis.flowTiming}\n`;
-        analysisMessage += `• Breath Control: ${analysis.vocalAnalysis.breathControl}\n`;
-        if (analysis.vocalAnalysis.vocalEffects && analysis.vocalAnalysis.vocalEffects.length > 0) {
+        if (analysis.vocalAnalysis.vocalRange) analysisMessage += `• Vocal Range: ${analysis.vocalAnalysis.vocalRange}\n`;
+        if (analysis.vocalAnalysis.deliveryStyle) analysisMessage += `• Delivery Style: ${analysis.vocalAnalysis.deliveryStyle}\n`;
+        if (analysis.vocalAnalysis.flowTiming) analysisMessage += `• Flow & Timing: ${analysis.vocalAnalysis.flowTiming}\n`;
+        if (analysis.vocalAnalysis.breathControl) analysisMessage += `• Breath Control: ${analysis.vocalAnalysis.breathControl}\n`;
+        if (analysis.vocalAnalysis.vocalEffects && Array.isArray(analysis.vocalAnalysis.vocalEffects) && analysis.vocalAnalysis.vocalEffects.length > 0) {
           analysisMessage += `• Effects Used: ${analysis.vocalAnalysis.vocalEffects.join(', ')}\n`;
         }
-        analysisMessage += `• Clarity: ${analysis.vocalAnalysis.clarity}\n`;
-        analysisMessage += `• Emotional Delivery: ${analysis.vocalAnalysis.emotionalDelivery}\n`;
-        if (analysis.vocalAnalysis.timingIssues) {
-          analysisMessage += `• Timing Notes: ${analysis.vocalAnalysis.timingIssues}\n`;
-        }
+        if (analysis.vocalAnalysis.clarity) analysisMessage += `• Clarity: ${analysis.vocalAnalysis.clarity}\n`;
+        if (analysis.vocalAnalysis.emotionalDelivery) analysisMessage += `• Emotional Delivery: ${analysis.vocalAnalysis.emotionalDelivery}\n`;
+        if (analysis.vocalAnalysis.timingIssues) analysisMessage += `• Timing Notes: ${analysis.vocalAnalysis.timingIssues}\n`;
       }
 
       // Add lyrics quality if available
       if (analysis.lyricsQuality) {
         analysisMessage += `\n📝 **Lyrics Analysis:**\n`;
-        analysisMessage += `• Rhyme Scheme: ${analysis.lyricsQuality.rhymeScheme}\n`;
-        analysisMessage += `• Wordplay: ${analysis.lyricsQuality.wordplay}\n`;
-        analysisMessage += `• Theme: ${analysis.lyricsQuality.theme}\n`;
-        analysisMessage += `• Syllable & Rhythm: ${analysis.lyricsQuality.syllableRhythm}\n`;
-        if (analysis.lyricsQuality.hookCatchiness) {
-          analysisMessage += `• Hook Catchiness: ${analysis.lyricsQuality.hookCatchiness}/10\n`;
-        }
-        analysisMessage += `• Complexity: ${analysis.lyricsQuality.complexity}\n`;
+        if (analysis.lyricsQuality.rhymeScheme) analysisMessage += `• Rhyme Scheme: ${analysis.lyricsQuality.rhymeScheme}\n`;
+        if (analysis.lyricsQuality.wordplay) analysisMessage += `• Wordplay: ${analysis.lyricsQuality.wordplay}\n`;
+        if (analysis.lyricsQuality.theme) analysisMessage += `• Theme: ${analysis.lyricsQuality.theme}\n`;
+        if (analysis.lyricsQuality.syllableRhythm) analysisMessage += `• Syllable & Rhythm: ${analysis.lyricsQuality.syllableRhythm}\n`;
+        if (analysis.lyricsQuality.hookCatchiness) analysisMessage += `• Hook Catchiness: ${analysis.lyricsQuality.hookCatchiness}/10\n`;
+        if (analysis.lyricsQuality.complexity) analysisMessage += `• Complexity: ${analysis.lyricsQuality.complexity}\n`;
       }
 
       // Add production quality feedback if available
