@@ -430,6 +430,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
       setMessages(prev => [...prev, aiMessage]);
 
     } catch (error) {
+      console.error('❌ AIAssistant analysis error:', error);
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
       toast({
         title: "Analysis Failed", 
         description: "Could not analyze the song. Please try again.",

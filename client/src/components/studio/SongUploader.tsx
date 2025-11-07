@@ -561,6 +561,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
       addMessage(analysisMessage, 'song-analysis');
 
     } catch (error) {
+      console.error('❌ Analysis error:', error);
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
       toast({
         title: "Analysis Failed", 
         description: "Could not analyze the song. Please try again.",
