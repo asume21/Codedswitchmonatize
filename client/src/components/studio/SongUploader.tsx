@@ -501,40 +501,42 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
       // Add production quality feedback if available
       if (analysis.productionQuality) {
         analysisMessage += `\n🎚️ **Production Quality:**\n`;
-        analysisMessage += `• Mix Quality: ${analysis.productionQuality.mixQuality}/10\n`;
-        analysisMessage += `• Master Quality: ${analysis.productionQuality.masterQuality}/10\n`;
+        if (analysis.productionQuality.mixQuality) analysisMessage += `• Mix Quality: ${analysis.productionQuality.mixQuality}/10\n`;
+        if (analysis.productionQuality.masterQuality) analysisMessage += `• Master Quality: ${analysis.productionQuality.masterQuality}/10\n`;
         
-        if (analysis.productionQuality.strengths && analysis.productionQuality.strengths.length > 0) {
+        if (analysis.productionQuality.strengths && Array.isArray(analysis.productionQuality.strengths) && analysis.productionQuality.strengths.length > 0) {
           analysisMessage += `\n✅ **What's Working:**\n`;
           analysisMessage += analysis.productionQuality.strengths.map((s: string) => `• ${s}`).join('\n') + '\n';
         }
         
-        if (analysis.productionQuality.issues && analysis.productionQuality.issues.length > 0) {
+        if (analysis.productionQuality.issues && Array.isArray(analysis.productionQuality.issues) && analysis.productionQuality.issues.length > 0) {
           analysisMessage += `\n⚠️ **Issues Found:**\n`;
           analysisMessage += analysis.productionQuality.issues.map((i: string) => `• ${i}`).join('\n') + '\n';
         }
         
-        if (analysis.productionQuality.recommendations && analysis.productionQuality.recommendations.length > 0) {
+        if (analysis.productionQuality.recommendations && Array.isArray(analysis.productionQuality.recommendations) && analysis.productionQuality.recommendations.length > 0) {
           analysisMessage += `\n🎯 **Recommendations:**\n`;
           analysisMessage += analysis.productionQuality.recommendations.map((r: string) => `• ${r}`).join('\n') + '\n';
         }
       }
 
       // Add specific issues to fix
-      if (analysis.specificIssues && analysis.specificIssues.length > 0) {
+      if (analysis.specificIssues && Array.isArray(analysis.specificIssues) && analysis.specificIssues.length > 0) {
         analysisMessage += `\n🛠️ **Specific Issues to Fix:**\n`;
         analysis.specificIssues.forEach((issue: any, index: number) => {
-          const priorityIcon = issue.priority === 'high' ? '🔴' : issue.priority === 'medium' ? '🟡' : '🟢';
-          analysisMessage += `\n${index + 1}. ${priorityIcon} **${issue.issue}** (${issue.priority} priority)\n`;
-          analysisMessage += `   💡 How to fix: ${issue.fix}\n`;
+          if (issue && issue.issue) {
+            const priorityIcon = issue.priority === 'high' ? '🔴' : issue.priority === 'medium' ? '🟡' : '🟢';
+            analysisMessage += `\n${index + 1}. ${priorityIcon} **${issue.issue}**${issue.priority ? ` (${issue.priority} priority)` : ''}\n`;
+            if (issue.fix) analysisMessage += `   💡 How to fix: ${issue.fix}\n`;
+          }
         });
       }
 
       // Add commercial viability if available
       if (analysis.commercialViability) {
         analysisMessage += `\n💰 **Commercial Viability:**\n`;
-        analysisMessage += `• Streaming Potential: ${analysis.commercialViability.streamingPotential}/10\n`;
-        if (analysis.commercialViability.improvements && analysis.commercialViability.improvements.length > 0) {
+        if (analysis.commercialViability.streamingPotential) analysisMessage += `• Streaming Potential: ${analysis.commercialViability.streamingPotential}/10\n`;
+        if (analysis.commercialViability.improvements && Array.isArray(analysis.commercialViability.improvements) && analysis.commercialViability.improvements.length > 0) {
           analysisMessage += `• Improvements:\n`;
           analysisMessage += analysis.commercialViability.improvements.map((i: string) => `  - ${i}`).join('\n') + '\n';
         }
