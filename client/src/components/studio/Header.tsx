@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { SubscriptionButton } from "./SubscriptionButton.tsx";
+import { SubscriptionButton } from "./SubscriptionButton";
+import { UserAccountMenu } from "@/components/UserAccountMenu";
 
 export default function Header() {
   return (
@@ -260,9 +261,7 @@ export default function Header() {
         >
           <i className="fas fa-share mr-2"></i>Export
         </Button>
-        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-          <span className="text-xs font-bold">CT</span>
-        </div>
+        <UserAccountMenu />
       </div>
     </div>
   );
