@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Zap, Brain, Sparkles } from "lucide-react";
+import { Check, Zap, Brain, Sparkles, Music, Cpu } from "lucide-react";
 
 interface AIProvider {
   id: string;
@@ -51,11 +51,17 @@ export function AIProviderSelector() {
   const getProviderIcon = (providerId: string) => {
     switch (providerId) {
       case "grok":
-        return <Zap className="h-5 w-5" />;
-      case "gemini":
-        return <Sparkles className="h-5 w-5" />;
+        return <Zap className="h-5 w-5 text-yellow-400" />;
+      case "replicate-suno":
+        return <Music className="h-5 w-5 text-purple-400" />;
+      case "replicate-musicgen":
+        return <Music className="h-5 w-5 text-purple-400" />;
       case "openai":
-        return <Brain className="h-5 w-5" />;
+        return <Brain className="h-5 w-5 text-green-400" />;
+      case "huggingface":
+        return <Cpu className="h-5 w-5 text-orange-400" />;
+      case "local":
+        return <Sparkles className="h-5 w-5 text-gray-400" />;
       default:
         return <Brain className="h-5 w-5" />;
     }

@@ -176,7 +176,8 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
       // Use relative URL for Replit environment compatibility
       // This works in both development and production
-      const uploadURL = `/api/internal/uploads/${encodeURIComponent(objectKey)}`;
+      const protocol = req.get('x-forwarded-proto') || req.protocol;
+      const uploadURL = `${protocol}://${req.get('host')}/api/internal/uploads/${encodeURIComponent(objectKey)}`;
 
       console.log('🎵 Generated upload URL:', uploadURL);
 
@@ -441,7 +442,15 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         return sendError(res, 401, "Authentication required - please log in");
       }
 
-      const { genre, mood, key } = req.body;
+      // Handle both old and new parameter formats
+      const { genre, mood, key, scale, style, complexity, musicalParams } = req.body;
+      
+      // Extract parameters with fallbacks
+      const finalKey = key || musicalParams?.key || 'C';
+      const finalScale = scale || 'C Major';
+      const finalStyle = style || mood || 'melodic';
+      const finalGenre = genre || 'pop';
+      const finalComplexity = complexity || 'medium';
 
       // Check user credits (Melody Generator costs 2 credits)
       const MELODY_COST = 2;
@@ -451,12 +460,12 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       }
 
       // Check if user has enough credits OR active subscription
-      const userCredits = user.credits || 10; // Default to 10 for existing users
+      const userCredits = user.credits || 10;
       const hasSubscription = user.subscriptionStatus === 'active' && user.subscriptionTier !== 'free';
-      
+
       let canGenerate = false;
       let paymentMethod = '';
-      
+
       if (userCredits >= MELODY_COST) {
         canGenerate = true;
         paymentMethod = 'credits';
@@ -464,25 +473,26 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         canGenerate = true;
         paymentMethod = 'subscription';
       }
-      
+
       if (!canGenerate) {
         const message = hasSubscription 
-          ? `Subscription active, but monthly credit limit reached. Purchase more credits to continue.`
+          ? `Subscription active, but monthly credit limit reached. Purchase more credits to continue.` 
           : `Insufficient credits. Need ${MELODY_COST} credits, have ${userCredits}. Purchase credits or subscribe to continue.`;
         return sendError(res, 402, message);
       }
 
       console.log(`🎹 User ${req.userId} generating melody - Credits: ${userCredits} - Subscription: ${user.subscriptionTier} - Payment: ${paymentMethod}`);
 
-      // Use MusicGen AI for REAL melody generation
+      // Use MusicGen via Replicate for melody generation
       const token = process.env.REPLICATE_API_TOKEN;
       if (!token) {
         return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
       }
 
-      const prompt = `${mood || 'melodic'} ${genre || 'pop'} melody in ${key || 'C major'}, beautiful and catchy`;
+      const prompt = `${finalStyle} ${finalGenre} melody in ${finalScale}, beautiful and catchy, ${finalComplexity} complexity`;
       console.log(`🎹 Generating AI melody with MusicGen: "${prompt}"`);
 
+      // Start prediction
       const response = await fetch("https://api.replicate.com/v1/predictions", {
         method: "POST",
         headers: {
@@ -500,22 +510,32 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       });
 
       const prediction = await response.json();
+      console.log(`📊 Prediction started: ${prediction.id}`);
 
       if (!prediction.id) {
+        console.error("❌ Failed to start prediction:", prediction);
         return sendError(res, 500, "Failed to start melody generation");
       }
 
-      // Poll for result
+      // Poll for result with timeout
       let result = prediction;
       let attempts = 0;
-      while ((result.status === "starting" || result.status === "processing") && attempts < 30) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      const maxAttempts = 120;
+
+      while ((result.status === "starting" || result.status === "processing") && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
           headers: { "Authorization": `Token ${token}` },
         });
         result = await statusResponse.json();
         attempts++;
+
+        if (attempts % 10 === 0) {
+          console.log(`⏳ Still generating... (${attempts}s) - Status: ${result.status}`);
+        }
       }
+
+      console.log(`✅ Generation complete - Status: ${result.status}`);
 
       if (result.status === "succeeded" && result.output) {
         // Only deduct credits if payment method was credits (not subscription)
@@ -525,7 +545,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           remainingCredits = Math.max(0, userCredits - MELODY_COST);
         }
 
-        // Generate MIDI notes for the piano roll based on key and mood
+        // Generate MIDI notes for the piano roll
         const generatedNotes = generateMelodyNotes(key || 'C major', mood || 'melodic', genre || 'pop');
 
         res.json({
@@ -533,21 +553,29 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           data: {
             audioUrl: result.output,
             notes: generatedNotes,
-            key: key || 'C major',
-            genre: genre || 'pop',
-            mood: mood || 'melodic',
-            provider: 'MusicGen AI'
+            bpm: 120,
+            timeSignature: "4/4",
+            key: finalKey,
+            scale: finalScale,
+            genre: finalGenre,
+            style: finalStyle,
+            complexity: finalComplexity,
+            provider: 'MusicGen (Replicate)'
           },
           message: "Melody generated successfully",
           paymentMethod,
           creditsRemaining: remainingCredits,
           subscriptionStatus: user.subscriptionStatus
         });
+      } else if (result.status === "failed") {
+        console.error("❌ Generation failed:", result.error);
+        return sendError(res, 500, result.error || "Melody generation failed");
       } else {
-        return sendError(res, 500, "Melody generation failed");
+        console.error("❌ Generation timeout or unknown status:", result.status);
+        return sendError(res, 500, `Generation timeout - Status: ${result.status}`);
       }
     } catch (error: any) {
-      console.error("Melody generation error:", error);
+      console.error("❌ Melody generation error:", error);
       sendError(res, 500, error.message || "Failed to generate melody");
     }
   });

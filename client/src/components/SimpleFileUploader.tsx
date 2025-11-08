@@ -45,9 +45,16 @@ export function SimpleFileUploader({
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    console.log('🎯 handleUpload called!');
+    console.log('📁 Selected file:', selectedFile);
+    
+    if (!selectedFile) {
+      console.error('❌ No file selected!');
+      return;
+    }
 
     try {
+      console.log('✅ Starting upload process...');
       setUploading(true);
       setProgress(0);
       setError(null);
@@ -59,17 +66,25 @@ export function SimpleFileUploader({
       });
 
       console.log('Uploading file:', selectedFile.name);
+      console.log('Upload URL:', params.url);
+      console.log('Upload method:', params.method);
+      console.log('File size:', selectedFile.size, 'bytes');
+      console.log('File type:', selectedFile.type);
       
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener('progress', (e) => {
+        console.log('📊 Upload progress:', e.loaded, '/', e.total);
         if (e.lengthComputable) {
           const percentComplete = (e.loaded / e.total) * 100;
+          console.log('Progress:', percentComplete.toFixed(1) + '%');
           setProgress(percentComplete);
         }
       });
 
       xhr.addEventListener('load', () => {
+        console.log('✅ XHR load event - Status:', xhr.status, xhr.statusText);
+        console.log('Response:', xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300) {
           console.log('Upload successful!');
           onComplete?.({
@@ -81,19 +96,40 @@ export function SimpleFileUploader({
           setSelectedFile(null);
           setProgress(0);
         } else {
-          setError(`Upload failed: ${xhr.statusText}`);
+          console.error('❌ Upload failed with status:', xhr.status);
+          console.error('Response text:', xhr.responseText);
+          setError(`Upload failed: ${xhr.status} ${xhr.statusText}`);
         }
         setUploading(false);
       });
 
-      xhr.addEventListener('error', () => {
+      xhr.addEventListener('error', (e) => {
+        console.error('❌ XHR error event:', e);
+        console.error('XHR status:', xhr.status);
+        console.error('XHR readyState:', xhr.readyState);
         setError('Upload failed. Please try again.');
         setUploading(false);
       });
 
+      xhr.addEventListener('abort', () => {
+        console.error('❌ Upload aborted');
+        setError('Upload was cancelled');
+        setUploading(false);
+      });
+
+      xhr.addEventListener('timeout', () => {
+        console.error('❌ Upload timeout');
+        setError('Upload timed out');
+        setUploading(false);
+      });
+
       xhr.open(params.method, params.url);
+      xhr.withCredentials = true; // Enable cookies/auth for cross-origin requests
+      xhr.timeout = 120000; // 2 minute timeout
       xhr.setRequestHeader('Content-Type', selectedFile.type || 'application/octet-stream');
+      console.log('🚀 Sending XHR request...');
       xhr.send(selectedFile);
+      console.log('📤 XHR request sent');
 
     } catch (err) {
       console.error('Upload error:', err);
@@ -105,7 +141,10 @@ export function SimpleFileUploader({
   return (
     <div>
       <Button
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          console.log('🔘 Upload button clicked - opening modal');
+          setShowModal(true);
+        }}
         className={buttonClassName}
       >
         {children}
