@@ -174,7 +174,10 @@ function MelodyComposerV2() {
       console.log('🎵 Sending melody generation request...');
       const response = await fetch('/api/melody/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-owner-key': (import.meta as any).env.VITE_OWNER_KEY || ''
+        },
         credentials: 'include',
         body: JSON.stringify({
           scale: 'C Major',

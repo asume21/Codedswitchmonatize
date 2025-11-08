@@ -82,7 +82,10 @@ export default function PackGenerator() {
       console.log('🎵 Sending pack generation request...');
       const response = await fetch("/api/music/generate-with-musicgen", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-owner-key": (import.meta as any).env.VITE_OWNER_KEY || ""
+        },
         credentials: "include",
         body: JSON.stringify({ prompt: userPrompt, duration: 10 }),
       });

@@ -2043,7 +2043,7 @@ Return this exact JSON format:
       try {
         // Check authentication
         if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
+          return sendError(res, 401, "Authentication required - please log in or provide owner key");
         }
 
         const { prompt, duration } = req.body;

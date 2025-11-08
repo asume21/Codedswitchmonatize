@@ -4,6 +4,16 @@ import type { IStorage } from "../storage";
 export function currentUser(storage: IStorage) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
+      // Check for owner key (x-owner-key header)
+      const ownerKey = req.headers['x-owner-key'];
+      const expectedOwnerKey = process.env.OWNER_KEY;
+      
+      if (ownerKey && expectedOwnerKey && ownerKey === expectedOwnerKey) {
+        req.userId = 'owner-user';
+        console.log('🔑 Owner key authenticated');
+        return next();
+      }
+
       // If session has a userId, attach it
       if (req.session?.userId) {
         req.userId = req.session.userId;
