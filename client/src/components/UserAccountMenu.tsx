@@ -81,7 +81,7 @@ export function UserAccountMenu() {
 
   if (!user) {
     return (
-      <Link href="/auth/login">
+      <Link href="/login">
         <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors">
           <LogIn className="h-4 w-4" />
           <span>Log In</span>
