@@ -171,6 +171,7 @@ function MelodyComposerV2() {
     try {
       toast({ title: "Generating melody...", description: "AI is composing your melody" });
       
+      console.log('🎵 Sending melody generation request...');
       const response = await fetch('/api/melody/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,11 +192,23 @@ function MelodyComposerV2() {
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Generation failed');
+      console.log('📡 Response status:', response.status, response.statusText);
+      
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', parseError);
+        const text = await response.text();
+        console.error('Raw response:', text.substring(0, 200));
+        throw new Error(`Server error (${response.status}): Invalid JSON response`);
       }
-
-      const result = await response.json();
+      
+      if (!response.ok) {
+        const errorMsg = result.message || result.error || `HTTP ${response.status}`;
+        console.error('❌ Melody generation error:', errorMsg, result);
+        throw new Error(errorMsg);
+      }
       const data = result.data; // Server wraps response in { success, data, message }
       
       // Set the audio URL if available
