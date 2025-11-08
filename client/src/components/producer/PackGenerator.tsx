@@ -79,17 +79,31 @@ export default function PackGenerator() {
 
   const generateWithMusicGen = async (userPrompt: string) => {
     try {
+      console.log('🎵 Sending pack generation request...');
       const response = await fetch("/api/music/generate-with-musicgen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ prompt: userPrompt, duration: 10 }),
       });
 
-      if (!response.ok) {
-        throw new Error(`MusicGen generation failed: ${response.statusText}`);
+      console.log('📡 Response status:', response.status, response.statusText);
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', parseError);
+        const text = await response.text();
+        console.error('Raw response:', text.substring(0, 200));
+        throw new Error(`Server error (${response.status}): Invalid JSON response`);
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorMsg = data.message || data.error || `HTTP ${response.status}`;
+        console.error('❌ Pack generation error:', errorMsg, data);
+        throw new Error(errorMsg);
+      }
 
       const musicGenPack: GeneratedPack = {
         id: `musicgen-${Date.now()}`,
