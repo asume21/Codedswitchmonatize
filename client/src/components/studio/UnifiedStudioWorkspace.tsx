@@ -168,12 +168,12 @@ export default function UnifiedStudioWorkspace() {
       'Synth Piano': 'electric_piano_2',
       'Harpsichord': 'harpsichord',
       
-      // Bass - Using very distinct bass sounds
-      '808 Bass': 'timpani', // Deep booming drum sound (like 808 kick)
-      'Synth Bass': 'synth_bass_1', // Electronic bass for melodies
-      'Electric Bass': 'electric_bass_pick', // Bright electric bass guitar
-      'Upright Bass': 'acoustic_bass', // Woody upright bass
-      'Sub Bass': 'contrabass', // Very low, clean string bass (lowest frequencies)
+      // Bass - CORRECT General MIDI mappings
+      '808 Bass': 'synth_bass_2', // Deep electronic bass (play low notes for 808 effect)
+      'Synth Bass': 'synth_bass_1', // Standard synth bass
+      'Electric Bass': 'electric_bass_finger', // Fingered electric bass (standard)
+      'Upright Bass': 'acoustic_bass', // Acoustic upright/double bass
+      'Sub Bass': 'fretless_bass', // Smooth, deep fretless bass
       
       // Guitar
       'Acoustic Guitar': 'acoustic_guitar_steel',
@@ -202,13 +202,13 @@ export default function UnifiedStudioWorkspace() {
       'Arp Synth': 'lead_2_sawtooth',
       'Bass Synth': 'synth_bass_1',
       
-      // Drums - Using actual drum-like percussion
-      'Kick': 'taiko_drum', // Deep, booming drum (like a kick)
-      'Snare': 'synth_drum', // Electronic/sharp drum sound
-      'Hi-Hat': 'steel_drums', // Quick metallic (use high notes)
-      'Tom': 'timpani', // Orchestral drum (tom-like)
-      'Cymbal': 'orchestral_harp', // Bright, ringing (use high notes for crash)
-      'Full Kit': 'synth_drum', // Multi-purpose drum sound
+      // Drums - CORRECT General MIDI percussion instruments
+      'Kick': 'taiko_drum', // Deep Japanese drum (closest to kick)
+      'Snare': 'synth_drum', // Electronic snare sound
+      'Hi-Hat': 'woodblock', // Sharp, quick percussive (hi-hat character)
+      'Tom': 'melodic_tom', // Actual melodic tom drum
+      'Cymbal': 'reverse_cymbal', // Cymbal crash/splash sound
+      'Full Kit': 'synth_drum', // Multi-purpose drum
       
       // Other category - ACTUAL INSTRUMENTS
       'Percussion': 'timpani',
