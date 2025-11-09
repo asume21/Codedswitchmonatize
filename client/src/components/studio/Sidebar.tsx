@@ -6,6 +6,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+  console.log('🔍 SIDEBAR RENDERING - First tab:', { id: "unified-studio", icon: "fas fa-star", label: "🎵 Unified Studio" });
   const tabs = [
     { id: "unified-studio", icon: "fas fa-star", label: "🎵 Unified Studio" },
     { id: "translator", icon: "fas fa-code", label: "Code Translator" },

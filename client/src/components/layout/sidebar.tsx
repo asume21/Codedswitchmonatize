@@ -22,9 +22,11 @@ import {
   Wand2,
   Sliders,
   Keyboard,
+  Star,
 } from "lucide-react";
 
 const navigation = [
+  { name: "🎵 Unified Studio", href: "/unified-studio", icon: Star },
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
   { name: "Music Studio", href: "/music-studio", icon: Piano },
   { name: "Mix Studio", href: "/mix-studio", icon: Layers },

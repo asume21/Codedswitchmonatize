@@ -96,6 +96,7 @@ export default function Studio() {
   // Determine active tab based on current route
   const getTabFromRoute = (path: string): Tab => {
     const routeMap: Record<string, Tab> = {
+      '/unified-studio': 'unified-studio',
       '/code-translator': 'translator',
       '/beat-studio': 'beatmaker',
       '/melody-composer': 'melody',
