@@ -169,11 +169,11 @@ export default function UnifiedStudioWorkspace() {
       'Harpsichord': 'harpsichord',
       
       // Bass - Using very distinct bass sounds
-      '808 Bass': 'synth_bass_2',
-      'Synth Bass': 'synth_bass_1',
-      'Electric Bass': 'electric_bass_pick', // Brighter than finger
-      'Upright Bass': 'acoustic_bass',
-      'Sub Bass': 'fretless_bass', // Different from synth_bass_2
+      '808 Bass': 'timpani', // Deep booming drum sound (like 808 kick)
+      'Synth Bass': 'synth_bass_1', // Electronic bass for melodies
+      'Electric Bass': 'electric_bass_pick', // Bright electric bass guitar
+      'Upright Bass': 'acoustic_bass', // Woody upright bass
+      'Sub Bass': 'contrabass', // Very low, clean string bass (lowest frequencies)
       
       // Guitar
       'Acoustic Guitar': 'acoustic_guitar_steel',
