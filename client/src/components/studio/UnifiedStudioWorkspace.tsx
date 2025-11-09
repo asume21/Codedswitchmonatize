@@ -10,6 +10,7 @@ import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
+import { AudioEngine } from '@/lib/audio';
 
 interface Note {
   id: string;
@@ -36,18 +37,18 @@ export default function UnifiedStudioWorkspace() {
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
   
-  // Initialize the REAL audio engine
+  // Audio engines
+  const [synthesisEngine] = useState(() => new AudioEngine());
+
+  // Initialize audio engines on mount
   useEffect(() => {
-    const initAudio = async () => {
-      try {
-        await realisticAudio.initialize();
-        console.log('✅ Audio engine initialized');
-      } catch (error) {
-        console.error('❌ Audio init failed:', error);
-      }
-    };
-    initAudio();
-  }, []);
+    realisticAudio.initialize().catch(err => {
+      console.error('Failed to initialize realistic audio (drums):', err);
+    });
+    synthesisEngine.initialize().catch(err => {
+      console.error('Failed to initialize synthesis engine (instruments):', err);
+    });
+  }, [synthesisEngine]);
   
   // Section expansion states
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
@@ -220,14 +221,14 @@ export default function UnifiedStudioWorkspace() {
     return mapping[uiName] || 'acoustic_grand_piano';
   };
 
-  // Play a note with the REAL audio engine (Soundfont or drums)
+  // Play a note with the REAL audio engines (Synthesis for instruments, realisticAudio for drums)
   const playNote = async (note: string, octave: number, instrumentType?: string) => {
     try {
       // Get current track's instrument or use default
       const currentTrack = tracks.find(t => t.id === selectedTrack);
       let uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       
-      // Check if it's a drum instrument - use synthetic drums
+      // Check if it's a drum instrument - use realisticAudio drum synthesis
       const drumMap: Record<string, string> = {
         'Kick': 'kick',
         'Snare': 'snare',
@@ -238,16 +239,34 @@ export default function UnifiedStudioWorkspace() {
       };
       
       if (drumMap[uiInstrument]) {
-        // Use real drum synthesis
+        // Use real drum synthesis from realisticAudio
         await realisticAudio.playDrumSound(drumMap[uiInstrument], 0.8);
         return;
       }
       
-      // For melodic instruments, map to realisticAudio instrument name
-      const mappedInstrument = mapInstrumentName(uiInstrument);
+      // For melodic instruments, use the synthesis engine
+      const noteToFreq = (note: string, octave: number): number => {
+        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const noteIndex = notes.indexOf(note);
+        if (noteIndex === -1) return 440; // fallback to A4
+        const semitonesFromA4 = (octave - 4) * 12 + (noteIndex - 9);
+        return 440 * Math.pow(2, semitonesFromA4 / 12);
+      };
       
-      // Play using the realistic audio engine with proper instrument
-      await realisticAudio.playNote(note, octave, 0.5, mappedInstrument, 0.8);
+      const frequency = noteToFreq(note, octave);
+      
+      // Map UI instrument names to synthesis engine types
+      let synthInstrument = 'piano';
+      if (uiInstrument.includes('Piano')) synthInstrument = 'piano';
+      else if (uiInstrument.includes('Grand')) synthInstrument = 'grand';
+      else if (uiInstrument.includes('Organ')) synthInstrument = 'organ';
+      else if (uiInstrument.includes('Guitar')) synthInstrument = 'guitar';
+      else if (uiInstrument.includes('Violin') || uiInstrument.includes('Viola') || uiInstrument.includes('Cello')) synthInstrument = 'violin';
+      else if (uiInstrument.includes('Flute')) synthInstrument = 'flute';
+      else if (uiInstrument.includes('Recorder')) synthInstrument = 'recorder';
+      
+      // Play using the synthesis engine with REAL instrument synthesis
+      await synthesisEngine.playNote(frequency, 0.5, 0.8, synthInstrument);
     } catch (error) {
       console.error('Error playing note:', error);
     }
