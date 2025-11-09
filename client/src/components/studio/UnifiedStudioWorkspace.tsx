@@ -231,20 +231,34 @@ export default function UnifiedStudioWorkspace() {
             >
               <span className="font-medium">
                 {timelineExpanded ? <ChevronDown className="inline w-4 h-4 mr-2" /> : <ChevronRight className="inline w-4 h-4 mr-2" />}
-                TIMELINE - ALL TRACKS
+                TIMELINE - ALL TRACKS ({tracks.length})
               </span>
-              <div className="flex items-center space-x-2 text-sm text-gray-400">
-                <span>Zoom:</span>
-                <Slider
-                  value={zoom}
-                  onValueChange={setZoom}
-                  max={100}
-                  min={10}
-                  step={1}
-                  className="w-24"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <span>{zoom[0]}%</span>
+              <div className="flex items-center space-x-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addTrack('New Track', 'midi');
+                  }}
+                  className="text-xs"
+                >
+                  <i className="fas fa-plus mr-1"></i>
+                  Add Track
+                </Button>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <span>Zoom:</span>
+                  <Slider
+                    value={zoom}
+                    onValueChange={setZoom}
+                    max={100}
+                    min={10}
+                    step={1}
+                    className="w-24"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <span>{zoom[0]}%</span>
+                </div>
               </div>
             </button>
             
@@ -262,54 +276,132 @@ export default function UnifiedStudioWorkspace() {
                           setLyricsExpanded(true);
                         }
                       }}
-                      className={`border rounded p-3 cursor-pointer transition ${
+                      className={`border rounded overflow-hidden cursor-pointer transition ${
                         selectedTrack === track.id
                           ? 'border-blue-500 bg-blue-900/20'
                           : 'border-gray-700 hover:border-gray-600'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{track.name}</span>
-                        <div className="flex space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTracks(tracks.map(t =>
-                                t.id === track.id ? { ...t, muted: !t.muted } : t
-                              ));
-                            }}
-                            className={track.muted ? 'text-red-500' : ''}
-                          >
-                            M
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTracks(tracks.map(t =>
-                                t.id === track.id ? { ...t, solo: !t.solo } : t
-                              ));
-                            }}
-                            className={track.solo ? 'text-yellow-500' : ''}
-                          >
-                            S
-                          </Button>
+                      <div className="flex">
+                        {/* Track Info Panel */}
+                        <div className="w-48 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-sm truncate">{track.name}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 mb-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTracks(tracks.map(t =>
+                                  t.id === track.id ? { ...t, muted: !t.muted } : t
+                                ));
+                              }}
+                              className={`h-6 w-6 p-0 ${track.muted ? 'bg-red-600 text-white' : 'text-gray-400'}`}
+                              title="Mute"
+                            >
+                              M
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTracks(tracks.map(t =>
+                                  t.id === track.id ? { ...t, solo: !t.solo } : t
+                                ));
+                              }}
+                              className={`h-6 w-6 p-0 ${track.solo ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
+                              title="Solo"
+                            >
+                              S
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTracks(tracks.filter(t => t.id !== track.id));
+                              }}
+                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                              title="Delete"
+                            >
+                              <i className="fas fa-trash text-xs"></i>
+                            </Button>
+                          </div>
+                          <div className="text-xs space-y-1">
+                            <div className="text-gray-400">Type: <span className="text-gray-200">{track.type.toUpperCase()}</span></div>
+                            {track.instrument && <div className="text-gray-400">Inst: <span className="text-gray-200">{track.instrument}</span></div>}
+                            <div className="mt-2">
+                              <div className="text-gray-400 mb-1">Vol: {Math.round(track.volume * 100)}%</div>
+                              <Slider
+                                value={[track.volume * 100]}
+                                onValueChange={(val) => {
+                                  setTracks(tracks.map(t =>
+                                    t.id === track.id ? { ...t, volume: val[0] / 100 } : t
+                                  ));
+                                }}
+                                max={100}
+                                min={0}
+                                step={1}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full"
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      
-                      {/* Visual waveform placeholder */}
-                      <div className="h-16 bg-gray-800 rounded flex items-center justify-center text-xs text-gray-500">
-                        [Waveform visualization - {track.type}]
+                        
+                        {/* Track Timeline Visualization */}
+                        <div className="flex-1 bg-gray-900 p-2 relative">
+                          {track.type === 'audio' ? (
+                            // Waveform visualization
+                            <div className="h-full flex items-center">
+                              <div className="w-full h-16 bg-blue-900/20 border border-blue-700/50 rounded flex items-end px-1">
+                                {Array.from({ length: 100 }, (_, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex-1 bg-blue-500/70 mx-px rounded-t"
+                                    style={{ height: `${Math.random() * 60 + 20}%` }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ) : track.type === 'midi' ? (
+                            // MIDI blocks visualization
+                            <div className="h-full flex items-center">
+                              <div className="w-full h-12 relative">
+                                {/* Example MIDI blocks */}
+                                <div className="absolute top-0 left-2 w-20 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs">
+                                  C4
+                                </div>
+                                <div className="absolute top-0 left-24 w-32 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs">
+                                  E4
+                                </div>
+                                <div className="absolute top-0 left-60 w-24 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs">
+                                  G4
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            // Lyrics blocks
+                            <div className="h-full flex items-center">
+                              <div className="text-sm text-purple-400 truncate">
+                                🎤 [Verse 1] Walking down this empty street...
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
-                  
                   {tracks.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      No tracks yet. Add instruments from the left panel.
+                      <div className="mb-2">
+                        <i className="fas fa-music text-4xl opacity-20"></i>
+                      </div>
+                      <p className="mb-2">No tracks yet</p>
+                      <p className="text-xs">Click instruments from the left panel or use the "+ Add Track" button above</p>
                     </div>
                   )}
                 </div>
@@ -348,8 +440,56 @@ export default function UnifiedStudioWorkspace() {
                     </div>
                   </div>
                   
-                  <div className="bg-gray-800 rounded h-48 flex items-center justify-center text-gray-500">
-                    [Piano Roll Grid - Click to add notes, drag to create chords]
+                  {/* Piano Roll Grid */}
+                  <div className="flex border border-gray-700 rounded overflow-hidden" style={{ height: '400px' }}>
+                    {/* Piano Keys */}
+                    <div className="w-16 bg-gray-800 border-r border-gray-700 overflow-y-auto flex-shrink-0">
+                      {['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
+                        'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
+                        'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((note, idx) => {
+                        const isBlackKey = note.includes('#');
+                        return (
+                          <div
+                            key={note}
+                            className={`h-6 flex items-center justify-center text-[10px] border-b border-gray-700 cursor-pointer hover:bg-blue-600 ${
+                              isBlackKey ? 'bg-gray-900 text-gray-400' : 'bg-gray-800 text-gray-200'
+                            }`}
+                            title={`Click to play ${note}`}
+                          >
+                            {note}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Grid */}
+                    <div className="flex-1 bg-gray-900 overflow-x-auto relative">
+                      {/* Timeline ruler */}
+                      <div className="h-6 bg-gray-800 border-b border-gray-700 flex text-xs text-gray-400">
+                        {Array.from({ length: 32 }, (_, i) => (
+                          <div key={i} className="flex-1 min-w-[60px] border-r border-gray-700 px-1">
+                            {i + 1}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Note grid */}
+                      <div className="relative">
+                        {['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
+                          'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
+                          'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((note, rowIdx) => (
+                          <div key={note} className="h-6 border-b border-gray-700/50 flex">
+                            {Array.from({ length: 32 }, (_, colIdx) => (
+                              <div
+                                key={colIdx}
+                                className="flex-1 min-w-[60px] border-r border-gray-700/30 hover:bg-blue-900/30 cursor-pointer"
+                                title={`Add note at bar ${colIdx + 1}, ${note}`}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
