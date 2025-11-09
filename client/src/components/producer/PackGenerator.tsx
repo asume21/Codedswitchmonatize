@@ -77,6 +77,39 @@ export default function PackGenerator() {
     });
   };
 
+  const handleSaveToLibrary = async (pack: GeneratedPack) => {
+    try {
+      const ownerKey = (import.meta as any).env.VITE_OWNER_KEY;
+      
+      const response = await fetch("/api/packs/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-owner-key": ownerKey || ""
+        },
+        credentials: "include",
+        body: JSON.stringify({ pack }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save pack");
+      }
+
+      toast({
+        title: "✅ Saved to Library!",
+        description: `"${pack.title}" has been added to your library.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Save Failed",
+        description: (error as Error)?.message || "Could not save pack to library",
+        variant: "destructive",
+      });
+    }
+  };
+
   const generateWithMusicGen = async (userPrompt: string) => {
     const variations = ["energetic", "melodic", "atmospheric", "rhythmic", "dynamic", "ambient"];
     const keys = ["C", "D", "E", "F", "G", "A", "B"];
@@ -418,6 +451,7 @@ export default function PackGenerator() {
                       </Button>
 
                       <Button
+                        onClick={() => handleSaveToLibrary(pack)}
                         size="sm"
                         variant="outline"
                         className="border-blue-500 text-blue-600 hover:bg-blue-50"

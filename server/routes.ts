@@ -2114,6 +2114,40 @@ Return this exact JSON format:
     }
   );
 
+  // Save pack to library
+  app.post(
+    "/api/packs/save",
+    async (req: Request, res: Response) => {
+      try {
+        const { pack } = req.body;
+        
+        if (!pack) {
+          return sendError(res, 400, "Pack data is required");
+        }
+
+        // Create pack in database
+        const savedPack = await storage.createSamplePack({
+          name: pack.title,
+          genre: pack.genre,
+          mood: pack.metadata?.mood || "Dynamic",
+          description: pack.description,
+          generatedSamples: pack.samples, // Store all sample data as JSON
+        });
+
+        console.log('✅ Pack saved to database:', savedPack.id);
+
+        res.json({ 
+          success: true,
+          packId: savedPack.id,
+          message: "Pack saved to library successfully"
+        });
+      } catch (err: any) {
+        console.error("Save pack error:", err);
+        res.status(500).json({ message: err?.message || "Failed to save pack" });
+      }
+    }
+  );
+
     app.post(
     "/api/chatmusician/generate",
     async (req: Request, res: Response) => {
