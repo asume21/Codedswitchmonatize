@@ -19,6 +19,7 @@ const FLOAT_MIN_HEIGHT = 200;
 
 export default function TransportControls({ currentTool = "Studio" }: TransportControlsProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [currentTime, setCurrentTime] = useState("00:00");
   const [totalTime] = useState("02:45");
   const [bar] = useState(1);
@@ -29,6 +30,8 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
 
   const { setMasterVolume, initialize, isInitialized } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
@@ -47,13 +50,22 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         return;
       }
 
-      const pattern =
-        studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0
-          ? studioContext.currentPattern
-          : DEFAULT_PATTERN;
+      // Play everything loaded in the context
+      const hasPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0;
+      const hasMelody = studioContext.currentMelody && studioContext.currentMelody.length > 0;
+      const hasTracks = studioContext.currentTracks && studioContext.currentTracks.length > 0;
 
-      playPattern(pattern, studioContext.bpm || 120);
+      // Play drum pattern if available
+      if (hasPattern) {
+        playPattern(studioContext.currentPattern, studioContext.bpm || 120);
+      } else {
+        // Fallback to default pattern if nothing is loaded
+        playPattern(DEFAULT_PATTERN, studioContext.bpm || 120);
+      }
+
+      // Play full song (includes melody, vocals, etc)
       await studioContext.playFullSong();
+      
       setIsPlaying(true);
     } catch (error) {
       console.error("🚫 Global transport failed", error);
@@ -66,6 +78,73 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     studioContext.stopFullSong();
     setIsPlaying(false);
     setCurrentTime("00:00");
+    
+    // Stop recording if active
+    if (isRecording && mediaRecorder) {
+      mediaRecorder.stop();
+    }
+  };
+
+  const handleRecord = async () => {
+    try {
+      if (!isInitialized) {
+        await initialize();
+      }
+
+      if (isRecording) {
+        // Stop recording
+        if (mediaRecorder) {
+          mediaRecorder.stop();
+        }
+        return;
+      }
+
+      // Start recording
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        saveRecording(blob);
+        setRecordedChunks([]);
+        setIsRecording(false);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+
+      // Auto-start playback when recording
+      if (!isPlaying) {
+        handlePlay();
+      }
+    } catch (error) {
+      console.error("🚫 Recording failed:", error);
+      alert("Recording failed. Please ensure microphone permissions are granted.");
+    }
+  };
+
+  const saveRecording = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CodedSwitch-Recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    console.log("✅ Recording saved successfully");
   };
 
   const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,8 +282,27 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
             </Button>
           )}
         </div>
-        <div className="text-xs text-gray-400">
-          {isPlaying ? `Playing full mix (${currentTool})` : `Ready to play ${currentTool}`}
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-gray-400">
+            {isPlaying ? `Playing full mix (${currentTool})` : `Ready to play ${currentTool}`}
+          </div>
+          <div className="flex items-center gap-2">
+            {studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 && (
+              <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                <i className="fas fa-drum mr-1"></i>Drums
+              </span>
+            )}
+            {studioContext.currentMelody && studioContext.currentMelody.length > 0 && (
+              <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
+                <i className="fas fa-music mr-1"></i>Melody
+              </span>
+            )}
+            {studioContext.currentTracks && studioContext.currentTracks.length > 0 && (
+              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">
+                <i className="fas fa-layer-group mr-1"></i>Tracks
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -232,6 +330,19 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
               <i className="fas fa-stop"></i>
             </Button>
             <span className="text-xs text-gray-400">Stop</span>
+          </div>
+
+          <div className="flex flex-col items-center space-y-1">
+            <Button
+              onClick={handleRecord}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                isRecording ? "bg-red-600 hover:bg-red-500 animate-pulse" : "bg-gray-600 hover:bg-gray-500"
+              }`}
+              title={isRecording ? "Stop recording" : "Start recording"}
+            >
+              <i className={`fas fa-circle ${isRecording ? "text-white" : "text-red-500"}`}></i>
+            </Button>
+            <span className="text-xs text-gray-400">{isRecording ? "Recording..." : "Record"}</span>
           </div>
         </div>
 
