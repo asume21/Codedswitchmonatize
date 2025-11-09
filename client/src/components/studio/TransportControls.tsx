@@ -212,7 +212,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     ? `fixed bg-studio-panel border border-gray-600 rounded-lg shadow-2xl px-6 z-50 ${
         isDragging ? "cursor-grabbing" : ""
       } ${isMinimized ? "h-auto pb-2 min-w-[400px]" : "py-4 min-w-[800px]"}`
-    : "bg-studio-panel border-t border-gray-700 px-6 py-4";
+    : "bg-transparent";
 
   const containerStyle = isFloating
     ? { left: `${position.x}px`, top: `${position.y}px`, transform: "none" }
@@ -251,126 +251,146 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   );
 
   const renderExpanded = () => (
-    <>
-      <div className={`mb-3 flex items-center justify-between gap-4 p-3 bg-gray-800 rounded-lg relative ${isFloating ? "mt-8" : "mt-8"}`}>
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-medium text-gray-300">Global Transport</span>
-          {isFloating ? (
-            <Button
-              onClick={handleDock}
-              size="sm"
-              variant="outline"
-              className="h-6 w-12 text-xs bg-blue-600 hover:bg-blue-500 text-white border-blue-500"
-              title="Dock to bottom"
-            >
-              Dock
-            </Button>
-          ) : (
-            <Button
-              onClick={handleFloat}
-              size="sm"
-              variant="outline"
-              className="h-6 w-12 text-xs bg-green-600 hover:bg-green-500 text-white border-green-500"
-              title="Float controls"
-            >
-              Float
-            </Button>
+    <div className="flex items-center justify-between px-6 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-t border-gray-700">
+      {/* Left: Playback Controls */}
+      <div className="flex items-center space-x-2">
+        <Button
+          onClick={() => {/* TODO: Skip to previous */}}
+          size="sm"
+          className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
+          title="Previous"
+        >
+          <i className="fas fa-step-backward text-xs"></i>
+        </Button>
+        
+        <Button
+          onClick={() => {/* TODO: Rewind */}}
+          size="sm"
+          className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
+          title="Rewind"
+        >
+          <i className="fas fa-backward text-xs"></i>
+        </Button>
+        
+        <Button
+          onClick={handlePlay}
+          size="sm"
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+            isPlaying ? "bg-red-600 hover:bg-red-500" : "bg-green-600 hover:bg-green-500"
+          }`}
+          title={isPlaying ? "Pause" : "Play"}
+        >
+          <i className={`fas ${isPlaying ? "fa-pause" : "fa-play"} text-base`}></i>
+        </Button>
+        
+        <Button
+          onClick={handleStop}
+          size="sm"
+          className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
+          title="Stop"
+        >
+          <i className="fas fa-stop text-xs"></i>
+        </Button>
+        
+        <Button
+          onClick={() => {/* TODO: Fast forward */}}
+          size="sm"
+          className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
+          title="Fast Forward"
+        >
+          <i className="fas fa-forward text-xs"></i>
+        </Button>
+        
+        <Button
+          onClick={() => {/* TODO: Skip to next */}}
+          size="sm"
+          className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
+          title="Next"
+        >
+          <i className="fas fa-step-forward text-xs"></i>
+        </Button>
+        
+        <div className="w-px h-6 bg-gray-700 mx-1"></div>
+        
+        <Button
+          onClick={handleRecord}
+          size="sm"
+          className={`w-8 h-8 rounded-full ${
+            isRecording ? "bg-red-600 animate-pulse" : "bg-gray-700 hover:bg-gray-600"
+          }`}
+          title={isRecording ? "Stop recording" : "Record"}
+        >
+          <i className={`fas fa-circle text-xs ${isRecording ? "text-white" : "text-red-400"}`}></i>
+        </Button>
+        
+        <Button
+          onClick={() => {
+            const nextVolume = volume === 0 ? 75 : 0;
+            setVolume(nextVolume);
+            setMasterVolume(nextVolume);
+          }}
+          size="sm"
+          className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
+          title={volume === 0 ? "Unmute" : "Mute"}
+        >
+          <i className={`fas ${volume === 0 ? "fa-volume-mute" : "fa-volume-up"} text-xs`}></i>
+        </Button>
+      </div>
+
+      {/* Center: Time & BPM */}
+      <div className="flex items-center space-x-6 text-sm">
+        <div className="flex items-center space-x-2">
+          <span className="font-mono text-gray-300">{currentTime}</span>
+          <span className="text-gray-500">/</span>
+          <span className="font-mono text-gray-500">{totalTime}</span>
+        </div>
+        
+        <div className="border-l border-gray-700 pl-6">
+          <span className="font-mono text-gray-400">{studioContext.bpm || 120} BPM</span>
+        </div>
+        
+        {/* Status indicators */}
+        <div className="flex items-center gap-1">
+          {studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 && (
+            <span className="w-2 h-2 bg-blue-500 rounded-full" title="Drums loaded"></span>
+          )}
+          {studioContext.currentMelody && studioContext.currentMelody.length > 0 && (
+            <span className="w-2 h-2 bg-purple-500 rounded-full" title="Melody loaded"></span>
+          )}
+          {studioContext.currentTracks && studioContext.currentTracks.length > 0 && (
+            <span className="w-2 h-2 bg-green-500 rounded-full" title="Tracks loaded"></span>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-xs text-gray-400">
-            {isPlaying ? `Playing full mix (${currentTool})` : `Ready to play ${currentTool}`}
-          </div>
-          <div className="flex items-center gap-2">
-            {studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 && (
-              <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
-                <i className="fas fa-drum mr-1"></i>Drums
-              </span>
-            )}
-            {studioContext.currentMelody && studioContext.currentMelody.length > 0 && (
-              <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
-                <i className="fas fa-music mr-1"></i>Melody
-              </span>
-            )}
-            {studioContext.currentTracks && studioContext.currentTracks.length > 0 && (
-              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">
-                <i className="fas fa-layer-group mr-1"></i>Tracks
-              </span>
-            )}
-          </div>
-        </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-6">
-          <div className="flex flex-col items-center space-y-1">
-            <Button
-              onClick={handlePlay}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-                isPlaying ? "bg-red-600 hover:bg-red-500" : "bg-studio-success hover:bg-green-500"
-              }`}
-              title={isPlaying ? "Pause global mix" : "Play global mix"}
-            >
-              <i className={`fas ${isPlaying ? "fa-pause" : "fa-play"} text-lg`}></i>
-            </Button>
-            <span className="text-xs text-gray-300 font-medium">{isPlaying ? "Pause" : "Play"}</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-1">
-            <Button
-              onClick={handleStop}
-              className="bg-red-600 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-              title="Stop and reset"
-            >
-              <i className="fas fa-stop"></i>
-            </Button>
-            <span className="text-xs text-gray-400">Stop</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-1">
-            <Button
-              onClick={handleRecord}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                isRecording ? "bg-red-600 hover:bg-red-500 animate-pulse" : "bg-gray-600 hover:bg-gray-500"
-              }`}
-              title={isRecording ? "Stop recording" : "Start recording"}
-            >
-              <i className={`fas fa-circle ${isRecording ? "text-white" : "text-red-500"}`}></i>
-            </Button>
-            <span className="text-xs text-gray-400">{isRecording ? "Recording..." : "Record"}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-6">
-          <div className="text-sm">
-            <span className="font-mono text-lg">{currentTime}</span>
-            <span className="text-gray-400 ml-2">/ {totalTime}</span>
-          </div>
-          <div className="text-sm">
-            <span className="font-mono">Bar {bar}</span>
-            <span className="text-gray-400 ml-2">Beat {beat}</span>
-          </div>
-          <div className="text-sm">
-            <span className="font-mono">{studioContext.bpm || 120} BPM</span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <i className="fas fa-volume-up text-gray-400"></i>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={volume}
-            onChange={handleVolumeChange}
-            className="w-24 h-2 bg-gray-700 rounded-lg appearance-none slider"
-            aria-label={`Master volume control: ${volume}%`}
-            title={`Master volume: ${volume}%`}
-          />
-          <span className="text-sm text-gray-400 w-8">{volume}%</span>
-        </div>
+      {/* Right: Volume */}
+      <div className="flex items-center space-x-2">
+        <i className="fas fa-volume-up text-gray-400 text-sm"></i>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={volume}
+          onChange={handleVolumeChange}
+          className="w-24 h-1 bg-gray-700 rounded-lg appearance-none slider cursor-pointer"
+          aria-label={`Master volume: ${volume}%`}
+          title={`Volume: ${volume}%`}
+        />
+        <span className="text-xs text-gray-400 w-8">{volume}%</span>
+        
+        {!isFloating && (
+          <Button
+            onClick={handleFloat}
+            size="sm"
+            variant="ghost"
+            className="ml-2 h-7 text-xs text-gray-400 hover:text-white"
+            title="Float player"
+          >
+            <i className="fas fa-external-link-alt"></i>
+          </Button>
+        )}
       </div>
-    </>
+    </div>
   );
 
   return (
