@@ -11,6 +11,8 @@ import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
 import ProfessionalStudio from './ProfessionalStudio';
 import LyricLab from './LyricLab';
+import VerticalPianoRoll from './VerticalPianoRoll';
+import ProfessionalMixer from './ProfessionalMixer';
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
@@ -1023,23 +1025,17 @@ Your lyrics will sync with the timeline
 
           {/* PIANO ROLL VIEW */}
           {activeView === 'piano-roll' && (
-            <div className="flex-1 flex items-center justify-center bg-gray-900">
-              <div className="text-center p-8">
-                <Piano className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                <h3 className="text-xl font-bold mb-2">Piano Roll Editor</h3>
-                <p className="text-gray-400">Full piano roll integration coming next...</p>
-              </div>
+            <div className="flex-1 overflow-hidden bg-gray-900">
+              <VerticalPianoRoll 
+                tracks={tracks as any}
+              />
             </div>
           )}
 
           {/* MIXER VIEW */}
           {activeView === 'mixer' && (
-            <div className="flex-1 flex items-center justify-center bg-gray-900">
-              <div className="text-center p-8">
-                <Sliders className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                <h3 className="text-xl font-bold mb-2">Professional Mixer</h3>
-                <p className="text-gray-400">Professional mixer integration coming next...</p>
-              </div>
+            <div className="flex-1 overflow-y-auto bg-gray-900">
+              <ProfessionalMixer />
             </div>
           )}
 
