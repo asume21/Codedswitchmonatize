@@ -10,7 +10,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { StudioAudioContext } from "@/pages/studio";
 import { useAIMessages } from "@/contexts/AIMessageContext";
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
+import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import type { Song } from "@shared/schema";
+import type { ToolRecommendation } from "@/components/studio/effects";
 
 interface UploadContext {
   name?: string;
@@ -25,6 +27,8 @@ export default function SongUploader() {
   const [uploadContext, setUploadContext] = useState<UploadContext>({});
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showAudioTools, setShowAudioTools] = useState(false);
+  const [songAnalysis, setSongAnalysis] = useState<any>(null);
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
@@ -438,6 +442,9 @@ export default function SongUploader() {
         lyricsQuality: analysis.lyricsQuality
       });
       
+      setSongAnalysis(analysis);
+      setCurrentSong(song);
+      
       toast({
         title: "Song Analysis Complete",
         description: `AI analyzed ${song.name} - check the AI Assistant for insights!`,
@@ -578,6 +585,26 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   const formatDate = (date: Date | string): string => {
     return new Date(date).toLocaleDateString();
   };
+
+  // If showing audio tools, render the tool router
+  if (showAudioTools && currentSong && songAnalysis) {
+    return (
+      <div className="h-full flex flex-col overflow-hidden p-6">
+        <Button 
+          variant="outline" 
+          onClick={() => setShowAudioTools(false)}
+          className="mb-4"
+        >
+          ← Back to Song Library
+        </Button>
+        <AudioToolRouter
+          songUrl={currentSong.accessibleUrl || currentSong.originalUrl || currentSong.songURL || ''}
+          songName={currentSong.name}
+          recommendations={songAnalysis.toolRecommendations || []}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -781,6 +808,16 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                           <i className="fas fa-brain mr-1"></i>
                           Analyze
                         </Button>
+                        {songAnalysis && currentSong?.id === song.id && (
+                          <Button
+                            size="sm"
+                            onClick={() => setShowAudioTools(true)}
+                            className="bg-blue-600 hover:bg-blue-500"
+                          >
+                            <i className="fas fa-sliders-h mr-1"></i>
+                            Open Tools
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
