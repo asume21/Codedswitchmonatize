@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText } from 'lucide-react';
+import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2 } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
@@ -594,6 +594,21 @@ export default function UnifiedStudioWorkspace() {
                 TIMELINE - ALL TRACKS ({tracks.length})
               </span>
               <div className="flex items-center space-x-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast({
+                      title: "🪄 AI Arrangement",
+                      description: "AI will suggest optimal track arrangement, structure, and transitions"
+                    });
+                  }}
+                  className="text-xs bg-gradient-to-r from-purple-600 to-blue-600"
+                >
+                  <Wand2 className="w-3 h-3 mr-1" />
+                  AI Arrange
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"

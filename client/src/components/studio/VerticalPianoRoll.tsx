@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Play, Pause, Square, Trash2 } from 'lucide-react';
+import { Play, Pause, Square, Trash2, Wand2 } from 'lucide-react';
 
 // Constants
 import type { Note, ChordProgression } from './types/pianoRollTypes';
@@ -635,6 +635,20 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         <div className="flex items-center justify-between p-3 bg-slate-900 text-white border-b border-slate-700">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Piano Roll</h3>
           <div className="flex items-center space-x-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                toast({
+                  title: " AI Melody Generator",
+                  description: "AI will generate melodies, harmonize notes, and suggest chord progressions"
+                });
+              }}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white"
+            >
+              <Wand2 className="h-3 w-3 mr-1" />
+              AI Generate
+            </Button>
             <Button
               variant="outline"
               size="sm"
