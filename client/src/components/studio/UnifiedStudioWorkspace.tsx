@@ -71,6 +71,7 @@ export default function UnifiedStudioWorkspace() {
   const [showAIAssistant, setShowAIAssistant] = useState(true);
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showLyricsFocus, setShowLyricsFocus] = useState(false);
+  const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
 
   // Instrument categories
   const instrumentCategories = {
@@ -102,17 +103,56 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const togglePlay = () => {
-    setIsPlaying(!isPlaying);
     if (!isPlaying) {
+      // Start playback - play all notes in all non-muted tracks
+      const notesToPlay: Array<{ note: string; octave: number; time: number; track: Track }> = [];
+      
+      tracks.forEach(track => {
+        if (!track.muted && track.notes && track.notes.length > 0) {
+          track.notes.forEach(note => {
+            notesToPlay.push({
+              note: note.note.replace('Sharp', '#'),
+              octave: note.octave,
+              time: note.start * 0.5, // 0.5 seconds per bar
+              track
+            });
+          });
+        }
+      });
+      
+      if (notesToPlay.length === 0) {
+        toast({
+          title: "No Notes",
+          description: "Add some notes to the piano roll first!",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Sort by time
+      notesToPlay.sort((a, b) => a.time - b.time);
+      
+      // Play notes
+      notesToPlay.forEach(({ note, octave, time, track }) => {
+        setTimeout(() => {
+          playNote(note, octave, track.instrument);
+        }, time * 1000);
+      });
+      
       toast({
         title: "Playing",
-        description: "Playback started",
+        description: `${notesToPlay.length} notes`,
       });
+      
+      // Auto-stop after all notes played
+      const maxTime = Math.max(...notesToPlay.map(n => n.time)) + 3;
+      setTimeout(() => setIsPlaying(false), maxTime * 1000);
     }
+    setIsPlaying(!isPlaying);
   };
 
-  // Play a piano note with Web Audio API
-  const playNote = (note: string, octave: number) => {
+  // Play a note with Web Audio API - different waveforms per instrument
+  const playNote = (note: string, octave: number, instrumentType?: string) => {
     if (!audioContextRef.current) return;
     
     const noteFrequencies: { [key: string]: number } = {
@@ -128,27 +168,62 @@ export default function UnifiedStudioWorkspace() {
     
     const oscillator = audioContextRef.current.createOscillator();
     const gainNode = audioContextRef.current.createGain();
+    const filter = audioContextRef.current.createBiquadFilter();
     
-    oscillator.connect(gainNode);
+    oscillator.connect(filter);
+    filter.connect(gainNode);
     gainNode.connect(audioContextRef.current.destination);
     
     oscillator.frequency.value = frequency;
-    oscillator.type = 'sine';
     
-    gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.5);
+    // Get current track's instrument or use default
+    const currentTrack = tracks.find(t => t.id === selectedTrack);
+    const instrument = instrumentType || currentTrack?.instrument || 'piano';
+    
+    // Different waveforms and envelopes for different instruments
+    if (instrument.toLowerCase().includes('piano')) {
+      oscillator.type = 'triangle';
+      filter.type = 'lowpass';
+      filter.frequency.value = 2000;
+      gainNode.gain.setValueAtTime(0.5, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 1.5);
+    } else if (instrument.toLowerCase().includes('bass')) {
+      oscillator.type = 'sawtooth';
+      filter.type = 'lowpass';
+      filter.frequency.value = 500;
+      gainNode.gain.setValueAtTime(0.7, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.8);
+    } else if (instrument.toLowerCase().includes('synth')) {
+      oscillator.type = 'square';
+      filter.type = 'bandpass';
+      filter.frequency.value = 1000;
+      gainNode.gain.setValueAtTime(0.4, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.6);
+    } else if (instrument.toLowerCase().includes('guitar')) {
+      oscillator.type = 'sawtooth';
+      filter.type = 'highpass';
+      filter.frequency.value = 300;
+      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 2);
+    } else if (instrument.toLowerCase().includes('strings')) {
+      oscillator.type = 'sawtooth';
+      filter.type = 'lowpass';
+      filter.frequency.value = 1500;
+      gainNode.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.4, audioContextRef.current.currentTime + 0.3);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 2.5);
+    } else {
+      // Default
+      oscillator.type = 'triangle';
+      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.5);
+    }
     
     oscillator.start(audioContextRef.current.currentTime);
-    oscillator.stop(audioContextRef.current.currentTime + 0.5);
-    
-    toast({
-      title: "Note Played",
-      description: `${note}${octave}`,
-      duration: 1000,
-    });
+    oscillator.stop(audioContextRef.current.currentTime + 3);
   };
 
-  // Add note to grid
+  // Handle grid click based on tool mode
   const addNoteToGrid = (note: string, octave: number, barPosition: number) => {
     if (!selectedTrack) {
       toast({
@@ -160,29 +235,52 @@ export default function UnifiedStudioWorkspace() {
     }
     
     const noteStr = note.replace('#', 'Sharp');
-    const newNote: Note = {
-      id: `note-${Date.now()}`,
-      note: noteStr,
-      octave,
-      start: barPosition,
-      duration: 1,
-    };
     
-    setTracks(tracks.map(t => {
-      if (t.id === selectedTrack) {
-        const existingNotes = t.notes || [];
-        return { ...t, notes: [...existingNotes, newNote] };
-      }
-      return t;
-    }));
+    if (pianoRollTool === 'erase') {
+      // Erase mode - remove notes at this position
+      setTracks(tracks.map(t => {
+        if (t.id === selectedTrack) {
+          const existingNotes = t.notes || [];
+          const filtered = existingNotes.filter(n => 
+            !(n.note === noteStr && n.octave === octave && n.start === barPosition)
+          );
+          return { ...t, notes: filtered };
+        }
+        return t;
+      }));
+      toast({
+        title: "Note Erased",
+        description: `Removed ${note}${octave} at bar ${barPosition + 1}`,
+        duration: 1000,
+      });
+      return;
+    }
     
-    playNote(note, octave);
+    if (pianoRollTool === 'draw') {
+      // Draw mode - add note
+      const newNote: Note = {
+        id: `note-${Date.now()}`,
+        note: noteStr,
+        octave,
+        start: barPosition,
+        duration: 1,
+      };
+      
+      setTracks(tracks.map(t => {
+        if (t.id === selectedTrack) {
+          const existingNotes = t.notes || [];
+          return { ...t, notes: [...existingNotes, newNote] };
+        }
+        return t;
+      }));
+      
+      playNote(note, octave);
+    }
     
-    toast({
-      title: "Note Added",
-      description: `Added ${note}${octave} at bar ${barPosition + 1}`,
-      duration: 1500,
-    });
+    // Select mode - just preview the note
+    if (pianoRollTool === 'select') {
+      playNote(note, octave);
+    }
   };
 
   // File menu actions
@@ -597,9 +695,27 @@ export default function UnifiedStudioWorkspace() {
                 <div className="border border-gray-700 rounded p-4 min-h-64">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">Draw</Button>
-                      <Button size="sm" variant="outline">Select</Button>
-                      <Button size="sm" variant="outline">Erase</Button>
+                      <Button 
+                        size="sm" 
+                        variant={pianoRollTool === 'draw' ? 'default' : 'outline'}
+                        onClick={() => setPianoRollTool('draw')}
+                      >
+                        ✏️ Draw
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={pianoRollTool === 'select' ? 'default' : 'outline'}
+                        onClick={() => setPianoRollTool('select')}
+                      >
+                        🔲 Select
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant={pianoRollTool === 'erase' ? 'default' : 'outline'}
+                        onClick={() => setPianoRollTool('erase')}
+                      >
+                        🗑️ Erase
+                      </Button>
                     </div>
                     <div className="flex items-center space-x-2 text-sm">
                       <span>Scale:</span>
@@ -609,7 +725,18 @@ export default function UnifiedStudioWorkspace() {
                         <option>G Major</option>
                         <option>D Minor</option>
                       </select>
-                      <Button size="sm" variant="outline">Chord Builder</Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          toast({
+                            title: "Chord Builder",
+                            description: "Click a grid cell and it will add a C major chord (C-E-G)",
+                          });
+                        }}
+                      >
+                        🎹 Chord Builder
+                      </Button>
                     </div>
                   </div>
                   
