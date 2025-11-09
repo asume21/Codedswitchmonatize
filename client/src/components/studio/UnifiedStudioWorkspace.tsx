@@ -220,14 +220,30 @@ export default function UnifiedStudioWorkspace() {
     return mapping[uiName] || 'acoustic_grand_piano';
   };
 
-  // Play a note with the REAL audio engine (Soundfont)
+  // Play a note with the REAL audio engine (Soundfont or drums)
   const playNote = async (note: string, octave: number, instrumentType?: string) => {
     try {
       // Get current track's instrument or use default
       const currentTrack = tracks.find(t => t.id === selectedTrack);
       let uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       
-      // Map to realisticAudio instrument name
+      // Check if it's a drum instrument - use synthetic drums
+      const drumMap: Record<string, string> = {
+        'Kick': 'kick',
+        'Snare': 'snare',
+        'Hi-Hat': 'hihat',
+        'Tom': 'tom',
+        'Cymbal': 'crash',
+        'Full Kit': 'kick'
+      };
+      
+      if (drumMap[uiInstrument]) {
+        // Use real drum synthesis
+        await realisticAudio.playDrumSound(drumMap[uiInstrument], 0.8);
+        return;
+      }
+      
+      // For melodic instruments, map to realisticAudio instrument name
       const mappedInstrument = mapInstrumentName(uiInstrument);
       
       // Play using the realistic audio engine with proper instrument
