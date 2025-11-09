@@ -1,4 +1,4 @@
-import { useState, useContext, useRef } from 'react';
+import { useState, useContext, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
 import { useToast } from '@/hooks/use-toast';
+import { realisticAudio } from '@/lib/realisticAudio';
 
 interface Note {
   id: string;
@@ -34,12 +35,19 @@ interface Track {
 export default function UnifiedStudioWorkspace() {
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
-  const audioContextRef = useRef<AudioContext | null>(null);
   
-  // Initialize Web Audio API
-  if (!audioContextRef.current) {
-    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-  }
+  // Initialize the REAL audio engine
+  useEffect(() => {
+    const initAudio = async () => {
+      try {
+        await realisticAudio.initialize();
+        console.log('✅ Audio engine initialized');
+      } catch (error) {
+        console.error('❌ Audio init failed:', error);
+      }
+    };
+    initAudio();
+  }, []);
   
   // Section expansion states
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
@@ -151,76 +159,21 @@ export default function UnifiedStudioWorkspace() {
     setIsPlaying(!isPlaying);
   };
 
-  // Play a note with Web Audio API - different waveforms per instrument
-  const playNote = (note: string, octave: number, instrumentType?: string) => {
-    if (!audioContextRef.current) return;
-    
-    const noteFrequencies: { [key: string]: number } = {
-      'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13,
-      'E': 329.63, 'F': 349.23, 'F#': 369.99, 'G': 392.00,
-      'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
-    };
-    
-    const baseFreq = noteFrequencies[note];
-    if (!baseFreq) return;
-    
-    const frequency = baseFreq * Math.pow(2, octave - 4);
-    
-    const oscillator = audioContextRef.current.createOscillator();
-    const gainNode = audioContextRef.current.createGain();
-    const filter = audioContextRef.current.createBiquadFilter();
-    
-    oscillator.connect(filter);
-    filter.connect(gainNode);
-    gainNode.connect(audioContextRef.current.destination);
-    
-    oscillator.frequency.value = frequency;
-    
-    // Get current track's instrument or use default
-    const currentTrack = tracks.find(t => t.id === selectedTrack);
-    const instrument = instrumentType || currentTrack?.instrument || 'piano';
-    
-    // Different waveforms and envelopes for different instruments
-    if (instrument.toLowerCase().includes('piano')) {
-      oscillator.type = 'triangle';
-      filter.type = 'lowpass';
-      filter.frequency.value = 2000;
-      gainNode.gain.setValueAtTime(0.5, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 1.5);
-    } else if (instrument.toLowerCase().includes('bass')) {
-      oscillator.type = 'sawtooth';
-      filter.type = 'lowpass';
-      filter.frequency.value = 500;
-      gainNode.gain.setValueAtTime(0.7, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.8);
-    } else if (instrument.toLowerCase().includes('synth')) {
-      oscillator.type = 'square';
-      filter.type = 'bandpass';
-      filter.frequency.value = 1000;
-      gainNode.gain.setValueAtTime(0.4, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.6);
-    } else if (instrument.toLowerCase().includes('guitar')) {
-      oscillator.type = 'sawtooth';
-      filter.type = 'highpass';
-      filter.frequency.value = 300;
-      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 2);
-    } else if (instrument.toLowerCase().includes('strings')) {
-      oscillator.type = 'sawtooth';
-      filter.type = 'lowpass';
-      filter.frequency.value = 1500;
-      gainNode.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.4, audioContextRef.current.currentTime + 0.3);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 2.5);
-    } else {
-      // Default
-      oscillator.type = 'triangle';
-      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.5);
+  // Play a note with the REAL audio engine (Soundfont)
+  const playNote = async (note: string, octave: number, instrumentType?: string) => {
+    try {
+      // Get current track's instrument or use default
+      const currentTrack = tracks.find(t => t.id === selectedTrack);
+      let instrument = instrumentType || currentTrack?.instrument || 'piano';
+      
+      // Map common names to soundfont names
+      instrument = instrument.toLowerCase().replace(/\s+/g, '-');
+      
+      // Play using the realistic audio engine with proper instrument
+      await realisticAudio.playNote(note, octave, 0.5, instrument, 0.8);
+    } catch (error) {
+      console.error('Error playing note:', error);
     }
-    
-    oscillator.start(audioContextRef.current.currentTime);
-    oscillator.stop(audioContextRef.current.currentTime + 3);
   };
 
   // Handle grid click based on tool mode
@@ -639,19 +592,32 @@ export default function UnifiedStudioWorkspace() {
                               </div>
                             </div>
                           ) : track.type === 'midi' ? (
-                            // MIDI blocks visualization
+                            // MIDI blocks visualization - REAL NOTES
                             <div className="h-full flex items-center">
                               <div className="w-full h-12 relative">
-                                {/* Example MIDI blocks */}
-                                <div className="absolute top-0 left-2 w-20 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs">
-                                  C4
-                                </div>
-                                <div className="absolute top-0 left-24 w-32 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs">
-                                  E4
-                                </div>
-                                <div className="absolute top-0 left-60 w-24 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs">
-                                  G4
-                                </div>
+                                {track.notes && track.notes.length > 0 ? (
+                                  track.notes.map((note) => (
+                                    <div
+                                      key={note.id}
+                                      className="absolute top-0 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs cursor-pointer hover:bg-green-500"
+                                      style={{
+                                        left: `${note.start * 60}px`, // 60px per bar
+                                        width: `${note.duration * 60}px`,
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        playNote(note.note.replace('Sharp', '#'), note.octave, track.instrument);
+                                      }}
+                                      title={`${note.note.replace('Sharp', '#')}${note.octave} - Click to play`}
+                                    >
+                                      {note.note.replace('Sharp', '#')}{note.octave}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-xs text-gray-500 text-center">
+                                    No notes - Add notes in Piano Roll
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ) : (
