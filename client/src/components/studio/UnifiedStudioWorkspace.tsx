@@ -202,13 +202,13 @@ export default function UnifiedStudioWorkspace() {
       'Arp Synth': 'lead_2_sawtooth',
       'Bass Synth': 'synth_bass_1',
       
-      // Drums - Use melodic percussion sounds since drum kits don't work well
-      'Kick': 'taiko_drum',
-      'Snare': 'synth_drum',
-      'Hi-Hat': 'reverse_cymbal',
-      'Tom': 'melodic_tom',
-      'Cymbal': 'reverse_cymbal',
-      'Full Kit': 'synth_drum',
+      // Drums - Use better percussion sounds
+      'Kick': 'timpani', // Deep, low percussion
+      'Snare': 'woodblock', // Sharp, crisp sound
+      'Hi-Hat': 'agogo', // Metallic, high-pitched
+      'Tom': 'taiko_drum', // Mid-range drum
+      'Cymbal': 'tinkle_bell', // Bright, sustained metallic
+      'Full Kit': 'steel_drums', // Multi-tonal percussion
       
       // Other category - ACTUAL INSTRUMENTS
       'Percussion': 'timpani',
