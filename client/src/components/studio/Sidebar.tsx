@@ -11,6 +11,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     { id: "beatmaker", icon: "fas fa-drum", label: "Beat Maker" },
     { id: "melody", icon: "fas fa-music", label: "Melody Composer" },
     { id: "multitrack", icon: "fas fa-layer-group", label: "Multi-Track Studio" },
+    { id: "audio-tools", icon: "fas fa-sliders-h", label: "Audio Tools" },
+    { id: "uploader", icon: "fas fa-upload", label: "Song Uploader" },
     { id: "codebeat", icon: "fas fa-exchange-alt", label: "Code to Music" },
     { id: "musiccode", icon: "fas fa-code-branch", label: "Music to Code" },
     { id: "layers", icon: "fas fa-layer-group", label: "Dynamic Layering" },
@@ -58,6 +60,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             {activeTab === "beatmaker" && "Create drum patterns and beats"}
             {activeTab === "translator" && "Convert code between languages"}
             {activeTab === "melody" && "Compose musical melodies"}
+            {activeTab === "audio-tools" && "EQ, Compressor, Reverb, and more"}
+            {activeTab === "uploader" && "Upload and analyze songs"}
             {activeTab === "codebeat" && "Turn code into music"}
             {activeTab === "musiccode" && "Convert music back to code"}
             {activeTab === "layers" && "AI-powered instrument layering"}
