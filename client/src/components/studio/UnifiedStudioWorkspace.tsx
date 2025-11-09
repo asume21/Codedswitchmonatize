@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music } from 'lucide-react';
+import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
@@ -49,6 +50,9 @@ export default function UnifiedStudioWorkspace() {
       console.error('Failed to initialize synthesis engine (instruments):', err);
     });
   }, [synthesisEngine]);
+  
+  // Main View State (DAW-style tabs)
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics'>('arrangement');
   
   // Section expansion states
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
@@ -429,14 +433,20 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">View ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-48 z-50">
-                <button onClick={() => setTimelineExpanded(!timelineExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
-                  {timelineExpanded ? '✓' : '  '} Timeline
+                <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {activeView === 'arrangement' ? '✓' : '  '} Arrangement
                 </button>
-                <button onClick={() => setPianoRollExpanded(!pianoRollExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
-                  {pianoRollExpanded ? '✓' : '  '} Piano Roll
+                <button onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {activeView === 'piano-roll' ? '✓' : '  '} Piano Roll
                 </button>
-                <button onClick={() => setMixerExpanded(!mixerExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
-                  {mixerExpanded ? '✓' : '  '} Mixer
+                <button onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {activeView === 'mixer' ? '✓' : '  '} Mixer
+                </button>
+                <button onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {activeView === 'ai-studio' ? '✓' : '  '} AI Studio
+                </button>
+                <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {activeView === 'lyrics' ? '✓' : '  '} Lyrics Lab
                 </button>
               </div>
             </div>
@@ -473,9 +483,58 @@ export default function UnifiedStudioWorkspace() {
         </div>
       </div>
 
+      {/* DAW-Style Tab Bar */}
+      <div className="bg-gray-850 border-b border-gray-700 px-2 flex items-center space-x-1 h-10 flex-shrink-0">
+        <Button
+          variant={activeView === 'arrangement' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveView('arrangement')}
+          className="h-8 px-3"
+        >
+          <Layers className="w-3 h-3 mr-1.5" />
+          Arrangement
+        </Button>
+        <Button
+          variant={activeView === 'piano-roll' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveView('piano-roll')}
+          className="h-8 px-3"
+        >
+          <Piano className="w-3 h-3 mr-1.5" />
+          Piano Roll
+        </Button>
+        <Button
+          variant={activeView === 'mixer' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveView('mixer')}
+          className="h-8 px-3"
+        >
+          <Sliders className="w-3 h-3 mr-1.5" />
+          Mixer
+        </Button>
+        <Button
+          variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveView('ai-studio')}
+          className="h-8 px-3"
+        >
+          <Music className="w-3 h-3 mr-1.5" />
+          AI Studio
+        </Button>
+        <Button
+          variant={activeView === 'lyrics' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveView('lyrics')}
+          className="h-8 px-3"
+        >
+          <Mic2 className="w-3 h-3 mr-1.5" />
+          Lyrics Lab
+        </Button>
+      </div>
+
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Instrument Library */}
+        {/* Left: Instrument Library - Always visible */}
         <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
           <div className="p-3 border-b border-gray-700">
             <Input
@@ -515,8 +574,11 @@ export default function UnifiedStudioWorkspace() {
           </div>
         </div>
 
-        {/* Center: Main Workspace */}
+        {/* Center: Main Workspace with Tab Views */}
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* ARRANGEMENT VIEW */}
+          {activeView === 'arrangement' && (
+            <div className="flex-1 flex flex-col overflow-hidden">
           {/* Timeline Section */}
           <div className="border-b border-gray-700">
             <button
@@ -954,6 +1016,52 @@ Your lyrics will sync with the timeline
               </div>
             )}
           </div>
+            </div>
+          )}
+
+          {/* PIANO ROLL VIEW */}
+          {activeView === 'piano-roll' && (
+            <div className="flex-1 flex items-center justify-center bg-gray-900">
+              <div className="text-center p-8">
+                <Piano className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                <h3 className="text-xl font-bold mb-2">Piano Roll Editor</h3>
+                <p className="text-gray-400">Full piano roll integration coming next...</p>
+              </div>
+            </div>
+          )}
+
+          {/* MIXER VIEW */}
+          {activeView === 'mixer' && (
+            <div className="flex-1 flex items-center justify-center bg-gray-900">
+              <div className="text-center p-8">
+                <Sliders className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                <h3 className="text-xl font-bold mb-2">Professional Mixer</h3>
+                <p className="text-gray-400">Professional mixer integration coming next...</p>
+              </div>
+            </div>
+          )}
+
+          {/* AI STUDIO VIEW */}
+          {activeView === 'ai-studio' && (
+            <div className="flex-1 flex items-center justify-center bg-gray-900">
+              <div className="text-center p-8">
+                <Music className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                <h3 className="text-xl font-bold mb-2">AI Studio</h3>
+                <p className="text-gray-400">Professional Studio features: Full Songs, Vocals, Genre Blending...</p>
+              </div>
+            </div>
+          )}
+
+          {/* LYRICS LAB VIEW */}
+          {activeView === 'lyrics' && (
+            <div className="flex-1 flex items-center justify-center bg-gray-900">
+              <div className="text-center p-8">
+                <Mic2 className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                <h3 className="text-xl font-bold mb-2">Lyrics Lab</h3>
+                <p className="text-gray-400">Advanced lyrics editor and AI generation...</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
