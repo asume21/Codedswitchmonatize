@@ -8,6 +8,15 @@ import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music }
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
+import { useToast } from '@/hooks/use-toast';
+
+interface Note {
+  id: string;
+  note: string;
+  octave: number;
+  start: number; // bar position
+  duration: number; // in bars
+}
 
 interface Track {
   id: string;
@@ -15,6 +24,7 @@ interface Track {
   type: 'audio' | 'midi' | 'lyrics';
   instrument?: string;
   data: any;
+  notes?: Note[]; // For MIDI tracks
   volume: number;
   pan: number;
   muted: boolean;
@@ -23,6 +33,13 @@ interface Track {
 
 export default function UnifiedStudioWorkspace() {
   const studioContext = useContext(StudioAudioContext);
+  const { toast } = useToast();
+  const audioContextRef = useRef<AudioContext | null>(null);
+  
+  // Initialize Web Audio API
+  if (!audioContextRef.current) {
+    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
   
   // Section expansion states
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
@@ -86,7 +103,134 @@ export default function UnifiedStudioWorkspace() {
 
   const togglePlay = () => {
     setIsPlaying(!isPlaying);
-    // Actual playback logic will be implemented
+    if (!isPlaying) {
+      toast({
+        title: "Playing",
+        description: "Playback started",
+      });
+    }
+  };
+
+  // Play a piano note with Web Audio API
+  const playNote = (note: string, octave: number) => {
+    if (!audioContextRef.current) return;
+    
+    const noteFrequencies: { [key: string]: number } = {
+      'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13,
+      'E': 329.63, 'F': 349.23, 'F#': 369.99, 'G': 392.00,
+      'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
+    };
+    
+    const baseFreq = noteFrequencies[note];
+    if (!baseFreq) return;
+    
+    const frequency = baseFreq * Math.pow(2, octave - 4);
+    
+    const oscillator = audioContextRef.current.createOscillator();
+    const gainNode = audioContextRef.current.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContextRef.current.destination);
+    
+    oscillator.frequency.value = frequency;
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.5);
+    
+    oscillator.start(audioContextRef.current.currentTime);
+    oscillator.stop(audioContextRef.current.currentTime + 0.5);
+    
+    toast({
+      title: "Note Played",
+      description: `${note}${octave}`,
+      duration: 1000,
+    });
+  };
+
+  // Add note to grid
+  const addNoteToGrid = (note: string, octave: number, barPosition: number) => {
+    if (!selectedTrack) {
+      toast({
+        title: "No Track Selected",
+        description: "Please select a MIDI track first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const noteStr = note.replace('#', 'Sharp');
+    const newNote: Note = {
+      id: `note-${Date.now()}`,
+      note: noteStr,
+      octave,
+      start: barPosition,
+      duration: 1,
+    };
+    
+    setTracks(tracks.map(t => {
+      if (t.id === selectedTrack) {
+        const existingNotes = t.notes || [];
+        return { ...t, notes: [...existingNotes, newNote] };
+      }
+      return t;
+    }));
+    
+    playNote(note, octave);
+    
+    toast({
+      title: "Note Added",
+      description: `Added ${note}${octave} at bar ${barPosition + 1}`,
+      duration: 1500,
+    });
+  };
+
+  // File menu actions
+  const handleNewProject = () => {
+    if (confirm('Create new project? This will clear all tracks.')) {
+      setTracks([]);
+      toast({
+        title: "New Project",
+        description: "Created new empty project",
+      });
+    }
+  };
+
+  const handleSaveProject = () => {
+    const projectData = {
+      tracks,
+      timestamp: new Date().toISOString(),
+    };
+    localStorage.setItem('unifiedStudioProject', JSON.stringify(projectData));
+    toast({
+      title: "Project Saved",
+      description: "Your project has been saved locally",
+    });
+  };
+
+  const handleLoadProject = () => {
+    const saved = localStorage.getItem('unifiedStudioProject');
+    if (saved) {
+      const projectData = JSON.parse(saved);
+      setTracks(projectData.tracks);
+      toast({
+        title: "Project Loaded",
+        description: "Project loaded successfully",
+      });
+    } else {
+      toast({
+        title: "No Project Found",
+        description: "No saved project found",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExport = () => {
+    toast({
+      title: "Export",
+      description: "Export feature coming soon!",
+    });
   };
 
   const handleMusicGenerated = (audioUrl: string, metadata: any) => {
@@ -136,12 +280,41 @@ export default function UnifiedStudioWorkspace() {
       <div className="h-14 bg-gray-800 border-b border-gray-700 flex items-center px-4 justify-between flex-shrink-0">
         <div className="flex items-center space-x-4">
           <h1 className="text-xl font-bold">🎵 Unified Studio</h1>
-          <div className="flex space-x-2">
-            <Button variant="ghost" size="sm">File</Button>
-            <Button variant="ghost" size="sm">Edit</Button>
-            <Button variant="ghost" size="sm">View</Button>
-            <Button variant="ghost" size="sm">Mix</Button>
-            <Button variant="ghost" size="sm">Master</Button>
+          <div className="flex space-x-1">
+            <div className="relative group">
+              <Button variant="ghost" size="sm">File ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
+                <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">New Project</button>
+                <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Save Project</button>
+                <button onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Load Project</button>
+                <div className="border-t border-gray-700"></div>
+                <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Export...</button>
+              </div>
+            </div>
+            <div className="relative group">
+              <Button variant="ghost" size="sm">Edit ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
+                <button onClick={() => toast({ title: "Undo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Undo</button>
+                <button onClick={() => toast({ title: "Redo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Redo</button>
+                <div className="border-t border-gray-700"></div>
+                <button onClick={() => toast({ title: "Copy" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Copy</button>
+                <button onClick={() => toast({ title: "Paste" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Paste</button>
+              </div>
+            </div>
+            <div className="relative group">
+              <Button variant="ghost" size="sm">View ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-48 z-50">
+                <button onClick={() => setTimelineExpanded(!timelineExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {timelineExpanded ? '✓' : '  '} Timeline
+                </button>
+                <button onClick={() => setPianoRollExpanded(!pianoRollExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {pianoRollExpanded ? '✓' : '  '} Piano Roll
+                </button>
+                <button onClick={() => setMixerExpanded(!mixerExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {mixerExpanded ? '✓' : '  '} Mixer
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -446,17 +619,20 @@ export default function UnifiedStudioWorkspace() {
                     <div className="w-16 bg-gray-800 border-r border-gray-700 overflow-y-auto flex-shrink-0">
                       {['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
                         'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
-                        'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((note, idx) => {
-                        const isBlackKey = note.includes('#');
+                        'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((noteStr, idx) => {
+                        const isBlackKey = noteStr.includes('#');
+                        const noteName = noteStr.slice(0, -1);
+                        const octave = parseInt(noteStr.slice(-1));
                         return (
                           <div
-                            key={note}
-                            className={`h-6 flex items-center justify-center text-[10px] border-b border-gray-700 cursor-pointer hover:bg-blue-600 ${
+                            key={noteStr}
+                            onClick={() => playNote(noteName, octave)}
+                            className={`h-6 flex items-center justify-center text-[10px] border-b border-gray-700 cursor-pointer hover:bg-blue-600 transition ${
                               isBlackKey ? 'bg-gray-900 text-gray-400' : 'bg-gray-800 text-gray-200'
                             }`}
-                            title={`Click to play ${note}`}
+                            title={`Click to play ${noteStr}`}
                           >
-                            {note}
+                            {noteStr}
                           </div>
                         );
                       })}
@@ -477,17 +653,22 @@ export default function UnifiedStudioWorkspace() {
                       <div className="relative">
                         {['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
                           'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
-                          'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((note, rowIdx) => (
-                          <div key={note} className="h-6 border-b border-gray-700/50 flex">
+                          'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((noteStr, rowIdx) => {
+                          const noteName = noteStr.slice(0, -1);
+                          const octave = parseInt(noteStr.slice(-1));
+                          return (
+                          <div key={noteStr} className="h-6 border-b border-gray-700/50 flex">
                             {Array.from({ length: 32 }, (_, colIdx) => (
                               <div
                                 key={colIdx}
-                                className="flex-1 min-w-[60px] border-r border-gray-700/30 hover:bg-blue-900/30 cursor-pointer"
-                                title={`Add note at bar ${colIdx + 1}, ${note}`}
+                                onClick={() => addNoteToGrid(noteName, octave, colIdx)}
+                                className="flex-1 min-w-[60px] border-r border-gray-700/30 hover:bg-green-600/30 cursor-pointer transition"
+                                title={`Add ${noteStr} at bar ${colIdx + 1}`}
                               />
                             ))}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
