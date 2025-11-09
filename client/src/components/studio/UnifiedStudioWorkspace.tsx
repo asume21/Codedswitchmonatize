@@ -204,8 +204,8 @@ export default function UnifiedStudioWorkspace() {
       
       // Drums - CORRECT General MIDI percussion instruments
       'Kick': 'taiko_drum', // Deep Japanese drum (closest to kick)
-      'Snare': 'synth_drum', // Electronic snare sound
-      'Hi-Hat': 'woodblock', // Sharp, quick percussive (hi-hat character)
+      'Snare': 'steel_drums', // Sharp metallic hit (snare crack, no lollipop sound)
+      'Hi-Hat': 'agogo', // Metallic bell sound (hi-hat)
       'Tom': 'melodic_tom', // Actual melodic tom drum
       'Cymbal': 'reverse_cymbal', // Cymbal crash/splash sound
       'Full Kit': 'synth_drum', // Multi-purpose drum
