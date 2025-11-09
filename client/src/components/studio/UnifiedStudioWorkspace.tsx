@@ -168,12 +168,12 @@ export default function UnifiedStudioWorkspace() {
       'Synth Piano': 'electric_piano_2',
       'Harpsichord': 'harpsichord',
       
-      // Bass - ALL DIFFERENT NOW
+      // Bass - Using very distinct bass sounds
       '808 Bass': 'synth_bass_2',
       'Synth Bass': 'synth_bass_1',
-      'Electric Bass': 'electric_bass_finger',
+      'Electric Bass': 'electric_bass_pick', // Brighter than finger
       'Upright Bass': 'acoustic_bass',
-      'Sub Bass': 'synth_bass_2',
+      'Sub Bass': 'fretless_bass', // Different from synth_bass_2
       
       // Guitar
       'Acoustic Guitar': 'acoustic_guitar_steel',

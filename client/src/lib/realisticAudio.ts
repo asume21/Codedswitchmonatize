@@ -20,6 +20,8 @@ export class RealisticAudioEngine {
     electric_bass_finger: 'electric_bass_finger',
     electric_bass_pick: 'electric_bass_pick',
     acoustic_bass: 'acoustic_bass',
+    fretless_bass: 'fretless_bass',
+    slap_bass_1: 'slap_bass_1',
     acoustic_guitar_steel: 'acoustic_guitar_steel',
     electric_guitar_clean: 'electric_guitar_clean',
     acoustic_guitar_nylon: 'acoustic_guitar_nylon',
