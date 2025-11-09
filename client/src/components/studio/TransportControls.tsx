@@ -214,6 +214,11 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     const nextVolume = Number(event.target.value);
     setVolume(nextVolume);
     setMasterVolume(nextVolume);
+    
+    // Also update uploaded song volume if playing
+    if (studioContext.uploadedSongAudio) {
+      studioContext.uploadedSongAudio.volume = nextVolume / 100;
+    }
   };
 
   const handleFloat = () => {
@@ -258,6 +263,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       audio.crossOrigin = "anonymous";
       audio.src = accessibleURL;
       audio.preload = "metadata";
+      audio.volume = volume / 100; // Set initial volume from master volume
       
       audio.addEventListener('ended', () => {
         console.log(`✅ Song finished: ${song.name}`);
@@ -269,7 +275,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       studioContext.setCurrentUploadedSong(song, audio);
       setShowSongPicker(false);
       
-      console.log(`✅ Song loaded: ${song.name}`);
+      console.log(`✅ Song loaded: ${song.name} at ${volume}% volume`);
     } catch (error) {
       console.error('Failed to load song:', error);
     }
@@ -459,6 +465,11 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
             const nextVolume = volume === 0 ? 75 : 0;
             setVolume(nextVolume);
             setMasterVolume(nextVolume);
+            
+            // Also update uploaded song volume
+            if (studioContext.uploadedSongAudio) {
+              studioContext.uploadedSongAudio.volume = nextVolume / 100;
+            }
           }}
           size="sm"
           className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
