@@ -11,13 +11,16 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Volume2, VolumeX, Headphones, Settings, 
   Play, Pause, Square, RotateCcw,
   Zap, Waves, Filter, Sliders, 
-  BarChart3, TrendingUp, Radio
+  BarChart3, TrendingUp, Radio, Wand2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
 
 interface ChannelMeterData {
@@ -50,9 +53,51 @@ export default function ProfessionalMixer() {
   const [meterData, setMeterData] = useState<Map<string, ChannelMeterData>>(new Map());
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState('channels');
+  const [aiPrompt, setAiPrompt] = useState("");
   
   const animationRef = useRef<number | undefined>(undefined);
   const spectrumCanvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // AI-powered mixing mutation
+  const aiMixMutation = useMutation({
+    mutationFn: async (params: any) => {
+      const response = await apiRequest("POST", "/api/mix/generate", params);
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.mix) {
+        // Apply AI-generated mix settings to channels
+        toast({
+          title: "AI Mix Applied! 🎛️",
+          description: "AI has optimized your mix settings",
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "AI Mix Failed",
+        description: "Please try again",
+        variant: "destructive"
+      });
+    }
+  });
+  
+  const handleAIMix = () => {
+    if (!aiPrompt.trim()) {
+      toast({
+        title: "Enter AI Instructions",
+        description: "Describe how you want the mix to sound",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    aiMixMutation.mutate({
+      prompt: aiPrompt,
+      channels: mixerState.channels,
+      style: "professional"
+    });
+  };
   
   // Initialize professional audio engine
   useEffect(() => {
@@ -436,10 +481,14 @@ export default function ProfessionalMixer() {
       
       {/* Main Mixer Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="channels">Channels</TabsTrigger>
           <TabsTrigger value="sends">Send Returns</TabsTrigger>
           <TabsTrigger value="master">Master Section</TabsTrigger>
+          <TabsTrigger value="ai-mix">
+            <Wand2 className="w-4 h-4 mr-1" />
+            AI Mixing
+          </TabsTrigger>
           <TabsTrigger value="analyzer">Spectrum</TabsTrigger>
         </TabsList>
         
@@ -581,6 +630,55 @@ export default function ProfessionalMixer() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+        
+        <TabsContent value="ai-mix" className="space-y-4">
+          <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wand2 className="h-5 w-5 text-purple-400" />
+                AI-Powered Mixing Assistant
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-400 mb-2 block">
+                  Describe Your Ideal Mix
+                </label>
+                <Textarea
+                  placeholder="e.g., 'Make it punchy with deep bass and crisp highs, add reverb to vocals, compress the drums...'"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  className="min-h-[120px] bg-gray-800/50"
+                  rows={5}
+                />
+              </div>
+              
+              <Button
+                onClick={handleAIMix}
+                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500"
+                disabled={aiMixMutation.isPending}
+              >
+                <Wand2 className="w-4 h-4 mr-2" />
+                {aiMixMutation.isPending ? "Mixing..." : "AI Mix & Master"}
+              </Button>
+              
+              <div className="mt-4 p-4 bg-gray-800/50 rounded-lg">
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                  AI Mixing Capabilities
+                </h4>
+                <ul className="text-xs text-gray-400 space-y-1">
+                  <li>• Automatic level balancing</li>
+                  <li>• Smart EQ adjustments</li>
+                  <li>• Dynamic compression</li>
+                  <li>• Reverb & delay optimization</li>
+                  <li>• Stereo width enhancement</li>
+                  <li>• Genre-appropriate processing</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         
         <TabsContent value="analyzer" className="space-y-4">
