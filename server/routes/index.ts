@@ -676,6 +676,36 @@ Base your analysis on:
     }
   });
 
+  // AI Chat endpoint for Floating AI Assistant
+  app.post("/api/ai/chat", requireAuth, async (req, res) => {
+    const { messages } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ message: "Messages array is required" });
+    }
+
+    console.log(`💬 AI Chat request with ${messages.length} messages`);
+
+    try {
+      const response = await aiClient.chat.completions.create({
+        model: "grok-beta",
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 800,
+      });
+
+      const assistantResponse = response.choices[0]?.message?.content || "I apologize, I couldn't generate a response.";
+
+      res.json({ response: assistantResponse });
+    } catch (error) {
+      console.error("❌ AI chat error:", error);
+      res.status(500).json({ 
+        message: "AI chat failed",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Fallback analysis helper
   function getFallbackAnalysis(songName?: string) {
     return {
