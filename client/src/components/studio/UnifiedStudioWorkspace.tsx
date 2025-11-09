@@ -159,59 +159,65 @@ export default function UnifiedStudioWorkspace() {
     setIsPlaying(!isPlaying);
   };
 
-  // Map UI instrument names to realisticAudio instrument keys
+  // Map UI instrument names to General MIDI Soundfont names DIRECTLY
   const mapInstrumentName = (uiName: string): string => {
     const mapping: Record<string, string> = {
       // Piano
-      'Grand Piano': 'piano',
-      'Electric Piano': 'synth-analog',
-      'Synth Piano': 'synth-digital',
-      'Harpsichord': 'piano',
+      'Grand Piano': 'acoustic_grand_piano',
+      'Electric Piano': 'electric_piano_1',
+      'Synth Piano': 'electric_piano_2',
+      'Harpsichord': 'harpsichord',
       
-      // Bass
-      '808 Bass': 'bass-synth',
-      'Synth Bass': 'bass-synth',
-      'Electric Bass': 'bass-electric',
-      'Upright Bass': 'bass-upright',
-      'Sub Bass': 'bass-synth',
+      // Bass - ALL DIFFERENT NOW
+      '808 Bass': 'synth_bass_2',
+      'Synth Bass': 'synth_bass_1',
+      'Electric Bass': 'electric_bass_finger',
+      'Upright Bass': 'acoustic_bass',
+      'Sub Bass': 'synth_bass_2',
       
       // Guitar
-      'Acoustic Guitar': 'guitar-acoustic',
-      'Electric Guitar': 'guitar-electric',
-      'Classical Guitar': 'guitar-nylon',
-      'Bass Guitar': 'bass-electric',
+      'Acoustic Guitar': 'acoustic_guitar_steel',
+      'Electric Guitar': 'electric_guitar_clean',
+      'Classical Guitar': 'acoustic_guitar_nylon',
+      'Bass Guitar': 'electric_bass_pick',
       
-      // Strings
-      'Violin': 'strings-violin',
-      'Viola': 'strings-violin',
-      'Cello': 'strings-violin',
-      'Double Bass': 'bass-upright',
-      'String Ensemble': 'pads-strings',
+      // Strings - EACH ONE DIFFERENT
+      'Violin': 'violin',
+      'Viola': 'viola',
+      'Cello': 'cello',
+      'Double Bass': 'contrabass',
+      'String Ensemble': 'string_ensemble_1',
       
-      // Winds
-      'Flute': 'flute-concert',
-      'Clarinet': 'flute-concert',
-      'Saxophone': 'flute-concert',
-      'Trumpet': 'horns-trumpet',
-      'Horn': 'horns-french',
-      'Trombone': 'horns-trombone',
+      // Winds - MORE VARIETY
+      'Flute': 'flute',
+      'Clarinet': 'clarinet',
+      'Saxophone': 'tenor_sax',
+      'Trumpet': 'trumpet',
+      'Horn': 'french_horn',
+      'Trombone': 'trombone',
       
       // Synth
-      'Lead Synth': 'leads-square',
-      'Pad Synth': 'pads-warm',
-      'Arp Synth': 'leads-saw',
-      'Bass Synth': 'bass-synth',
+      'Lead Synth': 'lead_1_square',
+      'Pad Synth': 'pad_2_warm',
+      'Arp Synth': 'lead_2_sawtooth',
+      'Bass Synth': 'synth_bass_1',
       
-      // Drums
-      'Kick': 'drum-kick',
-      'Snare': 'drum-snare',
-      'Hi-Hat': 'drum-hihat',
-      'Tom': 'drum-tom',
-      'Cymbal': 'drum-crash',
-      'Full Kit': 'drum-kick',
+      // Drums - Use melodic percussion sounds since drum kits don't work well
+      'Kick': 'taiko_drum',
+      'Snare': 'synth_drum',
+      'Hi-Hat': 'reverse_cymbal',
+      'Tom': 'melodic_tom',
+      'Cymbal': 'reverse_cymbal',
+      'Full Kit': 'synth_drum',
+      
+      // Other category - ACTUAL INSTRUMENTS
+      'Percussion': 'timpani',
+      'Sound Effects': 'synth_voice',
+      'Vocal': 'choir_aahs',
+      'Samples': 'orchestral_harp',
     };
     
-    return mapping[uiName] || 'piano';
+    return mapping[uiName] || 'acoustic_grand_piano';
   };
 
   // Play a note with the REAL audio engine (Soundfont)

@@ -10,13 +10,47 @@ export class RealisticAudioEngine {
 
   // Map our instrument names to General MIDI soundfont names
   private instrumentLibrary: { [key: string]: string } = {
-    // Piano instruments
+    // Direct General MIDI mappings (self-referencing for direct use)
+    acoustic_grand_piano: 'acoustic_grand_piano',
+    electric_piano_1: 'electric_piano_1',
+    electric_piano_2: 'electric_piano_2',
+    harpsichord: 'harpsichord',
+    synth_bass_1: 'synth_bass_1',
+    synth_bass_2: 'synth_bass_2',
+    electric_bass_finger: 'electric_bass_finger',
+    electric_bass_pick: 'electric_bass_pick',
+    acoustic_bass: 'acoustic_bass',
+    acoustic_guitar_steel: 'acoustic_guitar_steel',
+    electric_guitar_clean: 'electric_guitar_clean',
+    acoustic_guitar_nylon: 'acoustic_guitar_nylon',
+    violin: 'violin',
+    viola: 'viola',
+    cello: 'cello',
+    contrabass: 'contrabass',
+    string_ensemble_1: 'string_ensemble_1',
+    flute: 'flute',
+    clarinet: 'clarinet',
+    tenor_sax: 'tenor_sax',
+    trumpet: 'trumpet',
+    french_horn: 'french_horn',
+    trombone: 'trombone',
+    lead_1_square: 'lead_1_square',
+    lead_2_sawtooth: 'lead_2_sawtooth',
+    pad_2_warm: 'pad_2_warm',
+    taiko_drum: 'taiko_drum',
+    synth_drum: 'synth_drum',
+    reverse_cymbal: 'reverse_cymbal',
+    melodic_tom: 'melodic_tom',
+    timpani: 'timpani',
+    synth_voice: 'synth_voice',
+    choir_aahs: 'choir_aahs',
+    orchestral_harp: 'orchestral_harp',
+    
+    // Legacy mappings for backwards compatibility
     piano: 'acoustic_grand_piano',
     'piano-keyboard': 'acoustic_grand_piano',
     'piano-grand': 'acoustic_grand_piano', 
     'piano-organ': 'church_organ',
-    
-    // String instruments
     guitar: 'acoustic_guitar_steel',
     'strings-guitar': 'acoustic_guitar_steel',
     'guitar-acoustic': 'acoustic_guitar_steel',
@@ -25,53 +59,34 @@ export class RealisticAudioEngine {
     'guitar-nylon': 'acoustic_guitar_nylon',
     'strings-violin': 'violin',
     'strings-ukulele': 'acoustic_guitar_nylon',
-    
-    // Flute instruments
     'flute-recorder': 'recorder',
     'flute-indian': 'flute',
     'flute-concert': 'flute',
-    
-    // Horn instruments
     'horns-trumpet': 'trumpet',
     'horns-trombone': 'trombone',
     'horns-french': 'french_horn',
-    
-    // Synthesizer (fallback to electric piano)
     'synth-analog': 'electric_piano_1',
     'synth-digital': 'electric_piano_2',
     'synth-fm': 'electric_piano_1',
-    
-    // Bass instruments
     'bass-electric': 'electric_bass_finger',
     'bass-upright': 'acoustic_bass',
     'bass-synth': 'synth_bass_1',
-    
-    // Pads (use warm synth sounds)
     'pads-warm': 'pad_2_warm',
     'pads-strings': 'string_ensemble_1',
     'pads-choir': 'choir_aahs',
-    
-    // Leads (use bright synth sounds)
     'leads-square': 'lead_1_square',
     'leads-saw': 'lead_2_sawtooth',
     'leads-pluck': 'lead_6_voice',
-    
-    // Drum instruments (synthetic)
-    'drum-kick': 'synth_drum',
+    'drum-kick': 'taiko_drum',
     'drum-snare': 'synth_drum',
-    'drum-hihat': 'synth_drum',
-    'drum-crash': 'synth_drum',
-    'drum-tom': 'synth_drum',
+    'drum-hihat': 'reverse_cymbal',
+    'drum-crash': 'reverse_cymbal',
+    'drum-tom': 'melodic_tom',
     'drum-clap': 'synth_drum',
-    
-    // Legacy mappings for backwards compatibility
     bass: 'electric_bass_finger',
-    violin: 'violin',
     organ: 'church_organ',
     synth: 'lead_1_square',
-    strings: 'string_ensemble_1',
-    flute: 'flute',
-    trumpet: 'trumpet'
+    strings: 'string_ensemble_1'
   }
 
   async initialize(): Promise<void> {
