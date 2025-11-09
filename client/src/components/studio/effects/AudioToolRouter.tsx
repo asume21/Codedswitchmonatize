@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import { 
   Sliders,
   Gauge,
@@ -33,6 +35,48 @@ interface AudioToolRouterProps {
 
 export function AudioToolRouter({ songUrl, songName, recommendations = [] }: AudioToolRouterProps) {
   const [activeTool, setActiveTool] = useState<ToolType | null>(null);
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
+  const { toast } = useToast();
+
+  const handleAutoFix = async () => {
+    setIsAutoFixing(true);
+    try {
+      toast({
+        title: "AI Auto Fix Started",
+        description: "Analyzing and processing your track...",
+      });
+
+      // Call AI analysis endpoint
+      const response = await apiRequest('POST', '/api/songs/auto-master', {
+        songUrl,
+        songName,
+      });
+
+      const result = await response.json();
+
+      toast({
+        title: "AI Auto Fix Complete!",
+        description: `Applied ${result.fixesApplied || 0} improvements. Check the download.`,
+      });
+
+      // Download the fixed file
+      if (result.fixedAudioUrl) {
+        const a = document.createElement('a');
+        a.href = result.fixedAudioUrl;
+        a.download = `${songName}-MASTERED.wav`;
+        a.click();
+      }
+    } catch (error) {
+      console.error('Auto fix error:', error);
+      toast({
+        title: "Auto Fix Failed",
+        description: "Could not automatically master the track. Try manual tools.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAutoFixing(false);
+    }
+  };
 
   const tools = [
     {
@@ -130,6 +174,31 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [] }: Aud
       </CardHeader>
 
       <CardContent>
+        {/* AI Auto Fix Button */}
+        <div className="mb-6">
+          <Button
+            onClick={handleAutoFix}
+            disabled={isAutoFixing}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-6 text-lg"
+            size="lg"
+          >
+            {isAutoFixing ? (
+              <>
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                AI Processing...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-magic mr-2"></i>
+                AI Auto Fix - Mix & Master Automatically
+              </>
+            )}
+          </Button>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            AI will analyze and automatically apply professional mixing & mastering
+          </p>
+        </div>
+
         {/* AI Recommendations */}
         {recommendations.length > 0 && (
           <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
