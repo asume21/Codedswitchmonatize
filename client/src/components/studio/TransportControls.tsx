@@ -2,6 +2,8 @@ import React, { useContext, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAudio, useSequencer } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
+import { useQuery } from "@tanstack/react-query";
+import { Music, ChevronDown, ChevronUp } from "lucide-react";
 
 interface TransportControlsProps {
   currentTool?: string;
@@ -27,10 +29,17 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
+  const [showSongPicker, setShowSongPicker] = useState(false);
 
   const { setMasterVolume, initialize, isInitialized } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
   const studioContext = useContext(StudioAudioContext);
+
+  // Fetch uploaded songs
+  const { data: songs = [] } = useQuery<any[]>({
+    queryKey: ['/api/songs'],
+    initialData: [],
+  });
 
   const handlePlay = async () => {
     try {
@@ -224,6 +233,46 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
 
   const handleMinimize = () => {
     setIsMinimized((prev) => !prev);
+  };
+
+  const loadSong = async (song: any) => {
+    try {
+      // Try multiple URL sources
+      let accessibleURL = song.accessibleUrl || song.originalUrl || song.songURL;
+      
+      if (!accessibleURL) {
+        console.error("No URL available for song");
+        return;
+      }
+
+      // Add timestamp for cache busting
+      if (accessibleURL.includes('/api/internal/uploads/')) {
+        const timestamp = Date.now();
+        accessibleURL = accessibleURL.includes('?') 
+          ? `${accessibleURL}&t=${timestamp}&direct=true`
+          : `${accessibleURL}?t=${timestamp}&direct=true`;
+      }
+
+      // Create new audio element
+      const audio = new Audio();
+      audio.crossOrigin = "anonymous";
+      audio.src = accessibleURL;
+      audio.preload = "metadata";
+      
+      audio.addEventListener('ended', () => {
+        console.log(`✅ Song finished: ${song.name}`);
+        studioContext.setCurrentUploadedSong(null, null);
+        setIsPlaying(false);
+      });
+
+      // Store in context
+      studioContext.setCurrentUploadedSong(song, audio);
+      setShowSongPicker(false);
+      
+      console.log(`✅ Song loaded: ${song.name}`);
+    } catch (error) {
+      console.error('Failed to load song:', error);
+    }
   };
 
   const handleMouseDown = (event: React.MouseEvent) => {
@@ -431,6 +480,32 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
           <span className="font-mono text-gray-400">{studioContext.bpm || 120} BPM</span>
         </div>
         
+        {/* Current Song Info & Picker */}
+        <div className="flex items-center gap-2">
+          {studioContext.currentUploadedSong ? (
+            <div className="flex items-center gap-2 bg-blue-900/20 px-3 py-1 rounded-full">
+              <Music className="w-3 h-3 text-blue-400" />
+              <span className="text-xs text-blue-300 max-w-[150px] truncate">
+                {studioContext.currentUploadedSong.name}
+              </span>
+            </div>
+          ) : null}
+          
+          <Button
+            onClick={() => setShowSongPicker(!showSongPicker)}
+            size="sm"
+            className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 relative"
+            title="Song Library"
+          >
+            <Music className="w-4 h-4" />
+            {songs.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[9px] flex items-center justify-center">
+                {songs.length}
+              </span>
+            )}
+          </Button>
+        </div>
+        
         {/* Status indicators */}
         <div className="flex items-center gap-1">
           {studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 && (
@@ -521,6 +596,70 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       )}
 
       {isFloating && isMinimized ? renderMinimized() : renderExpanded()}
+      
+      {/* Song Picker Dropdown */}
+      {showSongPicker && (
+        <div className="absolute bottom-full right-0 mb-2 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between p-3 border-b border-gray-700">
+            <div className="flex items-center gap-2">
+              <Music className="w-4 h-4 text-blue-400" />
+              <h3 className="text-sm font-semibold text-white">Song Library</h3>
+            </div>
+            <Button
+              onClick={() => setShowSongPicker(false)}
+              size="sm"
+              variant="ghost"
+              className="w-6 h-6 p-0"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-2">
+            {songs.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                <Music className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p>No songs uploaded yet</p>
+                <p className="text-xs mt-1">Go to Song Uploader to add songs</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {songs.map((song: any) => (
+                  <button
+                    key={song.id}
+                    onClick={() => loadSong(song)}
+                    className={`w-full text-left p-2 rounded hover:bg-gray-700 transition-colors ${
+                      studioContext.currentUploadedSong?.id === song.id
+                        ? 'bg-blue-900/30 border border-blue-500/30'
+                        : 'border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white truncate">
+                          {song.name}
+                        </div>
+                        <div className="text-xs text-gray-400 truncate">
+                          {song.duration ? `${Math.floor(song.duration / 60)}:${String(Math.floor(song.duration % 60)).padStart(2, '0')}` : 'Unknown duration'}
+                        </div>
+                      </div>
+                      {studioContext.currentUploadedSong?.id === song.id && (
+                        <div className="ml-2 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="p-2 border-t border-gray-700 bg-gray-900/50">
+            <p className="text-xs text-gray-400 text-center">
+              Click a song to load, then press ▶️ to play
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
