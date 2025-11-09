@@ -525,7 +525,15 @@ Provide analysis in JSON format:
   "mixing_notes": "<technical observations>",
   "strengths": ["positive aspects"],
   "improvements": ["suggested improvements"],
-  "analysis_notes": "<detailed analysis>"
+  "analysis_notes": "<detailed analysis>",
+  "toolRecommendations": [
+    {
+      "tool": "EQ|Compressor|Deesser|Reverb|Limiter|NoiseGate",
+      "reason": "<specific technical reason why this tool is needed>",
+      "priority": "high|medium|low",
+      "settings": "<suggested settings if applicable>"
+    }
+  ]
 }
 
 Base your analysis on:
@@ -570,7 +578,8 @@ Base your analysis on:
         mixing_notes: analysis.mixing_notes || "Balanced mix",
         strengths: analysis.strengths || ["Professional production"],
         improvements: analysis.improvements || ["Consider enhancing dynamics"],
-        analysis_notes: analysis.analysis_notes || "AI-powered analysis complete"
+        analysis_notes: analysis.analysis_notes || "AI-powered analysis complete",
+        toolRecommendations: analysis.toolRecommendations || []
       };
 
       console.log(`✅ Song analyzed: ${analysis.genre} at ${analysis.estimatedBPM} BPM in ${analysis.keySignature}`);
