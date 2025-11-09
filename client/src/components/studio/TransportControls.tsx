@@ -8,12 +8,6 @@ interface TransportControlsProps {
   activeTab?: string;
 }
 
-const DEFAULT_PATTERN = {
-  kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-  snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-  hihat: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-};
-
 const FLOAT_MIN_WIDTH = 800;
 const FLOAT_MIN_HEIGHT = 200;
 
@@ -55,18 +49,19 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       const hasMelody = studioContext.currentMelody && studioContext.currentMelody.length > 0;
       const hasTracks = studioContext.currentTracks && studioContext.currentTracks.length > 0;
 
-      // Play drum pattern if available
+      // Only play drum pattern if one is actually loaded
       if (hasPattern) {
         playPattern(studioContext.currentPattern, studioContext.bpm || 120);
-      } else {
-        // Fallback to default pattern if nothing is loaded
-        playPattern(DEFAULT_PATTERN, studioContext.bpm || 120);
       }
 
-      // Play full song (includes melody, vocals, etc)
-      await studioContext.playFullSong();
-      
-      setIsPlaying(true);
+      // Play full song (includes melody, vocals, etc) if anything is loaded
+      if (hasPattern || hasMelody || hasTracks) {
+        await studioContext.playFullSong();
+        setIsPlaying(true);
+      } else {
+        // Nothing loaded, don't play anything
+        console.log('No content loaded to play');
+      }
     } catch (error) {
       console.error("🚫 Global transport failed", error);
       setIsPlaying(false);
