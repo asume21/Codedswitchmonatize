@@ -74,7 +74,6 @@ export default function UnifiedStudioWorkspace() {
   
   const [selectedTrack, setSelectedTrack] = useState<string | null>('track-1');
   const [zoom, setZoom] = useState([50]);
-  const [isPlaying, setIsPlaying] = useState(false);
   
   // UI State
   const [showAIAssistant, setShowAIAssistant] = useState(true);
@@ -111,53 +110,25 @@ export default function UnifiedStudioWorkspace() {
     setPianoRollExpanded(true);
   };
 
-  const togglePlay = () => {
-    if (!isPlaying) {
-      // Start playback - play all notes in all non-muted tracks
-      const notesToPlay: Array<{ note: string; octave: number; time: number; track: Track }> = [];
-      
-      tracks.forEach(track => {
-        if (!track.muted && track.notes && track.notes.length > 0) {
-          track.notes.forEach(note => {
-            notesToPlay.push({
-              note: note.note.replace('Sharp', '#'),
-              octave: note.octave,
-              time: note.start * 0.5, // 0.5 seconds per bar
-              track
-            });
+  // Playback is now controlled by Global Transport
+  // This function prepares the track data for the Global Transport to play
+  const preparePlaybackData = () => {
+    const notesToPlay: Array<{ note: string; octave: number; time: number; track: Track }> = [];
+    
+    tracks.forEach(track => {
+      if (!track.muted && track.notes && track.notes.length > 0) {
+        track.notes.forEach(note => {
+          notesToPlay.push({
+            note: note.note.replace('Sharp', '#'),
+            octave: note.octave,
+            time: note.start * 0.5, // 0.5 seconds per bar
+            track
           });
-        }
-      });
-      
-      if (notesToPlay.length === 0) {
-        toast({
-          title: "No Notes",
-          description: "Add some notes to the piano roll first!",
-          variant: "destructive",
         });
-        return;
       }
-      
-      // Sort by time
-      notesToPlay.sort((a, b) => a.time - b.time);
-      
-      // Play notes
-      notesToPlay.forEach(({ note, octave, time, track }) => {
-        setTimeout(() => {
-          playNote(note, octave, track.instrument);
-        }, time * 1000);
-      });
-      
-      toast({
-        title: "Playing",
-        description: `${notesToPlay.length} notes`,
-      });
-      
-      // Auto-stop after all notes played
-      const maxTime = Math.max(...notesToPlay.map(n => n.time)) + 3;
-      setTimeout(() => setIsPlaying(false), maxTime * 1000);
-    }
-    setIsPlaying(!isPlaying);
+    });
+    
+    return notesToPlay;
   };
 
   // Map UI instrument names to General MIDI Soundfont names DIRECTLY
@@ -228,6 +199,10 @@ export default function UnifiedStudioWorkspace() {
       const currentTrack = tracks.find(t => t.id === selectedTrack);
       let uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       
+      // GET VOLUME AND PAN FROM TRACK
+      const trackVolume = currentTrack?.volume ?? 0.8;
+      const trackPan = currentTrack?.pan ?? 0;
+      
       // Check if it's a drum instrument - use realisticAudio drum synthesis
       const drumMap: Record<string, string> = {
         'Kick': 'kick',
@@ -239,8 +214,8 @@ export default function UnifiedStudioWorkspace() {
       };
       
       if (drumMap[uiInstrument]) {
-        // Use real drum synthesis from realisticAudio
-        await realisticAudio.playDrumSound(drumMap[uiInstrument], 0.8);
+        // Use real drum synthesis from realisticAudio WITH TRACK VOLUME
+        await realisticAudio.playDrumSound(drumMap[uiInstrument], trackVolume);
         return;
       }
       
@@ -265,8 +240,11 @@ export default function UnifiedStudioWorkspace() {
       else if (uiInstrument.includes('Flute')) synthInstrument = 'flute';
       else if (uiInstrument.includes('Recorder')) synthInstrument = 'recorder';
       
-      // Play using the synthesis engine with REAL instrument synthesis
-      await synthesisEngine.playNote(frequency, 0.5, 0.8, synthInstrument);
+      // Play using the synthesis engine WITH TRACK VOLUME
+      await synthesisEngine.playNote(frequency, 0.5, trackVolume, synthInstrument);
+      
+      // TODO: Apply pan using Web Audio API StereoPannerNode
+      // The audio.ts engine doesn't support pan directly, need to add it
     } catch (error) {
       console.error('Error playing note:', error);
     }
@@ -481,13 +459,9 @@ export default function UnifiedStudioWorkspace() {
             <MessageSquare className="w-4 h-4 mr-2" />
             AI Assistant
           </Button>
-          <Button
-            onClick={togglePlay}
-            className={isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}
-          >
-            <i className={`fas ${isPlaying ? 'fa-stop' : 'fa-play'} mr-2`}></i>
-            {isPlaying ? 'Stop' : 'Play'}
-          </Button>
+          <div className="text-sm text-gray-400 italic">
+            Use Global Transport to play ▶
+          </div>
           <Button variant="outline" size="sm">
             <i className="fas fa-undo mr-2"></i>
             Undo
