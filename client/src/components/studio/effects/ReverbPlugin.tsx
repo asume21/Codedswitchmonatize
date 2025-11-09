@@ -76,9 +76,14 @@ export function ReverbPlugin({ audioUrl, onClose }: ReverbPluginProps) {
     const impulseL = impulse.getChannelData(0);
     const impulseR = impulse.getChannelData(1);
 
+    // Use crypto.getRandomValues for better random quality
+    const randomValues = new Uint32Array(length);
+    window.crypto.getRandomValues(randomValues);
+    
     for (let i = 0; i < length; i++) {
       const decay = Math.exp(-i / (sampleRate * decayTime / 4));
-      const noise = (Math.random() * 2 - 1) * decay;
+      // Convert random uint32 to float in range [-1, 1]
+      const noise = ((randomValues[i] / 0xFFFFFFFF) * 2 - 1) * decay;
       
       // Different characteristics for different room types
       let modifier = 1;
