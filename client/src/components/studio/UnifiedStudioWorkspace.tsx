@@ -159,18 +159,73 @@ export default function UnifiedStudioWorkspace() {
     setIsPlaying(!isPlaying);
   };
 
+  // Map UI instrument names to realisticAudio instrument keys
+  const mapInstrumentName = (uiName: string): string => {
+    const mapping: Record<string, string> = {
+      // Piano
+      'Grand Piano': 'piano',
+      'Electric Piano': 'synth-analog',
+      'Synth Piano': 'synth-digital',
+      'Harpsichord': 'piano',
+      
+      // Bass
+      '808 Bass': 'bass-synth',
+      'Synth Bass': 'bass-synth',
+      'Electric Bass': 'bass-electric',
+      'Upright Bass': 'bass-upright',
+      'Sub Bass': 'bass-synth',
+      
+      // Guitar
+      'Acoustic Guitar': 'guitar-acoustic',
+      'Electric Guitar': 'guitar-electric',
+      'Classical Guitar': 'guitar-nylon',
+      'Bass Guitar': 'bass-electric',
+      
+      // Strings
+      'Violin': 'strings-violin',
+      'Viola': 'strings-violin',
+      'Cello': 'strings-violin',
+      'Double Bass': 'bass-upright',
+      'String Ensemble': 'pads-strings',
+      
+      // Winds
+      'Flute': 'flute-concert',
+      'Clarinet': 'flute-concert',
+      'Saxophone': 'flute-concert',
+      'Trumpet': 'horns-trumpet',
+      'Horn': 'horns-french',
+      'Trombone': 'horns-trombone',
+      
+      // Synth
+      'Lead Synth': 'leads-square',
+      'Pad Synth': 'pads-warm',
+      'Arp Synth': 'leads-saw',
+      'Bass Synth': 'bass-synth',
+      
+      // Drums
+      'Kick': 'drum-kick',
+      'Snare': 'drum-snare',
+      'Hi-Hat': 'drum-hihat',
+      'Tom': 'drum-tom',
+      'Cymbal': 'drum-crash',
+      'Full Kit': 'drum-kick',
+    };
+    
+    return mapping[uiName] || 'piano';
+  };
+
   // Play a note with the REAL audio engine (Soundfont)
   const playNote = async (note: string, octave: number, instrumentType?: string) => {
     try {
       // Get current track's instrument or use default
       const currentTrack = tracks.find(t => t.id === selectedTrack);
-      let instrument = instrumentType || currentTrack?.instrument || 'piano';
+      let uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       
-      // Map common names to soundfont names
-      instrument = instrument.toLowerCase().replace(/\s+/g, '-');
+      // Map to realisticAudio instrument name
+      const mappedInstrument = mapInstrumentName(uiInstrument);
       
       // Play using the realistic audio engine with proper instrument
-      await realisticAudio.playNote(note, octave, 0.5, instrument, 0.8);
+      await realisticAudio.playNote(note, octave, 0.5, mappedInstrument, 0.8);
     } catch (error) {
       console.error('Error playing note:', error);
     }
