@@ -9,6 +9,8 @@ import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, 
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
+import ProfessionalStudio from './ProfessionalStudio';
+import LyricLab from './LyricLab';
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
@@ -1043,23 +1045,15 @@ Your lyrics will sync with the timeline
 
           {/* AI STUDIO VIEW */}
           {activeView === 'ai-studio' && (
-            <div className="flex-1 flex items-center justify-center bg-gray-900">
-              <div className="text-center p-8">
-                <Music className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                <h3 className="text-xl font-bold mb-2">AI Studio</h3>
-                <p className="text-gray-400">Professional Studio features: Full Songs, Vocals, Genre Blending...</p>
-              </div>
+            <div className="flex-1 overflow-y-auto bg-gray-900">
+              <ProfessionalStudio />
             </div>
           )}
 
           {/* LYRICS LAB VIEW */}
           {activeView === 'lyrics' && (
-            <div className="flex-1 flex items-center justify-center bg-gray-900">
-              <div className="text-center p-8">
-                <Mic2 className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                <h3 className="text-xl font-bold mb-2">Lyrics Lab</h3>
-                <p className="text-gray-400">Advanced lyrics editor and AI generation...</p>
-              </div>
+            <div className="flex-1 overflow-y-auto bg-gray-900">
+              <LyricLab />
             </div>
           )}
         </div>
