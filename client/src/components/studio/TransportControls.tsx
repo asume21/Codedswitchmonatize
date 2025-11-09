@@ -26,6 +26,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
+  const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
 
   const { setMasterVolume, initialize, isInitialized } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
@@ -73,11 +74,51 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     studioContext.stopFullSong();
     setIsPlaying(false);
     setCurrentTime("00:00");
+    setPlaybackTimeSeconds(0);
     
     // Stop recording if active
     if (isRecording && mediaRecorder) {
       mediaRecorder.stop();
     }
+  };
+
+  const handleRewind = () => {
+    const newTime = Math.max(0, playbackTimeSeconds - 10);
+    setPlaybackTimeSeconds(newTime);
+    const minutes = Math.floor(newTime / 60);
+    const seconds = Math.floor(newTime % 60);
+    setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    // TODO: Seek audio playback to new time
+    console.log('⏪ Rewind to:', newTime);
+  };
+
+  const handleFastForward = () => {
+    const totalSeconds = 165; // 02:45 in seconds
+    const newTime = Math.min(totalSeconds, playbackTimeSeconds + 10);
+    setPlaybackTimeSeconds(newTime);
+    const minutes = Math.floor(newTime / 60);
+    const seconds = Math.floor(newTime % 60);
+    setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    // TODO: Seek audio playback to new time
+    console.log('⏩ Fast forward to:', newTime);
+  };
+
+  const handlePrevious = () => {
+    // Skip to start if past 3 seconds, otherwise go to actual previous track
+    if (playbackTimeSeconds > 3) {
+      setPlaybackTimeSeconds(0);
+      setCurrentTime("00:00");
+    } else {
+      // TODO: Load previous track from playlist
+      console.log('⏮ Skip to previous track');
+    }
+  };
+
+  const handleNext = () => {
+    // TODO: Load next track from playlist
+    console.log('⏭ Skip to next track');
+    setPlaybackTimeSeconds(0);
+    setCurrentTime("00:00");
   };
 
   const handleRecord = async () => {
@@ -208,6 +249,29 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     };
   }, [dragOffset, isDragging]);
 
+  // Update playback timer when playing
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(() => {
+      setPlaybackTimeSeconds((prev) => {
+        const newTime = prev + 1;
+        const minutes = Math.floor(newTime / 60);
+        const seconds = Math.floor(newTime % 60);
+        setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        
+        // Stop at end of track
+        if (newTime >= 165) { // 02:45
+          setIsPlaying(false);
+          return 0;
+        }
+        return newTime;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
   const containerClasses = isFloating
     ? `fixed bg-studio-panel border border-gray-600 rounded-lg shadow-2xl px-6 z-50 ${
         isDragging ? "cursor-grabbing" : ""
@@ -255,19 +319,19 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       {/* Left: Playback Controls */}
       <div className="flex items-center space-x-2">
         <Button
-          onClick={() => {/* TODO: Skip to previous */}}
+          onClick={handlePrevious}
           size="sm"
           className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
-          title="Previous"
+          title="Previous (or restart if past 3s)"
         >
           <i className="fas fa-step-backward text-xs"></i>
         </Button>
         
         <Button
-          onClick={() => {/* TODO: Rewind */}}
+          onClick={handleRewind}
           size="sm"
           className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
-          title="Rewind"
+          title="Rewind 10 seconds"
         >
           <i className="fas fa-backward text-xs"></i>
         </Button>
@@ -293,19 +357,19 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         </Button>
         
         <Button
-          onClick={() => {/* TODO: Fast forward */}}
+          onClick={handleFastForward}
           size="sm"
           className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
-          title="Fast Forward"
+          title="Fast forward 10 seconds"
         >
           <i className="fas fa-forward text-xs"></i>
         </Button>
         
         <Button
-          onClick={() => {/* TODO: Skip to next */}}
+          onClick={handleNext}
           size="sm"
           className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600"
-          title="Next"
+          title="Next track"
         >
           <i className="fas fa-step-forward text-xs"></i>
         </Button>
