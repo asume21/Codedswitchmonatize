@@ -78,70 +78,89 @@ export default function PackGenerator() {
   };
 
   const generateWithMusicGen = async (userPrompt: string) => {
+    const variations = ["energetic", "melodic", "atmospheric", "rhythmic", "dynamic", "ambient"];
+    const keys = ["C", "D", "E", "F", "G", "A", "B"];
+    const genres = ["Electronic", "Hip Hop", "House", "Trap", "Ambient", "Lo-Fi"];
+    
     try {
       const ownerKey = (import.meta as any).env.VITE_OWNER_KEY;
-      console.log('🎵 Sending pack generation request...');
+      console.log(`🎵 Generating ${packCount} unique packs...`);
       console.log('🔑 Owner key from env:', ownerKey ? `${ownerKey.substring(0, 8)}...` : 'MISSING');
       
-      const response = await fetch("/api/music/generate-with-musicgen", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-owner-key": ownerKey || ""
-        },
-        credentials: "include",
-        body: JSON.stringify({ prompt: userPrompt, duration: 10 }),
-      });
+      const newPacks: GeneratedPack[] = [];
+      
+      for (let i = 0; i < packCount; i++) {
+        // Create unique variation for each pack
+        const variation = variations[i % variations.length];
+        const key = keys[i % keys.length];
+        const genre = genres[i % genres.length];
+        const variedPrompt = `${variation} ${userPrompt} in ${key}`;
+        
+        toast({
+          title: `Generating Pack ${i + 1}/${packCount}`,
+          description: `Creating ${variation} variation...`,
+        });
+        
+        console.log(`🎵 Pack ${i + 1}: "${variedPrompt}"`);
+        
+        const response = await fetch("/api/music/generate-with-musicgen", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-owner-key": ownerKey || ""
+          },
+          credentials: "include",
+          body: JSON.stringify({ prompt: variedPrompt, duration: 10 }),
+        });
 
-      console.log('📡 Response status:', response.status, response.statusText);
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.error('❌ Failed to parse response as JSON:', parseError);
-        const text = await response.text();
-        console.error('Raw response:', text.substring(0, 200));
-        throw new Error(`Server error (${response.status}): Invalid JSON response`);
-      }
-
-      if (!response.ok) {
-        const errorMsg = data.message || data.error || `HTTP ${response.status}`;
-        console.error('❌ Pack generation error:', errorMsg, data);
-        throw new Error(errorMsg);
-      }
-
-      const musicGenPack: GeneratedPack = {
-        id: `musicgen-${Date.now()}`,
-        title: "MusicGen AI Pack",
-        description: `AI-generated music from prompt: "${userPrompt}"`,
-        bpm: 120,
-        key: "C",
-        genre: "Electronic",
-        samples: [{
-          id: `sample-musicgen-${Date.now()}`,
-          name: "AI Generated Track",
-          type: "loop",
-          duration: 10,
-          audioUrl: data.audioUrl,
-          aiData: {
-            notes: [],
-            pattern: [],
-            intensity: 0.8
-          }
-        }],
-        metadata: {
-          energy: 80,
-          mood: "Dynamic",
-          instruments: ["AI Synth"],
-          tags: ["AI Generated", "MusicGen"]
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          console.error('❌ Failed to parse response as JSON:', parseError);
+          continue; // Skip this pack and continue with next
         }
-      };
 
-      setGeneratedPacks([musicGenPack]);
+        if (!response.ok) {
+          const errorMsg = data.message || data.error || `HTTP ${response.status}`;
+          console.error(`❌ Pack ${i + 1} failed:`, errorMsg);
+          continue; // Skip this pack and continue with next
+        }
+
+        const musicGenPack: GeneratedPack = {
+          id: `musicgen-${Date.now()}-${i}`,
+          title: `${variation.charAt(0).toUpperCase() + variation.slice(1)} Pack #${i + 1}`,
+          description: `AI-generated ${variation} music: "${userPrompt}"`,
+          bpm: 120 + (i * 5), // Vary BPM slightly
+          key: key,
+          genre: genre,
+          samples: [{
+            id: `sample-${Date.now()}-${i}`,
+            name: `${variation} Track`,
+            type: "loop",
+            duration: 10,
+            audioUrl: data.audioUrl,
+            aiData: {
+              notes: [],
+              pattern: [],
+              intensity: 0.7 + (i * 0.05)
+            }
+          }],
+          metadata: {
+            energy: 70 + (i * 5),
+            mood: variation.charAt(0).toUpperCase() + variation.slice(1),
+            instruments: ["AI Synth"],
+            tags: ["AI Generated", "MusicGen", variation]
+          }
+        };
+
+        newPacks.push(musicGenPack);
+        setGeneratedPacks([...newPacks]); // Update UI after each pack
+      }
+
       toast({
-        title: "MusicGen AI Pack Generated!",
-        description: "Real AI-generated audio created and ready to preview.",
+        title: `✅ ${newPacks.length} Packs Generated!`,
+        description: `Generated ${newPacks.length} unique AI packs from your prompt.`,
       });
     } catch (error) {
       toast({
