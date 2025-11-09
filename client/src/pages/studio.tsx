@@ -48,6 +48,8 @@ export const StudioAudioContext = createContext({
   currentLayers: [] as any[],
   currentTracks: [] as any[],
   currentKey: "C" as string,
+  currentUploadedSong: null as any,
+  uploadedSongAudio: null as HTMLAudioElement | null,
   isPlaying: false,
   bpm: 120,
   playMode: 'current' as 'current' | 'all',
@@ -63,6 +65,7 @@ export const StudioAudioContext = createContext({
   setCurrentCodeMusic: (music: any) => {},
   setCurrentLayers: (layers: any[]) => {},
   setCurrentTracks: (tracks: any[]) => {},
+  setCurrentUploadedSong: (song: any, audio: HTMLAudioElement | null) => {},
   setBpm: (bpm: number) => {},
   setCurrentKey: (key: string) => {},
   playCurrentAudio: () => Promise.resolve(),
@@ -133,11 +136,19 @@ export default function Studio() {
   const [currentLayers, setCurrentLayers] = useState<any[]>([]);
   const [currentTracks, setCurrentTracks] = useState<any[]>([]);
   const [currentKey, setCurrentKey] = useState("C");
+  const [currentUploadedSong, setCurrentUploadedSong] = useState<any>(null);
+  const [uploadedSongAudio, setUploadedSongAudio] = useState<HTMLAudioElement | null>(null);
   const [isStudioPlaying, setIsStudioPlaying] = useState(false);
   const [studioBpm, setStudioBpm] = useState(120);
   const [playMode, setPlayMode] = useState<'current' | 'all'>('current'); // New play mode state
   const [currentPlaylist, setCurrentPlaylist] = useState<any>(null); // Current active playlist
   const [currentPlaylistIndex, setCurrentPlaylistIndex] = useState(0); // Current song in playlist
+  
+  // Handler to set uploaded song and audio element
+  const handleSetCurrentUploadedSong = (song: any, audio: HTMLAudioElement | null) => {
+    setCurrentUploadedSong(song);
+    setUploadedSongAudio(audio);
+  };
   
   const { initialize, isInitialized } = useAudio();
 
@@ -273,6 +284,8 @@ export default function Studio() {
     currentLayers,
     currentTracks,
     currentKey,
+    currentUploadedSong,
+    uploadedSongAudio,
     isPlaying: isStudioPlaying,
     bpm: studioBpm,
     playMode,
@@ -288,6 +301,7 @@ export default function Studio() {
     setCurrentCodeMusic,
     setCurrentLayers,
     setCurrentTracks,
+    setCurrentUploadedSong: handleSetCurrentUploadedSong,
     setBpm: setStudioBpm,
     setCurrentKey,
     playCurrentAudio,

@@ -45,6 +45,17 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         return;
       }
 
+      // Check for uploaded song first
+      const hasUploadedSong = studioContext.currentUploadedSong && studioContext.uploadedSongAudio;
+      
+      if (hasUploadedSong && studioContext.uploadedSongAudio) {
+        // Play uploaded song through audio element
+        console.log('▶️ Playing uploaded song:', studioContext.currentUploadedSong.name);
+        await studioContext.uploadedSongAudio.play();
+        setIsPlaying(true);
+        return;
+      }
+
       // Play everything loaded in the context
       const hasPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0;
       const hasMelody = studioContext.currentMelody && studioContext.currentMelody.length > 0;
@@ -72,6 +83,13 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const handleStop = () => {
     stopPattern();
     studioContext.stopFullSong();
+    
+    // Stop uploaded song if playing
+    if (studioContext.uploadedSongAudio) {
+      studioContext.uploadedSongAudio.pause();
+      studioContext.uploadedSongAudio.currentTime = 0;
+    }
+    
     setIsPlaying(false);
     setCurrentTime("00:00");
     setPlaybackTimeSeconds(0);

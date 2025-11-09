@@ -21,12 +21,7 @@ interface UploadContext {
 }
 
 export default function SongUploader() {
-  const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [uploadContext, setUploadContext] = useState<UploadContext>({});
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [showAudioTools, setShowAudioTools] = useState(false);
   const [songAnalysis, setSongAnalysis] = useState<any>(null);
 
@@ -156,7 +151,7 @@ export default function SongUploader() {
     }
   };
 
-  const handleUploadComplete = (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+  const handleUploadComplete = (result: any) => {
     console.log('🎵 Upload complete result:', result);
 
     if (result.successful && result.successful.length > 0) {
@@ -290,9 +285,9 @@ export default function SongUploader() {
       console.log(`🎵 Attempting to play: ${song.name} from URL: ${accessibleURL.substring(0, 100)}...`);
 
       // Stop any currently playing audio
-      if (audioElement) {
-        audioElement.pause();
-        audioElement.src = '';
+      if (studioContext.uploadedSongAudio) {
+        studioContext.uploadedSongAudio.pause();
+        studioContext.uploadedSongAudio.src = '';
       }
 
       const audio = new Audio();
@@ -300,18 +295,12 @@ export default function SongUploader() {
       
       audio.addEventListener('loadedmetadata', () => {
         console.log(`✅ Song loaded: ${song.name}, duration: ${audio.duration}s`);
-        setDuration(audio.duration);
-      });
-      
-      audio.addEventListener('timeupdate', () => {
-        setCurrentTime(audio.currentTime);
       });
       
       audio.addEventListener('ended', () => {
         console.log(`✅ Song finished: ${song.name}`);
-        setIsPlaying(false);
-        setCurrentSong(null);
-        setCurrentTime(0);
+        // Clear from context when song ends
+        studioContext.setCurrentUploadedSong(null, null);
       });
 
       audio.addEventListener('error', (e) => {
@@ -351,11 +340,10 @@ export default function SongUploader() {
           duration: 8000,
         });
         
-        setIsPlaying(false);
-        setCurrentSong(null);
+        studioContext.setCurrentUploadedSong(null, null);
       });
 
-      // Set source and attempt to load
+      // Set source and load
       audio.src = accessibleURL;
       audio.preload = "metadata";
       
@@ -365,64 +353,23 @@ export default function SongUploader() {
         console.log('🎵 Tone.js AudioContext started');
       }
       
-      // Attempt to play
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        await playPromise;
-      }
-      
-      setAudioElement(audio);
-      setCurrentSong(song);
-      setIsPlaying(true);
+      // Store in context for Global Transport to play
+      studioContext.setCurrentUploadedSong(song, audio);
       
       toast({
-        title: "Now Playing",
-        description: `Playing ${song.name}`,
+        title: "Song Loaded",
+        description: `${song.name} ready to play. Use Global Transport ▶️ to play.`,
       });
       
     } catch (error) {
       console.error('🚫 Audio playback error:', error instanceof Error ? error.message : 'Unknown error');
       toast({
-        title: "Playback Failed",
-        description: `Cannot play ${song.name}. ${error instanceof Error ? error.message : 'The file may be corrupted or unsupported.'}`,
+        title: "Load Failed",
+        description: `Cannot load ${song.name}. ${error instanceof Error ? error.message : 'The file may be corrupted or unsupported.'}`,
         variant: "destructive",
       });
-      setIsPlaying(false);
-      setCurrentSong(null);
+      studioContext.setCurrentUploadedSong(null, null);
     }
-  };
-
-  const stopSong = () => {
-    if (audioElement) {
-      audioElement.pause();
-      audioElement.currentTime = 0;
-    }
-    setIsPlaying(false);
-    setCurrentSong(null);
-    setCurrentTime(0);
-  };
-
-  const pauseSong = () => {
-    if (audioElement && isPlaying) {
-      audioElement.pause();
-      setIsPlaying(false);
-    } else if (audioElement && !isPlaying) {
-      audioElement.play();
-      setIsPlaying(true);
-    }
-  };
-
-  const seekTo = (time: number) => {
-    if (audioElement) {
-      audioElement.currentTime = time;
-      setCurrentTime(time);
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const analyzeSong = async (song: Song) => {
@@ -587,19 +534,19 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   };
 
   // If showing audio tools, render the tool router
-  if (showAudioTools && currentSong && songAnalysis) {
+  if (showAudioTools && studioContext.currentUploadedSong && songAnalysis) {
     return (
       <div className="h-full flex flex-col overflow-hidden p-6">
         <Button 
-          variant="outline" 
+          variant="ghost" 
           onClick={() => setShowAudioTools(false)}
-          className="mb-4"
+          className="mb-4 text-white hover:text-gray-300"
         >
           ← Back to Song Library
         </Button>
         <AudioToolRouter
-          songUrl={currentSong.accessibleUrl || currentSong.originalUrl || currentSong.songURL || ''}
-          songName={currentSong.name}
+          songUrl={studioContext.currentUploadedSong.accessibleUrl || studioContext.currentUploadedSong.originalUrl || studioContext.currentUploadedSong.songURL || ''}
+          songName={studioContext.currentUploadedSong.name}
           recommendations={songAnalysis.toolRecommendations || []}
         />
       </div>
@@ -691,56 +638,16 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
             <Badge variant="secondary">{songs.length} song{songs.length > 1 ? 's' : ''} uploaded</Badge>
           )}
 
-          {isPlaying && currentSong && (
-            <div className="space-y-3">
-              {/* Visual Timeline */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-300">Now Playing: {currentSong.name}</span>
-                  <span className="text-sm text-gray-400">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
+          {studioContext.currentUploadedSong && (
+            <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-gray-400">Selected Song</div>
+                  <div className="text-lg font-bold text-white">{studioContext.currentUploadedSong.name}</div>
                 </div>
-                
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-700 rounded-full h-2 mb-3">
-                  <div 
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-100"
-                    style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                
-                {/* Seek Bar */}
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  value={currentTime}
-                  onChange={(e) => seekTo(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                  style={{
-                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${duration > 0 ? (currentTime / duration) * 100 : 0}%, #374151 ${duration > 0 ? (currentTime / duration) * 100 : 0}%, #374151 100%)`
-                  }}
-                />
-                
-                {/* Control Buttons */}
-                <div className="flex items-center justify-center space-x-3 mt-3">
-                  <Button
-                    onClick={pauseSong}
-                    className="bg-blue-600 hover:bg-blue-500"
-                    size="sm"
-                  >
-                    <i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'} mr-2`}></i>
-                    {isPlaying ? 'Pause' : 'Resume'}
-                  </Button>
-                  <Button
-                    onClick={stopSong}
-                    className="bg-red-600 hover:bg-red-500"
-                    size="sm"
-                  >
-                    <i className="fas fa-stop mr-2"></i>
-                    Stop
-                  </Button>
+                <div className="text-sm text-blue-400 flex items-center gap-2">
+                  <i className="fas fa-info-circle"></i>
+                  Use Global Transport ▶️ to play
                 </div>
               </div>
             </div>
@@ -783,7 +690,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
             <div className="grid gap-4">
               {songs.map((song) => (
-                <Card key={song.id} className={`border-gray-600 ${currentSong?.id === song.id ? 'ring-2 ring-blue-500' : ''}`}>
+                <Card key={song.id} className={`border-gray-600 ${studioContext.currentUploadedSong?.id === song.id ? 'ring-2 ring-blue-500' : ''}`}>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base flex items-center">
@@ -794,11 +701,11 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         <Button
                           size="sm"
                           onClick={() => playSong(song)}
-                          disabled={currentSong?.id === song.id}
+                          disabled={studioContext.currentUploadedSong?.id === song.id}
                           className="bg-green-600 hover:bg-green-500"
                         >
-                          <i className="fas fa-play mr-1"></i>
-                          {currentSong?.id === song.id ? 'Selected' : 'Play'}
+                          <i className="fas fa-check-circle mr-1"></i>
+                          {studioContext.currentUploadedSong?.id === song.id ? 'Loaded' : 'Load'}
                         </Button>
                         <Button
                           size="sm"
@@ -808,7 +715,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                           <i className="fas fa-brain mr-1"></i>
                           Analyze
                         </Button>
-                        {songAnalysis && currentSong?.id === song.id && (
+                        {songAnalysis && studioContext.currentUploadedSong?.id === song.id && (
                           <Button
                             size="sm"
                             onClick={() => setShowAudioTools(true)}
