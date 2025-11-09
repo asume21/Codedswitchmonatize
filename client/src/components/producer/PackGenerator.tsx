@@ -79,12 +79,15 @@ export default function PackGenerator() {
 
   const generateWithMusicGen = async (userPrompt: string) => {
     try {
+      const ownerKey = (import.meta as any).env.VITE_OWNER_KEY;
       console.log('🎵 Sending pack generation request...');
+      console.log('🔑 Owner key from env:', ownerKey ? `${ownerKey.substring(0, 8)}...` : 'MISSING');
+      
       const response = await fetch("/api/music/generate-with-musicgen", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-owner-key": (import.meta as any).env.VITE_OWNER_KEY || ""
+          "x-owner-key": ownerKey || ""
         },
         credentials: "include",
         body: JSON.stringify({ prompt: userPrompt, duration: 10 }),
