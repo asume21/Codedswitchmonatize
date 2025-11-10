@@ -11,6 +11,7 @@ import { StudioAudioContext } from "@/pages/studio";
 import { useAIMessages } from "@/contexts/AIMessageContext";
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
+import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 import type { Song } from "@shared/schema";
 import type { ToolRecommendation } from "@/components/studio/effects";
 
@@ -639,16 +640,28 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
           )}
 
           {studioContext.currentUploadedSong && (
-            <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-gray-400">Selected Song</div>
-                  <div className="text-lg font-bold text-white">{studioContext.currentUploadedSong.name}</div>
+            <div className="space-y-3">
+              <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="text-sm text-gray-400">Selected Song</div>
+                    <div className="text-lg font-bold text-white">{studioContext.currentUploadedSong.name}</div>
+                  </div>
+                  <div className="text-sm text-blue-400 flex items-center gap-2">
+                    <i className="fas fa-info-circle"></i>
+                    Use Global Transport ▶️ to play
+                  </div>
                 </div>
-                <div className="text-sm text-blue-400 flex items-center gap-2">
-                  <i className="fas fa-info-circle"></i>
-                  Use Global Transport ▶️ to play
-                </div>
+                
+                {/* Waveform Visualizer */}
+                {studioContext.uploadedSongAudio && (
+                  <WaveformVisualizer
+                    audioElement={studioContext.uploadedSongAudio}
+                    isPlaying={studioContext.isPlaying}
+                    height={100}
+                    showControls={true}
+                  />
+                )}
               </div>
             </div>
           )}

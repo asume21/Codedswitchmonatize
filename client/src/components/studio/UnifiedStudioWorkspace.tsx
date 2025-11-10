@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
@@ -13,6 +13,7 @@ import ProfessionalStudio from './ProfessionalStudio';
 import LyricLab from './LyricLab';
 import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
+import SongUploader from './SongUploader';
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
@@ -56,7 +57,7 @@ export default function UnifiedStudioWorkspace() {
   }, [synthesisEngine]);
   
   // Main View State (DAW-style tabs)
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics'>('arrangement');
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader'>('arrangement');
   
   // Section expansion states
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
@@ -452,6 +453,9 @@ export default function UnifiedStudioWorkspace() {
                 <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
                   {activeView === 'lyrics' ? '✓' : '  '} Lyrics Lab
                 </button>
+                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                  {activeView === 'song-uploader' ? '✓' : '  '} Song Uploader
+                </button>
               </div>
             </div>
           </div>
@@ -533,6 +537,15 @@ export default function UnifiedStudioWorkspace() {
         >
           <Mic2 className="w-3 h-3 mr-1.5" />
           Lyrics Lab
+        </Button>
+        <Button
+          variant={activeView === 'song-uploader' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveView('song-uploader')}
+          className="h-8 px-3"
+        >
+          <Upload className="w-3 h-3 mr-1.5" />
+          Song Uploader
         </Button>
       </div>
 
@@ -1065,6 +1078,13 @@ Your lyrics will sync with the timeline
           {activeView === 'lyrics' && (
             <div className="flex-1 overflow-y-auto bg-gray-900">
               <LyricLab />
+            </div>
+          )}
+
+          {/* SONG UPLOADER VIEW */}
+          {activeView === 'song-uploader' && (
+            <div className="flex-1 overflow-y-auto bg-gray-900">
+              <SongUploader />
             </div>
           )}
         </div>
