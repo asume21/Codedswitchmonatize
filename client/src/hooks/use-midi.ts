@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAudio } from "./use-audio";
+import { AudioEngine } from "@/lib/audio";
 
 interface MIDIDevice {
   id: string;
@@ -49,10 +50,8 @@ export function useMIDI() {
     release: 0.5,
   });
   
-  // Shared Audio Context (created once, reused)
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const compressorRef = useRef<DynamicsCompressorNode | null>(null);
-  const masterGainRef = useRef<GainNode | null>(null);
+  // Use the REAL AudioEngine (the one that already works!)
+  const audioEngineRef = useRef<AudioEngine | null>(null);
   const [settings, setSettings] = useState<MIDISettings>({
     inputDevice: "all",
     velocitySensitivity: [100],
@@ -77,8 +76,8 @@ export function useMIDI() {
 
   // Update master volume
   const setMasterVolume = useCallback((volume: number) => {
-    if (masterGainRef.current) {
-      masterGainRef.current.gain.value = volume;
+    if (audioEngineRef.current?.masterGain) {
+      audioEngineRef.current.masterGain.gain.value = volume;
       console.log(`🔊 Master volume set to ${Math.round(volume * 100)}%`);
     }
   }, []);
@@ -127,7 +126,7 @@ export function useMIDI() {
 
   // DIRECT AUDIO NOTE HANDLER - Immediate sound playback
   const handleNoteOn = useCallback(
-    (midiNote: number, velocity: number, channel: number) => {
+    async (midiNote: number, velocity: number, channel: number) => {
       const { note, octave } = noteNumberToName(midiNote);
       const normalizedVelocity = velocity / 127;
 
@@ -138,81 +137,39 @@ export function useMIDI() {
       setActiveNotes((prev) => new Set(Array.from(prev).concat(midiNote)));
       setLastNote({ note: midiNote, velocity, channel });
 
-      // DIRECT WEB AUDIO - Shared context for proper volume control
+      // Use the REAL AudioEngine - the one that already works perfectly!
       try {
-        // Initialize shared audio context if not exists
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-          
-          // Create master gain node
-          masterGainRef.current = audioContextRef.current.createGain();
-          masterGainRef.current.gain.value = 0.7; // Default master volume
-          
-          // Create compressor
-          compressorRef.current = audioContextRef.current.createDynamicsCompressor();
-          compressorRef.current.threshold.value = -24;
-          compressorRef.current.knee.value = 30;
-          compressorRef.current.ratio.value = 12;
-          compressorRef.current.attack.value = 0.003;
-          compressorRef.current.release.value = 0.25;
-          
-          // Chain: masterGain -> compressor -> destination
-          masterGainRef.current.connect(compressorRef.current);
-          compressorRef.current.connect(audioContextRef.current.destination);
+        // Initialize AudioEngine if needed
+        if (!audioEngineRef.current) {
+          audioEngineRef.current = new AudioEngine();
+          await audioEngineRef.current.initialize();
+          console.log('🎵 MIDI using real AudioEngine with all instruments!');
         }
 
-        const audioContext = audioContextRef.current;
-        
-        // Resume context if suspended
-        if (audioContext.state === "suspended") {
-          audioContext.resume();
-        }
-
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(masterGainRef.current!); // Connect to master gain
-
-        // Calculate frequency from note
+        // Calculate frequency from MIDI note
         const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
-        oscillator.frequency.setValueAtTime(
-          frequency,
-          audioContext.currentTime,
-        );
         
-        // SET OSCILLATOR TYPE BASED ON INSTRUMENT
-        const instrumentWaveforms: { [key: string]: OscillatorType } = {
-          piano: "sine",
-          guitar: "triangle",
-          violin: "sawtooth",
-          flute: "sine",
-          trumpet: "square",
-          bass: "triangle",
-          organ: "square",
-        };
-        oscillator.type = instrumentWaveforms[settings.currentInstrument || "piano"] || "sine";
-
-        // Volume envelope - Apply MIDI volume setting (default 30%)
+        // Get instrument name from settings
+        const instrument = settings.currentInstrument || 'piano';
+        
+        // Apply MIDI volume (multiply with velocity)
         const midiVolume = settings.midiVolume ?? 0.3;
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(
-          normalizedVelocity * 0.08 * midiVolume, // Base volume * MIDI volume slider
-          audioContext.currentTime + 0.01,
+        const adjustedVelocity = normalizedVelocity * midiVolume;
+        
+        // Play note using the REAL AudioEngine with all the synthesis magic!
+        await audioEngineRef.current.playNote(
+          frequency,
+          1.0, // duration
+          adjustedVelocity,
+          instrument,
+          true // sustain
         );
-        gainNode.gain.exponentialRampToValueAtTime(
-          0.001,
-          audioContext.currentTime + 1.0,
-        );
-
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 1.0);
 
         console.log(
-          `✅ ${settings.currentInstrument?.toUpperCase() || 'PIANO'}: ${frequency.toFixed(1)}Hz (${note}${octave}) - oscillator type: ${oscillator.type}`,
+          `✅ MIDI ${instrument.toUpperCase()}: ${note}${octave} (${frequency.toFixed(1)}Hz) vel=${adjustedVelocity.toFixed(2)}`,
         );
       } catch (error) {
-        console.error(`❌ Direct audio failed for ${note}${octave}:`, error);
+        console.error(`❌ AudioEngine playNote failed for ${note}${octave}:`, error);
       }
     },
     [noteNumberToName, playNote, settings.midiVolume, settings.currentInstrument],
