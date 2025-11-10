@@ -15,6 +15,7 @@ type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
 
 class AudioEngine {
   private samplers: Record<string, Tone.Sampler> = {};
+  private synths: Record<string, Tone.PolySynth> = {}; // Add synths for instruments!
   private isInitialized = false;
   private loadingProgress: Record<string, number> = {};
   private totalSamples = 0;
@@ -40,6 +41,7 @@ class AudioEngine {
       console.warn('Realistic audio engine unavailable, using synthetic fallback', error);
     }
     this.setupDrumVoices();
+    this.setupInstrumentSynths(); // Initialize melodic instruments!
     this.isInitialized = true;
   }
 
@@ -79,10 +81,24 @@ class AudioEngine {
       return;
     }
 
+    // Try synth first (always available), then fallback to sampler
+    const synth = this.synths[instrument];
+    if (synth) {
+      synth.triggerAttackRelease(note, duration, undefined, velocity);
+      console.log(`🎹 Playing ${instrument}: ${note} (duration: ${duration}, velocity: ${velocity})`);
+      return;
+    }
+
+    // Fallback to sampler if available
     const sampler = this.samplers[instrument];
     if (sampler) {
       sampler.triggerAttackRelease(note, duration, undefined, velocity);
+      return;
     }
+
+    // Last resort: use piano synth
+    console.warn(`No instrument found for "${instrument}", using piano fallback`);
+    this.synths.piano?.triggerAttackRelease(note, duration, undefined, velocity);
   }
 
   playDrum(drum: DrumType, velocity = 0.8) {
@@ -258,6 +274,47 @@ class AudioEngine {
     crash.resonance = 7000;
     crash.octaves = 2;
     this.drumVoices.crash = crash;
+  }
+
+  private setupInstrumentSynths() {
+    // Clean up existing synths
+    Object.values(this.synths).forEach(synth => synth.dispose());
+    this.synths = {};
+
+    // Piano - warm, bell-like tone
+    this.synths.piano = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sine' },
+      envelope: {
+        attack: 0.005,
+        decay: 0.3,
+        sustain: 0.2,
+        release: 1
+      }
+    }).connect(this.volume);
+
+    // Synth - bright, electronic
+    this.synths.synth = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sawtooth' },
+      envelope: {
+        attack: 0.02,
+        decay: 0.1,
+        sustain: 0.3,
+        release: 0.5
+      }
+    }).connect(this.volume);
+
+    // Bass - deep, punchy
+    this.synths.bass = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: {
+        attack: 0.01,
+        decay: 0.2,
+        sustain: 0.5,
+        release: 0.8
+      }
+    }).connect(this.volume);
+
+    console.log('🎹 Instrument synths initialized: piano, synth, bass');
   }
 
   // Alias for initialize for backward compatibility
