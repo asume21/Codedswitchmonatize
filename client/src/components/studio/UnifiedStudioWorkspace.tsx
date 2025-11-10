@@ -19,14 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
-
-interface Note {
-  id: string;
-  note: string;
-  octave: number;
-  start: number; // bar position
-  duration: number; // in bars
-}
+import type { Note } from './types/pianoRollTypes';
 
 interface Track {
   id: string;
@@ -165,9 +158,9 @@ export default function UnifiedStudioWorkspace() {
       if (!track.muted && track.notes && track.notes.length > 0) {
         track.notes.forEach(note => {
           notesToPlay.push({
-            note: note.note.replace('Sharp', '#'),
+            note: note.note, // Keep note name as-is (already has #)
             octave: note.octave,
-            time: note.start * 0.5, // 0.5 seconds per bar
+            time: note.step * 0.125, // 4 steps per beat, 0.5s per beat = 0.125s per step
             track
           });
         });
@@ -307,7 +300,8 @@ export default function UnifiedStudioWorkspace() {
       return;
     }
     
-    const noteStr = note.replace('#', 'Sharp');
+    // Don't replace # with Sharp - keep note name as-is
+    const noteStr = note;
     
     if (pianoRollTool === 'erase') {
       // Erase mode - remove notes at this position
@@ -315,7 +309,7 @@ export default function UnifiedStudioWorkspace() {
         if (t.id === selectedTrack) {
           const existingNotes = t.notes || [];
           const filtered = existingNotes.filter(n => 
-            !(n.note === noteStr && n.octave === octave && n.start === barPosition)
+            !(n.note === noteStr && n.octave === octave && n.step === barPosition)
           );
           return { ...t, notes: filtered };
         }
@@ -330,13 +324,14 @@ export default function UnifiedStudioWorkspace() {
     }
     
     if (pianoRollTool === 'draw') {
-      // Draw mode - add note
+      // Draw mode - add note using unified Note structure
       const newNote: Note = {
         id: `note-${Date.now()}`,
         note: noteStr,
         octave,
-        start: barPosition,
-        duration: 1,
+        step: barPosition,  // Position in steps
+        velocity: 100,      // Default velocity
+        length: 4,          // Default length (4 steps = 1 beat)
       };
       
       setTracks(tracks.map(t => {
@@ -1208,6 +1203,9 @@ export default function UnifiedStudioWorkspace() {
                           
                           if (noteIndex === -1) return null;
                           
+                          // Convert steps to pixels (each bar is 60px, each step is 60/4 = 15px)
+                          const stepWidth = 15; // 15px per step (4 steps per bar)
+                          
                           return (
                             <div
                               key={note.id}
@@ -1227,9 +1225,9 @@ export default function UnifiedStudioWorkspace() {
                               }}
                               className="absolute bg-green-500 hover:bg-green-400 border border-green-400 rounded cursor-pointer transition"
                               style={{
-                                left: `${note.start * 60}px`,
+                                left: `${note.step * stepWidth}px`,
                                 top: `${noteIndex * 24}px`,
-                                width: `${note.duration * 60}px`,
+                                width: `${note.length * stepWidth}px`,
                                 height: '22px',
                                 zIndex: 10,
                               }}
@@ -1383,8 +1381,19 @@ Your lyrics will sync with the timeline
             <div className="flex-1 overflow-hidden bg-gray-900">
               <VerticalPianoRoll 
                 tracks={tracks as any}
+                selectedTrack={selectedTrack || undefined}
                 isPlaying={studioContext?.isPlaying}
                 currentTime={playheadPosition}
+                onNotesChange={(updatedNotes) => {
+                  // Update the notes for the selected track
+                  if (selectedTrack) {
+                    setTracks(tracks.map(t => 
+                      t.id === selectedTrack 
+                        ? { ...t, notes: updatedNotes }
+                        : t
+                    ));
+                  }
+                }}
               />
             </div>
           )}
