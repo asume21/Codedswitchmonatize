@@ -741,12 +741,19 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
               return (
                 <div
                   key={pitch}
-                  className={`flex items-center px-1 text-xs font-medium border-b ${
+                  className={`flex items-center px-1 text-xs font-medium border-b cursor-pointer hover:bg-blue-500 transition ${
                     isBlackKey ? 'bg-black text-white dark:bg-black' : 'bg-white dark:bg-slate-950 text-gray-900 dark:text-gray-100'
                   } ${highlightedRow === i ? 'bg-blue-100 dark:bg-blue-900/70' : ''}`}
                   style={{ height: KEY_HEIGHT }}
+                  onClick={() => {
+                    // Play note when clicking piano key
+                    const activeTrack = tracks.find(t => t.id === String(selectedTrack));
+                    const instrument = activeTrack?.instrument ?? 'piano';
+                    audioEngine.current.playNote(noteName, octave, 0.5, instrument);
+                  }}
                   onMouseEnter={() => setHighlightedRow(i)}
                   onMouseLeave={() => setHighlightedRow(null)}
+                  title={`Click to play ${noteName}${octave}`}
                 >
                   {noteName}{octave}
                 </div>
