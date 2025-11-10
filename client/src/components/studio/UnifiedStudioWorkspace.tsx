@@ -270,14 +270,22 @@ export default function UnifiedStudioWorkspace() {
       const frequency = noteToFreq(note, octave);
       
       // Map UI instrument names to synthesis engine types
-      let synthInstrument = 'piano';
-      if (uiInstrument.includes('Piano')) synthInstrument = 'piano';
-      else if (uiInstrument.includes('Grand')) synthInstrument = 'grand';
-      else if (uiInstrument.includes('Organ')) synthInstrument = 'organ';
-      else if (uiInstrument.includes('Guitar')) synthInstrument = 'guitar';
-      else if (uiInstrument.includes('Violin') || uiInstrument.includes('Viola') || uiInstrument.includes('Cello')) synthInstrument = 'violin';
-      else if (uiInstrument.includes('Flute')) synthInstrument = 'flute';
-      else if (uiInstrument.includes('Recorder')) synthInstrument = 'recorder';
+      // The audio.ts engine supports: piano, grand, organ, guitar, violin, ukulele, flute, panflute, recorder
+      let synthInstrument = 'piano'; // default
+      
+      const instrumentLower = uiInstrument.toLowerCase();
+      
+      if (instrumentLower.includes('grand')) synthInstrument = 'grand';
+      else if (instrumentLower.includes('organ')) synthInstrument = 'organ';
+      else if (instrumentLower.includes('guitar')) synthInstrument = 'guitar';
+      else if (instrumentLower.includes('ukulele')) synthInstrument = 'ukulele';
+      else if (instrumentLower.includes('violin') || instrumentLower.includes('viola') || instrumentLower.includes('cello') || instrumentLower.includes('string')) synthInstrument = 'violin';
+      else if (instrumentLower.includes('pan') && instrumentLower.includes('flute')) synthInstrument = 'panflute';
+      else if (instrumentLower.includes('flute')) synthInstrument = 'flute';
+      else if (instrumentLower.includes('recorder')) synthInstrument = 'recorder';
+      else if (instrumentLower.includes('piano') || instrumentLower.includes('electric') || instrumentLower.includes('synth')) synthInstrument = 'piano';
+      
+      console.log(`🎹 Playing ${note}${octave} with instrument: ${uiInstrument} → ${synthInstrument}`);
       
       // Play using the synthesis engine WITH TRACK VOLUME
       await synthesisEngine.playNote(frequency, 0.5, trackVolume, synthInstrument);
@@ -1031,16 +1039,16 @@ export default function UnifiedStudioWorkspace() {
                                       key={note.id}
                                       className="absolute top-0 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs cursor-pointer hover:bg-green-500"
                                       style={{
-                                        left: `${note.start * 60}px`, // 60px per bar
-                                        width: `${note.duration * 60}px`,
+                                        left: `${note.step * 15}px`, // 15px per step (4 steps per bar)
+                                        width: `${note.length * 15}px`,
                                       }}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        playNote(note.note.replace('Sharp', '#'), note.octave, track.instrument);
+                                        playNote(note.note, note.octave, track.instrument);
                                       }}
-                                      title={`${note.note.replace('Sharp', '#')}${note.octave} - Click to play`}
+                                      title={`${note.note}${note.octave} - Click to play`}
                                     >
-                                      {note.note.replace('Sharp', '#')}{note.octave}
+                                      {note.note}{note.octave}
                                     </div>
                                   ))
                                 ) : (
@@ -1384,6 +1392,10 @@ Your lyrics will sync with the timeline
                 selectedTrack={selectedTrack || undefined}
                 isPlaying={studioContext?.isPlaying}
                 currentTime={playheadPosition}
+                onPlayNote={(note, octave, duration, instrument) => {
+                  // Play note with current track's instrument
+                  playNote(note, octave, instrument);
+                }}
                 onNotesChange={(updatedNotes) => {
                   // Update the notes for the selected track
                   if (selectedTrack) {
