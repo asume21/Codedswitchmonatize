@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useAudio, useSequencer } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
 import { useQuery } from "@tanstack/react-query";
-import { Music, ChevronDown, ChevronUp } from "lucide-react";
+import { Music, ChevronDown, ChevronUp, Pin, PinOff } from "lucide-react";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 
 interface TransportControlsProps {
@@ -32,6 +32,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
   const [showSongPicker, setShowSongPicker] = useState(false);
   const [showWaveform, setShowWaveform] = useState(false);
+  const [waveformPinned, setWaveformPinned] = useState(false);
 
   const { setMasterVolume, initialize, isInitialized } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
@@ -568,8 +569,8 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       className={containerClasses}
       style={containerStyle}
       onMouseDown={isFloating ? handleMouseDown : undefined}
-      onMouseEnter={() => !isFloating && studioContext.currentUploadedSong && setShowWaveform(true)}
-      onMouseLeave={() => !isFloating && setShowWaveform(false)}
+      onMouseEnter={() => !isFloating && studioContext.currentUploadedSong && !waveformPinned && setShowWaveform(true)}
+      onMouseLeave={() => !isFloating && !waveformPinned && setShowWaveform(false)}
     >
       {isFloating && (
         <div
@@ -681,10 +682,10 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         <div
           className="absolute bottom-full left-0 right-0 transition-all duration-300 ease-in-out"
           style={{
-            transform: showWaveform ? 'translateY(0)' : 'translateY(calc(100% - 40px))',
+            transform: (showWaveform || waveformPinned) ? 'translateY(0)' : 'translateY(calc(100% - 40px))',
           }}
-          onMouseEnter={() => setShowWaveform(true)}
-          onMouseLeave={() => setShowWaveform(false)}
+          onMouseEnter={() => !waveformPinned && setShowWaveform(true)}
+          onMouseLeave={() => !waveformPinned && setShowWaveform(false)}
         >
           <div className="bg-gradient-to-b from-gray-800 to-gray-850 border border-gray-700 border-b-0 rounded-t-lg shadow-2xl overflow-hidden">
             {/* Collapsed Header Bar (always visible) */}
@@ -697,9 +698,26 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <span>Hover to {showWaveform ? 'collapse' : 'expand'} waveform</span>
-                <ChevronUp className={`w-4 h-4 transition-transform ${showWaveform ? '' : 'rotate-180'}`} />
+              <div className="flex items-center gap-3">
+                {/* Pin/Unpin Button */}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setWaveformPinned(!waveformPinned);
+                    if (!waveformPinned) {
+                      setShowWaveform(true);
+                    }
+                  }}
+                  className={`h-6 w-6 p-0 ${waveformPinned ? 'bg-blue-600 hover:bg-blue-500' : 'hover:bg-gray-700'}`}
+                  title={waveformPinned ? "Unpin waveform (will collapse on mouse leave)" : "Pin waveform (keep expanded)"}
+                >
+                  {waveformPinned ? <Pin className="w-3 h-3" /> : <PinOff className="w-3 h-3" />}
+                </Button>
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <span>{waveformPinned ? 'Pinned' : `Hover to ${showWaveform ? 'collapse' : 'expand'}`}</span>
+                  <ChevronUp className={`w-4 h-4 transition-transform ${(showWaveform || waveformPinned) ? '' : 'rotate-180'}`} />
+                </div>
               </div>
             </div>
 
@@ -707,8 +725,8 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
             <div
               className="transition-all duration-300 ease-in-out overflow-hidden"
               style={{
-                maxHeight: showWaveform ? '200px' : '0',
-                opacity: showWaveform ? 1 : 0,
+                maxHeight: (showWaveform || waveformPinned) ? '200px' : '0',
+                opacity: (showWaveform || waveformPinned) ? 1 : 0,
               }}
             >
               <div className="p-4">
