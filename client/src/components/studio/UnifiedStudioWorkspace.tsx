@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
@@ -15,6 +16,7 @@ import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
 import { useToast } from '@/hooks/use-toast';
+import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
 
@@ -42,6 +44,19 @@ interface Track {
 export default function UnifiedStudioWorkspace() {
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
+  
+  // MIDI Controller Integration
+  const { 
+    isSupported: midiSupported, 
+    isConnected: midiConnected, 
+    connectedDevices: midiDevices,
+    lastNote: midiLastNote,
+    activeNotes: midiActiveNotes,
+    initializeMIDI,
+    refreshDevices: refreshMIDIDevices,
+    settings: midiSettings,
+    updateSettings: updateMIDISettings
+  } = useMIDI();
   
   // Audio engines
   const [synthesisEngine] = useState(() => new AudioEngine());
@@ -456,6 +471,191 @@ export default function UnifiedStudioWorkspace() {
                 <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
                   {activeView === 'song-uploader' ? '✓' : '  '} Song Uploader
                 </button>
+              </div>
+            </div>
+            
+            {/* MIDI Menu */}
+            <div className="relative group">
+              <Button variant="ghost" size="sm" className="flex items-center gap-1">
+                <Cable className="w-3 h-3" />
+                MIDI ▼
+                {midiConnected && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>}
+              </Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-72 z-50 p-3 space-y-3">
+                {/* MIDI Status */}
+                <div className="pb-2 border-b border-gray-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-white">MIDI Controller</span>
+                    <div className={`px-2 py-0.5 rounded text-xs font-semibold ${midiConnected ? 'bg-green-600' : 'bg-gray-600'}`}>
+                      {midiConnected ? '● Connected' : '○ Disconnected'}
+                    </div>
+                  </div>
+                  {!midiSupported && (
+                    <div className="text-xs text-yellow-400">
+                      ⚠️ Web MIDI not supported in this browser
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Actions */}
+                <div className="space-y-2">
+                  {!midiConnected ? (
+                    <button
+                      onClick={() => {
+                        initializeMIDI();
+                        toast({ title: "Connecting to MIDI...", description: "Please wait..." });
+                      }}
+                      className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Cable className="w-4 h-4" />
+                      Connect MIDI Controller
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        refreshMIDIDevices();
+                        toast({ title: "Refreshing MIDI devices...", description: "Scanning for controllers" });
+                      }}
+                      className="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Refresh Devices
+                    </button>
+                  )}
+                </div>
+
+                {/* Connected Devices */}
+                {midiConnected && midiDevices.length > 0 && (
+                  <div className="pt-2 border-t border-gray-700">
+                    <div className="text-xs text-gray-400 mb-2">Connected ({midiDevices.length}):</div>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {midiDevices.slice(0, 3).map((device) => (
+                        <div key={device.id} className="text-xs bg-gray-700/50 rounded px-2 py-1.5">
+                          <div className="font-medium text-white truncate">{device.name}</div>
+                          <div className="text-gray-400 truncate">{device.manufacturer}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Active Notes Indicator */}
+                {midiConnected && midiActiveNotes.size > 0 && (
+                  <div className="pt-2 border-t border-gray-700">
+                    <div className="text-xs text-green-400 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Playing: {Array.from(midiActiveNotes).join(', ')}
+                    </div>
+                  </div>
+                )}
+
+                {/* Current Instrument */}
+                {midiConnected && (
+                  <div className="pt-2 border-t border-gray-700">
+                    <div className="text-xs text-gray-400 mb-1">Current Instrument:</div>
+                    <select
+                      value={midiSettings?.currentInstrument || 'piano'}
+                      onChange={(e) => updateMIDISettings({ currentInstrument: e.target.value })}
+                      className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
+                    >
+                      <option value="piano">🎹 Piano</option>
+                      <option value="guitar">🎸 Guitar</option>
+                      <option value="violin">🎻 Violin</option>
+                      <option value="flute">🎵 Flute</option>
+                      <option value="trumpet">🎺 Trumpet</option>
+                      <option value="bass">🎸 Bass</option>
+                      <option value="organ">🎹 Organ</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Advanced MIDI Settings */}
+                {midiConnected && (
+                  <div className="pt-2 border-t border-gray-700 space-y-2">
+                    <div className="text-xs font-semibold text-gray-300 mb-2">⚙️ Advanced Options</div>
+                    
+                    {/* Sustain Pedal */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-300">Sustain Pedal</span>
+                        <span className="text-xs text-gray-500">(CC 64)</span>
+                      </div>
+                      <Switch
+                        checked={midiSettings?.sustainPedal !== false}
+                        onCheckedChange={(checked) => {
+                          updateMIDISettings({ sustainPedal: checked });
+                          toast({ 
+                            title: checked ? "Sustain Pedal Enabled" : "Sustain Pedal Disabled",
+                            description: checked ? "Pedal will hold notes" : "Pedal has no effect",
+                            duration: 2000 
+                          });
+                        }}
+                      />
+                    </div>
+
+                    {/* Pitch Bend */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-300">Pitch Bend</span>
+                        <span className="text-xs text-gray-500">(±2 semitones)</span>
+                      </div>
+                      <Switch
+                        checked={midiSettings?.pitchBend !== false}
+                        onCheckedChange={(checked) => {
+                          updateMIDISettings({ pitchBend: checked });
+                          toast({ 
+                            title: checked ? "Pitch Bend Enabled" : "Pitch Bend Disabled",
+                            description: checked ? "Bend wheel affects pitch" : "Bend wheel ignored",
+                            duration: 2000 
+                          });
+                        }}
+                      />
+                    </div>
+
+                    {/* Modulation */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-300">Modulation</span>
+                        <span className="text-xs text-gray-500">(CC 1)</span>
+                      </div>
+                      <Switch
+                        checked={midiSettings?.modulation !== false}
+                        onCheckedChange={(checked) => {
+                          updateMIDISettings({ modulation: checked });
+                          toast({ 
+                            title: checked ? "Modulation Enabled" : "Modulation Disabled",
+                            description: checked ? "Mod wheel adds vibrato" : "Mod wheel ignored",
+                            duration: 2000 
+                          });
+                        }}
+                      />
+                    </div>
+
+                    {/* Auto-Connect New Devices */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-300">Auto-Connect</span>
+                        <span className="text-xs text-gray-500">(New devices)</span>
+                      </div>
+                      <Switch
+                        checked={midiSettings?.autoConnect !== false}
+                        onCheckedChange={(checked) => {
+                          updateMIDISettings({ autoConnect: checked });
+                          toast({ 
+                            title: checked ? "Auto-Connect Enabled" : "Auto-Connect Disabled",
+                            description: checked ? "New devices connect automatically" : "Manual connection required",
+                            duration: 2000 
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Help Text */}
+                <div className="pt-2 border-t border-gray-700 text-xs text-gray-400">
+                  💡 MIDI works across all tabs - play Piano Roll, Arrangement, Mixer in real-time!
+                </div>
               </div>
             </div>
           </div>
