@@ -66,6 +66,7 @@ interface VerticalPianoRollProps {
   onNotesChange?: (notes: Note[]) => void;
   selectedTrack?: string; // Changed to string to match parent
   isPlaying?: boolean;
+  currentTime?: number; // For playhead position
   onPlayNote?: (note: string, octave: number, duration: number, instrument?: string) => void;
   noteDuration?: number;
   className?: string;
@@ -92,6 +93,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   onNotesChange = () => {},
   selectedTrack = '1',
   isPlaying: externalIsPlaying = false,
+  currentTime = 0,
   onPlayNote = () => {},
   noteDuration = 0.5,
   className = '',
@@ -814,6 +816,18 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
                   </div>
                 );
               })}
+              
+              {/* Playhead - moving timeline indicator */}
+              {externalIsPlaying && (
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-50 pointer-events-none animate-pulse"
+                  style={{
+                    left: `${currentTime * STEP_WIDTH}px`,
+                  }}
+                >
+                  <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full" />
+                </div>
+              )}
             </div>
           </div>
         </div>

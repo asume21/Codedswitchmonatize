@@ -72,6 +72,21 @@ export default function UnifiedStudioWorkspace() {
     });
   }, [synthesisEngine]);
   
+  // Animate playhead when playing
+  useEffect(() => {
+    if (studioContext?.isPlaying) {
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000; // seconds
+        setPlayheadPosition(elapsed * 2); // 2 bars per second
+      }, 50); // Update every 50ms
+      
+      return () => clearInterval(interval);
+    } else {
+      setPlayheadPosition(0); // Reset when stopped
+    }
+  }, [studioContext?.isPlaying]);
+  
   // Main View State (DAW-style tabs)
   const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader'>('arrangement');
   
@@ -100,6 +115,7 @@ export default function UnifiedStudioWorkspace() {
   
   const [selectedTrack, setSelectedTrack] = useState<string | null>('track-1');
   const [zoom, setZoom] = useState([50]);
+  const [playheadPosition, setPlayheadPosition] = useState(0); // For timeline playhead
   
   // UI State
   const [showAIAssistant, setShowAIAssistant] = useState(true);
@@ -1163,13 +1179,14 @@ export default function UnifiedStudioWorkspace() {
                       
                       {/* Note grid */}
                       <div className="relative">
+                        {/* Grid cells */}
                         {['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
                           'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
                           'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((noteStr, rowIdx) => {
                           const noteName = noteStr.slice(0, -1);
                           const octave = parseInt(noteStr.slice(-1));
                           return (
-                          <div key={noteStr} className="h-6 border-b border-gray-700/50 flex">
+                          <div key={noteStr} className="h-6 border-b border-gray-700/50 flex relative">
                             {Array.from({ length: 32 }, (_, colIdx) => (
                               <div
                                 key={colIdx}
@@ -1181,6 +1198,61 @@ export default function UnifiedStudioWorkspace() {
                           </div>
                           );
                         })}
+                        
+                        {/* Render existing notes */}
+                        {selectedTrack && tracks.find(t => t.id === selectedTrack)?.notes?.map((note) => {
+                          const noteStr = `${note.note}${note.octave}`;
+                          const noteIndex = ['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
+                            'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
+                            'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].indexOf(noteStr);
+                          
+                          if (noteIndex === -1) return null;
+                          
+                          return (
+                            <div
+                              key={note.id}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                // Right-click to delete
+                                setTracks(tracks.map(t => 
+                                  t.id === selectedTrack 
+                                    ? { ...t, notes: t.notes?.filter(n => n.id !== note.id) }
+                                    : t
+                                ));
+                                toast({
+                                  title: "Note Deleted",
+                                  description: `Removed ${note.note}${note.octave}`,
+                                  duration: 1000,
+                                });
+                              }}
+                              className="absolute bg-green-500 hover:bg-green-400 border border-green-400 rounded cursor-pointer transition"
+                              style={{
+                                left: `${note.start * 60}px`,
+                                top: `${noteIndex * 24}px`,
+                                width: `${note.duration * 60}px`,
+                                height: '22px',
+                                zIndex: 10,
+                              }}
+                              title={`${note.note}${note.octave} - Right-click to delete`}
+                            >
+                              <span className="text-[10px] text-white font-bold px-1">
+                                {note.note}{note.octave}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Playhead - moving timeline indicator */}
+                        {studioContext?.isPlaying && (
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none animate-pulse"
+                            style={{
+                              left: `${playheadPosition * 60}px`,
+                            }}
+                          >
+                            <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full" />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1311,6 +1383,8 @@ Your lyrics will sync with the timeline
             <div className="flex-1 overflow-hidden bg-gray-900">
               <VerticalPianoRoll 
                 tracks={tracks as any}
+                isPlaying={studioContext?.isPlaying}
+                currentTime={playheadPosition}
               />
             </div>
           )}
