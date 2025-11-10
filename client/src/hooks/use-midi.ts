@@ -134,11 +134,20 @@ export function useMIDI() {
           audioContext.resume();
         }
 
+        // Add a compressor to prevent distortion/clipping
+        const compressor = audioContext.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-24, audioContext.currentTime);
+        compressor.knee.setValueAtTime(30, audioContext.currentTime);
+        compressor.ratio.setValueAtTime(12, audioContext.currentTime);
+        compressor.attack.setValueAtTime(0.003, audioContext.currentTime);
+        compressor.release.setValueAtTime(0.25, audioContext.currentTime);
+        compressor.connect(audioContext.destination);
+
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
 
         oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+        gainNode.connect(compressor); // Connect to compressor instead of direct output
 
         // Calculate frequency from note
         const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -148,10 +157,10 @@ export function useMIDI() {
         );
         oscillator.type = "sine"; // Piano-like tone
 
-        // Volume envelope
+        // Volume envelope - REDUCED volume significantly (0.08 instead of 0.3)
         gainNode.gain.setValueAtTime(0, audioContext.currentTime);
         gainNode.gain.linearRampToValueAtTime(
-          normalizedVelocity * 0.3,
+          normalizedVelocity * 0.08, // Much quieter to prevent distortion
           audioContext.currentTime + 0.01,
         );
         gainNode.gain.exponentialRampToValueAtTime(
@@ -166,21 +175,7 @@ export function useMIDI() {
           `✅ DIRECT AUDIO: ${frequency.toFixed(1)}Hz played for ${note}${octave}`,
         );
 
-        // Also try the playNote fallback
-        setTimeout(async () => {
-          try {
-            await playNote(
-              note,
-              octave,
-              1.0,
-              "piano",
-              normalizedVelocity,
-              true,
-            );
-          } catch (error) {
-            console.log(`🔈 Fallback playNote failed for ${note}${octave}`);
-          }
-        }, 10);
+        // REMOVED fallback playNote to prevent double sound/distortion
       } catch (error) {
         console.error(`❌ Direct audio failed for ${note}${octave}:`, error);
       }
