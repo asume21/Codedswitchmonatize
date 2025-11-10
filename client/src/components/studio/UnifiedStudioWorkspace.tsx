@@ -90,6 +90,7 @@ export default function UnifiedStudioWorkspace() {
       type: 'midi',
       instrument: 'piano',
       data: [],
+      notes: [], // Add empty notes array for Piano Roll
       volume: 0.8,
       pan: 0,
       muted: false,
@@ -128,6 +129,7 @@ export default function UnifiedStudioWorkspace() {
       type,
       instrument,
       data: [],
+      notes: [], // Initialize notes array for Piano Roll
       volume: 0.8,
       pan: 0,
       muted: false,
@@ -394,6 +396,7 @@ export default function UnifiedStudioWorkspace() {
       type: 'audio',
       instrument: metadata.provider,
       data: { audioUrl, metadata },
+      notes: [], // Initialize notes array
       volume: 0.8,
       pan: 0,
       muted: false,
@@ -417,6 +420,7 @@ export default function UnifiedStudioWorkspace() {
         name: 'Lyrics',
         type: 'lyrics',
         data: { lyrics, sections },
+        notes: [], // Initialize notes array
         volume: 1,
         pan: 0,
         muted: false,
