@@ -26,6 +26,7 @@ interface MIDISettings {
   modulation?: boolean;
   autoConnect?: boolean;
   currentInstrument?: string;
+  midiVolume?: number; // 0 to 1
 }
 
 export function useMIDI() {
@@ -58,6 +59,7 @@ export function useMIDI() {
     modulation: true,
     autoConnect: true,
     currentInstrument: "piano",
+    midiVolume: 0.3, // Default to 30% volume
   });
   const [autoConnectionEnabled, setAutoConnectionEnabled] = useState(true);
 
@@ -157,10 +159,11 @@ export function useMIDI() {
         );
         oscillator.type = "sine"; // Piano-like tone
 
-        // Volume envelope - REDUCED volume significantly (0.08 instead of 0.3)
+        // Volume envelope - Apply MIDI volume setting (default 30%)
+        const midiVolume = settings.midiVolume ?? 0.3;
         gainNode.gain.setValueAtTime(0, audioContext.currentTime);
         gainNode.gain.linearRampToValueAtTime(
-          normalizedVelocity * 0.08, // Much quieter to prevent distortion
+          normalizedVelocity * 0.08 * midiVolume, // Base volume * MIDI volume slider
           audioContext.currentTime + 0.01,
         );
         gainNode.gain.exponentialRampToValueAtTime(
@@ -180,7 +183,7 @@ export function useMIDI() {
         console.error(`❌ Direct audio failed for ${note}${octave}:`, error);
       }
     },
-    [noteNumberToName, playNote],
+    [noteNumberToName, playNote, settings.midiVolume],
   );
 
   // Handle note off events

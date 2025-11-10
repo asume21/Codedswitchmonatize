@@ -104,6 +104,9 @@ export default function UnifiedStudioWorkspace() {
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showLyricsFocus, setShowLyricsFocus] = useState(false);
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
+  
+  // Master Volume Control
+  const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
 
   // Instrument categories
   const instrumentCategories = {
@@ -549,6 +552,31 @@ export default function UnifiedStudioWorkspace() {
                   </div>
                 )}
 
+                {/* MIDI Volume Control */}
+                {midiConnected && (
+                  <div className="pt-2 border-t border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-blue-300">🔊 MIDI Volume</span>
+                      <span className="text-xs text-blue-400 font-bold">{Math.round((midiSettings?.midiVolume ?? 0.3) * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[(midiSettings?.midiVolume ?? 0.3) * 100]}
+                      onValueChange={(value) => {
+                        const newVolume = value[0] / 100;
+                        updateMIDISettings({ midiVolume: newVolume });
+                      }}
+                      max={100}
+                      min={0}
+                      step={1}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>Silent</span>
+                      <span>Loud</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Current Instrument */}
                 {midiConnected && (
                   <div className="pt-2 border-t border-gray-700">
@@ -677,6 +705,24 @@ export default function UnifiedStudioWorkspace() {
             <MessageSquare className="w-4 h-4 mr-2" />
             AI Assistant
           </Button>
+          
+          {/* Master Volume Control */}
+          <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded border border-gray-700">
+            <Sliders className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-400 font-medium">Master</span>
+            <div className="w-24">
+              <Slider
+                value={[masterVolume * 100]}
+                onValueChange={(value) => setMasterVolume(value[0] / 100)}
+                max={100}
+                min={0}
+                step={1}
+                className="w-full"
+              />
+            </div>
+            <span className="text-xs text-white font-bold w-8 text-right">{Math.round(masterVolume * 100)}%</span>
+          </div>
+          
           <div className="text-sm text-gray-400 italic">
             Use Global Transport to play ▶
           </div>
