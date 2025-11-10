@@ -48,6 +48,11 @@ export function useMIDI() {
     attack: 0.1,
     release: 0.5,
   });
+  
+  // Shared Audio Context (created once, reused)
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
   const [settings, setSettings] = useState<MIDISettings>({
     inputDevice: "all",
     velocitySensitivity: [100],
@@ -68,6 +73,14 @@ export function useMIDI() {
   // Update settings
   const updateSettings = useCallback((newSettings: Partial<MIDISettings>) => {
     setSettings((prev) => ({ ...prev, ...newSettings }));
+  }, []);
+
+  // Update master volume
+  const setMasterVolume = useCallback((volume: number) => {
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = volume;
+      console.log(`🔊 Master volume set to ${Math.round(volume * 100)}%`);
+    }
   }, []);
 
   // MIDI note number to note name conversion
@@ -125,31 +138,41 @@ export function useMIDI() {
       setActiveNotes((prev) => new Set(Array.from(prev).concat(midiNote)));
       setLastNote({ note: midiNote, velocity, channel });
 
-      // DIRECT WEB AUDIO - Bypass complex audio system
+      // DIRECT WEB AUDIO - Shared context for proper volume control
       try {
-        // Create immediate audio context and play sound
-        const audioContext = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
+        // Initialize shared audio context if not exists
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          
+          // Create master gain node
+          masterGainRef.current = audioContextRef.current.createGain();
+          masterGainRef.current.gain.value = 0.7; // Default master volume
+          
+          // Create compressor
+          compressorRef.current = audioContextRef.current.createDynamicsCompressor();
+          compressorRef.current.threshold.value = -24;
+          compressorRef.current.knee.value = 30;
+          compressorRef.current.ratio.value = 12;
+          compressorRef.current.attack.value = 0.003;
+          compressorRef.current.release.value = 0.25;
+          
+          // Chain: masterGain -> compressor -> destination
+          masterGainRef.current.connect(compressorRef.current);
+          compressorRef.current.connect(audioContextRef.current.destination);
+        }
 
+        const audioContext = audioContextRef.current;
+        
         // Resume context if suspended
         if (audioContext.state === "suspended") {
           audioContext.resume();
         }
 
-        // Add a compressor to prevent distortion/clipping
-        const compressor = audioContext.createDynamicsCompressor();
-        compressor.threshold.setValueAtTime(-24, audioContext.currentTime);
-        compressor.knee.setValueAtTime(30, audioContext.currentTime);
-        compressor.ratio.setValueAtTime(12, audioContext.currentTime);
-        compressor.attack.setValueAtTime(0.003, audioContext.currentTime);
-        compressor.release.setValueAtTime(0.25, audioContext.currentTime);
-        compressor.connect(audioContext.destination);
-
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
 
         oscillator.connect(gainNode);
-        gainNode.connect(compressor); // Connect to compressor instead of direct output
+        gainNode.connect(masterGainRef.current!); // Connect to master gain
 
         // Calculate frequency from note
         const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -157,7 +180,18 @@ export function useMIDI() {
           frequency,
           audioContext.currentTime,
         );
-        oscillator.type = "sine"; // Piano-like tone
+        
+        // SET OSCILLATOR TYPE BASED ON INSTRUMENT
+        const instrumentWaveforms: { [key: string]: OscillatorType } = {
+          piano: "sine",
+          guitar: "triangle",
+          violin: "sawtooth",
+          flute: "sine",
+          trumpet: "square",
+          bass: "triangle",
+          organ: "square",
+        };
+        oscillator.type = instrumentWaveforms[settings.currentInstrument || "piano"] || "sine";
 
         // Volume envelope - Apply MIDI volume setting (default 30%)
         const midiVolume = settings.midiVolume ?? 0.3;
@@ -175,15 +209,13 @@ export function useMIDI() {
         oscillator.stop(audioContext.currentTime + 1.0);
 
         console.log(
-          `✅ DIRECT AUDIO: ${frequency.toFixed(1)}Hz played for ${note}${octave}`,
+          `✅ ${settings.currentInstrument?.toUpperCase() || 'PIANO'}: ${frequency.toFixed(1)}Hz (${note}${octave}) - oscillator type: ${oscillator.type}`,
         );
-
-        // REMOVED fallback playNote to prevent double sound/distortion
       } catch (error) {
         console.error(`❌ Direct audio failed for ${note}${octave}:`, error);
       }
     },
-    [noteNumberToName, playNote, settings.midiVolume],
+    [noteNumberToName, playNote, settings.midiVolume, settings.currentInstrument],
   );
 
   // Handle note off events
@@ -644,6 +676,7 @@ export function useMIDI() {
     refreshDevices,
     settings,
     updateSettings,
+    setMasterVolume,
     autoConnectionEnabled,
     setAutoConnectionEnabled,
     currentPitchBend,

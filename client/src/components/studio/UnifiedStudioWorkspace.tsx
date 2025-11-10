@@ -55,7 +55,8 @@ export default function UnifiedStudioWorkspace() {
     initializeMIDI,
     refreshDevices: refreshMIDIDevices,
     settings: midiSettings,
-    updateSettings: updateMIDISettings
+    updateSettings: updateMIDISettings,
+    setMasterVolume: setMIDIMasterVolume
   } = useMIDI();
   
   // Audio engines
@@ -713,7 +714,11 @@ export default function UnifiedStudioWorkspace() {
             <div className="w-24">
               <Slider
                 value={[masterVolume * 100]}
-                onValueChange={(value) => setMasterVolume(value[0] / 100)}
+                onValueChange={(value) => {
+                  const newVolume = value[0] / 100;
+                  setMasterVolume(newVolume);
+                  setMIDIMasterVolume(newVolume); // Actually update audio gain
+                }}
                 max={100}
                 min={0}
                 step={1}
