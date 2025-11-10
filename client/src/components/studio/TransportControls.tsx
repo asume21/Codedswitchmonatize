@@ -4,6 +4,7 @@ import { useAudio, useSequencer } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
 import { useQuery } from "@tanstack/react-query";
 import { Music, ChevronDown, ChevronUp } from "lucide-react";
+import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 
 interface TransportControlsProps {
   currentTool?: string;
@@ -30,6 +31,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
   const [showSongPicker, setShowSongPicker] = useState(false);
+  const [showWaveform, setShowWaveform] = useState(false);
 
   const { setMasterVolume, initialize, isInitialized } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
@@ -566,6 +568,8 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       className={containerClasses}
       style={containerStyle}
       onMouseDown={isFloating ? handleMouseDown : undefined}
+      onMouseEnter={() => !isFloating && studioContext.currentUploadedSong && setShowWaveform(true)}
+      onMouseLeave={() => !isFloating && setShowWaveform(false)}
     >
       {isFloating && (
         <div
@@ -668,6 +672,57 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
             <p className="text-xs text-gray-400 text-center">
               Click a song to load, then press ▶️ to play
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Waveform Panel - Collapsible, shows above transport */}
+      {studioContext.currentUploadedSong && studioContext.uploadedSongAudio && (
+        <div
+          className="absolute bottom-full left-0 right-0 transition-all duration-300 ease-in-out"
+          style={{
+            transform: showWaveform ? 'translateY(0)' : 'translateY(calc(100% - 40px))',
+          }}
+          onMouseEnter={() => setShowWaveform(true)}
+          onMouseLeave={() => setShowWaveform(false)}
+        >
+          <div className="bg-gradient-to-b from-gray-800 to-gray-850 border border-gray-700 border-b-0 rounded-t-lg shadow-2xl overflow-hidden">
+            {/* Collapsed Header Bar (always visible) */}
+            <div className="h-10 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-4 cursor-pointer">
+              <div className="flex items-center gap-3">
+                <Music className="w-4 h-4 text-blue-400" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-white">
+                    {studioContext.currentUploadedSong.name}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <span>Hover to {showWaveform ? 'collapse' : 'expand'} waveform</span>
+                <ChevronUp className={`w-4 h-4 transition-transform ${showWaveform ? '' : 'rotate-180'}`} />
+              </div>
+            </div>
+
+            {/* Expanded Content (waveform) */}
+            <div
+              className="transition-all duration-300 ease-in-out overflow-hidden"
+              style={{
+                maxHeight: showWaveform ? '200px' : '0',
+                opacity: showWaveform ? 1 : 0,
+              }}
+            >
+              <div className="p-4">
+                <WaveformVisualizer
+                  audioElement={studioContext.uploadedSongAudio}
+                  isPlaying={isPlaying}
+                  height={120}
+                  showControls={true}
+                />
+                <p className="text-xs text-gray-400 text-center mt-2">
+                  Click anywhere on the waveform to seek • Use zoom controls to see details
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
