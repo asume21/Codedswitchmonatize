@@ -2,6 +2,7 @@ import { Express } from "express";
 import { IStorage } from "../storage";
 import { billingRoutes } from "./billing";
 import { requireAuth } from "../middleware/auth";
+import musicRoutes from "./music";
 
 // AI Service imports
 import { generateBeatPattern } from "../services/grok";
@@ -16,6 +17,9 @@ const snakeScores: { name: string; score: number; ts: number }[] = [];
 export async function registerRoutes(app: Express, storage: IStorage) {
   // Register existing billing routes
   app.use("/api/billing", billingRoutes(storage));
+  
+  // Register music AI routes (Bass Generator, Chord Generator, etc.)
+  app.use("/api/music", musicRoutes);
 
   // Upload parameter generation endpoint
   app.post("/api/objects/upload", async (req, res) => {
