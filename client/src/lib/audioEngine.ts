@@ -13,6 +13,9 @@ export interface NoteEvent {
 
 type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
 
+// Singleton pattern to ensure only one AudioEngine instance
+let audioEngineInstance: AudioEngine | null = null;
+
 class AudioEngine {
   private samplers: Record<string, Tone.Sampler> = {};
   private synths: Record<string, Tone.PolySynth> = {}; // Add synths for instruments!
