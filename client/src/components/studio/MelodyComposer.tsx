@@ -13,9 +13,10 @@ import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
 import { useAudio } from '@/hooks/use-audio';
 import type { DrumType } from '@/hooks/use-audio';
-import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano } from 'lucide-react';
+import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano, Send, Layers } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import audioRouter from '@/lib/audioRouter';
 
 import type { Note } from './types/pianoRollTypes';
 
@@ -201,6 +202,90 @@ function MelodyComposer() {
     });
   };
 
+  // Export functions for audio routing
+  const exportToMixer = () => {
+    // Export all tracks to the mixer
+    tracks.forEach(track => {
+      // Determine the appropriate bus based on instrument
+      let busId = 'master';
+      if (track.instrument === 'drums') busId = 'drums';
+      else if (track.instrument === 'bass') busId = 'bass';
+      else if (track.instrument === 'piano' || track.instrument === 'synth') busId = 'melody';
+      
+      // Add track to audio router
+      audioRouter.addTrack({
+        id: `${track.id}-${Date.now()}`,
+        name: track.name,
+        type: track.instrument === 'drums' ? 'drums' : 'melody',
+        instrument: track.instrument,
+        notes: notes.filter(n => n.track === track.id),
+        volume: track.volume,
+        pan: track.pan,
+        muted: track.muted,
+        solo: track.solo,
+        bus: busId
+      });
+    });
+
+    // Route melody data to MixStudio
+    audioRouter.routeAudio(
+      'MelodyComposer',
+      'MixStudio',
+      {
+        tracks,
+        notes,
+        tempo,
+        scale,
+        key
+      },
+      'melody',
+      { bpm: tempo, key }
+    );
+
+    toast({
+      title: "Sent to Mixer",
+      description: `${tracks.length} tracks routed to Mix Studio`,
+    });
+  };
+
+  const exportToArrangement = () => {
+    const melodyData = {
+      notes,
+      tracks,
+      tempo,
+      scale,
+      key,
+      name: `Melody_${key}_${tempo}BPM`
+    };
+
+    // Route to Arrangement Timeline
+    audioRouter.routeAudio(
+      'MelodyComposer',
+      'ArrangementTimeline',
+      melodyData,
+      'melody',
+      { bpm: tempo, key }
+    );
+
+    toast({
+      title: "Added to Timeline",
+      description: "Melody added to arrangement",
+    });
+  };
+
+  const exportToEffects = () => {
+    // Route selected track through effects bus
+    const track = tracks.find(t => t.id === selectedTrack);
+    if (track) {
+      audioRouter.updateTrackRouting(`${track.id}-${Date.now()}`, 'effects');
+      
+      toast({
+        title: "Sent to Effects",
+        description: `${track.name} routed through effects bus`,
+      });
+    }
+  };
+
   return (
     <div className="h-full bg-gray-900 text-white flex flex-col">
       {/* Top Bar */}
@@ -248,8 +333,30 @@ function MelodyComposer() {
           </div>
           
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" className="gap-1">
-              <Download className="h-4 w-4" /> Export
+            <span className="text-xs text-gray-400 mr-2">Route to:</span>
+            <Button 
+              onClick={exportToMixer}
+              variant="outline" 
+              size="sm" 
+              className="gap-1 bg-purple-600 hover:bg-purple-500 text-white border-purple-700"
+            >
+              <Send className="h-4 w-4" /> Mixer
+            </Button>
+            <Button 
+              onClick={exportToArrangement}
+              variant="outline" 
+              size="sm" 
+              className="gap-1 bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-700"
+            >
+              <Layers className="h-4 w-4" /> Timeline
+            </Button>
+            <Button 
+              onClick={exportToEffects}
+              variant="outline" 
+              size="sm" 
+              className="gap-1 bg-teal-600 hover:bg-teal-500 text-white border-teal-700"
+            >
+              <Music className="h-4 w-4" /> Effects
             </Button>
             <Button variant="default" size="sm" className="gap-1">
               <Share2 className="h-4 w-4" /> Share
