@@ -17,7 +17,8 @@ import {
   Settings,
   Activity,
   Plus,
-  Trash2
+  Trash2,
+  Play
 } from 'lucide-react';
 import type { PanelType } from './PanelContainer';
 
@@ -278,6 +279,10 @@ export function FreeformLayoutEditor({ density, panels, onChange }: FreeformLayo
                       <DropdownMenuItem onClick={() => handleChangeContent(panel.id, 'piano-roll')}>
                         <Piano className="w-4 h-4 mr-2" />
                         Piano Roll
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleChangeContent(panel.id, 'transport')}>
+                        <Play className="w-4 h-4 mr-2" />
+                        Transport
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleChangeContent(panel.id, 'instruments')}>
                         <Music className="w-4 h-4 mr-2" />
