@@ -17,6 +17,7 @@ import Settings from "@/pages/settings";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import ActivatePage from "@/pages/activate";
+import DesignPlayground from "@/pages/design-playground";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
@@ -61,6 +62,7 @@ function App() {
           <Route path="/login" component={Login} />
           <Route path="/signup" component={Signup} />
           <Route path="/activate" component={ActivatePage} />
+          <Route path="/design-playground" component={DesignPlayground} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/music-studio">
             <AppLayout>
