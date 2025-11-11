@@ -25,10 +25,12 @@ import {
   Download,
   Pencil,
   Check,
-  X
+  X,
+  Boxes
 } from 'lucide-react';
+import { LayoutManager } from '@/components/playground/LayoutManager';
 
-type LayoutOption = 'current' | 'file-tabs' | 'immersive' | 'modular';
+type LayoutOption = 'current' | 'file-tabs' | 'immersive' | 'modular' | 'custom';
 
 interface TabConfig {
   id: string;
@@ -82,6 +84,12 @@ export default function DesignPlayground() {
   const spacing = getSpacing();
 
   const layoutOptions = [
+    { 
+      id: 'custom' as LayoutOption, 
+      name: 'Custom Builder', 
+      icon: Boxes,
+      description: '✨ Full Control - Split, resize, customize everything'
+    },
     { 
       id: 'current' as LayoutOption, 
       name: 'Current Design', 
@@ -747,6 +755,7 @@ export default function DesignPlayground() {
 
       {/* Preview Area */}
       <div className="flex-1 overflow-hidden">
+        {activeLayout === 'custom' && <LayoutManager density={densityMode} />}
         {activeLayout === 'current' && renderCurrentLayout()}
         {activeLayout === 'file-tabs' && renderFileTabLayout()}
         {activeLayout === 'immersive' && renderImmersiveLayout()}
