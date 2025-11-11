@@ -1586,7 +1586,7 @@ Your lyrics will sync with the timeline
                 </div>
                 <div className="lg:col-span-1">
                   <AudioAnalysisPanel 
-                    audioUrl={studioContext?.currentAudioUrl}
+                    audioUrl={studioContext?.uploadedSongAudio?.src}
                   />
                 </div>
               </div>
