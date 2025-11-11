@@ -26,7 +26,7 @@ interface LayoutManagerProps {
 }
 
 // Default starting layouts - organized by workflow style
-const defaultLayouts = {
+export const defaultLayouts = {
   // Classic Layouts
   classic: {
     id: 'root',
@@ -369,6 +369,61 @@ const defaultLayouts = {
         size: 2
       }
     ]
+  },
+
+  // Beginner: Guided workflow for newcomers
+  beginner: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'horizontal' as const,
+    children: [
+      {
+        id: 'left',
+        type: 'split' as const,
+        direction: 'vertical' as const,
+        size: 1,
+        children: [
+          {
+            id: 'instruments',
+            type: 'panel' as const,
+            content: 'instruments' as PanelType,
+            size: 1
+          },
+          {
+            id: 'samples',
+            type: 'panel' as const,
+            content: 'samples' as PanelType,
+            size: 1
+          }
+        ]
+      },
+      {
+        id: 'center',
+        type: 'split' as const,
+        direction: 'vertical' as const,
+        size: 2,
+        children: [
+          {
+            id: 'timeline',
+            type: 'panel' as const,
+            content: 'timeline' as PanelType,
+            size: 1
+          },
+          {
+            id: 'piano',
+            type: 'panel' as const,
+            content: 'piano-roll' as PanelType,
+            size: 1
+          }
+        ]
+      },
+      {
+        id: 'right',
+        type: 'panel' as const,
+        content: 'ai-assistant' as PanelType,
+        size: 1
+      }
+    ]
   }
 };
 
@@ -383,7 +438,8 @@ const templateInfo: Record<string, { name: string; description: string; category
   immersive: { name: 'Immersive Mode', description: 'Full-screen DAW, minimal chrome', category: 'Alternative' },
   arranger: { name: 'Arranger View', description: 'Full-width timeline on top', category: 'Alternative' },
   live: { name: 'Live Performance', description: 'Minimal & focused for live use', category: 'Alternative' },
-  minimal: { name: 'Minimal', description: 'Single panel - start from scratch', category: 'Alternative' }
+  minimal: { name: 'Minimal', description: 'Single panel - start from scratch', category: 'Alternative' },
+  beginner: { name: 'Beginner Guided', description: 'Step-by-step guidance for newcomers', category: 'Guided' }
 };
 
 export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
