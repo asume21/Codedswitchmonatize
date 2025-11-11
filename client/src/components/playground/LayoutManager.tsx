@@ -20,9 +20,10 @@ interface LayoutManagerProps {
   density: 'comfortable' | 'compact' | 'dense';
 }
 
-// Default starting layouts
+// Default starting layouts - organized by workflow style
 const defaultLayouts = {
-  daw: {
+  // Classic Layouts
+  classic: {
     id: 'root',
     type: 'split' as const,
     direction: 'horizontal' as const,
@@ -75,7 +76,126 @@ const defaultLayouts = {
       }
     ]
   },
-  simple: {
+
+  // Producer-focused: Large timeline + piano roll
+  producer: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'horizontal' as const,
+    children: [
+      {
+        id: 'left',
+        type: 'panel' as const,
+        content: 'instruments' as PanelType,
+        size: 1
+      },
+      {
+        id: 'center',
+        type: 'split' as const,
+        direction: 'vertical' as const,
+        size: 4,
+        children: [
+          {
+            id: 'timeline',
+            type: 'panel' as const,
+            content: 'timeline' as PanelType,
+            size: 1
+          },
+          {
+            id: 'piano',
+            type: 'panel' as const,
+            content: 'piano-roll' as PanelType,
+            size: 2
+          }
+        ]
+      },
+      {
+        id: 'right',
+        type: 'panel' as const,
+        content: 'mixer' as PanelType,
+        size: 1
+      }
+    ]
+  },
+
+  // Mixing Console: Emphasis on mixer
+  mixing: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'horizontal' as const,
+    children: [
+      {
+        id: 'left',
+        type: 'split' as const,
+        direction: 'vertical' as const,
+        size: 1,
+        children: [
+          {
+            id: 'timeline',
+            type: 'panel' as const,
+            content: 'timeline' as PanelType,
+            size: 2
+          },
+          {
+            id: 'effects',
+            type: 'panel' as const,
+            content: 'effects' as PanelType,
+            size: 1
+          }
+        ]
+      },
+      {
+        id: 'mixer',
+        type: 'panel' as const,
+        content: 'mixer' as PanelType,
+        size: 2
+      }
+    ]
+  },
+
+  // Composition: Piano roll + instruments
+  composition: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'horizontal' as const,
+    children: [
+      {
+        id: 'left',
+        type: 'split' as const,
+        direction: 'vertical' as const,
+        size: 1,
+        children: [
+          {
+            id: 'instruments',
+            type: 'panel' as const,
+            content: 'instruments' as PanelType,
+            size: 1
+          },
+          {
+            id: 'samples',
+            type: 'panel' as const,
+            content: 'samples' as PanelType,
+            size: 1
+          }
+        ]
+      },
+      {
+        id: 'center',
+        type: 'panel' as const,
+        content: 'piano-roll' as PanelType,
+        size: 3
+      },
+      {
+        id: 'right',
+        type: 'panel' as const,
+        content: 'mixer' as PanelType,
+        size: 1
+      }
+    ]
+  },
+
+  // AI-Assisted: Large AI panel
+  ai: {
     id: 'root',
     type: 'split' as const,
     direction: 'horizontal' as const,
@@ -91,9 +211,99 @@ const defaultLayouts = {
         type: 'panel' as const,
         content: 'timeline' as PanelType,
         size: 2
+      },
+      {
+        id: 'right',
+        type: 'split' as const,
+        direction: 'vertical' as const,
+        size: 1.5,
+        children: [
+          {
+            id: 'ai',
+            type: 'panel' as const,
+            content: 'ai-assistant' as PanelType,
+            size: 2
+          },
+          {
+            id: 'mixer',
+            type: 'panel' as const,
+            content: 'mixer' as PanelType,
+            size: 1
+          }
+        ]
       }
     ]
   },
+
+  // Arranger: Full-width timeline on top
+  arranger: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'vertical' as const,
+    children: [
+      {
+        id: 'timeline',
+        type: 'panel' as const,
+        content: 'timeline' as PanelType,
+        size: 1
+      },
+      {
+        id: 'bottom',
+        type: 'split' as const,
+        direction: 'horizontal' as const,
+        size: 1,
+        children: [
+          {
+            id: 'instruments',
+            type: 'panel' as const,
+            content: 'instruments' as PanelType,
+            size: 1
+          },
+          {
+            id: 'piano',
+            type: 'panel' as const,
+            content: 'piano-roll' as PanelType,
+            size: 2
+          },
+          {
+            id: 'mixer',
+            type: 'panel' as const,
+            content: 'mixer' as PanelType,
+            size: 1
+          }
+        ]
+      }
+    ]
+  },
+
+  // Live Performance: Minimal, focused
+  live: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'horizontal' as const,
+    children: [
+      {
+        id: 'instruments',
+        type: 'panel' as const,
+        content: 'instruments' as PanelType,
+        size: 1
+      },
+      {
+        id: 'timeline',
+        type: 'panel' as const,
+        content: 'timeline' as PanelType,
+        size: 3
+      },
+      {
+        id: 'effects',
+        type: 'panel' as const,
+        content: 'effects' as PanelType,
+        size: 1
+      }
+    ]
+  },
+
+  // Minimal: Single panel
   minimal: {
     id: 'root',
     type: 'panel' as const,
@@ -101,8 +311,20 @@ const defaultLayouts = {
   }
 };
 
+// Template metadata for display
+const templateInfo: Record<string, { name: string; description: string; category: string }> = {
+  classic: { name: 'Classic DAW', description: '3-column with timeline, mixer & AI', category: 'Standard' },
+  producer: { name: 'Producer Focus', description: 'Large piano roll for composition', category: 'Standard' },
+  mixing: { name: 'Mixing Console', description: 'Emphasis on mixer for final mix', category: 'Specialized' },
+  composition: { name: 'Composition', description: 'Piano roll + instruments library', category: 'Specialized' },
+  ai: { name: 'AI-Assisted', description: 'Large AI panel for creative help', category: 'Specialized' },
+  arranger: { name: 'Arranger View', description: 'Full-width timeline on top', category: 'Alternative' },
+  live: { name: 'Live Performance', description: 'Minimal & focused for live use', category: 'Alternative' },
+  minimal: { name: 'Minimal', description: 'Single panel - start from scratch', category: 'Alternative' }
+};
+
 export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
-  const [layout, setLayout] = useState<PanelNode>(initialLayout || defaultLayouts.daw);
+  const [layout, setLayout] = useState<PanelNode>(initialLayout || defaultLayouts.classic);
   const [editMode, setEditMode] = useState(true);
   const [history, setHistory] = useState<PanelNode[]>([]);
 
@@ -226,7 +448,7 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
   };
 
   // Reset to default layout
-  const handleReset = (preset: keyof typeof defaultLayouts = 'daw') => {
+  const handleReset = (preset: keyof typeof defaultLayouts = 'classic') => {
     setHistory(prev => [...prev, layout]);
     setLayout(cloneTree(defaultLayouts[preset]));
   };
@@ -309,19 +531,57 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" data-testid="button-reset-layout">
                     <Save className="w-4 h-4 mr-2" />
-                    Load Preset
+                    Load Template
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleReset('daw')}>
-                    DAW Layout (Full)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleReset('simple')}>
-                    Simple Layout
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleReset('minimal')}>
-                    Minimal (Single Panel)
-                  </DropdownMenuItem>
+                <DropdownMenuContent className="w-64">
+                  {/* Standard Layouts */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Standard</div>
+                  {Object.entries(templateInfo)
+                    .filter(([_, info]) => info.category === 'Standard')
+                    .map(([key, info]) => (
+                      <DropdownMenuItem 
+                        key={key}
+                        onClick={() => handleReset(key as keyof typeof defaultLayouts)}
+                      >
+                        <div>
+                          <div className="font-medium">{info.name}</div>
+                          <div className="text-xs text-muted-foreground">{info.description}</div>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  
+                  {/* Specialized Layouts */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Specialized</div>
+                  {Object.entries(templateInfo)
+                    .filter(([_, info]) => info.category === 'Specialized')
+                    .map(([key, info]) => (
+                      <DropdownMenuItem 
+                        key={key}
+                        onClick={() => handleReset(key as keyof typeof defaultLayouts)}
+                      >
+                        <div>
+                          <div className="font-medium">{info.name}</div>
+                          <div className="text-xs text-muted-foreground">{info.description}</div>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+
+                  {/* Alternative Layouts */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Alternative</div>
+                  {Object.entries(templateInfo)
+                    .filter(([_, info]) => info.category === 'Alternative')
+                    .map(([key, info]) => (
+                      <DropdownMenuItem 
+                        key={key}
+                        onClick={() => handleReset(key as keyof typeof defaultLayouts)}
+                      >
+                        <div>
+                          <div className="font-medium">{info.name}</div>
+                          <div className="text-xs text-muted-foreground">{info.description}</div>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
