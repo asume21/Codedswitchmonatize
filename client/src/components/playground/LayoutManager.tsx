@@ -10,7 +10,8 @@ import {
   RotateCcw,
   Save,
   Grid3x3,
-  Move
+  Move,
+  CheckCircle
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -414,6 +415,21 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
     setMode(newMode);
   };
 
+  // Save Freeform layout back to Split mode
+  const handleSaveFreeformToSplit = () => {
+    // Convert current freeform panels to split layout
+    const convertedSplitLayout = freeformToSplit(freeformPanels);
+    
+    // Save current split layout to history before overwriting
+    setHistory(prev => [...prev, splitLayout]);
+    
+    // Update split layout with converted freeform layout
+    setSplitLayout(convertedSplitLayout);
+    
+    // Switch to Split mode to see the result
+    setMode('split');
+  };
+
   // Find a node by ID in the tree
   const findNode = (root: PanelNode, id: string): PanelNode | null => {
     if (root.id === id) return root;
@@ -623,6 +639,18 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
                 {editMode ? 'Editing' : 'View Only'}
               </Button>
             </>
+          )}
+
+          {mode === 'freeform' && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSaveFreeformToSplit}
+              data-testid="button-save-freeform-to-split"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Save to Split
+            </Button>
           )}
 
           {mode === 'split' && editMode && (
