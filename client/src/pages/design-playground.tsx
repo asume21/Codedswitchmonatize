@@ -218,10 +218,12 @@ export default function DesignPlayground() {
         </div>
         {editMode && (
           <div
-            className="absolute top-0 right-0 w-1 h-full bg-accent hover:bg-primary cursor-col-resize transition-colors"
+            className="absolute top-0 right-0 w-2 h-full bg-primary/50 hover:bg-primary cursor-col-resize transition-colors flex items-center justify-center"
             onMouseDown={(e) => handleStartResize('left', e)}
             data-testid="resize-handle-left"
-          />
+          >
+            <div className="w-0.5 h-12 bg-primary-foreground rounded-full"></div>
+          </div>
         )}
       </div>
 
@@ -281,10 +283,12 @@ export default function DesignPlayground() {
         </Card>
         {editMode && (
           <div
-            className="absolute top-0 left-0 w-1 h-full bg-accent hover:bg-primary cursor-col-resize transition-colors"
+            className="absolute top-0 left-0 w-2 h-full bg-primary/50 hover:bg-primary cursor-col-resize transition-colors flex items-center justify-center"
             onMouseDown={(e) => handleStartResize('right', e)}
             data-testid="resize-handle-right"
-          />
+          >
+            <div className="w-0.5 h-12 bg-primary-foreground rounded-full"></div>
+          </div>
         )}
       </div>
     </div>
@@ -407,10 +411,12 @@ export default function DesignPlayground() {
         
         {editMode && (
           <div
-            className="absolute top-0 right-0 w-1 h-full bg-accent hover:bg-primary cursor-col-resize transition-colors z-10"
+            className="absolute top-0 right-0 w-2 h-full bg-primary/50 hover:bg-primary cursor-col-resize transition-colors z-10 flex items-center justify-center"
             onMouseDown={(e) => handleStartResize('left', e)}
             data-testid="resize-handle-left-file"
-          />
+          >
+            <div className="w-0.5 h-12 bg-primary-foreground rounded-full"></div>
+          </div>
         )}
       </div>
 
