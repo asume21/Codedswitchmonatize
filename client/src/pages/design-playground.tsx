@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { 
   Layout, 
   Maximize2, 
@@ -19,16 +19,46 @@ import {
   SkipForward,
   Settings,
   Plus,
-  Search
+  Trash2,
+  Edit2,
+  GripVertical,
+  Download,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 
 type LayoutOption = 'current' | 'file-tabs' | 'immersive' | 'modular';
+
+interface TabConfig {
+  id: string;
+  name: string;
+  icon: string;
+}
 
 export default function DesignPlayground() {
   const [activeLayout, setActiveLayout] = useState<LayoutOption>('current');
   const [leftPanelTab, setLeftPanelTab] = useState('instruments');
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  // Edit mode states
+  const [editMode, setEditMode] = useState(false);
+  const [customTabs, setCustomTabs] = useState<TabConfig[]>([
+    { id: 'instruments', name: 'Instruments', icon: 'music' },
+    { id: 'patterns', name: 'Patterns', icon: 'layers' },
+    { id: 'effects', name: 'Effects', icon: 'sliders' },
+    { id: 'samples', name: 'Samples', icon: 'file-audio' },
+  ]);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTabName, setEditingTabName] = useState('');
+  
+  // Resize states
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320);
+  const [rightPanelWidth, setRightPanelWidth] = useState(384);
+  const [isResizingLeft, setIsResizingLeft] = useState(false);
+  const [isResizingRight, setIsResizingRight] = useState(false);
+  
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const layoutOptions = [
     { 
@@ -62,10 +92,112 @@ export default function DesignPlayground() {
   const effects = ['Reverb', 'Delay', 'Compressor', 'EQ', 'Distortion'];
   const samples = ['Kick.wav', 'Snare.wav', 'HiHat.wav', 'Clap.wav'];
 
+  // Handle resize drag
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingLeft && resizeRef.current) {
+        const delta = e.clientX - resizeRef.current.startX;
+        const newWidth = Math.max(200, Math.min(600, resizeRef.current.startWidth + delta));
+        setLeftPanelWidth(newWidth);
+      }
+      if (isResizingRight && resizeRef.current) {
+        const delta = resizeRef.current.startX - e.clientX;
+        const newWidth = Math.max(200, Math.min(600, resizeRef.current.startWidth + delta));
+        setRightPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingLeft(false);
+      setIsResizingRight(false);
+      resizeRef.current = null;
+    };
+
+    if (isResizingLeft || isResizingRight) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingLeft, isResizingRight]);
+
+  const handleStartResize = (side: 'left' | 'right', e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeRef.current = {
+      startX: e.clientX,
+      startWidth: side === 'left' ? leftPanelWidth : rightPanelWidth
+    };
+    if (side === 'left') {
+      setIsResizingLeft(true);
+    } else {
+      setIsResizingRight(true);
+    }
+  };
+
+  const getIconComponent = (iconName: string) => {
+    const icons: Record<string, any> = {
+      'music': Music,
+      'layers': Layers,
+      'sliders': Sliders,
+      'file-audio': FileAudio,
+    };
+    return icons[iconName] || Music;
+  };
+
+  const addNewTab = () => {
+    const newTab: TabConfig = {
+      id: `tab-${Date.now()}`,
+      name: 'New Tab',
+      icon: 'music'
+    };
+    setCustomTabs([...customTabs, newTab]);
+  };
+
+  const removeTab = (id: string) => {
+    setCustomTabs(customTabs.filter(tab => tab.id !== id));
+  };
+
+  const startEditingTab = (tab: TabConfig) => {
+    setEditingTabId(tab.id);
+    setEditingTabName(tab.name);
+  };
+
+  const saveTabName = (id: string) => {
+    setCustomTabs(customTabs.map(tab => 
+      tab.id === id ? { ...tab, name: editingTabName } : tab
+    ));
+    setEditingTabId(null);
+    setEditingTabName('');
+  };
+
+  const cancelEditingTab = () => {
+    setEditingTabId(null);
+    setEditingTabName('');
+  };
+
+  const exportConfig = () => {
+    const config = {
+      layout: activeLayout,
+      tabs: customTabs,
+      leftPanelWidth,
+      rightPanelWidth,
+    };
+    const dataStr = JSON.stringify(config, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'unified-studio-config.json';
+    link.click();
+  };
+
   const renderCurrentLayout = () => (
     <div className="flex h-full bg-background">
       {/* Left Panel - Instruments */}
-      <div className="w-80 border-r flex flex-col">
+      <div style={{ width: leftPanelWidth }} className="border-r flex flex-col relative">
         <div className="p-4 border-b">
           <Input placeholder="Search instruments..." data-testid="input-search-instruments" />
         </div>
@@ -84,6 +216,13 @@ export default function DesignPlayground() {
             Bass
           </div>
         </div>
+        {editMode && (
+          <div
+            className="absolute top-0 right-0 w-1 h-full bg-accent hover:bg-primary cursor-col-resize transition-colors"
+            onMouseDown={(e) => handleStartResize('left', e)}
+            data-testid="resize-handle-left"
+          />
+        )}
       </div>
 
       {/* Center - Timeline */}
@@ -131,7 +270,7 @@ export default function DesignPlayground() {
       </div>
 
       {/* Right Panel - AI Assistant */}
-      <div className="w-96 border-l p-4">
+      <div style={{ width: rightPanelWidth }} className="border-l p-4 relative">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">AI Assistant</CardTitle>
@@ -140,6 +279,13 @@ export default function DesignPlayground() {
             <p className="text-sm text-muted-foreground">AI music assistant ready...</p>
           </CardContent>
         </Card>
+        {editMode && (
+          <div
+            className="absolute top-0 left-0 w-1 h-full bg-accent hover:bg-primary cursor-col-resize transition-colors"
+            onMouseDown={(e) => handleStartResize('right', e)}
+            data-testid="resize-handle-right"
+          />
+        )}
       </div>
     </div>
   );
@@ -147,56 +293,75 @@ export default function DesignPlayground() {
   const renderFileTabLayout = () => (
     <div className="flex h-full bg-background">
       {/* Left Panel - Tabbed like Files */}
-      <div className="w-80 border-r flex flex-col">
+      <div style={{ width: leftPanelWidth }} className="border-r flex flex-col relative">
         {/* Vertical Tabs */}
-        <div className="flex border-b">
-          <Button
-            variant={leftPanelTab === 'instruments' ? 'default' : 'ghost'}
-            size="sm"
-            className="flex-1 rounded-none"
-            onClick={() => setLeftPanelTab('instruments')}
-            data-testid="button-tab-instruments"
-          >
-            <Music className="w-4 h-4 mr-2" />
-            Instruments
-          </Button>
-        </div>
-        <div className="flex border-b">
-          <Button
-            variant={leftPanelTab === 'patterns' ? 'default' : 'ghost'}
-            size="sm"
-            className="flex-1 rounded-none"
-            onClick={() => setLeftPanelTab('patterns')}
-            data-testid="button-tab-patterns"
-          >
-            <Layers className="w-4 h-4 mr-2" />
-            Patterns
-          </Button>
-        </div>
-        <div className="flex border-b">
-          <Button
-            variant={leftPanelTab === 'effects' ? 'default' : 'ghost'}
-            size="sm"
-            className="flex-1 rounded-none"
-            onClick={() => setLeftPanelTab('effects')}
-            data-testid="button-tab-effects"
-          >
-            <Sliders className="w-4 h-4 mr-2" />
-            Effects
-          </Button>
-        </div>
-        <div className="flex border-b">
-          <Button
-            variant={leftPanelTab === 'samples' ? 'default' : 'ghost'}
-            size="sm"
-            className="flex-1 rounded-none"
-            onClick={() => setLeftPanelTab('samples')}
-            data-testid="button-tab-samples"
-          >
-            <FileAudio className="w-4 h-4 mr-2" />
-            Samples
-          </Button>
-        </div>
+        {customTabs.map((tab) => {
+          const IconComponent = getIconComponent(tab.icon);
+          return (
+            <div key={tab.id} className="flex border-b items-center">
+              {editMode && (
+                <div className="p-1">
+                  <GripVertical className="w-3 h-3 text-muted-foreground" />
+                </div>
+              )}
+              {editingTabId === tab.id ? (
+                <div className="flex-1 flex items-center gap-1 p-1">
+                  <Input
+                    value={editingTabName}
+                    onChange={(e) => setEditingTabName(e.target.value)}
+                    className="h-7 text-sm"
+                    autoFocus
+                    data-testid={`input-edit-tab-${tab.id}`}
+                  />
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveTabName(tab.id)} data-testid={`button-save-tab-${tab.id}`}>
+                    <Check className="w-3 h-3" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={cancelEditingTab} data-testid={`button-cancel-tab-${tab.id}`}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant={leftPanelTab === tab.id ? 'default' : 'ghost'}
+                    size="sm"
+                    className="flex-1 rounded-none justify-start"
+                    onClick={() => setLeftPanelTab(tab.id)}
+                    data-testid={`button-tab-${tab.id}`}
+                  >
+                    <IconComponent className="w-4 h-4 mr-2" />
+                    {tab.name}
+                  </Button>
+                  {editMode && (
+                    <div className="flex gap-1 px-1">
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEditingTab(tab)} data-testid={`button-edit-tab-${tab.id}`}>
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeTab(tab.id)} data-testid={`button-remove-tab-${tab.id}`}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+        
+        {editMode && (
+          <div className="border-b">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full rounded-none"
+              onClick={addNewTab}
+              data-testid="button-add-tab"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Tab
+            </Button>
+          </div>
+        )}
 
         {/* Tab Content */}
         <div className="flex-1 overflow-y-auto p-4">
@@ -239,6 +404,14 @@ export default function DesignPlayground() {
             </div>
           )}
         </div>
+        
+        {editMode && (
+          <div
+            className="absolute top-0 right-0 w-1 h-full bg-accent hover:bg-primary cursor-col-resize transition-colors z-10"
+            onMouseDown={(e) => handleStartResize('left', e)}
+            data-testid="resize-handle-left-file"
+          />
+        )}
       </div>
 
       {/* Center - Main Workspace */}
@@ -425,9 +598,32 @@ export default function DesignPlayground() {
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
       <div className="border-b p-4">
-        <h1 className="text-2xl font-bold mb-2" data-testid="text-title">🎨 Design Playground</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold" data-testid="text-title">🎨 Design Playground</h1>
+          <div className="flex gap-2">
+            <Button
+              variant={editMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setEditMode(!editMode)}
+              data-testid="button-toggle-edit"
+            >
+              <Edit2 className="w-4 h-4 mr-2" />
+              {editMode ? 'Exit Edit Mode' : 'Edit Mode'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportConfig}
+              data-testid="button-export-config"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Design
+            </Button>
+          </div>
+        </div>
         <p className="text-sm text-muted-foreground">
-          Test different layout options for the Unified Studio. Click each option to explore!
+          Test different layouts • {editMode && <span className="text-primary font-medium">Edit Mode Active: Rename tabs, resize panels, customize layout</span>}
+          {!editMode && 'Click Edit Mode to customize tabs and resize panels'}
         </p>
       </div>
 
