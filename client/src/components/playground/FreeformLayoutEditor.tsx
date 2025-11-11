@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import type { PanelType } from './PanelContainer';
 
-interface FreeformPanel {
+export interface FreeformPanel {
   id: string;
   x: number;
   y: number;
@@ -33,7 +33,8 @@ interface FreeformPanel {
 
 interface FreeformLayoutEditorProps {
   density: 'comfortable' | 'compact' | 'dense';
-  initialPanels?: FreeformPanel[];
+  panels: FreeformPanel[];
+  onChange: (panels: FreeformPanel[]) => void;
 }
 
 const panelTypeIcons: Record<PanelType, any> = {
@@ -100,8 +101,7 @@ const getDefaultPanels = (): FreeformPanel[] => [
   }
 ];
 
-export function FreeformLayoutEditor({ density, initialPanels }: FreeformLayoutEditorProps) {
-  const [panels, setPanels] = useState<FreeformPanel[]>(initialPanels || getDefaultPanels());
+export function FreeformLayoutEditor({ density, panels, onChange }: FreeformLayoutEditorProps) {
   const [selectedPanel, setSelectedPanel] = useState<string | null>(null);
   const [maxZIndex, setMaxZIndex] = useState(panels.length);
 
@@ -112,7 +112,7 @@ export function FreeformLayoutEditor({ density, initialPanels }: FreeformLayoutE
   }[density];
 
   const handleDragStop = (id: string, d: { x: number; y: number }) => {
-    setPanels(prev => prev.map(p => 
+    onChange(panels.map(p => 
       p.id === id ? { ...p, x: d.x, y: d.y } : p
     ));
   };
@@ -122,7 +122,7 @@ export function FreeformLayoutEditor({ density, initialPanels }: FreeformLayoutE
     ref: HTMLElement,
     position: { x: number; y: number }
   ) => {
-    setPanels(prev => prev.map(p => 
+    onChange(panels.map(p => 
       p.id === id 
         ? { 
             ...p, 
@@ -140,19 +140,19 @@ export function FreeformLayoutEditor({ density, initialPanels }: FreeformLayoutE
     // Bring to front
     const newZIndex = maxZIndex + 1;
     setMaxZIndex(newZIndex);
-    setPanels(prev => prev.map(p => 
+    onChange(panels.map(p => 
       p.id === id ? { ...p, zIndex: newZIndex } : p
     ));
   };
 
   const handleChangeContent = (id: string, content: PanelType) => {
-    setPanels(prev => prev.map(p => 
+    onChange(panels.map(p => 
       p.id === id ? { ...p, content } : p
     ));
   };
 
   const handleRemovePanel = (id: string) => {
-    setPanels(prev => prev.filter(p => p.id !== id));
+    onChange(panels.filter(p => p.id !== id));
     if (selectedPanel === id) {
       setSelectedPanel(null);
     }
@@ -168,7 +168,7 @@ export function FreeformLayoutEditor({ density, initialPanels }: FreeformLayoutE
       content: 'empty',
       zIndex: maxZIndex + 1
     };
-    setPanels(prev => [...prev, newPanel]);
+    onChange([...panels, newPanel]);
     setMaxZIndex(maxZIndex + 1);
     setSelectedPanel(newPanel.id);
   };

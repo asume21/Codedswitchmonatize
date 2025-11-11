@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PanelContainer, PanelNode, PanelType } from './PanelContainer';
 import { FreeformLayoutEditor } from './FreeformLayoutEditor';
+import { splitToFreeform, freeformToSplit, type FreeformPanel } from './layoutConversion';
 import { Button } from '@/components/ui/button';
 import { 
   Edit2, 
@@ -328,12 +329,32 @@ const templateInfo: Record<string, { name: string; description: string; category
 
 export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
   const [mode, setMode] = useState<'split' | 'freeform'>('split');
-  const [layout, setLayout] = useState<PanelNode>(initialLayout || defaultLayouts.classic);
+  const [splitLayout, setSplitLayout] = useState<PanelNode>(initialLayout || defaultLayouts.classic);
+  const [freeformPanels, setFreeformPanels] = useState<FreeformPanel[]>([]);
   const [editMode, setEditMode] = useState(true);
   const [history, setHistory] = useState<PanelNode[]>([]);
 
   // Generate unique ID
   const generateId = () => `panel-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Handle mode switching with conversion
+  // Design: Split is the "source of truth"
+  // - When switching TO Freeform: Always convert from current Split layout
+  // - When switching TO Split: Never convert, preserve Split edits
+  const handleModeChange = (newMode: 'split' | 'freeform') => {
+    if (newMode === mode) return;
+
+    if (newMode === 'freeform') {
+      // Always convert from current Split layout to Freeform
+      // This ensures Freeform always reflects the latest Split structure
+      const converted = splitToFreeform(splitLayout);
+      setFreeformPanels(converted);
+    }
+    // When switching to Split: Never convert from Freeform
+    // This preserves all Split edits independently
+
+    setMode(newMode);
+  };
 
   // Find a node by ID in the tree
   const findNode = (root: PanelNode, id: string): PanelNode | null => {
@@ -357,12 +378,12 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
 
   // Split a panel
   const handleSplit = (nodeId: string, direction: 'horizontal' | 'vertical') => {
-    const newLayout = cloneTree(layout);
+    const newLayout = cloneTree(splitLayout);
     const node = findNode(newLayout, nodeId);
     
     if (node && node.type === 'panel') {
       // Save current state to history
-      setHistory(prev => [...prev, layout]);
+      setHistory(prev => [...prev, splitLayout]);
 
       // Convert panel to split container
       const originalContent = node.content;
@@ -384,16 +405,16 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
       ];
       delete node.content;
 
-      setLayout(newLayout);
+      setSplitLayout(newLayout);
     }
   };
 
   // Remove a panel
   const handleRemove = (nodeId: string) => {
     // Don't allow removing root
-    if (nodeId === 'root' || nodeId === layout.id) return;
+    if (nodeId === 'root' || nodeId === splitLayout.id) return;
 
-    const newLayout = cloneTree(layout);
+    const newLayout = cloneTree(splitLayout);
     
     // Find parent of the node to remove
     const findParent = (root: PanelNode, targetId: string): PanelNode | null => {
@@ -413,7 +434,7 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
     
     if (parent && parent.children) {
       // Save current state to history
-      setHistory(prev => [...prev, layout]);
+      setHistory(prev => [...prev, splitLayout]);
 
       // Remove the child
       parent.children = parent.children.filter(c => c.id !== nodeId);
@@ -424,21 +445,21 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
         Object.assign(parent, remainingChild);
       }
 
-      setLayout(newLayout);
+      setSplitLayout(newLayout);
     }
   };
 
   // Change panel content
   const handleChangeContent = (nodeId: string, content: PanelType) => {
-    const newLayout = cloneTree(layout);
+    const newLayout = cloneTree(splitLayout);
     const node = findNode(newLayout, nodeId);
     
     if (node && node.type === 'panel') {
       // Save current state to history
-      setHistory(prev => [...prev, layout]);
+      setHistory(prev => [...prev, splitLayout]);
       
       node.content = content;
-      setLayout(newLayout);
+      setSplitLayout(newLayout);
     }
   };
 
@@ -447,21 +468,21 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
     if (history.length > 0) {
       const previous = history[history.length - 1];
       setHistory(prev => prev.slice(0, -1));
-      setLayout(previous);
+      setSplitLayout(previous);
     }
   };
 
-  // Reset to default layout
+  // Reset to default splitLayout
   const handleReset = (preset: keyof typeof defaultLayouts = 'classic') => {
-    setHistory(prev => [...prev, layout]);
-    setLayout(cloneTree(defaultLayouts[preset]));
+    setHistory(prev => [...prev, splitLayout]);
+    setSplitLayout(cloneTree(defaultLayouts[preset]));
   };
 
   // Export configuration
   const handleExport = () => {
     const config = {
       version: '1.0',
-      layout: layout,
+      splitLayout: splitLayout,
       metadata: {
         created: new Date().toISOString(),
         density: density
@@ -473,7 +494,7 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `layout-${Date.now()}.json`;
+    link.download = `splitLayout-${Date.now()}.json`;
     link.click();
   };
 
@@ -489,12 +510,12 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
         reader.onload = (e: any) => {
           try {
             const config = JSON.parse(e.target.result);
-            if (config.layout) {
-              setHistory(prev => [...prev, layout]);
-              setLayout(config.layout);
+            if (config.splitLayout) {
+              setHistory(prev => [...prev, splitLayout]);
+              setSplitLayout(config.splitLayout);
             }
           } catch (err) {
-            console.error('Failed to import layout:', err);
+            console.error('Failed to import splitLayout:', err);
           }
         };
         reader.readAsText(file);
@@ -514,7 +535,7 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
               variant={mode === 'split' ? 'default' : 'ghost'}
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() => setMode('split')}
+              onClick={() => handleModeChange('split')}
               data-testid="button-mode-split"
             >
               <Grid3x3 className="w-3 h-3 mr-1" />
@@ -524,7 +545,7 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
               variant={mode === 'freeform' ? 'default' : 'ghost'}
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={() => setMode('freeform')}
+              onClick={() => handleModeChange('freeform')}
               data-testid="button-mode-freeform"
             >
               <Move className="w-3 h-3 mr-1" />
@@ -561,7 +582,7 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" data-testid="button-reset-layout">
+                  <Button variant="outline" size="sm" data-testid="button-reset-splitLayout">
                     <Save className="w-4 h-4 mr-2" />
                     Load Template
                   </Button>
@@ -648,7 +669,7 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
           {/* Panel Tree - Split Mode */}
           <div className="flex-1 p-2 overflow-hidden">
             <PanelContainer
-              node={layout}
+              node={splitLayout}
               onSplit={handleSplit}
               onRemove={handleRemove}
               onChangeContent={handleChangeContent}
@@ -670,7 +691,11 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
       ) : (
         /* Freeform Mode */
         <div className="flex-1 overflow-hidden">
-          <FreeformLayoutEditor density={density} />
+          <FreeformLayoutEditor 
+            density={density}
+            panels={freeformPanels}
+            onChange={setFreeformPanels}
+          />
         </div>
       )}
     </div>
