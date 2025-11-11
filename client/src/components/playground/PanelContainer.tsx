@@ -7,6 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle
+} from '@/components/ui/resizable';
 import { 
   SplitSquareHorizontal, 
   SplitSquareVertical, 

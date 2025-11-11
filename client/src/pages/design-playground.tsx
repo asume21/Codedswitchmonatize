@@ -705,29 +705,46 @@ export default function DesignPlayground() {
                 Dense
               </Button>
             </div>
-            <Button
-              variant={editMode ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setEditMode(!editMode)}
-              data-testid="button-toggle-edit"
-            >
-              <Edit2 className="w-4 h-4 mr-2" />
-              {editMode ? 'Exit Edit Mode' : 'Edit Mode'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportConfig}
-              data-testid="button-export-config"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Design
-            </Button>
+            
+            {/* Edit Mode button - only show for non-Custom Builder layouts */}
+            {activeLayout !== 'custom' && (
+              <Button
+                variant={editMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setEditMode(!editMode)}
+                data-testid="button-toggle-edit"
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                {editMode ? 'Exit Edit Mode' : 'Edit Mode'}
+              </Button>
+            )}
+            
+            {/* Export button - only show for non-Custom Builder layouts */}
+            {activeLayout !== 'custom' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportConfig}
+                data-testid="button-export-config"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Design
+              </Button>
+            )}
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Test different layouts & density levels • {editMode && <span className="text-primary font-medium">✨ Edit Mode Active: Drag tabs by grip icon • Drag colored edges to resize • Pencil to rename • Trash to delete</span>}
-          {!editMode && 'Toggle density (Comfortable/Compact/Dense) to see how much fits on screen'}
+          {activeLayout === 'custom' && (
+            <>
+              <span className="text-primary font-medium">✨ Custom Builder Active:</span> Use the controls in each panel to split, change content, or remove • Load templates to start with different layouts • Toggle density to optimize spacing
+            </>
+          )}
+          {activeLayout !== 'custom' && (
+            <>
+              Test different layouts & density levels • {editMode && <span className="text-primary font-medium">✨ Edit Mode Active: Drag tabs by grip icon • Drag colored edges to resize • Pencil to rename • Trash to delete</span>}
+              {!editMode && 'Toggle density (Comfortable/Compact/Dense) to see how much fits on screen'}
+            </>
+          )}
         </p>
       </div>
 
