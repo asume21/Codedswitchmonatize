@@ -252,21 +252,21 @@ export default function DesignPlayground() {
   const renderCurrentLayout = () => (
     <div className="flex h-full bg-background">
       {/* Left Panel - Instruments */}
-      <div style={{ width: leftPanelWidth }} className="border-r flex flex-col relative">
-        <div className="p-4 border-b">
-          <Input placeholder="Search instruments..." data-testid="input-search-instruments" />
+      <div style={{ width: leftPanelWidth }} className={`border-r flex flex-col relative ${spacing.text}`}>
+        <div className={`${spacing.p} border-b`}>
+          <Input placeholder="Search instruments..." className={spacing.h} data-testid="input-search-instruments" />
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          <div className="font-semibold mb-2 flex items-center gap-2">
+        <div className={`flex-1 overflow-y-auto ${spacing.p} ${spacing.gap}`}>
+          <div className={`font-semibold mb-2 flex items-center ${spacing.gap}`}>
             <ChevronDown className="w-4 h-4" />
             Piano
           </div>
-          {instruments.slice(0, 2).map((inst, i) => (
-            <div key={i} className="pl-6 py-1 text-sm text-muted-foreground hover-elevate rounded-md px-2 cursor-pointer" data-testid={`item-instrument-${i}`}>
+          {instruments.slice(0, densityMode === 'dense' ? 4 : densityMode === 'compact' ? 3 : 2).map((inst, i) => (
+            <div key={i} className={`pl-6 ${spacing.p} ${spacing.text} text-muted-foreground hover-elevate rounded-md cursor-pointer`} data-testid={`item-instrument-${i}`}>
               + {inst}
             </div>
           ))}
-          <div className="font-semibold mb-2 mt-4 flex items-center gap-2">
+          <div className={`font-semibold mb-2 mt-2 flex items-center ${spacing.gap}`}>
             <ChevronRight className="w-4 h-4" />
             Bass
           </div>
@@ -286,27 +286,29 @@ export default function DesignPlayground() {
       {/* Center - Timeline */}
       <div className="flex-1 flex flex-col">
         {/* Top Tabs */}
-        <div className="border-b px-4 py-2 flex gap-2">
-          <Button variant="ghost" size="sm" data-testid="button-arrangement">Arrangement</Button>
-          <Button variant="ghost" size="sm" data-testid="button-piano-roll">Piano Roll</Button>
-          <Button variant="ghost" size="sm" data-testid="button-mixer">Mixer</Button>
-          <Button variant="ghost" size="sm" data-testid="button-ai-studio">AI Studio</Button>
+        <div className={`border-b ${spacing.p} flex ${spacing.gap}`}>
+          <Button variant="ghost" size="sm" className={spacing.h} data-testid="button-arrangement">Arrangement</Button>
+          <Button variant="ghost" size="sm" className={spacing.h} data-testid="button-piano-roll">Piano Roll</Button>
+          <Button variant="ghost" size="sm" className={spacing.h} data-testid="button-mixer">Mixer</Button>
+          <Button variant="ghost" size="sm" className={spacing.h} data-testid="button-ai-studio">AI Studio</Button>
         </div>
 
         {/* Timeline Area */}
-        <div className="flex-1 p-4">
+        <div className={`flex-1 ${spacing.p}`}>
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Timeline - All Tracks (1)</CardTitle>
+            <CardHeader className={spacing.p}>
+              <CardTitle className={spacing.text}>Timeline - All Tracks ({densityMode === 'dense' ? 3 : densityMode === 'compact' ? 2 : 1})</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 p-2 border rounded-md">
-                  <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-mute">M</Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-solo">S</Button>
-                  <span className="flex-1 text-sm">Piano 1</span>
-                  <div className="w-48 h-8 bg-accent rounded-md"></div>
-                </div>
+            <CardContent className={spacing.p}>
+              <div className={spacing.gap}>
+                {[...Array(densityMode === 'dense' ? 3 : densityMode === 'compact' ? 2 : 1)].map((_, i) => (
+                  <div key={i} className={`flex items-center ${spacing.gap} ${spacing.p} border rounded-md`}>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-mute">M</Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-solo">S</Button>
+                    <span className={`flex-1 ${spacing.text}`}>{i === 0 ? 'Piano 1' : i === 1 ? 'Bass' : 'Drums'}</span>
+                    <div className={`w-48 ${densityMode === 'dense' ? 'h-6' : 'h-8'} bg-accent rounded-md`}></div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -328,13 +330,13 @@ export default function DesignPlayground() {
       </div>
 
       {/* Right Panel - AI Assistant */}
-      <div style={{ width: rightPanelWidth }} className="border-l p-4 relative">
+      <div style={{ width: rightPanelWidth }} className={`border-l ${spacing.p} relative`}>
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">AI Assistant</CardTitle>
+          <CardHeader className={spacing.p}>
+            <CardTitle className={spacing.text}>AI Assistant</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">AI music assistant ready...</p>
+          <CardContent className={spacing.p}>
+            <p className={`${spacing.text} text-muted-foreground`}>AI music assistant ready...</p>
           </CardContent>
         </Card>
         {editMode && (
@@ -530,35 +532,29 @@ export default function DesignPlayground() {
   const renderImmersiveLayout = () => (
     <div className="flex flex-col h-full bg-black text-white">
       {/* Minimal Top Bar - Hidden until hover */}
-      <div className="border-b border-white/10 px-4 py-1 flex items-center justify-between text-xs opacity-50 hover:opacity-100 transition-opacity">
-        <div className="flex gap-4">
+      <div className={`border-b border-white/10 ${spacing.p} flex items-center justify-between ${spacing.text} opacity-50 hover:opacity-100 transition-opacity`}>
+        <div className={`flex ${spacing.gap}`}>
           <span>Untitled Project</span>
           <span className="text-white/50">120 BPM</span>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="ghost" className="h-6 text-xs" data-testid="button-menu-file">File</Button>
-          <Button size="sm" variant="ghost" className="h-6 text-xs" data-testid="button-menu-view">View</Button>
-          <Button size="sm" variant="ghost" className="h-6 text-xs" data-testid="button-menu-tools">Tools</Button>
+        <div className={`flex ${spacing.gap}`}>
+          <Button size="sm" variant="ghost" className={`${spacing.h} ${spacing.text}`} data-testid="button-menu-file">File</Button>
+          <Button size="sm" variant="ghost" className={`${spacing.h} ${spacing.text}`} data-testid="button-menu-view">View</Button>
+          <Button size="sm" variant="ghost" className={`${spacing.h} ${spacing.text}`} data-testid="button-menu-tools">Tools</Button>
         </div>
       </div>
 
       {/* Full Canvas - Maximum Space */}
-      <div className="flex-1 p-2">
-        <div className="h-full rounded-md border border-white/20 p-6 bg-white/5">
-          <div className="text-xs text-white/50 mb-4">ARRANGEMENT VIEW</div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 h-16 bg-white/10 rounded-md px-3">
-              <span className="text-sm">Piano</span>
-              <div className="flex-1 bg-purple-500/30 h-8 rounded-sm"></div>
-            </div>
-            <div className="flex items-center gap-2 h-16 bg-white/10 rounded-md px-3">
-              <span className="text-sm">Bass</span>
-              <div className="flex-1 bg-blue-500/30 h-8 rounded-sm"></div>
-            </div>
-            <div className="flex items-center gap-2 h-16 bg-white/10 rounded-md px-3">
-              <span className="text-sm">Drums</span>
-              <div className="flex-1 bg-green-500/30 h-8 rounded-sm"></div>
-            </div>
+      <div className={`flex-1 ${densityMode === 'dense' ? 'p-1' : densityMode === 'compact' ? 'p-2' : 'p-2'}`}>
+        <div className={`h-full rounded-md border border-white/20 ${densityMode === 'dense' ? 'p-3' : densityMode === 'compact' ? 'p-4' : 'p-6'} bg-white/5`}>
+          <div className={`${spacing.text} text-white/50 mb-2`}>ARRANGEMENT VIEW</div>
+          <div className={spacing.gap}>
+            {[...Array(densityMode === 'dense' ? 8 : densityMode === 'compact' ? 5 : 3)].map((_, i) => (
+              <div key={i} className={`flex items-center ${spacing.gap} ${densityMode === 'dense' ? 'h-10' : densityMode === 'compact' ? 'h-12' : 'h-16'} bg-white/10 rounded-md ${spacing.p}`}>
+                <span className={spacing.text}>{i === 0 ? 'Piano' : i === 1 ? 'Bass' : i === 2 ? 'Drums' : i === 3 ? 'Synth' : i === 4 ? 'Guitar' : i === 5 ? 'Vocals' : i === 6 ? 'Strings' : 'FX'}</span>
+                <div className={`flex-1 ${['bg-purple-500/30', 'bg-blue-500/30', 'bg-green-500/30', 'bg-yellow-500/30', 'bg-red-500/30', 'bg-pink-500/30', 'bg-cyan-500/30', 'bg-orange-500/30'][i % 8]} ${densityMode === 'dense' ? 'h-6' : 'h-8'} rounded-sm`}></div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -577,24 +573,24 @@ export default function DesignPlayground() {
   const renderModularLayout = () => (
     <div className="flex flex-col h-full bg-background">
       {/* Top Menu Bar */}
-      <div className="border-b px-4 py-1 flex items-center gap-4 text-sm">
+      <div className={`border-b ${spacing.p} flex items-center ${spacing.gap} ${spacing.text}`}>
         <span className="font-medium">Modular Studio</span>
-        <Button size="sm" variant="ghost" className="h-7" data-testid="button-add-panel">+ Add Panel</Button>
+        <Button size="sm" variant="ghost" className={spacing.h} data-testid="button-add-panel">+ Add Panel</Button>
       </div>
 
       {/* Workspace with Floating Panels */}
-      <div className="flex-1 relative p-4 bg-muted/20">
+      <div className={`flex-1 relative ${spacing.p} bg-muted/20`}>
         {/* Panel 1 - Instruments */}
-        <Card className="absolute top-4 left-4 w-80 shadow-lg" data-testid="card-panel-instruments">
-          <CardHeader className="py-2 px-3 border-b">
-            <CardTitle className="text-sm flex items-center justify-between">
+        <Card className={`absolute ${densityMode === 'dense' ? 'top-2 left-2' : 'top-4 left-4'} w-80 shadow-lg`} data-testid="card-panel-instruments">
+          <CardHeader className={`${spacing.p} border-b`}>
+            <CardTitle className={`${spacing.text} flex items-center justify-between`}>
               Instruments
               <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-close-instruments">×</Button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 space-y-1 max-h-48 overflow-y-auto">
-            {instruments.slice(0, 4).map((inst, i) => (
-              <div key={i} className="text-sm py-1 px-2 hover-elevate rounded-md cursor-pointer" data-testid={`item-modular-instrument-${i}`}>
+          <CardContent className={`${spacing.p} ${spacing.gap} max-h-48 overflow-y-auto`}>
+            {instruments.slice(0, densityMode === 'dense' ? 6 : densityMode === 'compact' ? 5 : 4).map((inst, i) => (
+              <div key={i} className={`${spacing.text} ${spacing.p} hover-elevate rounded-md cursor-pointer`} data-testid={`item-modular-instrument-${i}`}>
                 {inst}
               </div>
             ))}
@@ -602,56 +598,55 @@ export default function DesignPlayground() {
         </Card>
 
         {/* Panel 2 - Timeline */}
-        <Card className="absolute top-4 left-96 right-80 shadow-lg" data-testid="card-panel-timeline">
-          <CardHeader className="py-2 px-3 border-b">
-            <CardTitle className="text-sm flex items-center justify-between">
+        <Card className={`absolute ${densityMode === 'dense' ? 'top-2 left-[21rem] right-[19rem]' : 'top-4 left-96 right-80'} shadow-lg`} data-testid="card-panel-timeline">
+          <CardHeader className={`${spacing.p} border-b`}>
+            <CardTitle className={`${spacing.text} flex items-center justify-between`}>
               Timeline
               <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-close-timeline">×</Button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3">
-            <div className="h-32 border rounded-md p-2 bg-accent/10">
-              <div className="text-xs text-muted-foreground mb-2">Tracks</div>
-              <div className="space-y-1">
-                <div className="h-6 bg-accent rounded-sm"></div>
-                <div className="h-6 bg-accent rounded-sm"></div>
+          <CardContent className={spacing.p}>
+            <div className={`${densityMode === 'dense' ? 'h-24' : densityMode === 'compact' ? 'h-28' : 'h-32'} border rounded-md ${spacing.p} bg-accent/10`}>
+              <div className={`${spacing.text} text-muted-foreground mb-2`}>Tracks</div>
+              <div className={spacing.gap}>
+                {[...Array(densityMode === 'dense' ? 3 : 2)].map((_, i) => (
+                  <div key={i} className={`${densityMode === 'dense' ? 'h-5' : 'h-6'} bg-accent rounded-sm`}></div>
+                ))}
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Panel 3 - Mixer */}
-        <Card className="absolute top-4 right-4 w-72 shadow-lg" data-testid="card-panel-mixer">
-          <CardHeader className="py-2 px-3 border-b">
-            <CardTitle className="text-sm flex items-center justify-between">
+        <Card className={`absolute ${densityMode === 'dense' ? 'top-2 right-2' : 'top-4 right-4'} w-72 shadow-lg`} data-testid="card-panel-mixer">
+          <CardHeader className={`${spacing.p} border-b`}>
+            <CardTitle className={`${spacing.text} flex items-center justify-between`}>
               Mixer
               <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-close-mixer">×</Button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3">
-            <div className="flex gap-2">
-              <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-8 h-24 bg-accent/30 rounded-sm"></div>
-                <span className="text-xs">Ch 1</span>
-              </div>
-              <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-8 h-24 bg-accent/30 rounded-sm"></div>
-                <span className="text-xs">Ch 2</span>
-              </div>
+          <CardContent className={spacing.p}>
+            <div className={`flex ${spacing.gap}`}>
+              {[...Array(densityMode === 'dense' ? 4 : 2)].map((_, i) => (
+                <div key={i} className={`flex-1 flex flex-col items-center ${spacing.gap}`}>
+                  <div className={`w-8 ${densityMode === 'dense' ? 'h-16' : 'h-24'} bg-accent/30 rounded-sm`}></div>
+                  <span className={spacing.text}>Ch {i + 1}</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
 
         {/* Panel 4 - Piano Roll */}
-        <Card className="absolute bottom-4 left-4 right-4 shadow-lg" data-testid="card-panel-piano">
-          <CardHeader className="py-2 px-3 border-b">
-            <CardTitle className="text-sm flex items-center justify-between">
+        <Card className={`absolute ${densityMode === 'dense' ? 'bottom-2 left-2 right-2' : 'bottom-4 left-4 right-4'} shadow-lg`} data-testid="card-panel-piano">
+          <CardHeader className={`${spacing.p} border-b`}>
+            <CardTitle className={`${spacing.text} flex items-center justify-between`}>
               Piano Roll
               <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-close-piano">×</Button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3">
-            <div className="h-32 border rounded-md bg-accent/5"></div>
+          <CardContent className={spacing.p}>
+            <div className={`${densityMode === 'dense' ? 'h-24' : 'h-32'} border rounded-md bg-accent/5`}></div>
           </CardContent>
         </Card>
       </div>
