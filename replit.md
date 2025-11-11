@@ -71,7 +71,16 @@ Optional payment integration:
 - Database sessions are stored in PostgreSQL for persistence
 - Object storage directory: `/objects`
 
-## Recent Changes (Nov 1, 2025)
+## Recent Changes (Nov 11, 2025)
+- Completed centralized audio routing integration across all studio components
+- Added export/routing functionality to BeatMaker with UI dropdown for routing to different audio buses
+- Added export/routing functionality to MelodyComposer with similar routing capabilities  
+- Updated MixStudio to import tracks from audioRouter with "Import Tracks" button
+- Resolved audio fragmentation - all components now use unified audio context
+- Implemented audio flow: BeatMaker/MelodyComposer → audioRouter → MixStudio
+- All audio playback now uses RealisticAudioEngine's high-quality soundfonts
+
+## Previous Changes (Nov 1, 2025)  
 - Configured for Replit environment
 - Updated Vite to use port 5000 with proper HMR settings
 - Configured backend to use port 3000 in development
