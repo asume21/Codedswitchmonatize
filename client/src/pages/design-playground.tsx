@@ -62,7 +62,24 @@ export default function DesignPlayground() {
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   
+  // Density mode
+  const [densityMode, setDensityMode] = useState<'comfortable' | 'compact' | 'dense'>('comfortable');
+  
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // Get spacing based on density
+  const getSpacing = () => {
+    switch (densityMode) {
+      case 'dense':
+        return { p: 'p-1', gap: 'gap-1', text: 'text-xs', h: 'h-7' };
+      case 'compact':
+        return { p: 'p-2', gap: 'gap-2', text: 'text-sm', h: 'h-8' };
+      default:
+        return { p: 'p-4', gap: 'gap-4', text: 'text-base', h: 'h-9' };
+    }
+  };
+
+  const spacing = getSpacing();
 
   const layoutOptions = [
     { 
@@ -337,7 +354,7 @@ export default function DesignPlayground() {
   const renderFileTabLayout = () => (
     <div className="flex h-full bg-background">
       {/* Left Panel - Tabbed like Files */}
-      <div style={{ width: leftPanelWidth }} className="border-r flex flex-col relative">
+      <div style={{ width: leftPanelWidth }} className={`border-r flex flex-col relative ${spacing.text}`}>
         {/* Vertical Tabs */}
         {customTabs.map((tab, index) => {
           const IconComponent = getIconComponent(tab.icon);
@@ -418,11 +435,11 @@ export default function DesignPlayground() {
         )}
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className={`flex-1 overflow-y-auto ${spacing.p}`}>
           {leftPanelTab === 'instruments' && (
-            <div className="space-y-1">
+            <div className={spacing.gap}>
               {instruments.map((inst, i) => (
-                <div key={i} className="py-2 px-3 text-sm hover-elevate rounded-md cursor-pointer flex items-center gap-2" data-testid={`item-instrument-${i}`}>
+                <div key={i} className={`${spacing.p} ${spacing.text} hover-elevate rounded-md cursor-pointer flex items-center gap-2`} data-testid={`item-instrument-${i}`}>
                   <Plus className="w-3 h-3" />
                   {inst}
                 </div>
@@ -430,18 +447,18 @@ export default function DesignPlayground() {
             </div>
           )}
           {leftPanelTab === 'patterns' && (
-            <div className="space-y-1">
+            <div className={spacing.gap}>
               {patterns.map((pattern, i) => (
-                <div key={i} className="py-2 px-3 text-sm hover-elevate rounded-md cursor-pointer" data-testid={`item-pattern-${i}`}>
+                <div key={i} className={`${spacing.p} ${spacing.text} hover-elevate rounded-md cursor-pointer`} data-testid={`item-pattern-${i}`}>
                   {pattern}
                 </div>
               ))}
             </div>
           )}
           {leftPanelTab === 'effects' && (
-            <div className="space-y-1">
+            <div className={spacing.gap}>
               {effects.map((effect, i) => (
-                <div key={i} className="py-2 px-3 text-sm hover-elevate rounded-md cursor-pointer flex items-center gap-2" data-testid={`item-effect-${i}`}>
+                <div key={i} className={`${spacing.p} ${spacing.text} hover-elevate rounded-md cursor-pointer flex items-center gap-2`} data-testid={`item-effect-${i}`}>
                   <Plus className="w-3 h-3" />
                   {effect}
                 </div>
@@ -449,9 +466,9 @@ export default function DesignPlayground() {
             </div>
           )}
           {leftPanelTab === 'samples' && (
-            <div className="space-y-1">
+            <div className={spacing.gap}>
               {samples.map((sample, i) => (
-                <div key={i} className="py-2 px-3 text-sm hover-elevate rounded-md cursor-pointer" data-testid={`item-sample-${i}`}>
+                <div key={i} className={`${spacing.p} ${spacing.text} hover-elevate rounded-md cursor-pointer`} data-testid={`item-sample-${i}`}>
                   {sample}
                 </div>
               ))}
@@ -485,18 +502,16 @@ export default function DesignPlayground() {
         </div>
 
         {/* Timeline */}
-        <div className="flex-1 p-6">
-          <div className="border rounded-md h-full p-4">
-            <div className="text-sm text-muted-foreground mb-4">Track Arrangement</div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs w-20">Piano 1</span>
-                <div className="flex-1 h-12 bg-accent/20 border rounded-md"></div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs w-20">Bass</span>
-                <div className="flex-1 h-12 bg-accent/20 border rounded-md"></div>
-              </div>
+        <div className={`flex-1 ${densityMode === 'dense' ? 'p-2' : densityMode === 'compact' ? 'p-4' : 'p-6'}`}>
+          <div className={`border rounded-md h-full ${spacing.p}`}>
+            <div className={`${spacing.text} text-muted-foreground mb-2`}>Track Arrangement</div>
+            <div className={spacing.gap}>
+              {[...Array(densityMode === 'dense' ? 6 : densityMode === 'compact' ? 4 : 2)].map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className={`${spacing.text} w-16`}>{i === 0 ? 'Piano 1' : i === 1 ? 'Bass' : i === 2 ? 'Drums' : i === 3 ? 'Synth' : i === 4 ? 'Guitar' : 'Vocals'}</span>
+                  <div className={`flex-1 ${densityMode === 'dense' ? 'h-8' : densityMode === 'compact' ? 'h-10' : 'h-12'} bg-accent/20 border rounded-md`}></div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -657,7 +672,36 @@ export default function DesignPlayground() {
       <div className="border-b p-4">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-2xl font-bold" data-testid="text-title">🎨 Design Playground</h1>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <div className="flex gap-1 border rounded-md p-1">
+              <Button
+                variant={densityMode === 'comfortable' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setDensityMode('comfortable')}
+                data-testid="button-density-comfortable"
+              >
+                Comfortable
+              </Button>
+              <Button
+                variant={densityMode === 'compact' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setDensityMode('compact')}
+                data-testid="button-density-compact"
+              >
+                Compact
+              </Button>
+              <Button
+                variant={densityMode === 'dense' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setDensityMode('dense')}
+                data-testid="button-density-dense"
+              >
+                Dense
+              </Button>
+            </div>
             <Button
               variant={editMode ? 'default' : 'outline'}
               size="sm"
@@ -679,8 +723,8 @@ export default function DesignPlayground() {
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Test different layouts • {editMode && <span className="text-primary font-medium">✨ Edit Mode Active: Drag tabs by the grip icon to reorder • Drag the colored edges to resize panels • Click pencil to rename • Click trash to delete</span>}
-          {!editMode && 'Click Edit Mode to customize tabs and resize panels'}
+          Test different layouts & density levels • {editMode && <span className="text-primary font-medium">✨ Edit Mode Active: Drag tabs by grip icon • Drag colored edges to resize • Pencil to rename • Trash to delete</span>}
+          {!editMode && 'Toggle density (Comfortable/Compact/Dense) to see how much fits on screen'}
         </p>
       </div>
 
