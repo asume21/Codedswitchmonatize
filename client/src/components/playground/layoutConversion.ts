@@ -81,7 +81,7 @@ export function splitToFreeform(
 
 /**
  * Convert Freeform panel array to Split tree structure
- * Uses a simple row-based approach: group by rows, then split horizontally within rows
+ * Uses a column-based approach: group by columns (left to right), then stack vertically within columns
  */
 export function freeformToSplit(panels: FreeformPanel[]): PanelNode {
   if (panels.length === 0) {
@@ -101,67 +101,67 @@ export function freeformToSplit(panels: FreeformPanel[]): PanelNode {
     };
   }
 
-  // Simple approach: Group panels into rows based on Y position
-  // Sort by Y position first
-  const sorted = [...panels].sort((a, b) => a.y - b.y);
+  // Column-based approach: Group panels into columns based on X position
+  // Sort by X position first (left to right)
+  const sorted = [...panels].sort((a, b) => a.x - b.x);
   
-  // Group into rows (panels with similar Y values)
-  const rows: FreeformPanel[][] = [];
-  const rowThreshold = 50; // pixels - panels within 50px vertically are in same row
+  // Group into columns (panels with overlapping X ranges)
+  const columns: FreeformPanel[][] = [];
   
-  let currentRow: FreeformPanel[] = [sorted[0]];
+  let currentColumn: FreeformPanel[] = [sorted[0]];
   
   for (let i = 1; i < sorted.length; i++) {
     const current = sorted[i];
-    const rowTop = Math.min(...currentRow.map(p => p.y));
-    const rowBottom = Math.max(...currentRow.map(p => p.y + p.height));
+    const columnLeft = Math.min(...currentColumn.map(p => p.x));
+    const columnRight = Math.max(...currentColumn.map(p => p.x + p.width));
     
-    // Check if current panel overlaps with this row
-    if (current.y < rowBottom + rowThreshold) {
-      currentRow.push(current);
+    // Check if current panel overlaps horizontally with this column
+    // A panel belongs to the column if it starts before the column ends
+    if (current.x < columnRight + 20) { // 20px tolerance for gaps
+      currentColumn.push(current);
     } else {
-      // Start new row
-      rows.push(currentRow);
-      currentRow = [current];
+      // Start new column
+      columns.push(currentColumn);
+      currentColumn = [current];
     }
   }
-  rows.push(currentRow);
+  columns.push(currentColumn);
 
-  // If only one row, create horizontal split
-  if (rows.length === 1) {
-    const rowPanels = rows[0].sort((a, b) => a.x - b.x);
-    return createHorizontalSplit(rowPanels);
+  // If only one column, create vertical stack
+  if (columns.length === 1) {
+    const columnPanels = columns[0].sort((a, b) => a.y - b.y);
+    return createVerticalStack(columnPanels);
   }
 
-  // Multiple rows - create vertical split with horizontal splits inside
-  const rowNodes = rows.map(rowPanels => {
-    const sorted = rowPanels.sort((a, b) => a.x - b.x);
+  // Multiple columns - create horizontal split with vertical stacks inside
+  const columnNodes = columns.map(columnPanels => {
+    const sorted = columnPanels.sort((a, b) => a.y - b.y);
     if (sorted.length === 1) {
       return {
         id: sorted[0].id,
         type: 'panel' as const,
         content: sorted[0].content,
-        size: sorted[0].height
+        size: sorted[0].width
       };
     }
     return {
-      ...createHorizontalSplit(sorted),
-      size: Math.max(...sorted.map(p => p.height))
+      ...createVerticalStack(sorted),
+      size: Math.max(...sorted.map(p => p.width))
     };
   });
 
   return {
     id: `split-${Date.now()}`,
     type: 'split',
-    direction: 'vertical',
-    children: rowNodes
+    direction: 'horizontal',
+    children: columnNodes
   };
 }
 
 /**
- * Create a horizontal split from panels (left to right)
+ * Create a vertical stack from panels (top to bottom)
  */
-function createHorizontalSplit(panels: FreeformPanel[]): PanelNode {
+function createVerticalStack(panels: FreeformPanel[]): PanelNode {
   if (panels.length === 1) {
     return {
       id: panels[0].id,
@@ -173,12 +173,12 @@ function createHorizontalSplit(panels: FreeformPanel[]): PanelNode {
   return {
     id: `split-${Date.now()}`,
     type: 'split',
-    direction: 'horizontal',
+    direction: 'vertical',
     children: panels.map(p => ({
       id: p.id,
       type: 'panel' as const,
       content: p.content,
-      size: p.width
+      size: p.height
     }))
   };
 }

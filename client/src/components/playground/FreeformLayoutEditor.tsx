@@ -18,7 +18,12 @@ import {
   Activity,
   Plus,
   Trash2,
-  Play
+  Play,
+  Pause,
+  Square,
+  Circle,
+  SkipBack,
+  SkipForward
 } from 'lucide-react';
 import type { PanelType } from './PanelContainer';
 
@@ -423,6 +428,37 @@ function PanelContentPreview({ type, density }: { type: PanelType; density: 'com
           <p className={`${spacing.text} text-muted-foreground text-center`}>
             AI music assistant ready...
           </p>
+        </div>
+      );
+
+    case 'transport':
+      return (
+        <div className="flex items-center justify-center gap-2">
+          {/* Transport Controls */}
+          <div className="flex items-center gap-1">
+            <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-transport-rewind">
+              <SkipBack className="w-3 h-3" />
+            </Button>
+            <Button size="icon" variant="default" className="h-6 w-6" data-testid="button-transport-play">
+              <Play className="w-3 h-3" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-transport-stop">
+              <Square className="w-3 h-3" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-6 w-6" data-testid="button-transport-record">
+              <Circle className="w-3 h-3 text-destructive" />
+            </Button>
+          </div>
+          
+          {/* Time Display */}
+          <div className="flex items-center gap-1 px-2 py-0.5 border rounded-md bg-muted/30">
+            <span className={`${spacing.text} font-mono`}>00:00.000</span>
+          </div>
+          
+          {/* BPM Display */}
+          <div className="flex items-center gap-1 px-2 py-0.5 border rounded-md bg-muted/30">
+            <span className={`${spacing.text} font-mono`}>120 BPM</span>
+          </div>
         </div>
       );
 
