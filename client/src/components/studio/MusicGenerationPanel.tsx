@@ -24,11 +24,13 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [isGenerating, setIsGenerating] = useState(false);
   const [useRealisticInstruments, setUseRealisticInstruments] = useState(true); // Default to realistic
   const [isPlaying, setIsPlaying] = useState(false);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null); // For raw audio files
   const { toast } = useToast();
   
   const audioEngineRef = useRef<RealisticAudioEngine | null>(null);
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentPatternRef = useRef<any>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null); // For playing raw audio files
   
   // Initialize audio engine
   useEffect(() => {
@@ -200,12 +202,15 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
 
         const data = await response.json();
 
-        if (data.audioUrl || data.audio_url) {
-          const audioUrl = data.audioUrl || data.audio_url;
+        if (data.audioUrl || data.audio_url || data.result?.audioUrl || data.result?.audio_url) {
+          const audioUrl = data.audioUrl || data.audio_url || data.result?.audioUrl || data.result?.audio_url;
+          
+          // Store the audio URL for playback
+          setGeneratedAudioUrl(audioUrl);
           
           toast({
             title: 'Music Generated!',
-            description: `Your ${provider === 'suno' ? 'professional track' : 'beat'} is ready!`,
+            description: `Your ${provider === 'suno' ? 'professional track' : 'beat'} is ready! Click play to listen.`,
           });
 
           if (onMusicGenerated) {
