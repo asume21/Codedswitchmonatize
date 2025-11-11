@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { PanelContainer, PanelNode, PanelType } from './PanelContainer';
+import { FreeformLayoutEditor } from './FreeformLayoutEditor';
 import { Button } from '@/components/ui/button';
 import { 
   Edit2, 
   Download, 
   Upload,
   RotateCcw,
-  Save
+  Save,
+  Grid3x3,
+  Move
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -324,6 +327,7 @@ const templateInfo: Record<string, { name: string; description: string; category
 };
 
 export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
+  const [mode, setMode] = useState<'split' | 'freeform'>('split');
   const [layout, setLayout] = useState<PanelNode>(initialLayout || defaultLayouts.classic);
   const [editMode, setEditMode] = useState(true);
   const [history, setHistory] = useState<PanelNode[]>([]);
@@ -504,17 +508,45 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
       {/* Toolbar */}
       <div className="border-b p-2 flex items-center justify-between gap-2 bg-muted/30">
         <div className="flex items-center gap-2">
-          <Button
-            variant={editMode ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setEditMode(!editMode)}
-            data-testid="button-toggle-edit-mode"
-          >
-            <Edit2 className="w-4 h-4 mr-2" />
-            {editMode ? 'Editing' : 'View Only'}
-          </Button>
+          {/* Mode Toggle */}
+          <div className="flex gap-1 border rounded-md p-1">
+            <Button
+              variant={mode === 'split' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setMode('split')}
+              data-testid="button-mode-split"
+            >
+              <Grid3x3 className="w-3 h-3 mr-1" />
+              Split
+            </Button>
+            <Button
+              variant={mode === 'freeform' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setMode('freeform')}
+              data-testid="button-mode-freeform"
+            >
+              <Move className="w-3 h-3 mr-1" />
+              Freeform
+            </Button>
+          </div>
 
-          {editMode && (
+          {mode === 'split' && (
+            <>
+              <Button
+                variant={editMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setEditMode(!editMode)}
+                data-testid="button-toggle-edit-mode"
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                {editMode ? 'Editing' : 'View Only'}
+              </Button>
+            </>
+          )}
+
+          {mode === 'split' && editMode && (
             <>
               <Button
                 variant="outline"
@@ -610,25 +642,35 @@ export function LayoutManager({ initialLayout, density }: LayoutManagerProps) {
         </div>
       </div>
 
-      {/* Panel Tree */}
-      <div className="flex-1 p-2 overflow-hidden">
-        <PanelContainer
-          node={layout}
-          onSplit={handleSplit}
-          onRemove={handleRemove}
-          onChangeContent={handleChangeContent}
-          editMode={editMode}
-          density={density}
-        />
-      </div>
+      {/* Render based on mode */}
+      {mode === 'split' ? (
+        <>
+          {/* Panel Tree - Split Mode */}
+          <div className="flex-1 p-2 overflow-hidden">
+            <PanelContainer
+              node={layout}
+              onSplit={handleSplit}
+              onRemove={handleRemove}
+              onChangeContent={handleChangeContent}
+              editMode={editMode}
+              density={density}
+            />
+          </div>
 
-      {/* Help Text */}
-      {editMode && (
-        <div className="border-t p-2 text-xs text-muted-foreground bg-muted/20">
-          <strong>Editing Mode:</strong> Hover over panels to see controls • 
-          <kbd className="mx-1 px-1 bg-background border rounded">+</kbd> Change content • 
-          <kbd className="mx-1 px-1 bg-background border rounded">Split</kbd> Add panels • 
-          <kbd className="mx-1 px-1 bg-background border rounded">Trash</kbd> Remove panels
+          {/* Help Text - Split Mode */}
+          {editMode && (
+            <div className="border-t p-2 text-xs text-muted-foreground bg-muted/20">
+              <strong>Split Mode Editing:</strong> Click controls in panel headers • 
+              <kbd className="mx-1 px-1 bg-background border rounded">+</kbd> Change content • 
+              <kbd className="mx-1 px-1 bg-background border rounded">Split</kbd> Add panels • 
+              <kbd className="mx-1 px-1 bg-background border rounded">Trash</kbd> Remove panels
+            </div>
+          )}
+        </>
+      ) : (
+        /* Freeform Mode */
+        <div className="flex-1 overflow-hidden">
+          <FreeformLayoutEditor density={density} />
         </div>
       )}
     </div>
