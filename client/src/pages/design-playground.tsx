@@ -58,6 +58,10 @@ export default function DesignPlayground() {
   const [isResizingLeft, setIsResizingLeft] = useState(false);
   const [isResizingRight, setIsResizingRight] = useState(false);
   
+  // Drag and drop states
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
+  
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const layoutOptions = [
@@ -178,6 +182,40 @@ export default function DesignPlayground() {
     setEditingTabName('');
   };
 
+  const handleDragStart = (e: React.DragEvent, tabId: string) => {
+    setDraggedTabId(tabId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, tabId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverTabId(tabId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTabId(null);
+    setDragOverTabId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropTabId: string) => {
+    e.preventDefault();
+    if (!draggedTabId || draggedTabId === dropTabId) return;
+
+    const draggedIndex = customTabs.findIndex(t => t.id === draggedTabId);
+    const dropIndex = customTabs.findIndex(t => t.id === dropTabId);
+
+    if (draggedIndex === -1 || dropIndex === -1) return;
+
+    const newTabs = [...customTabs];
+    const [draggedTab] = newTabs.splice(draggedIndex, 1);
+    newTabs.splice(dropIndex, 0, draggedTab);
+
+    setCustomTabs(newTabs);
+    setDraggedTabId(null);
+    setDragOverTabId(null);
+  };
+
   const exportConfig = () => {
     const config = {
       layout: activeLayout,
@@ -218,11 +256,12 @@ export default function DesignPlayground() {
         </div>
         {editMode && (
           <div
-            className="absolute top-0 right-0 w-2 h-full bg-primary/50 hover:bg-primary cursor-col-resize transition-colors flex items-center justify-center"
+            className="absolute top-0 right-0 w-3 h-full bg-primary/70 hover:bg-primary cursor-col-resize transition-all flex items-center justify-center group"
             onMouseDown={(e) => handleStartResize('left', e)}
             data-testid="resize-handle-left"
+            title="Drag to resize panel"
           >
-            <div className="w-0.5 h-12 bg-primary-foreground rounded-full"></div>
+            <div className="w-1 h-16 bg-primary-foreground rounded-full group-hover:h-24 transition-all"></div>
           </div>
         )}
       </div>
@@ -283,11 +322,12 @@ export default function DesignPlayground() {
         </Card>
         {editMode && (
           <div
-            className="absolute top-0 left-0 w-2 h-full bg-primary/50 hover:bg-primary cursor-col-resize transition-colors flex items-center justify-center"
+            className="absolute top-0 left-0 w-3 h-full bg-primary/70 hover:bg-primary cursor-col-resize transition-all flex items-center justify-center group"
             onMouseDown={(e) => handleStartResize('right', e)}
             data-testid="resize-handle-right"
+            title="Drag to resize panel"
           >
-            <div className="w-0.5 h-12 bg-primary-foreground rounded-full"></div>
+            <div className="w-1 h-16 bg-primary-foreground rounded-full group-hover:h-24 transition-all"></div>
           </div>
         )}
       </div>
@@ -299,12 +339,22 @@ export default function DesignPlayground() {
       {/* Left Panel - Tabbed like Files */}
       <div style={{ width: leftPanelWidth }} className="border-r flex flex-col relative">
         {/* Vertical Tabs */}
-        {customTabs.map((tab) => {
+        {customTabs.map((tab, index) => {
           const IconComponent = getIconComponent(tab.icon);
+          const isDragging = draggedTabId === tab.id;
+          const isDragOver = dragOverTabId === tab.id;
           return (
-            <div key={tab.id} className="flex border-b items-center">
+            <div 
+              key={tab.id} 
+              className={`flex border-b items-center transition-all ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-t-2 border-t-primary' : ''}`}
+              draggable={editMode}
+              onDragStart={(e) => handleDragStart(e, tab.id)}
+              onDragOver={(e) => handleDragOver(e, tab.id)}
+              onDragEnd={handleDragEnd}
+              onDrop={(e) => handleDrop(e, tab.id)}
+            >
               {editMode && (
-                <div className="p-1">
+                <div className="p-1 cursor-move">
                   <GripVertical className="w-3 h-3 text-muted-foreground" />
                 </div>
               )}
@@ -411,11 +461,12 @@ export default function DesignPlayground() {
         
         {editMode && (
           <div
-            className="absolute top-0 right-0 w-2 h-full bg-primary/50 hover:bg-primary cursor-col-resize transition-colors z-10 flex items-center justify-center"
+            className="absolute top-0 right-0 w-3 h-full bg-primary/70 hover:bg-primary cursor-col-resize transition-all z-10 flex items-center justify-center group"
             onMouseDown={(e) => handleStartResize('left', e)}
             data-testid="resize-handle-left-file"
+            title="Drag to resize panel"
           >
-            <div className="w-0.5 h-12 bg-primary-foreground rounded-full"></div>
+            <div className="w-1 h-16 bg-primary-foreground rounded-full group-hover:h-24 transition-all"></div>
           </div>
         )}
       </div>
@@ -628,7 +679,7 @@ export default function DesignPlayground() {
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Test different layouts • {editMode && <span className="text-primary font-medium">Edit Mode Active: Rename tabs, resize panels, customize layout</span>}
+          Test different layouts • {editMode && <span className="text-primary font-medium">✨ Edit Mode Active: Drag tabs by the grip icon to reorder • Drag the colored edges to resize panels • Click pencil to rename • Click trash to delete</span>}
           {!editMode && 'Click Edit Mode to customize tabs and resize panels'}
         </p>
       </div>
