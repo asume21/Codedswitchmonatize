@@ -12,6 +12,8 @@ import { StudioAudioContext } from "@/pages/studio";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import OutputSequencer from "@/components/producer/OutputSequencer";
 import { AudioPlayer } from "@/components/ui/audio-player";
+import audioRouter from "@/lib/audioRouter";
+import { Send, Layers, Music } from "lucide-react";
 
 const GENRE_OPTIONS = [
   { value: "hip-hop", label: "Hip-Hop" },
@@ -351,6 +353,79 @@ export default function BeatMaker() {
     stepCounterRef.current = 0;
   };
 
+  // Export functions for audio routing
+  const exportToMixer = () => {
+    const beatData = {
+      pattern,
+      bpm,
+      genre: selectedGenre,
+      name: `Beat_${selectedGenre}_${bpm}BPM`,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add to audio router as a track
+    audioRouter.addTrack({
+      id: `beat-${Date.now()}`,
+      name: beatData.name,
+      type: 'drums',
+      instrument: 'drums',
+      pattern: pattern,
+      audioUrl: generatedAudioUrl,
+      volume: 75,
+      pan: 0,
+      muted: false,
+      solo: false,
+      bus: 'drums' // Route to drums bus
+    });
+
+    // Route to MixStudio
+    audioRouter.routeAudio(
+      'BeatMaker',
+      'MixStudio',
+      beatData,
+      'beat',
+      { bpm, key: 'drums' }
+    );
+
+    toast({
+      title: "Sent to Mixer",
+      description: "Your beat has been routed to the Mix Studio",
+    });
+  };
+
+  const exportToArrangement = () => {
+    const beatData = {
+      pattern,
+      bpm,
+      genre: selectedGenre,
+      name: `Beat_${selectedGenre}_${bpm}BPM`
+    };
+
+    // Route to Arrangement Timeline
+    audioRouter.routeAudio(
+      'BeatMaker',
+      'ArrangementTimeline',
+      beatData,
+      'beat',
+      { bpm }
+    );
+
+    toast({
+      title: "Added to Arrangement",
+      description: "Your beat has been added to the timeline",
+    });
+  };
+
+  const exportToEffects = () => {
+    // Route to Effects Bus for processing
+    audioRouter.updateTrackRouting(`beat-${Date.now()}`, 'effects');
+    
+    toast({
+      title: "Sent to Effects",
+      description: "Your beat is routed through the effects bus",
+    });
+  };
+
   // Get tracks safely with fallback
   const currentDrumKit = drumKits[selectedDrumKit as keyof typeof drumKits];
   const tracks = currentDrumKit?.sounds || defaultTracks;
@@ -519,6 +594,38 @@ export default function BeatMaker() {
                     </>
                   )}
                 </Button>
+                
+                {/* Export/Routing Buttons */}
+                <div className="border-l border-gray-600 pl-4 ml-2 flex items-center space-x-2">
+                  <span className="text-xs text-gray-400 mr-2">Route to:</span>
+                  <Button
+                    onClick={exportToMixer}
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-500"
+                    title="Send beat to Mix Studio"
+                  >
+                    <Send className="w-4 h-4 mr-1" />
+                    Mixer
+                  </Button>
+                  <Button
+                    onClick={exportToArrangement}
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-500"
+                    title="Add to arrangement timeline"
+                  >
+                    <Layers className="w-4 h-4 mr-1" />
+                    Timeline
+                  </Button>
+                  <Button
+                    onClick={exportToEffects}
+                    size="sm"
+                    className="bg-teal-600 hover:bg-teal-500"
+                    title="Send through effects bus"
+                  >
+                    <Music className="w-4 h-4 mr-1" />
+                    Effects
+                  </Button>
+                </div>
               </div>
               
               {/* Visual Time Indicator */}
