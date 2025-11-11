@@ -25,7 +25,13 @@ import {
   Brain,
   Piano,
   Activity,
-  Settings
+  Settings,
+  Play,
+  Pause,
+  Square,
+  Circle,
+  SkipBack,
+  SkipForward
 } from 'lucide-react';
 
 export type PanelType = 
@@ -163,6 +169,10 @@ export function PanelContainer({
                 <DropdownMenuItem onClick={() => onChangeContent(node.id, 'piano-roll')}>
                   <Piano className="w-4 h-4 mr-2" />
                   Piano Roll
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onChangeContent(node.id, 'transport')}>
+                  <Play className="w-4 h-4 mr-2" />
+                  Transport
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onChangeContent(node.id, 'instruments')}>
                   <Music className="w-4 h-4 mr-2" />
@@ -315,11 +325,37 @@ function PanelContent({ type, density }: { type: PanelType; density: 'comfortabl
 
     case 'transport':
       return (
-        <div className="flex items-center justify-center gap-4">
-          <Button size="icon" variant="ghost">
-            <Activity className="w-4 h-4" />
-          </Button>
-          <span className={spacing.text}>120 BPM</span>
+        <div className="flex items-center justify-center gap-3">
+          {/* Transport Controls */}
+          <div className="flex items-center gap-1">
+            <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-transport-rewind">
+              <SkipBack className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="default" className="h-8 w-8" data-testid="button-transport-play">
+              <Play className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-transport-stop">
+              <Square className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-transport-record">
+              <Circle className="w-4 h-4 text-destructive" />
+            </Button>
+          </div>
+          
+          {/* Time Display */}
+          <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
+            <span className={`${spacing.text} font-mono`}>00:00.000</span>
+          </div>
+          
+          {/* BPM Display */}
+          <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
+            <span className={`${spacing.text} font-mono`}>120 BPM</span>
+          </div>
+          
+          {/* Time Signature */}
+          <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
+            <span className={spacing.text}>4/4</span>
+          </div>
         </div>
       );
 
