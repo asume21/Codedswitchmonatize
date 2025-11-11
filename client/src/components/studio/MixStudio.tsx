@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { RealisticAudioEngine } from "@/lib/realisticAudio";
+import audioRouter from "@/lib/audioRouter";
 import {
   Play,
   Pause,
@@ -30,6 +31,7 @@ import {
   Plus,
   Trash2,
   RefreshCw,
+  ArrowDownToLine,
 } from "lucide-react";
 
 const realisticAudio = new RealisticAudioEngine();
@@ -61,7 +63,7 @@ export default function MixStudio() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [savedMixes, setSavedMixes] = useState<any[]>([]);
 
-  // Load saved patterns from localStorage
+  // Load saved patterns from localStorage and listen to audio router
   useEffect(() => {
     const savedBeats = localStorage.getItem("codedswitch_saved_beats");
     const savedMelodies = localStorage.getItem("codedswitch_saved_melodies");
@@ -70,6 +72,49 @@ export default function MixStudio() {
     if (savedBeats || savedMelodies || savedBasslines) {
       console.log("📦 Found saved patterns to load into Mix Studio");
     }
+
+    // Check for routed audio data periodically
+    const checkRoutedData = () => {
+      const tracks = audioRouter.getTracks();
+      const buses = audioRouter.getBuses();
+      
+      // Look for tracks that haven't been imported yet
+      tracks.forEach(track => {
+        if (!layers.some(l => l.id === track.id)) {
+          console.log('📨 Found new track:', track);
+          const layerType: TrackLayer['type'] = 
+            track.type === 'drums' ? 'beat' : 
+            track.instrument === 'bass' ? 'bass' :
+            'melody';
+          
+          const newLayer: TrackLayer = {
+            id: track.id,
+            name: track.name,
+            type: layerType,
+            data: track,
+            volume: track.volume || 75,
+            muted: track.muted || false,
+            solo: track.solo || false,
+            pan: track.pan || 0,
+            effects: {
+              reverb: 0,
+              delay: 0,
+              distortion: 0,
+            },
+          };
+          
+          setLayers(prev => [...prev, newLayer]);
+        }
+      });
+    };
+    
+    // Check initially and set up periodic checking
+    checkRoutedData();
+    const intervalId = setInterval(checkRoutedData, 2000); // Check every 2 seconds
+
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
 
   // AI-powered mix generation
@@ -96,6 +141,141 @@ export default function MixStudio() {
       });
     },
   });
+
+  // Import tracks from audio router
+  const importFromRouter = (routeData: any) => {
+    console.log('🎛️ Importing audio data:', routeData);
+    
+    if (routeData.from === 'BeatMaker' && routeData.data) {
+      const beatData = routeData.data;
+      const newLayer: TrackLayer = {
+        id: `beat_${Date.now()}`,
+        name: beatData.name || 'Imported Beat',
+        type: 'beat',
+        data: beatData,
+        volume: 75,
+        muted: false,
+        solo: false,
+        pan: 0,
+        effects: {
+          reverb: 0,
+          delay: 0,
+          distortion: 0,
+        },
+      };
+      setLayers(prev => [...prev, newLayer]);
+      
+      // Update BPM if provided
+      if (routeData.metadata?.bpm) {
+        setBpm(routeData.metadata.bpm);
+      }
+      
+      toast({
+        title: "Beat Imported",
+        description: `Received beat from BeatMaker`,
+      });
+    }
+    
+    if (routeData.from === 'MelodyComposer' && routeData.data) {
+      const melodyData = routeData.data;
+      
+      // Import each track as a separate layer
+      if (melodyData.tracks) {
+        melodyData.tracks.forEach((track: any) => {
+          const layerType: TrackLayer['type'] = 
+            track.instrument === 'drums' ? 'beat' : 
+            track.instrument === 'bass' ? 'bass' :
+            track.name.toLowerCase().includes('harmony') ? 'harmony' : 'melody';
+          
+          const newLayer: TrackLayer = {
+            id: `${track.id}_${Date.now()}`,
+            name: track.name || 'Imported Track',
+            type: layerType,
+            data: {
+              ...track,
+              notes: melodyData.notes?.filter((n: any) => n.track === track.id) || []
+            },
+            volume: track.volume || 75,
+            muted: track.muted || false,
+            solo: track.solo || false,
+            pan: track.pan || 0,
+            effects: {
+              reverb: 0,
+              delay: 0,
+              distortion: 0,
+            },
+          };
+          setLayers(prev => [...prev, newLayer]);
+        });
+      }
+      
+      // Update BPM and key if provided
+      if (routeData.metadata?.bpm) {
+        setBpm(routeData.metadata.bpm);
+      }
+      
+      toast({
+        title: "Melody Imported",
+        description: `Received ${melodyData.tracks?.length || 0} tracks from Melody Composer`,
+      });
+    }
+  };
+
+  // Import all available tracks from router
+  const importAllFromRouter = () => {
+    const allTracks = audioRouter.getTracks();
+    
+    console.log('📦 Importing all available tracks:', allTracks);
+    
+    let importCount = 0;
+    
+    // Import tracks
+    allTracks.forEach((track: any) => {
+      // Check if layer already exists
+      if (!layers.some(l => l.id === track.id)) {
+        const layerType: TrackLayer['type'] = 
+          track.type === 'drums' ? 'beat' : 
+          track.instrument === 'bass' ? 'bass' :
+          track.name?.toLowerCase().includes('harmony') ? 'harmony' : 'melody';
+        
+        const newLayer: TrackLayer = {
+          id: track.id,
+          name: track.name,
+          type: layerType,
+          data: track,
+          volume: track.volume || 75,
+          muted: track.muted || false,
+          solo: track.solo || false,
+          pan: track.pan || 0,
+          effects: {
+            reverb: 0,
+            delay: 0,
+            distortion: 0,
+          },
+        };
+        
+        setLayers(prev => [...prev, newLayer]);
+        importCount++;
+      }
+    });
+    
+    if (importCount > 0) {
+      toast({
+        title: "Tracks Imported",
+        description: `Imported ${importCount} new tracks from audio router`,
+      });
+    } else if (allTracks.length > 0) {
+      toast({
+        title: "Tracks Already Imported",
+        description: "All available tracks are already in the mix",
+      });
+    } else {
+      toast({
+        title: "No Tracks Available",
+        description: "Route tracks from BeatMaker or MelodyComposer first",
+      });
+    }
+  };
 
   // Add layer from saved patterns
   const addLayer = (type: TrackLayer["type"], name?: string) => {
@@ -276,6 +456,14 @@ export default function MixStudio() {
               <div className="flex justify-between items-center">
                 <CardTitle>Track Layers</CardTitle>
                 <div className="flex gap-2">
+                  <Button
+                    onClick={importAllFromRouter}
+                    size="sm"
+                    variant="default"
+                    className="bg-purple-600 hover:bg-purple-500"
+                  >
+                    <ArrowDownToLine className="w-4 h-4 mr-1" /> Import Tracks
+                  </Button>
                   <Button
                     onClick={() => addLayer("beat")}
                     size="sm"
