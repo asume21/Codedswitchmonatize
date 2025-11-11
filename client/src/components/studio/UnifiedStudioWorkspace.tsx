@@ -24,6 +24,76 @@ import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
 import type { Note } from './types/pianoRollTypes';
 
+// Workflow Configuration Types
+interface WorkflowConfig {
+  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader';
+  showAIAssistant: boolean;
+  showMusicGen: boolean;
+  expandedSections?: {
+    arrangementControls?: boolean;
+    instrumentsPanel?: boolean;
+    pianoRollTools?: boolean;
+    mixerPanel?: boolean;
+  };
+  guidedMode?: boolean; // For Beginner workflow
+  description: string;
+}
+
+// Legacy ID migration map for backwards compatibility
+const LEGACY_WORKFLOW_ID_MAP: Record<string, WorkflowPreset['id']> = {
+  'mixing-console': 'mixing',
+  'ai-assisted': 'ai',
+  'immersive-mode': 'immersive',
+};
+
+// Workflow Configuration Profiles
+const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
+  'mixing': {
+    activeView: 'mixer',
+    showAIAssistant: false,
+    showMusicGen: false,
+    expandedSections: {
+      mixerPanel: true,
+    },
+    description: 'Professional mixer focused on mixing and mastering with effects and automation',
+  },
+  'ai': {
+    activeView: 'ai-studio',
+    showAIAssistant: true,
+    showMusicGen: true,
+    expandedSections: {},
+    description: 'AI-first workflow with assistant and generation tools prominently visible',
+  },
+  'composition': {
+    activeView: 'piano-roll',
+    showAIAssistant: false,
+    showMusicGen: false,
+    expandedSections: {
+      pianoRollTools: true,
+      instrumentsPanel: true,
+    },
+    description: 'Focused on melody creation with piano roll and instrument selection',
+  },
+  'immersive': {
+    activeView: 'arrangement',
+    showAIAssistant: false,
+    showMusicGen: false,
+    expandedSections: {},
+    description: 'Distraction-free fullscreen arrangement view for focused production',
+  },
+  'beginner': {
+    activeView: 'arrangement',
+    showAIAssistant: true,
+    showMusicGen: false,
+    expandedSections: {
+      arrangementControls: true,
+      instrumentsPanel: true,
+    },
+    guidedMode: true,
+    description: 'Guided experience with helpful tips and simplified controls for newcomers',
+  },
+};
+
 interface Track {
   id: string;
   name: string;
@@ -126,27 +196,72 @@ export default function UnifiedStudioWorkspace() {
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
 
-  // Check if this is the first time visiting the studio
+  // Check if this is the first time visiting the studio and load persisted workflow
   useEffect(() => {
     const hasSeenWorkflowSelector = localStorage.getItem('hasSeenWorkflowSelector');
+    let savedWorkflow = localStorage.getItem('selectedWorkflow') as string | null;
+    
     if (!hasSeenWorkflowSelector) {
+      // First time - show workflow selector
       setShowWorkflowSelector(true);
+    } else if (savedWorkflow) {
+      // Migrate legacy workflow IDs to new format
+      if (LEGACY_WORKFLOW_ID_MAP[savedWorkflow]) {
+        const migratedId = LEGACY_WORKFLOW_ID_MAP[savedWorkflow];
+        savedWorkflow = migratedId;
+        // Save the migrated ID to localStorage
+        localStorage.setItem('selectedWorkflow', migratedId);
+      }
+      
+      // Load saved workflow configuration if valid
+      const workflowId = savedWorkflow as WorkflowPreset['id'];
+      if (WORKFLOW_CONFIGS[workflowId]) {
+        const config = WORKFLOW_CONFIGS[workflowId];
+        setCurrentWorkflow(workflowId);
+        setActiveView(config.activeView);
+        setShowAIAssistant(config.showAIAssistant);
+        setShowMusicGen(config.showMusicGen);
+      }
     }
   }, []);
 
   // Handle workflow selection
   const handleSelectWorkflow = (workflowId: WorkflowPreset['id']) => {
+    const config = WORKFLOW_CONFIGS[workflowId];
+    
+    if (!config) {
+      console.error(`Unknown workflow: ${workflowId}`);
+      return;
+    }
+
+    // Apply workflow configuration with batch state updates
     setCurrentWorkflow(workflowId);
+    setActiveView(config.activeView);
+    setShowAIAssistant(config.showAIAssistant);
+    setShowMusicGen(config.showMusicGen);
+    
+    // Persist selections
     localStorage.setItem('hasSeenWorkflowSelector', 'true');
     localStorage.setItem('selectedWorkflow', workflowId);
     setShowWorkflowSelector(false);
     
-    // Apply workflow-specific layout changes
-    // TODO: Implement actual layout changes based on workflow
+    // Show success toast with workflow description
     toast({
-      title: "Workflow Selected",
-      description: `Switched to ${workflowId} workflow`
+      title: "Workflow Applied",
+      description: config.description,
+      duration: 4000,
     });
+
+    // Special handling for guided beginner mode
+    if (config.guidedMode) {
+      setTimeout(() => {
+        toast({
+          title: "Welcome, Beginner!",
+          description: "The AI Assistant is here to guide you. Click 'Generate Music' to get started quickly!",
+          duration: 6000,
+        });
+      }, 1000);
+    }
   };
 
   // Handle skip/close workflow selector
