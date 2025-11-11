@@ -192,7 +192,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g., 'upbeat melody with piano and strings, emotional and cinematic'"
-            className="min-h-[100px] resize-none bg-background text-foreground border-input"
+            className="min-h-[100px] resize-none bg-gray-800 text-white placeholder-gray-400 border-gray-600"
             disabled={isGenerating}
           />
         </div>
