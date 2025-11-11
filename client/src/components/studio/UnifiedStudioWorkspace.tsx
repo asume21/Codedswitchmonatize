@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings } from 'lucide-react';
+import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
@@ -15,6 +16,8 @@ import LyricLab from './LyricLab';
 import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
+import WorkflowSelector from './WorkflowSelector';
+import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
@@ -118,6 +121,39 @@ export default function UnifiedStudioWorkspace() {
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
+
+  // Workflow Selector State
+  const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
+  const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
+
+  // Check if this is the first time visiting the studio
+  useEffect(() => {
+    const hasSeenWorkflowSelector = localStorage.getItem('hasSeenWorkflowSelector');
+    if (!hasSeenWorkflowSelector) {
+      setShowWorkflowSelector(true);
+    }
+  }, []);
+
+  // Handle workflow selection
+  const handleSelectWorkflow = (workflowId: WorkflowPreset['id']) => {
+    setCurrentWorkflow(workflowId);
+    localStorage.setItem('hasSeenWorkflowSelector', 'true');
+    localStorage.setItem('selectedWorkflow', workflowId);
+    setShowWorkflowSelector(false);
+    
+    // Apply workflow-specific layout changes
+    // TODO: Implement actual layout changes based on workflow
+    toast({
+      title: "Workflow Selected",
+      description: `Switched to ${workflowId} workflow`
+    });
+  };
+
+  // Handle skip/close workflow selector
+  const handleSkipWorkflow = () => {
+    localStorage.setItem('hasSeenWorkflowSelector', 'true');
+    setShowWorkflowSelector(false);
+  };
 
   // Instrument categories
   const instrumentCategories = {
@@ -728,6 +764,14 @@ export default function UnifiedStudioWorkspace() {
           >
             <MessageSquare className="w-4 h-4 mr-2" />
             AI Assistant
+          </Button>
+          <Button
+            onClick={() => setShowWorkflowSelector(true)}
+            className="bg-green-600 hover:bg-green-500"
+            data-testid="button-change-workflow"
+          >
+            <Workflow className="w-4 h-4 mr-2" />
+            Change Workflow
           </Button>
           
           {/* Master Volume Control */}
@@ -1467,6 +1511,16 @@ Your lyrics will sync with the timeline
           onSave={handleLyricsSaved}
         />
       )}
+
+      {/* Workflow Selector Modal */}
+      <Dialog open={showWorkflowSelector} onOpenChange={setShowWorkflowSelector}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 bg-background">
+          <WorkflowSelector
+            onSelectWorkflow={handleSelectWorkflow}
+            onSkip={handleSkipWorkflow}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
