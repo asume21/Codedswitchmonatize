@@ -1605,6 +1605,37 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
+  // Generate pattern-based music (for RealisticAudioEngine playback)
+  app.post("/api/songs/generate-pattern", async (req: Request, res: Response) => {
+    try {
+      const { prompt, duration, bpm } = req.body;
+      
+      if (!prompt) {
+        return sendError(res, 400, "Missing prompt");
+      }
+
+      console.log('🎼 Generating music pattern for realistic instruments...');
+      
+      const { patternGenerator } = await import('./services/patternGenerator');
+      
+      const pattern = patternGenerator.generatePattern(
+        prompt,
+        duration || 30,
+        bpm
+      );
+
+      console.log('✅ Music pattern generated with', pattern.patterns.length, 'instruments');
+      res.json({
+        success: true,
+        pattern: pattern
+      });
+
+    } catch (error) {
+      console.error('❌ Pattern generation error:', error);
+      sendError(res, 500, "Failed to generate music pattern");
+    }
+  });
+
   // Generate drum pattern (MusicGen via Replicate)
   app.post("/api/songs/generate-drums", async (req: Request, res: Response) => {
     try {
