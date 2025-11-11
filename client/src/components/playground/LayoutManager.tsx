@@ -312,16 +312,74 @@ const defaultLayouts = {
     id: 'root',
     type: 'panel' as const,
     content: 'timeline' as PanelType
+  },
+
+  // File-Tab Style: Left panel with instruments (VS Code inspired)
+  fileTabs: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'horizontal' as const,
+    children: [
+      {
+        id: 'left',
+        type: 'panel' as const,
+        content: 'instruments' as PanelType,
+        size: 1
+      },
+      {
+        id: 'center',
+        type: 'split' as const,
+        direction: 'vertical' as const,
+        size: 4,
+        children: [
+          {
+            id: 'timeline',
+            type: 'panel' as const,
+            content: 'timeline' as PanelType,
+            size: 2
+          },
+          {
+            id: 'piano',
+            type: 'panel' as const,
+            content: 'piano-roll' as PanelType,
+            size: 1
+          }
+        ]
+      }
+    ]
+  },
+
+  // Immersive Mode: Full-screen DAW with minimal chrome
+  immersive: {
+    id: 'root',
+    type: 'split' as const,
+    direction: 'vertical' as const,
+    children: [
+      {
+        id: 'timeline',
+        type: 'panel' as const,
+        content: 'timeline' as PanelType,
+        size: 3
+      },
+      {
+        id: 'piano',
+        type: 'panel' as const,
+        content: 'piano-roll' as PanelType,
+        size: 2
+      }
+    ]
   }
 };
 
 // Template metadata for display
 const templateInfo: Record<string, { name: string; description: string; category: string }> = {
-  classic: { name: 'Classic DAW', description: '3-column with timeline, mixer & AI', category: 'Standard' },
+  classic: { name: 'Current Design', description: 'Your existing Unified Studio layout', category: 'Standard' },
   producer: { name: 'Producer Focus', description: 'Large piano roll for composition', category: 'Standard' },
+  fileTabs: { name: 'File-Tab Style', description: 'Left panel with file-style tabs (VS Code inspired)', category: 'Standard' },
   mixing: { name: 'Mixing Console', description: 'Emphasis on mixer for final mix', category: 'Specialized' },
   composition: { name: 'Composition', description: 'Piano roll + instruments library', category: 'Specialized' },
   ai: { name: 'AI-Assisted', description: 'Large AI panel for creative help', category: 'Specialized' },
+  immersive: { name: 'Immersive Mode', description: 'Full-screen DAW, minimal chrome', category: 'Alternative' },
   arranger: { name: 'Arranger View', description: 'Full-width timeline on top', category: 'Alternative' },
   live: { name: 'Live Performance', description: 'Minimal & focused for live use', category: 'Alternative' },
   minimal: { name: 'Minimal', description: 'Single panel - start from scratch', category: 'Alternative' }
