@@ -174,10 +174,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       // Generate a unique object key for the upload using crypto for security
       const objectKey = `songs/${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
-      // Use relative URL for Replit environment compatibility
-      // This works in both development and production
-      const protocol = req.get('x-forwarded-proto') || req.protocol;
-      const uploadURL = `${protocol}://${req.get('host')}/api/internal/uploads/${encodeURIComponent(objectKey)}`;
+      // Use relative URL to avoid CORS/SSL issues with localhost
+      // Vite's proxy will forward this to the backend correctly
+      const uploadURL = `/api/internal/uploads/${encodeURIComponent(objectKey)}`;
 
       console.log('🎵 Generated upload URL:', uploadURL);
 
