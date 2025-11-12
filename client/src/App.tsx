@@ -59,9 +59,9 @@ function App() {
           <Toaster />
           <Switch>
           <Route path="/">
-            <div className="h-screen w-screen bg-background">
-              <DAWLayoutWorkspace />
-            </div>
+            <AppLayout>
+              <Studio />
+            </AppLayout>
           </Route>
           <Route path="/login" component={Login} />
           <Route path="/signup" component={Signup} />
