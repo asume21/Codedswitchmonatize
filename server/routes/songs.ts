@@ -410,13 +410,23 @@ async function convertToMp3(inputURL: string): Promise<string> {
     const fileId = Date.now().toString();
     const outputPath = join(tempDir, `${fileId}.mp3`);
 
+    // Convert API URL to file system path
+    // Example: /api/internal/uploads/songs%2F123.m4a → /home/runner/workspace/objects/songs/123.m4a
+    let inputPath = inputURL;
+    if (inputURL.startsWith('/api/internal/uploads/')) {
+      const objectKey = decodeURIComponent(inputURL.replace('/api/internal/uploads/', ''));
+      const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+      inputPath = join(objectsDir, objectKey);
+      console.log(`📁 Converted URL to path: ${inputURL} → ${inputPath}`);
+    }
+
     // Set a timeout for the conversion (30 seconds)
     const timeout = setTimeout(() => {
       console.error('❌ FFmpeg conversion timeout');
       reject(new Error('FFmpeg conversion timeout'));
     }, 30000);
 
-    ffmpeg(inputURL)
+    ffmpeg(inputPath)
       .toFormat('mp3')
       .audioCodec('libmp3lame')
       .audioBitrate('192k')
