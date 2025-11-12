@@ -72,12 +72,16 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Nov 12, 2025)
+- ✅ **Unified Studio is Homepage** - Root path (/) now loads Unified Studio workspace
+  - "One place for everything" - all workflows accessible from homepage
+  - Workflow options: Beginner Guided, Mixing Console, Composition, Immersive Mode
+  - Integrated AI Assistant (Grok) for immediate help
+  - Song Upload feature available within workflows
 - ✅ **Custom DAW Layout System** - Integrated design playground split layout into production
   - Created SplitLayoutRenderer component for flexible panel-based layouts
   - Professional DAW layout: Instruments/Effects (left), Timeline/Piano Roll (center), AI/Mixer (right)
   - New route: `/daw-layout` for custom workspace view
   - Panel sizes configurable via JSON (supports horizontal/vertical splits)
-- ✅ **Homepage now defaults to Unified Studio** - Root path (/) loads directly into workspace
 - ✅ **AI Mixing Endpoint** - Created /api/mix/generate with robust validation and ID-based matching
   - Uses Zod schema validation for layer structure and mixing parameters
   - AI suggestions matched by layer ID (not array index) to prevent misapplication

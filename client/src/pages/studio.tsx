@@ -99,9 +99,9 @@ export default function Studio() {
   
   // Determine active tab based on current route
   const getTabFromRoute = (path: string): Tab => {
-    // Exact match for homepage
+    // Exact match for homepage - default to Unified Studio
     if (path === '/' || path === '/studio') {
-      return 'uploader';
+      return 'unified-studio';
     }
     
     const routeMap: Record<string, Tab> = {
@@ -129,7 +129,7 @@ export default function Studio() {
     // Sort routes by length (descending) to match longer, more specific routes first
     const sortedRoutes = Object.keys(routeMap).sort((a, b) => b.length - a.length);
     const matchedRoute = sortedRoutes.find(route => path.includes(route));
-    return matchedRoute ? routeMap[matchedRoute] : 'uploader'; // Default fallback to uploader
+    return matchedRoute ? routeMap[matchedRoute] : 'unified-studio'; // Default fallback to Unified Studio
   };
 
   const [activeTab, setActiveTab] = useState<Tab>(() => getTabFromRoute(location));
