@@ -17,6 +17,7 @@ import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
 import WorkflowSelector from './WorkflowSelector';
+import TransportControls from './TransportControls';
 import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
@@ -1653,6 +1654,9 @@ Your lyrics will sync with the timeline
           />
         </DialogContent>
       </Dialog>
+
+      {/* Global Transport Controls - Always available */}
+      <TransportControls currentTool="Unified Studio" activeTab={activeView} />
     </div>
   );
 }
