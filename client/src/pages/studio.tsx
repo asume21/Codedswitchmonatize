@@ -99,8 +99,12 @@ export default function Studio() {
   
   // Determine active tab based on current route
   const getTabFromRoute = (path: string): Tab => {
+    // Exact match for homepage
+    if (path === '/' || path === '/studio') {
+      return 'uploader';
+    }
+    
     const routeMap: Record<string, Tab> = {
-      '/': 'uploader', // Homepage defaults to Song Uploader
       '/unified-studio': 'unified-studio',
       '/daw-layout': 'daw-layout',
       '/code-translator': 'translator',
@@ -122,7 +126,9 @@ export default function Studio() {
       '/song-structure': 'song-structure'
     };
     
-    const matchedRoute = Object.keys(routeMap).find(route => path.includes(route));
+    // Sort routes by length (descending) to match longer, more specific routes first
+    const sortedRoutes = Object.keys(routeMap).sort((a, b) => b.length - a.length);
+    const matchedRoute = sortedRoutes.find(route => path.includes(route));
     return matchedRoute ? routeMap[matchedRoute] : 'uploader'; // Default fallback to uploader
   };
 
