@@ -72,11 +72,14 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Nov 12, 2025)
-- ✅ Fixed AI mixing feature in MixStudio - created /api/mix/generate endpoint
-- Implemented intelligent AI mixing using xAI Grok with professional fallback logic
-- AI analyzes track types (beat, bass, melody, harmony, fx) and suggests optimal volume, pan, and effects
-- Mixing suggestions adapt based on user prompts (punchy, spacious, dry, tight, etc.)
-- No credits required for mixing - works with existing tracks
+- ✅ **Homepage now defaults to Unified Studio** - Root path (/) loads directly into workspace
+- ✅ **AI Mixing Endpoint** - Created /api/mix/generate with robust validation and ID-based matching
+  - Uses Zod schema validation for layer structure and mixing parameters
+  - AI suggestions matched by layer ID (not array index) to prevent misapplication
+  - All numeric values validated and clamped to safe ranges (volume: 0-100, pan: -50 to 50, effects: 0-100)
+  - Intelligent fallback provides genre-appropriate mixing when AI is unavailable
+  - Mixing suggestions adapt based on user prompts (punchy, spacious, dry, tight, etc.)
+  - No credits required for mixing - works with existing tracks in MixStudio
 
 ## Previous Changes (Nov 11, 2025)
 - Completed centralized audio routing integration across all studio components
