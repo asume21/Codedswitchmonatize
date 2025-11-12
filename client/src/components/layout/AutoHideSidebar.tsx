@@ -17,10 +17,10 @@ export function AutoHideSidebar({ children }: AutoHideSidebarProps) {
         data-testid="sidebar-trigger-rail"
       />
 
-      {/* Sidebar container */}
+      {/* Sidebar container with solid background */}
       <div
         className={cn(
-          "fixed left-0 top-0 h-full z-50 transition-transform duration-300 ease-out",
+          "fixed left-0 top-0 h-full z-50 transition-transform duration-300 ease-out bg-background border-r",
           isOpen ? "translate-x-0 drop-shadow-2xl" : "translate-x-[-100%]"
         )}
         onMouseLeave={() => setIsOpen(false)}
