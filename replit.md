@@ -82,6 +82,11 @@ Optional payment integration:
   - Top navigation bar for essential controls (credits, login, settings)
   - All tools accessible through Unified Studio workflows
   - Immersive "one place for everything" experience
+- ✅ **Song Uploader & Analyzer as MVP** - Featured as first workflow card in Unified Studio selector
+  - Positioned first for maximum visibility and prominence
+  - AI-powered analysis for BPM, key, structure, and production quality
+  - Upload existing songs (MP3, WAV, M4A, OGG) for comprehensive insights
+  - Integrated with AI Assistant for contextual help during analysis
 - ✅ **Custom DAW Layout System** - Integrated design playground split layout into production
   - Created SplitLayoutRenderer component for flexible panel-based layouts
   - Professional DAW layout: Instruments/Effects (left), Timeline/Piano Roll (center), AI/Mixer (right)

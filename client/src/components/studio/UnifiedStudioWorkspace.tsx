@@ -49,6 +49,13 @@ const LEGACY_WORKFLOW_ID_MAP: Record<string, WorkflowPreset['id']> = {
 
 // Workflow Configuration Profiles
 const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
+  'song-analyzer': {
+    activeView: 'song-uploader',
+    showAIAssistant: true,
+    showMusicGen: false,
+    expandedSections: {},
+    description: 'Upload and analyze existing songs with AI-powered insights for BPM, key, structure, and production quality',
+  },
   'mixing': {
     activeView: 'mixer',
     showAIAssistant: false,

@@ -1,9 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sliders, Brain, Piano, Maximize2, GraduationCap } from 'lucide-react';
+import { Sliders, Brain, Piano, Maximize2, GraduationCap, Upload } from 'lucide-react';
 
 export interface WorkflowPreset {
-  id: 'mixing' | 'ai' | 'composition' | 'immersive' | 'beginner';
+  id: 'song-analyzer' | 'beginner' | 'mixing' | 'ai' | 'composition' | 'immersive';
   name: string;
   description: string;
   icon: typeof Sliders;
@@ -12,6 +12,14 @@ export interface WorkflowPreset {
 }
 
 const workflows: WorkflowPreset[] = [
+  {
+    id: 'song-analyzer',
+    name: '🎵 Song Uploader & Analyzer',
+    description: 'Upload existing songs for AI analysis, insights, and enhancement',
+    icon: Upload,
+    color: 'text-cyan-500',
+    preview: 'AI analysis for musical structure and patterns'
+  },
   {
     id: 'beginner',
     name: 'Beginner Guided',
