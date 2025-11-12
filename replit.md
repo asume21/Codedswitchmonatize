@@ -71,7 +71,14 @@ Optional payment integration:
 - Database sessions are stored in PostgreSQL for persistence
 - Object storage directory: `/objects`
 
-## Recent Changes (Nov 11, 2025)
+## Recent Changes (Nov 12, 2025)
+- ✅ Fixed AI mixing feature in MixStudio - created /api/mix/generate endpoint
+- Implemented intelligent AI mixing using xAI Grok with professional fallback logic
+- AI analyzes track types (beat, bass, melody, harmony, fx) and suggests optimal volume, pan, and effects
+- Mixing suggestions adapt based on user prompts (punchy, spacious, dry, tight, etc.)
+- No credits required for mixing - works with existing tracks
+
+## Previous Changes (Nov 11, 2025)
 - Completed centralized audio routing integration across all studio components
 - Added export/routing functionality to BeatMaker with UI dropdown for routing to different audio buses
 - Added export/routing functionality to MelodyComposer with similar routing capabilities  

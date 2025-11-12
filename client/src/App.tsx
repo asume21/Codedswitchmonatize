@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/layout/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import NotFound from "@/pages/not-found";
-import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
 import Subscribe from "@/pages/Subscribe";
@@ -58,7 +57,11 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Switch>
-          <Route path="/" component={Landing} />
+          <Route path="/">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
           <Route path="/login" component={Login} />
           <Route path="/signup" component={Signup} />
           <Route path="/activate" component={ActivatePage} />

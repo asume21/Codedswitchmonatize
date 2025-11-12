@@ -588,10 +588,27 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         return sendError(res, 401, "Authentication required - please log in");
       }
 
+      // Proper validation with structured layer schema
+      const layerSchema = z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.enum(['beat', 'melody', 'bass', 'harmony', 'fx']),
+        volume: z.number().min(0).max(100).optional(),
+        pan: z.number().min(-50).max(50).optional(),
+        effects: z.object({
+          reverb: z.number().min(0).max(100).optional(),
+          delay: z.number().min(0).max(100).optional(),
+          distortion: z.number().min(0).max(100).optional(),
+        }).optional(),
+        data: z.any().optional(),
+        muted: z.boolean().optional(),
+        solo: z.boolean().optional(),
+      });
+
       const mixSchema = z.object({
         prompt: z.string().min(1, "Prompt is required"),
-        layers: z.array(z.any()),
-        bpm: z.number().optional(),
+        layers: z.array(layerSchema).min(1, "At least one layer is required"),
+        bpm: z.number().min(40).max(240).optional(),
         style: z.string().optional(),
       });
 
@@ -662,33 +679,75 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
           const aiResponse = completion.choices[0]?.message?.content;
           
           if (aiResponse) {
-            // Extract JSON from response
-            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const mixingData = JSON.parse(jsonMatch[0]);
+            try {
+              // Extract JSON from response, handling code fences and extra text
+              let jsonString = aiResponse;
               
-              // Map AI suggestions to actual layer IDs
-              const updatedLayers = layers.map((layer: any, index: number) => {
-                const aiSuggestion = mixingData.layers[index] || {};
-                return {
-                  ...layer,
-                  volume: aiSuggestion.volume || layer.volume || 75,
-                  pan: aiSuggestion.pan || layer.pan || 0,
-                  effects: {
-                    reverb: aiSuggestion.effects?.reverb || layer.effects?.reverb || 0,
-                    delay: aiSuggestion.effects?.delay || layer.effects?.delay || 0,
-                    distortion: aiSuggestion.effects?.distortion || layer.effects?.distortion || 0,
-                  }
-                };
-              });
+              // Remove markdown code fences if present
+              jsonString = jsonString.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+              
+              // Extract JSON object
+              const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+              
+              if (jsonMatch) {
+                const mixingData = JSON.parse(jsonMatch[0]);
+                
+                // Validate AI response has required structure
+                if (mixingData.layers && Array.isArray(mixingData.layers)) {
+                  // Create a dictionary of AI suggestions keyed by layer ID
+                  const aiSuggestionsByID = new Map();
+                  mixingData.layers.forEach((aiLayer: any) => {
+                    if (aiLayer.id) {
+                      aiSuggestionsByID.set(aiLayer.id, aiLayer);
+                    }
+                  });
 
-              return res.json({
-                success: true,
-                layers: updatedLayers,
-                masterVolume: mixingData.masterVolume || 80,
-                recommendations: mixingData.recommendations || "AI mix applied successfully",
-                provider: "xAI Grok"
-              });
+                  // Map AI suggestions to actual layers by matching IDs
+                  const updatedLayers = layers.map((layer) => {
+                    const aiSuggestion = aiSuggestionsByID.get(layer.id) || {};
+                    
+                    // Validate and clamp AI-provided values to allowed ranges
+                    const volume = typeof aiSuggestion.volume === 'number' 
+                      ? Math.max(0, Math.min(100, aiSuggestion.volume)) 
+                      : (layer.volume || 75);
+                    const pan = typeof aiSuggestion.pan === 'number' 
+                      ? Math.max(-50, Math.min(50, aiSuggestion.pan)) 
+                      : (layer.pan || 0);
+                    const reverb = typeof aiSuggestion.effects?.reverb === 'number'
+                      ? Math.max(0, Math.min(100, aiSuggestion.effects.reverb))
+                      : (layer.effects?.reverb ?? 0);
+                    const delay = typeof aiSuggestion.effects?.delay === 'number'
+                      ? Math.max(0, Math.min(100, aiSuggestion.effects.delay))
+                      : (layer.effects?.delay ?? 0);
+                    const distortion = typeof aiSuggestion.effects?.distortion === 'number'
+                      ? Math.max(0, Math.min(100, aiSuggestion.effects.distortion))
+                      : (layer.effects?.distortion ?? 0);
+                    
+                    return {
+                      ...layer,
+                      volume,
+                      pan,
+                      effects: {
+                        reverb,
+                        delay,
+                        distortion,
+                      }
+                    };
+                  });
+
+                  console.log("✅ AI mixing suggestions applied successfully");
+                  return res.json({
+                    success: true,
+                    layers: updatedLayers,
+                    masterVolume: typeof mixingData.masterVolume === 'number' ? mixingData.masterVolume : 80,
+                    recommendations: mixingData.recommendations || "AI mix applied successfully",
+                    provider: "xAI Grok"
+                  });
+                }
+              }
+            } catch (parseError: any) {
+              console.warn("⚠️ Failed to parse AI response, using fallback:", parseError.message);
+              // Fall through to intelligent fallback
             }
           }
         } catch (aiError: any) {
