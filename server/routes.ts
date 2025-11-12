@@ -171,14 +171,27 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     try {
       console.log('🎵 Upload parameters requested');
 
+      // Get file extension from request body (if provided)
+      const { format, fileName } = req.body || {};
+      let extension = '';
+      
+      if (format) {
+        extension = `.${format}`;
+      } else if (fileName) {
+        const ext = fileName.split('.').pop();
+        if (ext && ext !== fileName) {
+          extension = `.${ext}`;
+        }
+      }
+
       // Generate a unique object key for the upload using crypto for security
-      const objectKey = `songs/${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+      const objectKey = `songs/${Date.now()}-${crypto.randomBytes(4).toString('hex')}${extension}`;
 
       // Use relative URL to avoid CORS/SSL issues with localhost
       // Vite's proxy will forward this to the backend correctly
       const uploadURL = `/api/internal/uploads/${encodeURIComponent(objectKey)}`;
 
-      console.log('🎵 Generated upload URL:', uploadURL);
+      console.log('🎵 Generated upload URL with extension:', uploadURL);
 
       res.json({
         uploadURL,

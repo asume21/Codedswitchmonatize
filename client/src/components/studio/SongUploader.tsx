@@ -83,9 +83,15 @@ export default function SongUploader() {
     },
   });
 
-  const getUploadParameters = async () => {
+  const getUploadParameters = async (file?: File) => {
     try {
-      const response = await apiRequest("POST", "/api/objects/upload", {});
+      const fileName = file?.name || '';
+      const format = fileName.split('.').pop()?.toLowerCase() || '';
+      
+      const response = await apiRequest("POST", "/api/objects/upload", {
+        fileName,
+        format
+      });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error", temporary: false }));
