@@ -228,6 +228,7 @@ export default function Studio() {
       "melody": "Melody Composer",
       "multitrack": "Multi-Track Studio",
       "unified-studio": "Unified Studio",
+      "daw-layout": "DAW Layout",
       "audio-tools": "Audio Tools",
       "codebeat": "Code to Music",
       "musiccode": "Music to Code",
