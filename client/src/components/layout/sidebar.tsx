@@ -27,6 +27,7 @@ import {
 
 const navigation = [
   { name: "🎵 Unified Studio", href: "/unified-studio", icon: Star },
+  { name: "🎚️ DAW Layout", href: "/daw-layout", icon: Layers },
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
   { name: "Music Studio", href: "/music-studio", icon: Piano },
   { name: "Mix Studio", href: "/mix-studio", icon: Layers },
