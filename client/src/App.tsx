@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
+import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
 import Subscribe from "@/pages/Subscribe";
 import TestCircular from "@/pages/TestCircular";
 import ProAudio from "@/pages/pro-audio";
@@ -58,9 +59,9 @@ function App() {
           <Toaster />
           <Switch>
           <Route path="/">
-            <AppLayout>
-              <Studio />
-            </AppLayout>
+            <div className="h-screen w-screen bg-background">
+              <DAWLayoutWorkspace />
+            </div>
           </Route>
           <Route path="/login" component={Login} />
           <Route path="/signup" component={Signup} />
@@ -93,9 +94,9 @@ function App() {
             </AppLayout>
           </Route>
           <Route path="/daw-layout">
-            <AppLayout>
-              <Studio />
-            </AppLayout>
+            <div className="h-screen w-screen bg-background">
+              <DAWLayoutWorkspace />
+            </div>
           </Route>
           <Route path="/code-translator">
             <AppLayout>
