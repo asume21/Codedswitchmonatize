@@ -17,26 +17,28 @@ export function AutoHideSidebar({ children }: AutoHideSidebarProps) {
         data-testid="sidebar-trigger-rail"
       />
 
-      {/* Sidebar container with solid background */}
-      <div
-        className={cn(
-          "fixed left-0 top-0 h-full z-50 transition-transform duration-300 ease-out bg-background border-r",
-          isOpen ? "translate-x-0 drop-shadow-2xl" : "translate-x-[-100%]"
-        )}
-        onMouseLeave={() => setIsOpen(false)}
-        data-testid="auto-hide-sidebar"
-      >
-        {children}
-      </div>
-
-      {/* Overlay backdrop when sidebar is open (optional, for better UX) */}
+      {/* Backdrop when sidebar is open */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/20 z-40 transition-opacity duration-300"
+          className="fixed inset-0 bg-black/70 z-40 transition-opacity duration-300"
           onClick={() => setIsOpen(false)}
           data-testid="sidebar-overlay"
         />
       )}
+
+      {/* Sidebar container */}
+      <div
+        className={cn(
+          "fixed left-0 top-0 h-full w-64 z-50 transition-transform duration-300 ease-out drop-shadow-2xl",
+          isOpen ? "translate-x-0" : "translate-x-[-100%]"
+        )}
+        onMouseLeave={() => setIsOpen(false)}
+        data-testid="auto-hide-sidebar"
+      >
+        <div className="h-full bg-gray-950 border-r border-gray-800">
+          {children}
+        </div>
+      </div>
     </>
   );
 }

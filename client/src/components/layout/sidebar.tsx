@@ -62,7 +62,7 @@ export function Sidebar() {
   const [location] = useLocation();
 
   return (
-    <div className="flex h-screen w-64 flex-col bg-background border-r">
+    <div className="flex h-screen w-64 flex-col">
       <div className="flex-1 space-y-1 px-3 py-4">
         {navigation.map((item) => {
           const isActive = location === item.href;

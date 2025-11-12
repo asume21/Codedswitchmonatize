@@ -4,8 +4,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/layout/navigation";
-import { Sidebar } from "@/components/layout/sidebar";
-import { AutoHideSidebar } from "@/components/layout/AutoHideSidebar";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
@@ -27,13 +25,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen">
-      {/* Auto-hide sidebar - appears on hover */}
-      <AutoHideSidebar>
-        <Sidebar />
-      </AutoHideSidebar>
-      
-      {/* Main content - now takes full width */}
+    <div className="flex h-screen w-full">
+      {/* Full-width layout without sidebar */}
       <div className="flex-1 flex flex-col w-full">
         <Navigation />
         <main className="flex-1 overflow-x-auto overflow-y-auto">
