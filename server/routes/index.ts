@@ -29,8 +29,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       // Generate a unique object key for the upload
       const objectKey = `songs/${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      // For local storage (when GCS is not configured), return local upload URL
-      const uploadURL = `${req.protocol}://${req.get('host')}/api/internal/uploads/${encodeURIComponent(objectKey)}`;
+      // Use relative URL for local storage to avoid CORS/SSL issues
+      // The frontend's Vite proxy will forward this to the backend
+      const uploadURL = `/api/internal/uploads/${encodeURIComponent(objectKey)}`;
 
       console.log('🎵 Generated upload URL:', uploadURL);
 
@@ -619,6 +620,11 @@ Base your analysis on:
     console.log(`🎛️ AI Auto-Master requested for: ${songName}`);
 
     try {
+      const aiClient = getAIClient();
+      if (!aiClient) {
+        return res.status(503).json({ message: "AI service unavailable" });
+      }
+
       // Step 1: Analyze the song first
       const analysisResponse = await aiClient.chat.completions.create({
         model: "grok-beta",
@@ -691,6 +697,11 @@ Base your analysis on:
     console.log(`💬 AI Chat request with ${messages.length} messages`);
 
     try {
+      const aiClient = getAIClient();
+      if (!aiClient) {
+        return res.status(503).json({ message: "AI service unavailable" });
+      }
+
       const response = await aiClient.chat.completions.create({
         model: "grok-beta",
         messages: messages,
