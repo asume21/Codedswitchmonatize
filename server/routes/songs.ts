@@ -10,6 +10,7 @@ import { parseFile } from "music-metadata";
 import fetch from "node-fetch";
 import { unlink } from "fs/promises";
 import { sunoApi } from "../services/sunoApi";
+import { getGuestUserId } from "../guestUser";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
@@ -23,10 +24,11 @@ export function createSongRoutes(storage: IStorage) {
     console.log('  - req.session?.userId:', req.session?.userId);
     console.log('  - cookies:', req.headers.cookie);
     
-    // Check if user is authenticated (allow test uploads for development)
+    // Check if user is authenticated (use guest user for anonymous uploads)
     if (!req.userId) {
-      console.warn('⚠️ No auth - using test user for development');
-      req.userId = 'test-user-' + Date.now();
+      console.warn('⚠️ No auth - using guest user for development');
+      req.userId = await getGuestUserId(storage);
+      console.log('✅ Using guest user ID:', req.userId);
     }
     
     try {
