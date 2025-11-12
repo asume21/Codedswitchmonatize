@@ -100,6 +100,7 @@ export default function Studio() {
   // Determine active tab based on current route
   const getTabFromRoute = (path: string): Tab => {
     const routeMap: Record<string, Tab> = {
+      '/': 'uploader', // Homepage defaults to Song Uploader
       '/unified-studio': 'unified-studio',
       '/daw-layout': 'daw-layout',
       '/code-translator': 'translator',
@@ -122,7 +123,7 @@ export default function Studio() {
     };
     
     const matchedRoute = Object.keys(routeMap).find(route => path.includes(route));
-    return matchedRoute ? routeMap[matchedRoute] : 'beatmaker';
+    return matchedRoute ? routeMap[matchedRoute] : 'uploader'; // Default fallback to uploader
   };
 
   const [activeTab, setActiveTab] = useState<Tab>(() => getTabFromRoute(location));

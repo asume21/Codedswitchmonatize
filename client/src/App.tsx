@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
+import SongUploaderPage from "@/pages/song-uploader";
 import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
 import Subscribe from "@/pages/Subscribe";
 import TestCircular from "@/pages/TestCircular";

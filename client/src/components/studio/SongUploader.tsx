@@ -12,7 +12,7 @@ import { useAIMessages } from "@/contexts/AIMessageContext";
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
-import type { Song } from "@shared/schema";
+import type { Song } from "../../../../shared/schema";
 import type { ToolRecommendation } from "@/components/studio/effects";
 
 interface UploadContext {
