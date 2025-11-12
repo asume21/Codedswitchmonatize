@@ -580,6 +580,179 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     }
   });
 
+  // AI Mix & Master endpoint - analyzes tracks and suggests optimal mixing parameters
+  app.post("/api/mix/generate", async (req: Request, res: Response) => {
+    try {
+      // Check authentication
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required - please log in");
+      }
+
+      const mixSchema = z.object({
+        prompt: z.string().min(1, "Prompt is required"),
+        layers: z.array(z.any()),
+        bpm: z.number().optional(),
+        style: z.string().optional(),
+      });
+
+      const parsed = mixSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return sendError(res, 400, "Invalid input: " + parsed.error.message);
+      }
+
+      const { prompt, layers, bpm, style } = parsed.data;
+
+      console.log(`🎛️ User ${req.userId} requesting AI mix - Layers: ${layers.length}, Prompt: "${prompt}"`);
+
+      // Build AI mixing prompt
+      const layerDescription = layers.map((layer: any, i: number) => 
+        `Layer ${i + 1} (${layer.type}): ${layer.name}`
+      ).join(', ');
+
+      const mixingPrompt = `You are a professional audio mixing engineer. Analyze these tracks and provide optimal mixing parameters:
+
+Tracks: ${layerDescription}
+BPM: ${bpm || 120}
+Style: ${style || 'professional'}
+User Request: ${prompt}
+
+Provide mixing settings for each layer in this exact JSON format:
+{
+  "layers": [
+    {
+      "id": "layer_id",
+      "volume": 75,
+      "pan": 0,
+      "effects": {
+        "reverb": 30,
+        "delay": 0,
+        "distortion": 0
+      },
+      "reasoning": "brief explanation"
+    }
+  ],
+  "masterVolume": 80,
+  "recommendations": "overall mixing advice"
+}
+
+Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
+
+      // Try to get AI client
+      const aiClient = getAIClient();
+      
+      if (aiClient) {
+        // Use xAI Grok for intelligent mixing suggestions
+        try {
+          const completion = await aiClient.chat.completions.create({
+            model: "grok-beta",
+            messages: [
+              {
+                role: "system",
+                content: "You are an expert audio mixing engineer with deep knowledge of music production, EQ, dynamics, and spatial positioning. Provide professional mixing advice in JSON format."
+              },
+              {
+                role: "user",
+                content: mixingPrompt
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 2000,
+          });
+
+          const aiResponse = completion.choices[0]?.message?.content;
+          
+          if (aiResponse) {
+            // Extract JSON from response
+            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const mixingData = JSON.parse(jsonMatch[0]);
+              
+              // Map AI suggestions to actual layer IDs
+              const updatedLayers = layers.map((layer: any, index: number) => {
+                const aiSuggestion = mixingData.layers[index] || {};
+                return {
+                  ...layer,
+                  volume: aiSuggestion.volume || layer.volume || 75,
+                  pan: aiSuggestion.pan || layer.pan || 0,
+                  effects: {
+                    reverb: aiSuggestion.effects?.reverb || layer.effects?.reverb || 0,
+                    delay: aiSuggestion.effects?.delay || layer.effects?.delay || 0,
+                    distortion: aiSuggestion.effects?.distortion || layer.effects?.distortion || 0,
+                  }
+                };
+              });
+
+              return res.json({
+                success: true,
+                layers: updatedLayers,
+                masterVolume: mixingData.masterVolume || 80,
+                recommendations: mixingData.recommendations || "AI mix applied successfully",
+                provider: "xAI Grok"
+              });
+            }
+          }
+        } catch (aiError: any) {
+          console.warn("⚠️ AI mixing failed, using intelligent fallback:", aiError.message);
+        }
+      }
+
+      // Intelligent fallback mixing based on track types
+      console.log("🎛️ Using intelligent fallback mixing");
+      
+      const updatedLayers = layers.map((layer: any) => {
+        const mixingRules: Record<string, any> = {
+          beat: { volume: 85, pan: 0, reverb: 5, delay: 0, distortion: 0 },
+          bass: { volume: 80, pan: 0, reverb: 0, delay: 0, distortion: 10 },
+          melody: { volume: 75, pan: 10, reverb: 35, delay: 15, distortion: 0 },
+          harmony: { volume: 65, pan: -10, reverb: 40, delay: 10, distortion: 0 },
+          fx: { volume: 60, pan: 15, reverb: 60, delay: 30, distortion: 0 },
+        };
+
+        const defaultMix = mixingRules[layer.type] || { volume: 75, pan: 0, reverb: 20, delay: 10, distortion: 0 };
+
+        // Apply user prompt adjustments
+        let volumeAdjust = 0;
+        let reverbAdjust = 0;
+        
+        if (prompt.toLowerCase().includes('loud') || prompt.toLowerCase().includes('punchy')) {
+          volumeAdjust = 10;
+        }
+        if (prompt.toLowerCase().includes('quiet') || prompt.toLowerCase().includes('subtle')) {
+          volumeAdjust = -15;
+        }
+        if (prompt.toLowerCase().includes('reverb') || prompt.toLowerCase().includes('spacious')) {
+          reverbAdjust = 20;
+        }
+        if (prompt.toLowerCase().includes('dry') || prompt.toLowerCase().includes('tight')) {
+          reverbAdjust = -20;
+        }
+
+        return {
+          ...layer,
+          volume: Math.max(0, Math.min(100, defaultMix.volume + volumeAdjust)),
+          pan: defaultMix.pan,
+          effects: {
+            reverb: Math.max(0, Math.min(100, defaultMix.reverb + reverbAdjust)),
+            delay: defaultMix.delay,
+            distortion: defaultMix.distortion,
+          }
+        };
+      });
+
+      res.json({
+        success: true,
+        layers: updatedLayers,
+        masterVolume: 80,
+        recommendations: "Intelligent mixing applied based on track types and your prompt",
+        provider: "Intelligent Fallback"
+      });
+
+    } catch (error: any) {
+      console.error("❌ Mix generation error:", error);
+      sendError(res, 500, error.message || "Failed to generate mix");
+    }
+  });
+
   // Helper function to generate drum patterns
   function generatePattern(instrument: string, genre: string, bpm: number) {
     // Simple pattern generation based on genre and BPM
