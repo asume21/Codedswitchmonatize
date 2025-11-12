@@ -95,8 +95,10 @@ export function createSongRoutes(storage: IStorage) {
 
   // Get all songs for current user
   router.get("/", async (req: Request, res: Response) => {
+    // Use guest user for anonymous requests
     if (!req.userId) {
-      return res.status(401).json({ error: "Please log in to view songs" });
+      req.userId = await getGuestUserId(storage);
+      console.log('✅ Using guest user ID for song list:', req.userId);
     }
     
     try {
