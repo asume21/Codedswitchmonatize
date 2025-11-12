@@ -65,6 +65,7 @@
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.18.2",
+    "@types/fluent-ffmpeg": "^2.1.28",
     "@types/memoizee": "^0.4.12",
     "@types/multer": "^2.0.0",
     "@types/passport": "^1.0.17",

@@ -391,7 +391,6 @@ export default function SongUploader() {
       });
       
       setSongAnalysis(analysis);
-      setCurrentSong(song);
       
       toast({
         title: "Song Analysis Complete",
