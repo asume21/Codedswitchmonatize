@@ -12,11 +12,100 @@ import ProfessionalMixer from "./ProfessionalMixer";
 import FloatingAIAssistant from "./FloatingAIAssistant";
 import { StudioAudioContext } from "@/pages/studio";
 import { 
-  Music, Waveform, Sparkles, Sliders, 
+  Music, Activity, Sparkles, Sliders, 
   Piano, Clock, Mic2, Volume2 
 } from "lucide-react";
-import layoutConfig from "@assets/splitLayout-1762910439844_1762910585980.json";
 import { realisticAudio } from "@/lib/realisticAudio";
+
+// Import the layout config
+const layoutConfig = {
+  "version": "1.0",
+  "splitLayout": {
+    "id": "root",
+    "type": "split",
+    "direction": "horizontal",
+    "children": [
+      {
+        "id": "left",
+        "type": "split",
+        "size": 1,
+        "children": [
+          {
+            "id": "panel-1762910392636-xqfzuu54x",
+            "type": "panel",
+            "content": "instruments",
+            "size": 1
+          },
+          {
+            "id": "panel-1762910392636-vhrzvdek7",
+            "type": "panel",
+            "content": "effects",
+            "size": 1
+          }
+        ],
+        "direction": "horizontal"
+      },
+      {
+        "id": "center",
+        "type": "split",
+        "size": 2,
+        "children": [
+          {
+            "id": "panel-1762910384269-hib9mo7fn",
+            "type": "split",
+            "size": 1,
+            "children": [
+              {
+                "id": "panel-1762910430291-k1w6rfjdg",
+                "type": "panel",
+                "content": "timeline",
+                "size": 1
+              },
+              {
+                "id": "panel-1762910430291-5ugmxl6oe",
+                "type": "panel",
+                "content": "piano-roll",
+                "size": 1
+              }
+            ],
+            "direction": "vertical"
+          },
+          {
+            "id": "panel-1762910384269-sm3tumtze",
+            "type": "panel",
+            "content": "transport",
+            "size": 1
+          }
+        ],
+        "direction": "vertical"
+      },
+      {
+        "id": "right",
+        "type": "split",
+        "direction": "vertical",
+        "size": 1.5,
+        "children": [
+          {
+            "id": "ai",
+            "type": "panel",
+            "content": "ai-assistant",
+            "size": 2
+          },
+          {
+            "id": "mixer",
+            "type": "panel",
+            "content": "mixer",
+            "size": 1
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "created": "2025-11-12T01:20:39.843Z",
+    "density": "dense"
+  }
+};
 
 // Instrument panel with realistic audio instruments
 function InstrumentsPanel() {
@@ -26,7 +115,7 @@ function InstrumentsPanel() {
   const instruments = [
     { id: "piano", name: "Piano", category: "keys", icon: Piano },
     { id: "guitar", name: "Guitar", category: "strings", icon: Music },
-    { id: "bass-electric", name: "Electric Bass", category: "bass", icon: Waveform },
+    { id: "bass-electric", name: "Electric Bass", category: "bass", icon: Activity },
     { id: "strings", name: "Strings", category: "orchestral", icon: Music },
     { id: "violin", name: "Violin", category: "orchestral", icon: Music },
     { id: "flute", name: "Flute", category: "winds", icon: Music },
@@ -189,11 +278,24 @@ function TimelinePanel() {
 }
 
 export default function DAWLayoutWorkspace() {
+  const [tracks] = useState([
+    {
+      id: "1",
+      name: "Piano",
+      instrument: "piano",
+      notes: [],
+      volume: 80,
+      pan: 0,
+      muted: false,
+      solo: false
+    }
+  ]);
+
   const contentMap = {
     "instruments": <InstrumentsPanel />,
     "effects": <EffectsPanel />,
     "timeline": <TimelinePanel />,
-    "piano-roll": <VerticalPianoRoll />,
+    "piano-roll": <VerticalPianoRoll tracks={tracks} selectedTrack="1" />,
     "transport": <TransportControls />,
     "ai-assistant": <FloatingAIAssistant />,
     "mixer": <ProfessionalMixer />,

@@ -15,6 +15,7 @@ import AIAssistant from "@/components/studio/AIAssistant";
 import SongUploader from "@/components/studio/SongUploader";
 import AudioToolsPage from "@/components/studio/AudioToolsPage";
 import UnifiedStudioWorkspace from "@/components/studio/UnifiedStudioWorkspace";
+import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
 import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
 import LyricLab from "@/components/studio/LyricLab";
 import MusicMixer from "@/components/studio/MusicMixer";
@@ -74,7 +75,7 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "unified-studio" | "audio-tools" | "codebeat" | "musiccode" | "assistant" | "uploader" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
+type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "unified-studio" | "daw-layout" | "audio-tools" | "codebeat" | "musiccode" | "assistant" | "uploader" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
 
 const tabAccess: Partial<Record<Tab, { requireAuth?: boolean; requirePro?: boolean }>> = {
   assistant: { requireAuth: true },
@@ -100,6 +101,7 @@ export default function Studio() {
   const getTabFromRoute = (path: string): Tab => {
     const routeMap: Record<string, Tab> = {
       '/unified-studio': 'unified-studio',
+      '/daw-layout': 'daw-layout',
       '/code-translator': 'translator',
       '/beat-studio': 'beatmaker',
       '/melody-composer': 'melody',
@@ -317,6 +319,7 @@ export default function Studio() {
       melody: <MelodyComposerV2 />,
       multitrack: <CodeBeatStudio />,
       "unified-studio": <UnifiedStudioWorkspace />,
+      "daw-layout": <DAWLayoutWorkspace />,
       "audio-tools": <AudioToolsPage />,
       codebeat: <CodeToMusic />,
       musiccode: <MusicToCode />,

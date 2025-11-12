@@ -92,6 +92,11 @@ function App() {
               <Studio />
             </AppLayout>
           </Route>
+          <Route path="/daw-layout">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
           <Route path="/code-translator">
             <AppLayout>
               <Studio />
