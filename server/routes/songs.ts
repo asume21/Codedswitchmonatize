@@ -9,6 +9,7 @@ import { createReadStream } from "fs";
 import { parseFile } from "music-metadata";
 import fetch from "node-fetch";
 import { unlink } from "fs/promises";
+import { sunoApi } from "../services/sunoApi";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
@@ -220,6 +221,147 @@ export function createSongRoutes(storage: IStorage) {
     } catch (error) {
       console.error('Error serving converted file:', error);
       res.status(500).json({ error: "Failed to serve file" });
+    }
+  });
+
+  // ===== SUNO API ENDPOINTS =====
+
+  // Upload and Cover - Transform song with different style
+  router.post("/suno/cover", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, model, makeInstrumental } = req.body;
+      console.log('🎵 Suno Cover:', { prompt, model });
+
+      const result = await sunoApi.uploadAndCover({
+        audioUrl,
+        prompt,
+        model: model || 'v4_5plus',
+        makeInstrumental
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno cover error:', error);
+      res.status(500).json({ error: "Failed to cover song" });
+    }
+  });
+
+  // Upload and Extend - Extend song with AI continuation
+  router.post("/suno/extend", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, continueAt, model } = req.body;
+      console.log('🎵 Suno Extend:', { continueAt, model });
+
+      const result = await sunoApi.uploadAndExtend({
+        audioUrl,
+        prompt,
+        continueAt,
+        model: model || 'v4_5plus'
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno extend error:', error);
+      res.status(500).json({ error: "Failed to extend song" });
+    }
+  });
+
+  // Separate Vocals - Extract vocals and instrumentals
+  router.post("/suno/separate", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl } = req.body;
+      console.log('🎵 Suno Separate Vocals');
+
+      const result = await sunoApi.separateVocals({ audioUrl });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno separate error:', error);
+      res.status(500).json({ error: "Failed to separate vocals" });
+    }
+  });
+
+  // Add Vocals - Generate vocals for instrumental
+  router.post("/suno/add-vocals", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, model } = req.body;
+      console.log('🎵 Suno Add Vocals:', { prompt });
+
+      const result = await sunoApi.addVocals({
+        audioUrl,
+        prompt,
+        model: model || 'v4_5plus'
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno add vocals error:', error);
+      res.status(500).json({ error: "Failed to add vocals" });
+    }
+  });
+
+  // Get Suno job status
+  router.post("/suno/status", async (req: Request, res: Response) => {
+    try {
+      const { ids } = req.body;
+      const result = await sunoApi.getMusicDetails(ids);
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno status error:', error);
+      res.status(500).json({ error: "Failed to get status" });
+    }
+  });
+
+  // Get Suno credits
+  router.get("/suno/credits", async (req: Request, res: Response) => {
+    try {
+      const result = await sunoApi.getRemainingCredits();
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno credits error:', error);
+      res.status(500).json({ error: "Failed to get credits" });
     }
   });
 
