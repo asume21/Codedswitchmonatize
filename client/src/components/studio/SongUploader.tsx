@@ -30,7 +30,7 @@ export default function SongUploader() {
   const [showAudioTools, setShowAudioTools] = useState(false);
   const [songAnalysis, setSongAnalysis] = useState<any>(null);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [sunoAction, setSunoAction] = useState<'cover' | 'extend' | 'separate' | 'add-vocals' | null>(null);
+  const [sunoAction, setSunoAction] = useState<'cover' | 'extend' | 'separate' | 'add-vocals' | 'add-instrumental' | null>(null);
   const [sunoPrompt, setSunoPrompt] = useState('');
   const [sunoModel, setSunoModel] = useState('v4_5plus');
   const [sunoProcessing, setSunoProcessing] = useState(false);
@@ -269,8 +269,8 @@ export default function SongUploader() {
 
   const playSong = async (song: Song) => {
     try {
-      // Try multiple URL sources in order of preference
-      let accessibleURL = song.accessibleUrl || song.originalUrl || song.songURL;
+      // Try multiple URL sources in order of preference (including legacy songURL for backward compatibility)
+      let accessibleURL = song.accessibleUrl || song.originalUrl || (song as any).songURL;
       
       if (!accessibleURL) {
         throw new Error("No URL available for this song");
@@ -546,7 +546,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   const processSunoCover = async (song: Song, prompt: string) => {
     setSunoProcessing(true);
     try {
-      const audioUrl = song.accessibleUrl || song.originalUrl || song.songURL;
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
       const response = await apiRequest('POST', '/api/songs/suno/cover', {
         audioUrl,
         prompt,
@@ -576,7 +576,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   const processSunoExtend = async (song: Song) => {
     setSunoProcessing(true);
     try {
-      const audioUrl = song.accessibleUrl || song.originalUrl || song.songURL;
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
       const response = await apiRequest('POST', '/api/songs/suno/extend', {
         audioUrl,
         prompt: sunoPrompt || undefined,
@@ -606,7 +606,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   const processSunoSeparate = async (song: Song) => {
     setSunoProcessing(true);
     try {
-      const audioUrl = song.accessibleUrl || song.originalUrl || song.songURL;
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
       const response = await apiRequest('POST', '/api/songs/suno/separate', {
         audioUrl
       });
@@ -634,7 +634,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   const processSunoAddVocals = async (song: Song, prompt: string) => {
     setSunoProcessing(true);
     try {
-      const audioUrl = song.accessibleUrl || song.originalUrl || song.songURL;
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
       const response = await apiRequest('POST', '/api/songs/suno/add-vocals', {
         audioUrl,
         prompt,
@@ -660,6 +660,36 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
     }
   };
 
+  // Suno API - Add Instrumental
+  const processSunoAddInstrumental = async (song: Song, prompt: string) => {
+    setSunoProcessing(true);
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      const response = await apiRequest('POST', '/api/songs/suno/add-instrumental', {
+        audioUrl,
+        prompt,
+        model: sunoModel
+      });
+      
+      const data = await response.json();
+      toast({
+        title: "Adding Instrumental Started!",
+        description: `Adding AI instrumental to "${song.name}". This may take a few minutes.`,
+      });
+
+      addMessage(`🎵 Started adding instrumental to "${song.name}": ${prompt}`, 'suno-add-instrumental');
+    } catch (error) {
+      toast({
+        title: "Add Instrumental Failed",
+        description: error instanceof Error ? error.message : "Failed to add instrumental",
+        variant: "destructive",
+      });
+    } finally {
+      setSunoProcessing(false);
+      setSunoAction(null);
+    }
+  };
+
   // If showing audio tools, render the tool router
   if (showAudioTools && studioContext.currentUploadedSong && songAnalysis) {
     return (
@@ -672,7 +702,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
           ← Back to Song Library
         </Button>
         <AudioToolRouter
-          songUrl={studioContext.currentUploadedSong.accessibleUrl || studioContext.currentUploadedSong.originalUrl || studioContext.currentUploadedSong.songURL || ''}
+          songUrl={studioContext.currentUploadedSong.accessibleUrl || studioContext.currentUploadedSong.originalUrl || (studioContext.currentUploadedSong as any).songURL || ''}
           songName={studioContext.currentUploadedSong.name}
           recommendations={songAnalysis.toolRecommendations || []}
         />
@@ -899,6 +929,12 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                                 Add AI Vocals
                               </div>
                             </SelectItem>
+                            <SelectItem value="add-instrumental">
+                              <div className="flex items-center">
+                                <Plus className="w-3 h-3 mr-2" />
+                                Add AI Instrumental
+                              </div>
+                            </SelectItem>
                           </SelectContent>
                         </Select>
 
@@ -973,7 +1009,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-400" />
-                Suno AI - {sunoAction === 'cover' ? 'Cover Song' : sunoAction === 'extend' ? 'Extend Song' : 'Add Vocals'}
+                Suno AI - {sunoAction === 'cover' ? 'Cover Song' : sunoAction === 'extend' ? 'Extend Song' : sunoAction === 'add-vocals' ? 'Add Vocals' : 'Add Instrumental'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1038,6 +1074,25 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                 </div>
               )}
 
+              {sunoAction === 'add-instrumental' && (
+                <div>
+                  <Label htmlFor="instrumental-prompt" className="text-white mb-2 block">
+                    Instrumental Prompt
+                  </Label>
+                  <Input
+                    id="instrumental-prompt"
+                    placeholder="e.g., acoustic guitar, electronic synths, jazz piano"
+                    value={sunoPrompt}
+                    onChange={(e) => setSunoPrompt(e.target.value)}
+                    className="bg-gray-700 text-white"
+                    data-testid="input-suno-prompt"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Describe the instrumental style you want to add
+                  </p>
+                </div>
+              )}
+
               <div>
                 <Label htmlFor="suno-model" className="text-white mb-2 block">
                   AI Model
@@ -1077,10 +1132,12 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                       processSunoExtend(selectedSong);
                     } else if (sunoAction === 'add-vocals' && sunoPrompt) {
                       processSunoAddVocals(selectedSong, sunoPrompt);
+                    } else if (sunoAction === 'add-instrumental' && sunoPrompt) {
+                      processSunoAddInstrumental(selectedSong, sunoPrompt);
                     }
                     setSunoPrompt('');
                   }}
-                  disabled={sunoProcessing || (sunoAction === 'cover' && !sunoPrompt) || (sunoAction === 'add-vocals' && !sunoPrompt)}
+                  disabled={sunoProcessing || (sunoAction === 'cover' && !sunoPrompt) || (sunoAction === 'add-vocals' && !sunoPrompt) || (sunoAction === 'add-instrumental' && !sunoPrompt)}
                   data-testid="button-confirm-suno"
                 >
                   {sunoProcessing ? (

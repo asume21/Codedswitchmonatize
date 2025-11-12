@@ -332,6 +332,33 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
+  // Add Instrumental - Generate instrumental backing for vocals
+  router.post("/suno/add-instrumental", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, model } = req.body;
+      console.log('🎵 Suno Add Instrumental:', { prompt });
+
+      const result = await sunoApi.addInstrumental({
+        audioUrl,
+        prompt,
+        model: model || 'v4_5plus'
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno add instrumental error:', error);
+      res.status(500).json({ error: "Failed to add instrumental" });
+    }
+  });
+
   // Get Suno job status
   router.post("/suno/status", async (req: Request, res: Response) => {
     try {
