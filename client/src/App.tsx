@@ -18,6 +18,7 @@ import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import ActivatePage from "@/pages/activate";
 import DesignPlayground from "@/pages/design-playground";
+import TestPianoRoll from "@/pages/test-piano-roll";
 import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
@@ -186,6 +187,11 @@ function App() {
           </Route>
           <Route path="/subscribe" component={Subscribe} />
           <Route path="/test-circular" component={TestCircular} />
+          <Route path="/piano-roll">
+            <div className="h-screen w-screen bg-background">
+              <TestPianoRoll />
+            </div>
+          </Route>
           <Route component={NotFound} />
           </Switch>
         </TooltipProvider>
