@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, forwardRef } from 'react';
 import { PianoKey, Note, Track, STEPS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
 
@@ -12,9 +12,10 @@ interface PianoKeysProps {
   chordMode: boolean;
   activeKeys: Set<number>;
   onActiveKeysChange: (keys: Set<number>) => void;
+  onScroll?: () => void;
 }
 
-export const PianoKeys: React.FC<PianoKeysProps> = ({
+export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
   pianoKeys,
   selectedTrack,
   onKeyClick,
@@ -23,8 +24,9 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
   isPlaying,
   chordMode,
   activeKeys,
-  onActiveKeysChange
-}) => {
+  onActiveKeysChange,
+  onScroll
+}, ref) => {
   const sustainedNotesRef = useRef<Map<number, any>>(new Map());
 
   const handleKeyClick = useCallback((keyIndex: number) => {
@@ -79,7 +81,14 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
   }, [selectedTrack?.instrument, chordMode]);
 
   return (
-    <div className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl">
+    <div 
+      ref={ref}
+      className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl"
+      onScroll={onScroll}
+    >
+      {/* Spacer to match step header height */}
+      <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-600" style={{ height: '30px' }} />
+      
       <div className="relative">
         {pianoKeys.map((key, index) => {
           const isActive = activeKeys.has(index);
@@ -138,4 +147,4 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
       </div>
     </div>
   );
-};
+});

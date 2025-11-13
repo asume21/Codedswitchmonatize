@@ -23,6 +23,7 @@ import { useEffect } from "react";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SongWorkSessionProvider } from "@/contexts/SongWorkSessionContext";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -56,8 +57,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
+        <SongWorkSessionProvider>
+          <TooltipProvider>
+            <Toaster />
           <Switch>
           <Route path="/">
             <AppLayout>
@@ -194,7 +196,8 @@ function App() {
           </Route>
           <Route component={NotFound} />
           </Switch>
-        </TooltipProvider>
+          </TooltipProvider>
+        </SongWorkSessionProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

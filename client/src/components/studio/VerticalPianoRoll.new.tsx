@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Music } from "lucide-react";
+import { Music, Link2, Link2Off } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { PianoKeys } from "./PianoKeys";
@@ -106,10 +106,33 @@ export const VerticalPianoRoll: React.FC = () => {
   const [chordMode, setChordMode] = useState(false);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
   const [activeKeys, setActiveKeys] = useState<Set<number>>(new Set());
+  const [syncScroll, setSyncScroll] = useState(true);
   
   const { toast } = useToast();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pianoKeysRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const isSyncingRef = useRef(false);
   const selectedTrack = tracks[selectedTrackIndex];
+
+  // Scroll synchronization
+  const handlePianoScroll = useCallback(() => {
+    if (!syncScroll || isSyncingRef.current || !pianoKeysRef.current || !gridRef.current) return;
+    isSyncingRef.current = true;
+    gridRef.current.scrollTop = pianoKeysRef.current.scrollTop;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  }, [syncScroll]);
+
+  const handleGridScroll = useCallback(() => {
+    if (!syncScroll || isSyncingRef.current || !pianoKeysRef.current || !gridRef.current) return;
+    isSyncingRef.current = true;
+    pianoKeysRef.current.scrollTop = gridRef.current.scrollTop;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  }, [syncScroll]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -346,30 +369,43 @@ export const VerticalPianoRoll: React.FC = () => {
             {keyScaleSelector}
             {chordProgressionDisplay}
             
-            {/* Chord Mode Toggle - Moved from PianoKeys */}
-            <div className="flex items-center justify-center gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
+            {/* Chord Mode Toggle & Sync Scroll - Moved from PianoKeys */}
+            <div className="flex items-center justify-between gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
+              <div className="flex items-center gap-4">
+                <Button
+                  size="lg"
+                  variant={chordMode ? "default" : "secondary"}
+                  className={`text-sm font-bold px-6 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400' : 'bg-gray-700'}`}
+                  onClick={() => {
+                    setChordMode(!chordMode);
+                    if (!chordMode) {
+                      setActiveKeys(new Set());
+                    }
+                  }}
+                  data-testid="button-chord-mode"
+                >
+                  <Music className="w-5 h-5 mr-2" />
+                  <span className="text-base">
+                    {chordMode ? '🎵 CHORD ON' : '🎵 Chord OFF'}
+                  </span>
+                </Button>
+                {chordMode && (
+                  <p className="text-sm text-purple-300 font-medium">
+                    Tap piano keys to build your chord, then click the grid!
+                  </p>
+                )}
+              </div>
+              
               <Button
-                size="lg"
-                variant={chordMode ? "default" : "secondary"}
-                className={`text-sm font-bold px-6 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400' : 'bg-gray-700'}`}
-                onClick={() => {
-                  setChordMode(!chordMode);
-                  if (!chordMode) {
-                    setActiveKeys(new Set());
-                  }
-                }}
-                data-testid="button-chord-mode"
+                size="sm"
+                variant={syncScroll ? "default" : "secondary"}
+                className={`text-xs font-medium px-4 ${syncScroll ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700'}`}
+                onClick={() => setSyncScroll(!syncScroll)}
+                data-testid="button-sync-scroll"
               >
-                <Music className="w-5 h-5 mr-2" />
-                <span className="text-base">
-                  {chordMode ? '🎵 CHORD ON' : '🎵 Chord OFF'}
-                </span>
+                {syncScroll ? <Link2 className="w-4 h-4 mr-1.5" /> : <Link2Off className="w-4 h-4 mr-1.5" />}
+                {syncScroll ? 'Linked' : 'Free Scroll'}
               </Button>
-              {chordMode && (
-                <p className="text-sm text-purple-300 font-medium">
-                  Tap piano keys to build your chord, then click the grid!
-                </p>
-              )}
             </div>
           </div>
         </CardHeader>
@@ -377,6 +413,7 @@ export const VerticalPianoRoll: React.FC = () => {
         <CardContent className="h-[calc(100%-250px)] overflow-hidden">
           <div className="flex h-full">
             <PianoKeys
+              ref={pianoKeysRef}
               pianoKeys={PIANO_KEYS}
               selectedTrack={selectedTrack}
               onKeyClick={addNote}
@@ -386,9 +423,11 @@ export const VerticalPianoRoll: React.FC = () => {
               chordMode={chordMode}
               activeKeys={activeKeys}
               onActiveKeysChange={setActiveKeys}
+              onScroll={handlePianoScroll}
             />
             
             <StepGrid
+              ref={gridRef}
               steps={STEPS}
               pianoKeys={PIANO_KEYS}
               selectedTrack={selectedTrack}
@@ -400,6 +439,7 @@ export const VerticalPianoRoll: React.FC = () => {
               onChordAdd={addChordToGrid}
               onNoteRemove={removeNote}
               chordMode={chordMode}
+              onScroll={handleGridScroll}
             />
           </div>
         </CardContent>
