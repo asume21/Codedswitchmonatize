@@ -104,13 +104,16 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
 
   // Handle dragging with pointer events (better than mouse events)
   const handlePointerDown = (e: React.PointerEvent) => {
+    console.log('🖱️ Pointer down on drag handle!', { x: e.clientX, y: e.clientY });
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
     setDragOffset({
       x: e.clientX - position.x,
       y: e.clientY - position.y,
     });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    console.log('✅ Dragging enabled, offset:', { x: e.clientX - position.x, y: e.clientY - position.y });
   };
 
   useEffect(() => {
@@ -124,6 +127,7 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
         DEFAULT_HEIGHT
       );
       
+      console.log('🚀 Moving to:', newPos);
       setPosition(newPos);
     };
 
@@ -241,22 +245,21 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
       data-testid="ai-assistant-floating"
     >
       <Card className="shadow-2xl border-2 border-purple-500/50 bg-gray-900">
-        <CardHeader className="pb-2 border-b border-gray-700 bg-gradient-to-r from-blue-900/50 to-purple-900/50 cursor-default">
-          {/* Drag Handle */}
-          <div
-            className="flex items-center justify-center py-1 cursor-move hover:bg-white/5 rounded transition-colors -mx-6 -mt-4 mb-2"
-            onPointerDown={handlePointerDown}
-            data-testid="ai-assistant-drag-handle"
-          >
-            <GripHorizontal className="w-5 h-5 text-gray-400" />
+        <CardHeader 
+          className="pb-2 border-b border-gray-700 bg-gradient-to-r from-blue-900/50 to-purple-900/50 cursor-move"
+          onPointerDown={handlePointerDown}
+          data-testid="ai-assistant-drag-handle"
+        >
+          <div className="flex items-center justify-center py-1">
+            <GripHorizontal className="w-4 h-4 text-gray-400/50" />
           </div>
           
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center">
+            <CardTitle className="text-base flex items-center pointer-events-none">
               <Sparkles className="w-4 h-4 mr-2 text-yellow-400" />
               AI Assistant
             </CardTitle>
-            <div className="flex space-x-1">
+            <div className="flex space-x-1" style={{ pointerEvents: 'auto' }}>
               <Button
                 variant="ghost"
                 size="sm"
