@@ -290,15 +290,26 @@ export const VerticalPianoRoll: React.FC = () => {
     
     // Add all recorded notes to the track
     if (recordingNotesRef.current.length > 0) {
-      setTracks(prev => prev.map((track, index) =>
-        index === selectedTrackIndex
-          ? { ...track, notes: [...track.notes, ...recordingNotesRef.current] }
-          : track
-      ));
+      console.log('🎵 Stopping recording with notes:', recordingNotesRef.current);
+      
+      setTracks(prev => {
+        const newTracks = prev.map((track, index) => {
+          if (index === selectedTrackIndex) {
+            const updatedTrack = { 
+              ...track, 
+              notes: [...track.notes, ...recordingNotesRef.current] 
+            };
+            console.log('✅ Updated track:', updatedTrack.name, 'Total notes:', updatedTrack.notes.length);
+            return updatedTrack;
+          }
+          return track;
+        });
+        return newTracks;
+      });
       
       toast({
         title: "✅ Recording Saved",
-        description: `${recordingNotesRef.current.length} notes added to track!`,
+        description: `${recordingNotesRef.current.length} notes added to track! Press PLAY to hear it back.`,
       });
     } else {
       toast({
