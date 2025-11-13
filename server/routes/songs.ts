@@ -202,26 +202,74 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Serve converted audio files
-  router.get("/converted/:fileId", (req: Request, res: Response) => {
+  // Serve converted audio files (with on-demand conversion for authenticated users)
+  router.get("/converted/:fileId", async (req: Request, res: Response) => {
     try {
       const { fileId } = req.params;
-      const tempDir = join(tmpdir(), 'codedswitch-conversions');
-      const filePath = join(tempDir, `${fileId}.mp3`);
+      
+      // SECURITY: Require authentication for ALL converted file access
+      // Guest users share the same ID, creating data leakage risks
+      if (!req.userId) {
+        console.log(`❌ Converted file access requires authentication: ${fileId}`);
+        return res.status(401).json({ 
+          error: "Authentication required", 
+          message: "Please log in to access converted audio files" 
+        });
+      }
+      
+      // SECURITY: Verify user owns a song that uses this conversion
+      // Use getUserSongs() to only query songs owned by this user
+      const userSongs = await storage.getUserSongs(req.userId);
+      const song = userSongs.find(s => s.accessibleUrl?.includes(fileId));
+      
+      if (!song) {
+        console.log(`❌ User ${req.userId} does not own a song with fileId: ${fileId}`);
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      console.log(`✅ Ownership verified for user ${req.userId}: ${song.name}`);
+      
+      const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+      const convertedDir = join(objectsDir, 'converted');
+      const filePath = join(convertedDir, `${fileId}.mp3`);
 
-      // Security: ensure file is in temp directory
-      if (!filePath.startsWith(tempDir)) {
+      // Security: ensure file is in converted directory
+      if (!filePath.startsWith(convertedDir)) {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      if (!existsSync(filePath)) {
-        return res.status(404).json({ error: "File not found" });
+      // If converted file already exists, serve it
+      if (existsSync(filePath)) {
+        console.log(`✅ Serving existing converted MP3: ${filePath}`);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        const stream = createReadStream(filePath);
+        return stream.pipe(res);
       }
 
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      const stream = createReadStream(filePath);
-      stream.pipe(res);
+      // File doesn't exist - attempt on-demand conversion
+      console.log(`⚠️ Converted file not found, attempting on-demand conversion: ${fileId}`);
+      
+      if (!song.originalUrl) {
+        console.log(`❌ Original file not found for song: ${song.id}`);
+        return res.status(404).json({ error: "Original file not found" });
+      }
+
+      console.log(`🔄 Converting on-demand: ${song.name} for user ${req.userId}`);
+      
+      // Perform conversion
+      const convertedURL = await convertToMp3WithCustomId(song.originalUrl, fileId);
+      
+      // Serve the newly converted file
+      if (existsSync(filePath)) {
+        console.log(`✅ Serving newly converted MP3: ${filePath}`);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        const stream = createReadStream(filePath);
+        return stream.pipe(res);
+      }
+
+      res.status(500).json({ error: "Conversion failed" });
     } catch (error) {
       console.error('Error serving converted file:', error);
       res.status(500).json({ error: "Failed to serve file" });
@@ -399,16 +447,62 @@ export function createSongRoutes(storage: IStorage) {
   return router;
 }
 
+// Helper function to convert with custom fileId (for on-demand conversion)
+async function convertToMp3WithCustomId(inputURL: string, fileId: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+    const convertedDir = join(objectsDir, 'converted');
+    if (!existsSync(convertedDir)) {
+      mkdirSync(convertedDir, { recursive: true });
+    }
+
+    const outputPath = join(convertedDir, `${fileId}.mp3`);
+
+    // Convert API URL to file system path
+    let inputPath = inputURL;
+    if (inputURL.startsWith('/api/internal/uploads/')) {
+      const objectKey = decodeURIComponent(inputURL.replace('/api/internal/uploads/', ''));
+      inputPath = join(objectsDir, objectKey);
+      console.log(`📁 Converted URL to path: ${inputURL} → ${inputPath}`);
+    }
+
+    const timeout = setTimeout(() => {
+      console.error('❌ FFmpeg conversion timeout');
+      reject(new Error('FFmpeg conversion timeout'));
+    }, 30000);
+
+    ffmpeg(inputPath)
+      .toFormat('mp3')
+      .audioCodec('libmp3lame')
+      .audioBitrate('192k')
+      .on('error', (err: Error) => {
+        clearTimeout(timeout);
+        console.error('❌ FFmpeg error:', err.message);
+        reject(err);
+      })
+      .on('end', () => {
+        clearTimeout(timeout);
+        console.log('✅ FFmpeg conversion finished');
+        const serveURL = `/api/songs/converted/${fileId}`;
+        console.log('📡 Converted file will be served at:', serveURL);
+        resolve(serveURL);
+      })
+      .save(outputPath);
+  });
+}
+
 // Helper function to convert any audio format to MP3
 async function convertToMp3(inputURL: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const tempDir = join(tmpdir(), 'codedswitch-conversions');
-    if (!existsSync(tempDir)) {
-      mkdirSync(tempDir, { recursive: true });
+    // Store converted files in persistent objects directory instead of temp
+    const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+    const convertedDir = join(objectsDir, 'converted');
+    if (!existsSync(convertedDir)) {
+      mkdirSync(convertedDir, { recursive: true });
     }
 
     const fileId = Date.now().toString();
-    const outputPath = join(tempDir, `${fileId}.mp3`);
+    const outputPath = join(convertedDir, `${fileId}.mp3`);
 
     // Convert API URL to file system path
     // Example: /api/internal/uploads/songs%2F123.m4a → /home/runner/workspace/objects/songs/123.m4a
