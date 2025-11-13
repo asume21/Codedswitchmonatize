@@ -1,0 +1,41 @@
+orded: D4 at step 24
+realisticAudio.ts:218 🎵 Loaded realistic piano instrument successfully
+realisticAudio.ts:218 🎵 Loaded realistic guitar instrument successfully
+realisticAudio.ts:218 🎵 Loaded realistic bass-electric instrument successfully
+realisticAudio.ts:265 🎵 playNote: E4 on piano
+realisticAudio.ts:268 🎵 Audio not initialized, initializing...
+realisticAudio.ts:107 🎵 Audio initialization in progress, waiting...
+VerticalPianoRoll.new.tsx:402 🎵 Recorded: E4 at step 31
+realisticAudio.ts:218 🎵 Loaded realistic strings instrument successfully
+realisticAudio.ts:175 🎵 Realistic audio engine initialized
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: C4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: C4
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: D4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: D4
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: E4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: E4
+realisticAudio.ts:265 🎵 playNote: C4 on piano
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: C4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: C4
+VerticalPianoRoll.new.tsx:402 🎵 Recorded: C4 at step 31
+realisticAudio.ts:265 🎵 playNote: D4 on piano
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: D4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: D4
+VerticalPianoRoll.new.tsx:402 🎵 Recorded: D4 at step 31
+realisticAudio.ts:265 🎵 playNote: E4 on piano
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: E4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: E4
+VerticalPianoRoll.new.tsx:402 🎵 Recorded: E4 at step 31
+realisticAudio.ts:265 🎵 playNote: C4 on piano
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: C4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: C4
+VerticalPianoRoll.new.tsx:402 🎵 Recorded: C4 at step 31
+realisticAudio.ts:265 🎵 playNote: D4 on piano
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: D4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: D4
+VerticalPianoRoll.new.tsx:402 🎵 Recorded: D4 at step 31
+realisticAudio.ts:265 🎵 playNote: E4 on piano
+realisticAudio.ts:335 🎵 Attempting to play realistic piano: E4 for 0.8s at velocity 0.8
+realisticAudio.ts:343 ✅ Successfully triggered realistic piano: E4
+VerticalPianoRoll.new.tsx:402 🎵 Recorded: E4 at step 31
+VerticalPianoRoll.new.tsx:302 🎵 Stopping recording with notes: (9) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]

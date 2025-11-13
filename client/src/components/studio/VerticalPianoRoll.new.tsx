@@ -381,8 +381,8 @@ export const VerticalPianoRoll: React.FC = () => {
             const msPerStep = (60000 / bpm) / 4;
             const calculatedStep = Math.floor(elapsedMs / msPerStep);
             
-            // Clamp to available steps
-            const step = Math.min(calculatedStep, STEPS - 1);
+            // Wrap around if exceeding grid (loop back to start)
+            const step = calculatedStep % STEPS;
             
             // Create and add note to recording buffer
             const newNote: Note = {
