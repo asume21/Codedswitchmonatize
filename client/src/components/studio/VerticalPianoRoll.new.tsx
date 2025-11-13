@@ -235,6 +235,12 @@ export const VerticalPianoRoll: React.FC = () => {
       }
       setIsPlaying(false);
     } else {
+      // Debug: Log track state before playback
+      console.log('▶️ Starting playback...');
+      tracks.forEach((track, idx) => {
+        console.log(`Track ${idx} (${track.name}): ${track.notes.length} notes`, track.notes);
+      });
+      
       setIsPlaying(true);
       const stepDuration = (60 / bpm / 4) * 1000; // 16th note duration in ms
 
@@ -246,6 +252,9 @@ export const VerticalPianoRoll: React.FC = () => {
           tracks.forEach(track => {
             if (!track.muted) {
               const notesAtStep = track.notes.filter(note => note.step === nextStep);
+              if (notesAtStep.length > 0) {
+                console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes`, notesAtStep);
+              }
               notesAtStep.forEach(note => {
                 realisticAudio.playNote(
                   note.note,
