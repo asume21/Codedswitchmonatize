@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { X, Minus, MessageSquare, Sparkles } from 'lucide-react';
+import { X, Minus, MessageSquare, Sparkles, GripHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -16,9 +16,46 @@ interface FloatingAIAssistantProps {
   onClose?: () => void;
 }
 
+const STORAGE_KEY = 'floatingAIAssistant';
+const DEFAULT_WIDTH = 320;
+const DEFAULT_HEIGHT = 420;
+
+// Clamp position to keep assistant visible within viewport
+const clampPosition = (x: number, y: number, width: number, height: number) => {
+  const padding = 24; // Minimum pixels visible
+  const maxX = window.innerWidth - padding;
+  const maxY = window.innerHeight - padding;
+  
+  return {
+    x: Math.max(padding - width + padding, Math.min(x, maxX)),
+    y: Math.max(0, Math.min(y, maxY - padding)),
+  };
+};
+
 export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProps) {
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [position, setPosition] = useState({ x: window.innerWidth - 420, y: 100 });
+  // Load saved state from localStorage
+  const getSavedState = () => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const { x, y, isMinimized } = JSON.parse(saved);
+        const clamped = clampPosition(x, y, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+        return { x: clamped.x, y: clamped.y, isMinimized };
+      }
+    } catch (e) {
+      console.error('Failed to load AI assistant state:', e);
+    }
+    // Default position: bottom-right for minimized, top-right for expanded
+    return {
+      x: window.innerWidth - DEFAULT_WIDTH - 24,
+      y: 100,
+      isMinimized: false,
+    };
+  };
+
+  const savedState = getSavedState();
+  const [isMinimized, setIsMinimized] = useState(savedState.isMinimized);
+  const [position, setPosition] = useState({ x: savedState.x, y: savedState.y });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [messages, setMessages] = useState<Message[]>([
@@ -39,38 +76,69 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle dragging
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.no-drag')) return;
+  // Save state to localStorage whenever position or minimized changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        x: position.x,
+        y: position.y,
+        isMinimized,
+      }));
+    } catch (e) {
+      console.error('Failed to save AI assistant state:', e);
+    }
+  }, [position, isMinimized]);
+
+  // Re-clamp position on window resize
+  useLayoutEffect(() => {
+    const handleResize = () => {
+      setPosition(prev => {
+        const clamped = clampPosition(prev.x, prev.y, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+        return clamped;
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Handle dragging with pointer events (better than mouse events)
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
     setIsDragging(true);
     setDragOffset({
       x: e.clientX - position.x,
       y: e.clientY - position.y,
     });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       if (!isDragging) return;
       
-      const newX = Math.max(0, Math.min(e.clientX - dragOffset.x, window.innerWidth - 400));
-      const newY = Math.max(0, Math.min(e.clientY - dragOffset.y, window.innerHeight - 500));
+      const newPos = clampPosition(
+        e.clientX - dragOffset.x,
+        e.clientY - dragOffset.y,
+        DEFAULT_WIDTH,
+        DEFAULT_HEIGHT
+      );
       
-      setPosition({ x: newX, y: newY });
+      setPosition(newPos);
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       setIsDragging(false);
     };
 
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('pointermove', handlePointerMove);
+      document.addEventListener('pointerup', handlePointerUp);
     }
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
     };
   }, [isDragging, dragOffset]);
 
@@ -140,18 +208,19 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
       <div
         style={{
           position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
+          right: '24px',
+          bottom: '24px',
           zIndex: 9999,
         }}
-        className="cursor-move"
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
+        data-testid="ai-assistant-minimized"
       >
         <Button
           onClick={() => setIsMinimized(false)}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 shadow-lg"
+          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 shadow-2xl cursor-move"
+          size="lg"
         >
-          <MessageSquare className="w-4 h-4 mr-2" />
+          <MessageSquare className="w-5 h-5 mr-2" />
           AI Assistant
         </Button>
       </div>
@@ -165,44 +234,54 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
         position: 'fixed',
         left: `${position.x}px`,
         top: `${position.y}px`,
-        width: '400px',
-        maxHeight: '600px',
+        width: `${DEFAULT_WIDTH}px`,
+        maxHeight: `${DEFAULT_HEIGHT}px`,
         zIndex: 9999,
       }}
-      className="cursor-move"
-      onMouseDown={handleMouseDown}
+      data-testid="ai-assistant-floating"
     >
       <Card className="shadow-2xl border-2 border-purple-500/50 bg-gray-900">
-        <CardHeader className="pb-3 border-b border-gray-700 bg-gradient-to-r from-blue-900/50 to-purple-900/50">
+        <CardHeader className="pb-2 border-b border-gray-700 bg-gradient-to-r from-blue-900/50 to-purple-900/50 cursor-default">
+          {/* Drag Handle */}
+          <div
+            className="flex items-center justify-center py-1 cursor-move hover:bg-white/5 rounded transition-colors -mx-6 -mt-4 mb-2"
+            onPointerDown={handlePointerDown}
+            data-testid="ai-assistant-drag-handle"
+          >
+            <GripHorizontal className="w-5 h-5 text-gray-400" />
+          </div>
+          
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center">
-              <Sparkles className="w-5 h-5 mr-2 text-yellow-400" />
-              AI Assistant (Grok)
+            <CardTitle className="text-base flex items-center">
+              <Sparkles className="w-4 h-4 mr-2 text-yellow-400" />
+              AI Assistant
             </CardTitle>
-            <div className="flex space-x-1 no-drag">
+            <div className="flex space-x-1">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsMinimized(true)}
-                className="h-8 w-8 p-0"
+                className="h-7 w-7 p-0"
+                data-testid="button-minimize-ai"
               >
-                <Minus className="w-4 h-4" />
+                <Minus className="w-3 h-3" />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
-                className="h-8 w-8 p-0"
+                className="h-7 w-7 p-0"
+                data-testid="button-close-ai"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3 h-3" />
               </Button>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="p-0 flex flex-col" style={{ height: '500px' }}>
+        <CardContent className="p-0 flex flex-col cursor-default" style={{ height: '360px' }}>
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-drag">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {messages.map((msg, idx) => (
               <div
                 key={idx}
