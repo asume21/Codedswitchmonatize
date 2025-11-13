@@ -92,6 +92,8 @@ export const VerticalPianoRoll: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [bpm, setBpm] = useState(120);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [countInEnabled, setCountInEnabled] = useState(true);
   const [tracks, setTracks] = useState<Track[]>(() => 
     JSON.parse(JSON.stringify(DEFAULT_TRACKS))
   );
@@ -101,6 +103,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
   const [chordMode, setChordMode] = useState(false);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
+  const [activeKeys, setActiveKeys] = useState<Set<number>>(new Set());
   
   const { toast } = useToast();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -295,13 +298,19 @@ export const VerticalPianoRoll: React.FC = () => {
   const playbackControls = useMemo(() => (
     <PlaybackControls
       isPlaying={isPlaying}
+      bpm={bpm}
+      metronomeEnabled={metronomeEnabled}
+      countInEnabled={countInEnabled}
       onPlay={handlePlay}
       onStop={handleStop}
       onClear={clearAll}
       onToggleChordMode={() => setChordMode(!chordMode)}
+      onBpmChange={setBpm}
+      onToggleMetronome={setMetronomeEnabled}
+      onToggleCountIn={setCountInEnabled}
       chordMode={chordMode}
     />
-  ), [isPlaying, handlePlay, handleStop, clearAll, chordMode]);
+  ), [isPlaying, bpm, metronomeEnabled, countInEnabled, handlePlay, handleStop, clearAll, chordMode]);
 
   const keyScaleSelector = useMemo(() => (
     <KeyScaleSelector

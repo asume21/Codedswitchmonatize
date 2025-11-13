@@ -1,6 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { PianoKey, Note, Track, STEPS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
+import { Button } from '@/components/ui/button';
+import { Music } from 'lucide-react';
 
 interface PianoKeysProps {
   pianoKeys: PianoKey[];
@@ -19,58 +21,155 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
   currentStep,
   isPlaying
 }) => {
+  const [chordMode, setChordMode] = useState(false);
+  const [activeKeys, setActiveKeys] = useState<Set<number>>(new Set());
+  const sustainedNotesRef = useRef<Map<number, any>>(new Map());
+
   const handleKeyClick = useCallback((keyIndex: number) => {
-    onKeyClick(keyIndex);
-  }, [onKeyClick]);
+    const key = pianoKeys[keyIndex];
+    
+    if (chordMode) {
+      // Chord mode: toggle key on/off with live playback (mobile-friendly!)
+      setActiveKeys(prev => {
+        const newSet = new Set(prev);
+        
+        if (newSet.has(keyIndex)) {
+          // Key already active, turn it off and stop its note
+          newSet.delete(keyIndex);
+          // Stop only this key's note (not all notes)
+          const notePlayer = sustainedNotesRef.current.get(keyIndex);
+          if (notePlayer?.stop) {
+            notePlayer.stop();
+          }
+          sustainedNotesRef.current.delete(keyIndex);
+        } else {
+          // Key not active, turn it on and play
+          newSet.add(keyIndex);
+          // Play note with longer sustain
+          realisticAudio.playNote(
+            key.note,
+            key.octave,
+            1.5, // Sustain duration
+            selectedTrack?.instrument || 'piano',
+            0.8
+          );
+          // Note: We don't track individual players since realisticAudio doesn't return them
+          // but the shorter duration prevents buildup
+        }
+        
+        return newSet;
+      });
+    } else {
+      // Normal mode: single note (for grid placement)
+      onKeyClick(keyIndex);
+    }
+  }, [chordMode, onKeyClick, pianoKeys, selectedTrack?.instrument]);
+
+  const clearAllActiveKeys = useCallback(() => {
+    setActiveKeys(new Set());
+    sustainedNotesRef.current.clear();
+  }, []);
 
   const playKeyPreview = useCallback((key: PianoKey) => {
-    realisticAudio.playNote(
-      key.note,
-      key.octave,
-      0.8,
-      selectedTrack?.instrument || 'piano',
-      0.8
-    );
-  }, [selectedTrack?.instrument]);
+    // Only preview on hover if not in chord mode
+    if (!chordMode) {
+      realisticAudio.playNote(
+        key.note,
+        key.octave,
+        0.5,
+        selectedTrack?.instrument || 'piano',
+        0.6
+      );
+    }
+  }, [selectedTrack?.instrument, chordMode]);
 
   return (
-    <div className="w-24 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl">
-      <div className="relative">
-        {pianoKeys.map((key, index) => (
-          <button
-            key={key.key}
-            className={`
-              w-full text-xs font-semibold transition-all duration-150 relative
-              ${key.isBlack
-                ? 'bg-gradient-to-b from-gray-900 via-black to-gray-950 text-gray-400 border-l-4 border-l-black shadow-lg hover:from-gray-800 hover:via-gray-900 active:from-black active:via-gray-950'
-                : 'bg-gradient-to-b from-gray-100 via-white to-gray-50 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 text-gray-800 dark:text-gray-200 border-b border-gray-300 dark:border-gray-600 shadow-inner hover:from-gray-50 hover:via-gray-100 dark:hover:from-gray-600 dark:hover:via-gray-500 active:from-gray-200 active:via-gray-300 dark:active:from-gray-800 dark:active:via-gray-700'
-              }
-              ${key.isBlack ? 'ml-2 mr-2 z-10' : 'z-0'}
-              ${isPlaying && currentStep % STEPS === 0 ? 'ring-2 ring-blue-400 ring-opacity-60' : ''}
-            `}
-            style={{ 
-              height: `${keyHeight}px`,
-              boxShadow: key.isBlack 
-                ? '0 4px 6px -1px rgba(0, 0, 0, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.3)' 
-                : '0 1px 3px rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.5)',
-            }}
-            onClick={() => handleKeyClick(index)}
-            onMouseEnter={() => playKeyPreview(key)}
-            aria-label={`Piano key ${key.note}${key.octave}`}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleKeyClick(index);
-              }
-            }}
+    <div className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl flex flex-col">
+      {/* Chord Mode Toggle - Mobile Friendly */}
+      <div className="sticky top-0 z-50 p-2 bg-gray-900 border-b-2 border-gray-700 space-y-1">
+        <Button
+          size="sm"
+          variant={chordMode ? "default" : "secondary"}
+          className="w-full text-xs font-bold"
+          onClick={() => {
+            setChordMode(!chordMode);
+            if (!chordMode) {
+              clearAllActiveKeys();
+            }
+          }}
+          data-testid="button-chord-mode"
+        >
+          <Music className="w-3 h-3 mr-1" />
+          {chordMode ? 'Chord ON' : 'Chord OFF'}
+        </Button>
+        {chordMode && activeKeys.size > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full text-[10px]"
+            onClick={clearAllActiveKeys}
+            data-testid="button-clear-chord"
           >
-            <span className={key.isBlack ? 'opacity-70' : 'opacity-80'}>
-              {key.key}
-            </span>
-          </button>
-        ))}
+            Clear ({activeKeys.size})
+          </Button>
+        )}
+      </div>
+      
+      <div className="relative flex-1">
+        {pianoKeys.map((key, index) => {
+          const isActive = activeKeys.has(index);
+          return (
+            <button
+              key={key.key}
+              className={`
+                w-full text-xs font-bold transition-all duration-200 relative overflow-visible
+                ${key.isBlack
+                  ? isActive 
+                    ? 'bg-gradient-to-b from-green-600 via-green-700 to-green-800 text-white border-l-4 border-l-green-400 shadow-2xl'
+                    : 'bg-gradient-to-b from-gray-900 via-black to-gray-950 text-gray-400 border-l-4 border-l-black shadow-lg hover:from-gray-800 hover:via-gray-900 active:from-black active:via-gray-950'
+                  : isActive
+                    ? 'bg-gradient-to-b from-green-400 via-green-300 to-green-200 dark:from-green-500 dark:via-green-600 dark:to-green-700 text-green-900 dark:text-white border-b-4 border-green-600 shadow-2xl'
+                    : 'bg-gradient-to-b from-gray-100 via-white to-gray-50 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 text-gray-800 dark:text-gray-200 border-b border-gray-300 dark:border-gray-600 shadow-inner hover:from-gray-50 hover:via-gray-100 dark:hover:from-gray-600 dark:hover:via-gray-500 active:from-gray-200 active:via-gray-300 dark:active:from-gray-800 dark:active:via-gray-700'
+                }
+                ${key.isBlack ? 'ml-2 mr-2 z-10' : 'z-0'}
+                ${isActive ? 'ring-4 ring-green-400 ring-opacity-80 z-20' : ''}
+                ${isPlaying && currentStep % STEPS === 0 ? 'ring-2 ring-purple-400 ring-opacity-60' : ''}
+              `}
+              style={{ 
+                height: `${keyHeight}px`,
+                boxShadow: isActive
+                  ? '0 0 20px rgba(34, 197, 94, 0.9), inset 0 2px 8px rgba(34, 197, 94, 0.4)'
+                  : key.isBlack 
+                    ? '0 4px 6px -1px rgba(0, 0, 0, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.3)' 
+                    : '0 1px 3px rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.5)',
+                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+              }}
+              onClick={() => handleKeyClick(index)}
+              onMouseEnter={() => playKeyPreview(key)}
+              onTouchStart={() => playKeyPreview(key)}
+              aria-label={`Piano key ${key.note}${key.octave}${isActive ? ' - Active' : ''}`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleKeyClick(index);
+                }
+              }}
+            >
+              <div className="flex flex-col items-center justify-center h-full">
+                <span className={`${key.isBlack ? 'opacity-90' : 'opacity-90'} ${isActive ? 'font-extrabold' : ''}`}>
+                  {key.key}
+                </span>
+                {isActive && (
+                  <span className="text-[10px] font-extrabold text-green-900 dark:text-green-100 mt-0.5 animate-pulse">
+                    ♪
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
