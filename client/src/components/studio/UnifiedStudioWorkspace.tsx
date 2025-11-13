@@ -418,40 +418,16 @@ export default function UnifiedStudioWorkspace() {
         return;
       }
       
-      // For melodic instruments, use the synthesis engine
-      const noteToFreq = (note: string, octave: number): number => {
-        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const noteIndex = notes.indexOf(note);
-        if (noteIndex === -1) return 440; // fallback to A4
-        const semitonesFromA4 = (octave - 4) * 12 + (noteIndex - 9);
-        return 440 * Math.pow(2, semitonesFromA4 / 12);
-      };
+      // For melodic instruments, use the RealisticAudioEngine with General MIDI soundfonts
+      // This supports ALL instruments: trumpet, synth bass, violin, flute, etc.
+      const midiInstrument = mapInstrumentName(uiInstrument);
       
-      const frequency = noteToFreq(note, octave);
+      console.log(`🎹 Playing ${note}${octave} with instrument: ${uiInstrument} → ${midiInstrument}`);
       
-      // Map UI instrument names to synthesis engine types
-      // The audio.ts engine supports: piano, grand, organ, guitar, violin, ukulele, flute, panflute, recorder
-      let synthInstrument = 'piano'; // default
-      
-      const instrumentLower = uiInstrument.toLowerCase();
-      
-      if (instrumentLower.includes('grand')) synthInstrument = 'grand';
-      else if (instrumentLower.includes('organ')) synthInstrument = 'organ';
-      else if (instrumentLower.includes('guitar')) synthInstrument = 'guitar';
-      else if (instrumentLower.includes('ukulele')) synthInstrument = 'ukulele';
-      else if (instrumentLower.includes('violin') || instrumentLower.includes('viola') || instrumentLower.includes('cello') || instrumentLower.includes('string')) synthInstrument = 'violin';
-      else if (instrumentLower.includes('pan') && instrumentLower.includes('flute')) synthInstrument = 'panflute';
-      else if (instrumentLower.includes('flute')) synthInstrument = 'flute';
-      else if (instrumentLower.includes('recorder')) synthInstrument = 'recorder';
-      else if (instrumentLower.includes('piano') || instrumentLower.includes('electric') || instrumentLower.includes('synth')) synthInstrument = 'piano';
-      
-      console.log(`🎹 Playing ${note}${octave} with instrument: ${uiInstrument} → ${synthInstrument}`);
-      
-      // Play using the synthesis engine WITH TRACK VOLUME
-      await synthesisEngine.playNote(frequency, 0.5, trackVolume, synthInstrument);
+      // Play using RealisticAudioEngine (soundfont-player) WITH TRACK VOLUME
+      await realisticAudio.playNote(note, octave, trackVolume, midiInstrument, 0.5);
       
       // TODO: Apply pan using Web Audio API StereoPannerNode
-      // The audio.ts engine doesn't support pan directly, need to add it
     } catch (error) {
       console.error('Error playing note:', error);
     }
