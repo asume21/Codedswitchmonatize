@@ -382,7 +382,11 @@ export const VerticalPianoRoll: React.FC = () => {
             // Convert milliseconds to steps based on BPM
             // Each step is a 16th note: (60000ms / bpm) / 4
             const msPerStep = (60000 / bpm) / 4;
-            const calculatedStep = Math.floor(elapsedMs / msPerStep);
+            
+            // 🎯 QUANTIZATION: Round to nearest step for tighter timing
+            // This makes chords easier - notes within ~60ms snap together
+            const rawStep = elapsedMs / msPerStep;
+            const calculatedStep = Math.round(rawStep); // Round instead of floor!
             
             // Wrap around if exceeding grid (loop back to start)
             const step = calculatedStep % STEPS;
