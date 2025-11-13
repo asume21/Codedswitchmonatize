@@ -301,38 +301,48 @@ export const VerticalPianoRoll: React.FC = () => {
     ));
   }, [selectedTrackIndex]);
 
-  // Chord progression functions
+  // Chord progression functions - adds YOUR selected keys to the grid
   const addChordToGrid = useCallback((step: number) => {
     try {
-      if (!selectedProgression?.chords?.length) {
-        console.error('No chords available in the selected progression');
+      if (activeKeys.size === 0) {
+        toast({
+          title: "No Keys Selected",
+          description: "Click piano keys first to build your chord, then click the grid!",
+          variant: "default"
+        });
         return;
       }
 
-      const chordToUse = selectedProgression.chords[currentChordIndex % selectedProgression.chords.length];
-      const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+      console.log('🎵 Adding chord with selected keys:', Array.from(activeKeys));
       
-      if (!keyData?.chords?.[chordToUse]) {
-        console.error(`Chord ${chordToUse} not found in key ${currentKey}`);
-        return;
-      }
-
-      const chordNotes = keyData.chords[chordToUse];
-      
-      // Add each note of the chord
-      chordNotes.forEach((noteName, noteIndex) => {
-        const keyIndex = PIANO_KEYS.findIndex(key => 
-          key.note === noteName && key.octave === 4
-        );
-        
-        if (keyIndex !== -1) {
-          // Slight offset for each note in the chord for a more natural sound
-          addNote(keyIndex, step + (noteIndex * 0.1));
+      // Convert activeKeys (Set of indices) to actual notes and add them to the grid
+      const keysArray = Array.from(activeKeys);
+      keysArray.forEach((keyIndex, index) => {
+        const pianoKey = PIANO_KEYS[keyIndex];
+        if (pianoKey) {
+          // Add note to grid
+          addNote(keyIndex, step);
+          
+          // Play the note with slight delay for chord effect
+          setTimeout(() => {
+            realisticAudio.playNote(
+              pianoKey.note, 
+              pianoKey.octave, 
+              0.8, 
+              selectedTrack.instrument, 
+              selectedTrack.volume / 100
+            );
+          }, index * 50);
         }
       });
-
-      // Move to the next chord in the progression
-      setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
+      
+      // Clear selected keys after adding to grid
+      setActiveKeys(new Set());
+      
+      toast({
+        title: "Chord Added! ✅",
+        description: `${keysArray.length} notes added to step ${step + 1}`,
+      });
     } catch (error) {
       console.error('Error adding chord to grid:', error);
       toast({
@@ -341,7 +351,7 @@ export const VerticalPianoRoll: React.FC = () => {
         variant: "destructive"
       });
     }
-  }, [currentChordIndex, selectedProgression, currentKey, addNote, toast]);
+  }, [activeKeys, addNote, selectedTrack, toast]);
 
   // Track management
   const handleTrackSelect = useCallback((index: number) => {
