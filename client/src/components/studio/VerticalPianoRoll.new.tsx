@@ -297,16 +297,21 @@ export const VerticalPianoRoll: React.FC = () => {
   const stopRecording = useCallback(() => {
     setIsRecording(false);
     
+    // CRITICAL: Store notes in local variable BEFORE clearing ref!
+    const recordedNotes = [...recordingNotesRef.current];
+    console.log('🎵 Stopping recording with notes:', recordedNotes);
+    
+    // Clear the ref immediately
+    recordingNotesRef.current = [];
+    
     // Add all recorded notes to the track
-    if (recordingNotesRef.current.length > 0) {
-      console.log('🎵 Stopping recording with notes:', recordingNotesRef.current);
-      
+    if (recordedNotes.length > 0) {
       setTracks(prev => {
         const newTracks = prev.map((track, index) => {
           if (index === selectedTrackIndex) {
             const updatedTrack = { 
               ...track, 
-              notes: [...track.notes, ...recordingNotesRef.current] 
+              notes: [...track.notes, ...recordedNotes] 
             };
             console.log('✅ Updated track:', updatedTrack.name, 'Total notes:', updatedTrack.notes.length);
             return updatedTrack;
@@ -318,7 +323,7 @@ export const VerticalPianoRoll: React.FC = () => {
       
       toast({
         title: "✅ Recording Saved",
-        description: `${recordingNotesRef.current.length} notes added to track! Press PLAY to hear it back.`,
+        description: `${recordedNotes.length} notes added to track! Press PLAY to hear it back.`,
       });
     } else {
       toast({
@@ -327,8 +332,6 @@ export const VerticalPianoRoll: React.FC = () => {
         variant: "default"
       });
     }
-    
-    recordingNotesRef.current = [];
   }, [selectedTrackIndex, toast]);
 
   // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
