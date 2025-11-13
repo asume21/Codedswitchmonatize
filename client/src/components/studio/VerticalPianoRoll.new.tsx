@@ -39,6 +39,20 @@ for (let octave = 8; octave >= 0; octave--) {
   }
 }
 
+// Keyboard shortcut mapping - QWERTY keys to piano notes
+const KEYBOARD_TO_NOTE: Record<string, { note: string; octave: number }> = {
+  'z': { note: 'C', octave: 3 }, 's': { note: 'C#', octave: 3 }, 'x': { note: 'D', octave: 3 },
+  'd': { note: 'D#', octave: 3 }, 'c': { note: 'E', octave: 3 }, 'v': { note: 'F', octave: 3 },
+  'g': { note: 'F#', octave: 3 }, 'b': { note: 'G', octave: 3 }, 'h': { note: 'G#', octave: 3 },
+  'n': { note: 'A', octave: 3 }, 'j': { note: 'A#', octave: 3 }, 'm': { note: 'B', octave: 3 },
+  'q': { note: 'C', octave: 4 }, '2': { note: 'C#', octave: 4 }, 'w': { note: 'D', octave: 4 },
+  '3': { note: 'D#', octave: 4 }, 'e': { note: 'E', octave: 4 }, 'r': { note: 'F', octave: 4 },
+  '5': { note: 'F#', octave: 4 }, 't': { note: 'G', octave: 4 }, '6': { note: 'G#', octave: 4 },
+  'y': { note: 'A', octave: 4 }, '7': { note: 'A#', octave: 4 }, 'u': { note: 'B', octave: 4 },
+  'i': { note: 'C', octave: 5 }, '9': { note: 'C#', octave: 5 }, 'o': { note: 'D', octave: 5 },
+  '0': { note: 'D#', octave: 5 }, 'p': { note: 'E', octave: 5 },
+};
+
 // Chord progressions
 const CHORD_PROGRESSIONS: ChordProgression[] = [
   { id: 'heartsoul', name: '♥ Heart and Soul (from Big)', chords: ['I', 'vi', 'IV', 'V'], key: 'C' },
@@ -255,6 +269,82 @@ export const VerticalPianoRoll: React.FC = () => {
     setIsPlaying(false);
     setCurrentStep(0);
   }, []);
+
+  // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
+  useEffect(() => {
+    const pressedKeys = new Set<string>();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const key = e.key.toLowerCase();
+      
+      // Prevent key repeat
+      if (pressedKeys.has(key)) return;
+      pressedKeys.add(key);
+
+      // SPACE - Play/Pause
+      if (key === ' ') {
+        e.preventDefault();
+        handlePlay();
+        return;
+      }
+
+      // Check if this key maps to a piano note
+      const noteMapping = KEYBOARD_TO_NOTE[key];
+      if (noteMapping) {
+        e.preventDefault();
+        
+        // Find the piano key index
+        const keyIndex = PIANO_KEYS.findIndex(
+          pk => pk.note === noteMapping.note && pk.octave === noteMapping.octave
+        );
+
+        if (keyIndex !== -1) {
+          // Play the note
+          const pianoKey = PIANO_KEYS[keyIndex];
+          realisticAudio.playNote(
+            pianoKey.note,
+            pianoKey.octave,
+            0.8,
+            selectedTrack.instrument,
+            selectedTrack.volume / 100
+          );
+
+          // Visual feedback - add to active keys
+          if (chordMode) {
+            // In chord mode, accumulate selected keys
+            setActiveKeys(prev => new Set(prev).add(keyIndex));
+          } else {
+            // In normal mode, just show which key is pressed
+            setActiveKeys(new Set([keyIndex]));
+          }
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      pressedKeys.delete(key);
+
+      // Clear visual feedback when not in chord mode
+      if (!chordMode) {
+        const noteMapping = KEYBOARD_TO_NOTE[key];
+        if (noteMapping) {
+          setActiveKeys(new Set());
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [chordMode, selectedTrack, handlePlay]);
 
   // Note management
   const addNote = useCallback((keyIndex: number, step?: number) => {
