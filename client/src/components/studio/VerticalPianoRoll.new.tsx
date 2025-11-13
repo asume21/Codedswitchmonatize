@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Music, Link2, Link2Off, Info } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Music, Link2, Link2Off, Info, Play, Pause } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
@@ -116,7 +117,14 @@ export const VerticalPianoRoll: React.FC = () => {
   const pianoKeysRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const selectedTrack = tracks[selectedTrackIndex];
+  
+  // Original song playback state
+  const [originalAudioPlaying, setOriginalAudioPlaying] = useState(false);
+  const [originalAudioLoaded, setOriginalAudioLoaded] = useState(false);
+  const [originalAudioCurrentTime, setOriginalAudioCurrentTime] = useState(0);
+  const [originalAudioDuration, setOriginalAudioDuration] = useState(0);
   
   // Find the piano-roll specific issue from the session
   const pianoRollIssue = currentSession?.analysis?.issues?.find(
@@ -141,6 +149,55 @@ export const VerticalPianoRoll: React.FC = () => {
       isSyncingRef.current = false;
     });
   }, [syncScroll]);
+
+  // Load original audio from session
+  useEffect(() => {
+    // Reset state before loading new audio
+    setOriginalAudioPlaying(false);
+    setOriginalAudioLoaded(false);
+    setOriginalAudioCurrentTime(0);
+    setOriginalAudioDuration(0);
+    
+    if (currentSession?.audioUrl) {
+      console.log('🎵 Loading original song audio:', currentSession.audioUrl);
+      
+      const audio = new Audio(currentSession.audioUrl);
+      audioRef.current = audio;
+      
+      audio.addEventListener('loadedmetadata', () => {
+        console.log('✅ Audio loaded, duration:', audio.duration);
+        setOriginalAudioDuration(audio.duration);
+        setOriginalAudioLoaded(true);
+      });
+      
+      audio.addEventListener('timeupdate', () => {
+        setOriginalAudioCurrentTime(audio.currentTime);
+      });
+      
+      audio.addEventListener('ended', () => {
+        setOriginalAudioPlaying(false);
+        // Reset to beginning so user can replay
+        audio.currentTime = 0;
+        setOriginalAudioCurrentTime(0);
+      });
+      
+      audio.addEventListener('error', (e) => {
+        console.error('❌ Audio load error:', e);
+        setOriginalAudioLoaded(false);
+        toast({
+          title: "Audio Load Error",
+          description: "Could not load original song audio",
+          variant: "destructive"
+        });
+      });
+      
+      return () => {
+        audio.pause();
+        audio.remove();
+        audioRef.current = null;
+      };
+    }
+  }, [currentSession?.audioUrl, toast]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -327,6 +384,41 @@ export const VerticalPianoRoll: React.FC = () => {
     });
   }, [selectedTrack]);
 
+  // Original audio playback handlers
+  const handleOriginalAudioPlayPause = useCallback(async () => {
+    if (!audioRef.current) return;
+    
+    if (originalAudioPlaying) {
+      audioRef.current.pause();
+      setOriginalAudioPlaying(false);
+    } else {
+      try {
+        setOriginalAudioPlaying(true);
+        await audioRef.current.play();
+      } catch (error) {
+        console.warn('⚠️ Audio playback blocked:', error);
+        setOriginalAudioPlaying(false);
+        toast({
+          title: "Playback Blocked",
+          description: "Browser blocked audio playback. Please try clicking play again.",
+          variant: "default"
+        });
+      }
+    }
+  }, [originalAudioPlaying, toast]);
+
+  const handleOriginalAudioSeek = useCallback((time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = time;
+    setOriginalAudioCurrentTime(time);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Memoized components
   const playbackControls = useMemo(() => (
     <PlaybackControls
@@ -373,18 +465,56 @@ export const VerticalPianoRoll: React.FC = () => {
             <Alert className="mb-4 bg-blue-900/30 border-blue-500/50" data-testid="alert-session-context">
               <Info className="h-4 w-4" />
               <AlertDescription className="text-sm">
-                <div className="flex flex-col gap-1">
-                  <div className="font-semibold" data-testid="text-session-song-name">
-                    Working on: {currentSession.songName}
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="font-semibold" data-testid="text-session-song-name">
+                      Working on: {currentSession.songName}
+                    </div>
+                    <div className="text-xs text-gray-300" data-testid="text-session-metadata">
+                      {currentSession.analysis?.bpm ? `${currentSession.analysis.bpm} BPM` : ''} 
+                      {currentSession.analysis?.key && currentSession.analysis?.bpm ? ' • ' : ''}
+                      {currentSession.analysis?.key ? `Key of ${currentSession.analysis.key}` : ''}
+                    </div>
+                    <div className="text-sm text-blue-200 mt-1" data-testid="text-session-issue">
+                      Issue: {pianoRollIssue.description}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-300" data-testid="text-session-metadata">
-                    {currentSession.analysis.bpm ? `${currentSession.analysis.bpm} BPM` : ''} 
-                    {currentSession.analysis.key && currentSession.analysis.bpm ? ' • ' : ''}
-                    {currentSession.analysis.key ? `Key of ${currentSession.analysis.key}` : ''}
-                  </div>
-                  <div className="text-sm text-blue-200 mt-1" data-testid="text-session-issue">
-                    Issue: {pianoRollIssue.description}
-                  </div>
+                  
+                  {/* Audio Playback Controls */}
+                  {originalAudioLoaded && (
+                    <div className="flex items-center gap-3 pt-2 border-t border-blue-500/30" data-testid="audio-controls">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleOriginalAudioPlayPause}
+                        className="shrink-0"
+                        data-testid="button-play-original"
+                      >
+                        {originalAudioPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      </Button>
+                      <div className="flex-1 flex items-center gap-2">
+                        <span className="text-xs text-gray-400 w-10 text-right" data-testid="text-current-time">
+                          {formatTime(originalAudioCurrentTime)}
+                        </span>
+                        <Slider
+                          value={[originalAudioCurrentTime]}
+                          max={originalAudioDuration}
+                          step={0.1}
+                          className="flex-1"
+                          onValueChange={(values) => handleOriginalAudioSeek(values[0])}
+                          data-testid="slider-audio-seek"
+                        />
+                        <span className="text-xs text-gray-400 w-10" data-testid="text-total-time">
+                          {formatTime(originalAudioDuration)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {!originalAudioLoaded && currentSession.audioUrl && (
+                    <div className="text-xs text-gray-400 pt-2 border-t border-blue-500/30">
+                      Loading original audio...
+                    </div>
+                  )}
                 </div>
               </AlertDescription>
             </Alert>
