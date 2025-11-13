@@ -18,6 +18,8 @@ import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 import { Sparkles, Copy, Plus, Scissors, Mic } from "lucide-react";
 import type { Song } from "../../../../shared/schema";
 import type { ToolRecommendation } from "@/components/studio/effects";
+import { RecommendationList } from "@/components/studio/RecommendationCard";
+import type { Recommendation } from "@shared/schema";
 
 interface UploadContext {
   name?: string;
