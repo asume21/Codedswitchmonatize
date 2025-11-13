@@ -1618,9 +1618,10 @@ Your lyrics will sync with the timeline
       </div>
 
       {/* Floating/Overlay Components */}
-      {showAIAssistant && (
+      {/* TEMPORARILY DISABLED - React hooks error on mobile */}
+      {/* {showAIAssistant && (
         <FloatingAIAssistant onClose={() => setShowAIAssistant(false)} />
-      )}
+      )} */}
 
       {showMusicGen && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
