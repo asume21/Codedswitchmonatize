@@ -1,8 +1,6 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { PianoKey, Note, Track, STEPS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
-import { Button } from '@/components/ui/button';
-import { Music } from 'lucide-react';
 
 interface PianoKeysProps {
   pianoKeys: PianoKey[];
@@ -11,6 +9,9 @@ interface PianoKeysProps {
   keyHeight: number;
   currentStep: number;
   isPlaying: boolean;
+  chordMode: boolean;
+  activeKeys: Set<number>;
+  onActiveKeysChange: (keys: Set<number>) => void;
 }
 
 export const PianoKeys: React.FC<PianoKeysProps> = ({
@@ -19,10 +20,11 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
   onKeyClick,
   keyHeight,
   currentStep,
-  isPlaying
+  isPlaying,
+  chordMode,
+  activeKeys,
+  onActiveKeysChange
 }) => {
-  const [chordMode, setChordMode] = useState(false);
-  const [activeKeys, setActiveKeys] = useState<Set<number>>(new Set());
   const sustainedNotesRef = useRef<Map<number, any>>(new Map());
 
   const handleKeyClick = useCallback((keyIndex: number) => {
@@ -30,45 +32,38 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
     
     if (chordMode) {
       // Chord mode: toggle key on/off with live playback (mobile-friendly!)
-      setActiveKeys(prev => {
-        const newSet = new Set(prev);
-        
-        if (newSet.has(keyIndex)) {
-          // Key already active, turn it off and stop its note
-          newSet.delete(keyIndex);
-          // Stop only this key's note (not all notes)
-          const notePlayer = sustainedNotesRef.current.get(keyIndex);
-          if (notePlayer?.stop) {
-            notePlayer.stop();
-          }
-          sustainedNotesRef.current.delete(keyIndex);
-        } else {
-          // Key not active, turn it on and play
-          newSet.add(keyIndex);
-          // Play note with longer sustain
-          realisticAudio.playNote(
-            key.note,
-            key.octave,
-            1.5, // Sustain duration
-            selectedTrack?.instrument || 'piano',
-            0.8
-          );
-          // Note: We don't track individual players since realisticAudio doesn't return them
-          // but the shorter duration prevents buildup
+      const newSet = new Set(activeKeys);
+      
+      if (newSet.has(keyIndex)) {
+        // Key already active, turn it off and stop its note
+        newSet.delete(keyIndex);
+        // Stop only this key's note (not all notes)
+        const notePlayer = sustainedNotesRef.current.get(keyIndex);
+        if (notePlayer?.stop) {
+          notePlayer.stop();
         }
-        
-        return newSet;
-      });
+        sustainedNotesRef.current.delete(keyIndex);
+      } else {
+        // Key not active, turn it on and play
+        newSet.add(keyIndex);
+        // Play note with longer sustain
+        realisticAudio.playNote(
+          key.note,
+          key.octave,
+          1.5, // Sustain duration
+          selectedTrack?.instrument || 'piano',
+          0.8
+        );
+        // Note: We don't track individual players since realisticAudio doesn't return them
+        // but the shorter duration prevents buildup
+      }
+      
+      onActiveKeysChange(newSet);
     } else {
       // Normal mode: single note (for grid placement)
       onKeyClick(keyIndex);
     }
-  }, [chordMode, onKeyClick, pianoKeys, selectedTrack?.instrument]);
-
-  const clearAllActiveKeys = useCallback(() => {
-    setActiveKeys(new Set());
-    sustainedNotesRef.current.clear();
-  }, []);
+  }, [chordMode, onKeyClick, pianoKeys, selectedTrack?.instrument, activeKeys, onActiveKeysChange]);
 
   const playKeyPreview = useCallback((key: PianoKey) => {
     // Only preview on hover if not in chord mode
@@ -84,45 +79,8 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
   }, [selectedTrack?.instrument, chordMode]);
 
   return (
-    <div className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl flex flex-col">
-      {/* Chord Mode Toggle - SUPER PROMINENT for Mobile! */}
-      <div className="sticky top-0 z-50 p-2 bg-gradient-to-b from-purple-900 to-gray-900 border-b-4 border-purple-500 space-y-2 shadow-xl">
-        <Button
-          size="default"
-          variant={chordMode ? "default" : "secondary"}
-          className={`w-full text-sm font-extrabold py-3 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400 animate-pulse' : 'bg-gray-700'}`}
-          onClick={() => {
-            setChordMode(!chordMode);
-            if (!chordMode) {
-              clearAllActiveKeys();
-            }
-          }}
-          data-testid="button-chord-mode"
-        >
-          <Music className="w-4 h-4 mr-2" />
-          <span className="text-base">
-            {chordMode ? '🎵 CHORD ON' : 'Chord OFF'}
-          </span>
-        </Button>
-        {chordMode && activeKeys.size > 0 && (
-          <Button
-            size="sm"
-            variant="destructive"
-            className="w-full text-xs font-bold"
-            onClick={clearAllActiveKeys}
-            data-testid="button-clear-chord"
-          >
-            Clear All ({activeKeys.size})
-          </Button>
-        )}
-        {chordMode && (
-          <p className="text-[10px] text-center text-purple-300 font-semibold">
-            Tap keys to build chord!
-          </p>
-        )}
-      </div>
-      
-      <div className="relative flex-1">
+    <div className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl">
+      <div className="relative">
         {pianoKeys.map((key, index) => {
           const isActive = activeKeys.has(index);
           return (

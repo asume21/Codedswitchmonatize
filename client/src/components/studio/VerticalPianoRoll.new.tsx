@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Music } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { PianoKeys } from "./PianoKeys";
@@ -343,6 +345,32 @@ export const VerticalPianoRoll: React.FC = () => {
             
             {keyScaleSelector}
             {chordProgressionDisplay}
+            
+            {/* Chord Mode Toggle - Moved from PianoKeys */}
+            <div className="flex items-center justify-center gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
+              <Button
+                size="lg"
+                variant={chordMode ? "default" : "secondary"}
+                className={`text-sm font-bold px-6 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400' : 'bg-gray-700'}`}
+                onClick={() => {
+                  setChordMode(!chordMode);
+                  if (!chordMode) {
+                    setActiveKeys(new Set());
+                  }
+                }}
+                data-testid="button-chord-mode"
+              >
+                <Music className="w-5 h-5 mr-2" />
+                <span className="text-base">
+                  {chordMode ? '🎵 CHORD ON' : '🎵 Chord OFF'}
+                </span>
+              </Button>
+              {chordMode && (
+                <p className="text-sm text-purple-300 font-medium">
+                  Tap piano keys to build your chord, then click the grid!
+                </p>
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -355,6 +383,9 @@ export const VerticalPianoRoll: React.FC = () => {
               keyHeight={KEY_HEIGHT}
               currentStep={currentStep}
               isPlaying={isPlaying}
+              chordMode={chordMode}
+              activeKeys={activeKeys}
+              onActiveKeysChange={setActiveKeys}
             />
             
             <StepGrid
