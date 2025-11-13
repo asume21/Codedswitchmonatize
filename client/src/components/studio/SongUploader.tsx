@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { StudioAudioContext } from "@/pages/studio";
 import { useAIMessages } from "@/contexts/AIMessageContext";
+import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionContext";
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
@@ -39,10 +40,14 @@ export default function SongUploader() {
   // Per-song analysis results (Map<songId, analysis>)
   const [songAnalyses, setSongAnalyses] = useState<Map<string, any>>(new Map());
   const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
+  
+  // Per-song session IDs (Map<songId, sessionId>)
+  const [sessionIdsBySong, setSessionIdsBySong] = useState<Map<string, string>>(new Map());
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
   const { addMessage } = useAIMessages();
+  const { createSession, updateSession } = useSongWorkSession();
 
   const { data: songs, isLoading: songsLoading, refetch } = useQuery<Song[]>({
     queryKey: ['/api/songs'],
@@ -393,6 +398,43 @@ export default function SongUploader() {
     }
   };
 
+  // Helper function to map Recommendation to SongIssue
+  const mapRecommendationToIssue = (rec: Recommendation): SongIssue | null => {
+    // Map category to issue type
+    let type: SongIssue['type'];
+    const category = rec.category;
+    
+    if (['mix_balance', 'vocal_effects', 'production', 'instrumentation'].includes(category)) {
+      type = 'production';
+    } else if (category === 'tempo') {
+      type = 'rhythm';
+    } else if (category === 'melody' || category === 'harmony') {
+      type = 'melody';
+    } else if (category === 'structure') {
+      type = 'structure';
+    } else {
+      // Other unsupported categories
+      console.warn('⚠️ Unsupported recommendation category:', category);
+      return null;
+    }
+    
+    // Map target tool
+    let targetTool: SongIssue['targetTool'] | undefined;
+    if (rec.targetTool === 'mix-studio') targetTool = 'mixer';
+    else if (rec.targetTool === 'beat-studio') targetTool = 'beat-maker';
+    else if (rec.targetTool === 'piano-roll') targetTool = 'piano-roll';
+    else if (rec.targetTool === 'lyrics-lab' || rec.targetTool === 'unified-studio') targetTool = 'composition';
+    
+    return {
+      type,
+      severity: rec.severity,
+      description: rec.message,
+      recommendation: rec.message,
+      targetTool,
+      measureRange: rec.navigationPayload?.params?.measureRange as [number, number] | undefined
+    };
+  };
+
   const analyzeSong = async (song: Song) => {
     try {
       const response = await apiRequest("POST", "/api/songs/analyze", {
@@ -418,6 +460,40 @@ export default function SongUploader() {
         newMap.set(song.id, analysis);
         return newMap;
       });
+      
+      // Create or update SongWorkSession for this analysis
+      let sessionId = sessionIdsBySong.get(song.id);
+      if (!sessionId) {
+        // Create new session
+        sessionId = createSession({
+          name: song.name,
+          audioUrl: song.accessibleUrl || song.originalUrl
+        });
+        
+        setSessionIdsBySong(prev => {
+          const newMap = new Map(prev);
+          newMap.set(song.id, sessionId!);
+          return newMap;
+        });
+      }
+      
+      // Map recommendations to SongIssues
+      const issues: SongIssue[] = (analysis.actionableRecommendations || [])
+        .map(mapRecommendationToIssue)
+        .filter((issue: SongIssue | null): issue is SongIssue => issue !== null);
+      
+      // Update session with analysis data
+      updateSession(sessionId, {
+        analysis: {
+          bpm: analysis.estimatedBPM,
+          key: analysis.keySignature,
+          timeSignature: analysis.timeSignature,
+          duration: song.duration ?? undefined,
+          issues
+        }
+      });
+      
+      console.log('✅ SongWorkSession created/updated:', { sessionId, songId: song.id, issuesCount: issues.length });
       
       // Auto-expand the analysis card
       setExpandedAnalysis(song.id);
@@ -1049,7 +1125,10 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                                 {/* Recommendations */}
                                 {analysis.actionableRecommendations && analysis.actionableRecommendations.length > 0 && (
                                   <div>
-                                    <RecommendationList recommendations={analysis.actionableRecommendations} />
+                                    <RecommendationList 
+                                      recommendations={analysis.actionableRecommendations} 
+                                      sessionId={sessionIdsBySong.get(song.id)}
+                                    />
                                   </div>
                                 )}
                                 

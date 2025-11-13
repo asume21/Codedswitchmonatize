@@ -8,16 +8,26 @@ import type { Recommendation } from "../../../../shared/schema";
 
 interface RecommendationCardProps {
   recommendation: Recommendation;
+  sessionId?: string;
 }
 
-export function RecommendationCard({ recommendation }: RecommendationCardProps) {
+export function RecommendationCard({ recommendation, sessionId }: RecommendationCardProps) {
   const [, setLocation] = useLocation();
 
   const handleClick = () => {
+    // Only include workSessionId in payload if it exists
+    const payload = sessionId 
+      ? { ...recommendation.navigationPayload, workSessionId: sessionId }
+      : recommendation.navigationPayload;
+    
+    if (!sessionId) {
+      console.warn('⚠️ No session ID available for recommendation - tool will load without song context');
+    }
+    
     navigateToTool(
       {
         toolId: recommendation.targetTool,
-        payload: recommendation.navigationPayload,
+        payload,
       },
       setLocation
     );
@@ -82,9 +92,10 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
 
 interface RecommendationListProps {
   recommendations: Recommendation[];
+  sessionId?: string;
 }
 
-export function RecommendationList({ recommendations }: RecommendationListProps) {
+export function RecommendationList({ recommendations, sessionId }: RecommendationListProps) {
   if (!recommendations || recommendations.length === 0) {
     return null;
   }
@@ -109,7 +120,7 @@ export function RecommendationList({ recommendations }: RecommendationListProps)
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">High Priority</h4>
           {highPriority.map((rec) => (
-            <RecommendationCard key={rec.id} recommendation={rec} />
+            <RecommendationCard key={rec.id} recommendation={rec} sessionId={sessionId} />
           ))}
         </div>
       )}
@@ -118,7 +129,7 @@ export function RecommendationList({ recommendations }: RecommendationListProps)
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">Medium Priority</h4>
           {mediumPriority.map((rec) => (
-            <RecommendationCard key={rec.id} recommendation={rec} />
+            <RecommendationCard key={rec.id} recommendation={rec} sessionId={sessionId} />
           ))}
         </div>
       )}
@@ -127,7 +138,7 @@ export function RecommendationList({ recommendations }: RecommendationListProps)
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">Low Priority</h4>
           {lowPriority.map((rec) => (
-            <RecommendationCard key={rec.id} recommendation={rec} />
+            <RecommendationCard key={rec.id} recommendation={rec} sessionId={sessionId} />
           ))}
         </div>
       )}

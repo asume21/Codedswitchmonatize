@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Music, Link2, Link2Off } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Music, Link2, Link2Off, Info } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
+import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { PianoKeys } from "./PianoKeys";
 import { StepGrid } from "./StepGrid";
 import { TrackControls } from "./TrackControls";
@@ -109,11 +111,17 @@ export const VerticalPianoRoll: React.FC = () => {
   const [syncScroll, setSyncScroll] = useState(true);
   
   const { toast } = useToast();
+  const { currentSession } = useSongWorkSession();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pianoKeysRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
   const selectedTrack = tracks[selectedTrackIndex];
+  
+  // Find the piano-roll specific issue from the session
+  const pianoRollIssue = currentSession?.analysis?.issues?.find(
+    issue => issue.targetTool === 'piano-roll'
+  );
 
   // Scroll synchronization
   const handlePianoScroll = useCallback(() => {
@@ -360,6 +368,28 @@ export const VerticalPianoRoll: React.FC = () => {
     <div className="h-full w-full bg-gray-900 text-white">
       <Card className="h-full bg-gray-800 border-gray-700">
         <CardHeader className="pb-4">
+          {/* Session Context Banner */}
+          {currentSession && pianoRollIssue && (
+            <Alert className="mb-4 bg-blue-900/30 border-blue-500/50" data-testid="alert-session-context">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                <div className="flex flex-col gap-1">
+                  <div className="font-semibold" data-testid="text-session-song-name">
+                    Working on: {currentSession.songName}
+                  </div>
+                  <div className="text-xs text-gray-300" data-testid="text-session-metadata">
+                    {currentSession.analysis.bpm ? `${currentSession.analysis.bpm} BPM` : ''} 
+                    {currentSession.analysis.key && currentSession.analysis.bpm ? ' • ' : ''}
+                    {currentSession.analysis.key ? `Key of ${currentSession.analysis.key}` : ''}
+                  </div>
+                  <div className="text-sm text-blue-200 mt-1" data-testid="text-session-issue">
+                    Issue: {pianoRollIssue.description}
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold">🎹 Piano Roll</h1>
