@@ -112,8 +112,11 @@ export function createSongRoutes(storage: IStorage) {
 
   // Analyze song endpoint - REAL ANALYSIS with AI
   router.post("/analyze", async (req: Request, res: Response) => {
+    // Use guest user for anonymous analysis (same as upload)
     if (!req.userId) {
-      return res.status(401).json({ error: "Please log in to analyze songs" });
+      console.warn('⚠️ No auth - using guest user for song analysis');
+      req.userId = await getGuestUserId(storage);
+      console.log('✅ Using guest user ID for analysis:', req.userId);
     }
 
     try {
