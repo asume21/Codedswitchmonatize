@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowRight, AlertCircle, Info, AlertTriangle, Target } from "lucide-react";
 import { useLocation } from "wouter";
 import { navigateToTool, getToolDisplayName } from "@/lib/toolNavigation";
-import type { Recommendation } from "@shared/schema";
+import type { Recommendation } from "../../../../shared/schema";
 
 interface RecommendationCardProps {
   recommendation: Recommendation;
@@ -49,8 +49,7 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
 
   return (
     <Card
-      className="p-4 hover-elevate active-elevate-2 cursor-pointer transition-all"
-      onClick={handleClick}
+      className="p-4 hover-elevate active-elevate-2 transition-all"
       data-testid={`recommendation-${recommendation.id}`}
     >
       <div className="flex items-start justify-between gap-4">
@@ -70,6 +69,7 @@ export function RecommendationCard({ recommendation }: RecommendationCardProps) 
           size="sm"
           variant="default"
           className="shrink-0"
+          onClick={handleClick}
           data-testid={`button-open-${recommendation.targetTool}`}
         >
           {toolDisplayName}
