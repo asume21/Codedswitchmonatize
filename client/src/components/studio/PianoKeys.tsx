@@ -85,12 +85,12 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
 
   return (
     <div className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl flex flex-col">
-      {/* Chord Mode Toggle - Mobile Friendly */}
-      <div className="sticky top-0 z-50 p-2 bg-gray-900 border-b-2 border-gray-700 space-y-1">
+      {/* Chord Mode Toggle - SUPER PROMINENT for Mobile! */}
+      <div className="sticky top-0 z-50 p-2 bg-gradient-to-b from-purple-900 to-gray-900 border-b-4 border-purple-500 space-y-2 shadow-xl">
         <Button
-          size="sm"
+          size="default"
           variant={chordMode ? "default" : "secondary"}
-          className="w-full text-xs font-bold"
+          className={`w-full text-sm font-extrabold py-3 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400 animate-pulse' : 'bg-gray-700'}`}
           onClick={() => {
             setChordMode(!chordMode);
             if (!chordMode) {
@@ -99,19 +99,26 @@ export const PianoKeys: React.FC<PianoKeysProps> = ({
           }}
           data-testid="button-chord-mode"
         >
-          <Music className="w-3 h-3 mr-1" />
-          {chordMode ? 'Chord ON' : 'Chord OFF'}
+          <Music className="w-4 h-4 mr-2" />
+          <span className="text-base">
+            {chordMode ? '🎵 CHORD ON' : 'Chord OFF'}
+          </span>
         </Button>
         {chordMode && activeKeys.size > 0 && (
           <Button
             size="sm"
-            variant="ghost"
-            className="w-full text-[10px]"
+            variant="destructive"
+            className="w-full text-xs font-bold"
             onClick={clearAllActiveKeys}
             data-testid="button-clear-chord"
           >
-            Clear ({activeKeys.size})
+            Clear All ({activeKeys.size})
           </Button>
+        )}
+        {chordMode && (
+          <p className="text-[10px] text-center text-purple-300 font-semibold">
+            Tap keys to build chord!
+          </p>
         )}
       </div>
       
