@@ -16,10 +16,9 @@ import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 import { Sparkles, Copy, Plus, Scissors, Mic } from "lucide-react";
-import type { Song } from "../../../../shared/schema";
+import type { Song, Recommendation } from "../../../../shared/schema";
 import type { ToolRecommendation } from "@/components/studio/effects";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
-import type { Recommendation } from "@shared/schema";
 
 interface UploadContext {
   name?: string;
@@ -36,6 +35,10 @@ export default function SongUploader() {
   const [sunoPrompt, setSunoPrompt] = useState('');
   const [sunoModel, setSunoModel] = useState('v4_5plus');
   const [sunoProcessing, setSunoProcessing] = useState(false);
+  
+  // Per-song analysis results (Map<songId, analysis>)
+  const [songAnalyses, setSongAnalyses] = useState<Map<string, any>>(new Map());
+  const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
@@ -409,9 +412,19 @@ export default function SongUploader() {
       
       setSongAnalysis(analysis);
       
+      // Store analysis per-song
+      setSongAnalyses(prev => {
+        const newMap = new Map(prev);
+        newMap.set(song.id, analysis);
+        return newMap;
+      });
+      
+      // Auto-expand the analysis card
+      setExpandedAnalysis(song.id);
+      
       toast({
-        title: "Song Analysis Complete",
-        description: `AI analyzed ${song.name} - check the AI Assistant for insights!`,
+        title: "Analysis Complete!",
+        description: `${song.name} analyzed - see results below`,
       });
 
       // Store analysis in studio context for other tools to use
@@ -525,9 +538,10 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
       analysisMessage += `\nThis analysis has been saved and can be used with other studio tools for remixing, layering, and composition inspiration!`;
 
-      // Add message to AI Assistant using context
+      // Add message to AI Assistant using context with recommendations
       console.log('🎵 Sending analysis to AI Assistant via context:', analysisMessage.substring(0, 100) + '...');
-      addMessage(analysisMessage, 'song-analysis');
+      console.log('🎯 Including recommendations:', analysis.actionableRecommendations?.length || 0);
+      addMessage(analysisMessage, 'song-analysis', analysis.actionableRecommendations);
 
     } catch (error) {
       console.error('❌ Analysis error:', error);
@@ -981,6 +995,73 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         </div>
                       </div>
 
+                      
+                      {/* Inline Analysis Results */}
+                      {songAnalyses.get(song.id) && (
+                        <div className="mt-4 border border-purple-500/30 rounded-md bg-purple-950/20 p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-purple-300 flex items-center gap-2">
+                              <i className="fas fa-chart-line"></i>
+                              Analysis Results
+                            </h4>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExpandedAnalysis(expandedAnalysis === song.id ? null : song.id)}
+                              data-testid={`button-toggle-analysis-${song.id}`}
+                            >
+                              {expandedAnalysis === song.id ? 'Collapse' : 'Expand'}
+                            </Button>
+                          </div>
+                          
+                          {expandedAnalysis === song.id && (() => {
+                            const analysis = songAnalyses.get(song.id);
+                            return (
+                              <div className="space-y-4">
+                                {/* Quick Metrics */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                  {analysis.estimatedBPM && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">BPM</div>
+                                      <div className="font-bold text-purple-300">{analysis.estimatedBPM}</div>
+                                    </div>
+                                  )}
+                                  {analysis.keySignature && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">Key</div>
+                                      <div className="font-bold text-purple-300">{analysis.keySignature}</div>
+                                    </div>
+                                  )}
+                                  {analysis.genre && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">Genre</div>
+                                      <div className="font-bold text-purple-300">{analysis.genre}</div>
+                                    </div>
+                                  )}
+                                  {analysis.overallScore && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">Quality</div>
+                                      <div className="font-bold text-purple-300">{analysis.overallScore}/10</div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Recommendations */}
+                                {analysis.actionableRecommendations && analysis.actionableRecommendations.length > 0 && (
+                                  <div>
+                                    <RecommendationList recommendations={analysis.actionableRecommendations} />
+                                  </div>
+                                )}
+                                
+                                <div className="text-xs text-gray-400 italic">
+                                  Full analysis available in AI Assistant panel
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      
                       <Separator className="bg-gray-600" />
 
                       <div className="flex flex-wrap gap-2">
