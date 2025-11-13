@@ -415,3 +415,38 @@ export type SamplePack = typeof samplePacks.$inferSelect;
 export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
 export type Sample = typeof samples.$inferSelect;
 export type InsertSample = z.infer<typeof insertSampleSchema>;
+
+// AI Recommendation System for Song Analysis
+export enum RecommendationCategory {
+  MIX_BALANCE = "mix_balance",
+  VOCAL_EFFECTS = "vocal_effects",
+  TEMPO = "tempo",
+  MELODY = "melody",
+  LYRICS = "lyrics",
+  STRUCTURE = "structure",
+  PRODUCTION = "production",
+  INSTRUMENTATION = "instrumentation",
+}
+
+export enum ToolTarget {
+  MIX_STUDIO = "mix-studio",
+  BEAT_STUDIO = "beat-studio",
+  PIANO_ROLL = "piano-roll",
+  LYRICS_LAB = "lyrics-lab",
+  UNIFIED_STUDIO = "unified-studio",
+}
+
+export const recommendationSchema = z.object({
+  id: z.string(),
+  message: z.string(),
+  severity: z.enum(["low", "medium", "high"]),
+  category: z.nativeEnum(RecommendationCategory),
+  targetTool: z.nativeEnum(ToolTarget),
+  navigationPayload: z.object({
+    trackId: z.string().optional(),
+    action: z.string().optional(),
+    params: z.record(z.any()).optional(),
+  }).optional(),
+});
+
+export type Recommendation = z.infer<typeof recommendationSchema>;

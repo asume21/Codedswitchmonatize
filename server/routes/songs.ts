@@ -760,9 +760,73 @@ Respond ONLY with valid JSON in this EXACT format:
       "fix": "Re-record bridge with metronome, or use time-stretch"
     }
   ],
+  "actionableRecommendations": [
+    {
+      "id": "rec-1",
+      "message": "Add more reverb and depth to vocals for a polished sound",
+      "severity": "medium",
+      "category": "vocal_effects",
+      "targetTool": "mix-studio",
+      "navigationPayload": {
+        "trackId": "vocals",
+        "action": "add-reverb",
+        "params": { "effectType": "reverb" }
+      }
+    },
+    {
+      "id": "rec-2",
+      "message": "Improve hook catchiness - strengthen melodic progression",
+      "severity": "high",
+      "category": "melody",
+      "targetTool": "piano-roll",
+      "navigationPayload": {
+        "action": "edit-melody",
+        "params": { "section": "hook" }
+      }
+    },
+    {
+      "id": "rec-3",
+      "message": "Balance the mix - vocals are too quiet relative to beat",
+      "severity": "high",
+      "category": "mix_balance",
+      "targetTool": "mix-studio",
+      "navigationPayload": {
+        "trackId": "vocals",
+        "action": "adjust-volume",
+        "params": { "adjustment": "+3dB" }
+      }
+    },
+    {
+      "id": "rec-4",
+      "message": "Enhance wordplay and rhyme scheme complexity",
+      "severity": "low",
+      "category": "lyrics",
+      "targetTool": "lyrics-lab",
+      "navigationPayload": {
+        "action": "improve-lyrics"
+      }
+    }
+  ],
   "overallScore": 8.5,
   "analysis_notes": "This is a professional-quality track with strong production and vocal performance. The dark, aggressive tone fits the genre perfectly. Main areas for improvement: vocal mix clarity in verse 1, and tightening up the low-end clash between kick and 808. The lyrics are well-crafted with complex rhyme schemes, and the vocal delivery shows confidence and emotion. Flow timing is mostly excellent with creative syncopation. Commercial potential is high - with minor mixing adjustments, this could be radio-ready. The hook is catchy but could be strengthened melodically. Overall, this shows professional-level production with room for refinement to reach A-list quality."
-}`;
+}
+
+IMPORTANT: For each recommendation in "actionableRecommendations", use these exact category values:
+- "vocal_effects" for vocal processing issues  
+- "mix_balance" for volume/panning issues
+- "tempo" for BPM/timing issues
+- "melody" for melodic improvements
+- "lyrics" for lyrical improvements
+- "structure" for arrangement/structure issues
+- "production" for overall production quality
+- "instrumentation" for instrument selection/quality
+
+And use these exact targetTool values:
+- "mix-studio" for mixing, effects, and balance
+- "beat-studio" for tempo, drums, and rhythm
+- "piano-roll" for melodies and chords
+- "lyrics-lab" for lyrics and wordplay
+- "unified-studio" for general improvements`;
 
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
