@@ -125,6 +125,8 @@ export const VerticalPianoRoll: React.FC = () => {
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
   const [activeKeys, setActiveKeys] = useState<Set<number>>(new Set());
   const [syncScroll, setSyncScroll] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStartTime, setRecordingStartTime] = useState(0);
   
   const { toast } = useToast();
   const { currentSession } = useSongWorkSession();
@@ -133,6 +135,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const gridRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recordingNotesRef = useRef<Note[]>([]);
   const selectedTrack = tracks[selectedTrackIndex];
   
   // Original song playback state
@@ -270,6 +273,44 @@ export const VerticalPianoRoll: React.FC = () => {
     setCurrentStep(0);
   }, []);
 
+  // 🎙️ RECORDING CONTROLS
+  const startRecording = useCallback(() => {
+    setIsRecording(true);
+    setRecordingStartTime(Date.now());
+    recordingNotesRef.current = [];
+    setCurrentStep(0);
+    toast({
+      title: "🔴 Recording Started",
+      description: "Play notes on your keyboard - timing will be captured!",
+    });
+  }, [toast]);
+
+  const stopRecording = useCallback(() => {
+    setIsRecording(false);
+    
+    // Add all recorded notes to the track
+    if (recordingNotesRef.current.length > 0) {
+      setTracks(prev => prev.map((track, index) =>
+        index === selectedTrackIndex
+          ? { ...track, notes: [...track.notes, ...recordingNotesRef.current] }
+          : track
+      ));
+      
+      toast({
+        title: "✅ Recording Saved",
+        description: `${recordingNotesRef.current.length} notes added to track!`,
+      });
+    } else {
+      toast({
+        title: "Recording Stopped",
+        description: "No notes were recorded",
+        variant: "default"
+      });
+    }
+    
+    recordingNotesRef.current = [];
+  }, [selectedTrackIndex, toast]);
+
   // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
   useEffect(() => {
     const pressedKeys = new Set<string>();
@@ -312,11 +353,41 @@ export const VerticalPianoRoll: React.FC = () => {
             selectedTrack.volume / 100
           );
 
-          // Visual feedback - add to active keys
-          if (chordMode) {
+          // 🎙️ RECORDING MODE - Capture timing!
+          if (isRecording) {
+            const elapsedMs = Date.now() - recordingStartTime;
+            // Convert milliseconds to steps based on BPM
+            // Each step is a 16th note: (60000ms / bpm) / 4
+            const msPerStep = (60000 / bpm) / 4;
+            const calculatedStep = Math.floor(elapsedMs / msPerStep);
+            
+            // Clamp to available steps
+            const step = Math.min(calculatedStep, STEPS - 1);
+            
+            // Create and add note to recording buffer
+            const newNote: Note = {
+              id: `rec-${pianoKey.key}-${Date.now()}`,
+              note: pianoKey.note,
+              octave: pianoKey.octave,
+              step,
+              velocity: 100,
+              length: 1
+            };
+            
+            recordingNotesRef.current.push(newNote);
+            
+            // Visual feedback - move playhead to show position
+            setCurrentStep(step);
+            
+            console.log(`🎵 Recorded: ${pianoKey.note}${pianoKey.octave} at step ${step}`);
+          } 
+          // Chord mode (not recording)
+          else if (chordMode) {
             // In chord mode, accumulate selected keys
             setActiveKeys(prev => new Set(prev).add(keyIndex));
-          } else {
+          } 
+          // Normal mode
+          else {
             // In normal mode, just show which key is pressed
             setActiveKeys(new Set([keyIndex]));
           }
@@ -344,7 +415,7 @@ export const VerticalPianoRoll: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [chordMode, selectedTrack, handlePlay]);
+  }, [chordMode, selectedTrack, handlePlay, isRecording, recordingStartTime, bpm]);
 
   // Note management
   const addNote = useCallback((keyIndex: number, step?: number) => {
@@ -635,6 +706,19 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="flex items-center gap-4">
                 <Button
                   size="lg"
+                  variant={isRecording ? "destructive" : "default"}
+                  className={`text-sm font-bold px-6 ${isRecording ? 'bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-400 animate-pulse' : 'bg-red-700 hover:bg-red-800'}`}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  data-testid="button-record"
+                >
+                  <div className="w-3 h-3 rounded-full bg-white mr-2" />
+                  <span className="text-base">
+                    {isRecording ? '⏹️ STOP RECORDING' : '🎙️ RECORD'}
+                  </span>
+                </Button>
+                
+                <Button
+                  size="lg"
                   variant={chordMode ? "default" : "secondary"}
                   className={`text-sm font-bold px-6 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400' : 'bg-gray-700'}`}
                   onClick={() => {
@@ -643,6 +727,7 @@ export const VerticalPianoRoll: React.FC = () => {
                       setActiveKeys(new Set());
                     }
                   }}
+                  disabled={isRecording}
                   data-testid="button-chord-mode"
                 >
                   <Music className="w-5 h-5 mr-2" />
@@ -650,7 +735,12 @@ export const VerticalPianoRoll: React.FC = () => {
                     {chordMode ? '🎵 CHORD ON' : '🎵 Chord OFF'}
                   </span>
                 </Button>
-                {chordMode && (
+                {isRecording && (
+                  <p className="text-sm text-red-300 font-medium animate-pulse">
+                    🔴 Recording... Play notes on your keyboard!
+                  </p>
+                )}
+                {!isRecording && chordMode && (
                   <p className="text-sm text-purple-300 font-medium">
                     Tap piano keys to build your chord, then click the grid!
                   </p>
