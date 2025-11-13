@@ -1,4 +1,4 @@
-import { ToolTarget } from "@shared/schema";
+import { ToolTarget } from "../../../shared/schema";
 
 export interface ToolNavigationPayload {
   trackId?: string;
