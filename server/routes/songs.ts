@@ -202,32 +202,24 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Serve converted audio files (with on-demand conversion for authenticated users)
+  // Serve converted audio files
   router.get("/converted/:fileId", async (req: Request, res: Response) => {
     try {
       const { fileId } = req.params;
       
-      // SECURITY: Require authentication for ALL converted file access
-      // Guest users share the same ID, creating data leakage risks
-      if (!req.userId) {
-        console.log(`❌ Converted file access requires authentication: ${fileId}`);
-        return res.status(401).json({ 
-          error: "Authentication required", 
-          message: "Please log in to access converted audio files" 
-        });
-      }
+      // Get user ID (authenticated or guest)
+      const userId = req.userId || await getGuestUserId(storage);
       
       // SECURITY: Verify user owns a song that uses this conversion
-      // Use getUserSongs() to only query songs owned by this user
-      const userSongs = await storage.getUserSongs(req.userId);
+      const userSongs = await storage.getUserSongs(userId);
       const song = userSongs.find(s => s.accessibleUrl?.includes(fileId));
       
       if (!song) {
-        console.log(`❌ User ${req.userId} does not own a song with fileId: ${fileId}`);
-        return res.status(403).json({ error: "Access denied" });
+        console.log(`❌ User ${userId} does not own a song with fileId: ${fileId}`);
+        return res.status(404).json({ error: "File not found" });
       }
       
-      console.log(`✅ Ownership verified for user ${req.userId}: ${song.name}`);
+      console.log(`✅ Serving converted file for user ${userId}: ${song.name}`);
       
       const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
       const convertedDir = join(objectsDir, 'converted');
