@@ -1013,7 +1013,7 @@ export default function UnifiedStudioWorkspace() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* ARRANGEMENT VIEW */}
           {activeView === 'arrangement' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
+          <>
           {/* Timeline Section */}
           <div className="border-b border-gray-700">
             <button
@@ -1525,7 +1525,7 @@ Your lyrics will sync with the timeline
               </div>
             )}
           </div>
-            </div>
+          </>
           )}
 
           {/* PIANO ROLL VIEW */}
