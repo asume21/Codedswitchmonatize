@@ -10,7 +10,8 @@
     "build": "vite build --config vite.config.prod.ts && node esbuild.config.js",
     "start": "npm run db:push && NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "check-profit": "tsx scripts/check-profit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",

@@ -22,6 +22,8 @@ import {
   type InsertSamplePack,
   type Sample,
   type InsertSample,
+  type CreditTransaction,
+  type InsertCreditTransaction,
   users,
   projects,
   codeTranslations,
@@ -34,6 +36,7 @@ import {
   playlistSongs,
   samplePacks,
   samples,
+  creditTransactions,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -58,9 +61,15 @@ export interface IStorage {
   updateUserUsage(userId: string, uploads: number, generations: number): Promise<User>;
   incrementUserUsage(userId: string, type: 'uploads' | 'generations'): Promise<User>;
   updateUserCredits(userId: string, creditsDelta: number): Promise<User>;
+  updateUser(userId: string, data: Partial<User>): Promise<User>;
   getUserByActivationKey(activationKey: string): Promise<User | undefined>;
   activateUserKey(userId: string): Promise<User>;
   setUserActivationKey(userId: string, activationKey: string): Promise<User>;
+  
+  // Credit Transactions
+  logCreditTransaction(transaction: any): Promise<void>;
+  getCreditTransactions(userId: string, limit: number, offset: number): Promise<any[]>;
+  getCreditTransaction(transactionId: string): Promise<any | undefined>;
 
   // Projects
   getProject(id: string): Promise<Project | undefined>;
@@ -162,6 +171,7 @@ export class MemStorage implements IStorage {
   private playlistSongs: Map<string, PlaylistSong>;
   private samplePacks: Map<string, SamplePack>;
   private samples: Map<string, Sample>;
+  private creditTransactions: Map<string, CreditTransaction>;
 
   constructor() {
     this.users = new Map();
@@ -176,6 +186,7 @@ export class MemStorage implements IStorage {
     this.playlistSongs = new Map();
     this.samplePacks = new Map();
     this.samples = new Map();
+    this.creditTransactions = new Map();
 
     // Create default user
     const defaultUser: User = {
@@ -312,6 +323,15 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async updateUser(userId: string, data: Partial<User>): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+
+    const updated: User = { ...user, ...data };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
   async getUserByActivationKey(activationKey: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
       (user) => user.activationKey === activationKey
@@ -340,6 +360,27 @@ export class MemStorage implements IStorage {
     };
     this.users.set(userId, updated);
     return updated;
+  }
+
+  // Credit Transactions
+  async logCreditTransaction(transaction: CreditTransaction): Promise<void> {
+    this.creditTransactions.set(transaction.id, transaction);
+  }
+
+  async getCreditTransactions(userId: string, limit: number, offset: number): Promise<CreditTransaction[]> {
+    const userTransactions = Array.from(this.creditTransactions.values())
+      .filter(t => t.userId === userId)
+      .sort((a, b) => {
+        const aTime = a.createdAt?.getTime() || 0;
+        const bTime = b.createdAt?.getTime() || 0;
+        return bTime - aTime;
+      })
+      .slice(offset, offset + limit);
+    return userTransactions;
+  }
+
+  async getCreditTransaction(transactionId: string): Promise<CreditTransaction | undefined> {
+    return this.creditTransactions.get(transactionId);
   }
 
   // Projects
@@ -1284,6 +1325,16 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async updateUser(userId: string, data: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, userId))
+      .returning();
+    if (!user) throw new Error("User not found");
+    return user;
+  }
+
   async getUserByActivationKey(activationKey: string): Promise<User | undefined> {
     const [user] = await db
       .select()
@@ -1315,6 +1366,31 @@ export class DatabaseStorage implements IStorage {
       .returning();
     if (!user) throw new Error("User not found");
     return user;
+  }
+
+  // Credit Transactions
+  async logCreditTransaction(transaction: InsertCreditTransaction): Promise<void> {
+    await db.insert(creditTransactions).values(transaction);
+  }
+
+  async getCreditTransactions(userId: string, limit: number, offset: number): Promise<CreditTransaction[]> {
+    const transactions = await db
+      .select()
+      .from(creditTransactions)
+      .where(eq(creditTransactions.userId, userId))
+      .orderBy(desc(creditTransactions.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return transactions;
+  }
+
+  async getCreditTransaction(transactionId: string): Promise<CreditTransaction | undefined> {
+    const [transaction] = await db
+      .select()
+      .from(creditTransactions)
+      .where(eq(creditTransactions.id, transactionId))
+      .limit(1);
+    return transaction || undefined;
   }
 }
 

@@ -36,6 +36,22 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const creditTransactions = pgTable("credit_transactions", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
+  amount: integer("amount").notNull(), // positive for credit, negative for debit
+  type: text("type").notNull(), // purchase, deduction, refund, subscription_grant, bonus, admin_adjustment
+  reason: text("reason").notNull(),
+  balanceBefore: integer("balance_before").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  metadata: json("metadata"), // additional info like package type, payment intent ID, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const projects = pgTable("projects", {
   id: varchar("id")
     .primaryKey()
@@ -411,6 +427,8 @@ export type InsertSong = z.infer<typeof insertSongSchema>;
 export type Playlist = typeof playlists.$inferSelect;
 export type InsertPlaylist = z.infer<typeof insertPlaylistSchema>;
 export type PlaylistSong = typeof playlistSongs.$inferSelect;
+export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type InsertCreditTransaction = typeof creditTransactions.$inferInsert;
 export type SamplePack = typeof samplePacks.$inferSelect;
 export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
 export type Sample = typeof samples.$inferSelect;
