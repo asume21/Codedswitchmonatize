@@ -6,7 +6,7 @@
 
 import natural from 'natural';
 import { SentimentAnalyzer, PorterStemmer } from 'natural';
-import syllable from 'syllable';
+import { syllable } from 'syllable';
 
 interface LyricAnalysis {
   basic_stats: {
@@ -207,8 +207,8 @@ class AdvancedLyricAnalyzer {
     const positiveWords = ['love', 'happy', 'joy', 'good', 'great', 'amazing', 'wonderful', 'beautiful'];
     const negativeWords = ['hate', 'sad', 'pain', 'bad', 'terrible', 'awful', 'horrible', 'ugly'];
     
-    const positiveCount = tokens.filter(word => positiveWords.includes(word)).length;
-    const negativeCount = tokens.filter(word => negativeWords.includes(word)).length;
+    const positiveCount = tokens.filter((word: string) => positiveWords.includes(word)).length;
+    const negativeCount = tokens.filter((word: string) => negativeWords.includes(word)).length;
     const totalWords = tokens.length;
 
     const vaderPositive = positiveCount / totalWords;
@@ -305,7 +305,7 @@ class AdvancedLyricAnalyzer {
     const uniqueWords = new Set(words);
     
     // Complexity based on word length and uniqueness
-    const avgWordLength = words.reduce((sum, word) => sum + word.length, 0) / words.length;
+    const avgWordLength = words.reduce((sum: number, word: string) => sum + word.length, 0) / words.length;
     const lexicalDiversity = uniqueWords.size / words.length;
     const complexityScore = (avgWordLength / 10) * lexicalDiversity;
 

@@ -151,7 +151,11 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       }
     },
     stopAllNotes: () => {
-      audioEngine.current.stopAllNotes();
+      // Stop all currently playing notes
+      if (typeof Tone !== 'undefined') {
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+      }
     },
   });
 

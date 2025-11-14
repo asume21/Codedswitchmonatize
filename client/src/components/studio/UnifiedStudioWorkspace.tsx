@@ -596,44 +596,44 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">File ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
-                <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">New Project</button>
-                <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Save Project</button>
-                <button onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Load Project</button>
+                <div onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">New Project</div>
+                <div onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Save Project</div>
+                <div onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Load Project</div>
                 <div className="border-t border-gray-700"></div>
-                <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Export...</button>
+                <div onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Export...</div>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">Edit ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
-                <button onClick={() => toast({ title: "Undo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Undo</button>
-                <button onClick={() => toast({ title: "Redo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Redo</button>
+                <div onClick={() => toast({ title: "Undo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Undo</div>
+                <div onClick={() => toast({ title: "Redo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Redo</div>
                 <div className="border-t border-gray-700"></div>
-                <button onClick={() => toast({ title: "Copy" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Copy</button>
-                <button onClick={() => toast({ title: "Paste" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Paste</button>
+                <div onClick={() => toast({ title: "Copy" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Copy</div>
+                <div onClick={() => toast({ title: "Paste" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Paste</div>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">View ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-48 z-50">
-                <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                <div onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'arrangement' ? '✓' : '  '} Arrangement
-                </button>
-                <button onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'piano-roll' ? '✓' : '  '} Piano Roll
-                </button>
-                <button onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'mixer' ? '✓' : '  '} Mixer
-                </button>
-                <button onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'ai-studio' ? '✓' : '  '} AI Studio
-                </button>
-                <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'lyrics' ? '✓' : '  '} Lyrics Lab
-                </button>
-                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'song-uploader' ? '✓' : '  '} Song Uploader
-                </button>
+                </div>
               </div>
             </div>
             
