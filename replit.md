@@ -71,6 +71,17 @@ Optional payment integration:
 - Database sessions are stored in PostgreSQL for persistence
 - Object storage directory: `/objects`
 
+## Recent Changes (Nov 14, 2025)
+- ✅ **Mobile Navigation System** - Implemented responsive navigation with single data source
+  - Created MOBILE_UX_DESIGN.md specification with comprehensive mobile UX patterns
+  - Implemented `useStudioMenuSections` hook for unified navigation data across desktop/mobile
+  - Built DesktopMenu using shadcn Sidebar primitives (visible on >=1024px screens)
+  - Built MobileMenu using Sheet component for touch-friendly overlay menu
+  - Removed legacy hover dropdown menus to eliminate navigation duplication
+  - Fixed JSX structure errors by wrapping arrangement view content in React Fragment
+  - All navigation now uses consistent data source (no duplication between mobile/desktop)
+  - Touch targets follow mobile guidelines: 56px for icon buttons, 48px for tabs, 56px for sheet items
+
 ## Recent Changes (Nov 12, 2025)
 - ✅ **Unified Studio is Homepage** - Root path (/) now loads Unified Studio workspace
   - "One place for everything" - all workflows accessible from homepage
