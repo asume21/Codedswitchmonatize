@@ -8,6 +8,7 @@ import { requireCredits } from "./middleware/requireCredits";
 import { createAuthRoutes } from "./routes/auth";
 import { createKeyRoutes } from "./routes/keys";
 import { createSongRoutes } from "./routes/songs";
+import { createCreditRoutes } from "./routes/credits";
 import {
   createCheckoutSession,
   handleStripeWebhook,
@@ -167,6 +168,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   
   // Mount song routes
   app.use("/api/songs", createSongRoutes(storage));
+  
+  // Mount credit routes
+  app.use("/api/credits", createCreditRoutes(storage));
 
   // Upload parameter generation endpoint
   app.post("/api/objects/upload", async (req, res) => {
