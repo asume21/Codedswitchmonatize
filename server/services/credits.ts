@@ -36,7 +36,78 @@ export const CREDIT_COSTS = {
   AI_ENHANCEMENT: 6,            // API: $0.09 → User: $0.24
 } as const;
 
-// Credit packages for purchase
+// Membership tiers (recurring subscriptions)
+export const MEMBERSHIP_TIERS = {
+  FREE: {
+    tier: 'free',
+    name: 'Free',
+    price: 0,
+    priceId: '', // No Stripe product needed
+    monthlyCredits: 10,
+    rolloverMax: 0,
+    features: [
+      'Try basic features',
+      '10 credits/month',
+      'Community support',
+    ],
+  },
+  CREATOR: {
+    tier: 'creator',
+    name: 'Creator',
+    price: 999, // $9.99/month
+    priceId: process.env.STRIPE_PRICE_ID_CREATOR || '',
+    monthlyCredits: 200,
+    rolloverMax: 400,
+    features: [
+      '200 credits/month',
+      'Credits rollover (max 400)',
+      'Priority support',
+      'No ads',
+      'Early access to features',
+      'Premium templates',
+    ],
+    badge: 'Most Popular',
+  },
+  PRO: {
+    tier: 'pro',
+    name: 'Pro',
+    price: 2999, // $29.99/month
+    priceId: process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || '',
+    monthlyCredits: 750,
+    rolloverMax: 1500,
+    features: [
+      '750 credits/month',
+      'Credits rollover (max 1500)',
+      'Priority queue',
+      'Advanced analytics',
+      'Commercial license',
+      'API access',
+      'Advanced AI models',
+    ],
+    badge: 'Best Value',
+  },
+  STUDIO: {
+    tier: 'studio',
+    name: 'Studio',
+    price: 7999, // $79.99/month
+    priceId: process.env.STRIPE_PRICE_ID_STUDIO || '',
+    monthlyCredits: 2500,
+    rolloverMax: 5000,
+    features: [
+      '2500 credits/month',
+      'Credits rollover (max 5000)',
+      'Team collaboration (5 seats)',
+      'White-label branding',
+      'Dedicated support',
+      'Custom integrations',
+      'Phone support',
+      'Training sessions',
+    ],
+    badge: 'Enterprise',
+  },
+} as const;
+
+// Credit packages for one-time purchase
 export const CREDIT_PACKAGES = {
   STARTER: {
     credits: 100,
