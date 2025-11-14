@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import type { IStorage } from "../storage";
 import crypto from "crypto";
+import { getCreditService, CREDIT_PACKAGES } from "./credits";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
@@ -78,6 +79,29 @@ export async function handleStripeWebhook(
         userId = user?.id;
       }
 
+      // Handle credit purchases (one-time payments)
+      if (session.mode === 'payment' && userId) {
+        const packageKey = session.metadata?.packageKey as keyof typeof CREDIT_PACKAGES;
+        const credits = parseInt(session.metadata?.credits || '0');
+        const paymentIntentId = session.payment_intent as string;
+
+        if (packageKey && credits && paymentIntentId) {
+          const creditService = getCreditService(storage);
+          
+          try {
+            await creditService.purchaseCredits(
+              userId,
+              packageKey,
+              paymentIntentId
+            );
+            console.log(`💳 Credits purchased via webhook: User ${userId}, +${credits} credits (${packageKey})`);
+          } catch (error) {
+            console.error(`❌ Failed to add credits for user ${userId}:`, error);
+          }
+        }
+      }
+
+      // Handle subscription checkouts
       if (userId && customerId && subscriptionId) {
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         const status = sub.status;
