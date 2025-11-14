@@ -106,6 +106,7 @@
     "lucide-react": "^0.544.0",
     "memoizee": "^0.4.17",
     "memorystore": "^1.6.7",
+    "mitt": "^3.0.1",
     "multer": "^2.0.2",
     "music-metadata": "^11.9.0",
     "nanoid": "^5.1.5",

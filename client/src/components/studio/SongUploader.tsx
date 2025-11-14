@@ -18,6 +18,7 @@ import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 import { Sparkles, Copy, Plus, Scissors, Mic } from "lucide-react";
 import type { Song, Recommendation } from "../../../../shared/schema";
+import { emitEvent } from "@/lib/eventBus";
 import type { ToolRecommendation } from "@/components/studio/effects";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
 
@@ -73,6 +74,14 @@ export default function SongUploader() {
     onSuccess: (newSong: Song) => {
       queryClient.invalidateQueries({ queryKey: ['/api/songs'] });
       setUploadContext({});
+      
+      // Emit event for other components
+      emitEvent('song:uploaded', {
+        songId: newSong.id.toString(),
+        songName: newSong.name,
+        audioUrl: newSong.url
+      });
+      
       toast({
         title: "Song Uploaded",
         description: `${newSong.name} has been added to your library!`,
