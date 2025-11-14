@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,10 +14,12 @@ import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
 import { useAudio } from '@/hooks/use-audio';
 import type { DrumType } from '@/hooks/use-audio';
-import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano, Send, Layers } from 'lucide-react';
+import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano, Send, Layers, FileMusic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import audioRouter from '@/lib/audioRouter';
+import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
+import { useLocation } from 'wouter';
 
 import type { Note } from './types/pianoRollTypes';
 
@@ -44,6 +47,8 @@ function MelodyComposer() {
   const { toast } = useToast();
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { playNote: playNoteHook, playDrum: playDrumHook, setMasterVolume: setMasterVolumeHook, initialize } = useAudio();
+  const { currentSession, setCurrentSessionId, updateSession } = useSongWorkSession();
+  const [location] = useLocation();
 
   // Multi-track system
   const [tracks, setTracks] = useState<Track[]>([
@@ -52,6 +57,21 @@ function MelodyComposer() {
     { id: 'track3', name: 'Drums', instrument: 'drums', volume: 85, pan: 0, muted: false, solo: false },
     { id: 'track4', name: 'Harmony', instrument: 'synth', volume: 65, pan: 15, muted: false, solo: false }
   ]);
+
+  // Load session from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1]);
+    const sessionId = params.get('session');
+    
+    if (sessionId) {
+      setCurrentSessionId(sessionId);
+      toast({
+        title: "Session Loaded",
+        description: currentSession?.songName ? `Creating melody for: ${currentSession.songName}` : "Melody session loaded",
+        duration: 3000,
+      });
+    }
+  }, [location, setCurrentSessionId]);
 
   // Initialize audio engine
   useEffect(() => {
@@ -242,6 +262,20 @@ function MelodyComposer() {
       { bpm: tempo, key }
     );
 
+    // Update session with melody data
+    if (currentSession) {
+      updateSession(currentSession.sessionId, {
+        midiData: {
+          ...currentSession.midiData,
+          notes,
+          tracks,
+          tempo,
+          scale,
+          key
+        }
+      });
+    }
+
     toast({
       title: "Sent to Mixer",
       description: `${tracks.length} tracks routed to Mix Studio`,
@@ -364,6 +398,20 @@ function MelodyComposer() {
           </div>
         </div>
       </div>
+
+      {/* Session Status Banner */}
+      {currentSession && (
+        <div className="bg-blue-900/30 border-b border-blue-500/50 px-4 py-2">
+          <div className="flex items-center space-x-3">
+            <FileMusic className="w-4 h-4 text-blue-400" />
+            <span className="text-xs font-medium text-blue-200">Creating melody for:</span>
+            <span className="text-xs font-bold text-white">{currentSession.songName}</span>
+            <Badge variant="outline" className="text-xs border-blue-400 text-blue-300">
+              Session Active
+            </Badge>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
