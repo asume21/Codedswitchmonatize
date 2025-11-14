@@ -4,6 +4,7 @@ import { createServer } from "http";
 import type { IStorage } from "./storage";
 import { requireAuth, requireSubscription } from "./middleware/auth";
 import { requireFeature, checkUsageLimit } from "./middleware/featureGating";
+import { requireCredits } from "./middleware/requireCredits";
 import { createAuthRoutes } from "./routes/auth";
 import { createKeyRoutes } from "./routes/keys";
 import { createSongRoutes } from "./routes/songs";
@@ -16,6 +17,7 @@ import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
+import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -1515,12 +1517,10 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Complete professional song generation using Suno AI via Replicate
   app.post(
     "/api/music/generate-complete",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.SONG_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
         const schema = z.object({
           songDescription: z.string().min(1, "songDescription is required"),
           genre: z.string().optional(),
@@ -1603,6 +1603,16 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
           } while (result.status === "starting" || result.status === "processing");
 
           if (result.status === "succeeded" && result.output) {
+            // Deduct credits after successful generation
+            if (req.creditService && req.creditCost) {
+              await req.creditService.deductCredits(
+                req.userId!,
+                req.creditCost,
+                'Complete song generation',
+                { genre, mood, songDescription: songDescription.substring(0, 100) }
+              );
+            }
+
             const data = {
               success: true,
               audioUrl: result.output.audio_out || result.output,
@@ -1666,13 +1676,17 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   });
 
   // Get rhyming words endpoint
-  app.post("/api/lyrics/rhymes", async (req: Request, res: Response) => {
-    try {
-      const { word } = req.body;
-      
-      if (!word) {
-        return sendError(res, 400, "Missing required field: word");
-      }
+  app.post(
+    "/api/lyrics/rhymes",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.RHYME_SUGGESTIONS, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { word } = req.body;
+        
+        if (!word) {
+          return sendError(res, 400, "Missing required field: word");
+        }
 
       // Use AI to generate rhyming words
       const XAI_API_KEY = process.env.XAI_API_KEY;
@@ -1711,6 +1725,16 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
       // Parse the rhymes from AI response
       const jsonMatch = content.match(/\[[\s\S]*?\]/);
       const rhymes = jsonMatch ? JSON.parse(jsonMatch[0]) : ['cat', 'bat', 'hat', 'mat', 'sat'];
+
+      // Deduct credits after successful generation
+      if (req.creditService && req.creditCost) {
+        await req.creditService.deductCredits(
+          req.userId!,
+          req.creditCost,
+          'Rhyme suggestions',
+          { word }
+        );
+      }
 
       console.log('✅ Rhymes generated for:', word);
       res.json({ rhymes });
@@ -2018,15 +2042,19 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   });
 
   // Advanced lyrics analysis endpoint
-  app.post("/api/lyrics/analyze", async (req: Request, res: Response) => {
-    try {
-      const { lyrics, genre, enhanceWithAI = true } = req.body;
-      
-      if (!lyrics || !lyrics.trim()) {
-        return sendError(res, 400, "Missing lyrics text");
-      }
+  app.post(
+    "/api/lyrics/analyze",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.LYRICS_ANALYSIS, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { lyrics, genre, enhanceWithAI = true } = req.body;
+        
+        if (!lyrics || !lyrics.trim()) {
+          return sendError(res, 400, "Missing lyrics text");
+        }
 
-      console.log('🎵 Analyzing lyrics with advanced system...');
+        console.log('🎵 Analyzing lyrics with advanced system...');
       
       // Import the advanced analyzer
       const { advancedLyricAnalyzer } = await import('./services/advancedLyricAnalyzer');
@@ -2065,6 +2093,17 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
       }
 
       console.log('✅ Advanced lyrics analysis complete');
+      
+      // Deduct credits after successful analysis
+      if (req.creditService && req.creditCost) {
+        await req.creditService.deductCredits(
+          req.userId!,
+          req.creditCost,
+          'Lyrics analysis',
+          { genre, enhanceWithAI }
+        );
+      }
+      
       res.json({
         status: 'success',
         analysis: enhancedAnalysis
@@ -2079,13 +2118,10 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Generate lyrics endpoint with AI model selection
   app.post(
     "/api/lyrics/generate",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.LYRICS_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
-
         const { theme, genre, mood, style, aiProvider = 'gpt-4' } = req.body;
 
         if (!theme) {
@@ -2155,6 +2191,16 @@ Make it creative, emotional, and fitting for the genre and mood.`;
         if (result.status === "succeeded" && result.output) {
           lyrics = Array.isArray(result.output) ? result.output.join('') : result.output;
           providerUsed = 'Replicate Llama';
+          
+          // Deduct credits after successful generation
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(
+              req.userId!,
+              req.creditCost,
+              'Lyrics generation',
+              { theme, genre, mood }
+            );
+          }
         } else {
           throw new Error('Lyrics generation failed');
         }
@@ -2182,13 +2228,10 @@ Make it creative, emotional, and fitting for the genre and mood.`;
   // Generate beat from lyrics endpoint using Replicate Llama
   app.post(
     "/api/lyrics/generate-beat",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.BEAT_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
-
         const { lyrics, genre, complexity } = req.body;
 
         if (!lyrics) {
@@ -2272,6 +2315,16 @@ Return this exact JSON format:
 
         console.log(`✅ Generated beat pattern with Replicate Llama`);
 
+        // Deduct credits after successful generation
+        if (req.creditService && req.creditCost) {
+          await req.creditService.deductCredits(
+            req.userId!,
+            req.creditCost,
+            'Beat generation from lyrics',
+            { genre, complexity }
+          );
+        }
+
         res.json({ 
           pattern: beatPattern,
           bpm: beatPattern.bpm || 120,
@@ -2288,13 +2341,10 @@ Return this exact JSON format:
 
   app.post(
     "/api/lyrics/generate-music",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.INSTRUMENTAL_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
-
         const { lyrics, style, genre } = req.body;
 
         if (!lyrics) {
@@ -2302,6 +2352,16 @@ Return this exact JSON format:
         }
 
         const generatedMusic = await generateMusicFromLyrics(lyrics, style || 'pop', genre || 'electronic');
+
+        // Deduct credits after successful generation
+        if (req.creditService && req.creditCost) {
+          await req.creditService.deductCredits(
+            req.userId!,
+            req.creditCost,
+            'Music generation from lyrics',
+            { style, genre }
+          );
+        }
 
         res.json(generatedMusic);
       } catch (err: any) {
@@ -2314,13 +2374,10 @@ Return this exact JSON format:
   // Generate music with MusicGen via Replicate
   app.post(
     "/api/music/generate-with-musicgen",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.BEAT_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in or provide owner key");
-        }
-
         const { prompt, duration } = req.body;
 
         if (!prompt) {
@@ -2378,6 +2435,16 @@ Return this exact JSON format:
         } while (result.status === "starting" || result.status === "processing");
 
         if (result.status === "succeeded") {
+          // Deduct credits after successful generation
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(
+              req.userId!,
+              req.creditCost,
+              'MusicGen beat generation',
+              { prompt: prompt.substring(0, 100), duration }
+            );
+          }
+          
           res.json({ audioUrl: result.output });
         } else {
           return res.status(500).json({ message: "Music generation failed" });
