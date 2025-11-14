@@ -153,7 +153,8 @@ export default function ProfessionalMixer() {
       stopMetering();
       professionalAudio.disconnect();
     };
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only initialize once on mount
   
   const startMetering = useCallback(() => {
     const updateMeters = () => {

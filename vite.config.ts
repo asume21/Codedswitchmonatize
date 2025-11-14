@@ -21,7 +21,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5000,
+    port: 3211,
     host: '0.0.0.0',
     strictPort: false,
     allowedHosts: true,

@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
+import { useLocation } from 'wouter';
 import { 
   Sliders,
   Gauge,
@@ -14,7 +16,9 @@ import {
   ChevronRight,
   AlertCircle,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  FileText,
+  Music
 } from 'lucide-react';
 import {
   EQPlugin,
@@ -37,6 +41,8 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [] }: Aud
   const [activeTool, setActiveTool] = useState<ToolType | null>(null);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
   const { toast } = useToast();
+  const { createSession, updateSession } = useSongWorkSession();
+  const [, setLocation] = useLocation();
 
   const handleAutoFix = async () => {
     setIsAutoFixing(true);
@@ -76,6 +82,36 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [] }: Aud
     } finally {
       setIsAutoFixing(false);
     }
+  };
+
+  const handleOpenInLyricLab = () => {
+    // Create or update session with song data
+    const sessionId = createSession({
+      name: songName,
+      audioUrl: songUrl
+    });
+    
+    toast({
+      title: "Opening Lyric Lab",
+      description: `Routing ${songName} to Lyric Lab for editing`,
+    });
+    
+    // Navigate to Lyric Lab with session parameter
+    setLocation(`/lyric-lab?session=${sessionId}`);
+  };
+
+  const handleOpenInPianoRoll = () => {
+    const sessionId = createSession({
+      name: songName,
+      audioUrl: songUrl
+    });
+    
+    toast({
+      title: "Opening Piano Roll",
+      description: `Routing ${songName} to Piano Roll for melody editing`,
+    });
+    
+    setLocation(`/melody-composer?session=${sessionId}`);
   };
 
   const tools = [
@@ -265,6 +301,70 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [] }: Aud
               </Button>
             );
           })}
+        </div>
+
+        {/* Other Editing Tools Section */}
+        <div className="mt-8 pt-6 border-t border-gray-700">
+          <h3 className="text-sm font-medium mb-4 text-gray-300">
+            🎵 Route to Other Tools
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Lyric Lab Button */}
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex flex-col items-start gap-3 hover:border-green-500 transition-all border-green-600/30 bg-green-500/5"
+              onClick={handleOpenInLyricLab}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="p-2 bg-green-600 rounded-lg">
+                  <FileText className="h-5 w-5 text-white" />
+                </div>
+                <Badge className="bg-green-600 text-white">
+                  Lyrics
+                </Badge>
+              </div>
+
+              <div className="text-left w-full">
+                <h4 className="font-medium">Open in Lyric Lab</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Edit and improve lyrics for this song
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 text-xs text-green-400 w-full">
+                <span>Route to Lyric Lab</span>
+                <ChevronRight className="h-3 w-3" />
+              </div>
+            </Button>
+
+            {/* Piano Roll Button */}
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex flex-col items-start gap-3 hover:border-purple-500 transition-all border-purple-600/30 bg-purple-500/5"
+              onClick={handleOpenInPianoRoll}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="p-2 bg-purple-600 rounded-lg">
+                  <Music className="h-5 w-5 text-white" />
+                </div>
+                <Badge className="bg-purple-600 text-white">
+                  Melody
+                </Badge>
+              </div>
+
+              <div className="text-left w-full">
+                <h4 className="font-medium">Open in Piano Roll</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Edit melody and musical structure
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 text-xs text-purple-400 w-full">
+                <span>Route to Piano Roll</span>
+                <ChevronRight className="h-3 w-3" />
+              </div>
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,12 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
+import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
+import { useLocation } from "wouter";
+import { Music2, FileMusic, AlertCircle } from "lucide-react";
 
 interface RhymeSuggestion {
   word: string;
@@ -21,6 +25,10 @@ interface RhymeSuggestion {
 
 export default function LyricLab() {
   const studioContext = useContext(StudioAudioContext);
+  const { currentSession, setCurrentSessionId } = useSongWorkSession();
+  const [location] = useLocation();
+  const { toast } = useToast();
+  
   const [title, setTitle] = useState("My Awesome Track");
   const [content, setContent] = useState(`[Verse 1]
 Started from the bottom of the code base,
@@ -55,6 +63,39 @@ Type here or use AI generation...`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
+  
+  // Load session from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1]);
+    const sessionId = params.get('session');
+    
+    if (sessionId) {
+      setCurrentSessionId(sessionId);
+      toast({
+        title: "Session Loaded",
+        description: currentSession?.songName ? `Editing lyrics for: ${currentSession.songName}` : "Song session loaded",
+        duration: 3000,
+      });
+    }
+  }, [location, setCurrentSessionId]);
+  
+  // Load lyrics from session when session changes
+  useEffect(() => {
+    if (currentSession?.analysis?.issues) {
+      const lyricIssues = currentSession.analysis.issues.filter(issue => 
+        issue.type === 'melody' || issue.description.toLowerCase().includes('lyric')
+      );
+      
+      if (lyricIssues.length > 0) {
+        toast({
+          title: "Lyric Issues Detected",
+          description: `Found ${lyricIssues.length} issue(s) to fix in ${currentSession.songName}`,
+          duration: 5000,
+        });
+      }
+    }
+  }, [currentSession, toast]);
+  
   const [genre, setGenre] = useState("hip-hop");
   const [rhymeScheme, setRhymeScheme] = useState("ABAB");
   const [theme, setTheme] = useState("technology, coding");
@@ -95,7 +136,6 @@ Type here or use AI generation...`);
     }
   }, [studioContext.currentPattern, studioContext.currentMelody, studioContext.currentCodeMusic]);
 
-  const { toast } = useToast();
   const { initialize, isInitialized } = useAudio();
 
   const generateLyricsMutation = useMutation({
@@ -408,6 +448,42 @@ Type here or use AI generation...`);
           </div>
         </div>
       </div>
+
+      {/* Session Status Banner */}
+      {currentSession && (
+        <div className="bg-blue-900/30 border-b border-blue-500/50 px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <FileMusic className="w-5 h-5 text-blue-400" />
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-blue-200">Editing Song:</span>
+                  <span className="text-sm font-bold text-white">{currentSession.songName}</span>
+                  <Badge variant="outline" className="text-xs border-blue-400 text-blue-300">
+                    Session Active
+                  </Badge>
+                </div>
+                {currentSession.analysis?.issues && (
+                  <div className="flex items-center space-x-2 mt-1">
+                    <AlertCircle className="w-4 h-4 text-yellow-400" />
+                    <span className="text-xs text-yellow-300">
+                      {currentSession.analysis.issues.filter(i => i.type === 'melody').length} lyric issue(s) detected
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {currentSession.audioUrl && (
+                <Badge className="bg-green-600 text-white">
+                  <Music2 className="w-3 h-3 mr-1" />
+                  Audio Available
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <ScrollArea className="flex-1 p-6">
         <div className="grid grid-cols-3 gap-6">
