@@ -1,7 +1,0 @@
-diff a/music-plugin-manager/src/components/producer/BasslineGenerator.tsx b/music-plugin-manager/src/components/producer/BasslineGenerator.tsx	(rejected hunks)
-@@ -12,1 +12,1 @@
--  onBasslineChange?: (bassline: any) => void;
-+  onBasslineChange?: (bassline: unknown) => void;
-@@ -245,1 +245,1 @@
--    const masterPlayHandler = (event: any) => {
-+    const masterPlayHandler = (event: unknown) => {

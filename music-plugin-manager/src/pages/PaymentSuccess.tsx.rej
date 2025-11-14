@@ -1,4 +1,0 @@
-diff a/music-plugin-manager/src/pages/PaymentSuccess.tsx b/music-plugin-manager/src/pages/PaymentSuccess.tsx	(rejected hunks)
-@@ -51,1 +51,1 @@
--              Session ID: {sessionId || 'N/A'}
-+              Session ID: {sessionId ?? 'N/A'}
