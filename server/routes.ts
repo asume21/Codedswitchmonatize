@@ -23,6 +23,7 @@ import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import { generateSamplePacksWithGemini } from "./services/gemini";
+import { convertCodeToMusic } from "./services/codeToMusic";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -992,60 +993,33 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
   });
 
   // Code to Music endpoint
+  // Code-to-Music endpoint - NEW ALGORITHM
   app.post("/api/code-to-music", async (req: Request, res: Response) => {
     try {
-      const { code, language, complexity = 5 } = req.body;
+      const { code, language = 'javascript', variation = 0, genre = 'pop' } = req.body;
 
       if (!code) {
         return sendError(res, 400, "Code is required");
       }
 
-      console.log(`🎵 Converting ${language} code to music (complexity: ${complexity})`);
+      console.log(`🎵 Code-to-Music: Converting ${language} code (genre: ${genre}, variation: ${variation})`);
 
-      // Analyze code to generate music
-      const codeLines = code.split('\n').filter((line: string) => line.trim());
-      const codeLength = code.length;
-      const lineCount = codeLines.length;
-
-      // Generate melody based on code characteristics
-      const notes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
-      const melody = [];
-
-      for (let i = 0; i < Math.min(lineCount, 16); i++) {
-        const line = codeLines[i];
-        const noteIndex = (line.length * i) % notes.length;
-        
-        melody.push({
-          note: notes[noteIndex],
-          duration: 0.25,
-          time: i * 0.25,
-          velocity: Math.min(1, line.length / 50)
-        });
-      }
-
-      // Generate rhythm pattern based on code structure
-      const pattern = {
-        kick: Array(16).fill(false).map((_, i) => i % 4 === 0),
-        snare: Array(16).fill(false).map((_, i) => i % 4 === 2),
-        hihat: Array(16).fill(false).map((_, i) => i % 2 === 1),
-        bass: Array(16).fill(false).map((_, i) => i % 3 === 0),
-      };
-
-      res.json({
-        melody,
-        pattern,
-        bpm: 120,
-        key: 'C Major',
-        metadata: {
-          codeLength,
-          lineCount,
-          language,
-          complexity
-        }
+      // Use new algorithm
+      const result = await convertCodeToMusic({
+        code,
+        language,
+        variation,
+        genre,
       });
 
+      if (!result.success) {
+        return sendError(res, 400, result.error || "Conversion failed");
+      }
+
+      res.json(result);
+
     } catch (error: any) {
-      console.error("Code to music error:", error);
+      console.error("❌ Code-to-Music error:", error);
       sendError(res, 500, error?.message || "Failed to convert code to music");
     }
   });
