@@ -169,3 +169,56 @@ export function seededRandom(seed: number): () => number {
     return value / 233280;
   };
 }
+
+/**
+ * Convert our MusicData to AudioEngine-compatible format
+ * This ensures seamless integration with existing CodedSwitch audio system
+ */
+export function convertToAudioEngineFormat(musicData: any) {
+  return {
+    // Convert melody notes (0-127 velocity → 0-1)
+    notes: musicData.melody?.map((note: any) => ({
+      note: note.note,
+      time: note.start,
+      duration: note.duration,
+      velocity: note.velocity / 127, // Convert to 0-1 range
+      instrument: note.instrument,
+    })) || [],
+    
+    // Drums already compatible
+    drums: musicData.drums,
+    
+    // Chords for harmonic backing
+    chords: musicData.chords,
+    
+    // Metadata
+    bpm: musicData.metadata?.bpm || 120,
+    key: musicData.metadata?.key || 'C Major',
+  };
+}
+
+/**
+ * Convert to Piano Roll format for editing
+ */
+export function convertToPianoRollFormat(musicData: any) {
+  return musicData.melody?.map((note: any, index: number) => {
+    // Parse note (e.g., 'C4' → note='C', octave=4)
+    const match = note.note.match(/([A-G]#?)(\d)/);
+    if (!match) return null;
+    
+    const noteName = match[1];
+    const octave = parseInt(match[2]);
+    
+    // Convert time to step (assuming 16 steps per 4 seconds)
+    const step = Math.floor((note.start / 4) * 16);
+    
+    return {
+      id: `note-${index}`,
+      step: step % 16, // Keep within 16 steps
+      note: noteName,
+      octave: octave,
+      velocity: note.velocity,
+      length: Math.max(1, Math.ceil((note.duration / 4) * 16)),
+    };
+  }).filter(Boolean) || [];
+}

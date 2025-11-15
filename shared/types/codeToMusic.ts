@@ -47,11 +47,20 @@ export interface ChordProgression {
 
 export interface MelodyNote {
   note: string;        // 'C4', 'E4', etc.
-  start: number;       // seconds
+  start: number;       // seconds (time in timeline)
   duration: number;    // seconds
-  velocity: number;    // 0-127
-  instrument: string;  // 'piano', 'synth', etc.
-  source?: string;     // which code element
+  velocity: number;    // 0-127 (will convert to 0-1 for audioEngine)
+  instrument: string;  // 'piano', 'synth', 'bass', 'drums'
+  source?: string;     // which code element created this
+}
+
+// Compatible with existing audioEngine NoteEvent
+export interface AudioEngineNote {
+  note: string;
+  time: number;
+  duration: string | number;
+  velocity: number;    // 0-1 for audioEngine
+  instrument?: 'piano' | 'synth' | 'bass' | 'drums' | 'custom';
 }
 
 export interface DrumPattern {
