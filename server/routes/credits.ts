@@ -188,7 +188,7 @@ export function createCreditRoutes(storage: IStorage) {
       }
 
       const schema = z.object({
-        packageKey: z.enum(['STARTER', 'POPULAR', 'PRO', 'ENTERPRISE'])
+        packageKey: z.enum(['STARTER', 'POPULAR', 'PRO', 'ENTERPRISE', 'CREATOR', 'STUDIO'])
       });
 
       const parsed = schema.safeParse(req.body);
