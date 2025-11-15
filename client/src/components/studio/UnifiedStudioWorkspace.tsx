@@ -23,7 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
-import AudioAnalysisPanel from './audio-tools/AudioAnalysisPanel';
+import AudioAnalysisPanel from './AudioAnalysisPanel';
 import type { Note } from './types/pianoRollTypes';
 
 // Workflow Configuration Types
