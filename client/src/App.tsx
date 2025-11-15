@@ -18,6 +18,7 @@ import Signup from "@/pages/signup";
 import ActivatePage from "@/pages/activate";
 import DesignPlayground from "@/pages/design-playground";
 import TestPianoRoll from "@/pages/test-piano-roll";
+import TestCircular from "@/pages/TestCircular";
 import BuyCreditsPage from "@/pages/buy-credits";
 import CreditsSuccessPage from "@/pages/credits-success";
 import CreditsCancelPage from "@/pages/credits-cancel";
