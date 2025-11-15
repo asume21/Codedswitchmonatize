@@ -1,4 +1,4 @@
-import { Note, NoteEvent, DrumPattern } from '@/shared/studioTypes';
+import { Note, NoteEvent, DrumPattern } from '@shared/studioTypes';
 
 /**
  * Convert server NoteEvent to client Note

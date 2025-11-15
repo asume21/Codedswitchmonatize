@@ -30,12 +30,12 @@ export function requireFeature(storage: IStorage, feature: string) {
       // Check specific feature access
       switch (feature) {
         case 'song-upload':
-          if (user.monthlyUploads >= limits.maxSongUploads) {
+          if ((user.monthlyUploads ?? 0) >= limits.maxSongUploads) {
             return res.status(403).json({
               message: `You've reached your upload limit (${limits.maxSongUploads}/month). Upgrade to Pro for more uploads.`,
               tier,
               limit: limits.maxSongUploads,
-              current: user.monthlyUploads,
+              current: user.monthlyUploads ?? 0,
               upgradeUrl: '/activate'
             });
           }
@@ -120,7 +120,7 @@ export function checkUsageLimit(storage: IStorage, limitType: 'uploads' | 'gener
 
       // Check limit
       if (limitType === 'uploads') {
-        if (user.monthlyUploads >= limits.maxSongUploads) {
+        if ((user.monthlyUploads ?? 0) >= limits.maxSongUploads) {
           return res.status(403).json({
             message: `Monthly upload limit reached (${limits.maxSongUploads}). Upgrade to Pro for more.`,
             tier,
@@ -128,7 +128,7 @@ export function checkUsageLimit(storage: IStorage, limitType: 'uploads' | 'gener
           });
         }
       } else if (limitType === 'generations') {
-        if (user.monthlyGenerations >= limits.maxBeatGenerations) {
+        if ((user.monthlyGenerations ?? 0) >= limits.maxBeatGenerations) {
           return res.status(403).json({
             message: `Monthly generation limit reached. Upgrade to Pro for unlimited generations.`,
             tier,

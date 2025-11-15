@@ -162,16 +162,19 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // doesn't interfere with the other routes
   const isDev = process.env.NODE_ENV !== "production";
-  if (isDev) {
+  const embedVite = process.env.EMBED_VITE === "true";
+
+  if (isDev && embedVite) {
+    log("Inline Vite dev server enabled via EMBED_VITE=true");
     await setupVite(app, server);
-  } else {
+  } else if (!isDev) {
     serveStatic(app);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || (isDev ? "3000" : "5000"), 10);
+  const port = parseInt(process.env.PORT || (isDev ? "4000" : "5000"), 10);
   server.listen(port, "0.0.0.0", () => {
     log(`serving on http://localhost:${port}`);
   });

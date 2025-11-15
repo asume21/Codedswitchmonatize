@@ -1,37 +1,7 @@
-import { useState, createContext, useContext, useEffect } from "react";
-import type { JSX } from "react";
+import { useState, createContext, useEffect } from "react";
 import { useLocation } from "wouter";
 import Header from "@/components/studio/Header";
-import Sidebar from "@/components/studio/Sidebar";
 import TransportControls from "@/components/studio/TransportControls";
-import CodeTranslator from "@/components/studio/CodeTranslator";
-import BeatMaker from "@/components/studio/BeatMaker";
-import BeatStudio from "@/pages/beat-studio";
-import MelodyComposer from "@/components/studio/MelodyComposer";
-import MelodyComposerV2 from "@/components/studio/MelodyComposerV2";
-import CodeToMusic from "@/components/studio/CodeToMusic";
-import MusicToCode from "@/components/studio/MusicToCode";
-import AIAssistant from "@/components/studio/AIAssistant";
-import SongUploader from "@/components/studio/SongUploader";
-import AudioToolsPage from "@/components/studio/AudioToolsPage";
-import UnifiedStudioWorkspace from "@/components/studio/UnifiedStudioWorkspace";
-import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
-import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
-import LyricLab from "@/components/studio/LyricLab";
-import MusicMixer from "@/components/studio/MusicMixer";
-import UnifiedMusicStudio from "@/components/studio/UnifiedMusicStudio";
-import ProfessionalStudio from "@/components/studio/ProfessionalStudio";
-import Mixer from "@/components/studio/Mixer";
-import DynamicLayering from "@/components/studio/DynamicLayering";
-import { MIDIController } from "@/components/studio/MIDIController";
-import { PerformanceMetrics } from "@/components/studio/PerformanceMetrics";
-import OutputSequencer from "@/components/producer/OutputSequencer";
-import GranularEngine from "@/components/producer/GranularEngine";
-import { WavetableOscillator } from "@/components/producer/WavetableOscillator";
-import PackGenerator from "@/components/producer/PackGenerator";
-import ProfessionalMixer from "@/components/studio/ProfessionalMixer";
-import { SongStructureManager } from "@/components/studio/SongStructureManager";
-import CodeBeatStudio from "@/pages/codebeat-studio";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import MobileNav from "@/components/studio/MobileNav";
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -39,6 +9,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // PlaylistManager integrated into TransportControls
 import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
+import {
+  DEFAULT_STUDIO_TAB,
+  STUDIO_TABS,
+  getStudioTabById,
+  isStudioTabId,
+  resolveStudioTabFromPath,
+  type StudioTabId,
+} from "@/config/studioTabs";
 
 // Global studio audio context for master playback
 export const StudioAudioContext = createContext({

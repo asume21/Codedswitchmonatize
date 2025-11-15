@@ -124,18 +124,21 @@ export function SongStructureManager() {
             const parsed = JSON.parse(content);
             if (parsed.intro || parsed.verse1 || parsed.chorus) {
               // Convert from your attached format to our format
-              const sections = Object.entries(parsed).map(([key, value]: [string, unknown]) => ({
-                id: key,
-                name: key.charAt(0).toUpperCase() + key.slice(1),
-                duration: value.duration || 16,
-                measures: value.measures || 4,
-                instruments: Array.isArray(value.instruments) ? value.instruments : ['piano'],
-                vocals: value.vocals || false,
-                dynamics: value.dynamics || 'moderate',
-                tempo: value.tempo || 120,
-                key: value.key || 'C Major',
-                description: value.description || ''
-              }));
+              const sections = Object.entries(parsed).map(([key, value]: [string, unknown]) => {
+                const section = value as Record<string, any>;
+                return {
+                  id: key,
+                  name: key.charAt(0).toUpperCase() + key.slice(1),
+                  duration: section.duration || 16,
+                  measures: section.measures || 4,
+                  instruments: Array.isArray(section.instruments) ? section.instruments : ['piano'],
+                  vocals: section.vocals || false,
+                  dynamics: section.dynamics || 'moderate',
+                  tempo: section.tempo || 120,
+                  key: section.key || 'C Major',
+                  description: section.description || ''
+                };
+              });
               setSongStructure(sections);
             }
           } catch (error) {
