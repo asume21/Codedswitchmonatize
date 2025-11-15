@@ -10,7 +10,6 @@ import Studio from "@/pages/studio";
 import SongUploaderPage from "@/pages/song-uploader";
 import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
 import Subscribe from "@/pages/Subscribe";
-import TestCircular from "@/pages/TestCircular";
 import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
 import Settings from "@/pages/settings";

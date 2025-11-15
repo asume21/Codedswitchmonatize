@@ -14,16 +14,16 @@ import LyricsFocusMode from './LyricsFocusMode';
 import ProfessionalStudio from './ProfessionalStudio';
 import LyricLab from './LyricLab';
 import VerticalPianoRoll from './VerticalPianoRoll';
-import ProfessionalMixer from './ProfessionalMixer';
+import ProfessionalMixer from './mixer/ProfessionalMixer';
 import SongUploader from './SongUploader';
 import WorkflowSelector from './WorkflowSelector';
-import TransportControls from './TransportControls';
+import TransportControls from './playback/TransportControls';
 import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
-import AudioAnalysisPanel from './AudioAnalysisPanel';
+import AudioAnalysisPanel from './audio-tools/AudioAnalysisPanel';
 import type { Note } from './types/pianoRollTypes';
 
 // Workflow Configuration Types
@@ -1168,7 +1168,7 @@ export default function UnifiedStudioWorkspace() {
                                   <div
                                     key={i}
                                     className="flex-1 bg-blue-500/70 mx-px rounded-t"
-                                    style={{ height: `${Math.random() * 60 + 20}%` }}
+                                    style={{ height: `${(i * 17 + 23) % 60 + 20}%` }}
                                   />
                                 ))}
                               </div>
