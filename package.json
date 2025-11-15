@@ -11,7 +11,15 @@
     "start": "npm run db:push && NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "check-profit": "tsx scripts/check-profit.ts"
+    "check-profit": "tsx scripts/check-profit.ts",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint:css": "stylelint \"**/*.css\"",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
@@ -152,13 +160,19 @@
   },
   "devDependencies": {
     "@babel/plugin-transform-runtime": "^7.28.3",
+    "@playwright/test": "^1.56.1",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@types/uuid": "^10.0.0",
     "@types/wouter": "^2.0.1",
+    "chromatic": "^13.3.3",
     "concurrently": "^9.2.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "prettier": "^3.6.2",
-    "puppeteer": "^24.27.0"
+    "puppeteer": "^24.27.0",
+    "storybook": "^10.0.7",
+    "stylelint": "^16.25.0",
+    "stylelint-config-standard": "^39.0.1"
   }
 }

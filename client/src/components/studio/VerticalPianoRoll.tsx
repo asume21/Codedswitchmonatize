@@ -14,9 +14,9 @@ import { useAudio } from '@/hooks/use-audio';
 import { cn } from '@/lib/utils';
 import { ChordProgressionDisplay } from './ChordProgressionDisplay';
 
-const STEPS = 16;
-const STEP_WIDTH = 30; // Reduced from 40 for more compact view
-const KEY_HEIGHT = 18; // Reduced from 24 for more compact view
+const STEPS = 32; // Increased from 16 for more space
+const STEP_WIDTH = 40; // Increased from 30 for better visibility
+const KEY_HEIGHT = 20; // Increased from 18 for better visibility
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const CIRCLE_OF_FIFTHS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'];
 const HIGHEST_MIDI = 84; // C7 - More practical range
