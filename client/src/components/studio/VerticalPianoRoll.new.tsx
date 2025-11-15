@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause } from "lucide-react";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2 } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
@@ -127,6 +127,13 @@ export const VerticalPianoRoll: React.FC = () => {
   const [syncScroll, setSyncScroll] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStartTime, setRecordingStartTime] = useState(0);
+  
+  // LVTR-style features
+  const [chordInversion, setChordInversion] = useState(0); // 0 = root, 1 = 1st inversion, 2 = 2nd inversion
+  const [customProgression, setCustomProgression] = useState<string[]>([]);
+  const [draggedChordIndex, setDraggedChordIndex] = useState<number | null>(null);
+  const [showProgressionBuilder, setShowProgressionBuilder] = useState(false);
+  const [scaleStates, setScaleStates] = useState<Record<string, Set<number>>>({});
   
   const { toast } = useToast();
   const { currentSession } = useSongWorkSession();
@@ -355,6 +362,60 @@ export const VerticalPianoRoll: React.FC = () => {
         return;
       }
 
+      // ENHANCED: Number keys 1-7 trigger chords from progression
+      if (key >= '1' && key <= '7') {
+        e.preventDefault();
+        const chordIndex = parseInt(key) - 1;
+        if (selectedProgression.chords[chordIndex]) {
+          const chordSymbol = selectedProgression.chords[chordIndex];
+          const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+          let chordNotes = keyData?.chords?.[chordSymbol];
+          if (chordNotes) {
+            // Apply inversion inline
+            if (chordInversion > 0) {
+              const inverted = [...chordNotes];
+              for (let i = 0; i < chordInversion; i++) {
+                const first = inverted.shift();
+                if (first) inverted.push(first);
+              }
+              chordNotes = inverted;
+            }
+            
+            // Play chord
+            chordNotes.forEach((note, index) => {
+              setTimeout(() => {
+                realisticAudio.playNote(note, 4, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
+              }, index * 50);
+            });
+            
+            // Visual feedback
+            toast({
+              title: `${chordSymbol} Chord`,
+              description: `Inversion: ${chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st' : '2nd'} • Notes: ${chordNotes.join('-')}`,
+              duration: 2000
+            });
+          }
+        }
+        return;
+      }
+
+      // C key - Toggle chord mode
+      if (key === 'c' && e.ctrlKey) {
+        e.preventDefault();
+        setChordMode(!chordMode);
+        if (chordMode) {
+          setActiveKeys(new Set());
+        }
+        return;
+      }
+
+      // I key - Cycle chord inversion
+      if (key === 'i' && e.ctrlKey) {
+        e.preventDefault();
+        setChordInversion((prev) => (prev + 1) % 3);
+        return;
+      }
+
       // Check if this key maps to a piano note
       const noteMapping = KEYBOARD_TO_NOTE[key];
       if (noteMapping) {
@@ -442,7 +503,7 @@ export const VerticalPianoRoll: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [chordMode, selectedTrack, handlePlay, isRecording, recordingStartTime, bpm]);
+  }, [chordMode, selectedTrack, handlePlay, isRecording, recordingStartTime, bpm, selectedProgression, currentKey, chordInversion, toast]);
 
   // Note management
   const addNote = useCallback((keyIndex: number, step?: number) => {
@@ -560,17 +621,47 @@ export const VerticalPianoRoll: React.FC = () => {
   }, []);
 
   const handleKeyChange = useCallback((key: string) => {
+    // Save current scale state before switching
+    setScaleStates(prev => ({
+      ...prev,
+      [currentKey]: activeKeys
+    }));
+    
+    // Switch to new key
     setCurrentKey(key);
-  }, []);
+    
+    // Restore saved state for new key or start fresh
+    const savedState = scaleStates[key];
+    if (savedState) {
+      setActiveKeys(savedState);
+    } else {
+      setActiveKeys(new Set());
+    }
+  }, [currentKey, activeKeys, scaleStates]);
 
   const handleProgressionChange = useCallback((progression: ChordProgression) => {
     setSelectedProgression(progression);
     setCurrentChordIndex(0);
   }, []);
 
+  // LVTR-style chord inversion function
+  const invertChord = useCallback((notes: string[], inversion: number): string[] => {
+    if (inversion === 0 || notes.length === 0) return notes;
+    
+    const inverted = [...notes];
+    for (let i = 0; i < inversion; i++) {
+      const first = inverted.shift();
+      if (first) inverted.push(first);
+    }
+    return inverted;
+  }, []);
+
   const handleChordClick = useCallback((chordSymbol: string, chordNotes: string[]) => {
-    // Play the chord
-    chordNotes.forEach((note, index) => {
+    // Apply inversion to chord
+    const invertedNotes = invertChord(chordNotes, chordInversion);
+    
+    // Play the chord with inversion
+    invertedNotes.forEach((note, index) => {
       setTimeout(() => {
         realisticAudio.playNote(
           note, 
@@ -581,7 +672,14 @@ export const VerticalPianoRoll: React.FC = () => {
         );
       }, index * 50); // Slight delay between notes for arpeggio effect
     });
-  }, [selectedTrack]);
+    
+    // Visual feedback
+    toast({
+      title: `${chordSymbol} Chord`,
+      description: `Inversion: ${chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st' : '2nd'} • Notes: ${invertedNotes.join('-')}`,
+      duration: 2000
+    });
+  }, [selectedTrack, chordInversion, invertChord, toast]);
 
   // Original audio playback handlers
   const handleOriginalAudioPlayPause = useCallback(async () => {
@@ -728,6 +826,108 @@ export const VerticalPianoRoll: React.FC = () => {
             {keyScaleSelector}
             {chordProgressionDisplay}
             
+            {/* LVTR-Style Chord Inversion Slider */}
+            <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 rounded-lg p-4 border border-indigo-500/30">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <RotateCw className="w-5 h-5 text-indigo-400" />
+                  <h3 className="text-sm font-semibold text-indigo-300">Chord Inversion</h3>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowProgressionBuilder(!showProgressionBuilder)}
+                  className="text-xs"
+                >
+                  {showProgressionBuilder ? 'Hide' : 'Show'} Builder
+                </Button>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-gray-400 w-16">Root</span>
+                <Slider
+                  value={[chordInversion]}
+                  onValueChange={(v) => setChordInversion(v[0])}
+                  min={0}
+                  max={2}
+                  step={1}
+                  className="flex-1"
+                />
+                <span className="text-xs text-gray-400 w-16 text-right">2nd Inv</span>
+                <div className="px-3 py-1 bg-indigo-600 rounded text-xs font-bold min-w-[80px] text-center">
+                  {chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st Inv' : '2nd Inv'}
+                </div>
+              </div>
+              
+              {/* Drag & Drop Progression Builder */}
+              {showProgressionBuilder && (
+                <div className="mt-4 pt-4 border-t border-indigo-500/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-medium text-indigo-300">Custom Progression</h4>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setCustomProgression([])}
+                      className="text-xs h-6"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Clear
+                    </Button>
+                  </div>
+                  
+                  {/* Custom Progression Display */}
+                  <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-gray-900/50 rounded border-2 border-dashed border-indigo-500/30 mb-3">
+                    {customProgression.length === 0 ? (
+                      <span className="text-xs text-gray-500 italic">Drag chords here to build your progression...</span>
+                    ) : (
+                      customProgression.map((chord, index) => (
+                        <div
+                          key={`custom-${index}`}
+                          draggable
+                          onDragStart={() => setDraggedChordIndex(index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedChordIndex !== null && draggedChordIndex !== index) {
+                              const newProgression = [...customProgression];
+                              const [removed] = newProgression.splice(draggedChordIndex, 1);
+                              newProgression.splice(index, 0, removed);
+                              setCustomProgression(newProgression);
+                            }
+                            setDraggedChordIndex(null);
+                          }}
+                          className="flex items-center gap-1 px-3 py-2 bg-indigo-600 rounded cursor-move hover:bg-indigo-500 transition-colors"
+                        >
+                          <GripVertical className="w-3 h-3 text-indigo-200" />
+                          <span className="text-sm font-medium">{chord}</span>
+                          <button
+                            onClick={() => setCustomProgression(prev => prev.filter((_, i) => i !== index))}
+                            className="ml-1 text-indigo-200 hover:text-white"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  {/* Available Chords */}
+                  <div className="flex flex-wrap gap-2">
+                    {Object.keys(DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys]?.chords || {}).map((chord) => (
+                      <button
+                        key={chord}
+                        onClick={() => setCustomProgression(prev => [...prev, chord])}
+                        className="px-2 py-1 bg-gray-700 hover:bg-indigo-600 rounded text-xs font-medium transition-colors"
+                      >
+                        <Plus className="w-3 h-3 inline mr-1" />
+                        {chord}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
             {/* Chord Mode Toggle & Sync Scroll - Moved from PianoKeys */}
             <div className="flex items-center justify-between gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
               <div className="flex items-center gap-4">
@@ -789,21 +989,8 @@ export const VerticalPianoRoll: React.FC = () => {
         </CardHeader>
 
         <CardContent className="h-[calc(100%-250px)] overflow-hidden">
-          <div className="flex h-full">
-            <PianoKeys
-              ref={pianoKeysRef}
-              pianoKeys={PIANO_KEYS}
-              selectedTrack={selectedTrack}
-              onKeyClick={addNote}
-              keyHeight={KEY_HEIGHT}
-              currentStep={currentStep}
-              isPlaying={isPlaying}
-              chordMode={chordMode}
-              activeKeys={activeKeys}
-              onActiveKeysChange={setActiveKeys}
-              onScroll={handlePianoScroll}
-            />
-            
+          <div className="flex h-full relative">
+            {/* Grid behind - lower z-index */}
             <StepGrid
               ref={gridRef}
               steps={STEPS}
@@ -819,6 +1006,23 @@ export const VerticalPianoRoll: React.FC = () => {
               chordMode={chordMode}
               onScroll={handleGridScroll}
             />
+            
+            {/* Piano Keys in front - higher z-index, positioned absolutely */}
+            <div className="absolute left-0 top-0 bottom-0 z-10">
+              <PianoKeys
+                ref={pianoKeysRef}
+                pianoKeys={PIANO_KEYS}
+                selectedTrack={selectedTrack}
+                onKeyClick={addNote}
+                keyHeight={KEY_HEIGHT}
+                currentStep={currentStep}
+                isPlaying={isPlaying}
+                chordMode={chordMode}
+                activeKeys={activeKeys}
+                onActiveKeysChange={setActiveKeys}
+                onScroll={handlePianoScroll}
+              />
+            </div>
           </div>
         </CardContent>
 
