@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { ChordProgressionDisplay } from './ChordProgressionDisplay';
 
 const STEPS = 32; // Increased from 16 for more space
-const STEP_WIDTH = 40; // Increased from 30 for better visibility
+const STEP_WIDTH = 40; // Width of each step in pixels
 const KEY_HEIGHT = 20; // Increased from 18 for better visibility
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const CIRCLE_OF_FIFTHS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'];
@@ -424,6 +424,19 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const octave = Math.floor(pitch / 12) - 1;
     const noteName = NOTE_NAMES[pitch % 12];
 
+    // Prevent duplicate notes at exact same position
+    const duplicate = activeNotes.find(note => 
+      note.step === step && 
+      note.note === noteName && 
+      note.octave === octave
+    );
+
+    if (duplicate) {
+      // Just select the existing note instead of creating a duplicate
+      setSelectedNoteId(duplicate.id);
+      return;
+    }
+
     const newNote: Note = {
       id: uuidv4(),
       step,
@@ -458,6 +471,7 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const octave = Math.floor(pitch / 12) - 1;
     const noteName = NOTE_NAMES[pitch % 12];
 
+    // Check if clicking within an existing note's range
     const existing = activeNotes.find(note => {
       if (note.note !== noteName || note.octave !== octave) return false;
       const length = note.length ?? 1;
