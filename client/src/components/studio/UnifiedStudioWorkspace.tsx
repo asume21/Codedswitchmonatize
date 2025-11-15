@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings } from 'lucide-react';
+import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
@@ -15,11 +16,92 @@ import LyricLab from './LyricLab';
 import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
+import WorkflowSelector from './WorkflowSelector';
+import TransportControls from './TransportControls';
+import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
+import AudioAnalysisPanel from './AudioAnalysisPanel';
 import type { Note } from './types/pianoRollTypes';
+
+// Workflow Configuration Types
+interface WorkflowConfig {
+  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader';
+  showAIAssistant: boolean;
+  showMusicGen: boolean;
+  expandedSections?: {
+    arrangementControls?: boolean;
+    instrumentsPanel?: boolean;
+    pianoRollTools?: boolean;
+    mixerPanel?: boolean;
+  };
+  guidedMode?: boolean; // For Beginner workflow
+  description: string;
+}
+
+// Legacy ID migration map for backwards compatibility
+const LEGACY_WORKFLOW_ID_MAP: Record<string, WorkflowPreset['id']> = {
+  'mixing-console': 'mixing',
+  'ai-assisted': 'ai',
+  'immersive-mode': 'immersive',
+};
+
+// Workflow Configuration Profiles
+const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
+  'song-analyzer': {
+    activeView: 'song-uploader',
+    showAIAssistant: true,
+    showMusicGen: false,
+    expandedSections: {},
+    description: 'Upload and analyze existing songs with AI-powered insights for BPM, key, structure, and production quality',
+  },
+  'mixing': {
+    activeView: 'mixer',
+    showAIAssistant: false,
+    showMusicGen: false,
+    expandedSections: {
+      mixerPanel: true,
+    },
+    description: 'Professional mixer focused on mixing and mastering with effects and automation',
+  },
+  'ai': {
+    activeView: 'ai-studio',
+    showAIAssistant: true,
+    showMusicGen: true,
+    expandedSections: {},
+    description: 'AI-first workflow with assistant and generation tools prominently visible',
+  },
+  'composition': {
+    activeView: 'piano-roll',
+    showAIAssistant: false,
+    showMusicGen: false,
+    expandedSections: {
+      pianoRollTools: true,
+      instrumentsPanel: true,
+    },
+    description: 'Focused on melody creation with piano roll and instrument selection',
+  },
+  'immersive': {
+    activeView: 'arrangement',
+    showAIAssistant: false,
+    showMusicGen: false,
+    expandedSections: {},
+    description: 'Distraction-free fullscreen arrangement view for focused production',
+  },
+  'beginner': {
+    activeView: 'arrangement',
+    showAIAssistant: true,
+    showMusicGen: false,
+    expandedSections: {
+      arrangementControls: true,
+      instrumentsPanel: true,
+    },
+    guidedMode: true,
+    description: 'Guided experience with helpful tips and simplified controls for newcomers',
+  },
+};
 
 interface Track {
   id: string;
@@ -118,6 +200,84 @@ export default function UnifiedStudioWorkspace() {
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
+
+  // Workflow Selector State
+  const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
+  const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
+
+  // Check if this is the first time visiting the studio and load persisted workflow
+  useEffect(() => {
+    const hasSeenWorkflowSelector = localStorage.getItem('hasSeenWorkflowSelector');
+    let savedWorkflow = localStorage.getItem('selectedWorkflow') as string | null;
+    
+    if (!hasSeenWorkflowSelector) {
+      // First time - show workflow selector
+      setShowWorkflowSelector(true);
+    } else if (savedWorkflow) {
+      // Migrate legacy workflow IDs to new format
+      if (LEGACY_WORKFLOW_ID_MAP[savedWorkflow]) {
+        const migratedId = LEGACY_WORKFLOW_ID_MAP[savedWorkflow];
+        savedWorkflow = migratedId;
+        // Save the migrated ID to localStorage
+        localStorage.setItem('selectedWorkflow', migratedId);
+      }
+      
+      // Load saved workflow configuration if valid
+      const workflowId = savedWorkflow as WorkflowPreset['id'];
+      if (WORKFLOW_CONFIGS[workflowId]) {
+        const config = WORKFLOW_CONFIGS[workflowId];
+        setCurrentWorkflow(workflowId);
+        setActiveView(config.activeView);
+        setShowAIAssistant(config.showAIAssistant);
+        setShowMusicGen(config.showMusicGen);
+      }
+    }
+  }, []);
+
+  // Handle workflow selection
+  const handleSelectWorkflow = (workflowId: WorkflowPreset['id']) => {
+    const config = WORKFLOW_CONFIGS[workflowId];
+    
+    if (!config) {
+      console.error(`Unknown workflow: ${workflowId}`);
+      return;
+    }
+
+    // Apply workflow configuration with batch state updates
+    setCurrentWorkflow(workflowId);
+    setActiveView(config.activeView);
+    setShowAIAssistant(config.showAIAssistant);
+    setShowMusicGen(config.showMusicGen);
+    
+    // Persist selections
+    localStorage.setItem('hasSeenWorkflowSelector', 'true');
+    localStorage.setItem('selectedWorkflow', workflowId);
+    setShowWorkflowSelector(false);
+    
+    // Show success toast with workflow description
+    toast({
+      title: "Workflow Applied",
+      description: config.description,
+      duration: 4000,
+    });
+
+    // Special handling for guided beginner mode
+    if (config.guidedMode) {
+      setTimeout(() => {
+        toast({
+          title: "Welcome, Beginner!",
+          description: "The AI Assistant is here to guide you. Click 'Generate Music' to get started quickly!",
+          duration: 6000,
+        });
+      }, 1000);
+    }
+  };
+
+  // Handle skip/close workflow selector
+  const handleSkipWorkflow = () => {
+    localStorage.setItem('hasSeenWorkflowSelector', 'true');
+    setShowWorkflowSelector(false);
+  };
 
   // Instrument categories
   const instrumentCategories = {
@@ -258,40 +418,16 @@ export default function UnifiedStudioWorkspace() {
         return;
       }
       
-      // For melodic instruments, use the synthesis engine
-      const noteToFreq = (note: string, octave: number): number => {
-        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const noteIndex = notes.indexOf(note);
-        if (noteIndex === -1) return 440; // fallback to A4
-        const semitonesFromA4 = (octave - 4) * 12 + (noteIndex - 9);
-        return 440 * Math.pow(2, semitonesFromA4 / 12);
-      };
+      // For melodic instruments, use the RealisticAudioEngine with General MIDI soundfonts
+      // This supports ALL instruments: trumpet, synth bass, violin, flute, etc.
+      const midiInstrument = mapInstrumentName(uiInstrument);
       
-      const frequency = noteToFreq(note, octave);
+      console.log(`🎹 Playing ${note}${octave} with instrument: ${uiInstrument} → ${midiInstrument}`);
       
-      // Map UI instrument names to synthesis engine types
-      // The audio.ts engine supports: piano, grand, organ, guitar, violin, ukulele, flute, panflute, recorder
-      let synthInstrument = 'piano'; // default
-      
-      const instrumentLower = uiInstrument.toLowerCase();
-      
-      if (instrumentLower.includes('grand')) synthInstrument = 'grand';
-      else if (instrumentLower.includes('organ')) synthInstrument = 'organ';
-      else if (instrumentLower.includes('guitar')) synthInstrument = 'guitar';
-      else if (instrumentLower.includes('ukulele')) synthInstrument = 'ukulele';
-      else if (instrumentLower.includes('violin') || instrumentLower.includes('viola') || instrumentLower.includes('cello') || instrumentLower.includes('string')) synthInstrument = 'violin';
-      else if (instrumentLower.includes('pan') && instrumentLower.includes('flute')) synthInstrument = 'panflute';
-      else if (instrumentLower.includes('flute')) synthInstrument = 'flute';
-      else if (instrumentLower.includes('recorder')) synthInstrument = 'recorder';
-      else if (instrumentLower.includes('piano') || instrumentLower.includes('electric') || instrumentLower.includes('synth')) synthInstrument = 'piano';
-      
-      console.log(`🎹 Playing ${note}${octave} with instrument: ${uiInstrument} → ${synthInstrument}`);
-      
-      // Play using the synthesis engine WITH TRACK VOLUME
-      await synthesisEngine.playNote(frequency, 0.5, trackVolume, synthInstrument);
+      // Play using RealisticAudioEngine (soundfont-player) WITH TRACK VOLUME
+      await realisticAudio.playNote(note, octave, trackVolume, midiInstrument, 0.5);
       
       // TODO: Apply pan using Web Audio API StereoPannerNode
-      // The audio.ts engine doesn't support pan directly, need to add it
     } catch (error) {
       console.error('Error playing note:', error);
     }
@@ -460,44 +596,44 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">File ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
-                <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">New Project</button>
-                <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Save Project</button>
-                <button onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Load Project</button>
+                <div onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">New Project</div>
+                <div onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Save Project</div>
+                <div onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Load Project</div>
                 <div className="border-t border-gray-700"></div>
-                <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Export...</button>
+                <div onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Export...</div>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">Edit ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
-                <button onClick={() => toast({ title: "Undo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Undo</button>
-                <button onClick={() => toast({ title: "Redo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Redo</button>
+                <div onClick={() => toast({ title: "Undo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Undo</div>
+                <div onClick={() => toast({ title: "Redo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Redo</div>
                 <div className="border-t border-gray-700"></div>
-                <button onClick={() => toast({ title: "Copy" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Copy</button>
-                <button onClick={() => toast({ title: "Paste" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">Paste</button>
+                <div onClick={() => toast({ title: "Copy" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Copy</div>
+                <div onClick={() => toast({ title: "Paste" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Paste</div>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">View ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-48 z-50">
-                <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                <div onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'arrangement' ? '✓' : '  '} Arrangement
-                </button>
-                <button onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'piano-roll' ? '✓' : '  '} Piano Roll
-                </button>
-                <button onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'mixer' ? '✓' : '  '} Mixer
-                </button>
-                <button onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'ai-studio' ? '✓' : '  '} AI Studio
-                </button>
-                <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'lyrics' ? '✓' : '  '} Lyrics Lab
-                </button>
-                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">
+                </div>
+                <div onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   {activeView === 'song-uploader' ? '✓' : '  '} Song Uploader
-                </button>
+                </div>
               </div>
             </div>
             
@@ -729,6 +865,14 @@ export default function UnifiedStudioWorkspace() {
             <MessageSquare className="w-4 h-4 mr-2" />
             AI Assistant
           </Button>
+          <Button
+            onClick={() => setShowWorkflowSelector(true)}
+            className="bg-green-600 hover:bg-green-500"
+            data-testid="button-change-workflow"
+          >
+            <Workflow className="w-4 h-4 mr-2" />
+            Change Workflow
+          </Button>
           
           {/* Master Volume Control */}
           <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded border border-gray-700">
@@ -869,7 +1013,7 @@ export default function UnifiedStudioWorkspace() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* ARRANGEMENT VIEW */}
           {activeView === 'arrangement' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
+          <>
           {/* Timeline Section */}
           <div className="border-b border-gray-700">
             <button
@@ -1024,7 +1168,7 @@ export default function UnifiedStudioWorkspace() {
                                   <div
                                     key={i}
                                     className="flex-1 bg-blue-500/70 mx-px rounded-t"
-                                    style={{ height: `${Math.random() * 60 + 20}%` }}
+                                    style={{ height: `${(i * 17 + 23) % 60 + 20}%` }}
                                   />
                                 ))}
                               </div>
@@ -1381,7 +1525,7 @@ Your lyrics will sync with the timeline
               </div>
             )}
           </div>
-            </div>
+          </>
           )}
 
           {/* PIANO ROLL VIEW */}
@@ -1420,7 +1564,16 @@ Your lyrics will sync with the timeline
           {/* AI STUDIO VIEW */}
           {activeView === 'ai-studio' && (
             <div className="flex-1 overflow-y-auto bg-gray-900">
-              <ProfessionalStudio />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+                <div className="lg:col-span-2">
+                  <ProfessionalStudio />
+                </div>
+                <div className="lg:col-span-1">
+                  <AudioAnalysisPanel 
+                    audioUrl={studioContext?.uploadedSongAudio?.src}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -1441,9 +1594,10 @@ Your lyrics will sync with the timeline
       </div>
 
       {/* Floating/Overlay Components */}
-      {showAIAssistant && (
+      {/* TEMPORARILY DISABLED - React hooks error on mobile */}
+      {/* {showAIAssistant && (
         <FloatingAIAssistant onClose={() => setShowAIAssistant(false)} />
-      )}
+      )} */}
 
       {showMusicGen && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
@@ -1467,6 +1621,19 @@ Your lyrics will sync with the timeline
           onSave={handleLyricsSaved}
         />
       )}
+
+      {/* Workflow Selector Modal */}
+      <Dialog open={showWorkflowSelector} onOpenChange={setShowWorkflowSelector}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 bg-background">
+          <WorkflowSelector
+            onSelectWorkflow={handleSelectWorkflow}
+            onSkip={handleSkipWorkflow}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Transport Controls - Always available */}
+      <TransportControls currentTool="Unified Studio" activeTab={activeView} />
     </div>
   );
 }

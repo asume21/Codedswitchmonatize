@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useContext, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +13,10 @@ import { StudioAudioContext } from "@/pages/studio";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import OutputSequencer from "@/components/producer/OutputSequencer";
 import { AudioPlayer } from "@/components/ui/audio-player";
+import audioRouter from "@/lib/audioRouter";
+import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
+import { useLocation } from "wouter";
+import { Send, Layers, Music, FileMusic, AlertCircle } from "lucide-react";
 
 const GENRE_OPTIONS = [
   { value: "hip-hop", label: "Hip-Hop" },
@@ -89,6 +94,8 @@ const normalizeToBeatPattern = (source?: Record<string, any>): BeatPattern => {
 
 export default function BeatMaker() {
   const studioContext = useContext(StudioAudioContext);
+  const { currentSession, setCurrentSessionId, updateSession } = useSongWorkSession();
+  const [location] = useLocation();
   const [bpm, setBpm] = useState(120);
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -147,6 +154,21 @@ export default function BeatMaker() {
     };
   }, []);
 
+  // Load session from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1]);
+    const sessionId = params.get('session');
+    
+    if (sessionId) {
+      setCurrentSessionId(sessionId);
+      toast({
+        title: "Session Loaded",
+        description: currentSession?.songName ? `Working on: ${currentSession.songName}` : "Beat session loaded",
+        duration: 3000,
+      });
+    }
+  }, [location, setCurrentSessionId]);
+
   const calculatedDuration = useMemo(() => {
     const safeBpm = Math.max(40, Math.min(240, bpm || 120));
     const barCount = Math.max(1, bars || 1);
@@ -199,6 +221,17 @@ export default function BeatMaker() {
           );
         } catch (error) {
           console.warn("Unable to cache generated beat pattern:", error);
+        }
+
+        // Update session with new beat data
+        if (currentSession) {
+          updateSession(currentSession.sessionId, {
+            midiData: { 
+              pattern: normalizedPattern,
+              bpm: bpm,
+              genre: selectedGenre
+            }
+          });
         }
 
         toast({
@@ -351,6 +384,79 @@ export default function BeatMaker() {
     stepCounterRef.current = 0;
   };
 
+  // Export functions for audio routing
+  const exportToMixer = () => {
+    const beatData = {
+      pattern,
+      bpm,
+      genre: selectedGenre,
+      name: `Beat_${selectedGenre}_${bpm}BPM`,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add to audio router as a track
+    audioRouter.addTrack({
+      id: `beat-${Date.now()}`,
+      name: beatData.name,
+      type: 'drums',
+      instrument: 'drums',
+      pattern: pattern,
+      audioUrl: generatedAudioUrl,
+      volume: 75,
+      pan: 0,
+      muted: false,
+      solo: false,
+      bus: 'drums' // Route to drums bus
+    });
+
+    // Route to MixStudio
+    audioRouter.routeAudio(
+      'BeatMaker',
+      'MixStudio',
+      beatData,
+      'beat',
+      { bpm, key: 'drums' }
+    );
+
+    toast({
+      title: "Sent to Mixer",
+      description: "Your beat has been routed to the Mix Studio",
+    });
+  };
+
+  const exportToArrangement = () => {
+    const beatData = {
+      pattern,
+      bpm,
+      genre: selectedGenre,
+      name: `Beat_${selectedGenre}_${bpm}BPM`
+    };
+
+    // Route to Arrangement Timeline
+    audioRouter.routeAudio(
+      'BeatMaker',
+      'ArrangementTimeline',
+      beatData,
+      'beat',
+      { bpm }
+    );
+
+    toast({
+      title: "Added to Arrangement",
+      description: "Your beat has been added to the timeline",
+    });
+  };
+
+  const exportToEffects = () => {
+    // Route to Effects Bus for processing
+    audioRouter.updateTrackRouting(`beat-${Date.now()}`, 'effects');
+    
+    toast({
+      title: "Sent to Effects",
+      description: "Your beat is routed through the effects bus",
+    });
+  };
+
   // Get tracks safely with fallback
   const currentDrumKit = drumKits[selectedDrumKit as keyof typeof drumKits];
   const tracks = currentDrumKit?.sounds || defaultTracks;
@@ -367,6 +473,26 @@ export default function BeatMaker() {
               <p className="text-gray-400">Create and edit professional beats with AI assistance</p>
             </div>
           </div>
+
+          {/* Session Status Banner */}
+          {currentSession && (
+            <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg px-4 py-3 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <FileMusic className="w-5 h-5 text-blue-400" />
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium text-blue-200">Working on:</span>
+                      <span className="text-sm font-bold text-white">{currentSession.songName}</span>
+                      <Badge variant="outline" className="text-xs border-blue-400 text-blue-300">
+                        Session Active
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Navigation Tabs */}
           <div className="flex space-x-8 border-b border-gray-700 mb-6">
@@ -519,6 +645,38 @@ export default function BeatMaker() {
                     </>
                   )}
                 </Button>
+                
+                {/* Export/Routing Buttons */}
+                <div className="border-l border-gray-600 pl-4 ml-2 flex items-center space-x-2">
+                  <span className="text-xs text-gray-400 mr-2">Route to:</span>
+                  <Button
+                    onClick={exportToMixer}
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-500"
+                    title="Send beat to Mix Studio"
+                  >
+                    <Send className="w-4 h-4 mr-1" />
+                    Mixer
+                  </Button>
+                  <Button
+                    onClick={exportToArrangement}
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-500"
+                    title="Add to arrangement timeline"
+                  >
+                    <Layers className="w-4 h-4 mr-1" />
+                    Timeline
+                  </Button>
+                  <Button
+                    onClick={exportToEffects}
+                    size="sm"
+                    className="bg-teal-600 hover:bg-teal-500"
+                    title="Send through effects bus"
+                  >
+                    <Music className="w-4 h-4 mr-1" />
+                    Effects
+                  </Button>
+                </div>
               </div>
               
               {/* Visual Time Indicator */}

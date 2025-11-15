@@ -16,8 +16,10 @@ import {
   Volume2, VolumeX, Headphones, Settings, 
   Play, Pause, Square, RotateCcw,
   Zap, Waves, Filter, Sliders, 
-  BarChart3, TrendingUp, Radio, Wand2
+  BarChart3, TrendingUp, Radio, Wand2, FileMusic
 } from 'lucide-react';
+import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
+import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -40,6 +42,8 @@ interface MixerState {
 
 export default function ProfessionalMixer() {
   const { toast } = useToast();
+  const { currentSession, setCurrentSessionId } = useSongWorkSession();
+  const [location] = useLocation();
   const [mixerState, setMixerState] = useState<MixerState>({
     channels: [],
     sends: [],
@@ -99,6 +103,21 @@ export default function ProfessionalMixer() {
     });
   };
   
+  // Load session from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1]);
+    const sessionId = params.get('session');
+    
+    if (sessionId) {
+      setCurrentSessionId(sessionId);
+      toast({
+        title: "Session Loaded",
+        description: currentSession?.songName ? `Mixing: ${currentSession.songName}` : "Mix session loaded",
+        duration: 3000,
+      });
+    }
+  }, [location, setCurrentSessionId]);
+
   // Initialize professional audio engine
   useEffect(() => {
     const initializeAudio = async () => {
@@ -153,7 +172,8 @@ export default function ProfessionalMixer() {
       stopMetering();
       professionalAudio.disconnect();
     };
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only initialize once on mount
   
   const startMetering = useCallback(() => {
     const updateMeters = () => {
@@ -478,6 +498,20 @@ export default function ProfessionalMixer() {
           </Button>
         </div>
       </div>
+
+      {/* Session Status Banner */}
+      {currentSession && (
+        <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg px-4 py-3">
+          <div className="flex items-center space-x-3">
+            <FileMusic className="w-5 h-5 text-blue-400" />
+            <span className="text-sm font-medium text-blue-200">Mixing:</span>
+            <span className="text-sm font-bold text-white">{currentSession.songName}</span>
+            <Badge variant="outline" className="text-xs border-blue-400 text-blue-300">
+              Session Active
+            </Badge>
+          </div>
+        </div>
+      )}
       
       {/* Main Mixer Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

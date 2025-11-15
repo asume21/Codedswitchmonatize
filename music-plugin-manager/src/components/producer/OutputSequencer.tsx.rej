@@ -1,7 +1,0 @@
-diff a/music-plugin-manager/src/components/producer/OutputSequencer.tsx b/music-plugin-manager/src/components/producer/OutputSequencer.tsx	(rejected hunks)
-@@ -248,1 +248,1 @@
--                    onValueChange={(v) => setSwing(v[0])} 
-+                    onValueChange={(v) => { setSwing(v[0]); }} 
-@@ -270,1 +270,1 @@
--                  <Button variant="outline" size="sm" onClick={() => randomizePattern(selectedTrack)}>
-+                  <Button variant="outline" size="sm" onClick={() => { randomizePattern(selectedTrack); }}>

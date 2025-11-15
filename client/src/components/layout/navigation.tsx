@@ -12,7 +12,8 @@ import { User, Settings, LogOut, CreditCard, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function Navigation() {
-  const { user, logout } = useAuth();
+  const auth = useAuth();
+  const isAuthenticated = auth?.isAuthenticated ?? false;
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -24,20 +25,25 @@ export function Navigation() {
               <span className="text-xl font-bold">CodedSwitch</span>
             </div>
           </Link>
-          <Link href="/snake-io">
-            <span className="px-3 py-1 text-sm rounded bg-gray-800 hover:bg-gray-700 border border-gray-700 cursor-pointer">
-              Snake IO
+          <Link href="/beat-studio">
+            <span className="px-3 py-1 text-sm rounded bg-blue-700 hover:bg-blue-600 border border-blue-600 cursor-pointer font-semibold" data-testid="link-beat-studio">
+              🥁 Beat Studio
+            </span>
+          </Link>
+          <Link href="/piano-roll">
+            <span className="px-3 py-1 text-sm rounded bg-purple-700 hover:bg-purple-600 border border-purple-600 cursor-pointer font-semibold" data-testid="link-piano-roll">
+              🎹 Piano Roll
             </span>
           </Link>
         </div>
 
         <div className="flex items-center space-x-4">
-          {user ? (
+          {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>{user.username?.substring(0, 2).toUpperCase() || 'CS'}</AvatarFallback>
+                    <AvatarFallback>CS</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -53,11 +59,6 @@ export function Navigation() {
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

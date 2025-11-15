@@ -15,6 +15,7 @@ import AIAssistant from "@/components/studio/AIAssistant";
 import SongUploader from "@/components/studio/SongUploader";
 import AudioToolsPage from "@/components/studio/AudioToolsPage";
 import UnifiedStudioWorkspace from "@/components/studio/UnifiedStudioWorkspace";
+import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
 import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
 import LyricLab from "@/components/studio/LyricLab";
 import MusicMixer from "@/components/studio/MusicMixer";
@@ -74,7 +75,7 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "unified-studio" | "audio-tools" | "codebeat" | "musiccode" | "assistant" | "uploader" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
+type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "unified-studio" | "daw-layout" | "audio-tools" | "codebeat" | "musiccode" | "assistant" | "uploader" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
 
 const tabAccess: Partial<Record<Tab, { requireAuth?: boolean; requirePro?: boolean }>> = {
   assistant: { requireAuth: true },
@@ -98,8 +99,14 @@ export default function Studio() {
   
   // Determine active tab based on current route
   const getTabFromRoute = (path: string): Tab => {
+    // Exact match for homepage - default to Unified Studio
+    if (path === '/' || path === '/studio') {
+      return 'unified-studio';
+    }
+    
     const routeMap: Record<string, Tab> = {
       '/unified-studio': 'unified-studio',
+      '/daw-layout': 'daw-layout',
       '/code-translator': 'translator',
       '/beat-studio': 'beatmaker',
       '/melody-composer': 'melody',
@@ -119,8 +126,10 @@ export default function Studio() {
       '/song-structure': 'song-structure'
     };
     
-    const matchedRoute = Object.keys(routeMap).find(route => path.includes(route));
-    return matchedRoute ? routeMap[matchedRoute] : 'beatmaker';
+    // Sort routes by length (descending) to match longer, more specific routes first
+    const sortedRoutes = Object.keys(routeMap).sort((a, b) => b.length - a.length);
+    const matchedRoute = sortedRoutes.find(route => path.includes(route));
+    return matchedRoute ? routeMap[matchedRoute] : 'unified-studio'; // Default fallback to Unified Studio
   };
 
   const [activeTab, setActiveTab] = useState<Tab>(() => getTabFromRoute(location));
@@ -219,6 +228,7 @@ export default function Studio() {
       "melody": "Melody Composer",
       "multitrack": "Multi-Track Studio",
       "unified-studio": "Unified Studio",
+      "daw-layout": "DAW Layout",
       "audio-tools": "Audio Tools",
       "codebeat": "Code to Music",
       "musiccode": "Music to Code",
@@ -317,6 +327,7 @@ export default function Studio() {
       melody: <MelodyComposerV2 />,
       multitrack: <CodeBeatStudio />,
       "unified-studio": <UnifiedStudioWorkspace />,
+      "daw-layout": <DAWLayoutWorkspace />,
       "audio-tools": <AudioToolsPage />,
       codebeat: <CodeToMusic />,
       musiccode: <MusicToCode />,

@@ -1,7 +1,0 @@
-diff a/music-plugin-manager/src/components/studio/DynamicLayering.tsx b/music-plugin-manager/src/components/studio/DynamicLayering.tsx	(rejected hunks)
-@@ -52,1 +52,1 @@
--    mutationFn: async (data: { arrangement: any; style: string; complexity: number }) => {
-+    mutationFn: async (data: { arrangement: unknown; style: string; complexity: number }) => {
-@@ -75,1 +75,1 @@
--        description: `AI created ${data.layers?.length || 0} ${data.approach} ${data.primaryInstrument} layers!`,
-+        description: `AI created ${data.layers.length || 0} ${data.approach} ${data.primaryInstrument} layers!`,

@@ -1,7 +1,0 @@
-diff a/music-plugin-manager/server/services/gemini.ts b/music-plugin-manager/server/services/gemini.ts	(rejected hunks)
-@@ -45,1 +45,1 @@
--export async function generateBeatWithGemini(style: string, bpm: number, complexity: number = 5): Promise<any> {
-+export async function generateBeatWithGemini(style: string, bpm: number, complexity: number = 5): Promise<unknown> {
-@@ -86,1 +86,1 @@
--export async function convertCodeToMusicWithGemini(code: string, language: string, complexity: number = 5): Promise<any> {
-+export async function convertCodeToMusicWithGemini(code: string, language: string, complexity: number = 5): Promise<unknown> {

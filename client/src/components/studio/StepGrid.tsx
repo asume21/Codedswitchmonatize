@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, forwardRef } from 'react';
 import { Note, Track, PianoKey } from './types/pianoRollTypes';
 
 interface StepGridProps {
@@ -13,9 +13,10 @@ interface StepGridProps {
   onChordAdd: (step: number) => void;
   onNoteRemove: (noteId: string) => void;
   chordMode: boolean;
+  onScroll?: () => void;
 }
 
-export const StepGrid: React.FC<StepGridProps> = ({
+export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
   steps,
   pianoKeys,
   selectedTrack,
@@ -26,8 +27,9 @@ export const StepGrid: React.FC<StepGridProps> = ({
   onStepClick,
   onChordAdd,
   onNoteRemove,
-  chordMode
-}) => {
+  chordMode,
+  onScroll
+}, ref) => {
   const handleCellClick = useCallback((keyIndex: number, step: number) => {
     const note = selectedTrack.notes.find(
       n => n.note === pianoKeys[keyIndex].note && 
@@ -63,7 +65,11 @@ export const StepGrid: React.FC<StepGridProps> = ({
   }, [steps, currentStep, stepWidth, zoom]);
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div 
+      ref={ref}
+      className="flex-1 overflow-auto"
+      onScroll={onScroll}
+    >
       <div className="relative bg-gray-900">
         {/* Step Headers */}
         <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10">
@@ -73,7 +79,10 @@ export const StepGrid: React.FC<StepGridProps> = ({
         {/* Grid */}
         <div className="relative">
           {pianoKeys.map((key, keyIndex) => (
-            <div key={key.key} className="flex border-b border-gray-700">
+            <div key={key.key} className="flex relative" style={{ height: `${keyHeight}px` }}>
+              {/* Horizontal grid line - doesn't affect layout or clicks */}
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-700 pointer-events-none" />
+              
               {Array.from({ length: steps }, (_, step) => {
                 const hasNote = selectedTrack.notes.some(
                   note => note.note === key.note && 
@@ -94,7 +103,7 @@ export const StepGrid: React.FC<StepGridProps> = ({
                     `}
                     style={{
                       width: `${stepWidth * zoom}px`,
-                      height: `${keyHeight}px`
+                      height: '100%'
                     }}
                     onClick={() => handleCellClick(keyIndex, step)}
                     role="gridcell"
@@ -124,4 +133,4 @@ export const StepGrid: React.FC<StepGridProps> = ({
       </div>
     </div>
   );
-};
+});

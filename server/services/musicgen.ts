@@ -1,10 +1,8 @@
 import { HfInference } from '@huggingface/inference';
 import fs from 'fs';
 import path from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomInt } from 'crypto';
 import { ObjectStorageService } from '../objectStorage';
-import { localMusicGenService, LocalMusicGenPack } from './local-musicgen';
-import { replicateMusicGenService } from './replicate-musicgen';
 
 // Initialize Hugging Face client only if valid API key is provided
 let hf: any = null;
@@ -496,9 +494,17 @@ export class MusicGenService {
       // Convert audio array to WAV format
       const wavBuffer = await this.convertAudioArrayToWav(audioArray);
 
-      // Save to temp file
+      // Save to temp file with path validation
       const tempFileName = `${sampleId}.wav`;
-      const tempPath = path.join('/tmp', tempFileName);
+      const basePath = '/tmp';
+      const joinedPath = path.join(basePath, path.basename(tempFileName));
+      const tempPath = path.normalize(joinedPath);
+      
+      // Validate path is within basePath
+      if (!tempPath.startsWith(basePath)) {
+        throw new Error('Invalid file path');
+      }
+      
       fs.writeFileSync(tempPath, wavBuffer);
 
       console.log(`💾 Saved MusicGen audio: ${tempPath} (${wavBuffer.length} bytes)`);
@@ -506,7 +512,7 @@ export class MusicGenService {
       // Upload to object storage
       const objectPath = await this.uploadToObjectStorage(tempPath, packId, sampleId);
 
-      // Clean up temp file
+      // Clean up temp file (path already validated above)
       fs.unlinkSync(tempPath);
 
       return {
@@ -587,8 +593,15 @@ export class MusicGenService {
       // Get upload URL
       const uploadUrl = await this.objectStorage.getObjectEntityUploadURL();
 
-      // Read file and upload
-      const fileBuffer = fs.readFileSync(filePath);
+      // Validate and read file
+      const normalizedPath = path.normalize(filePath);
+      
+      // Basic validation - ensure it's in /tmp
+      if (!normalizedPath.startsWith('/tmp')) {
+        throw new Error('Invalid file path - must be in /tmp');
+      }
+      
+      const fileBuffer = fs.readFileSync(normalizedPath);
 
       const response = await fetch(uploadUrl, {
         method: 'PUT',
@@ -629,7 +642,8 @@ export class MusicGenService {
 
   private getKeyForGenre(genre: string): string {
     const keys = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'Am', 'Dm', 'Em'];
-    return keys[Math.floor(Math.random() * keys.length)];
+    // Use cryptographically secure random number generator
+    return keys[randomInt(0, keys.length)];
   }
 
   private detectGenre(prompt: string): string {

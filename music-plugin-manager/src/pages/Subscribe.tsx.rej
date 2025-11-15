@@ -1,4 +1,0 @@
-diff a/music-plugin-manager/src/pages/Subscribe.tsx b/music-plugin-manager/src/pages/Subscribe.tsx	(rejected hunks)
-@@ -152,1 +152,1 @@
--                  onClick={() => setSelectedTier('basic')}
-+                  onClick={() => { setSelectedTier('basic'); }}

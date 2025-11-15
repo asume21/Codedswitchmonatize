@@ -42,17 +42,19 @@ export function SubscriptionButton() {
         <Coins className="h-3 w-3 mr-1" />
         {credits} Credits
       </Badge>
-      {isLowCredits && (
-        <Button 
-          onClick={handleBuyCredits}
-          size="sm"
-          className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-          data-testid="button-buy-credits"
-        >
-          <Zap className="h-4 w-4 mr-2" />
-          Buy Credits
-        </Button>
-      )}
+      <Button 
+        onClick={handleBuyCredits}
+        size="sm"
+        className={`${
+          isLowCredits 
+            ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 animate-pulse' 
+            : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
+        }`}
+        data-testid="button-buy-credits"
+      >
+        <Zap className="h-4 w-4 mr-2" />
+        {isLowCredits ? 'Low Credits!' : 'Buy Credits'}
+      </Button>
     </div>
   );
 }

@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Slider } from "@/components/ui/slider";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2 } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
+import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { PianoKeys } from "./PianoKeys";
 import { StepGrid } from "./StepGrid";
 import { TrackControls } from "./TrackControls";
@@ -34,8 +39,23 @@ for (let octave = 8; octave >= 0; octave--) {
   }
 }
 
+// Keyboard shortcut mapping - QWERTY keys to piano notes
+const KEYBOARD_TO_NOTE: Record<string, { note: string; octave: number }> = {
+  'z': { note: 'C', octave: 3 }, 's': { note: 'C#', octave: 3 }, 'x': { note: 'D', octave: 3 },
+  'd': { note: 'D#', octave: 3 }, 'c': { note: 'E', octave: 3 }, 'v': { note: 'F', octave: 3 },
+  'g': { note: 'F#', octave: 3 }, 'b': { note: 'G', octave: 3 }, 'h': { note: 'G#', octave: 3 },
+  'n': { note: 'A', octave: 3 }, 'j': { note: 'A#', octave: 3 }, 'm': { note: 'B', octave: 3 },
+  'q': { note: 'C', octave: 4 }, '2': { note: 'C#', octave: 4 }, 'w': { note: 'D', octave: 4 },
+  '3': { note: 'D#', octave: 4 }, 'e': { note: 'E', octave: 4 }, 'r': { note: 'F', octave: 4 },
+  '5': { note: 'F#', octave: 4 }, 't': { note: 'G', octave: 4 }, '6': { note: 'G#', octave: 4 },
+  'y': { note: 'A', octave: 4 }, '7': { note: 'A#', octave: 4 }, 'u': { note: 'B', octave: 4 },
+  'i': { note: 'C', octave: 5 }, '9': { note: 'C#', octave: 5 }, 'o': { note: 'D', octave: 5 },
+  '0': { note: 'D#', octave: 5 }, 'p': { note: 'E', octave: 5 },
+};
+
 // Chord progressions
 const CHORD_PROGRESSIONS: ChordProgression[] = [
+  { id: 'heartsoul', name: '♥ Heart and Soul (from Big)', chords: ['I', 'vi', 'IV', 'V'], key: 'C' },
   { id: 'classic', name: 'Classic (I-V-vi-IV)', chords: ['I', 'V', 'vi', 'IV'], key: 'C' },
   { id: 'jazz', name: 'Jazz (ii-V-I)', chords: ['ii', 'V', 'I'], key: 'C' },
   { id: 'pop', name: 'Pop (vi-IV-I-V)', chords: ['vi', 'IV', 'I', 'V'], key: 'C' },
@@ -92,6 +112,8 @@ export const VerticalPianoRoll: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [bpm, setBpm] = useState(120);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [countInEnabled, setCountInEnabled] = useState(true);
   const [tracks, setTracks] = useState<Track[]>(() => 
     JSON.parse(JSON.stringify(DEFAULT_TRACKS))
   );
@@ -101,10 +123,106 @@ export const VerticalPianoRoll: React.FC = () => {
   const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
   const [chordMode, setChordMode] = useState(false);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
+  const [activeKeys, setActiveKeys] = useState<Set<number>>(new Set());
+  const [syncScroll, setSyncScroll] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStartTime, setRecordingStartTime] = useState(0);
+  
+  // LVTR-style features
+  const [chordInversion, setChordInversion] = useState(0); // 0 = root, 1 = 1st inversion, 2 = 2nd inversion
+  const [customProgression, setCustomProgression] = useState<string[]>([]);
+  const [draggedChordIndex, setDraggedChordIndex] = useState<number | null>(null);
+  const [showProgressionBuilder, setShowProgressionBuilder] = useState(false);
+  const [scaleStates, setScaleStates] = useState<Record<string, Set<number>>>({});
   
   const { toast } = useToast();
+  const { currentSession } = useSongWorkSession();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pianoKeysRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const isSyncingRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recordingNotesRef = useRef<Note[]>([]);
   const selectedTrack = tracks[selectedTrackIndex];
+  
+  // Original song playback state
+  const [originalAudioPlaying, setOriginalAudioPlaying] = useState(false);
+  const [originalAudioLoaded, setOriginalAudioLoaded] = useState(false);
+  const [originalAudioCurrentTime, setOriginalAudioCurrentTime] = useState(0);
+  const [originalAudioDuration, setOriginalAudioDuration] = useState(0);
+  
+  // Find the piano-roll specific issue from the session
+  const pianoRollIssue = currentSession?.analysis?.issues?.find(
+    issue => issue.targetTool === 'piano-roll'
+  );
+
+  // Scroll synchronization
+  const handlePianoScroll = useCallback(() => {
+    if (!syncScroll || isSyncingRef.current || !pianoKeysRef.current || !gridRef.current) return;
+    isSyncingRef.current = true;
+    gridRef.current.scrollTop = pianoKeysRef.current.scrollTop;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  }, [syncScroll]);
+
+  const handleGridScroll = useCallback(() => {
+    if (!syncScroll || isSyncingRef.current || !pianoKeysRef.current || !gridRef.current) return;
+    isSyncingRef.current = true;
+    pianoKeysRef.current.scrollTop = gridRef.current.scrollTop;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  }, [syncScroll]);
+
+  // Load original audio from session
+  useEffect(() => {
+    // Reset state before loading new audio
+    setOriginalAudioPlaying(false);
+    setOriginalAudioLoaded(false);
+    setOriginalAudioCurrentTime(0);
+    setOriginalAudioDuration(0);
+    
+    if (currentSession?.audioUrl) {
+      console.log('🎵 Loading original song audio:', currentSession.audioUrl);
+      
+      const audio = new Audio(currentSession.audioUrl);
+      audioRef.current = audio;
+      
+      audio.addEventListener('loadedmetadata', () => {
+        console.log('✅ Audio loaded, duration:', audio.duration);
+        setOriginalAudioDuration(audio.duration);
+        setOriginalAudioLoaded(true);
+      });
+      
+      audio.addEventListener('timeupdate', () => {
+        setOriginalAudioCurrentTime(audio.currentTime);
+      });
+      
+      audio.addEventListener('ended', () => {
+        setOriginalAudioPlaying(false);
+        // Reset to beginning so user can replay
+        audio.currentTime = 0;
+        setOriginalAudioCurrentTime(0);
+      });
+      
+      audio.addEventListener('error', (e) => {
+        console.error('❌ Audio load error:', e);
+        setOriginalAudioLoaded(false);
+        toast({
+          title: "Audio Load Error",
+          description: "Could not load original song audio",
+          variant: "destructive"
+        });
+      });
+      
+      return () => {
+        audio.pause();
+        audio.remove();
+        audioRef.current = null;
+      };
+    }
+  }, [currentSession?.audioUrl, toast]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -124,6 +242,12 @@ export const VerticalPianoRoll: React.FC = () => {
       }
       setIsPlaying(false);
     } else {
+      // Debug: Log track state before playback
+      console.log('▶️ Starting playback...');
+      tracks.forEach((track, idx) => {
+        console.log(`Track ${idx} (${track.name}): ${track.notes.length} notes`, track.notes);
+      });
+      
       setIsPlaying(true);
       const stepDuration = (60 / bpm / 4) * 1000; // 16th note duration in ms
 
@@ -135,6 +259,9 @@ export const VerticalPianoRoll: React.FC = () => {
           tracks.forEach(track => {
             if (!track.muted) {
               const notesAtStep = track.notes.filter(note => note.step === nextStep);
+              if (notesAtStep.length > 0) {
+                console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes`, notesAtStep);
+              }
               notesAtStep.forEach(note => {
                 realisticAudio.playNote(
                   note.note,
@@ -161,6 +288,222 @@ export const VerticalPianoRoll: React.FC = () => {
     setIsPlaying(false);
     setCurrentStep(0);
   }, []);
+
+  // 🎙️ RECORDING CONTROLS
+  const startRecording = useCallback(() => {
+    setIsRecording(true);
+    setRecordingStartTime(Date.now());
+    recordingNotesRef.current = [];
+    setCurrentStep(0);
+    toast({
+      title: "🔴 Recording Started",
+      description: "Play notes on your keyboard - timing will be captured!",
+    });
+  }, [toast]);
+
+  const stopRecording = useCallback(() => {
+    setIsRecording(false);
+    
+    // CRITICAL: Store notes in local variable BEFORE clearing ref!
+    const recordedNotes = [...recordingNotesRef.current];
+    console.log('🎵 Stopping recording with notes:', recordedNotes);
+    
+    // Clear the ref immediately
+    recordingNotesRef.current = [];
+    
+    // Add all recorded notes to the track
+    if (recordedNotes.length > 0) {
+      setTracks(prev => {
+        const newTracks = prev.map((track, index) => {
+          if (index === selectedTrackIndex) {
+            const updatedTrack = { 
+              ...track, 
+              notes: [...track.notes, ...recordedNotes] 
+            };
+            console.log('✅ Updated track:', updatedTrack.name, 'Total notes:', updatedTrack.notes.length);
+            return updatedTrack;
+          }
+          return track;
+        });
+        return newTracks;
+      });
+      
+      toast({
+        title: "✅ Recording Saved",
+        description: `${recordedNotes.length} notes added to track! Press PLAY to hear it back.`,
+      });
+    } else {
+      toast({
+        title: "Recording Stopped",
+        description: "No notes were recorded",
+        variant: "default"
+      });
+    }
+  }, [selectedTrackIndex, toast]);
+
+  // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
+  useEffect(() => {
+    const pressedKeys = new Set<string>();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const key = e.key.toLowerCase();
+      
+      // Prevent key repeat
+      if (pressedKeys.has(key)) return;
+      pressedKeys.add(key);
+
+      // SPACE - Play/Pause
+      if (key === ' ') {
+        e.preventDefault();
+        handlePlay();
+        return;
+      }
+
+      // ENHANCED: Number keys 1-7 trigger chords from progression
+      if (key >= '1' && key <= '7') {
+        e.preventDefault();
+        const chordIndex = parseInt(key) - 1;
+        if (selectedProgression.chords[chordIndex]) {
+          const chordSymbol = selectedProgression.chords[chordIndex];
+          const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+          let chordNotes = keyData?.chords?.[chordSymbol];
+          if (chordNotes) {
+            // Apply inversion inline
+            if (chordInversion > 0) {
+              const inverted = [...chordNotes];
+              for (let i = 0; i < chordInversion; i++) {
+                const first = inverted.shift();
+                if (first) inverted.push(first);
+              }
+              chordNotes = inverted;
+            }
+            
+            // Play chord
+            chordNotes.forEach((note, index) => {
+              setTimeout(() => {
+                realisticAudio.playNote(note, 4, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
+              }, index * 50);
+            });
+            
+            // Visual feedback
+            toast({
+              title: `${chordSymbol} Chord`,
+              description: `Inversion: ${chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st' : '2nd'} • Notes: ${chordNotes.join('-')}`,
+              duration: 2000
+            });
+          }
+        }
+        return;
+      }
+
+      // C key - Toggle chord mode
+      if (key === 'c' && e.ctrlKey) {
+        e.preventDefault();
+        setChordMode(!chordMode);
+        if (chordMode) {
+          setActiveKeys(new Set());
+        }
+        return;
+      }
+
+      // I key - Cycle chord inversion
+      if (key === 'i' && e.ctrlKey) {
+        e.preventDefault();
+        setChordInversion((prev) => (prev + 1) % 3);
+        return;
+      }
+
+      // Check if this key maps to a piano note
+      const noteMapping = KEYBOARD_TO_NOTE[key];
+      if (noteMapping) {
+        e.preventDefault();
+        
+        // Find the piano key index
+        const keyIndex = PIANO_KEYS.findIndex(
+          pk => pk.note === noteMapping.note && pk.octave === noteMapping.octave
+        );
+
+        if (keyIndex !== -1) {
+          // Play the note
+          const pianoKey = PIANO_KEYS[keyIndex];
+          realisticAudio.playNote(
+            pianoKey.note,
+            pianoKey.octave,
+            0.8,
+            selectedTrack.instrument,
+            selectedTrack.volume / 100
+          );
+
+          // 🎙️ RECORDING MODE - Capture timing!
+          if (isRecording) {
+            const elapsedMs = Date.now() - recordingStartTime;
+            // Convert milliseconds to steps based on BPM
+            // Each step is a 16th note: (60000ms / bpm) / 4
+            const msPerStep = (60000 / bpm) / 4;
+            
+            // 🎯 QUANTIZATION: Round to nearest step for tighter timing
+            // This makes chords easier - notes within ~60ms snap together
+            const rawStep = elapsedMs / msPerStep;
+            const calculatedStep = Math.round(rawStep); // Round instead of floor!
+            
+            // Wrap around if exceeding grid (loop back to start)
+            const step = calculatedStep % STEPS;
+            
+            // Create and add note to recording buffer
+            const newNote: Note = {
+              id: `rec-${pianoKey.key}-${Date.now()}`,
+              note: pianoKey.note,
+              octave: pianoKey.octave,
+              step,
+              velocity: 100,
+              length: 1
+            };
+            
+            recordingNotesRef.current.push(newNote);
+            
+            // Visual feedback - move playhead to show position
+            setCurrentStep(step);
+            
+            console.log(`🎵 Recorded: ${pianoKey.note}${pianoKey.octave} at step ${step}`);
+          } 
+          // Chord mode (not recording)
+          else if (chordMode) {
+            // In chord mode, accumulate selected keys
+            setActiveKeys(prev => new Set(prev).add(keyIndex));
+          } 
+          // Normal mode
+          else {
+            // In normal mode, just show which key is pressed
+            setActiveKeys(new Set([keyIndex]));
+          }
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      pressedKeys.delete(key);
+
+      // Clear visual feedback when not in chord mode
+      if (!chordMode) {
+        const noteMapping = KEYBOARD_TO_NOTE[key];
+        if (noteMapping) {
+          setActiveKeys(new Set());
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [chordMode, selectedTrack, handlePlay, isRecording, recordingStartTime, bpm, selectedProgression, currentKey, chordInversion, toast]);
 
   // Note management
   const addNote = useCallback((keyIndex: number, step?: number) => {
@@ -208,38 +551,48 @@ export const VerticalPianoRoll: React.FC = () => {
     ));
   }, [selectedTrackIndex]);
 
-  // Chord progression functions
+  // Chord progression functions - adds YOUR selected keys to the grid
   const addChordToGrid = useCallback((step: number) => {
     try {
-      if (!selectedProgression?.chords?.length) {
-        console.error('No chords available in the selected progression');
+      if (activeKeys.size === 0) {
+        toast({
+          title: "No Keys Selected",
+          description: "Click piano keys first to build your chord, then click the grid!",
+          variant: "default"
+        });
         return;
       }
 
-      const chordToUse = selectedProgression.chords[currentChordIndex % selectedProgression.chords.length];
-      const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
+      console.log('🎵 Adding chord with selected keys:', Array.from(activeKeys));
       
-      if (!keyData?.chords?.[chordToUse]) {
-        console.error(`Chord ${chordToUse} not found in key ${currentKey}`);
-        return;
-      }
-
-      const chordNotes = keyData.chords[chordToUse];
-      
-      // Add each note of the chord
-      chordNotes.forEach((noteName, noteIndex) => {
-        const keyIndex = PIANO_KEYS.findIndex(key => 
-          key.note === noteName && key.octave === 4
-        );
-        
-        if (keyIndex !== -1) {
-          // Slight offset for each note in the chord for a more natural sound
-          addNote(keyIndex, step + (noteIndex * 0.1));
+      // Convert activeKeys (Set of indices) to actual notes and add them to the grid
+      const keysArray = Array.from(activeKeys);
+      keysArray.forEach((keyIndex, index) => {
+        const pianoKey = PIANO_KEYS[keyIndex];
+        if (pianoKey) {
+          // Add note to grid
+          addNote(keyIndex, step);
+          
+          // Play the note with slight delay for chord effect
+          setTimeout(() => {
+            realisticAudio.playNote(
+              pianoKey.note, 
+              pianoKey.octave, 
+              0.8, 
+              selectedTrack.instrument, 
+              selectedTrack.volume / 100
+            );
+          }, index * 50);
         }
       });
-
-      // Move to the next chord in the progression
-      setCurrentChordIndex(prev => (prev + 1) % selectedProgression.chords.length);
+      
+      // Clear selected keys after adding to grid
+      setActiveKeys(new Set());
+      
+      toast({
+        title: "Chord Added! ✅",
+        description: `${keysArray.length} notes added to step ${step + 1}`,
+      });
     } catch (error) {
       console.error('Error adding chord to grid:', error);
       toast({
@@ -248,7 +601,7 @@ export const VerticalPianoRoll: React.FC = () => {
         variant: "destructive"
       });
     }
-  }, [currentChordIndex, selectedProgression, currentKey, addNote, toast]);
+  }, [activeKeys, addNote, selectedTrack, toast]);
 
   // Track management
   const handleTrackSelect = useCallback((index: number) => {
@@ -268,17 +621,47 @@ export const VerticalPianoRoll: React.FC = () => {
   }, []);
 
   const handleKeyChange = useCallback((key: string) => {
+    // Save current scale state before switching
+    setScaleStates(prev => ({
+      ...prev,
+      [currentKey]: activeKeys
+    }));
+    
+    // Switch to new key
     setCurrentKey(key);
-  }, []);
+    
+    // Restore saved state for new key or start fresh
+    const savedState = scaleStates[key];
+    if (savedState) {
+      setActiveKeys(savedState);
+    } else {
+      setActiveKeys(new Set());
+    }
+  }, [currentKey, activeKeys, scaleStates]);
 
   const handleProgressionChange = useCallback((progression: ChordProgression) => {
     setSelectedProgression(progression);
     setCurrentChordIndex(0);
   }, []);
 
+  // LVTR-style chord inversion function
+  const invertChord = useCallback((notes: string[], inversion: number): string[] => {
+    if (inversion === 0 || notes.length === 0) return notes;
+    
+    const inverted = [...notes];
+    for (let i = 0; i < inversion; i++) {
+      const first = inverted.shift();
+      if (first) inverted.push(first);
+    }
+    return inverted;
+  }, []);
+
   const handleChordClick = useCallback((chordSymbol: string, chordNotes: string[]) => {
-    // Play the chord
-    chordNotes.forEach((note, index) => {
+    // Apply inversion to chord
+    const invertedNotes = invertChord(chordNotes, chordInversion);
+    
+    // Play the chord with inversion
+    invertedNotes.forEach((note, index) => {
       setTimeout(() => {
         realisticAudio.playNote(
           note, 
@@ -289,19 +672,67 @@ export const VerticalPianoRoll: React.FC = () => {
         );
       }, index * 50); // Slight delay between notes for arpeggio effect
     });
-  }, [selectedTrack]);
+    
+    // Visual feedback
+    toast({
+      title: `${chordSymbol} Chord`,
+      description: `Inversion: ${chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st' : '2nd'} • Notes: ${invertedNotes.join('-')}`,
+      duration: 2000
+    });
+  }, [selectedTrack, chordInversion, invertChord, toast]);
+
+  // Original audio playback handlers
+  const handleOriginalAudioPlayPause = useCallback(async () => {
+    if (!audioRef.current) return;
+    
+    if (originalAudioPlaying) {
+      audioRef.current.pause();
+      setOriginalAudioPlaying(false);
+    } else {
+      try {
+        setOriginalAudioPlaying(true);
+        await audioRef.current.play();
+      } catch (error) {
+        console.warn('⚠️ Audio playback blocked:', error);
+        setOriginalAudioPlaying(false);
+        toast({
+          title: "Playback Blocked",
+          description: "Browser blocked audio playback. Please try clicking play again.",
+          variant: "default"
+        });
+      }
+    }
+  }, [originalAudioPlaying, toast]);
+
+  const handleOriginalAudioSeek = useCallback((time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = time;
+    setOriginalAudioCurrentTime(time);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Memoized components
   const playbackControls = useMemo(() => (
     <PlaybackControls
       isPlaying={isPlaying}
+      bpm={bpm}
+      metronomeEnabled={metronomeEnabled}
+      countInEnabled={countInEnabled}
       onPlay={handlePlay}
       onStop={handleStop}
       onClear={clearAll}
       onToggleChordMode={() => setChordMode(!chordMode)}
+      onBpmChange={setBpm}
+      onToggleMetronome={setMetronomeEnabled}
+      onToggleCountIn={setCountInEnabled}
       chordMode={chordMode}
     />
-  ), [isPlaying, handlePlay, handleStop, clearAll, chordMode]);
+  ), [isPlaying, bpm, metronomeEnabled, countInEnabled, handlePlay, handleStop, clearAll, chordMode]);
 
   const keyScaleSelector = useMemo(() => (
     <KeyScaleSelector
@@ -326,6 +757,66 @@ export const VerticalPianoRoll: React.FC = () => {
     <div className="h-full w-full bg-gray-900 text-white">
       <Card className="h-full bg-gray-800 border-gray-700">
         <CardHeader className="pb-4">
+          {/* Session Context Banner */}
+          {currentSession && pianoRollIssue && (
+            <Alert className="mb-4 bg-blue-900/30 border-blue-500/50" data-testid="alert-session-context">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="font-semibold" data-testid="text-session-song-name">
+                      Working on: {currentSession.songName}
+                    </div>
+                    <div className="text-xs text-gray-300" data-testid="text-session-metadata">
+                      {currentSession.analysis?.bpm ? `${currentSession.analysis.bpm} BPM` : ''} 
+                      {currentSession.analysis?.key && currentSession.analysis?.bpm ? ' • ' : ''}
+                      {currentSession.analysis?.key ? `Key of ${currentSession.analysis.key}` : ''}
+                    </div>
+                    <div className="text-sm text-blue-200 mt-1" data-testid="text-session-issue">
+                      Issue: {pianoRollIssue.description}
+                    </div>
+                  </div>
+                  
+                  {/* Audio Playback Controls */}
+                  {originalAudioLoaded && (
+                    <div className="flex items-center gap-3 pt-2 border-t border-blue-500/30" data-testid="audio-controls">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleOriginalAudioPlayPause}
+                        className="shrink-0"
+                        data-testid="button-play-original"
+                      >
+                        {originalAudioPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      </Button>
+                      <div className="flex-1 flex items-center gap-2">
+                        <span className="text-xs text-gray-400 w-10 text-right" data-testid="text-current-time">
+                          {formatTime(originalAudioCurrentTime)}
+                        </span>
+                        <Slider
+                          value={[originalAudioCurrentTime]}
+                          max={originalAudioDuration}
+                          step={0.1}
+                          className="flex-1"
+                          onValueChange={(values) => handleOriginalAudioSeek(values[0])}
+                          data-testid="slider-audio-seek"
+                        />
+                        <span className="text-xs text-gray-400 w-10" data-testid="text-total-time">
+                          {formatTime(originalAudioDuration)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {!originalAudioLoaded && currentSession.audioUrl && (
+                    <div className="text-xs text-gray-400 pt-2 border-t border-blue-500/30">
+                      Loading original audio...
+                    </div>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold">🎹 Piano Roll</h1>
@@ -334,21 +825,174 @@ export const VerticalPianoRoll: React.FC = () => {
             
             {keyScaleSelector}
             {chordProgressionDisplay}
+            
+            {/* LVTR-Style Chord Inversion Slider */}
+            <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 rounded-lg p-4 border border-indigo-500/30">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <RotateCw className="w-5 h-5 text-indigo-400" />
+                  <h3 className="text-sm font-semibold text-indigo-300">Chord Inversion</h3>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowProgressionBuilder(!showProgressionBuilder)}
+                  className="text-xs"
+                >
+                  {showProgressionBuilder ? 'Hide' : 'Show'} Builder
+                </Button>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-gray-400 w-16">Root</span>
+                <Slider
+                  value={[chordInversion]}
+                  onValueChange={(v) => setChordInversion(v[0])}
+                  min={0}
+                  max={2}
+                  step={1}
+                  className="flex-1"
+                />
+                <span className="text-xs text-gray-400 w-16 text-right">2nd Inv</span>
+                <div className="px-3 py-1 bg-indigo-600 rounded text-xs font-bold min-w-[80px] text-center">
+                  {chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st Inv' : '2nd Inv'}
+                </div>
+              </div>
+              
+              {/* Drag & Drop Progression Builder */}
+              {showProgressionBuilder && (
+                <div className="mt-4 pt-4 border-t border-indigo-500/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-medium text-indigo-300">Custom Progression</h4>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setCustomProgression([])}
+                      className="text-xs h-6"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Clear
+                    </Button>
+                  </div>
+                  
+                  {/* Custom Progression Display */}
+                  <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-gray-900/50 rounded border-2 border-dashed border-indigo-500/30 mb-3">
+                    {customProgression.length === 0 ? (
+                      <span className="text-xs text-gray-500 italic">Drag chords here to build your progression...</span>
+                    ) : (
+                      customProgression.map((chord, index) => (
+                        <div
+                          key={`custom-${index}`}
+                          draggable
+                          onDragStart={() => setDraggedChordIndex(index)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedChordIndex !== null && draggedChordIndex !== index) {
+                              const newProgression = [...customProgression];
+                              const [removed] = newProgression.splice(draggedChordIndex, 1);
+                              newProgression.splice(index, 0, removed);
+                              setCustomProgression(newProgression);
+                            }
+                            setDraggedChordIndex(null);
+                          }}
+                          className="flex items-center gap-1 px-3 py-2 bg-indigo-600 rounded cursor-move hover:bg-indigo-500 transition-colors"
+                        >
+                          <GripVertical className="w-3 h-3 text-indigo-200" />
+                          <span className="text-sm font-medium">{chord}</span>
+                          <button
+                            onClick={() => setCustomProgression(prev => prev.filter((_, i) => i !== index))}
+                            className="ml-1 text-indigo-200 hover:text-white"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  {/* Available Chords */}
+                  <div className="flex flex-wrap gap-2">
+                    {Object.keys(DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys]?.chords || {}).map((chord) => (
+                      <button
+                        key={chord}
+                        onClick={() => setCustomProgression(prev => [...prev, chord])}
+                        className="px-2 py-1 bg-gray-700 hover:bg-indigo-600 rounded text-xs font-medium transition-colors"
+                      >
+                        <Plus className="w-3 h-3 inline mr-1" />
+                        {chord}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Chord Mode Toggle & Sync Scroll - Moved from PianoKeys */}
+            <div className="flex items-center justify-between gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
+              <div className="flex items-center gap-4">
+                <Button
+                  size="lg"
+                  variant={isRecording ? "destructive" : "default"}
+                  className={`text-sm font-bold px-6 ${isRecording ? 'bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-400 animate-pulse' : 'bg-red-700 hover:bg-red-800'}`}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  data-testid="button-record"
+                >
+                  <div className="w-3 h-3 rounded-full bg-white mr-2" />
+                  <span className="text-base">
+                    {isRecording ? '⏹️ STOP RECORDING' : '🎙️ RECORD'}
+                  </span>
+                </Button>
+                
+                <Button
+                  size="lg"
+                  variant={chordMode ? "default" : "secondary"}
+                  className={`text-sm font-bold px-6 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400' : 'bg-gray-700'}`}
+                  onClick={() => {
+                    setChordMode(!chordMode);
+                    if (!chordMode) {
+                      setActiveKeys(new Set());
+                    }
+                  }}
+                  disabled={isRecording}
+                  data-testid="button-chord-mode"
+                >
+                  <Music className="w-5 h-5 mr-2" />
+                  <span className="text-base">
+                    {chordMode ? '🎵 CHORD ON' : '🎵 Chord OFF'}
+                  </span>
+                </Button>
+                {isRecording && (
+                  <p className="text-sm text-red-300 font-medium animate-pulse">
+                    🔴 Recording... Play notes on your keyboard!
+                  </p>
+                )}
+                {!isRecording && chordMode && (
+                  <p className="text-sm text-purple-300 font-medium">
+                    Tap piano keys to build your chord, then click the grid!
+                  </p>
+                )}
+              </div>
+              
+              <Button
+                size="sm"
+                variant={syncScroll ? "default" : "secondary"}
+                className={`text-xs font-medium px-4 ${syncScroll ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700'}`}
+                onClick={() => setSyncScroll(!syncScroll)}
+                data-testid="button-sync-scroll"
+              >
+                {syncScroll ? <Link2 className="w-4 h-4 mr-1.5" /> : <Link2Off className="w-4 h-4 mr-1.5" />}
+                {syncScroll ? 'Linked' : 'Free Scroll'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
         <CardContent className="h-[calc(100%-250px)] overflow-hidden">
-          <div className="flex h-full">
-            <PianoKeys
-              pianoKeys={PIANO_KEYS}
-              selectedTrack={selectedTrack}
-              onKeyClick={addNote}
-              keyHeight={KEY_HEIGHT}
-              currentStep={currentStep}
-              isPlaying={isPlaying}
-            />
-            
+          <div className="flex h-full relative">
+            {/* Grid behind - lower z-index */}
             <StepGrid
+              ref={gridRef}
               steps={STEPS}
               pianoKeys={PIANO_KEYS}
               selectedTrack={selectedTrack}
@@ -360,7 +1004,25 @@ export const VerticalPianoRoll: React.FC = () => {
               onChordAdd={addChordToGrid}
               onNoteRemove={removeNote}
               chordMode={chordMode}
+              onScroll={handleGridScroll}
             />
+            
+            {/* Piano Keys in front - higher z-index, positioned absolutely */}
+            <div className="absolute left-0 top-0 bottom-0 z-10">
+              <PianoKeys
+                ref={pianoKeysRef}
+                pianoKeys={PIANO_KEYS}
+                selectedTrack={selectedTrack}
+                onKeyClick={addNote}
+                keyHeight={KEY_HEIGHT}
+                currentStep={currentStep}
+                isPlaying={isPlaying}
+                chordMode={chordMode}
+                activeKeys={activeKeys}
+                onActiveKeysChange={setActiveKeys}
+                onScroll={handlePianoScroll}
+              />
+            </div>
           </div>
         </CardContent>
 

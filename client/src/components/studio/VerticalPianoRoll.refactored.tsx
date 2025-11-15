@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play, Pause, Square, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { realisticAudio } from "@/lib/realisticAudio";
-import { PianoKeys } from "./PianoKeys";
+import { PianoKeys } from "./piano-roll/PianoKeys";
 import { StepGrid } from "./StepGrid";
 import { TrackControls } from "./TrackControls";
 import { 

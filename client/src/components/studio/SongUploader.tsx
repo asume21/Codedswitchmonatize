@@ -4,16 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { StudioAudioContext } from "@/pages/studio";
 import { useAIMessages } from "@/contexts/AIMessageContext";
+import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionContext";
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
-import type { Song } from "@shared/schema";
+import { Sparkles, Copy, Plus, Scissors, Mic } from "lucide-react";
+import type { Song, Recommendation } from "../../../../shared/schema";
+import { emitEvent } from "@/lib/eventBus";
 import type { ToolRecommendation } from "@/components/studio/effects";
+import { RecommendationList } from "@/components/studio/RecommendationCard";
 
 interface UploadContext {
   name?: string;
@@ -25,10 +32,23 @@ export default function SongUploader() {
   const [uploadContext, setUploadContext] = useState<UploadContext>({});
   const [showAudioTools, setShowAudioTools] = useState(false);
   const [songAnalysis, setSongAnalysis] = useState<any>(null);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [sunoAction, setSunoAction] = useState<'cover' | 'extend' | 'separate' | 'add-vocals' | 'add-instrumental' | null>(null);
+  const [sunoPrompt, setSunoPrompt] = useState('');
+  const [sunoModel, setSunoModel] = useState('v4_5plus');
+  const [sunoProcessing, setSunoProcessing] = useState(false);
+  
+  // Per-song analysis results (Map<songId, analysis>)
+  const [songAnalyses, setSongAnalyses] = useState<Map<string, any>>(new Map());
+  const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
+  
+  // Per-song session IDs (Map<songId, sessionId>)
+  const [sessionIdsBySong, setSessionIdsBySong] = useState<Map<string, string>>(new Map());
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
   const { addMessage } = useAIMessages();
+  const { createSession, updateSession } = useSongWorkSession();
 
   const { data: songs, isLoading: songsLoading, refetch } = useQuery<Song[]>({
     queryKey: ['/api/songs'],
@@ -54,6 +74,14 @@ export default function SongUploader() {
     onSuccess: (newSong: Song) => {
       queryClient.invalidateQueries({ queryKey: ['/api/songs'] });
       setUploadContext({});
+      
+      // Emit event for other components
+      emitEvent('song:uploaded', {
+        songId: newSong.id.toString(),
+        songName: newSong.name,
+        audioUrl: newSong.url
+      });
+      
       toast({
         title: "Song Uploaded",
         description: `${newSong.name} has been added to your library!`,
@@ -74,9 +102,15 @@ export default function SongUploader() {
     },
   });
 
-  const getUploadParameters = async () => {
+  const getUploadParameters = async (file?: File) => {
     try {
-      const response = await apiRequest("POST", "/api/objects/upload", {});
+      const fileName = file?.name || '';
+      const format = fileName.split('.').pop()?.toLowerCase() || '';
+      
+      const response = await apiRequest("POST", "/api/objects/upload", {
+        fileName,
+        format
+      });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error", temporary: false }));
@@ -260,8 +294,8 @@ export default function SongUploader() {
 
   const playSong = async (song: Song) => {
     try {
-      // Try multiple URL sources in order of preference
-      let accessibleURL = song.accessibleUrl || song.originalUrl || song.songURL;
+      // Try multiple URL sources in order of preference (including legacy songURL for backward compatibility)
+      let accessibleURL = song.accessibleUrl || song.originalUrl || (song as any).songURL;
       
       if (!accessibleURL) {
         throw new Error("No URL available for this song");
@@ -373,6 +407,43 @@ export default function SongUploader() {
     }
   };
 
+  // Helper function to map Recommendation to SongIssue
+  const mapRecommendationToIssue = (rec: Recommendation): SongIssue | null => {
+    // Map category to issue type
+    let type: SongIssue['type'];
+    const category = rec.category;
+    
+    if (['mix_balance', 'vocal_effects', 'production', 'instrumentation'].includes(category)) {
+      type = 'production';
+    } else if (category === 'tempo') {
+      type = 'rhythm';
+    } else if (category === 'melody' || category === 'harmony') {
+      type = 'melody';
+    } else if (category === 'structure') {
+      type = 'structure';
+    } else {
+      // Other unsupported categories
+      console.warn('⚠️ Unsupported recommendation category:', category);
+      return null;
+    }
+    
+    // Map target tool
+    let targetTool: SongIssue['targetTool'] | undefined;
+    if (rec.targetTool === 'mix-studio') targetTool = 'mixer';
+    else if (rec.targetTool === 'beat-studio') targetTool = 'beat-maker';
+    else if (rec.targetTool === 'piano-roll') targetTool = 'piano-roll';
+    else if (rec.targetTool === 'lyrics-lab' || rec.targetTool === 'unified-studio') targetTool = 'composition';
+    
+    return {
+      type,
+      severity: rec.severity,
+      description: rec.message,
+      recommendation: rec.message,
+      targetTool,
+      measureRange: rec.navigationPayload?.params?.measureRange as [number, number] | undefined
+    };
+  };
+
   const analyzeSong = async (song: Song) => {
     try {
       const response = await apiRequest("POST", "/api/songs/analyze", {
@@ -391,11 +462,54 @@ export default function SongUploader() {
       });
       
       setSongAnalysis(analysis);
-      setCurrentSong(song);
+      
+      // Store analysis per-song
+      setSongAnalyses(prev => {
+        const newMap = new Map(prev);
+        newMap.set(song.id, analysis);
+        return newMap;
+      });
+      
+      // Create or update SongWorkSession for this analysis
+      let sessionId = sessionIdsBySong.get(song.id);
+      if (!sessionId) {
+        // Create new session
+        sessionId = createSession({
+          name: song.name,
+          audioUrl: song.accessibleUrl || song.originalUrl
+        });
+        
+        setSessionIdsBySong(prev => {
+          const newMap = new Map(prev);
+          newMap.set(song.id, sessionId!);
+          return newMap;
+        });
+      }
+      
+      // Map recommendations to SongIssues
+      const issues: SongIssue[] = (analysis.actionableRecommendations || [])
+        .map(mapRecommendationToIssue)
+        .filter((issue: SongIssue | null): issue is SongIssue => issue !== null);
+      
+      // Update session with analysis data
+      updateSession(sessionId, {
+        analysis: {
+          bpm: analysis.estimatedBPM,
+          key: analysis.keySignature,
+          timeSignature: analysis.timeSignature,
+          duration: song.duration ?? undefined,
+          issues
+        }
+      });
+      
+      console.log('✅ SongWorkSession created/updated:', { sessionId, songId: song.id, issuesCount: issues.length });
+      
+      // Auto-expand the analysis card
+      setExpandedAnalysis(song.id);
       
       toast({
-        title: "Song Analysis Complete",
-        description: `AI analyzed ${song.name} - check the AI Assistant for insights!`,
+        title: "Analysis Complete!",
+        description: `${song.name} analyzed - see results below`,
       });
 
       // Store analysis in studio context for other tools to use
@@ -509,9 +623,10 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
       analysisMessage += `\nThis analysis has been saved and can be used with other studio tools for remixing, layering, and composition inspiration!`;
 
-      // Add message to AI Assistant using context
+      // Add message to AI Assistant using context with recommendations
       console.log('🎵 Sending analysis to AI Assistant via context:', analysisMessage.substring(0, 100) + '...');
-      addMessage(analysisMessage, 'song-analysis');
+      console.log('🎯 Including recommendations:', analysis.actionableRecommendations?.length || 0);
+      addMessage(analysisMessage, 'song-analysis', analysis.actionableRecommendations);
 
     } catch (error) {
       console.error('❌ Analysis error:', error);
@@ -534,6 +649,154 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
     return new Date(date).toLocaleDateString();
   };
 
+  // Suno API - Cover Song (Transform with different style)
+  const processSunoCover = async (song: Song, prompt: string) => {
+    setSunoProcessing(true);
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      const response = await apiRequest('POST', '/api/songs/suno/cover', {
+        audioUrl,
+        prompt,
+        model: sunoModel
+      });
+      
+      const data = await response.json();
+      toast({
+        title: "Suno Cover Started!",
+        description: `Creating ${prompt} version. This may take a few minutes.`,
+      });
+
+      addMessage(`🎵 Started Suno cover for "${song.name}": ${prompt}`, 'suno-cover');
+    } catch (error) {
+      toast({
+        title: "Suno Cover Failed",
+        description: error instanceof Error ? error.message : "Failed to start cover",
+        variant: "destructive",
+      });
+    } finally {
+      setSunoProcessing(false);
+      setSunoAction(null);
+    }
+  };
+
+  // Suno API - Extend Song
+  const processSunoExtend = async (song: Song) => {
+    setSunoProcessing(true);
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      const response = await apiRequest('POST', '/api/songs/suno/extend', {
+        audioUrl,
+        prompt: sunoPrompt || undefined,
+        model: sunoModel
+      });
+      
+      const data = await response.json();
+      toast({
+        title: "Suno Extend Started!",
+        description: `Extending "${song.name}". This may take a few minutes.`,
+      });
+
+      addMessage(`🎵 Started Suno extend for "${song.name}"`, 'suno-extend');
+    } catch (error) {
+      toast({
+        title: "Suno Extend Failed",
+        description: error instanceof Error ? error.message : "Failed to extend song",
+        variant: "destructive",
+      });
+    } finally {
+      setSunoProcessing(false);
+      setSunoAction(null);
+    }
+  };
+
+  // Suno API - Separate Vocals
+  const processSunoSeparate = async (song: Song) => {
+    setSunoProcessing(true);
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      const response = await apiRequest('POST', '/api/songs/suno/separate', {
+        audioUrl
+      });
+      
+      const data = await response.json();
+      toast({
+        title: "Vocal Separation Started!",
+        description: `Separating vocals from "${song.name}". This may take a few minutes.`,
+      });
+
+      addMessage(`🎵 Started vocal separation for "${song.name}"`, 'suno-separate');
+    } catch (error) {
+      toast({
+        title: "Separation Failed",
+        description: error instanceof Error ? error.message : "Failed to separate vocals",
+        variant: "destructive",
+      });
+    } finally {
+      setSunoProcessing(false);
+      setSunoAction(null);
+    }
+  };
+
+  // Suno API - Add Vocals
+  const processSunoAddVocals = async (song: Song, prompt: string) => {
+    setSunoProcessing(true);
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      const response = await apiRequest('POST', '/api/songs/suno/add-vocals', {
+        audioUrl,
+        prompt,
+        model: sunoModel
+      });
+      
+      const data = await response.json();
+      toast({
+        title: "Adding Vocals Started!",
+        description: `Adding AI vocals to "${song.name}". This may take a few minutes.`,
+      });
+
+      addMessage(`🎵 Started adding vocals to "${song.name}": ${prompt}`, 'suno-add-vocals');
+    } catch (error) {
+      toast({
+        title: "Add Vocals Failed",
+        description: error instanceof Error ? error.message : "Failed to add vocals",
+        variant: "destructive",
+      });
+    } finally {
+      setSunoProcessing(false);
+      setSunoAction(null);
+    }
+  };
+
+  // Suno API - Add Instrumental
+  const processSunoAddInstrumental = async (song: Song, prompt: string) => {
+    setSunoProcessing(true);
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      const response = await apiRequest('POST', '/api/songs/suno/add-instrumental', {
+        audioUrl,
+        prompt,
+        model: sunoModel
+      });
+      
+      const data = await response.json();
+      toast({
+        title: "Adding Instrumental Started!",
+        description: `Adding AI instrumental to "${song.name}". This may take a few minutes.`,
+      });
+
+      addMessage(`🎵 Started adding instrumental to "${song.name}": ${prompt}`, 'suno-add-instrumental');
+    } catch (error) {
+      toast({
+        title: "Add Instrumental Failed",
+        description: error instanceof Error ? error.message : "Failed to add instrumental",
+        variant: "destructive",
+      });
+    } finally {
+      setSunoProcessing(false);
+      setSunoAction(null);
+    }
+  };
+
   // If showing audio tools, render the tool router
   if (showAudioTools && studioContext.currentUploadedSong && songAnalysis) {
     return (
@@ -546,7 +809,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
           ← Back to Song Library
         </Button>
         <AudioToolRouter
-          songUrl={studioContext.currentUploadedSong.accessibleUrl || studioContext.currentUploadedSong.originalUrl || studioContext.currentUploadedSong.songURL || ''}
+          songUrl={studioContext.currentUploadedSong.accessibleUrl || studioContext.currentUploadedSong.originalUrl || (studioContext.currentUploadedSong as any).songURL || ''}
           songName={studioContext.currentUploadedSong.name}
           recommendations={songAnalysis.toolRecommendations || []}
         />
@@ -710,12 +973,13 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         <i className="fas fa-music mr-2 text-blue-400"></i>
                         {song.name}
                       </CardTitle>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 flex-wrap gap-2">
                         <Button
                           size="sm"
                           onClick={() => playSong(song)}
                           disabled={studioContext.currentUploadedSong?.id === song.id}
                           className="bg-green-600 hover:bg-green-500"
+                          data-testid={`button-load-song-${song.id}`}
                         >
                           <i className="fas fa-check-circle mr-1"></i>
                           {studioContext.currentUploadedSong?.id === song.id ? 'Loaded' : 'Load'}
@@ -724,15 +988,69 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                           size="sm"
                           onClick={() => analyzeSong(song)}
                           className="bg-purple-600 hover:bg-purple-500"
+                          data-testid={`button-analyze-song-${song.id}`}
                         >
                           <i className="fas fa-brain mr-1"></i>
                           Analyze
                         </Button>
+                        
+                        {/* Suno AI Actions Dropdown */}
+                        <Select
+                          value=""
+                          onValueChange={(value: any) => {
+                            setSelectedSong(song);
+                            setSunoAction(value);
+                            // Separate vocals is instant - no prompt needed
+                            if (value === 'separate') {
+                              processSunoSeparate(song);
+                            }
+                            // Other actions need prompt - they'll show dialog below
+                          }}
+                        >
+                          <SelectTrigger className="w-[140px] h-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500" data-testid={`select-suno-action-${song.id}`}>
+                            <Sparkles className="w-3 h-3 mr-1" />
+                            <SelectValue placeholder="Suno AI ✨" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cover">
+                              <div className="flex items-center">
+                                <Copy className="w-3 h-3 mr-2" />
+                                Cover (Transform Style)
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="extend">
+                              <div className="flex items-center">
+                                <Plus className="w-3 h-3 mr-2" />
+                                Extend Song
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="separate">
+                              <div className="flex items-center">
+                                <Scissors className="w-3 h-3 mr-2" />
+                                Separate Vocals
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="add-vocals">
+                              <div className="flex items-center">
+                                <Mic className="w-3 h-3 mr-2" />
+                                Add AI Vocals
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="add-instrumental">
+                              <div className="flex items-center">
+                                <Plus className="w-3 h-3 mr-2" />
+                                Add AI Instrumental
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+
                         {songAnalysis && studioContext.currentUploadedSong?.id === song.id && (
                           <Button
                             size="sm"
                             onClick={() => setShowAudioTools(true)}
                             className="bg-blue-600 hover:bg-blue-500"
+                            data-testid="button-open-tools"
                           >
                             <i className="fas fa-sliders-h mr-1"></i>
                             Open Tools
@@ -762,6 +1080,76 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         </div>
                       </div>
 
+                      
+                      {/* Inline Analysis Results */}
+                      {songAnalyses.get(song.id) && (
+                        <div className="mt-4 border border-purple-500/30 rounded-md bg-purple-950/20 p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-purple-300 flex items-center gap-2">
+                              <i className="fas fa-chart-line"></i>
+                              Analysis Results
+                            </h4>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExpandedAnalysis(expandedAnalysis === song.id ? null : song.id)}
+                              data-testid={`button-toggle-analysis-${song.id}`}
+                            >
+                              {expandedAnalysis === song.id ? 'Collapse' : 'Expand'}
+                            </Button>
+                          </div>
+                          
+                          {expandedAnalysis === song.id && (() => {
+                            const analysis = songAnalyses.get(song.id);
+                            return (
+                              <div className="space-y-4">
+                                {/* Quick Metrics */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                  {analysis.estimatedBPM && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">BPM</div>
+                                      <div className="font-bold text-purple-300">{analysis.estimatedBPM}</div>
+                                    </div>
+                                  )}
+                                  {analysis.keySignature && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">Key</div>
+                                      <div className="font-bold text-purple-300">{analysis.keySignature}</div>
+                                    </div>
+                                  )}
+                                  {analysis.genre && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">Genre</div>
+                                      <div className="font-bold text-purple-300">{analysis.genre}</div>
+                                    </div>
+                                  )}
+                                  {analysis.overallScore && (
+                                    <div className="bg-gray-800/50 rounded p-2">
+                                      <div className="text-gray-400 text-xs">Quality</div>
+                                      <div className="font-bold text-purple-300">{analysis.overallScore}/10</div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Recommendations */}
+                                {analysis.actionableRecommendations && analysis.actionableRecommendations.length > 0 && (
+                                  <div>
+                                    <RecommendationList 
+                                      recommendations={analysis.actionableRecommendations} 
+                                      sessionId={sessionIdsBySong.get(song.id)}
+                                    />
+                                  </div>
+                                )}
+                                
+                                <div className="text-xs text-gray-400 italic">
+                                  Full analysis available in AI Assistant panel
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      
                       <Separator className="bg-gray-600" />
 
                       <div className="flex flex-wrap gap-2">
@@ -790,6 +1178,162 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
           </div>
         )}
       </div>
+
+      {/* Suno AI Prompt Dialog */}
+      {selectedSong && sunoAction && sunoAction !== 'separate' && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md bg-gray-800 border-gray-600">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                Suno AI - {sunoAction === 'cover' ? 'Cover Song' : sunoAction === 'extend' ? 'Extend Song' : sunoAction === 'add-vocals' ? 'Add Vocals' : 'Add Instrumental'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-white mb-2 block">Song: {selectedSong.name}</Label>
+              </div>
+
+              {sunoAction === 'cover' && (
+                <div>
+                  <Label htmlFor="cover-prompt" className="text-white mb-2 block">
+                    Style Transformation Prompt
+                  </Label>
+                  <Input
+                    id="cover-prompt"
+                    placeholder="e.g., acoustic version, electronic remix, jazz arrangement"
+                    value={sunoPrompt}
+                    onChange={(e) => setSunoPrompt(e.target.value)}
+                    className="bg-gray-700 text-white"
+                    data-testid="input-suno-prompt"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Describe how you want to transform this song's style
+                  </p>
+                </div>
+              )}
+
+              {sunoAction === 'extend' && (
+                <div>
+                  <Label htmlFor="extend-prompt" className="text-white mb-2 block">
+                    Extension Prompt (Optional)
+                  </Label>
+                  <Input
+                    id="extend-prompt"
+                    placeholder="e.g., continue with upbeat energy, add a guitar solo"
+                    value={sunoPrompt}
+                    onChange={(e) => setSunoPrompt(e.target.value)}
+                    className="bg-gray-700 text-white"
+                    data-testid="input-suno-prompt"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Leave blank for automatic continuation
+                  </p>
+                </div>
+              )}
+
+              {sunoAction === 'add-vocals' && (
+                <div>
+                  <Label htmlFor="vocals-prompt" className="text-white mb-2 block">
+                    Vocal Prompt
+                  </Label>
+                  <Input
+                    id="vocals-prompt"
+                    placeholder="e.g., female pop vocals, rap verses, soulful singing"
+                    value={sunoPrompt}
+                    onChange={(e) => setSunoPrompt(e.target.value)}
+                    className="bg-gray-700 text-white"
+                    data-testid="input-suno-prompt"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Describe the vocal style you want to add
+                  </p>
+                </div>
+              )}
+
+              {sunoAction === 'add-instrumental' && (
+                <div>
+                  <Label htmlFor="instrumental-prompt" className="text-white mb-2 block">
+                    Instrumental Prompt
+                  </Label>
+                  <Input
+                    id="instrumental-prompt"
+                    placeholder="e.g., acoustic guitar, electronic synths, jazz piano"
+                    value={sunoPrompt}
+                    onChange={(e) => setSunoPrompt(e.target.value)}
+                    className="bg-gray-700 text-white"
+                    data-testid="input-suno-prompt"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Describe the instrumental style you want to add
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="suno-model" className="text-white mb-2 block">
+                  AI Model
+                </Label>
+                <Select value={sunoModel} onValueChange={setSunoModel}>
+                  <SelectTrigger id="suno-model" className="bg-gray-700 text-white" data-testid="select-suno-model">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="v5">V5 (Latest - Best Quality)</SelectItem>
+                    <SelectItem value="v4_5plus">V4.5 Plus (Richer Tones, 8min)</SelectItem>
+                    <SelectItem value="v4_5">V4.5 (Smart Prompts, 8min)</SelectItem>
+                    <SelectItem value="v4">V4 (Improved Vocals, 4min)</SelectItem>
+                    <SelectItem value="v3_5">V3.5 (Better Structure, 4min)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSunoAction(null);
+                    setSunoPrompt('');
+                  }}
+                  disabled={sunoProcessing}
+                  data-testid="button-cancel-suno"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-gradient-to-r from-pink-600 to-purple-600"
+                  onClick={() => {
+                    if (sunoAction === 'cover' && sunoPrompt) {
+                      processSunoCover(selectedSong, sunoPrompt);
+                    } else if (sunoAction === 'extend') {
+                      processSunoExtend(selectedSong);
+                    } else if (sunoAction === 'add-vocals' && sunoPrompt) {
+                      processSunoAddVocals(selectedSong, sunoPrompt);
+                    } else if (sunoAction === 'add-instrumental' && sunoPrompt) {
+                      processSunoAddInstrumental(selectedSong, sunoPrompt);
+                    }
+                    setSunoPrompt('');
+                  }}
+                  disabled={sunoProcessing || (sunoAction === 'cover' && !sunoPrompt) || (sunoAction === 'add-vocals' && !sunoPrompt) || (sunoAction === 'add-instrumental' && !sunoPrompt)}
+                  data-testid="button-confirm-suno"
+                >
+                  {sunoProcessing ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate with Suno
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

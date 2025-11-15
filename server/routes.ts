@@ -4,9 +4,11 @@ import { createServer } from "http";
 import type { IStorage } from "./storage";
 import { requireAuth, requireSubscription } from "./middleware/auth";
 import { requireFeature, checkUsageLimit } from "./middleware/featureGating";
+import { requireCredits } from "./middleware/requireCredits";
 import { createAuthRoutes } from "./routes/auth";
 import { createKeyRoutes } from "./routes/keys";
 import { createSongRoutes } from "./routes/songs";
+import { createCreditRoutes } from "./routes/credits";
 import {
   createCheckoutSession,
   handleStripeWebhook,
@@ -16,6 +18,7 @@ import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
+import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -165,21 +168,36 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   
   // Mount song routes
   app.use("/api/songs", createSongRoutes(storage));
+  
+  // Mount credit routes
+  app.use("/api/credits", createCreditRoutes(storage));
 
   // Upload parameter generation endpoint
   app.post("/api/objects/upload", async (req, res) => {
     try {
       console.log('🎵 Upload parameters requested');
 
+      // Get file extension from request body (if provided)
+      const { format, fileName } = req.body || {};
+      let extension = '';
+      
+      if (format) {
+        extension = `.${format}`;
+      } else if (fileName) {
+        const ext = fileName.split('.').pop();
+        if (ext && ext !== fileName) {
+          extension = `.${ext}`;
+        }
+      }
+
       // Generate a unique object key for the upload using crypto for security
-      const objectKey = `songs/${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+      const objectKey = `songs/${Date.now()}-${crypto.randomBytes(4).toString('hex')}${extension}`;
 
-      // Use relative URL for Replit environment compatibility
-      // This works in both development and production
-      const protocol = req.get('x-forwarded-proto') || req.protocol;
-      const uploadURL = `${protocol}://${req.get('host')}/api/internal/uploads/${encodeURIComponent(objectKey)}`;
+      // Use relative URL to avoid CORS/SSL issues with localhost
+      // Vite's proxy will forward this to the backend correctly
+      const uploadURL = `/api/internal/uploads/${encodeURIComponent(objectKey)}`;
 
-      console.log('🎵 Generated upload URL:', uploadURL);
+      console.log('🎵 Generated upload URL with extension:', uploadURL);
 
       res.json({
         uploadURL,
@@ -577,6 +595,238 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     } catch (error: any) {
       console.error("❌ Melody generation error:", error);
       sendError(res, 500, error.message || "Failed to generate melody");
+    }
+  });
+
+  // AI Mix & Master endpoint - analyzes tracks and suggests optimal mixing parameters
+  app.post("/api/mix/generate", async (req: Request, res: Response) => {
+    try {
+      // Check authentication
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required - please log in");
+      }
+
+      // Proper validation with structured layer schema
+      const layerSchema = z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.enum(['beat', 'melody', 'bass', 'harmony', 'fx']),
+        volume: z.number().min(0).max(100).optional(),
+        pan: z.number().min(-50).max(50).optional(),
+        effects: z.object({
+          reverb: z.number().min(0).max(100).optional(),
+          delay: z.number().min(0).max(100).optional(),
+          distortion: z.number().min(0).max(100).optional(),
+        }).optional(),
+        data: z.any().optional(),
+        muted: z.boolean().optional(),
+        solo: z.boolean().optional(),
+      });
+
+      const mixSchema = z.object({
+        prompt: z.string().min(1, "Prompt is required"),
+        layers: z.array(layerSchema).min(1, "At least one layer is required"),
+        bpm: z.number().min(40).max(240).optional(),
+        style: z.string().optional(),
+      });
+
+      const parsed = mixSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return sendError(res, 400, "Invalid input: " + parsed.error.message);
+      }
+
+      const { prompt, layers, bpm, style } = parsed.data;
+
+      console.log(`🎛️ User ${req.userId} requesting AI mix - Layers: ${layers.length}, Prompt: "${prompt}"`);
+
+      // Build AI mixing prompt
+      const layerDescription = layers.map((layer: any, i: number) => 
+        `Layer ${i + 1} (${layer.type}): ${layer.name}`
+      ).join(', ');
+
+      const mixingPrompt = `You are a professional audio mixing engineer. Analyze these tracks and provide optimal mixing parameters:
+
+Tracks: ${layerDescription}
+BPM: ${bpm || 120}
+Style: ${style || 'professional'}
+User Request: ${prompt}
+
+Provide mixing settings for each layer in this exact JSON format:
+{
+  "layers": [
+    {
+      "id": "layer_id",
+      "volume": 75,
+      "pan": 0,
+      "effects": {
+        "reverb": 30,
+        "delay": 0,
+        "distortion": 0
+      },
+      "reasoning": "brief explanation"
+    }
+  ],
+  "masterVolume": 80,
+  "recommendations": "overall mixing advice"
+}
+
+Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
+
+      // Try to get AI client
+      const aiClient = getAIClient();
+      
+      if (aiClient) {
+        // Use xAI Grok for intelligent mixing suggestions
+        try {
+          const completion = await aiClient.chat.completions.create({
+            model: "grok-beta",
+            messages: [
+              {
+                role: "system",
+                content: "You are an expert audio mixing engineer with deep knowledge of music production, EQ, dynamics, and spatial positioning. Provide professional mixing advice in JSON format."
+              },
+              {
+                role: "user",
+                content: mixingPrompt
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 2000,
+          });
+
+          const aiResponse = completion.choices[0]?.message?.content;
+          
+          if (aiResponse) {
+            try {
+              // Extract JSON from response, handling code fences and extra text
+              let jsonString = aiResponse;
+              
+              // Remove markdown code fences if present
+              jsonString = jsonString.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+              
+              // Extract JSON object
+              const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+              
+              if (jsonMatch) {
+                const mixingData = JSON.parse(jsonMatch[0]);
+                
+                // Validate AI response has required structure
+                if (mixingData.layers && Array.isArray(mixingData.layers)) {
+                  // Create a dictionary of AI suggestions keyed by layer ID
+                  const aiSuggestionsByID = new Map();
+                  mixingData.layers.forEach((aiLayer: any) => {
+                    if (aiLayer.id) {
+                      aiSuggestionsByID.set(aiLayer.id, aiLayer);
+                    }
+                  });
+
+                  // Map AI suggestions to actual layers by matching IDs
+                  const updatedLayers = layers.map((layer) => {
+                    const aiSuggestion = aiSuggestionsByID.get(layer.id) || {};
+                    
+                    // Validate and clamp AI-provided values to allowed ranges
+                    const volume = typeof aiSuggestion.volume === 'number' 
+                      ? Math.max(0, Math.min(100, aiSuggestion.volume)) 
+                      : (layer.volume || 75);
+                    const pan = typeof aiSuggestion.pan === 'number' 
+                      ? Math.max(-50, Math.min(50, aiSuggestion.pan)) 
+                      : (layer.pan || 0);
+                    const reverb = typeof aiSuggestion.effects?.reverb === 'number'
+                      ? Math.max(0, Math.min(100, aiSuggestion.effects.reverb))
+                      : (layer.effects?.reverb ?? 0);
+                    const delay = typeof aiSuggestion.effects?.delay === 'number'
+                      ? Math.max(0, Math.min(100, aiSuggestion.effects.delay))
+                      : (layer.effects?.delay ?? 0);
+                    const distortion = typeof aiSuggestion.effects?.distortion === 'number'
+                      ? Math.max(0, Math.min(100, aiSuggestion.effects.distortion))
+                      : (layer.effects?.distortion ?? 0);
+                    
+                    return {
+                      ...layer,
+                      volume,
+                      pan,
+                      effects: {
+                        reverb,
+                        delay,
+                        distortion,
+                      }
+                    };
+                  });
+
+                  console.log("✅ AI mixing suggestions applied successfully");
+                  return res.json({
+                    success: true,
+                    layers: updatedLayers,
+                    masterVolume: typeof mixingData.masterVolume === 'number' ? mixingData.masterVolume : 80,
+                    recommendations: mixingData.recommendations || "AI mix applied successfully",
+                    provider: "xAI Grok"
+                  });
+                }
+              }
+            } catch (parseError: any) {
+              console.warn("⚠️ Failed to parse AI response, using fallback:", parseError.message);
+              // Fall through to intelligent fallback
+            }
+          }
+        } catch (aiError: any) {
+          console.warn("⚠️ AI mixing failed, using intelligent fallback:", aiError.message);
+        }
+      }
+
+      // Intelligent fallback mixing based on track types
+      console.log("🎛️ Using intelligent fallback mixing");
+      
+      const updatedLayers = layers.map((layer: any) => {
+        const mixingRules: Record<string, any> = {
+          beat: { volume: 85, pan: 0, reverb: 5, delay: 0, distortion: 0 },
+          bass: { volume: 80, pan: 0, reverb: 0, delay: 0, distortion: 10 },
+          melody: { volume: 75, pan: 10, reverb: 35, delay: 15, distortion: 0 },
+          harmony: { volume: 65, pan: -10, reverb: 40, delay: 10, distortion: 0 },
+          fx: { volume: 60, pan: 15, reverb: 60, delay: 30, distortion: 0 },
+        };
+
+        const defaultMix = mixingRules[layer.type] || { volume: 75, pan: 0, reverb: 20, delay: 10, distortion: 0 };
+
+        // Apply user prompt adjustments
+        let volumeAdjust = 0;
+        let reverbAdjust = 0;
+        
+        if (prompt.toLowerCase().includes('loud') || prompt.toLowerCase().includes('punchy')) {
+          volumeAdjust = 10;
+        }
+        if (prompt.toLowerCase().includes('quiet') || prompt.toLowerCase().includes('subtle')) {
+          volumeAdjust = -15;
+        }
+        if (prompt.toLowerCase().includes('reverb') || prompt.toLowerCase().includes('spacious')) {
+          reverbAdjust = 20;
+        }
+        if (prompt.toLowerCase().includes('dry') || prompt.toLowerCase().includes('tight')) {
+          reverbAdjust = -20;
+        }
+
+        return {
+          ...layer,
+          volume: Math.max(0, Math.min(100, defaultMix.volume + volumeAdjust)),
+          pan: defaultMix.pan,
+          effects: {
+            reverb: Math.max(0, Math.min(100, defaultMix.reverb + reverbAdjust)),
+            delay: defaultMix.delay,
+            distortion: defaultMix.distortion,
+          }
+        };
+      });
+
+      res.json({
+        success: true,
+        layers: updatedLayers,
+        masterVolume: 80,
+        recommendations: "Intelligent mixing applied based on track types and your prompt",
+        provider: "Intelligent Fallback"
+      });
+
+    } catch (error: any) {
+      console.error("❌ Mix generation error:", error);
+      sendError(res, 500, error.message || "Failed to generate mix");
     }
   });
 
@@ -1271,12 +1521,10 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Complete professional song generation using Suno AI via Replicate
   app.post(
     "/api/music/generate-complete",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.SONG_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
         const schema = z.object({
           songDescription: z.string().min(1, "songDescription is required"),
           genre: z.string().optional(),
@@ -1359,6 +1607,16 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
           } while (result.status === "starting" || result.status === "processing");
 
           if (result.status === "succeeded" && result.output) {
+            // Deduct credits after successful generation
+            if (req.creditService && req.creditCost) {
+              await req.creditService.deductCredits(
+                req.userId!,
+                req.creditCost,
+                'Complete song generation',
+                { genre, mood, songDescription: songDescription.substring(0, 100) }
+              );
+            }
+
             const data = {
               success: true,
               audioUrl: result.output.audio_out || result.output,
@@ -1422,13 +1680,17 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   });
 
   // Get rhyming words endpoint
-  app.post("/api/lyrics/rhymes", async (req: Request, res: Response) => {
-    try {
-      const { word } = req.body;
-      
-      if (!word) {
-        return sendError(res, 400, "Missing required field: word");
-      }
+  app.post(
+    "/api/lyrics/rhymes",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.RHYME_SUGGESTIONS, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { word } = req.body;
+        
+        if (!word) {
+          return sendError(res, 400, "Missing required field: word");
+        }
 
       // Use AI to generate rhyming words
       const XAI_API_KEY = process.env.XAI_API_KEY;
@@ -1467,6 +1729,16 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
       // Parse the rhymes from AI response
       const jsonMatch = content.match(/\[[\s\S]*?\]/);
       const rhymes = jsonMatch ? JSON.parse(jsonMatch[0]) : ['cat', 'bat', 'hat', 'mat', 'sat'];
+
+      // Deduct credits after successful generation
+      if (req.creditService && req.creditCost) {
+        await req.creditService.deductCredits(
+          req.userId!,
+          req.creditCost,
+          'Rhyme suggestions',
+          { word }
+        );
+      }
 
       console.log('✅ Rhymes generated for:', word);
       res.json({ rhymes });
@@ -1602,6 +1874,37 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     } catch (error) {
       console.error('❌ Genre blending error:', error);
       sendError(res, 500, "Failed to blend genres");
+    }
+  });
+
+  // Generate pattern-based music (for RealisticAudioEngine playback)
+  app.post("/api/songs/generate-pattern", async (req: Request, res: Response) => {
+    try {
+      const { prompt, duration, bpm } = req.body;
+      
+      if (!prompt) {
+        return sendError(res, 400, "Missing prompt");
+      }
+
+      console.log('🎼 Generating music pattern for realistic instruments...');
+      
+      const { patternGenerator } = await import('./services/patternGenerator');
+      
+      const pattern = patternGenerator.generatePattern(
+        prompt,
+        duration || 30,
+        bpm
+      );
+
+      console.log('✅ Music pattern generated with', pattern.patterns.length, 'instruments');
+      res.json({
+        success: true,
+        pattern: pattern
+      });
+
+    } catch (error) {
+      console.error('❌ Pattern generation error:', error);
+      sendError(res, 500, "Failed to generate music pattern");
     }
   });
 
@@ -1743,15 +2046,19 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   });
 
   // Advanced lyrics analysis endpoint
-  app.post("/api/lyrics/analyze", async (req: Request, res: Response) => {
-    try {
-      const { lyrics, genre, enhanceWithAI = true } = req.body;
-      
-      if (!lyrics || !lyrics.trim()) {
-        return sendError(res, 400, "Missing lyrics text");
-      }
+  app.post(
+    "/api/lyrics/analyze",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.LYRICS_ANALYSIS, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { lyrics, genre, enhanceWithAI = true } = req.body;
+        
+        if (!lyrics || !lyrics.trim()) {
+          return sendError(res, 400, "Missing lyrics text");
+        }
 
-      console.log('🎵 Analyzing lyrics with advanced system...');
+        console.log('🎵 Analyzing lyrics with advanced system...');
       
       // Import the advanced analyzer
       const { advancedLyricAnalyzer } = await import('./services/advancedLyricAnalyzer');
@@ -1790,6 +2097,17 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
       }
 
       console.log('✅ Advanced lyrics analysis complete');
+      
+      // Deduct credits after successful analysis
+      if (req.creditService && req.creditCost) {
+        await req.creditService.deductCredits(
+          req.userId!,
+          req.creditCost,
+          'Lyrics analysis',
+          { genre, enhanceWithAI }
+        );
+      }
+      
       res.json({
         status: 'success',
         analysis: enhancedAnalysis
@@ -1804,13 +2122,10 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   // Generate lyrics endpoint with AI model selection
   app.post(
     "/api/lyrics/generate",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.LYRICS_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
-
         const { theme, genre, mood, style, aiProvider = 'gpt-4' } = req.body;
 
         if (!theme) {
@@ -1880,6 +2195,16 @@ Make it creative, emotional, and fitting for the genre and mood.`;
         if (result.status === "succeeded" && result.output) {
           lyrics = Array.isArray(result.output) ? result.output.join('') : result.output;
           providerUsed = 'Replicate Llama';
+          
+          // Deduct credits after successful generation
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(
+              req.userId!,
+              req.creditCost,
+              'Lyrics generation',
+              { theme, genre, mood }
+            );
+          }
         } else {
           throw new Error('Lyrics generation failed');
         }
@@ -1907,13 +2232,10 @@ Make it creative, emotional, and fitting for the genre and mood.`;
   // Generate beat from lyrics endpoint using Replicate Llama
   app.post(
     "/api/lyrics/generate-beat",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.BEAT_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
-
         const { lyrics, genre, complexity } = req.body;
 
         if (!lyrics) {
@@ -1997,6 +2319,16 @@ Return this exact JSON format:
 
         console.log(`✅ Generated beat pattern with Replicate Llama`);
 
+        // Deduct credits after successful generation
+        if (req.creditService && req.creditCost) {
+          await req.creditService.deductCredits(
+            req.userId!,
+            req.creditCost,
+            'Beat generation from lyrics',
+            { genre, complexity }
+          );
+        }
+
         res.json({ 
           pattern: beatPattern,
           bpm: beatPattern.bpm || 120,
@@ -2013,13 +2345,10 @@ Return this exact JSON format:
 
   app.post(
     "/api/lyrics/generate-music",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.INSTRUMENTAL_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
-
         const { lyrics, style, genre } = req.body;
 
         if (!lyrics) {
@@ -2027,6 +2356,16 @@ Return this exact JSON format:
         }
 
         const generatedMusic = await generateMusicFromLyrics(lyrics, style || 'pop', genre || 'electronic');
+
+        // Deduct credits after successful generation
+        if (req.creditService && req.creditCost) {
+          await req.creditService.deductCredits(
+            req.userId!,
+            req.creditCost,
+            'Music generation from lyrics',
+            { style, genre }
+          );
+        }
 
         res.json(generatedMusic);
       } catch (err: any) {
@@ -2039,13 +2378,10 @@ Return this exact JSON format:
   // Generate music with MusicGen via Replicate
   app.post(
     "/api/music/generate-with-musicgen",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.BEAT_GENERATION, storage),
     async (req: Request, res: Response) => {
       try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in or provide owner key");
-        }
-
         const { prompt, duration } = req.body;
 
         if (!prompt) {
@@ -2103,6 +2439,16 @@ Return this exact JSON format:
         } while (result.status === "starting" || result.status === "processing");
 
         if (result.status === "succeeded") {
+          // Deduct credits after successful generation
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(
+              req.userId!,
+              req.creditCost,
+              'MusicGen beat generation',
+              { prompt: prompt.substring(0, 100), duration }
+            );
+          }
+          
           res.json({ audioUrl: result.output });
         } else {
           return res.status(500).json({ message: "Music generation failed" });

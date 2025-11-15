@@ -1,4 +1,0 @@
-diff a/music-plugin-manager/src/pages/codebeat-studio.tsx b/music-plugin-manager/src/pages/codebeat-studio.tsx	(rejected hunks)
-@@ -329,1 +329,1 @@
--                      onChange={(e) => setSourceCode(e.target.value)}
-+                      onChange={(e) => { setSourceCode(e.target.value); }}

@@ -9,6 +9,8 @@ import { createReadStream } from "fs";
 import { parseFile } from "music-metadata";
 import fetch from "node-fetch";
 import { unlink } from "fs/promises";
+import { sunoApi } from "../services/sunoApi";
+import { getGuestUserId } from "../guestUser";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
@@ -22,10 +24,11 @@ export function createSongRoutes(storage: IStorage) {
     console.log('  - req.session?.userId:', req.session?.userId);
     console.log('  - cookies:', req.headers.cookie);
     
-    // Check if user is authenticated (allow test uploads for development)
+    // Check if user is authenticated (use guest user for anonymous uploads)
     if (!req.userId) {
-      console.warn('⚠️ No auth - using test user for development');
-      req.userId = 'test-user-' + Date.now();
+      console.warn('⚠️ No auth - using guest user for development');
+      req.userId = await getGuestUserId(storage);
+      console.log('✅ Using guest user ID:', req.userId);
     }
     
     try {
@@ -92,8 +95,10 @@ export function createSongRoutes(storage: IStorage) {
 
   // Get all songs for current user
   router.get("/", async (req: Request, res: Response) => {
+    // Use guest user for anonymous requests
     if (!req.userId) {
-      return res.status(401).json({ error: "Please log in to view songs" });
+      req.userId = await getGuestUserId(storage);
+      console.log('✅ Using guest user ID for song list:', req.userId);
     }
     
     try {
@@ -107,8 +112,11 @@ export function createSongRoutes(storage: IStorage) {
 
   // Analyze song endpoint - REAL ANALYSIS with AI
   router.post("/analyze", async (req: Request, res: Response) => {
+    // Use guest user for anonymous analysis (same as upload)
     if (!req.userId) {
-      return res.status(401).json({ error: "Please log in to analyze songs" });
+      console.warn('⚠️ No auth - using guest user for song analysis');
+      req.userId = await getGuestUserId(storage);
+      console.log('✅ Using guest user ID for analysis:', req.userId);
     }
 
     try {
@@ -198,44 +206,308 @@ export function createSongRoutes(storage: IStorage) {
   });
 
   // Serve converted audio files
-  router.get("/converted/:fileId", (req: Request, res: Response) => {
+  router.get("/converted/:fileId", async (req: Request, res: Response) => {
     try {
       const { fileId } = req.params;
-      const tempDir = join(tmpdir(), 'codedswitch-conversions');
-      const filePath = join(tempDir, `${fileId}.mp3`);
+      
+      // Get user ID (authenticated or guest)
+      const userId = req.userId || await getGuestUserId(storage);
+      
+      // SECURITY: Verify user owns a song that uses this conversion
+      const userSongs = await storage.getUserSongs(userId);
+      const song = userSongs.find(s => s.accessibleUrl?.includes(fileId));
+      
+      if (!song) {
+        console.log(`❌ User ${userId} does not own a song with fileId: ${fileId}`);
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      console.log(`✅ Serving converted file for user ${userId}: ${song.name}`);
+      
+      const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+      const convertedDir = join(objectsDir, 'converted');
+      const filePath = join(convertedDir, `${fileId}.mp3`);
 
-      // Security: ensure file is in temp directory
-      if (!filePath.startsWith(tempDir)) {
+      // Security: ensure file is in converted directory
+      if (!filePath.startsWith(convertedDir)) {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      if (!existsSync(filePath)) {
-        return res.status(404).json({ error: "File not found" });
+      // If converted file already exists, serve it
+      if (existsSync(filePath)) {
+        console.log(`✅ Serving existing converted MP3: ${filePath}`);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        const stream = createReadStream(filePath);
+        return stream.pipe(res);
       }
 
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      const stream = createReadStream(filePath);
-      stream.pipe(res);
+      // File doesn't exist - attempt on-demand conversion
+      console.log(`⚠️ Converted file not found, attempting on-demand conversion: ${fileId}`);
+      
+      if (!song.originalUrl) {
+        console.log(`❌ Original file not found for song: ${song.id}`);
+        return res.status(404).json({ error: "Original file not found" });
+      }
+
+      console.log(`🔄 Converting on-demand: ${song.name} for user ${req.userId}`);
+      
+      // Perform conversion
+      const convertedURL = await convertToMp3WithCustomId(song.originalUrl, fileId);
+      
+      // Serve the newly converted file
+      if (existsSync(filePath)) {
+        console.log(`✅ Serving newly converted MP3: ${filePath}`);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        const stream = createReadStream(filePath);
+        return stream.pipe(res);
+      }
+
+      res.status(500).json({ error: "Conversion failed" });
     } catch (error) {
       console.error('Error serving converted file:', error);
       res.status(500).json({ error: "Failed to serve file" });
     }
   });
 
+  // ===== SUNO API ENDPOINTS =====
+
+  // Upload and Cover - Transform song with different style
+  router.post("/suno/cover", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, model, makeInstrumental } = req.body;
+      console.log('🎵 Suno Cover:', { prompt, model });
+
+      const result = await sunoApi.uploadAndCover({
+        audioUrl,
+        prompt,
+        model: model || 'v4_5plus',
+        makeInstrumental
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno cover error:', error);
+      res.status(500).json({ error: "Failed to cover song" });
+    }
+  });
+
+  // Upload and Extend - Extend song with AI continuation
+  router.post("/suno/extend", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, continueAt, model } = req.body;
+      console.log('🎵 Suno Extend:', { continueAt, model });
+
+      const result = await sunoApi.uploadAndExtend({
+        audioUrl,
+        prompt,
+        continueAt,
+        model: model || 'v4_5plus'
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno extend error:', error);
+      res.status(500).json({ error: "Failed to extend song" });
+    }
+  });
+
+  // Separate Vocals - Extract vocals and instrumentals
+  router.post("/suno/separate", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl } = req.body;
+      console.log('🎵 Suno Separate Vocals');
+
+      const result = await sunoApi.separateVocals({ audioUrl });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno separate error:', error);
+      res.status(500).json({ error: "Failed to separate vocals" });
+    }
+  });
+
+  // Add Vocals - Generate vocals for instrumental
+  router.post("/suno/add-vocals", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, model } = req.body;
+      console.log('🎵 Suno Add Vocals:', { prompt });
+
+      const result = await sunoApi.addVocals({
+        audioUrl,
+        prompt,
+        model: model || 'v4_5plus'
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno add vocals error:', error);
+      res.status(500).json({ error: "Failed to add vocals" });
+    }
+  });
+
+  // Add Instrumental - Generate instrumental backing for vocals
+  router.post("/suno/add-instrumental", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { audioUrl, prompt, model } = req.body;
+      console.log('🎵 Suno Add Instrumental:', { prompt });
+
+      const result = await sunoApi.addInstrumental({
+        audioUrl,
+        prompt,
+        model: model || 'v4_5plus'
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno add instrumental error:', error);
+      res.status(500).json({ error: "Failed to add instrumental" });
+    }
+  });
+
+  // Get Suno job status
+  router.post("/suno/status", async (req: Request, res: Response) => {
+    try {
+      const { ids } = req.body;
+      const result = await sunoApi.getMusicDetails(ids);
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno status error:', error);
+      res.status(500).json({ error: "Failed to get status" });
+    }
+  });
+
+  // Get Suno credits
+  router.get("/suno/credits", async (req: Request, res: Response) => {
+    try {
+      const result = await sunoApi.getRemainingCredits();
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Suno credits error:', error);
+      res.status(500).json({ error: "Failed to get credits" });
+    }
+  });
+
   return router;
+}
+
+// Helper function to convert with custom fileId (for on-demand conversion)
+async function convertToMp3WithCustomId(inputURL: string, fileId: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+    const convertedDir = join(objectsDir, 'converted');
+    if (!existsSync(convertedDir)) {
+      mkdirSync(convertedDir, { recursive: true });
+    }
+
+    const outputPath = join(convertedDir, `${fileId}.mp3`);
+
+    // Convert API URL to file system path
+    let inputPath = inputURL;
+    if (inputURL.startsWith('/api/internal/uploads/')) {
+      const objectKey = decodeURIComponent(inputURL.replace('/api/internal/uploads/', ''));
+      inputPath = join(objectsDir, objectKey);
+      console.log(`📁 Converted URL to path: ${inputURL} → ${inputPath}`);
+    }
+
+    const timeout = setTimeout(() => {
+      console.error('❌ FFmpeg conversion timeout');
+      reject(new Error('FFmpeg conversion timeout'));
+    }, 30000);
+
+    ffmpeg(inputPath)
+      .toFormat('mp3')
+      .audioCodec('libmp3lame')
+      .audioBitrate('192k')
+      .on('error', (err: Error) => {
+        clearTimeout(timeout);
+        console.error('❌ FFmpeg error:', err.message);
+        reject(err);
+      })
+      .on('end', () => {
+        clearTimeout(timeout);
+        console.log('✅ FFmpeg conversion finished');
+        const serveURL = `/api/songs/converted/${fileId}`;
+        console.log('📡 Converted file will be served at:', serveURL);
+        resolve(serveURL);
+      })
+      .save(outputPath);
+  });
 }
 
 // Helper function to convert any audio format to MP3
 async function convertToMp3(inputURL: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const tempDir = join(tmpdir(), 'codedswitch-conversions');
-    if (!existsSync(tempDir)) {
-      mkdirSync(tempDir, { recursive: true });
+    // Store converted files in persistent objects directory instead of temp
+    const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+    const convertedDir = join(objectsDir, 'converted');
+    if (!existsSync(convertedDir)) {
+      mkdirSync(convertedDir, { recursive: true });
     }
 
     const fileId = Date.now().toString();
-    const outputPath = join(tempDir, `${fileId}.mp3`);
+    const outputPath = join(convertedDir, `${fileId}.mp3`);
+
+    // Convert API URL to file system path
+    // Example: /api/internal/uploads/songs%2F123.m4a → /home/runner/workspace/objects/songs/123.m4a
+    let inputPath = inputURL;
+    if (inputURL.startsWith('/api/internal/uploads/')) {
+      const objectKey = decodeURIComponent(inputURL.replace('/api/internal/uploads/', ''));
+      const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+      inputPath = join(objectsDir, objectKey);
+      console.log(`📁 Converted URL to path: ${inputURL} → ${inputPath}`);
+    }
 
     // Set a timeout for the conversion (30 seconds)
     const timeout = setTimeout(() => {
@@ -243,7 +515,7 @@ async function convertToMp3(inputURL: string): Promise<string> {
       reject(new Error('FFmpeg conversion timeout'));
     }, 30000);
 
-    ffmpeg(inputURL)
+    ffmpeg(inputPath)
       .toFormat('mp3')
       .audioCodec('libmp3lame')
       .audioBitrate('192k')
@@ -488,9 +760,73 @@ Respond ONLY with valid JSON in this EXACT format:
       "fix": "Re-record bridge with metronome, or use time-stretch"
     }
   ],
+  "actionableRecommendations": [
+    {
+      "id": "rec-1",
+      "message": "Add more reverb and depth to vocals for a polished sound",
+      "severity": "medium",
+      "category": "vocal_effects",
+      "targetTool": "mix-studio",
+      "navigationPayload": {
+        "trackId": "vocals",
+        "action": "add-reverb",
+        "params": { "effectType": "reverb" }
+      }
+    },
+    {
+      "id": "rec-2",
+      "message": "Improve hook catchiness - strengthen melodic progression",
+      "severity": "high",
+      "category": "melody",
+      "targetTool": "piano-roll",
+      "navigationPayload": {
+        "action": "edit-melody",
+        "params": { "section": "hook" }
+      }
+    },
+    {
+      "id": "rec-3",
+      "message": "Balance the mix - vocals are too quiet relative to beat",
+      "severity": "high",
+      "category": "mix_balance",
+      "targetTool": "mix-studio",
+      "navigationPayload": {
+        "trackId": "vocals",
+        "action": "adjust-volume",
+        "params": { "adjustment": "+3dB" }
+      }
+    },
+    {
+      "id": "rec-4",
+      "message": "Enhance wordplay and rhyme scheme complexity",
+      "severity": "low",
+      "category": "lyrics",
+      "targetTool": "lyrics-lab",
+      "navigationPayload": {
+        "action": "improve-lyrics"
+      }
+    }
+  ],
   "overallScore": 8.5,
   "analysis_notes": "This is a professional-quality track with strong production and vocal performance. The dark, aggressive tone fits the genre perfectly. Main areas for improvement: vocal mix clarity in verse 1, and tightening up the low-end clash between kick and 808. The lyrics are well-crafted with complex rhyme schemes, and the vocal delivery shows confidence and emotion. Flow timing is mostly excellent with creative syncopation. Commercial potential is high - with minor mixing adjustments, this could be radio-ready. The hook is catchy but could be strengthened melodically. Overall, this shows professional-level production with room for refinement to reach A-list quality."
-}`;
+}
+
+IMPORTANT: For each recommendation in "actionableRecommendations", use these exact category values:
+- "vocal_effects" for vocal processing issues  
+- "mix_balance" for volume/panning issues
+- "tempo" for BPM/timing issues
+- "melody" for melodic improvements
+- "lyrics" for lyrical improvements
+- "structure" for arrangement/structure issues
+- "production" for overall production quality
+- "instrumentation" for instrument selection/quality
+
+And use these exact targetTool values:
+- "mix-studio" for mixing, effects, and balance
+- "beat-studio" for tempo, drums, and rhythm
+- "piano-roll" for melodies and chords
+- "lyrics-lab" for lyrics and wordplay
+- "unified-studio" for general improvements`;
 
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',

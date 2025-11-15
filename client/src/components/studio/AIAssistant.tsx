@@ -15,12 +15,15 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import type { UploadResult } from "@uppy/core";
 import { Upload, Music, Play, Pause, RotateCcw, Volume2 } from "lucide-react";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
+import { RecommendationList } from "@/components/studio/RecommendationCard";
+import type { Recommendation, Song } from "../../../../shared/schema";
 
 interface Message {
   id: string;
   type: "user" | "ai";
   content: string;
   timestamp: Date;
+  recommendations?: Recommendation[];
 }
 
 interface UploadContext {
@@ -28,13 +31,6 @@ interface UploadContext {
   fileSize?: number;
   format?: string;
   mimeType?: string;
-}
-
-interface Song {
-  id?: string;
-  name?: string;
-  url?: string;
-  duration?: number;
 }
 
 export default function AIAssistant() {
@@ -73,6 +69,7 @@ export default function AIAssistant() {
             type: "ai",
             content: latestAIMessage.content,
             timestamp: latestAIMessage.timestamp,
+            recommendations: latestAIMessage.recommendations,
           };
 
           return [...prev, newMessage];
@@ -630,6 +627,14 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                       }`}>
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                       </div>
+                      
+                      {/* Render recommendations if present */}
+                      {message.type === "ai" && message.recommendations && message.recommendations.length > 0 && (
+                        <div className="mt-4">
+                          <RecommendationList recommendations={message.recommendations} />
+                        </div>
+                      )}
+                      
                       <div className={`text-xs text-gray-400 mt-1 ${message.type === "user" ? "text-right" : ""}`}>
                         {message.type === "ai" ? "AI Assistant" : "You"} • {message.timestamp.toLocaleTimeString()}
                       </div>

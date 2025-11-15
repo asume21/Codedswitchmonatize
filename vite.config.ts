@@ -16,10 +16,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./client/src"),
+      "@shared": path.resolve(__dirname, "./shared"),
+      "@assets": path.resolve(__dirname, "./attached_assets"),
     },
   },
   server: {
-    port: 5000,
+    port: 3211,
     host: '0.0.0.0',
     strictPort: false,
     allowedHosts: true,

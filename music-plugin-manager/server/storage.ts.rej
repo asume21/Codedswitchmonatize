@@ -1,4 +1,0 @@
-diff a/music-plugin-manager/server/storage.ts b/music-plugin-manager/server/storage.ts	(rejected hunks)
-@@ -96,1 +96,1 @@
--    scan: InsertVulnerabilityScan & { results: any },
-+    scan: InsertVulnerabilityScan & { results: unknown },

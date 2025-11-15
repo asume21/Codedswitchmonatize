@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Wand2, Music, DollarSign } from 'lucide-react';
+import { Wand2, Music, DollarSign, Piano, Play, Pause, Square } from 'lucide-react';
+import { RealisticAudioEngine } from '@/lib/realisticAudio';
 
 interface MusicGenerationPanelProps {
   onMusicGenerated?: (audioUrl: string, metadata: any) => void;
@@ -19,7 +22,22 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [duration, setDuration] = useState([30]);
   const [bpm, setBpm] = useState([120]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [useRealisticInstruments, setUseRealisticInstruments] = useState(true); // Default to realistic
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null); // For raw audio files
   const { toast } = useToast();
+  
+  const audioEngineRef = useRef<RealisticAudioEngine | null>(null);
+  const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentPatternRef = useRef<any>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null); // For playing raw audio files
+  
+  // Initialize audio engine
+  useEffect(() => {
+    if (useRealisticInstruments && !audioEngineRef.current) {
+      audioEngineRef.current = new RealisticAudioEngine();
+    }
+  }, [useRealisticInstruments]);
 
   const providers = {
     musicgen: {
@@ -48,6 +66,81 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
     'r&b', 'funk', 'reggae', 'country', 'metal', 'indie'
   ];
 
+  // Play generated pattern through RealisticAudioEngine
+  const playPattern = async (pattern: any) => {
+    if (!audioEngineRef.current) {
+      audioEngineRef.current = new RealisticAudioEngine();
+    }
+    
+    const engine = audioEngineRef.current;
+    await engine.initialize();
+    
+    // Load all instruments needed for the pattern
+    const instrumentPromises = pattern.patterns.map((p: any) => 
+      p.instrument !== 'drums' ? engine.loadAdditionalInstrument(p.instrument) : null
+    ).filter(Boolean);
+    
+    await Promise.all(instrumentPromises);
+    
+    const msPerBeat = (60 / pattern.bpm) * 1000;
+    let currentBeat = 0;
+    const totalBeats = duration[0] * (pattern.bpm / 60); // Convert seconds to beats
+    
+    setIsPlaying(true);
+    
+    // Play notes in real-time
+    playbackIntervalRef.current = setInterval(() => {
+      if (currentBeat >= totalBeats) {
+        stopPlayback();
+        return;
+      }
+      
+      // Play notes from all instruments at this beat
+      pattern.patterns.forEach((instrumentPattern: any) => {
+        const notesToPlay = instrumentPattern.notes.filter((note: any) => 
+          Math.abs(note.time - currentBeat) < 0.1
+        );
+        
+        notesToPlay.forEach((note: any) => {
+          if (instrumentPattern.instrument === 'drums') {
+            // Play drum sounds
+            engine.playDrumSound(note.pitch, note.velocity / 127);
+          } else {
+            // Parse pitch string (e.g., "C4" -> note: "C", octave: 4)
+            const match = note.pitch.match(/([A-G]#?)(\d+)/);
+            if (match) {
+              const noteName = match[1];
+              const octave = parseInt(match[2]);
+              
+              // Play instrument note
+              engine.playNote(
+                noteName,
+                octave,
+                note.duration * msPerBeat / 1000,
+                instrumentPattern.instrument,
+                note.velocity / 127
+              );
+            }
+          }
+        });
+      });
+      
+      currentBeat += 0.25; // Move forward by 16th note
+    }, msPerBeat / 4); // Run every 16th note
+  };
+  
+  const stopPlayback = () => {
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
+    }
+    setIsPlaying(false);
+    
+    if (audioEngineRef.current) {
+      audioEngineRef.current.stopAllSounds();
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       toast({
@@ -61,44 +154,78 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
     setIsGenerating(true);
 
     try {
-      toast({
-        title: `${providers[provider].name} Generation Started`,
-        description: 'Your music is being generated. This may take a minute...',
-      });
-
-      const endpoint = provider === 'suno' 
-        ? '/api/songs/generate-professional'
-        : '/api/songs/generate-beat';
-
-      const response = await apiRequest('POST', endpoint, {
-        prompt: `${genre} ${prompt}`,
-        duration: duration[0],
-        bpm: bpm[0],
-        genre,
-      });
-
-      const data = await response.json();
-
-      if (data.audioUrl || data.audio_url) {
-        const audioUrl = data.audioUrl || data.audio_url;
-        
+      if (useRealisticInstruments) {
+        // Generate pattern for realistic instruments
         toast({
-          title: 'Music Generated!',
-          description: `Your ${provider === 'suno' ? 'professional track' : 'beat'} is ready!`,
+          title: 'Generating Music Pattern',
+          description: 'Creating a beautiful composition with realistic instruments...',
         });
-
-        if (onMusicGenerated) {
-          onMusicGenerated(audioUrl, {
-            provider,
-            prompt,
-            genre,
-            duration: duration[0],
-            bpm: bpm[0],
-            generatedAt: new Date(),
+        
+        const response = await apiRequest('POST', '/api/songs/generate-pattern', {
+          prompt: `${genre} ${prompt}`,
+          duration: duration[0],
+          bpm: bpm[0],
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.pattern) {
+          currentPatternRef.current = data.pattern;
+          
+          toast({
+            title: 'Music Pattern Generated!',
+            description: `Created ${data.pattern.patterns.length} instrument tracks. Press play to hear your music!`,
           });
+          
+          // Auto-play the pattern
+          await playPattern(data.pattern);
+        } else {
+          throw new Error('Failed to generate pattern');
         }
       } else {
-        throw new Error('No audio URL in response');
+        // Original raw audio generation
+        toast({
+          title: `${providers[provider].name} Generation Started`,
+          description: 'Your music is being generated. This may take a minute...',
+        });
+
+        const endpoint = provider === 'suno' 
+          ? '/api/songs/generate-professional'
+          : '/api/songs/generate-beat';
+
+        const response = await apiRequest('POST', endpoint, {
+          prompt: `${genre} ${prompt}`,
+          duration: duration[0],
+          bpm: bpm[0],
+          genre,
+        });
+
+        const data = await response.json();
+
+        if (data.audioUrl || data.audio_url || data.result?.audioUrl || data.result?.audio_url) {
+          const audioUrl = data.audioUrl || data.audio_url || data.result?.audioUrl || data.result?.audio_url;
+          
+          // Store the audio URL for playback
+          setGeneratedAudioUrl(audioUrl);
+          
+          toast({
+            title: 'Music Generated!',
+            description: `Your ${provider === 'suno' ? 'professional track' : 'beat'} is ready! Click play to listen.`,
+          });
+
+          if (onMusicGenerated) {
+            onMusicGenerated(audioUrl, {
+              provider,
+              prompt,
+              genre,
+              duration: duration[0],
+              bpm: bpm[0],
+              generatedAt: new Date(),
+            });
+          }
+        } else {
+          throw new Error('No audio URL in response');
+        }
       }
     } catch (error) {
       console.error('Generation error:', error);
@@ -130,7 +257,52 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Provider Selection */}
+        {/* Realistic Instruments Toggle */}
+        <div className="flex items-center justify-between p-3 bg-purple-900/20 rounded-lg border border-purple-500/30">
+          <div className="flex items-center space-x-2">
+            <Piano className="w-5 h-5 text-purple-400" />
+            <Label htmlFor="realistic-mode" className="text-white cursor-pointer">
+              Use Realistic Instruments (High Quality Soundfonts)
+            </Label>
+          </div>
+          <Switch
+            id="realistic-mode"
+            checked={useRealisticInstruments}
+            onCheckedChange={setUseRealisticInstruments}
+            className="data-[state=checked]:bg-purple-600"
+          />
+        </div>
+        
+        {/* Playback Controls (for realistic mode) */}
+        {useRealisticInstruments && currentPatternRef.current && (
+          <div className="flex items-center gap-2 p-3 bg-gray-900 rounded-lg">
+            {!isPlaying ? (
+              <Button
+                onClick={() => playPattern(currentPatternRef.current)}
+                size="sm"
+                className="bg-green-600 hover:bg-green-500"
+              >
+                <Play className="w-4 h-4 mr-1" />
+                Play
+              </Button>
+            ) : (
+              <Button
+                onClick={stopPlayback}
+                size="sm"
+                className="bg-red-600 hover:bg-red-500"
+              >
+                <Square className="w-4 h-4 mr-1" />
+                Stop
+              </Button>
+            )}
+            <span className="text-sm text-gray-400 ml-2">
+              {currentPatternRef.current.patterns.length} instruments loaded
+            </span>
+          </div>
+        )}
+        
+        {/* Provider Selection (only show for raw audio mode) */}
+        {!useRealisticInstruments && (
         <div>
           <label className="text-sm text-gray-400 mb-2 block">AI Provider</label>
           <Select value={provider} onValueChange={(val: 'musicgen' | 'suno') => setProvider(val)}>
@@ -184,6 +356,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
             </div>
           </div>
         </div>
+        )}
 
         {/* Prompt */}
         <div>
@@ -192,7 +365,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g., 'upbeat melody with piano and strings, emotional and cinematic'"
-            className="min-h-[100px] resize-none"
+            className="min-h-[100px] resize-none text-black dark:text-white"
             disabled={isGenerating}
           />
         </div>

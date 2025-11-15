@@ -13,6 +13,9 @@ export interface NoteEvent {
 
 type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
 
+// Singleton pattern to ensure only one AudioEngine instance
+let audioEngineInstance: AudioEngine | null = null;
+
 class AudioEngine {
   private samplers: Record<string, Tone.Sampler> = {};
   private synths: Record<string, Tone.PolySynth> = {}; // Add synths for instruments!
@@ -69,30 +72,42 @@ class AudioEngine {
     Tone.Transport.cancel();
   }
 
-  // Note playback
+  // Note playback - ALWAYS use RealisticAudioEngine when available
   playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: InstrumentName = 'piano') {
     if (!this.isInitialized) {
       console.warn('AudioEngine not initialized');
       return;
     }
     
-    if (instrument === 'custom') {
-      realisticAudio.playNote(note, 4, duration as number, 'piano', velocity);
+    // Parse the note string (e.g., "C4" -> note: "C", octave: 4)
+    const noteMatch = note.match(/([A-G]#?)(\d+)/);
+    if (noteMatch && realisticAudio.isReady()) {
+      const noteName = noteMatch[1];
+      const octave = parseInt(noteMatch[2]);
+      const durationSec = typeof duration === 'number' ? duration : 0.5; // Convert to seconds
+      
+      // Map instrument names to RealisticAudioEngine instrument names
+      const instrumentMap: Record<string, string> = {
+        'piano': 'acoustic_grand_piano',
+        'synth': 'lead_2_sawtooth',
+        'bass': 'synth_bass_1',
+        'drums': 'drums',
+        'custom': 'acoustic_grand_piano'
+      };
+      
+      const realInstrument = instrumentMap[instrument] || 'acoustic_grand_piano';
+      
+      // Use RealisticAudioEngine for high-quality playback
+      realisticAudio.playNote(noteName, octave, durationSec, realInstrument, velocity);
+      console.log(`🎹 Playing ${instrument} via RealisticAudioEngine: ${note} (duration: ${durationSec}s, velocity: ${velocity})`);
       return;
     }
-
-    // Try synth first (always available), then fallback to sampler
+    
+    // Fallback to Tone.js if RealisticAudioEngine isn't ready or note format is invalid
     const synth = this.synths[instrument];
     if (synth) {
       synth.triggerAttackRelease(note, duration, undefined, velocity);
-      console.log(`🎹 Playing ${instrument}: ${note} (duration: ${duration}, velocity: ${velocity})`);
-      return;
-    }
-
-    // Fallback to sampler if available
-    const sampler = this.samplers[instrument];
-    if (sampler) {
-      sampler.triggerAttackRelease(note, duration, undefined, velocity);
+      console.log(`🎹 Playing ${instrument} via Tone.js fallback: ${note}`);
       return;
     }
 

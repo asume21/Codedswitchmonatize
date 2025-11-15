@@ -9,6 +9,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   console.log('🔍 SIDEBAR RENDERING - First tab:', { id: "unified-studio", icon: "fas fa-star", label: "🎵 Unified Studio" });
   const tabs = [
     { id: "unified-studio", icon: "fas fa-star", label: "🎵 Unified Studio" },
+    { id: "daw-layout", icon: "fas fa-layer-group", label: "🎚️ DAW Layout" },
     { id: "translator", icon: "fas fa-code", label: "Code Translator" },
     { id: "beatmaker", icon: "fas fa-drum", label: "Beat Maker" },
     { id: "melody", icon: "fas fa-music", label: "Melody Composer" },
@@ -60,6 +61,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           </div>
           <div>
             {activeTab === "unified-studio" && "Complete DAW with Timeline, Piano Roll, Lyrics, AI Generation"}
+            {activeTab === "daw-layout" && "Custom DAW workspace - Instruments, Effects, Timeline, Piano Roll, AI, Mixer"}
             {activeTab === "beatmaker" && "Create drum patterns and beats"}
             {activeTab === "translator" && "Convert code between languages"}
             {activeTab === "melody" && "Compose musical melodies"}

@@ -36,6 +36,22 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const creditTransactions = pgTable("credit_transactions", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
+  amount: integer("amount").notNull(), // positive for credit, negative for debit
+  type: text("type").notNull(), // purchase, deduction, refund, subscription_grant, bonus, admin_adjustment
+  reason: text("reason").notNull(),
+  balanceBefore: integer("balance_before").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  metadata: json("metadata"), // additional info like package type, payment intent ID, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const projects = pgTable("projects", {
   id: varchar("id")
     .primaryKey()
@@ -411,7 +427,44 @@ export type InsertSong = z.infer<typeof insertSongSchema>;
 export type Playlist = typeof playlists.$inferSelect;
 export type InsertPlaylist = z.infer<typeof insertPlaylistSchema>;
 export type PlaylistSong = typeof playlistSongs.$inferSelect;
+export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type InsertCreditTransaction = typeof creditTransactions.$inferInsert;
 export type SamplePack = typeof samplePacks.$inferSelect;
 export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
 export type Sample = typeof samples.$inferSelect;
 export type InsertSample = z.infer<typeof insertSampleSchema>;
+
+// AI Recommendation System for Song Analysis
+export enum RecommendationCategory {
+  MIX_BALANCE = "mix_balance",
+  VOCAL_EFFECTS = "vocal_effects",
+  TEMPO = "tempo",
+  MELODY = "melody",
+  LYRICS = "lyrics",
+  STRUCTURE = "structure",
+  PRODUCTION = "production",
+  INSTRUMENTATION = "instrumentation",
+}
+
+export enum ToolTarget {
+  MIX_STUDIO = "mix-studio",
+  BEAT_STUDIO = "beat-studio",
+  PIANO_ROLL = "piano-roll",
+  LYRICS_LAB = "lyrics-lab",
+  UNIFIED_STUDIO = "unified-studio",
+}
+
+export const recommendationSchema = z.object({
+  id: z.string(),
+  message: z.string(),
+  severity: z.enum(["low", "medium", "high"]),
+  category: z.nativeEnum(RecommendationCategory),
+  targetTool: z.nativeEnum(ToolTarget),
+  navigationPayload: z.object({
+    trackId: z.string().optional(),
+    action: z.string().optional(),
+    params: z.record(z.any()).optional(),
+  }).optional(),
+});
+
+export type Recommendation = z.infer<typeof recommendationSchema>;

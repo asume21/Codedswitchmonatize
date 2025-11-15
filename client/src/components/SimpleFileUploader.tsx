@@ -5,7 +5,7 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Progress } from "@/components/ui/progress";
 
 interface SimpleFileUploaderProps {
-  onGetUploadParameters: () => Promise<{
+  onGetUploadParameters: (file?: File) => Promise<{
     method: "PUT";
     url: string;
   }>;
@@ -60,7 +60,7 @@ export function SimpleFileUploader({
       setError(null);
 
       console.log('Getting upload parameters...');
-      const params = await onGetUploadParameters().catch(err => {
+      const params = await onGetUploadParameters(selectedFile).catch(err => {
         console.error('Failed to get upload parameters:', err);
         throw new Error(`Upload setup failed: ${err.message}`);
       });

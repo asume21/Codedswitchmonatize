@@ -1,4 +1,0 @@
-diff a/music-plugin-manager/server/types/express.d.ts b/music-plugin-manager/server/types/express.d.ts	(rejected hunks)
-@@ -5,1 +5,1 @@
--    session?: any;
-+    session?: unknown;

@@ -1,4 +1,0 @@
-diff a/music-plugin-manager/src/hooks/use-mobile.tsx b/music-plugin-manager/src/hooks/use-mobile.tsx	(rejected hunks)
-@@ -15,1 +15,1 @@
--    return () => mql.removeEventListener("change", onChange)
-+    return () => { mql.removeEventListener("change", onChange); }

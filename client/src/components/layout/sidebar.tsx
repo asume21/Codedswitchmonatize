@@ -27,6 +27,7 @@ import {
 
 const navigation = [
   { name: "🎵 Unified Studio", href: "/unified-studio", icon: Star },
+  { name: "🎚️ DAW Layout", href: "/daw-layout", icon: Layers },
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
   { name: "Music Studio", href: "/music-studio", icon: Piano },
   { name: "Mix Studio", href: "/mix-studio", icon: Layers },
@@ -61,7 +62,7 @@ export function Sidebar() {
   const [location] = useLocation();
 
   return (
-    <div className="flex h-screen w-64 flex-col bg-background border-r">
+    <div className="flex h-screen w-64 flex-col">
       <div className="flex-1 space-y-1 px-3 py-4">
         {navigation.map((item) => {
           const isActive = location === item.href;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,9 +14,12 @@ import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
 import { useAudio } from '@/hooks/use-audio';
 import type { DrumType } from '@/hooks/use-audio';
-import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano } from 'lucide-react';
+import { Play, Pause, Square, Plus, Volume2, VolumeX, Mic2, Music, Download, Share2, Gauge, Piano, Send, Layers, FileMusic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import audioRouter from '@/lib/audioRouter';
+import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
+import { useLocation } from 'wouter';
 
 import type { Note } from './types/pianoRollTypes';
 
@@ -43,6 +47,8 @@ function MelodyComposer() {
   const { toast } = useToast();
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { playNote: playNoteHook, playDrum: playDrumHook, setMasterVolume: setMasterVolumeHook, initialize } = useAudio();
+  const { currentSession, setCurrentSessionId, updateSession } = useSongWorkSession();
+  const [location] = useLocation();
 
   // Multi-track system
   const [tracks, setTracks] = useState<Track[]>([
@@ -51,6 +57,21 @@ function MelodyComposer() {
     { id: 'track3', name: 'Drums', instrument: 'drums', volume: 85, pan: 0, muted: false, solo: false },
     { id: 'track4', name: 'Harmony', instrument: 'synth', volume: 65, pan: 15, muted: false, solo: false }
   ]);
+
+  // Load session from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1]);
+    const sessionId = params.get('session');
+    
+    if (sessionId) {
+      setCurrentSessionId(sessionId);
+      toast({
+        title: "Session Loaded",
+        description: currentSession?.songName ? `Creating melody for: ${currentSession.songName}` : "Melody session loaded",
+        duration: 3000,
+      });
+    }
+  }, [location, setCurrentSessionId]);
 
   // Initialize audio engine
   useEffect(() => {
@@ -201,6 +222,104 @@ function MelodyComposer() {
     });
   };
 
+  // Export functions for audio routing
+  const exportToMixer = () => {
+    // Export all tracks to the mixer
+    tracks.forEach(track => {
+      // Determine the appropriate bus based on instrument
+      let busId = 'master';
+      if (track.instrument === 'drums') busId = 'drums';
+      else if (track.instrument === 'bass') busId = 'bass';
+      else if (track.instrument === 'piano' || track.instrument === 'synth') busId = 'melody';
+      
+      // Add track to audio router
+      audioRouter.addTrack({
+        id: `${track.id}-${Date.now()}`,
+        name: track.name,
+        type: track.instrument === 'drums' ? 'drums' : 'melody',
+        instrument: track.instrument,
+        notes: notes.filter(n => n.track === track.id),
+        volume: track.volume,
+        pan: track.pan,
+        muted: track.muted,
+        solo: track.solo,
+        bus: busId
+      });
+    });
+
+    // Route melody data to MixStudio
+    audioRouter.routeAudio(
+      'MelodyComposer',
+      'MixStudio',
+      {
+        tracks,
+        notes,
+        tempo,
+        scale,
+        key
+      },
+      'melody',
+      { bpm: tempo, key }
+    );
+
+    // Update session with melody data
+    if (currentSession) {
+      updateSession(currentSession.sessionId, {
+        midiData: {
+          ...currentSession.midiData,
+          notes,
+          tracks,
+          tempo,
+          scale,
+          key
+        }
+      });
+    }
+
+    toast({
+      title: "Sent to Mixer",
+      description: `${tracks.length} tracks routed to Mix Studio`,
+    });
+  };
+
+  const exportToArrangement = () => {
+    const melodyData = {
+      notes,
+      tracks,
+      tempo,
+      scale,
+      key,
+      name: `Melody_${key}_${tempo}BPM`
+    };
+
+    // Route to Arrangement Timeline
+    audioRouter.routeAudio(
+      'MelodyComposer',
+      'ArrangementTimeline',
+      melodyData,
+      'melody',
+      { bpm: tempo, key }
+    );
+
+    toast({
+      title: "Added to Timeline",
+      description: "Melody added to arrangement",
+    });
+  };
+
+  const exportToEffects = () => {
+    // Route selected track through effects bus
+    const track = tracks.find(t => t.id === selectedTrack);
+    if (track) {
+      audioRouter.updateTrackRouting(`${track.id}-${Date.now()}`, 'effects');
+      
+      toast({
+        title: "Sent to Effects",
+        description: `${track.name} routed through effects bus`,
+      });
+    }
+  };
+
   return (
     <div className="h-full bg-gray-900 text-white flex flex-col">
       {/* Top Bar */}
@@ -248,8 +367,30 @@ function MelodyComposer() {
           </div>
           
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" className="gap-1">
-              <Download className="h-4 w-4" /> Export
+            <span className="text-xs text-gray-400 mr-2">Route to:</span>
+            <Button 
+              onClick={exportToMixer}
+              variant="outline" 
+              size="sm" 
+              className="gap-1 bg-purple-600 hover:bg-purple-500 text-white border-purple-700"
+            >
+              <Send className="h-4 w-4" /> Mixer
+            </Button>
+            <Button 
+              onClick={exportToArrangement}
+              variant="outline" 
+              size="sm" 
+              className="gap-1 bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-700"
+            >
+              <Layers className="h-4 w-4" /> Timeline
+            </Button>
+            <Button 
+              onClick={exportToEffects}
+              variant="outline" 
+              size="sm" 
+              className="gap-1 bg-teal-600 hover:bg-teal-500 text-white border-teal-700"
+            >
+              <Music className="h-4 w-4" /> Effects
             </Button>
             <Button variant="default" size="sm" className="gap-1">
               <Share2 className="h-4 w-4" /> Share
@@ -257,6 +398,20 @@ function MelodyComposer() {
           </div>
         </div>
       </div>
+
+      {/* Session Status Banner */}
+      {currentSession && (
+        <div className="bg-blue-900/30 border-b border-blue-500/50 px-4 py-2">
+          <div className="flex items-center space-x-3">
+            <FileMusic className="w-4 h-4 text-blue-400" />
+            <span className="text-xs font-medium text-blue-200">Creating melody for:</span>
+            <span className="text-xs font-bold text-white">{currentSession.songName}</span>
+            <Badge variant="outline" className="text-xs border-blue-400 text-blue-300">
+              Session Active
+            </Badge>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
