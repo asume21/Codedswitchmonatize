@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID, randomInt } from 'crypto';
 import { ObjectStorageService } from '../objectStorage';
+import { replicateMusicGenService } from './replicate-musicgen';
 
 // Initialize Hugging Face client only if valid API key is provided
 let hf: any = null;
@@ -24,7 +25,7 @@ export interface MusicGenSample {
   prompt: string;
   audioUrl?: string; // Optional - undefined means use synthesis
   duration: number;
-  type: 'loop' | 'oneshot';
+  type: 'loop' | 'oneshot' | 'midi';
   instrument: string;
   localPath?: string;
   aiData?: {

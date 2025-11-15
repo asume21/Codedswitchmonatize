@@ -1,37 +1,14 @@
 import { Button } from "@/components/ui/button";
+import { STUDIO_TABS, type StudioTabId } from "@/config/studioTabs";
 
 interface SidebarProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
+  activeTab: StudioTabId;
+  onTabChange: (tab: StudioTabId) => void;
 }
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
-  console.log('🔍 SIDEBAR RENDERING - First tab:', { id: "unified-studio", icon: "fas fa-star", label: "🎵 Unified Studio" });
-  const tabs = [
-    { id: "unified-studio", icon: "fas fa-star", label: "🎵 Unified Studio" },
-    { id: "daw-layout", icon: "fas fa-layer-group", label: "🎚️ DAW Layout" },
-    { id: "translator", icon: "fas fa-code", label: "Code Translator" },
-    { id: "beatmaker", icon: "fas fa-drum", label: "Beat Maker" },
-    { id: "melody", icon: "fas fa-music", label: "Melody Composer" },
-    { id: "multitrack", icon: "fas fa-layer-group", label: "Multi-Track Studio" },
-    { id: "audio-tools", icon: "fas fa-sliders-h", label: "Audio Tools" },
-    { id: "uploader", icon: "fas fa-upload", label: "Song Uploader" },
-    { id: "codebeat", icon: "fas fa-exchange-alt", label: "Code to Music" },
-    { id: "musiccode", icon: "fas fa-code-branch", label: "Music to Code" },
-    { id: "layers", icon: "fas fa-layer-group", label: "Dynamic Layering" },
-    { id: "assistant", icon: "fas fa-robot", label: "AI Assistant" },
-    { id: "security", icon: "fas fa-shield-alt", label: "Security Scanner" },
-    { id: "lyrics", icon: "fas fa-microphone", label: "Lyric Lab" },
-    { id: "musicmixer", icon: "fas fa-sliders-h", label: "Music Studio" },
-    { id: "professionalmixer", icon: "fas fa-mixing-board", label: "Pro Console" },
-    { id: "mixer", icon: "fas fa-sliders-v", label: "Track Mixer" },
-    { id: "pack-generator", icon: "fas fa-box", label: "Pack Generator" },
-    { id: "advanced-sequencer", icon: "fas fa-th-large", label: "Advanced Sequencer" },
-    { id: "granular-engine", icon: "fas fa-atom", label: "Granular Engine" },
-    { id: "wavetable-oscillator", icon: "fas fa-wave-square", label: "Wavetable Synth" },
-    { id: "midi", icon: "fas fa-piano", label: "MIDI Controller" },
-    { id: "metrics", icon: "fas fa-chart-line", label: "Performance Metrics" },
-  ];
+  const tabs = STUDIO_TABS;
+  const activeTabMeta = tabs.find((tab) => tab.id === activeTab);
 
   return (
     <div className="w-48 md:w-56 lg:w-64 bg-studio-panel border-r border-gray-700 flex flex-col py-4 space-y-2 overflow-y-auto h-screen">
@@ -57,31 +34,10 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       <div className="px-4 mt-6 pt-4 border-t border-gray-600">
         <div className="text-xs text-gray-500">
           <div className="mb-2">
-            <strong className="text-gray-400">Current:</strong> {tabs.find(tab => tab.id === activeTab)?.label ?? "Unknown"}
+            <strong className="text-gray-400">Current:</strong> {activeTabMeta?.label ?? "Unknown"}
           </div>
           <div>
-            {activeTab === "unified-studio" && "Complete DAW with Timeline, Piano Roll, Lyrics, AI Generation"}
-            {activeTab === "daw-layout" && "Custom DAW workspace - Instruments, Effects, Timeline, Piano Roll, AI, Mixer"}
-            {activeTab === "beatmaker" && "Create drum patterns and beats"}
-            {activeTab === "translator" && "Convert code between languages"}
-            {activeTab === "melody" && "Compose musical melodies"}
-            {activeTab === "audio-tools" && "EQ, Compressor, Reverb, and more"}
-            {activeTab === "uploader" && "Upload and analyze songs"}
-            {activeTab === "codebeat" && "Turn code into music"}
-            {activeTab === "musiccode" && "Convert music back to code"}
-            {activeTab === "layers" && "AI-powered instrument layering"}
-            {activeTab === "assistant" && "AI-powered music help & song uploads"}
-            {activeTab === "security" && "Scan code for vulnerabilities"}
-            {activeTab === "lyrics" && "Write and edit song lyrics"}
-            {activeTab === "musicmixer" && "Unified music studio with all advanced tools"}
-            {activeTab === "professionalmixer" && "World-class professional mixing console"}
-            {activeTab === "mixer" && "Mix and master individual tracks"}
-            {activeTab === "pack-generator" && "AI-powered sample pack creation"}
-            {activeTab === "advanced-sequencer" && "Professional multi-layered sequencer"}
-            {activeTab === "granular-engine" && "Advanced texture manipulation"}
-            {activeTab === "wavetable-oscillator" && "Wavetable synthesis engine"}
-            {activeTab === "midi" && "Connect physical MIDI controllers"}
-            {activeTab === "metrics" && "AI music generation analytics"}
+            {activeTabMeta?.description ?? "Select a tool to view details."}
           </div>
         </div>
       </div>

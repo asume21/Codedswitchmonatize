@@ -11,7 +11,6 @@ import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import {
   DEFAULT_STUDIO_TAB,
-  STUDIO_TABS,
   getStudioTabById,
   isStudioTabId,
   resolveStudioTabFromPath,
@@ -31,9 +30,9 @@ export const StudioAudioContext = createContext({
   uploadedSongAudio: null as HTMLAudioElement | null,
   isPlaying: false,
   bpm: 120,
-  playMode: 'current' as 'current' | 'all',
-  setPlayMode: (mode: 'current' | 'all') => {},
-  activeTab: 'beatmaker' as string,
+  playMode: "current" as "current" | "all",
+  setPlayMode: (mode: "current" | "all") => {},
+  activeTab: DEFAULT_STUDIO_TAB as StudioTabId,
   currentPlaylist: null as any,
   setCurrentPlaylist: (playlist: any) => {},
   currentPlaylistIndex: 0 as number,
@@ -53,68 +52,15 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-type Tab = "translator" | "beatmaker" | "melody" | "multitrack" | "unified-studio" | "daw-layout" | "audio-tools" | "codebeat" | "musiccode" | "assistant" | "uploader" | "security" | "lyrics" | "musicmixer" | "professionalmixer" | "mixer" | "layers" | "midi" | "metrics" | "advanced-sequencer" | "granular-engine" | "wavetable-oscillator" | "pack-generator" | "song-structure";
-
-const tabAccess: Partial<Record<Tab, { requireAuth?: boolean; requirePro?: boolean }>> = {
-  assistant: { requireAuth: true },
-  security: { requireAuth: true },
-  lyrics: { requireAuth: true },
-  musicmixer: { requirePro: true },
-  professionalmixer: { requirePro: true },
-  mixer: { requirePro: true },
-  layers: { requireAuth: true },
-  "advanced-sequencer": { requireAuth: true },
-  "granular-engine": { requireAuth: true },
-  "wavetable-oscillator": { requireAuth: true },
-  "pack-generator": { requireAuth: true },
-  "song-structure": { requirePro: true },
-  codebeat: { requireAuth: true },
-  musiccode: { requireAuth: true },
-};
-
 export default function Studio() {
   const [location] = useLocation();
-  
-  // Determine active tab based on current route
-  const getTabFromRoute = (path: string): Tab => {
-    // Exact match for homepage - default to Unified Studio
-    if (path === '/' || path === '/studio') {
-      return 'unified-studio';
-    }
-    
-    const routeMap: Record<string, Tab> = {
-      '/unified-studio': 'unified-studio',
-      '/daw-layout': 'daw-layout',
-      '/code-translator': 'translator',
-      '/beat-studio': 'beatmaker',
-      '/melody-composer': 'melody',
-      '/codebeat-studio': 'codebeat',
-      '/music-studio': 'musicmixer',
-      '/pro-console': 'professionalmixer',
-      '/song-uploader': 'uploader',
-      '/ai-assistant': 'assistant',
-      '/vulnerability-scanner': 'security',
-      '/lyric-lab': 'lyrics',
-      '/mix-studio': 'mixer',
-      '/midi-controller': 'midi',
-      '/pack-generator': 'pack-generator',
-      '/advanced-sequencer': 'advanced-sequencer',
-      '/granular-engine': 'granular-engine',
-      '/wavetable-oscillator': 'wavetable-oscillator',
-      '/song-structure': 'song-structure'
-    };
-    
-    // Sort routes by length (descending) to match longer, more specific routes first
-    const sortedRoutes = Object.keys(routeMap).sort((a, b) => b.length - a.length);
-    const matchedRoute = sortedRoutes.find(route => path.includes(route));
-    return matchedRoute ? routeMap[matchedRoute] : 'unified-studio'; // Default fallback to Unified Studio
-  };
 
-  const [activeTab, setActiveTab] = useState<Tab>(() => getTabFromRoute(location));
-  
-  // Update active tab when route changes
+  const [activeTab, setActiveTab] = useState<StudioTabId>(() =>
+    resolveStudioTabFromPath(location),
+  );
+
   useEffect(() => {
-    setActiveTab(getTabFromRoute(location));
+    setActiveTab(resolveStudioTabFromPath(location));
   }, [location]);
   const [currentPattern, setCurrentPattern] = useState({});
   const [currentMelody, setCurrentMelody] = useState<any[]>([]);
@@ -141,14 +87,18 @@ export default function Studio() {
 
   // Listen for tab navigation events from other components
   useEffect(() => {
-    const handleTabNavigation = (event: CustomEvent) => {
-      const targetTab = event.detail as Tab;
-      setActiveTab(targetTab);
+    const handleTabNavigation = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      const targetTab = customEvent.detail;
+
+      if (typeof targetTab === "string" && isStudioTabId(targetTab)) {
+        setActiveTab(targetTab);
+      }
     };
 
-    window.addEventListener('navigateToTab', handleTabNavigation as EventListener);
+    window.addEventListener("navigateToTab", handleTabNavigation as EventListener);
     return () => {
-      window.removeEventListener('navigateToTab', handleTabNavigation as EventListener);
+      window.removeEventListener("navigateToTab", handleTabNavigation as EventListener);
     };
   }, []);
 
@@ -199,36 +149,6 @@ export default function Studio() {
     setIsStudioPlaying(false);
   };
 
-  const getActiveToolName = (tab: Tab): string => {
-    const toolNames: Record<Tab, string> = {
-      "translator": "Code Translator",
-      "beatmaker": "Beat Maker", 
-      "melody": "Melody Composer",
-      "multitrack": "Multi-Track Studio",
-      "unified-studio": "Unified Studio",
-      "daw-layout": "DAW Layout",
-      "audio-tools": "Audio Tools",
-      "codebeat": "Code to Music",
-      "musiccode": "Music to Code",
-      "assistant": "AI Assistant",
-      "uploader": "Song Uploader",
-      "security": "Security Scanner",
-      "lyrics": "Lyric Lab",
-      "musicmixer": "Music Studio",
-      "professionalmixer": "Professional Audio Console",
-      "mixer": "Mixer",
-      "layers": "Dynamic Layering",
-      "midi": "MIDI Controller",
-      "metrics": "Performance Metrics",
-      "advanced-sequencer": "Advanced Sequencer",
-      "granular-engine": "Granular Engine",
-      "wavetable-oscillator": "Wavetable Oscillator",
-      "pack-generator": "Pack Generator",
-      "song-structure": "Song Structure Manager"
-    };
-    return toolNames[tab] || "Beat Maker";
-  };
-
   const playFullSong = async () => {
     if (!isInitialized) {
       await initialize();
@@ -263,6 +183,8 @@ export default function Studio() {
   const stopFullSong = () => {
     setIsStudioPlaying(false);
   };
+
+  const activeTabConfig = getStudioTabById(activeTab);
 
   const studioAudioValue = {
     currentPattern,
@@ -299,48 +221,19 @@ export default function Studio() {
   };
 
   const renderTabContent = () => {
-    const componentMap: Record<Tab, JSX.Element> = {
-      translator: <CodeTranslator />,
-      beatmaker: <BeatMaker />,
-      melody: <MelodyComposerV2 />,
-      multitrack: <CodeBeatStudio />,
-      "unified-studio": <UnifiedStudioWorkspace />,
-      "daw-layout": <DAWLayoutWorkspace />,
-      "audio-tools": <AudioToolsPage />,
-      codebeat: <CodeToMusic />,
-      musiccode: <MusicToCode />,
-      assistant: <AIAssistant />,
-      uploader: <SongUploader />,
-      security: <VulnerabilityScanner />,
-      lyrics: <LyricLab />,
-      musicmixer: <UnifiedMusicStudio />,
-      professionalmixer: <ProfessionalMixer />,
-      mixer: <Mixer />,
-      layers: <DynamicLayering />,
-      midi: <MIDIController />,
-      metrics: <PerformanceMetrics />,
-      "advanced-sequencer": <OutputSequencer />,
-      "granular-engine": <GranularEngine />,
-      "wavetable-oscillator": <WavetableOscillator />,
-      "pack-generator": <PackGenerator />,
-      "song-structure": <SongStructureManager />
-    };
+    const tabConfig = getStudioTabById(activeTab) ?? getStudioTabById(DEFAULT_STUDIO_TAB);
 
-    const content = componentMap[activeTab] || <BeatMaker />;
-    const access = tabAccess[activeTab];
-    
-    // Wrap content in ErrorBoundary to prevent crashes
-    const wrappedContent = <ErrorBoundary>{content}</ErrorBoundary>;
-    
-    if (!access) {
-      return wrappedContent;
+    if (!tabConfig) {
+      return null;
     }
 
-    if (access.requirePro) {
+    const wrappedContent = <ErrorBoundary>{tabConfig.component()}</ErrorBoundary>;
+
+    if (tabConfig.requirePro) {
       return <RequireAuth requirePro>{wrappedContent}</RequireAuth>;
     }
 
-    if (access.requireAuth) {
+    if (tabConfig.requireAuth) {
       return <RequireAuth>{wrappedContent}</RequireAuth>;
     }
 
@@ -360,11 +253,11 @@ export default function Studio() {
               </div>
             </div>
             
-            <TransportControls currentTool={getActiveToolName(activeTab)} activeTab={activeTab} />
+            <TransportControls currentTool={activeTabConfig?.shortName ?? "Studio"} activeTab={activeTab} />
           </div>
           
           {/* Mobile Bottom Navigation */}
-          <MobileNav activeTab={activeTab} onTabChange={(tab: string) => setActiveTab(tab as Tab)} />
+          <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
           
           {/* iOS Audio Enable Button */}
           <IOSAudioEnable />

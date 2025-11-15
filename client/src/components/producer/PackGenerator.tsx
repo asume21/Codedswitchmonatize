@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useEffect, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Sparkles, Dice1, Play, Pause, Download, Volume2,
-  Loader2, Zap, Package, Headphones, Music, Plus, DatabaseIcon
+  Sparkles, Dice1, Play, Pause, Download,
+  Loader2, Package, Headphones, Music, DatabaseIcon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,6 +49,34 @@ const RANDOM_PROMPTS = [
   "Uplifting house music with piano melodies, vocal chops, and four-on-the-floor kicks, 128 BPM."
 ];
 
+const PROVIDER_OPTIONS = [
+  {
+    value: "musicgen",
+    label: "🎵 MusicGen AI (Audio)",
+    description: "Replicate-powered generation with real audio when tokens are configured.",
+  },
+  {
+    value: "suno",
+    label: "🌞 Suno Instrumentals",
+    description: "Uses the official Suno API for polished stems (requires SUNO_API_KEY).",
+  },
+  {
+    value: "jasco",
+    label: "🎹 JASCO Chords/Drums/Melody",
+    description: "Hugging Face JASCO-1B model for theory-heavy arrangements (HUGGINGFACE_API_KEY).",
+  },
+  {
+    value: "structure",
+    label: "📋 AI Structure Generator",
+    description: "Gemini-powered structured packs (metadata focused).",
+  },
+  {
+    value: "intelligent",
+    label: "🧠 Intelligent (Fast & Offline)",
+    description: "Server-side intelligent generator with zero external APIs.",
+  },
+] as const;
+
 export default function PackGenerator() {
   const [prompt, setPrompt] = useState("");
   const [packCount, setPackCount] = useState(4);
@@ -57,7 +85,96 @@ export default function PackGenerator() {
   const [aiProvider, setAiProvider] = useState("musicgen");
   const [previewVolume, setPreviewVolume] = useState([75]);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopPreview = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setPlayingPack(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopPreview();
+    };
+  }, []);
+
+  const generateMutation = useMutation<GeneratedPack[], Error, { prompt: string; count: number; provider: string }>({
+    mutationFn: async (body) => {
+      const response = await fetch("/api/packs/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to generate packs");
+      }
+
+      return data.packs as GeneratedPack[];
+    },
+    onSuccess: (packs = []) => {
+      setGeneratedPacks(packs || []);
+      if (!packs?.length) {
+        toast({
+          title: "No packs returned",
+          description: "Try a different prompt or provider.",
+        });
+        return;
+      }
+
+      toast({
+        title: `Generated ${packs.length} pack${packs.length === 1 ? "" : "s"}`,
+        description: "Scroll down to preview, download, or save them.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Generation failed",
+        description: error?.message || "Unknown error",
+      });
+    },
+  });
+
+  const saveMutation = useMutation<{ packId: string }, Error, GeneratedPack>({
+    mutationFn: async (pack) => {
+      const response = await fetch("/api/packs/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ pack }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save pack");
+      }
+
+      return data;
+    },
+    onSuccess: (_data, pack) => {
+      toast({
+        title: "Pack saved!",
+        description: `"${pack.title}" has been added to your library.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Save failed",
+        description: error?.message || "Unable to save pack",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleRandomPrompt = () => {
     const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
@@ -65,143 +182,86 @@ export default function PackGenerator() {
   };
 
   const handlePlayPack = (pack: GeneratedPack) => {
-    console.log("Playing pack:", pack.title);
+    const sampleWithAudio = pack.samples.find((sample) => sample.audioUrl);
+
+    if (!sampleWithAudio?.audioUrl) {
+      toast({
+        title: "Preview unavailable",
+        description: "This pack was generated without audio. Try MusicGen provider.",
+      });
+      return;
+    }
+
+    if (playingPack === pack.id) {
+      stopPreview();
+      return;
+    }
+
+    stopPreview();
+    const audio = new Audio(sampleWithAudio.audioUrl);
+    audio.volume = (previewVolume[0] ?? 75) / 100;
+    audioRef.current = audio;
     setPlayingPack(pack.id);
-    setTimeout(() => setPlayingPack(null), 8000);
+
+    audio.play().catch((err) => {
+      console.error("Audio preview failed:", err);
+      toast({
+        title: "Preview error",
+        description: "Unable to play audio preview.",
+        variant: "destructive",
+      });
+      stopPreview();
+    });
+
+    audio.addEventListener("ended", () => {
+      stopPreview();
+    });
   };
 
   const handleDownloadPack = (pack: GeneratedPack) => {
+    const sampleWithAudio = pack.samples.find((sample) => sample.audioUrl);
+
+    if (!sampleWithAudio?.audioUrl) {
+      toast({
+        title: "Download unavailable",
+        description: "This pack does not include audio URLs.",
+      });
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = sampleWithAudio.audioUrl;
+    link.download = `${pack.title}.wav`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     toast({
       title: `Downloading "${pack.title}"`,
       description: `${pack.samples.length} samples • ${pack.genre} • ${pack.key}`,
     });
   };
 
-  const handleSaveToLibrary = async (pack: GeneratedPack) => {
-    try {
-      const ownerKey = (import.meta as any).env.VITE_OWNER_KEY;
-      
-      const response = await fetch("/api/packs/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-owner-key": ownerKey || ""
-        },
-        credentials: "include",
-        body: JSON.stringify({ pack }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to save pack");
-      }
-
-      toast({
-        title: "✅ Saved to Library!",
-        description: `"${pack.title}" has been added to your library.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Save Failed",
-        description: (error as Error)?.message || "Could not save pack to library",
-        variant: "destructive",
-      });
-    }
+  const handleSaveToLibrary = (pack: GeneratedPack) => {
+    saveMutation.mutate(pack);
   };
 
-  const generateWithMusicGen = async (userPrompt: string) => {
-    const variations = ["energetic", "melodic", "atmospheric", "rhythmic", "dynamic", "ambient"];
-    const keys = ["C", "D", "E", "F", "G", "A", "B"];
-    const genres = ["Electronic", "Hip Hop", "House", "Trap", "Ambient", "Lo-Fi"];
-    
-    try {
-      const ownerKey = (import.meta as any).env.VITE_OWNER_KEY;
-      console.log(`🎵 Generating ${packCount} unique packs...`);
-      console.log('🔑 Owner key from env:', ownerKey ? `${ownerKey.substring(0, 8)}...` : 'MISSING');
-      
-      const newPacks: GeneratedPack[] = [];
-      
-      for (let i = 0; i < packCount; i++) {
-        // Create unique variation for each pack
-        const variation = variations[i % variations.length];
-        const key = keys[i % keys.length];
-        const genre = genres[i % genres.length];
-        const variedPrompt = `${variation} ${userPrompt} in ${key}`;
-        
-        toast({
-          title: `Generating Pack ${i + 1}/${packCount}`,
-          description: `Creating ${variation} variation...`,
-        });
-        
-        console.log(`🎵 Pack ${i + 1}: "${variedPrompt}"`);
-        
-        const response = await fetch("/api/music/generate-with-musicgen", {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "x-owner-key": ownerKey || ""
-          },
-          credentials: "include",
-          body: JSON.stringify({ prompt: variedPrompt, duration: 10 }),
-        });
-
-        let data;
-        try {
-          data = await response.json();
-        } catch (parseError) {
-          console.error('❌ Failed to parse response as JSON:', parseError);
-          continue; // Skip this pack and continue with next
-        }
-
-        if (!response.ok) {
-          const errorMsg = data.message || data.error || `HTTP ${response.status}`;
-          console.error(`❌ Pack ${i + 1} failed:`, errorMsg);
-          continue; // Skip this pack and continue with next
-        }
-
-        const musicGenPack: GeneratedPack = {
-          id: `musicgen-${Date.now()}-${i}`,
-          title: `${variation.charAt(0).toUpperCase() + variation.slice(1)} Pack #${i + 1}`,
-          description: `AI-generated ${variation} music: "${userPrompt}"`,
-          bpm: 120 + (i * 5), // Vary BPM slightly
-          key: key,
-          genre: genre,
-          samples: [{
-            id: `sample-${Date.now()}-${i}`,
-            name: `${variation} Track`,
-            type: "loop",
-            duration: 10,
-            audioUrl: data.audioUrl,
-            aiData: {
-              notes: [],
-              pattern: [],
-              intensity: 0.7 + (i * 0.05)
-            }
-          }],
-          metadata: {
-            energy: 70 + (i * 5),
-            mood: variation.charAt(0).toUpperCase() + variation.slice(1),
-            instruments: ["AI Synth"],
-            tags: ["AI Generated", "MusicGen", variation]
-          }
-        };
-
-        newPacks.push(musicGenPack);
-        setGeneratedPacks([...newPacks]); // Update UI after each pack
-      }
-
+  const handleGenerate = () => {
+    if (!prompt.trim()) {
       toast({
-        title: `✅ ${newPacks.length} Packs Generated!`,
-        description: `Generated ${newPacks.length} unique AI packs from your prompt.`,
+        title: "Prompt required",
+        description: "Describe the style of pack you want to generate.",
       });
-    } catch (error) {
-      toast({
-        title: "MusicGen Generation Failed",
-        description: (error as Error)?.message || "Unknown error occurred",
-        variant: "destructive",
-      });
+      return;
     }
+
+    stopPreview();
+    setGeneratedPacks([]);
+    generateMutation.mutate({
+      prompt: prompt.trim(),
+      count: packCount,
+      provider: aiProvider,
+    });
   };
 
   return (
@@ -311,15 +371,16 @@ export default function PackGenerator() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="structure">📋 AI Structure Generator</SelectItem>
-                    <SelectItem value="musicgen">🎵 MusicGen AI (Real Audio)</SelectItem>
-                    <SelectItem value="grok">🤖 Grok AI (Premium)</SelectItem>
-                    <SelectItem value="intelligent">🧠 Basic (Free)</SelectItem>
-                    <SelectItem value="openai" disabled>💡 OpenAI (Configure API key)</SelectItem>
-                    <SelectItem value="gemini" disabled>💎 Gemini (Configure API key)</SelectItem>
-                    <SelectItem value="anthropic" disabled>🔬 Anthropic (Configure API key)</SelectItem>
+                    {PROVIDER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {PROVIDER_OPTIONS.find((option) => option.value === aiProvider)?.description}
+                </p>
               </div>
 
               <div>
@@ -337,12 +398,21 @@ export default function PackGenerator() {
             </div>
 
             <Button
-              onClick={() => generateWithMusicGen(prompt)}
-              disabled={!prompt.trim()}
+              onClick={handleGenerate}
+              disabled={!prompt.trim() || generateMutation.isPending}
               className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             >
-              <Music className="mr-2 h-5 w-5" />
-              Generate with MusicGen AI
+              {generateMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Generating packs...
+                </>
+              ) : (
+                <>
+                  <Music className="mr-2 h-5 w-5" />
+                  Generate Sample Packs
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -455,9 +525,19 @@ export default function PackGenerator() {
                         size="sm"
                         variant="outline"
                         className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                        disabled={saveMutation.isPending}
                       >
-                        <DatabaseIcon className="h-4 w-4 mr-1" />
-                        Add to Library
+                        {saveMutation.isPending && saveMutation.variables?.id === pack.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <DatabaseIcon className="h-4 w-4 mr-1" />
+                            Add to Library
+                          </>
+                        )}
                       </Button>
                     </div>
                   </CardContent>

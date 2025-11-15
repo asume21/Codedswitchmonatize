@@ -14,11 +14,15 @@ import {
   handleStripeWebhook,
 } from "./services/stripe";
 import { musicGenService } from "./services/musicgen";
+import { jascoMusicService } from "./services/jascoMusic";
+import { sunoApi } from "./services/sunoApi";
+import { localMusicGenService } from "./services/local-musicgen";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
+import { generateSamplePacksWithGemini } from "./services/gemini";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -157,6 +161,68 @@ function generateTags(prompt: string, genre: string, mood: string) {
   );
   
   return [...baseTags, mood, ...promptWords, 'High Quality'].slice(0, 6);
+}
+
+async function generateSunoPacks(prompt: string, count: number) {
+  if (!process.env.SUNO_API_KEY) {
+    throw new Error("SUNO_API_KEY not configured");
+  }
+
+  const packs = [] as any[];
+
+  for (let i = 0; i < count; i++) {
+    const variationPrompt = `${prompt} (instrumental focus ${i + 1})`;
+    const response = await sunoApi.generateMusic({
+      prompt: variationPrompt,
+      makeInstrumental: true,
+      waitAudio: true,
+      model: "v5",
+    });
+
+    if (!response.success) {
+      console.warn("⚠️ Suno generation failed", response.error);
+      continue;
+    }
+
+    const track = response.data?.data?.[0] || response.data?.[0] || response.data;
+    const audioUrl = track?.audio_url || track?.audioUrl;
+
+    if (!audioUrl) {
+      console.warn("⚠️ Suno response missing audio", track);
+      continue;
+    }
+
+    packs.push({
+      id: `suno-pack-${Date.now()}-${i}`,
+      title: track?.title || `Suno Instrumental #${i + 1}`,
+      description: track?.description || `Suno AI instrumental generated from "${variationPrompt}"`,
+      bpm: track?.bpm || 122,
+      key: track?.key || "Em",
+      genre: track?.genre || "Electronic",
+      samples: [
+        {
+          id: `suno-sample-${Date.now()}-${i}`,
+          name: "Full Mix",
+          type: "loop",
+          duration: track?.duration || 30,
+          audioUrl,
+          instrument: "suno-ai",
+        },
+      ],
+      metadata: {
+        energy: 80,
+        mood: track?.mood || "Cinematic",
+        instruments: ["Suno AI"],
+        tags: ["Suno", "AI", "Instrumental"],
+      },
+    });
+  }
+
+  return packs;
+}
+
+async function generateJascoPacks(prompt: string, count: number) {
+  return jascoMusicService.generateSamplePack(prompt, count);
 }
 
 export async function registerRoutes(app: Express, storage: IStorage) {
@@ -1304,6 +1370,66 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
         res.status(500).json({ message: err?.message || "Failed to generate music" });
       }
     },
+  );
+
+  // Unified Pack Generator endpoint
+  app.post(
+    "/api/packs/generate",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { prompt, count, provider } = (req.body || {}) as {
+          prompt?: string;
+          count?: number;
+          provider?: string;
+        };
+
+        if (!prompt || typeof prompt !== "string") {
+          return sendError(res, 400, "Prompt is required");
+        }
+
+        const packCount = Math.max(1, Math.min(typeof count === "number" ? count : parseInt(String(count || 4), 10) || 4, 8));
+        const providerId = (provider || "musicgen").toLowerCase();
+
+        let packs;
+
+        switch (providerId) {
+          case "structure":
+            try {
+              packs = await generateSamplePacksWithGemini(prompt, packCount);
+            } catch (err) {
+              console.warn("Gemini pack generation unavailable, falling back to intelligent generator:", err);
+              packs = generateIntelligentPacks(prompt, packCount);
+            }
+            break;
+          case "suno":
+            packs = await generateSunoPacks(prompt, packCount);
+            break;
+          case "jasco":
+            packs = await generateJascoPacks(prompt, packCount);
+            break;
+          case "intelligent":
+            packs = generateIntelligentPacks(prompt, packCount);
+            break;
+          case "local":
+            packs = await localMusicGenService.generateSamplePack(prompt, packCount);
+            break;
+          case "musicgen":
+          default:
+            packs = await musicGenService.generateSamplePack(prompt, packCount);
+            break;
+        }
+
+        res.json({
+          success: true,
+          provider: providerId,
+          packs: packs || [],
+        });
+      } catch (err: any) {
+        console.error("Pack generation error:", err);
+        sendError(res, 500, err?.message || "Failed to generate sample packs");
+      }
+    }
   );
 
     app.post("/api/ai/translate-code", requireAuth(), async (req: Request, res: Response) => {

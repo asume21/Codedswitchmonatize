@@ -1,31 +1,34 @@
+import { getStudioTabById, type StudioTabId, type StudioTabConfig } from "@/config/studioTabs";
+
 interface MobileNavProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
+  activeTab: StudioTabId;
+  onTabChange: (tab: StudioTabId) => void;
 }
 
-export default function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
-  const tabs = [
-    { id: "beatmaker", icon: "fas fa-drum", label: "Beats" },
-    { id: "musicmixer", icon: "fas fa-sliders-h", label: "Studio" },
-    { id: "melody", icon: "fas fa-music", label: "Melody" },
-    { id: "professionalmixer", icon: "fas fa-mixing-board", label: "Pro" },
-    { id: "assistant", icon: "fas fa-robot", label: "AI" },
-    { id: "midi", icon: "fas fa-piano", label: "MIDI" },
-  ];
+const MOBILE_TAB_IDS: StudioTabId[] = [
+  "beatmaker",
+  "musicmixer",
+  "melody",
+  "professionalmixer",
+  "assistant",
+  "midi",
+];
 
+const mobileTabs: StudioTabConfig[] = MOBILE_TAB_IDS.map((id) => getStudioTabById(id))
+  .filter((tab): tab is StudioTabConfig => Boolean(tab));
+
+export default function MobileNav({ activeTab, onTabChange }: MobileNavProps) {
   return (
     <div className="mobile-nav md:hidden">
-      {tabs.map((tab) => (
+      {mobileTabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`mobile-nav-item ${
-            activeTab === tab.id ? "active" : ""
-          }`}
-          title={tab.label}
+          className={`mobile-nav-item ${activeTab === tab.id ? "active" : ""}`}
+          title={tab.shortName}
         >
           <i className={`${tab.icon} text-sm mb-1`}></i>
-          <span className="text-[10px]">{tab.label}</span>
+          <span className="text-[10px]">{tab.shortName}</span>
         </button>
       ))}
     </div>
