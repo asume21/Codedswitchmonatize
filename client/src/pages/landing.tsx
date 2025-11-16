@@ -55,14 +55,19 @@ export default function Landing() {
             
             <div className="pt-6 border-t border-gray-700">
               <p className="text-sm text-gray-500 mb-4">
-                Already have an account? Access the studio:
+                Want to follow our progress?
               </p>
-              <Link href="/studio">
+              <a 
+                href="https://github.com/asume21/Codedswitchmonatize" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block"
+              >
                 <Button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
-                  <Zap className="w-4 h-4 mr-2" />
-                  Go to Studio
+                  <Code className="w-4 h-4 mr-2" />
+                  View Updates on GitHub
                 </Button>
-              </Link>
+              </a>
             </div>
           </CardContent>
         </Card>
