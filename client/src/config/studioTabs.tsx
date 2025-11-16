@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import AIAssistant from "@/components/studio/AIAssistant";
 import AudioToolsPage from "@/components/studio/AudioToolsPage";
 import BeatMaker from "@/components/studio/BeatMaker";
-import CodeToMusic from "@/components/studio/CodeToMusic";
+import CodeToMusicStudioV2 from "@/components/studio/CodeToMusicStudioV2";
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
 import DynamicLayering from "@/components/studio/DynamicLayering";
@@ -139,13 +139,13 @@ export const STUDIO_TABS: StudioTabConfig[] = [
   },
   {
     id: "codebeat",
-    label: "Code to Music",
+    label: "Code to Music V2",
     shortName: "Code to Music",
     icon: "fas fa-exchange-alt",
-    description: "Turn code into music",
+    description: "Turn code into harmonic music with the four chords algorithm",
     routes: ["/codebeat-studio", "/code-to-music-studio"],
     requireAuth: true,
-    component: () => <CodeToMusic />,
+    component: () => <CodeToMusicStudioV2 />,
   },
   {
     id: "musiccode",
