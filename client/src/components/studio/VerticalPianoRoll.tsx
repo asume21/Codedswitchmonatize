@@ -457,12 +457,14 @@ const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const handleGridMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!activeTrack || !gridContentRef.current || !gridWrapperRef.current) return;
 
-    const rect = gridContentRef.current.getBoundingClientRect();
+    // Use wrapper's bounding rect (the scrollable container)
+    const wrapperRect = gridWrapperRef.current.getBoundingClientRect();
     const scrollLeft = gridWrapperRef.current.scrollLeft;
     const scrollTop = gridWrapperRef.current.scrollTop;
 
-    const offsetX = event.clientX - rect.left + scrollLeft;
-    const offsetY = event.clientY - rect.top + scrollTop;
+    // Calculate position relative to wrapper + scroll offset
+    const offsetX = event.clientX - wrapperRect.left + scrollLeft;
+    const offsetY = event.clientY - wrapperRect.top + scrollTop;
 
     const step = Math.min(Math.max(Math.floor(offsetX / STEP_WIDTH), 0), STEPS - 1);
     const rowIndex = Math.min(Math.max(Math.floor(offsetY / KEY_HEIGHT), 0), MIDI_RANGE.length - 1);

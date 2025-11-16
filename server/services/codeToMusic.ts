@@ -12,6 +12,7 @@ import type {
 } from '../../shared/types/codeToMusic';
 import { getGenreConfig, DEFAULT_GENRE } from './codeToMusic/genreConfigs';
 import { parseCodeStructure, getCodeStatistics } from './codeToMusic/codeParser';
+import { generateTimeline, generateDrumPattern, calculateOptimalBPM } from './codeToMusic/timelineGenerator';
 
 /**
  * Main entry point: Convert code to music
@@ -50,21 +51,45 @@ export async function convertCodeToMusic(
       stats,
     });
 
-    // TODO: Step 4 - Generate timeline
-    // TODO: Step 5 - Generate music data
-    // TODO: Add variation logic
+    // Calculate optimal BPM
+    const bpm = calculateOptimalBPM(parsedCode, genreConfig.bpm);
+    
+    // Generate timeline (Step 4 - COMPLETE)
+    const { timeline, chords, melody } = generateTimeline(
+      parsedCode,
+      genreConfig.name,
+      bpm,
+      request.variation
+    );
+    
+    // Generate drum pattern
+    const drums = generateDrumPattern(parsedCode, bpm);
+    
+    // Calculate total duration
+    const duration = melody.length > 0 
+      ? Math.max(...melody.map(n => n.start + n.duration))
+      : 16;
+    
+    console.log('🎼 Generated music:', {
+      timelineEvents: timeline.length,
+      chords: chords.length,
+      melodyNotes: melody.length,
+      duration: `${duration.toFixed(1)}s`,
+      bpm,
+    });
 
-    // Placeholder response for now
+    // Complete music data (Step 5 - COMPLETE)
     const music: MusicData = {
-      timeline: [],
-      chords: [],
-      melody: [],
+      timeline,
+      chords,
+      melody,
+      drums,
       metadata: {
-        bpm: genreConfig.bpm,
+        bpm,
         key: 'C Major',
         genre: genreConfig.name,
         variation: request.variation,
-        duration: 16,
+        duration,
         generatedAt: new Date().toISOString(),
         seed: generateSeed(request.code, request.variation),
       },
