@@ -144,7 +144,6 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-exchange-alt",
     description: "Turn code into harmonic music with the four chords algorithm",
     routes: ["/codebeat-studio", "/code-to-music-studio"],
-    requireAuth: true,
     component: () => <CodeToMusicStudioV2 />,
   },
   {

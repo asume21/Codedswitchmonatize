@@ -9,6 +9,7 @@ const MOBILE_TAB_IDS: StudioTabId[] = [
   "beatmaker",
   "musicmixer",
   "melody",
+  "codebeat",
   "professionalmixer",
   "assistant",
   "midi",

@@ -13,6 +13,7 @@ import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
 import ProfessionalStudio from './ProfessionalStudio';
 import LyricLab from './LyricLab';
+import CodeToMusicStudioV2 from './CodeToMusicStudioV2';
 import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
@@ -163,7 +164,7 @@ export default function UnifiedStudioWorkspace() {
   }, [studioContext?.isPlaying]);
   
   // Main View State (DAW-style tabs)
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader'>('arrangement');
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music'>('arrangement');
   
   // Section expansion states
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
@@ -965,6 +966,15 @@ export default function UnifiedStudioWorkspace() {
           <Upload className="w-3 h-3 mr-1.5" />
           Song Uploader
         </Button>
+        <Button
+          variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveView('code-to-music')}
+          className="h-8 px-3"
+        >
+          <Wand2 className="w-3 h-3 mr-1.5" />
+          Code to Music
+        </Button>
       </div>
 
       {/* Main Content */}
@@ -1588,6 +1598,13 @@ Your lyrics will sync with the timeline
           {activeView === 'song-uploader' && (
             <div className="flex-1 overflow-y-auto bg-gray-900">
               <SongUploader />
+            </div>
+          )}
+
+          {/* CODE TO MUSIC VIEW */}
+          {activeView === 'code-to-music' && (
+            <div className="flex-1 overflow-hidden">
+              <CodeToMusicStudioV2 />
             </div>
           )}
         </div>
