@@ -163,10 +163,9 @@ export default function VocalRecordingTrack({
         description: 'Speak or sing into your microphone',
       });
     } catch (error) {
-      console.error('Recording error:', error);
       toast({
         title: 'Recording Failed',
-        description: 'Please ensure microphone permissions are granted',
+        description: error instanceof Error ? error.message : 'Please ensure microphone permissions are granted',
         variant: 'destructive',
       });
     }
