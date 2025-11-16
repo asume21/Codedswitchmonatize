@@ -11,6 +11,7 @@ import type {
   CodeElement,
 } from '../../shared/types/codeToMusic';
 import { getGenreConfig, DEFAULT_GENRE } from './codeToMusic/genreConfigs';
+import { parseCodeStructure, getCodeStatistics } from './codeToMusic/codeParser';
 
 /**
  * Main entry point: Convert code to music
@@ -38,11 +39,15 @@ export async function convertCodeToMusic(
     const genreConfig = getGenreConfig(request.genre || DEFAULT_GENRE);
     console.log('🎸 Using genre:', genreConfig.displayName);
 
-    // TODO: Step 3 - Parse code structure
+    // Parse code structure (Step 3 - COMPLETE)
     const parsedCode = parseCodeStructure(request.code, request.language);
+    const stats = getCodeStatistics(parsedCode);
+    
     console.log('📝 Parsed code:', {
       elements: parsedCode.elements.length,
       complexity: parsedCode.complexity,
+      mood: parsedCode.mood,
+      stats,
     });
 
     // TODO: Step 4 - Generate timeline
@@ -79,71 +84,7 @@ export async function convertCodeToMusic(
   }
 }
 
-/**
- * Parse code structure (Step 3)
- * Extracts classes, functions, variables, loops, etc.
- */
-function parseCodeStructure(code: string, language: string): ParsedCode {
-  // TODO: Implement proper parsing in Step 3
-  // For now, return basic structure
-  
-  const lines = code.split('\n');
-  const elements: CodeElement[] = [];
-
-  // Simple regex-based detection (will be improved in Step 3)
-  lines.forEach((line, index) => {
-    const trimmed = line.trim();
-    
-    if (trimmed.startsWith('class ')) {
-      elements.push({
-        type: 'class',
-        name: extractName(trimmed, 'class'),
-        line: index + 1,
-        content: trimmed,
-        nestingLevel: 0,
-      });
-    } else if (trimmed.startsWith('def ') || trimmed.startsWith('function ')) {
-      elements.push({
-        type: 'function',
-        name: extractName(trimmed, 'function'),
-        line: index + 1,
-        content: trimmed,
-        nestingLevel: 1,
-      });
-    } else if (trimmed.startsWith('for ') || trimmed.startsWith('while ')) {
-      elements.push({
-        type: 'loop',
-        name: 'loop',
-        line: index + 1,
-        content: trimmed,
-        nestingLevel: 2,
-      });
-    }
-  });
-
-  return {
-    elements,
-    language,
-    totalLines: lines.length,
-    complexity: Math.min(10, Math.floor(elements.length / 2) + 3),
-    mood: 'neutral',
-  };
-}
-
-/**
- * Extract name from code line
- */
-function extractName(line: string, type: string): string {
-  if (type === 'class') {
-    const match = line.match(/class\s+(\w+)/);
-    return match ? match[1] : 'Unknown';
-  }
-  if (type === 'function') {
-    const match = line.match(/(?:def|function)\s+(\w+)/);
-    return match ? match[1] : 'Unknown';
-  }
-  return 'Unknown';
-}
+// Old parser removed - now using enhanced parser from codeParser.ts
 
 /**
  * Generate deterministic seed for reproducibility
