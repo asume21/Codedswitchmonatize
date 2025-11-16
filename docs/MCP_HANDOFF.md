@@ -14,6 +14,7 @@ The server exposes three tools:
 | `handoff.history` | Show the history log for a note | `{ "id": "…", "limit": 10 }` |
 | `handoff.attach` | Append attachment references/notes | `{ "id": "…", "attachments": [{ "path": "client/src/foo.tsx", "note": "needs refactor" }] }` |
 | `handoff.analyze` | Heuristic suggestions/next steps (no external AI) | `{ "id": "…" }` or `{ "summary": "Bug in BeatMaker", "files": ["client/src/...ts"] }` |
+| `handoff.converge` | Compare multiple proposals and emit a consensus summary (optionally logging back to a handoff entry) | `{ "topic": "New audio engine", "ideas": [{ "author": "Codex", "proposal": "Refactor existing" }, { "author": "Cascade", "proposal": "Adopt modular" }], "id": "…" }` |
 
 Messages are saved in `.handoff/messages.json` by default. Set `MCP_HANDOFF_PATH` if you want to
 put the queue somewhere else (for example on a shared volume).

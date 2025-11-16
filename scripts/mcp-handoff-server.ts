@@ -7,6 +7,14 @@ import { z } from "zod";
 
 type HandoffStatus = "open" | "in_progress" | "done";
 
+interface ConsensusIdeaInput {
+  author?: string;
+  proposal: string;
+  pros?: string[];
+  cons?: string[];
+  files?: string[];
+}
+
 interface HistoryEntry {
   id: string;
   author?: string;
@@ -97,6 +105,66 @@ function matchesFilters(message: HandoffMessage, filters: { assignee?: string; s
     return false;
   }
   return true;
+}
+
+function tokenize(text?: string) {
+  if (!text) return [] as string[];
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 4);
+}
+
+function analyzeIdeas(ideas: ConsensusIdeaInput[]) {
+  const keywordFreq = new Map<string, number>();
+  const ideaTokens = ideas.map((idea) => {
+    const tokens = new Set(tokenize(idea.proposal));
+    tokens.forEach((token) => {
+      keywordFreq.set(token, (keywordFreq.get(token) || 0) + 1);
+    });
+    return tokens;
+  });
+
+  const sharedThemes = [...keywordFreq.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([token]) => token)
+    .slice(0, 10);
+
+  const uniqueDirections = ideas.map((idea, index) => {
+    const otherTokens = new Set(
+      [...keywordFreq.entries()]
+        .filter(([, count]) => count === 1)
+        .map(([token]) => token)
+    );
+    const idTokens = ideaTokens[index];
+    const uniques = [...idTokens].filter((token) => otherTokens.has(token));
+    return {
+      author: idea.author || `idea-${index + 1}`,
+      tokens: uniques,
+      summary: idea.proposal,
+    };
+  });
+
+  const recommendedPlan = [] as string[];
+  if (sharedThemes.length) {
+    recommendedPlan.push(`Align around ${sharedThemes.join(", ")}.`);
+  }
+  ideas.forEach((idea) => {
+    recommendedPlan.push(
+      `${idea.author || "Contributor"}: ${idea.proposal}`
+    );
+  });
+
+  const openQuestions = ideas
+    .flatMap((idea) => idea.cons || [])
+    .slice(0, 5);
+
+  return {
+    sharedThemes,
+    uniqueDirections,
+    recommendedPlan,
+    openQuestions,
+  };
 }
 
 const server = new McpServer({
@@ -448,6 +516,76 @@ server.registerTool(
     return {
       content: [{ type: "text", text: JSON.stringify(analysis, null, 2) }],
       structuredContent: { analysis },
+    };
+  }
+);
+
+server.registerTool(
+  "handoff.converge",
+  {
+    title: "Unify ideas",
+    description: "Compare proposals from multiple agents and produce a consensus summary.",
+    inputSchema: z.object({
+      topic: z.string().min(1),
+      ideas: z
+        .array(
+          z.object({
+            author: z.string().optional(),
+            proposal: z.string(),
+            pros: z.array(z.string()).optional(),
+            cons: z.array(z.string()).optional(),
+            files: z.array(z.string()).optional(),
+          })
+        )
+        .min(2),
+      id: z.string().optional(),
+      author: z.string().optional(),
+    }),
+    outputSchema: z.object({
+      consensus: z.any(),
+      message: z.any().optional(),
+    }),
+  },
+  async ({ topic, ideas, id, author }) => {
+    const consensus = analyzeIdeas(ideas);
+    const summary = {
+      topic,
+      sharedThemes: consensus.sharedThemes,
+      recommendedPlan: consensus.recommendedPlan,
+      openQuestions: consensus.openQuestions,
+      contributors: ideas.map((idea, index) => ({
+        author: idea.author || `idea-${index + 1}`,
+        proposal: idea.proposal,
+        files: idea.files,
+      })),
+    };
+
+    let message: HandoffMessage | undefined;
+    if (id) {
+      const messages = await loadMessages();
+      const index = messages.findIndex((entry) => entry.id === id);
+      if (index === -1) {
+        throw new Error(`No handoff message found with id ${id}`);
+      }
+      message = messages[index];
+      const note = `Consensus for ${topic}: ${consensus.sharedThemes.join(", ") || "no shared themes"}`;
+      addHistory(message, createHistoryEntry(note, author));
+      message.attachments.push({
+        id: crypto.randomUUID(),
+        author,
+        name: `Consensus summary (${new Date().toLocaleString()})`,
+        note: JSON.stringify(summary),
+        createdAt: new Date().toISOString(),
+      });
+      await saveMessages(messages);
+    }
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+      structuredContent: {
+        consensus: summary,
+        message,
+      },
     };
   }
 );
