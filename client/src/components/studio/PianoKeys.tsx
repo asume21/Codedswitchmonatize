@@ -111,6 +111,7 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
               `}
               style={{ 
                 height: `${keyHeight}px`,
+                boxSizing: 'border-box',
                 boxShadow: isActive
                   ? '0 0 20px rgba(34, 197, 94, 0.9), inset 0 2px 8px rgba(34, 197, 94, 0.4)'
                   : key.isBlack 
