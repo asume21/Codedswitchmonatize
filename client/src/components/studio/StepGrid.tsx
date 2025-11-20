@@ -58,7 +58,12 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
         `}
         style={{
           width: `${stepWidth * zoom}px`,
-          height: '30px'
+          minWidth: `${stepWidth * zoom}px`,
+          maxWidth: `${stepWidth * zoom}px`,
+          height: '30px',
+          boxSizing: 'border-box',
+          padding: 0,
+          margin: 0
         }}
       >
         {step + 1}
