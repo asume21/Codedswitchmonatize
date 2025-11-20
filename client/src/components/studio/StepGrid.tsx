@@ -12,6 +12,7 @@ interface StepGridProps {
   onStepClick: (keyIndex: number, step: number) => void;
   onChordAdd: (step: number) => void;
   onNoteRemove: (noteId: string) => void;
+  onNoteResize?: (noteId: string, newLength: number) => void;
   chordMode: boolean;
   onScroll?: () => void;
 }
@@ -27,6 +28,7 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
   onStepClick,
   onChordAdd,
   onNoteRemove,
+  onNoteResize,
   chordMode,
   onScroll
 }, ref) => {
@@ -80,53 +82,79 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
         <div className="relative">
           {pianoKeys.map((key, keyIndex) => (
             <div key={key.key} className="flex relative" style={{ height: `${keyHeight}px` }}>
-              {/* Horizontal grid line - doesn't affect layout or clicks */}
+              {/* Horizontal grid line */}
               <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-700 pointer-events-none" />
               
-              {Array.from({ length: steps }, (_, step) => {
-                const hasNote = selectedTrack.notes.some(
-                  note => note.note === key.note && 
-                         note.octave === key.octave && 
-                         note.step === step
-                );
-
-                return (
+              {/* Grid cells */}
+              {Array.from({ length: steps }, (_, step) => (
+                <div
+                  key={`${key.key}-${step}`}
+                  className={`border-r border-gray-700 cursor-pointer transition-colors
+                    ${step % 4 === 0 ? 'border-r-gray-500' : ''}
+                    ${currentStep === step ? 'bg-red-900 bg-opacity-20' : 'hover:bg-gray-700'}
+                  `}
+                  style={{
+                    width: `${stepWidth * zoom}px`,
+                    height: '100%'
+                  }}
+                  onClick={() => handleCellClick(keyIndex, step)}
+                />
+              ))}
+              
+              {/* Render notes as overlays */}
+              {selectedTrack.notes
+                .filter(note => note.note === key.note && note.octave === key.octave)
+                .map(note => (
                   <div
-                    key={`${key.key}-${step}`}
-                    className={`border-r border-gray-700 cursor-pointer transition-colors relative
-                      ${hasNote
-                        ? 'bg-blue-500 hover:bg-blue-400'
-                        : 'hover:bg-gray-700'
-                      }
-                      ${step % 4 === 0 ? 'border-r-gray-500' : ''}
-                      ${currentStep === step ? 'bg-red-900 bg-opacity-50' : ''}
-                    `}
+                    key={note.id}
+                    className="absolute group bg-blue-500 hover:bg-blue-400 rounded-sm border border-blue-600 cursor-pointer transition-colors"
                     style={{
-                      width: `${stepWidth * zoom}px`,
-                      height: '100%'
+                      left: `${note.step * stepWidth * zoom}px`,
+                      width: `${(note.length || 1) * stepWidth * zoom - 2}px`,
+                      height: `${keyHeight - 4}px`,
+                      top: '2px',
+                      zIndex: 5
                     }}
-                    onClick={() => handleCellClick(keyIndex, step)}
-                    role="gridcell"
-                    aria-label={`Step ${step + 1}, Note ${key.note}${key.octave}`}
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleCellClick(keyIndex, step);
-                      }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNoteRemove(note.id);
                     }}
+                    title={`${note.note}${note.octave} - Click to delete, drag right edge to resize`}
                   >
-                    {hasNote && (
-                      <div 
-                        className="absolute inset-0 bg-blue-500 rounded-sm m-0.5 flex items-center justify-center"
-                        role="presentation"
-                      >
-                        <div className="w-1 h-1 bg-white rounded-full"></div>
-                      </div>
+                    {/* Note label */}
+                    <div className="text-xs text-white font-bold px-1 truncate">
+                      {note.note}{note.octave}
+                    </div>
+                    
+                    {/* Resize handle */}
+                    {onNoteResize && (
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          const startX = e.clientX;
+                          const startLength = note.length || 1;
+                          
+                          const handleMouseMove = (moveEvent: MouseEvent) => {
+                            const deltaX = moveEvent.clientX - startX;
+                            const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
+                            const newLength = Math.max(1, startLength + deltaSteps);
+                            onNoteResize(note.id, newLength);
+                          };
+                          
+                          const handleMouseUp = () => {
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                        title="Drag to resize"
+                      />
                     )}
                   </div>
-                );
-              })}
+                ))}
             </div>
           ))}
         </div>

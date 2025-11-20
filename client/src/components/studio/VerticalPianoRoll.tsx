@@ -608,6 +608,16 @@ export const VerticalPianoRoll: React.FC = () => {
     ));
   }, [selectedTrackIndex]);
 
+  const resizeNote = useCallback((noteId: string, newLength: number) => {
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex
+        ? { ...track, notes: track.notes.map(note => 
+            note.id === noteId ? { ...note, length: newLength } : note
+          ) }
+        : track
+    ));
+  }, [selectedTrackIndex]);
+
   const clearAll = useCallback(() => {
     setTracks(prev => prev.map((track, index) =>
       index === selectedTrackIndex ? { ...track, notes: [] } : track
@@ -1355,6 +1365,7 @@ export const VerticalPianoRoll: React.FC = () => {
               onStepClick={addNote}
               onChordAdd={addChordToGrid}
               onNoteRemove={removeNote}
+              onNoteResize={resizeNote}
               chordMode={chordMode}
               onScroll={handleGridScroll}
             />
