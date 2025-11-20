@@ -1395,224 +1395,25 @@ export default function UnifiedStudioWorkspace() {
             </button>
             
             {pianoRollExpanded && selectedTrack && (
-              <div className="bg-gray-900 p-4">
-                <div className="border border-gray-700 rounded p-4 min-h-64">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex space-x-2">
-                      <Button 
-                        size="sm" 
-                        variant={pianoRollTool === 'draw' ? 'default' : 'outline'}
-                        onClick={() => setPianoRollTool('draw')}
-                      >
-                        ✏️ Draw
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant={pianoRollTool === 'select' ? 'default' : 'outline'}
-                        onClick={() => setPianoRollTool('select')}
-                      >
-                        🔲 Select
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant={pianoRollTool === 'erase' ? 'default' : 'outline'}
-                        onClick={() => setPianoRollTool('erase')}
-                      >
-                        🗑️ Erase
-                      </Button>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <span>Instrument:</span>
-                      <select 
-                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1"
-                        value={tracks.find(t => t.id === selectedTrack)?.instrument || 'Grand Piano'}
-                        onChange={(e) => {
-                          const newInstrument = e.target.value;
-                          setTracks(tracks.map(t => 
-                            t.id === selectedTrack ? { ...t, instrument: newInstrument } : t
-                          ));
-                          toast({
-                            title: "Instrument Changed",
-                            description: `Track instrument set to ${newInstrument}`,
-                            duration: 2000,
-                          });
-                        }}
-                      >
-                        <optgroup label="Piano">
-                          <option value="Grand Piano">Grand Piano</option>
-                          <option value="Electric Piano">Electric Piano</option>
-                          <option value="Synth Piano">Synth Piano</option>
-                        </optgroup>
-                        <optgroup label="Bass">
-                          <option value="808 Bass">808 Bass</option>
-                          <option value="Synth Bass">Synth Bass</option>
-                          <option value="Electric Bass">Electric Bass</option>
-                        </optgroup>
-                        <optgroup label="Guitar">
-                          <option value="Acoustic Guitar">Acoustic Guitar</option>
-                          <option value="Electric Guitar">Electric Guitar</option>
-                        </optgroup>
-                        <optgroup label="Strings">
-                          <option value="Violin">Violin</option>
-                          <option value="Cello">Cello</option>
-                        </optgroup>
-                        <optgroup label="Winds">
-                          <option value="Flute">Flute</option>
-                          <option value="Saxophone">Saxophone</option>
-                          <option value="Trumpet">Trumpet</option>
-                        </optgroup>
-                        <optgroup label="Synth">
-                          <option value="Lead Synth">Lead Synth</option>
-                          <option value="Pad Synth">Pad Synth</option>
-                        </optgroup>
-                        <optgroup label="Drums">
-                          <option value="Kick">Kick</option>
-                          <option value="Snare">Snare</option>
-                          <option value="Hi-Hat">Hi-Hat</option>
-                          <option value="Full Kit">Full Kit</option>
-                        </optgroup>
-                      </select>
-                      <span>Scale:</span>
-                      <select className="bg-gray-800 border border-gray-700 rounded px-2 py-1">
-                        <option>C Major</option>
-                        <option>A Minor</option>
-                        <option>G Major</option>
-                        <option>D Minor</option>
-                      </select>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => {
-                          toast({
-                            title: "Chord Builder",
-                            description: "Click a grid cell and it will add a C major chord (C-E-G)",
-                          });
-                        }}
-                      >
-                        🎹 Chord Builder
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {/* Piano Roll Grid */}
-                  <div className="flex border border-gray-700 rounded overflow-hidden" style={{ height: '400px' }}>
-                    {/* Piano Keys */}
-                    <div className="w-16 bg-gray-800 border-r border-gray-700 overflow-y-auto flex-shrink-0">
-                      {['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
-                        'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
-                        'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((noteStr, idx) => {
-                        const isBlackKey = noteStr.includes('#');
-                        const noteName = noteStr.slice(0, -1);
-                        const octave = parseInt(noteStr.slice(-1));
-                        return (
-                          <div
-                            key={noteStr}
-                            onClick={() => playNote(noteName, octave)}
-                            className={`h-6 flex items-center justify-center text-[10px] border-b border-gray-700 cursor-pointer hover:bg-blue-600 transition ${
-                              isBlackKey ? 'bg-gray-900 text-gray-400' : 'bg-gray-800 text-gray-200'
-                            }`}
-                            title={`Click to play ${noteStr}`}
-                          >
-                            {noteStr}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {/* Grid */}
-                    <div className="flex-1 bg-gray-900 overflow-x-auto relative">
-                      {/* Timeline ruler */}
-                      <div className="h-6 bg-gray-800 border-b border-gray-700 flex text-xs text-gray-400">
-                        {Array.from({ length: 32 }, (_, i) => (
-                          <div key={i} className="flex-1 min-w-[60px] border-r border-gray-700 px-1">
-                            {i + 1}
-                          </div>
-                        ))}
-                      </div>
-                      
-                      {/* Note grid */}
-                      <div className="relative">
-                        {/* Grid cells */}
-                        {['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
-                          'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
-                          'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].map((noteStr, rowIdx) => {
-                          const noteName = noteStr.slice(0, -1);
-                          const octave = parseInt(noteStr.slice(-1));
-                          return (
-                          <div key={noteStr} className="h-6 border-b border-gray-700/50 flex relative">
-                            {Array.from({ length: 32 }, (_, colIdx) => (
-                              <div
-                                key={colIdx}
-                                onClick={() => addNoteToGrid(noteName, octave, colIdx)}
-                                className="flex-1 min-w-[60px] border-r border-gray-700/30 hover:bg-green-600/30 cursor-pointer transition"
-                                title={`Add ${noteStr} at bar ${colIdx + 1}`}
-                              />
-                            ))}
-                          </div>
-                          );
-                        })}
-                        
-                        {/* Render existing notes */}
-                        {selectedTrack && tracks.find(t => t.id === selectedTrack)?.notes?.map((note) => {
-                          const noteStr = `${note.note}${note.octave}`;
-                          const noteIndex = ['C6', 'B5', 'A#5', 'A5', 'G#5', 'G5', 'F#5', 'F5', 'E5', 'D#5', 'D5', 'C#5', 'C5', 
-                            'B4', 'A#4', 'A4', 'G#4', 'G4', 'F#4', 'F4', 'E4', 'D#4', 'D4', 'C#4', 'C4',
-                            'B3', 'A#3', 'A3', 'G#3', 'G3', 'F#3', 'F3', 'E3', 'D#3', 'D3', 'C#3', 'C3'].indexOf(noteStr);
-                          
-                          if (noteIndex === -1) return null;
-                          
-                          // Convert steps to pixels (each bar is 60px, each step is 60/4 = 15px)
-                          const stepWidth = 15; // 15px per step (4 steps per bar)
-                          
-                          return (
-                            <div
-                              key={note.id}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                // Right-click to delete
-                                setTracks(tracks.map(t => 
-                                  t.id === selectedTrack 
-                                    ? { ...t, notes: t.notes?.filter(n => n.id !== note.id) }
-                                    : t
-                                ));
-                                toast({
-                                  title: "Note Deleted",
-                                  description: `Removed ${note.note}${note.octave}`,
-                                  duration: 1000,
-                                });
-                              }}
-                              className="absolute bg-green-500 hover:bg-green-400 border border-green-400 rounded cursor-pointer transition"
-                              style={{
-                                left: `${note.step * stepWidth}px`,
-                                top: `${noteIndex * 24}px`,
-                                width: `${note.length * stepWidth}px`,
-                                height: '22px',
-                                zIndex: 10,
-                              }}
-                              title={`${note.note}${note.octave} - Right-click to delete`}
-                            >
-                              <span className="text-[10px] text-white font-bold px-1">
-                                {note.note}{note.octave}
-                              </span>
-                            </div>
-                          );
-                        })}
-                        
-                        {/* Playhead - moving timeline indicator */}
-                        {studioContext?.isPlaying && (
-                          <div
-                            className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none animate-pulse"
-                            style={{
-                              left: `${playheadPosition * 60}px`,
-                            }}
-                          >
-                            <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="bg-gray-900 p-2">
+                <VerticalPianoRoll 
+                  tracks={tracks as any}
+                  selectedTrack={selectedTrack || undefined}
+                  isPlaying={studioContext?.isPlaying}
+                  currentTime={playheadPosition}
+                  onPlayNote={(note, octave, duration, instrument) => {
+                    playNote(note, octave, instrument);
+                  }}
+                  onNotesChange={(updatedNotes) => {
+                    if (selectedTrack) {
+                      setTracks(tracks.map(t => 
+                        t.id === selectedTrack 
+                          ? { ...t, notes: updatedNotes }
+                          : t
+                      ));
+                    }
+                  }}
+ />
               </div>
             )}
           </div>
