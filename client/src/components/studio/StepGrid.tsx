@@ -95,7 +95,10 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                   `}
                   style={{
                     width: `${stepWidth * zoom}px`,
-                    height: '100%'
+                    height: '100%',
+                    boxSizing: 'border-box',
+                    padding: 0,
+                    margin: 0
                   }}
                   onClick={() => handleCellClick(keyIndex, step)}
                 />
