@@ -1395,7 +1395,7 @@ export default function UnifiedStudioWorkspace() {
             </button>
             
             {pianoRollExpanded && selectedTrack && (
-              <div className="bg-gray-900 p-2">
+              <div className="bg-gray-900">
                 <VerticalPianoRoll 
                   tracks={tracks as any}
                   selectedTrack={selectedTrack || undefined}

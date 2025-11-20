@@ -192,23 +192,31 @@ export const VerticalPianoRoll: React.FC = () => {
     issue => issue.targetTool === 'piano-roll'
   );
 
-  // Scroll synchronization
+  // Scroll synchronization - keep piano keys and grid in sync
   const handlePianoScroll = useCallback(() => {
-    if (!syncScroll || isSyncingRef.current || !pianoKeysRef.current || !gridRef.current) return;
+    if (!syncScroll || isSyncingRef.current) return;
+    if (!pianoKeysRef.current || !gridRef.current) return;
+    
     isSyncingRef.current = true;
-    gridRef.current.scrollTop = pianoKeysRef.current.scrollTop;
-    requestAnimationFrame(() => {
+    const scrollTop = pianoKeysRef.current.scrollTop;
+    gridRef.current.scrollTop = scrollTop;
+    
+    setTimeout(() => {
       isSyncingRef.current = false;
-    });
+    }, 0);
   }, [syncScroll]);
 
   const handleGridScroll = useCallback(() => {
-    if (!syncScroll || isSyncingRef.current || !pianoKeysRef.current || !gridRef.current) return;
+    if (!syncScroll || isSyncingRef.current) return;
+    if (!pianoKeysRef.current || !gridRef.current) return;
+    
     isSyncingRef.current = true;
-    pianoKeysRef.current.scrollTop = gridRef.current.scrollTop;
-    requestAnimationFrame(() => {
+    const scrollTop = gridRef.current.scrollTop;
+    pianoKeysRef.current.scrollTop = scrollTop;
+    
+    setTimeout(() => {
       isSyncingRef.current = false;
-    });
+    }, 0);
   }, [syncScroll]);
 
   // Load original audio from session
