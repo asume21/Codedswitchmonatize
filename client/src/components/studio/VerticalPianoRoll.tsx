@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2 } from "lucide-react";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2 } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
@@ -68,6 +68,9 @@ const CHORD_PROGRESSIONS: ChordProgression[] = [
   { id: 'hiphop', name: 'Hip-Hop (vi-IV-V)', chords: ['vi', 'IV', 'V'], key: 'C' },
   { id: 'reggae', name: 'Reggae (I-VII-IV)', chords: ['I', 'VII', 'IV'], key: 'C' }
 ];
+
+// Track color palette for multi-track visualization
+const TRACK_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-pink-500', 'bg-yellow-500', 'bg-red-500', 'bg-indigo-500', 'bg-orange-500'];
 
 // ALL AVAILABLE INSTRUMENTS
 // Imported from types/pianoRollTypes.ts
@@ -165,6 +168,8 @@ export const VerticalPianoRoll: React.FC = () => {
   const [loopEnd, setLoopEnd] = useState<number | null>(null); // Loop region end
   const [automationLane, setAutomationLane] = useState<'volume' | 'pan' | 'off'>('off'); // Automation type
   const [detectedChord, setDetectedChord] = useState<string>(''); // Detected chord name
+  const [loopEnabled, setLoopEnabled] = useState(false); // Loop playback toggle
+  const [loopNotes, setLoopNotes] = useState<Note[]>([]); // Saved loop notes
   
   const { toast } = useToast();
   const { currentSession } = useSongWorkSession();
@@ -1005,6 +1010,57 @@ export const VerticalPianoRoll: React.FC = () => {
     toast({ title: '🎵 Octave Shifted', description: `${direction > 0 ? 'Up' : 'Down'} one octave` });
   }, [selectedNoteIds, selectedTrack, selectedTrackIndex, addToHistory, toast]);
 
+  // RECORDING MODE FUNCTION
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      // Stop recording
+      setIsRecording(false);
+      toast({ 
+        title: '⏹️ Recording Stopped', 
+        description: `Captured ${recordingNotesRef.current.length} notes`,
+        duration: 2000 
+      });
+    } else {
+      // Start recording
+      setIsRecording(true);
+      recordingNotesRef.current = [];
+      setRecordingStartTime(Date.now());
+      toast({ 
+        title: '🔴 Recording Started', 
+        description: 'Play notes on your keyboard or click the piano keys',
+        duration: 2000 
+      });
+    }
+  }, [isRecording, toast]);
+
+  // LOOP PLAYBACK FUNCTION
+  const toggleLoop = useCallback(() => {
+    if (loopEnabled) {
+      setLoopEnabled(false);
+      toast({ title: '🔁 Loop Disabled' });
+    } else {
+      // Save current notes as loop
+      setLoopNotes([...selectedTrack.notes]);
+      setLoopEnabled(true);
+      toast({ 
+        title: '🔁 Loop Enabled', 
+        description: `Looping ${selectedTrack.notes.length} notes`,
+        duration: 2000 
+      });
+    }
+  }, [loopEnabled, selectedTrack.notes, toast]);
+
+  // AI SUGGEST FUNCTION (placeholder for AI integration)
+  const handleAISuggest = useCallback(() => {
+    toast({ 
+      title: '🪄 AI Suggest', 
+      description: 'AI melody generation coming soon! This will analyze your current notes and suggest improvements.',
+      duration: 4000 
+    });
+    // TODO: Integrate with AI melody generation API
+    // Example: Call /api/melody/suggest with current notes
+  }, [toast]);
+
   // DUPLICATE TRACK FUNCTION
   const duplicateTrack = useCallback(() => {
     const newTrack: Track = {
@@ -1183,6 +1239,40 @@ export const VerticalPianoRoll: React.FC = () => {
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold">🎹 Piano Roll</h1>
               {playbackControls}
+            </div>
+            
+            {/* New Features: Recording, Loop, AI Suggest */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant={isRecording ? 'destructive' : 'outline'}
+                onClick={toggleRecording}
+                className="flex items-center gap-2"
+              >
+                <Circle className={`w-4 h-4 ${isRecording ? 'animate-pulse' : ''}`} />
+                {isRecording ? 'Stop Recording' : 'Record'}
+              </Button>
+              
+              <Button
+                size="sm"
+                variant={loopEnabled ? 'default' : 'outline'}
+                onClick={toggleLoop}
+                disabled={selectedTrack.notes.length === 0}
+                className="flex items-center gap-2"
+              >
+                <Repeat className="w-4 h-4" />
+                {loopEnabled ? 'Loop On' : 'Loop Off'}
+              </Button>
+              
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAISuggest}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30"
+              >
+                <Wand2 className="w-4 h-4" />
+                AI Suggest
+              </Button>
             </div>
             
             {keyScaleSelector}
