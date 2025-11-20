@@ -13,7 +13,7 @@ export function AudioVisualizer({
   data = []
 }: AudioVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const [visualData, setVisualData] = useState<number[]>(
     Array.from({ length: 64 }, () => Math.random() * 100)
   );

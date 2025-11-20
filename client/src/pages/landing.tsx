@@ -4,9 +4,78 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send } from "lucide-react";
+import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send, Construction } from "lucide-react";
+
+// UNDER CONSTRUCTION MODE - Set to false to show full landing page
+const UNDER_CONSTRUCTION = true;
 
 export default function Landing() {
+  // If under construction, show maintenance page
+  if (UNDER_CONSTRUCTION) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center p-4">
+        <Card className="max-w-2xl w-full bg-slate-900/80 backdrop-blur border-purple-500/20">
+          <CardHeader className="text-center space-y-4 pb-8">
+            <div className="flex justify-center">
+              <div className="relative">
+                <Construction className="w-24 h-24 text-yellow-500 animate-bounce" />
+                <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full animate-pulse" />
+              </div>
+            </div>
+            <CardTitle className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              CodedSwitch
+            </CardTitle>
+            <CardDescription className="text-xl text-gray-300">
+              🚧 Under Construction 🚧
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 text-center">
+            <div className="space-y-4">
+              <p className="text-lg text-gray-300">
+                We're building something amazing! Our platform is currently undergoing major upgrades to bring you the best music creation experience.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-6">
+                <div className="p-4 bg-slate-800/50 rounded-lg border border-purple-500/20">
+                  <Music className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">AI Music Generation</p>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg border border-purple-500/20">
+                  <Code className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">Code to Music</p>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg border border-purple-500/20">
+                  <Drum className="w-8 h-8 text-pink-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">Professional Studio</p>
+                </div>
+              </div>
+              <p className="text-gray-400">
+                Expected launch: <span className="text-purple-400 font-semibold">Coming Soon</span>
+              </p>
+            </div>
+            
+            <div className="pt-6 border-t border-gray-700">
+              <p className="text-sm text-gray-500 mb-4">
+                Want to follow our progress?
+              </p>
+              <a 
+                href="https://github.com/asume21/Codedswitchmonatize" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <Button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+                  <Code className="w-4 h-4 mr-2" />
+                  View Updates on GitHub
+                </Button>
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // FULL LANDING PAGE (when UNDER_CONSTRUCTION = false)
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);

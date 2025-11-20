@@ -7,6 +7,7 @@ import { Navigation } from "@/components/layout/navigation";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
+import Landing from "@/pages/landing";
 import SongUploaderPage from "@/pages/song-uploader";
 import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
 import Subscribe from "@/pages/Subscribe";
@@ -64,7 +65,8 @@ function App() {
           <TooltipProvider>
             <Toaster />
           <Switch>
-          <Route path="/">
+          <Route path="/" component={Landing} />
+          <Route path="/studio">
             <AppLayout>
               <Studio />
             </AppLayout>

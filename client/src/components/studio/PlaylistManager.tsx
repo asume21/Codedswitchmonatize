@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { StudioAudioContext } from "@/pages/studio";
-import type { Playlist, Song } from "@shared/schema";
+import type { Playlist, Song } from "../../../../shared/schema";
 
 export default function PlaylistManager() {
   const [newPlaylistName, setNewPlaylistName] = useState("");
