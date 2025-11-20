@@ -3,7 +3,7 @@
  * Convert code to harmonic music using the four chords algorithm
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,22 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Music, Code, Wand2, Play, Download, RefreshCw, Info } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
-
-interface MusicData {
-  timeline: any[];
-  chords: any[];
-  melody: any[];
-  drums: any;
-  metadata: {
-    bpm: number;
-    key: string;
-    genre: string;
-    variation: number;
-    duration: number;
-    generatedAt: string;
-    seed: number;
-  };
-}
+import { useAudio } from '@/hooks/use-audio';
+import type { MusicData as CodeToMusicData } from '../../../../shared/types/codeToMusic';
 
 const SAMPLE_CODE = `class MusicPlayer {
     constructor() {
@@ -74,8 +60,11 @@ export default function CodeToMusicStudioV2() {
   const [genre, setGenre] = useState('pop');
   const [variation, setVariation] = useState([0]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [musicData, setMusicData] = useState<MusicData | null>(null);
+  const [musicData, setMusicData] = useState<CodeToMusicData | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const { toast } = useToast();
+  const { playNote, initialize, isInitialized } = useAudio();
 
   const generateMusic = async () => {
     if (!code.trim()) {
@@ -128,6 +117,94 @@ export default function CodeToMusicStudioV2() {
       description: 'Try generating music from this code!',
     });
   };
+
+  const clearScheduledPlayback = () => {
+    timeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+    timeoutsRef.current = [];
+  };
+
+  const handlePlay = async () => {
+    if (!musicData) {
+      toast({
+        title: 'No Music Yet',
+        description: 'Generate music from your code before playing it back.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (!isInitialized) {
+        await initialize();
+      }
+
+      clearScheduledPlayback();
+      setIsPlaying(true);
+
+      const scheduleTimeout = (delayMs: number, fn: () => void) => {
+        const id = setTimeout(fn, delayMs);
+        timeoutsRef.current.push(id);
+      };
+
+      // Schedule melody notes
+      musicData.melody.forEach((note: CodeToMusicData['melody'][number]) => {
+        if (!note?.note) return;
+        const match = note.note.match(/([A-G]#?)(\d+)/);
+        if (!match) return;
+        const [, noteName, octaveStr] = match;
+        const octave = parseInt(octaveStr, 10) || 4;
+        const velocity = Math.max(0, Math.min(1, (note.velocity ?? 100) / 127));
+
+        scheduleTimeout(note.start * 1000, () => {
+          playNote(noteName, octave, note.duration, note.instrument || 'piano', velocity);
+        });
+      });
+
+      // Schedule chords as sustained backing harmony
+      musicData.chords.forEach((chord: CodeToMusicData['chords'][number]) => {
+        if (!chord?.notes) return;
+        chord.notes.forEach((chordNote: string) => {
+          const match = chordNote.match(/([A-G]#?)(\d+)/);
+          if (!match) return;
+          const [, noteName, octaveStr] = match;
+          const octave = parseInt(octaveStr, 10) || 4;
+
+          scheduleTimeout(chord.start * 1000, () => {
+            playNote(noteName, octave, chord.duration, 'piano', 0.8);
+          });
+        });
+      });
+
+      // Auto-stop flag after the generated duration
+      const totalDurationMs = (musicData.metadata?.duration ?? 0) * 1000;
+      if (totalDurationMs > 0) {
+        scheduleTimeout(totalDurationMs + 200, () => {
+          clearScheduledPlayback();
+          setIsPlaying(false);
+        });
+      }
+    } catch (error) {
+      console.error('Playback error:', error);
+      toast({
+        title: 'Playback Failed',
+        description: error instanceof Error ? error.message : 'Could not play generated music.',
+        variant: 'destructive',
+      });
+      clearScheduledPlayback();
+      setIsPlaying(false);
+    }
+  };
+
+  const handleStop = () => {
+    clearScheduledPlayback();
+    setIsPlaying(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearScheduledPlayback();
+    };
+  }, []);
 
   return (
     <div className="h-full flex flex-col gap-4 p-4 bg-gradient-to-br from-slate-950 via-purple-950/20 to-slate-950">
@@ -331,9 +408,13 @@ export default function CodeToMusicStudioV2() {
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-2">
-                  <Button className="flex-1 bg-purple-600 hover:bg-purple-700">
+                  <Button
+                    className="flex-1 bg-purple-600 hover:bg-purple-700"
+                    disabled={isGenerating || !musicData}
+                    onClick={isPlaying ? handleStop : handlePlay}
+                  >
                     <Play className="w-4 h-4 mr-2" />
-                    Play Music
+                    {isPlaying ? 'Stop' : 'Play Music'}
                   </Button>
                   <Button variant="outline" className="border-purple-500/50">
                     <Download className="w-4 h-4" />

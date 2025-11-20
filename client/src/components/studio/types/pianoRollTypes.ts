@@ -288,6 +288,67 @@ export const STEPS = 32;
 export const KEY_HEIGHT = 20;
 export const STEP_WIDTH = 25;
 
+// ALL AVAILABLE INSTRUMENTS
+export const AVAILABLE_INSTRUMENTS = [
+  // Pianos & Keys
+  { value: 'piano', label: '🎹 Grand Piano', category: 'Piano' },
+  { value: 'electric_piano_1', label: '🎹 Electric Piano 1', category: 'Piano' },
+  { value: 'electric_piano_2', label: '🎹 Electric Piano 2', category: 'Piano' },
+  { value: 'harpsichord', label: '🎹 Harpsichord', category: 'Piano' },
+  { value: 'organ', label: '🎹 Organ', category: 'Piano' },
+  
+  // Bass
+  { value: 'bass-electric', label: '🎸 Electric Bass (Finger)', category: 'Bass' },
+  { value: 'electric_bass_pick', label: '🎸 Electric Bass (Pick)', category: 'Bass' },
+  { value: 'bass-upright', label: '🎻 Acoustic Bass', category: 'Bass' },
+  { value: 'bass-synth', label: '🎛️ Synth Bass 1', category: 'Bass' },
+  { value: 'synth_bass_2', label: '🎛️ Synth Bass 2', category: 'Bass' },
+  { value: 'fretless_bass', label: '🎸 Fretless Bass', category: 'Bass' },
+  { value: 'slap_bass_1', label: '🎸 Slap Bass', category: 'Bass' },
+  
+  // Guitars
+  { value: 'guitar-acoustic', label: '🎸 Acoustic Guitar (Steel)', category: 'Guitar' },
+  { value: 'guitar-nylon', label: '🎸 Acoustic Guitar (Nylon)', category: 'Guitar' },
+  { value: 'guitar-electric', label: '🎸 Electric Guitar (Clean)', category: 'Guitar' },
+  { value: 'guitar-distorted', label: '🎸 Distortion Guitar', category: 'Guitar' },
+  
+  // Strings
+  { value: 'strings-violin', label: '🎻 Violin', category: 'Strings' },
+  { value: 'viola', label: '🎻 Viola', category: 'Strings' },
+  { value: 'cello', label: '🎻 Cello', category: 'Strings' },
+  { value: 'contrabass', label: '🎻 Contrabass', category: 'Strings' },
+  { value: 'strings', label: '🎻 String Ensemble', category: 'Strings' },
+  { value: 'orchestral_harp', label: '🎵 Orchestral Harp', category: 'Strings' },
+  
+  // Brass
+  { value: 'trumpet', label: '🎺 Trumpet', category: 'Brass' },
+  { value: 'trombone', label: '🎺 Trombone', category: 'Brass' },
+  { value: 'french_horn', label: '🎺 French Horn', category: 'Brass' },
+  
+  // Woodwinds
+  { value: 'flute', label: '🎵 Flute', category: 'Woodwinds' },
+  { value: 'clarinet', label: '🎵 Clarinet', category: 'Woodwinds' },
+  { value: 'tenor_sax', label: '🎷 Tenor Sax', category: 'Woodwinds' },
+  
+  // Synths
+  { value: 'synth-analog', label: '🎛️ Analog Synth', category: 'Synth' },
+  { value: 'leads-square', label: '🎛️ Square Lead', category: 'Synth' },
+  { value: 'leads-saw', label: '🎛️ Sawtooth Lead', category: 'Synth' },
+  { value: 'pads-warm', label: '🎛️ Warm Pad', category: 'Synth' },
+  { value: 'pads-strings', label: '🎛️ String Pad', category: 'Synth' },
+  { value: 'pads-choir', label: '🎛️ Choir Pad', category: 'Synth' },
+  
+  // Percussion
+  { value: 'timpani', label: '🥁 Timpani', category: 'Percussion' },
+  { value: 'taiko_drum', label: '🥁 Taiko Drum', category: 'Percussion' },
+  { value: 'steel_drums', label: '🥁 Steel Drums', category: 'Percussion' },
+  { value: 'woodblock', label: '🥁 Woodblock', category: 'Percussion' },
+  
+  // Special
+  { value: 'choir_aahs', label: '👥 Choir Aahs', category: 'Vocal' },
+  { value: 'synth_voice', label: '👥 Synth Voice', category: 'Vocal' },
+];
+
 // ----------------------------
 // Helpers
 // ----------------------------

@@ -65,7 +65,11 @@ function App() {
           <TooltipProvider>
             <Toaster />
           <Switch>
-          <Route path="/" component={Landing} />
+          <Route path="/">
+            <AppLayout>
+              <Studio />
+            </AppLayout>
+          </Route>
           <Route path="/studio">
             <AppLayout>
               <Studio />

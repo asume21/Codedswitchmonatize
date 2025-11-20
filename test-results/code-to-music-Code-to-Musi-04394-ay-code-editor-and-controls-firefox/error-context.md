@@ -1,0 +1,297 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link "CodedSwitch" [ref=e8] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e11]: CodedSwitch
+          - link "🥁 Beat Studio" [ref=e12] [cursor=pointer]:
+            - /url: /beat-studio
+          - link "🎹 Piano Roll" [ref=e13] [cursor=pointer]:
+            - /url: /piano-roll
+        - button "CS" [ref=e15] [cursor=pointer]:
+          - generic [ref=e17]: CS
+    - main [ref=e18]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - generic [ref=e23]:
+              - generic [ref=e24]:
+                - img [ref=e26]
+                - generic [ref=e46]:
+                  - heading "CodedSwitch" [level=1] [ref=e47]
+                  - paragraph [ref=e48]: AI Godfather
+              - generic [ref=e51]: AI Engine Active
+            - generic [ref=e52]:
+              - generic [ref=e53]:
+                - generic [ref=e54]:
+                  - img [ref=e55]
+                  - text: 0 Credits
+                - button "Low Credits!" [ref=e60] [cursor=pointer]:
+                  - img
+                  - text: Low Credits!
+              - button " Save Project" [ref=e61] [cursor=pointer]:
+                - generic [ref=e62]: 
+                - text: Save Project
+              - button " Export" [ref=e63] [cursor=pointer]:
+                - generic [ref=e64]: 
+                - text: Export
+              - link "Log In" [ref=e65] [cursor=pointer]:
+                - /url: /login
+                - button "Log In" [ref=e66]:
+                  - img [ref=e67]
+                  - generic [ref=e71]: Log In
+          - generic [ref=e74]:
+            - generic [ref=e75]:
+              - generic [ref=e76]:
+                - heading "🎵 Unified Studio" [level=1] [ref=e77]
+                - generic [ref=e78]:
+                  - button "File ▼" [ref=e80] [cursor=pointer]
+                  - button "Edit ▼" [ref=e82] [cursor=pointer]
+                  - button "View ▼" [ref=e84] [cursor=pointer]
+                  - button "MIDI ▼" [ref=e86] [cursor=pointer]:
+                    - img
+                    - text: MIDI ▼
+              - generic [ref=e87]:
+                - button "Generate Music" [ref=e88] [cursor=pointer]:
+                  - img
+                  - text: Generate Music
+                - button "AI Assistant" [ref=e89] [cursor=pointer]:
+                  - img
+                  - text: AI Assistant
+                - button "Change Workflow" [ref=e90] [cursor=pointer]:
+                  - img
+                  - text: Change Workflow
+                - generic [ref=e91]:
+                  - img [ref=e92]
+                  - generic [ref=e102]: Master
+                  - slider [ref=e108]
+                  - generic [ref=e109]: 70%
+                - generic [ref=e110]: Use Global Transport to play ▶
+                - button " Undo" [ref=e111] [cursor=pointer]:
+                  - generic [ref=e112]: 
+                  - text: Undo
+                - button " Redo" [ref=e113] [cursor=pointer]:
+                  - generic [ref=e114]: 
+                  - text: Redo
+            - generic [ref=e115]:
+              - button "Arrangement" [ref=e116] [cursor=pointer]:
+                - img
+                - text: Arrangement
+              - button "Piano Roll" [ref=e117] [cursor=pointer]:
+                - img
+                - text: Piano Roll
+              - button "Mixer" [ref=e118] [cursor=pointer]:
+                - img
+                - text: Mixer
+              - button "AI Studio" [ref=e119] [cursor=pointer]:
+                - img
+                - text: AI Studio
+              - button "Lyrics Lab" [ref=e120] [cursor=pointer]:
+                - img
+                - text: Lyrics Lab
+              - button "Song Uploader" [ref=e121] [cursor=pointer]:
+                - img
+                - text: Song Uploader
+              - button "Code to Music" [active] [ref=e122] [cursor=pointer]:
+                - img
+                - text: Code to Music
+            - generic [ref=e123]:
+              - generic [ref=e124]:
+                - textbox "Search instruments..." [ref=e126]
+                - generic [ref=e128]:
+                  - generic [ref=e129]:
+                    - button "Piano" [ref=e130] [cursor=pointer]:
+                      - img [ref=e131]
+                      - text: Piano
+                    - generic [ref=e133]:
+                      - button "+ Grand Piano" [ref=e134] [cursor=pointer]
+                      - button "+ Electric Piano" [ref=e135] [cursor=pointer]
+                      - button "+ Synth Piano" [ref=e136] [cursor=pointer]
+                      - button "+ Harpsichord" [ref=e137] [cursor=pointer]
+                  - generic [ref=e138]:
+                    - button "Bass" [ref=e139] [cursor=pointer]:
+                      - img [ref=e140]
+                      - text: Bass
+                    - generic [ref=e142]:
+                      - button "+ 808 Bass" [ref=e143] [cursor=pointer]
+                      - button "+ Synth Bass" [ref=e144] [cursor=pointer]
+                      - button "+ Electric Bass" [ref=e145] [cursor=pointer]
+                      - button "+ Upright Bass" [ref=e146] [cursor=pointer]
+                      - button "+ Sub Bass" [ref=e147] [cursor=pointer]
+                  - generic [ref=e148]:
+                    - button "Guitar" [ref=e149] [cursor=pointer]:
+                      - img [ref=e150]
+                      - text: Guitar
+                    - generic [ref=e152]:
+                      - button "+ Acoustic Guitar" [ref=e153] [cursor=pointer]
+                      - button "+ Electric Guitar" [ref=e154] [cursor=pointer]
+                      - button "+ Classical Guitar" [ref=e155] [cursor=pointer]
+                      - button "+ Bass Guitar" [ref=e156] [cursor=pointer]
+                  - generic [ref=e157]:
+                    - button "Strings" [ref=e158] [cursor=pointer]:
+                      - img [ref=e159]
+                      - text: Strings
+                    - generic [ref=e161]:
+                      - button "+ Violin" [ref=e162] [cursor=pointer]
+                      - button "+ Viola" [ref=e163] [cursor=pointer]
+                      - button "+ Cello" [ref=e164] [cursor=pointer]
+                      - button "+ Double Bass" [ref=e165] [cursor=pointer]
+                      - button "+ String Ensemble" [ref=e166] [cursor=pointer]
+                  - generic [ref=e167]:
+                    - button "Winds" [ref=e168] [cursor=pointer]:
+                      - img [ref=e169]
+                      - text: Winds
+                    - generic [ref=e171]:
+                      - button "+ Flute" [ref=e172] [cursor=pointer]
+                      - button "+ Clarinet" [ref=e173] [cursor=pointer]
+                      - button "+ Saxophone" [ref=e174] [cursor=pointer]
+                      - button "+ Trumpet" [ref=e175] [cursor=pointer]
+                      - button "+ Horn" [ref=e176] [cursor=pointer]
+                      - button "+ Trombone" [ref=e177] [cursor=pointer]
+                  - generic [ref=e178]:
+                    - button "Drums" [ref=e179] [cursor=pointer]:
+                      - img [ref=e180]
+                      - text: Drums
+                    - generic [ref=e182]:
+                      - button "+ Kick" [ref=e183] [cursor=pointer]
+                      - button "+ Snare" [ref=e184] [cursor=pointer]
+                      - button "+ Hi-Hat" [ref=e185] [cursor=pointer]
+                      - button "+ Tom" [ref=e186] [cursor=pointer]
+                      - button "+ Cymbal" [ref=e187] [cursor=pointer]
+                      - button "+ Full Kit" [ref=e188] [cursor=pointer]
+                  - generic [ref=e189]:
+                    - button "Synth" [ref=e190] [cursor=pointer]:
+                      - img [ref=e191]
+                      - text: Synth
+                    - generic [ref=e193]:
+                      - button "+ Lead Synth" [ref=e194] [cursor=pointer]
+                      - button "+ Pad Synth" [ref=e195] [cursor=pointer]
+                      - button "+ Arp Synth" [ref=e196] [cursor=pointer]
+                      - button "+ Bass Synth" [ref=e197] [cursor=pointer]
+                  - generic [ref=e198]:
+                    - button "Other" [ref=e199] [cursor=pointer]:
+                      - img [ref=e200]
+                      - text: Other
+                    - generic [ref=e202]:
+                      - button "+ Percussion" [ref=e203] [cursor=pointer]
+                      - button "+ Sound Effects" [ref=e204] [cursor=pointer]
+                      - button "+ Vocal" [ref=e205] [cursor=pointer]
+                      - button "+ Samples" [ref=e206] [cursor=pointer]
+              - generic [ref=e209]:
+                - generic [ref=e212]:
+                  - generic [ref=e213]:
+                    - generic [ref=e214]:
+                      - img [ref=e215]
+                      - text: Code-to-Music Studio
+                    - generic [ref=e219]: Convert your code into harmonic music using the four chords algorithm
+                  - generic [ref=e220]: v2.0 - Four Chords
+                - generic [ref=e221]:
+                  - generic [ref=e222]:
+                    - generic [ref=e224]:
+                      - img [ref=e225]
+                      - text: Your Code
+                    - generic [ref=e228]:
+                      - generic [ref=e229]:
+                        - generic [ref=e230]:
+                          - text: Language
+                          - combobox [ref=e231] [cursor=pointer]:
+                            - generic: JavaScript
+                            - img [ref=e232]
+                        - generic [ref=e234]:
+                          - text: Genre
+                          - combobox [ref=e235] [cursor=pointer]:
+                            - generic: Pop
+                            - img [ref=e236]
+                      - generic [ref=e238]:
+                        - generic [ref=e239]:
+                          - generic [ref=e240]: Variation
+                          - generic [ref=e241]: "0"
+                        - slider [ref=e245]
+                        - paragraph [ref=e246]: Change to generate different music from the same code
+                      - textbox "Paste your code here..." [ref=e248]: "class MusicPlayer { constructor() { this.volume = 50; this.isPlaying = false; } play(song) { for (let i = 0; i < song.length; i++) { if (song[i].isValid()) { this.isPlaying = true; return true; } } return false; } stop() { this.isPlaying = false; } }"
+                      - generic [ref=e249]:
+                        - button "Generate Music" [ref=e250] [cursor=pointer]:
+                          - img
+                          - text: Generate Music
+                        - button "Load Sample" [ref=e251] [cursor=pointer]
+                  - generic [ref=e252]:
+                    - generic [ref=e254]:
+                      - img [ref=e255]
+                      - text: Generated Music
+                    - generic [ref=e261]:
+                      - img [ref=e262]
+                      - paragraph [ref=e266]: No music generated yet
+                      - paragraph [ref=e267]: Enter code and click "Generate Music"
+            - generic [ref=e269]:
+              - generic [ref=e270]:
+                - button "" [ref=e271] [cursor=pointer]:
+                  - generic [ref=e272]: 
+                - button "" [ref=e273] [cursor=pointer]:
+                  - generic [ref=e274]: 
+                - button "" [ref=e275] [cursor=pointer]:
+                  - generic [ref=e276]: 
+                - button "" [ref=e277] [cursor=pointer]:
+                  - generic [ref=e278]: 
+                - button "" [ref=e279] [cursor=pointer]:
+                  - generic [ref=e280]: 
+                - button "" [ref=e281] [cursor=pointer]:
+                  - generic [ref=e282]: 
+                - button "" [ref=e284] [cursor=pointer]:
+                  - generic [ref=e285]: 
+                - button "" [ref=e286] [cursor=pointer]:
+                  - generic [ref=e287]: 
+              - generic [ref=e288]:
+                - generic [ref=e289]:
+                  - generic [ref=e290]: 00:00
+                  - generic [ref=e291]: /
+                  - generic [ref=e292]: 02:45
+                - generic [ref=e294]: 120 BPM
+                - button "Song Library" [ref=e296] [cursor=pointer]:
+                  - img
+              - generic [ref=e297]:
+                - generic [ref=e298]: 
+                - 'slider "Master volume: 75%" [ref=e299] [cursor=pointer]': "75"
+                - generic [ref=e300]: 75%
+                - button "" [ref=e301] [cursor=pointer]:
+                  - generic [ref=e302]: 
+          - generic [ref=e304]:
+            - generic [ref=e305]:
+              - button "" [ref=e306] [cursor=pointer]:
+                - generic [ref=e307]: 
+              - button "" [ref=e308] [cursor=pointer]:
+                - generic [ref=e309]: 
+              - button "" [ref=e310] [cursor=pointer]:
+                - generic [ref=e311]: 
+              - button "" [ref=e312] [cursor=pointer]:
+                - generic [ref=e313]: 
+              - button "" [ref=e314] [cursor=pointer]:
+                - generic [ref=e315]: 
+              - button "" [ref=e316] [cursor=pointer]:
+                - generic [ref=e317]: 
+              - button "" [ref=e319] [cursor=pointer]:
+                - generic [ref=e320]: 
+              - button "" [ref=e321] [cursor=pointer]:
+                - generic [ref=e322]: 
+            - generic [ref=e323]:
+              - generic [ref=e324]:
+                - generic [ref=e325]: 00:00
+                - generic [ref=e326]: /
+                - generic [ref=e327]: 02:45
+              - generic [ref=e329]: 120 BPM
+              - button "Song Library" [ref=e331] [cursor=pointer]:
+                - img
+            - generic [ref=e332]:
+              - generic [ref=e333]: 
+              - 'slider "Master volume: 75%" [ref=e334] [cursor=pointer]': "75"
+              - generic [ref=e335]: 75%
+              - button "" [ref=e336] [cursor=pointer]:
+                - generic [ref=e337]: 
+        - text:     
+```

@@ -2,18 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
-
-// General MIDI instrument list (subset for MVP)
-const GM_INSTRUMENTS = [
-  { value: 'acoustic_grand_piano', label: 'Acoustic Grand Piano' },
-  { value: 'electric_piano', label: 'Electric Piano' },
-  { value: 'organ', label: 'Organ' },
-  { value: 'electric_guitar', label: 'Electric Guitar' },
-  { value: 'electric_bass', label: 'Electric Bass' },
-  { value: 'violin', label: 'Violin' },
-  { value: 'synth_lead', label: 'Synth Lead' },
-  { value: 'drums', label: 'Drums' },
-];
+import { AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
 
 // DAW-style data model
 export type DAWNote = {
@@ -76,9 +65,22 @@ export default function DAWMultiTrackPianoRoll({ session, onSessionChange, onReq
                 <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  {GM_INSTRUMENTS.map(instr => (
-                    <SelectItem key={instr.value} value={instr.value}>{instr.label}</SelectItem>
+                <SelectContent className="max-h-[300px]">
+                  {Object.entries(AVAILABLE_INSTRUMENTS.reduce((acc, inst) => {
+                    if (!acc[inst.category]) acc[inst.category] = [];
+                    acc[inst.category].push(inst);
+                    return acc;
+                  }, {} as Record<string, typeof AVAILABLE_INSTRUMENTS>)).map(([category, instruments]) => (
+                    <div key={category}>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-gray-400 bg-gray-800/50">
+                        {category}
+                      </div>
+                      {instruments.map((inst) => (
+                        <SelectItem key={inst.value} value={inst.value} className="pl-4">
+                          {inst.label}
+                        </SelectItem>
+                      ))}
+                    </div>
                   ))}
                 </SelectContent>
               </Select>

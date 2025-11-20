@@ -448,6 +448,5 @@ class AudioRouter {
 // Create singleton instance
 export const audioRouter = new AudioRouter();
 
-// Export types and router
-export type { AudioRoute, AudioBus, TrackData };
+// Export router as default
 export default audioRouter;

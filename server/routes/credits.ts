@@ -202,6 +202,9 @@ export function createCreditRoutes(storage: IStorage) {
       const { packageKey } = parsed.data;
       const creditPackage = CREDIT_PACKAGES[packageKey];
 
+      console.log(`[PURCHASE] Package: ${packageKey}, Price ID: ${creditPackage.priceId || 'MISSING'}`);
+      console.log(`[PURCHASE] Full package:`, creditPackage);
+
       if (!creditPackage.priceId) {
         return res.status(500).json({ 
           error: `Stripe price ID not configured for ${packageKey}` 

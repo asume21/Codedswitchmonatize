@@ -111,6 +111,7 @@ interface Track {
   instrument?: string;
   data: any;
   notes?: Note[]; // For MIDI tracks
+  audioUrl?: string; // For audio tracks - URL to audio file
   volume: number;
   pan: number;
   muted: boolean;
@@ -1113,9 +1114,18 @@ export default function UnifiedStudioWorkspace() {
                                 setTracks(tracks.map(t =>
                                   t.id === track.id ? { ...t, muted: !t.muted } : t
                                 ));
+                                toast({
+                                  title: track.muted ? '🔊 Unmuted' : '🔇 Muted',
+                                  description: `${track.name} is now ${track.muted ? 'unmuted' : 'muted'}`,
+                                  duration: 1500,
+                                });
                               }}
-                              className={`h-6 w-6 p-0 ${track.muted ? 'bg-red-600 text-white' : 'text-gray-400'}`}
-                              title="Mute"
+                              className={`h-6 w-6 p-0 transition-all ${
+                                track.muted 
+                                  ? 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/50' 
+                                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+                              }`}
+                              title={track.muted ? 'Unmute Track' : 'Mute Track'}
                             >
                               M
                             </Button>
@@ -1127,9 +1137,18 @@ export default function UnifiedStudioWorkspace() {
                                 setTracks(tracks.map(t =>
                                   t.id === track.id ? { ...t, solo: !t.solo } : t
                                 ));
+                                toast({
+                                  title: track.solo ? '👥 Solo Off' : '⭐ Solo On',
+                                  description: `${track.name} solo ${track.solo ? 'disabled' : 'enabled'}`,
+                                  duration: 1500,
+                                });
                               }}
-                              className={`h-6 w-6 p-0 ${track.solo ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
-                              title="Solo"
+                              className={`h-6 w-6 p-0 transition-all ${
+                                track.solo 
+                                  ? 'bg-yellow-600 text-white hover:bg-yellow-700 shadow-lg shadow-yellow-500/50' 
+                                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+                              }`}
+                              title={track.solo ? 'Disable Solo' : 'Enable Solo'}
                             >
                               S
                             </Button>
@@ -1171,40 +1190,167 @@ export default function UnifiedStudioWorkspace() {
                         {/* Track Timeline Visualization */}
                         <div className="flex-1 bg-gray-900 p-2 relative">
                           {track.type === 'audio' ? (
-                            // Waveform visualization
+                            // Real Audio Waveform - Load from track.audioUrl
                             <div className="h-full flex items-center">
-                              <div className="w-full h-16 bg-blue-900/20 border border-blue-700/50 rounded flex items-end px-1">
-                                {Array.from({ length: 100 }, (_, i) => (
-                                  <div
-                                    key={i}
-                                    className="flex-1 bg-blue-500/70 mx-px rounded-t"
-                                    style={{ height: `${(i * 17 + 23) % 60 + 20}%` }}
+                              {track.audioUrl ? (
+                                <div className="w-full h-16 bg-blue-900/20 border border-blue-700/50 rounded relative overflow-hidden">
+                                  <canvas 
+                                    id={`waveform-${track.id}`}
+                                    className="w-full h-full"
+                                    style={{ imageRendering: 'pixelated' }}
                                   />
-                                ))}
-                              </div>
+                                  <div className="absolute inset-0 flex items-center justify-center text-xs text-blue-400 pointer-events-none">
+                                    {track.name}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="w-full h-16 bg-gray-800/50 border border-gray-700 rounded flex items-center justify-center">
+                                  <div className="text-xs text-gray-500">
+                                    No audio file - Click to upload
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ) : track.type === 'midi' ? (
                             // MIDI blocks visualization - REAL NOTES
                             <div className="h-full flex items-center">
                               <div className="w-full h-12 relative">
                                 {track.notes && track.notes.length > 0 ? (
-                                  track.notes.map((note) => (
-                                    <div
-                                      key={note.id}
-                                      className="absolute top-0 h-8 bg-green-600/80 border border-green-400 rounded flex items-center justify-center text-xs cursor-pointer hover:bg-green-500"
-                                      style={{
-                                        left: `${note.step * 15}px`, // 15px per step (4 steps per bar)
-                                        width: `${note.length * 15}px`,
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        playNote(note.note, note.octave, track.instrument);
-                                      }}
-                                      title={`${note.note}${note.octave} - Click to play`}
-                                    >
-                                      {note.note}{note.octave}
-                                    </div>
-                                  ))
+                                  (() => {
+                                    // Sort notes by step to process them in order
+                                    const sortedNotes = [...track.notes].sort((a, b) => a.step - b.step);
+                                    
+                                    return sortedNotes.map((note, index) => {
+                                      // Calculate note width, preventing overlap with next note
+                                      let noteLength = note.length || 1;
+                                      
+                                      // Find next note that comes after this one
+                                      const nextNote = sortedNotes.find((n, i) => i > index && n.step > note.step);
+                                      
+                                      if (nextNote) {
+                                        // Limit length to not overlap with next note
+                                        const maxLength = nextNote.step - note.step;
+                                        noteLength = Math.min(noteLength, maxLength);
+                                      }
+                                      
+                                      // Check if this note is currently playing
+                                      const noteStartTime = note.step * 0.25; // Each step is 0.25 seconds
+                                      const noteEndTime = noteStartTime + (noteLength * 0.25);
+                                      const isCurrentlyPlaying = studioContext?.isPlaying && 
+                                        playheadPosition >= noteStartTime && 
+                                        playheadPosition <= noteEndTime;
+                                      
+                                      return (
+                                        <div
+                                          key={note.id}
+                                          className={`absolute top-0 h-8 border rounded flex items-center justify-center text-xs cursor-move group transition-all ${
+                                            isCurrentlyPlaying 
+                                              ? 'bg-yellow-400 border-yellow-300 shadow-lg shadow-yellow-500/50 scale-110 z-10' 
+                                              : 'bg-green-600/80 border-green-400 hover:bg-green-500'
+                                          }`}
+                                          style={{
+                                            left: `${note.step * 15}px`, // 15px per step (4 steps per bar)
+                                            width: `${Math.max(1, noteLength) * 15 - 2}px`, // -2px gap
+                                          }}
+                                          draggable
+                                          onDragStart={(e) => {
+                                            e.dataTransfer.setData('noteId', note.id);
+                                            e.dataTransfer.setData('trackId', track.id);
+                                            e.dataTransfer.effectAllowed = 'move';
+                                          }}
+                                          onDragOver={(e) => {
+                                            e.preventDefault();
+                                            e.dataTransfer.dropEffect = 'move';
+                                          }}
+                                          onDrop={(e) => {
+                                            e.preventDefault();
+                                            const noteId = e.dataTransfer.getData('noteId');
+                                            const trackId = e.dataTransfer.getData('trackId');
+                                            if (trackId === track.id) {
+                                              const rect = e.currentTarget.parentElement?.getBoundingClientRect();
+                                              if (rect) {
+                                                const newStep = Math.round((e.clientX - rect.left) / 15);
+                                                setTracks(tracks.map(t => {
+                                                  if (t.id === track.id && t.notes) {
+                                                    return {
+                                                      ...t,
+                                                      notes: t.notes.map(n => 
+                                                        n.id === noteId ? { ...n, step: Math.max(0, newStep) } : n
+                                                      )
+                                                    };
+                                                  }
+                                                  return t;
+                                                }));
+                                              }
+                                            }
+                                          }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            playNote(note.note, note.octave, track.instrument);
+                                          }}
+                                          onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (confirm(`Delete note ${note.note}${note.octave}?`)) {
+                                              setTracks(tracks.map(t => {
+                                                if (t.id === track.id && t.notes) {
+                                                  return {
+                                                    ...t,
+                                                    notes: t.notes.filter(n => n.id !== note.id)
+                                                  };
+                                                }
+                                                return t;
+                                              }));
+                                              toast({
+                                                title: '🗑️ Note Deleted',
+                                                description: `${note.note}${note.octave} removed from timeline`,
+                                                duration: 1500,
+                                              });
+                                            }
+                                          }}
+                                          title={`${note.note}${note.octave} - Click: play | Drag: move | Right-click: delete`}
+                                        >
+                                          {note.note}{note.octave}
+                                          {/* Resize handle */}
+                                          <div
+                                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-green-300/0 hover:bg-green-300/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              const startX = e.clientX;
+                                              const startWidth = noteLength * 15;
+                                              
+                                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                                const deltaX = moveEvent.clientX - startX;
+                                                const newWidth = Math.max(15, startWidth + deltaX);
+                                                const newLength = Math.round(newWidth / 15);
+                                                
+                                                setTracks(tracks.map(t => {
+                                                  if (t.id === track.id && t.notes) {
+                                                    return {
+                                                      ...t,
+                                                      notes: t.notes.map(n => 
+                                                        n.id === note.id ? { ...n, length: newLength } : n
+                                                      )
+                                                    };
+                                                  }
+                                                  return t;
+                                                }));
+                                              };
+                                              
+                                              const handleMouseUp = () => {
+                                                document.removeEventListener('mousemove', handleMouseMove);
+                                                document.removeEventListener('mouseup', handleMouseUp);
+                                              };
+                                              
+                                              document.addEventListener('mousemove', handleMouseMove);
+                                              document.addEventListener('mouseup', handleMouseUp);
+                                            }}
+                                            title="Drag to resize"
+                                          />
+                                        </div>
+                                      );
+                                    });
+                                  })()
                                 ) : (
                                   <div className="text-xs text-gray-500 text-center">
                                     No notes - Add notes in Piano Roll
@@ -1276,6 +1422,56 @@ export default function UnifiedStudioWorkspace() {
                       </Button>
                     </div>
                     <div className="flex items-center space-x-2 text-sm">
+                      <span>Instrument:</span>
+                      <select 
+                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1"
+                        value={tracks.find(t => t.id === selectedTrack)?.instrument || 'Grand Piano'}
+                        onChange={(e) => {
+                          const newInstrument = e.target.value;
+                          setTracks(tracks.map(t => 
+                            t.id === selectedTrack ? { ...t, instrument: newInstrument } : t
+                          ));
+                          toast({
+                            title: "Instrument Changed",
+                            description: `Track instrument set to ${newInstrument}`,
+                            duration: 2000,
+                          });
+                        }}
+                      >
+                        <optgroup label="Piano">
+                          <option value="Grand Piano">Grand Piano</option>
+                          <option value="Electric Piano">Electric Piano</option>
+                          <option value="Synth Piano">Synth Piano</option>
+                        </optgroup>
+                        <optgroup label="Bass">
+                          <option value="808 Bass">808 Bass</option>
+                          <option value="Synth Bass">Synth Bass</option>
+                          <option value="Electric Bass">Electric Bass</option>
+                        </optgroup>
+                        <optgroup label="Guitar">
+                          <option value="Acoustic Guitar">Acoustic Guitar</option>
+                          <option value="Electric Guitar">Electric Guitar</option>
+                        </optgroup>
+                        <optgroup label="Strings">
+                          <option value="Violin">Violin</option>
+                          <option value="Cello">Cello</option>
+                        </optgroup>
+                        <optgroup label="Winds">
+                          <option value="Flute">Flute</option>
+                          <option value="Saxophone">Saxophone</option>
+                          <option value="Trumpet">Trumpet</option>
+                        </optgroup>
+                        <optgroup label="Synth">
+                          <option value="Lead Synth">Lead Synth</option>
+                          <option value="Pad Synth">Pad Synth</option>
+                        </optgroup>
+                        <optgroup label="Drums">
+                          <option value="Kick">Kick</option>
+                          <option value="Snare">Snare</option>
+                          <option value="Hi-Hat">Hi-Hat</option>
+                          <option value="Full Kit">Full Kit</option>
+                        </optgroup>
+                      </select>
                       <span>Scale:</span>
                       <select className="bg-gray-800 border border-gray-700 rounded px-2 py-1">
                         <option>C Major</option>

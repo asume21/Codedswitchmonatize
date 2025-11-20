@@ -205,11 +205,10 @@ export class RealisticAudioEngine {
           soundfontName as any, // Type assertion for soundfont-player compatibility
           {
             format: 'mp3', // Use MP3 for better browser compatibility
-            soundfont: 'MusyngKite', // High-quality soundfont
+            soundfont: 'FluidR3_GM', // Standard General MIDI soundfont (more reliable)
             nameToUrl: (name: string, soundfont: string, format: string) => {
-              // Ensure HTTPS URLs for production compatibility
-              const baseUrl = `https://gleitz.github.io/midi-js-soundfonts/${soundfont}`;
-              return `${baseUrl}/${name}-${format}.js`;
+              // Use the standard gleitz repo which hosts FluidR3_GM
+              return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
             }
           }
         );
@@ -238,11 +237,9 @@ export class RealisticAudioEngine {
         soundfontName as any, // Type assertion for soundfont-player compatibility
         {
           format: 'mp3',
-          soundfont: 'MusyngKite',
+          soundfont: 'FluidR3_GM',
           nameToUrl: (name: string, soundfont: string, format: string) => {
-            // Ensure HTTPS URLs for production compatibility
-            const baseUrl = `https://gleitz.github.io/midi-js-soundfonts/${soundfont}`;
-            return `${baseUrl}/${name}-${format}.js`;
+            return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
           }
         }
       );
