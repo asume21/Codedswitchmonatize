@@ -18,6 +18,13 @@ interface StepGridProps {
   onNoteResize?: (noteId: string, newLength: number) => void;
   chordMode: boolean;
   onScroll?: () => void;
+  selectedNoteIds?: Set<string>;
+  onSelectionStart?: (e: React.MouseEvent, keyIndex: number, step: number) => void;
+  onSelectionMove?: (keyIndex: number, step: number) => void;
+  onSelectionEnd?: (e: React.MouseEvent) => void;
+  isSelecting?: boolean;
+  selectionStart?: { x: number; y: number } | null;
+  selectionEnd?: { x: number; y: number } | null;
 }
 
 export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({

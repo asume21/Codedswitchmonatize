@@ -171,6 +171,11 @@ export const VerticalPianoRoll: React.FC = () => {
   const [loopEnabled, setLoopEnabled] = useState(false); // Loop playback toggle
   const [loopNotes, setLoopNotes] = useState<Note[]>([]); // Saved loop notes
   
+  // DRAG-TO-SELECT BOX FEATURE
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
+  
   const { toast } = useToast();
   const { currentSession } = useSongWorkSession();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -1146,6 +1151,64 @@ export const VerticalPianoRoll: React.FC = () => {
     toast({ title: '🎷 Swing Applied', description: `${swingAmount}% groove added` });
   }, [selectedNoteIds, selectedTrack, selectedTrackIndex, swingAmount, addToHistory, toast]);
 
+  // DRAG-TO-SELECT HANDLERS
+  const handleSelectionStart = useCallback((e: React.MouseEvent, keyIndex: number, step: number) => {
+    if (pianoRollTool !== 'select') return;
+    
+    setIsSelecting(true);
+    setSelectionStart({ x: step, y: keyIndex });
+    setSelectionEnd({ x: step, y: keyIndex });
+    
+    // Clear previous selection if not holding Ctrl
+    if (!e.ctrlKey && !e.metaKey) {
+      setSelectedNoteIds(new Set());
+    }
+  }, [pianoRollTool]);
+
+  const handleSelectionMove = useCallback((keyIndex: number, step: number) => {
+    if (!isSelecting || !selectionStart) return;
+    
+    setSelectionEnd({ x: step, y: keyIndex });
+  }, [isSelecting, selectionStart]);
+
+  const handleSelectionEnd = useCallback((e: React.MouseEvent) => {
+    if (!isSelecting || !selectionStart || !selectionEnd) return;
+    
+    // Calculate selection bounds
+    const minStep = Math.min(selectionStart.x, selectionEnd.x);
+    const maxStep = Math.max(selectionStart.x, selectionEnd.x);
+    const minKey = Math.min(selectionStart.y, selectionEnd.y);
+    const maxKey = Math.max(selectionStart.y, selectionEnd.y);
+    
+    // Find notes within selection box
+    const notesInSelection = selectedTrack.notes.filter(note => {
+      const noteKeyIndex = PIANO_KEYS.findIndex(k => k.note === note.note && k.octave === note.octave);
+      return note.step >= minStep && note.step <= maxStep && 
+             noteKeyIndex >= minKey && noteKeyIndex <= maxKey;
+    });
+    
+    // Add to selection (or replace if not holding Ctrl)
+    if (e.ctrlKey || e.metaKey) {
+      const newSelection = new Set(selectedNoteIds);
+      notesInSelection.forEach(note => newSelection.add(note.id));
+      setSelectedNoteIds(newSelection);
+    } else {
+      setSelectedNoteIds(new Set(notesInSelection.map(n => n.id)));
+    }
+    
+    // Reset selection state
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+    
+    if (notesInSelection.length > 0) {
+      toast({ 
+        title: '✅ Selected', 
+        description: `${notesInSelection.length} note${notesInSelection.length === 1 ? '' : 's'} selected` 
+      });
+    }
+  }, [isSelecting, selectionStart, selectionEnd, selectedTrack, selectedNoteIds, toast]);
+
   // Memoized components
   const playbackControls = useMemo(() => (
     <PlaybackControls
@@ -1486,6 +1549,13 @@ export const VerticalPianoRoll: React.FC = () => {
               onNoteResize={resizeNote}
               chordMode={chordMode}
               onScroll={handleGridScroll}
+              selectedNoteIds={selectedNoteIds}
+              onSelectionStart={handleSelectionStart}
+              onSelectionMove={handleSelectionMove}
+              onSelectionEnd={handleSelectionEnd}
+              isSelecting={isSelecting}
+              selectionStart={selectionStart}
+              selectionEnd={selectionEnd}
             />
           </div>
         </CardContent>

@@ -317,6 +317,15 @@ export default function SongUploader() {
           : `${accessibleURL}?format=mp4`;
       }
 
+      // For MP3 files, try multiple browser compatibility strategies
+      if (accessibleURL.includes('.mp3')) {
+        // Strategy 1: Add cache-busting and range headers
+        const timestamp = Date.now();
+        accessibleURL = accessibleURL.includes('?') 
+          ? `${accessibleURL}&t=${timestamp}&range=0-`
+          : `${accessibleURL}?t=${timestamp}&range=0-`;
+      }
+
       console.log(`🎵 Attempting to play: ${song.name} from URL: ${accessibleURL.substring(0, 100)}...`);
 
       // Stop any currently playing audio
@@ -363,8 +372,54 @@ export default function SongUploader() {
         }
         
         // Check if it's an M4A format issue and suggest conversion
-        if (isFormatIssue && (accessibleURL.includes('.m4a') || accessibleURL.includes('.mp4'))) {
-          errorMessage += '. M4A files may not work in all browsers. Try converting to MP3 or WAV format.';
+        if (isFormatIssue) {
+          console.log('🔄 Trying server-converted audio...');
+          
+          // Extract file ID from URL and use conversion endpoint
+          let fileId = '';
+          if (accessibleURL.includes('/uploads/')) {
+            const parts = accessibleURL.split('/uploads/');
+            if (parts.length > 1) {
+              fileId = parts[1].split('?')[0]; // Remove query params
+            }
+          }
+          
+          const convertedURL = `/api/songs/converted/${fileId}`;
+          
+          const convertedAudio = new Audio();
+          convertedAudio.crossOrigin = "anonymous";
+          
+          convertedAudio.addEventListener('loadedmetadata', () => {
+            console.log('✅ Server conversion worked for:', song.name);
+            studioContext.setCurrentUploadedSong(song, convertedAudio);
+            toast({
+              title: "🎵 Song Converted & Ready",
+              description: `${song.name} converted to browser-friendly format. Ready to play!`,
+            });
+          });
+          
+          convertedAudio.addEventListener('error', () => {
+            // If conversion fails, show helpful message
+            if (accessibleURL.includes('.m4a') || accessibleURL.includes('.mp4')) {
+              errorMessage += '. M4A files may not work in all browsers. Try re-uploading as MP3 or WAV.';
+            } else if (accessibleURL.includes('.mp3')) {
+              errorMessage += '. This MP3 may use an unsupported encoding or bitrate. Server conversion failed - try re-uploading a standard MP3 (128-320 kbps).';
+            } else {
+              errorMessage += '. This audio format is not supported. Try converting to MP3 or WAV format.';
+            }
+            
+            toast({
+              title: "⚠️ Playback Failed",
+              description: `Cannot play ${song.name}. ${errorMessage}`,
+              variant: "destructive",
+              duration: 8000,
+            });
+            
+            studioContext.setCurrentUploadedSong(null, null);
+          });
+          
+          convertedAudio.src = convertedURL;
+          return; // Don't show the original error yet
         }
         
         console.error('🚫 Audio error:', errorMessage, 'URL:', accessibleURL);

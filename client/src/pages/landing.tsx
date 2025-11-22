@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send, Construction } from "lucide-react";
+import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send, Construction, Play, Sparkles, Wand2, Radio, Mic2, Piano } from "lucide-react";
 
 // UNDER CONSTRUCTION MODE - Set to false to show full landing page
 const UNDER_CONSTRUCTION = false;
@@ -147,41 +147,85 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen min-w-[1400px] bg-gradient-to-br from-background to-secondary/20">
-      <div className="container mx-auto px-4 py-16 w-full">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <div className="h-16 w-16 mx-auto mb-8 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
-            <Music className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
-            CodedSwitch
-          </h1>
-          <p className="text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto font-semibold">
-            AI-Powered Music Production Suite
-          </p>
-          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Create professional music with AI generation, advanced piano roll, multi-track studio, and code-to-music translation
-          </p>
-          <div className="flex justify-center gap-4">
-            <Link href="/signup">
-              <Button size="lg" className="text-lg px-8">
-                Get Started
-              </Button>
-            </Link>
-            <Link href="/login">
-              <Button size="lg" variant="outline" className="text-lg px-8">
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/subscribe">
-              <Button size="lg" variant="ghost" className="text-lg px-8">
-                View Pricing
-              </Button>
-            </Link>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
+      {/* Hero Section - Full Screen */}
+      <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Animated Background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse top-20 left-20"></div>
+          <div className="absolute w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse bottom-20 right-20 animation-delay-2000"></div>
+          <div className="absolute w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animation-delay-4000"></div>
         </div>
 
+        <div className="container mx-auto px-4 py-16 relative z-10">
+          <div className="text-center mb-16">
+            {/* Logo/Icon */}
+            <div className="relative inline-block mb-8">
+              <div className="h-24 w-24 mx-auto rounded-3xl bg-gradient-to-br from-purple-600 via-pink-600 to-blue-600 flex items-center justify-center shadow-2xl">
+                <Music className="h-12 w-12 text-white" />
+              </div>
+              <div className="absolute inset-0 bg-purple-500/30 rounded-3xl blur-xl animate-pulse"></div>
+            </div>
+
+            {/* Main Headline */}
+            <h1 className="text-7xl md:text-8xl font-black mb-6 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent animate-fade-in">
+              CodedSwitch
+            </h1>
+            
+            {/* Tagline */}
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <Sparkles className="w-6 h-6 text-yellow-400 animate-pulse" />
+              <p className="text-3xl font-bold text-white">
+                AI-Powered Music Production Suite
+              </p>
+              <Sparkles className="w-6 h-6 text-yellow-400 animate-pulse" />
+            </div>
+
+            {/* Description */}
+            <p className="text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+              Create professional music with <span className="text-purple-400 font-semibold">AI generation</span>, 
+              advanced <span className="text-pink-400 font-semibold">piano roll</span>, 
+              multi-track <span className="text-blue-400 font-semibold">studio</span>, and 
+              revolutionary <span className="text-green-400 font-semibold">code-to-music</span> translation
+            </p>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
+              <Link href="/studio">
+                <Button size="lg" className="text-lg px-10 py-6 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-2xl hover:shadow-purple-500/50 transition-all">
+                  <Play className="w-5 h-5 mr-2" />
+                  Launch Studio
+                </Button>
+              </Link>
+              <Link href="/studio">
+                <Button size="lg" variant="outline" className="text-lg px-10 py-6 border-2 border-purple-500 text-white hover:bg-purple-500/20 shadow-xl">
+                  <Wand2 className="w-5 h-5 mr-2" />
+                  Start Creating
+                </Button>
+              </Link>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-purple-400 mb-2">100+</div>
+                <div className="text-sm text-gray-400">Instruments</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-pink-400 mb-2">AI</div>
+                <div className="text-sm text-gray-400">Powered</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-blue-400 mb-2">∞</div>
+                <div className="text-sm text-gray-400">Possibilities</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Features Section */}
+      <div className="container mx-auto px-4 py-16">
         {/* Features Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           {features.map((feature, index) => (
@@ -238,13 +282,14 @@ export default function Landing() {
 
         {/* CTA Section */}
         <div className="text-center bg-card rounded-2xl p-12 border">
-          <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Workflow?</h2>
+          <h2 className="text-3xl font-bold mb-4">Ready to Create Music?</h2>
           <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
-            Experience the future of creative development with AI-powered tools that bridge the gap between code and music.
+            Launch the studio and start creating professional music with AI-powered tools, advanced piano roll, and multi-track production.
           </p>
-          <Link href="/dashboard">
-            <Button size="lg" className="text-lg px-8">
-              Start Creating Now
+          <Link href="/studio">
+            <Button size="lg" className="text-lg px-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+              <Play className="w-5 h-5 mr-2" />
+              Launch Studio Now
             </Button>
           </Link>
         </div>

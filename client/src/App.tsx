@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/layout/navigation";
+import { Sidebar } from "@/components/layout/sidebar";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Studio from "@/pages/studio";
@@ -14,6 +15,7 @@ import Subscribe from "@/pages/Subscribe";
 import ProAudio from "@/pages/pro-audio";
 import CodeBeatStudio from "@/pages/codebeat-studio";
 import Settings from "@/pages/settings";
+import AIAssistantPage from "@/pages/ai-assistant";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import ActivatePage from "@/pages/activate";
@@ -32,8 +34,11 @@ import { SongWorkSessionProvider } from "@/contexts/SongWorkSessionContext";
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen w-full">
-      {/* Full-width layout without sidebar */}
-      <div className="flex-1 flex flex-col w-full">
+      {/* Sidebar */}
+      <Sidebar />
+      
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col">
         <Navigation />
         <main className="flex-1 overflow-x-auto overflow-y-auto">
           <div className="min-w-[1400px] w-full h-full">{children}</div>
@@ -65,11 +70,8 @@ function App() {
           <TooltipProvider>
             <Toaster />
           <Switch>
-          <Route path="/">
-            <AppLayout>
-              <Studio />
-            </AppLayout>
-          </Route>
+          <Route path="/" component={Landing} />
+          <Route path="/home" component={Landing} />
           <Route path="/studio">
             <AppLayout>
               <Studio />
@@ -132,7 +134,7 @@ function App() {
           </Route>
           <Route path="/ai-assistant">
             <AppLayout>
-              <Studio />
+              <AIAssistantPage />
             </AppLayout>
           </Route>
           <Route path="/mix-studio">

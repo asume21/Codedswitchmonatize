@@ -1645,9 +1645,6 @@ Your lyrics will sync with the timeline
           />
         </DialogContent>
       </Dialog>
-
-      {/* Global Transport Controls - Always available */}
-      <TransportControls currentTool="Unified Studio" activeTab={activeView} />
     </div>
   );
 }
