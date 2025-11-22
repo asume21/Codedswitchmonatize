@@ -24,6 +24,33 @@ export function requireCredits(cost: number, storage: IStorage) {
 
       const creditService = getCreditService(storage);
 
+      // Check for owner bypass
+      let isOwner = false;
+      
+      // Check 1: x-owner-key bypass (sets userId to 'owner-user')
+      if (req.userId === 'owner-user') {
+        isOwner = true;
+      } 
+      // Check 2: Email match with OWNER_EMAIL env var
+      else if (process.env.OWNER_EMAIL) {
+        try {
+          const user = await storage.getUser(req.userId);
+          if (user && user.email === process.env.OWNER_EMAIL) {
+            isOwner = true;
+            console.log(`👑 Owner authenticated: ${user.email}`);
+          }
+        } catch (e) {
+          console.warn('Failed to check owner status:', e);
+        }
+      }
+
+      // If owner, allow operation without checking credits
+      if (isOwner) {
+        req.creditCost = 0; // No cost for owner
+        req.creditService = creditService;
+        return next();
+      }
+
       // Check if user has enough credits
       const hasEnoughCredits = await creditService.hasCredits(req.userId, cost);
 
@@ -65,6 +92,11 @@ export async function deductCredits(
   reason: string,
   metadata?: Record<string, any>
 ): Promise<void> {
+  // Skip if cost is 0 (e.g. owner)
+  if (req.creditCost === 0) {
+    return;
+  }
+
   if (!req.userId || !req.creditCost || !req.creditService) {
     console.warn('⚠️ Attempted to deduct credits without proper setup');
     return;

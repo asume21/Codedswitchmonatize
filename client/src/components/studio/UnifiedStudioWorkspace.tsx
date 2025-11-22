@@ -9,6 +9,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
 import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
+import AIAssistant from './AIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
 import ProfessionalStudio from './ProfessionalStudio';
@@ -861,7 +862,9 @@ export default function UnifiedStudioWorkspace() {
             Generate Music
           </Button>
           <Button
-            onClick={() => setShowAIAssistant(!showAIAssistant)}
+            onClick={() => {
+              setActiveView('ai-studio');
+            }}
             className="bg-blue-600 hover:bg-blue-500"
           >
             <MessageSquare className="w-4 h-4 mr-2" />
@@ -1570,17 +1573,8 @@ Your lyrics will sync with the timeline
 
           {/* AI STUDIO VIEW */}
           {activeView === 'ai-studio' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
-                <div className="lg:col-span-2">
-                  <ProfessionalStudio />
-                </div>
-                <div className="lg:col-span-1">
-                  <AudioAnalysisPanel 
-                    audioUrl={studioContext?.uploadedSongAudio?.src}
-                  />
-                </div>
-              </div>
+            <div className="flex-1 overflow-hidden bg-gray-900">
+              <AIAssistant />
             </div>
           )}
 
