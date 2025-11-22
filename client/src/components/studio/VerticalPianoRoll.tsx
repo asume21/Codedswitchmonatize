@@ -307,10 +307,14 @@ export const VerticalPianoRoll: React.FC = () => {
                 console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes`, notesAtStep);
               }
               notesAtStep.forEach(note => {
+                // Calculate duration based on note length and BPM
+                // Each step is a 16th note, so duration = (note.length * stepDuration) / 1000 seconds
+                const noteDuration = (note.length * stepDuration) / 1000;
+                
                 realisticAudio.playNote(
                   note.note,
                   note.octave,
-                  0.25,
+                  noteDuration,
                   track.instrument,
                   (note.velocity / 127) * (track.volume / 100)
                 );
@@ -1449,27 +1453,9 @@ export const VerticalPianoRoll: React.FC = () => {
         </CardHeader>
 
         <CardContent className="h-[calc(100%-250px)] overflow-hidden">
-          <div className="flex h-full relative">
-            {/* Grid behind - lower z-index */}
-            <StepGrid
-              ref={gridRef}
-              steps={STEPS}
-              pianoKeys={PIANO_KEYS}
-              selectedTrack={selectedTrack}
-              currentStep={currentStep}
-              stepWidth={STEP_WIDTH}
-              keyHeight={KEY_HEIGHT}
-              zoom={zoom}
-              onStepClick={addNote}
-              onChordAdd={addChordToGrid}
-              onNoteRemove={removeNote}
-              onNoteResize={resizeNote}
-              chordMode={chordMode}
-              onScroll={handleGridScroll}
-            />
-            
-            {/* Piano Keys in front - higher z-index, positioned absolutely */}
-            <div className="absolute left-0 top-0 bottom-0 z-10">
+          <div className="flex h-full relative overflow-auto" ref={gridRef} onScroll={handleGridScroll}>
+            {/* Piano Keys - fixed on left, scrolls with content */}
+            <div className="sticky left-0 z-10">
               <PianoKeys
                 ref={pianoKeysRef}
                 pianoKeys={PIANO_KEYS}
@@ -1484,6 +1470,23 @@ export const VerticalPianoRoll: React.FC = () => {
                 onScroll={handlePianoScroll}
               />
             </div>
+            
+            {/* Grid on right */}
+            <StepGrid
+              steps={STEPS}
+              pianoKeys={PIANO_KEYS}
+              selectedTrack={selectedTrack}
+              currentStep={currentStep}
+              stepWidth={STEP_WIDTH}
+              keyHeight={KEY_HEIGHT}
+              zoom={zoom}
+              onStepClick={addNote}
+              onChordAdd={addChordToGrid}
+              onNoteRemove={removeNote}
+              onNoteResize={resizeNote}
+              chordMode={chordMode}
+              onScroll={handleGridScroll}
+            />
           </div>
         </CardContent>
 

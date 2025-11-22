@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, forwardRef } from 'react';
+import React, { useCallback, useRef, forwardRef, CSSProperties } from 'react';
 import { PianoKey, Note, Track, STEPS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
 
@@ -15,6 +15,7 @@ interface PianoKeysProps {
   onScroll?: () => void;
 }
 
+// Force rebuild
 export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
   pianoKeys,
   selectedTrack,
@@ -83,47 +84,61 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
   return (
     <div 
       ref={ref}
-      className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 overflow-y-auto shadow-2xl"
+      className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 shadow-2xl"
       onScroll={onScroll}
+      style={{ borderTop: 'none', overflow: 'hidden' }}
     >
       {/* Spacer to match step header height */}
-      <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-600" style={{ height: '30px' }} />
+      <div className="sticky top-0 z-10" style={{ height: '30px', background: 'transparent', border: 'none' }} />
       
-      <div className="relative">
+      <div className="relative" style={{ height: `${pianoKeys.length * keyHeight}px`, overflow: 'hidden' }}>
         {pianoKeys.map((key, index) => {
+          // Calculate EXACT Y position for this key to match grid row
+          const yPosition = index * keyHeight;
           const isActive = activeKeys.has(index);
+          const whiteKeyStyle: CSSProperties = {
+            position: 'absolute' as const,
+            top: `${yPosition}px`,
+            left: 0,
+            right: 0,
+            height: `${keyHeight}px`,
+            boxSizing: 'border-box',
+            padding: 0,
+            margin: 0,
+            borderLeft: '1px solid #1a1a1a',
+            borderRight: '1px solid #1a1a1a',
+            border: 'none',
+            lineHeight: `${keyHeight}px`,
+            backgroundImage: isActive
+              ? 'linear-gradient(180deg, #ffffff, #d9f99d)'
+              : 'linear-gradient(180deg, #f8fafc, #e2e8f0)',
+            boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.8)',
+            zIndex: 1,
+          };
+
+          const blackKeyStyle: CSSProperties = {
+            position: 'absolute' as const,
+            top: `${yPosition}px`,
+            left: 0,
+            height: `${keyHeight}px`,
+            width: '65%',
+            boxSizing: 'border-box',
+            padding: 0,
+            margin: 0,
+            border: 'none',
+            lineHeight: `${keyHeight}px`,
+            backgroundImage: isActive
+              ? 'linear-gradient(90deg, #4c1d95, #1e1b4b)'
+              : 'linear-gradient(90deg, #0f172a, #000000)',
+            boxShadow: '2px 0 4px rgba(0,0,0,0.5), inset -1px 0 2px rgba(255,255,255,0.1)',
+            zIndex: 10,
+          };
+
           return (
             <button
               key={key.key}
-              className={`
-                w-full text-xs font-bold transition-all duration-200 relative overflow-visible
-                ${key.isBlack
-                  ? isActive 
-                    ? 'bg-gradient-to-b from-green-600 via-green-700 to-green-800 text-white border-l-4 border-l-green-400 shadow-2xl'
-                    : 'bg-gradient-to-b from-gray-900 via-black to-gray-950 text-gray-400 border-l-4 border-l-black shadow-lg hover:from-gray-800 hover:via-gray-900 active:from-black active:via-gray-950'
-                  : isActive
-                    ? 'bg-gradient-to-b from-green-400 via-green-300 to-green-200 dark:from-green-500 dark:via-green-600 dark:to-green-700 text-green-900 dark:text-white shadow-2xl'
-                    : 'bg-gradient-to-b from-gray-100 via-white to-gray-50 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 text-gray-800 dark:text-gray-200 shadow-inner hover:from-gray-50 hover:via-gray-100 dark:hover:from-gray-600 dark:hover:via-gray-500 active:from-gray-200 active:via-gray-300 dark:active:from-gray-800 dark:active:via-gray-700'
-                }
-                ${key.isBlack ? 'ml-2 mr-2 z-10' : 'z-0'}
-                ${isActive ? 'ring-4 ring-green-400 ring-opacity-80 z-20' : ''}
-                ${isPlaying && currentStep % STEPS === 0 ? 'ring-2 ring-purple-400 ring-opacity-60' : ''}
-              `}
-              style={{ 
-                height: `${keyHeight}px`,
-                minHeight: `${keyHeight}px`,
-                maxHeight: `${keyHeight}px`,
-                boxSizing: 'border-box',
-                padding: 0,
-                margin: 0,
-                lineHeight: `${keyHeight}px`,
-                boxShadow: isActive
-                  ? '0 0 20px rgba(34, 197, 94, 0.9), inset 0 2px 8px rgba(34, 197, 94, 0.4)'
-                  : key.isBlack 
-                    ? '0 4px 6px -1px rgba(0, 0, 0, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.3)' 
-                    : '0 1px 3px rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.5)',
-                transform: isActive ? 'scale(1.05)' : 'scale(1)',
-              }}
+              className="w-full text-xs font-semibold relative"
+              style={key.isBlack ? blackKeyStyle : whiteKeyStyle}
               onClick={() => handleKeyClick(index)}
               onMouseEnter={() => playKeyPreview(key)}
               onTouchStart={() => playKeyPreview(key)}

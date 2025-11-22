@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send, Construction } from "lucide-react";
 
 // UNDER CONSTRUCTION MODE - Set to false to show full landing page
-const UNDER_CONSTRUCTION = true;
+const UNDER_CONSTRUCTION = false;
 
 export default function Landing() {
   // If under construction, show maintenance page
@@ -115,39 +115,34 @@ export default function Landing() {
   };
   const features = [
     {
-      icon: Code,
-      title: "Code Translation",
-      description: "Translate code between 14+ programming languages with AI assistance"
-    },
-    {
       icon: Music,
-      title: "Professional Music Studio",
-      description: "Create music with multi-instrument orchestral compositions and MIDI support"
-    },
-    {
-      icon: Upload,
-      title: "Song Analysis",
-      description: "Upload songs for AI-powered analysis and intelligent music insights"
-    },
-    {
-      icon: Drum,
-      title: "Beat Studio",
-      description: "Professional drum synthesis with real-time pattern editing"
+      title: "Professional Piano Roll",
+      description: "Advanced multi-track piano roll with pixel-perfect alignment, resizable notes, and 100+ instruments"
     },
     {
       icon: Zap,
-      title: "Code to Music",
-      description: "Revolutionary bidirectional translation between code and musical compositions"
-    },
-    {
-      icon: Shield,
-      title: "Security Scanner",
-      description: "AI-powered code vulnerability detection and security analysis"
+      title: "AI Music Generation",
+      description: "Generate full songs, beats, and melodies with Suno and MusicGen AI models"
     },
     {
       icon: MessageSquare,
-      title: "AI Assistant",
-      description: "24/7 intelligent help with multiple AI providers (Grok, Gemini, OpenAI)"
+      title: "AI Lyrics Generator",
+      description: "Create professional lyrics with Grok AI - genre-specific, rhyme schemes, and emotional depth"
+    },
+    {
+      icon: Code,
+      title: "Code to Music",
+      description: "Revolutionary translation between code and musical compositions - turn your code into sound"
+    },
+    {
+      icon: Drum,
+      title: "Multi-Track Studio",
+      description: "Professional beat maker, melody composer, and drum patterns with real-time playback"
+    },
+    {
+      icon: Upload,
+      title: "Song Analyzer",
+      description: "Upload and analyze songs with AI-powered insights, quality scoring, and recommendations"
     }
   ];
 
@@ -159,11 +154,14 @@ export default function Landing() {
           <div className="h-16 w-16 mx-auto mb-8 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
             <Music className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+          <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
             CodedSwitch
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            The world's first AI-powered bidirectional translation platform that bridges code development with music creation
+          <p className="text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto font-semibold">
+            AI-Powered Music Production Suite
+          </p>
+          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Create professional music with AI generation, advanced piano roll, multi-track studio, and code-to-music translation
           </p>
           <div className="flex justify-center gap-4">
             <Link href="/signup">

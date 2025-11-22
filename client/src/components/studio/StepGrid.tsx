@@ -1,5 +1,8 @@
-import React, { useCallback, useMemo, forwardRef } from 'react';
+import React, { useCallback, useMemo, forwardRef, CSSProperties } from 'react';
 import { Note, Track, PianoKey } from './types/pianoRollTypes';
+
+const KEY_COLUMN_WIDTH = 112; // Matches PianoKeys w-28
+const GRID_SEPARATOR_COLOR = 'rgba(148, 163, 184, 0.35)';
 
 interface StepGridProps {
   steps: number;
@@ -71,39 +74,114 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
     ));
   }, [steps, currentStep, stepWidth, zoom]);
 
+  const gridBackdropStyle = {
+    backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.95), rgba(15,23,42,0.75)), linear-gradient(180deg, rgba(59,130,246,0.08) 1px, transparent 1px)`,
+    backgroundBlendMode: 'overlay',
+    backgroundSize: '100% 100%, auto',
+    boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.6)',
+  };
+
+  const rowStyle: CSSProperties = useMemo(() => ({
+    height: `${keyHeight}px`,
+    minHeight: `${keyHeight}px`,
+    maxHeight: `${keyHeight}px`,
+    boxSizing: 'border-box',
+    padding: 0,
+    margin: 0,
+    borderLeft: '1px solid #1a1a1a',
+    borderRight: '1px solid #1a1a1a',
+    borderTop: '1px solid #1a1a1a',
+    borderBottom: 'none',
+    position: 'relative' as const,
+  }), [keyHeight]);
+
   return (
     <div 
       ref={ref}
-      className="flex-1 overflow-auto"
-      onScroll={onScroll}
+      className="flex-1"
+      style={{ overflow: 'visible' }}
     >
-      <div className="relative bg-gray-900">
+      <div className="relative bg-gray-900" style={{...gridBackdropStyle, borderTop: 'none'}}>
         {/* Step Headers */}
-        <div className="flex sticky top-0 bg-gray-800 border-b border-gray-600 z-10">
+        <div className="flex sticky top-0 bg-gray-800 z-10" style={{borderTop: 'none', borderBottom: 'none'}}>
           {renderStepHeaders}
         </div>
 
-        {/* Grid */}
-        <div className="relative">
-          {pianoKeys.map((key, keyIndex) => (
-            <div key={key.key} className="flex relative" style={{ height: `${keyHeight}px` }}>
-              {/* Horizontal grid line */}
-              <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-700 pointer-events-none" />
+        {/* Grid - draw each row at the EXACT position of each piano key */}
+        <div className="relative" style={{ height: `${pianoKeys.length * keyHeight}px`, paddingTop: '30px' }}>
+          {pianoKeys.map((key, keyIndex) => {
+            // Calculate the EXACT Y position for this key
+            const yPosition = keyIndex * keyHeight;
+            
+            // Row style with NO borders (we'll draw separator lines separately)
+            const thisRowStyle: CSSProperties = {
+              position: 'absolute' as const,
+              top: `${yPosition}px`,
+              left: 0,
+              right: 0,
+              height: `${keyHeight}px`,
+              boxSizing: 'border-box',
+              padding: 0,
+              margin: 0,
+              border: 'none',
+            };
+            
+            return (
+            <div
+              key={key.key}
+              className="flex"
+              style={thisRowStyle}
+            >
+              {/* Horizontal separator line at the TOP of this row */}
+              {keyIndex > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '1px',
+                  backgroundColor: '#1a1a1a',
+                  pointerEvents: 'none',
+                  zIndex: 100
+                }} />
+              )}
               
-              {/* Grid cells */}
+              {/* Vertical left border */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: '1px',
+                backgroundColor: '#1a1a1a',
+                pointerEvents: 'none',
+                zIndex: 100
+              }} />
+              
+              {/* Vertical right border */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                right: 0,
+                width: '1px',
+                backgroundColor: '#1a1a1a',
+                pointerEvents: 'none',
+                zIndex: 100
+              }} />
+              
+              {/* Grid cells (transparent, no vertical lines, no separators for now) */}
               {Array.from({ length: steps }, (_, step) => (
                 <div
                   key={`${key.key}-${step}`}
-                  className={`border-r border-gray-700 cursor-pointer transition-colors
-                    ${step % 4 === 0 ? 'border-r-gray-500' : ''}
-                    ${currentStep === step ? 'bg-red-900 bg-opacity-20' : 'hover:bg-gray-700'}
-                  `}
+                  className={`cursor-pointer transition-colors ${currentStep === step ? 'bg-red-900 bg-opacity-20' : 'hover:bg-gray-800/50'}`}
                   style={{
                     width: `${stepWidth * zoom}px`,
                     height: '100%',
                     boxSizing: 'border-box',
                     padding: 0,
-                    margin: 0
+                    margin: 0,
+                    border: 'none'
                   }}
                   onClick={() => handleCellClick(keyIndex, step)}
                 />
@@ -164,7 +242,8 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                   </div>
                 ))}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

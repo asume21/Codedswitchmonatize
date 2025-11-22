@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { VerticalPianoRoll } from '@/components/studio/VerticalPianoRoll.new';
+import VerticalPianoRoll from '@/components/studio/VerticalPianoRoll';
 import { Button } from '@/components/ui/button';
 import { Home } from 'lucide-react';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
