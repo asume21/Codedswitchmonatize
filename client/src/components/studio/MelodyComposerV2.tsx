@@ -381,14 +381,7 @@ function MelodyComposerV2() {
 
         {/* Piano Roll Plugin */}
         {activePlugins.pianoRoll && (
-          <PianoRollPlugin
-            tracks={tracks}
-            notes={notes}
-            onNotesChange={(updated) => handleTrackNotesUpdate(selectedTrack, updated)}
-            selectedTrack={selectedTrack}
-            isPlaying={isPlaying}
-            onPlayNote={playNote}
-          />
+          <PianoRollPlugin />
         )}
 
         {/* Step Sequencer Plugin */}

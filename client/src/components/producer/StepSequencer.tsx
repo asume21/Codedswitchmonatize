@@ -12,6 +12,7 @@ interface DrumTrack {
   color: string;
   pattern: boolean[];
   velocity: number[];
+  probability: number[];
   muted: boolean;
   solo: boolean;
   volume: number;
@@ -32,6 +33,8 @@ export function StepSequencer({
   const [currentStep, setCurrentStep] = useState(0);
   const [swing, setSwing] = useState(0); // 0-100% swing
   const [masterVolume, setMasterVolume] = useState(80);
+  const [groove, setGroove] = useState(0); // accent backbeat intensity
+  const [selectedStep, setSelectedStep] = useState<{ trackIndex: number; stepIndex: number } | null>(null);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -44,6 +47,7 @@ export function StepSequencer({
       color: 'bg-red-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(100),
+      probability: new Array(16).fill(100),
       muted: false,
       solo: false,
       volume: 85
@@ -54,6 +58,7 @@ export function StepSequencer({
       color: 'bg-blue-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(90),
+      probability: new Array(16).fill(100),
       muted: false,
       solo: false,
       volume: 80
@@ -64,6 +69,7 @@ export function StepSequencer({
       color: 'bg-yellow-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(70),
+      probability: new Array(16).fill(100),
       muted: false,
       solo: false,
       volume: 60
@@ -74,6 +80,7 @@ export function StepSequencer({
       color: 'bg-green-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(85),
+      probability: new Array(16).fill(100),
       muted: false,
       solo: false,
       volume: 70
@@ -84,6 +91,7 @@ export function StepSequencer({
       color: 'bg-purple-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(95),
+      probability: new Array(16).fill(100),
       muted: false,
       solo: false,
       volume: 75
@@ -94,6 +102,7 @@ export function StepSequencer({
       color: 'bg-orange-500',
       pattern: new Array(16).fill(false),
       velocity: new Array(16).fill(100),
+      probability: new Array(16).fill(100),
       muted: false,
       solo: false,
       volume: 90
@@ -288,7 +297,16 @@ export function StepSequencer({
           if (track.pattern[currentStep] && !track.muted) {
             // If any track is soloed, only play soloed tracks
             if (!hasSolo || track.solo) {
-              playDrumSound(track.id, track.velocity[currentStep], track.volume);
+              const probability = track.probability?.[currentStep] ?? 100;
+              if (Math.random() * 100 > probability) {
+                return;
+              }
+              
+              const isBackbeat = currentStep % 4 === 1 || currentStep % 4 === 3;
+              const grooveBoost = groove > 0 ? 1 + (groove / 200) * (isBackbeat ? 1 : -0.4) : 1;
+              const effectiveVelocity = Math.min(127, Math.max(0, track.velocity[currentStep] * grooveBoost));
+              
+              playDrumSound(track.id, effectiveVelocity, track.volume);
             }
           }
         });
@@ -303,7 +321,7 @@ export function StepSequencer({
         clearTimeout(intervalRef.current);
       }
     };
-  }, [isPlaying, currentStep, tracks, swing, masterVolume]);
+  }, [isPlaying, currentStep, tracks, swing, masterVolume, groove]);
 
   const togglePlay = () => {
     const newPlaying = !isPlaying;
@@ -359,6 +377,12 @@ export function StepSequencer({
     }
   };
 
+  const setProbability = (trackIndex: number, stepIndex: number, probability: number) => {
+    const newTracks = [...tracks];
+    newTracks[trackIndex].probability[stepIndex] = probability;
+    setTracks(newTracks);
+  };
+
   const toggleMute = (trackIndex: number) => {
     const newTracks = [...tracks];
     newTracks[trackIndex].muted = !newTracks[trackIndex].muted;
@@ -384,9 +408,11 @@ export function StepSequencer({
   const clearPattern = () => {
     const newTracks = tracks.map(track => ({
       ...track,
-      pattern: new Array(16).fill(false)
+      pattern: new Array(16).fill(false),
+      probability: new Array(16).fill(100),
     }));
     setTracks(newTracks);
+    setSelectedStep(null);
     onPatternChange?.(newTracks);
   };
 
@@ -452,19 +478,69 @@ export function StepSequencer({
           <span className="text-sm w-8">{masterVolume}</span>
         </div>
         
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">Swing</span>
+        <Slider
+          value={[swing]}
+          onValueChange={(value) => setSwing(value[0])}
+          max={100}
+          step={1}
+          className="w-24"
+          data-testid="slider-swing"
+        />
+        <span className="text-sm w-8">{swing}%</span>
+      </div>
+
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Swing</span>
+          <span className="text-sm font-medium">Groove</span>
           <Slider
-            value={[swing]}
-            onValueChange={(value) => setSwing(value[0])}
+            value={[groove]}
+            onValueChange={(value) => setGroove(value[0])}
             max={100}
             step={1}
             className="w-24"
-            data-testid="slider-swing"
           />
-          <span className="text-sm w-8">{swing}%</span>
+          <span className="text-sm w-10">{groove}%</span>
         </div>
       </div>
+
+      {selectedStep && tracks[selectedStep.trackIndex] && (
+        <div className="border border-gray-700 rounded p-3 bg-gray-850">
+          <div className="text-sm text-white mb-2">
+            {tracks[selectedStep.trackIndex].name} — Step {selectedStep.stepIndex + 1}
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Velocity</span>
+              <Slider
+                value={[tracks[selectedStep.trackIndex].velocity[selectedStep.stepIndex]]}
+                onValueChange={(value) => setVelocity(selectedStep.trackIndex, selectedStep.stepIndex, value[0])}
+                max={127}
+                min={0}
+                step={1}
+                className="w-32"
+              />
+              <span className="text-xs text-white w-10 text-right">
+                {tracks[selectedStep.trackIndex].velocity[selectedStep.stepIndex]}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Probability</span>
+              <Slider
+                value={[tracks[selectedStep.trackIndex].probability[selectedStep.stepIndex]]}
+                onValueChange={(value) => setProbability(selectedStep.trackIndex, selectedStep.stepIndex, value[0])}
+                max={100}
+                min={0}
+                step={5}
+                className="w-32"
+              />
+              <span className="text-xs text-white w-10 text-right">
+                {tracks[selectedStep.trackIndex].probability[selectedStep.stepIndex]}%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Separator />
 
@@ -503,12 +579,19 @@ export function StepSequencer({
                   key={stepIndex}
                   size="sm"
                   variant={active ? "default" : "outline"}
-                  onClick={() => toggleStep(trackIndex, stepIndex)}
+                  onClick={() => {
+                    setSelectedStep({ trackIndex, stepIndex });
+                    toggleStep(trackIndex, stepIndex);
+                  }}
                   className={`w-8 h-8 p-0 text-xs ${
                     currentStep === stepIndex && isPlaying 
                       ? 'ring-2 ring-yellow-400 ring-offset-2' 
                       : ''
-                  } ${active ? track.color.replace('bg-', 'bg-') : ''}`}
+                  } ${active ? track.color.replace('bg-', 'bg-') : ''} ${
+                    selectedStep?.trackIndex === trackIndex && selectedStep.stepIndex === stepIndex
+                      ? 'ring-2 ring-blue-400'
+                      : ''
+                  }`}
                   data-testid={`button-step-${track.id}-${stepIndex}`}
                 >
                   {stepIndex + 1}

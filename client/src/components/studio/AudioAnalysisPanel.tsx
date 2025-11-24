@@ -40,7 +40,7 @@ export default function AudioAnalysisPanel({ audioUrl, audioBuffer }: AudioAnaly
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<AudioIssue | null>(null);
-  const [editMode, setEditMode] = useState<EditMode>('guided');
+  const [_editMode, setEditMode] = useState<EditMode>('guided');
 
   const analyzeAudio = useCallback(async () => {
     if (!audioUrl && !audioBuffer) {

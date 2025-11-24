@@ -7,6 +7,8 @@ import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
+import { useTransport } from "@/contexts/TransportContext";
+import { useTrackStore } from "@/contexts/TrackStoreContext";
 import { PianoKeys } from "./PianoKeys";
 import { StepGrid } from "./StepGrid";
 import { TrackControls } from "./TrackControls";
@@ -177,7 +179,9 @@ export const VerticalPianoRoll: React.FC = () => {
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
   
   const { toast } = useToast();
-  const { currentSession } = useSongWorkSession();
+  const { currentSession, updateSession } = useSongWorkSession();
+  const { play: startTransport, stop: stopTransport } = useTransport();
+  const { tracks: registeredClips, addTrack, updateTrack, removeTrack } = useTrackStore();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pianoKeysRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -185,6 +189,8 @@ export const VerticalPianoRoll: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingNotesRef = useRef<Note[]>([]);
   const selectedTrack = tracks[selectedTrackIndex];
+  const pianoTrackIdRef = useRef<string>(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `piano-${Date.now()}`);
+  const hasRegisteredTrackRef = useRef(false);
   
   // Original song playback state
   const [originalAudioPlaying, setOriginalAudioPlaying] = useState(false);
@@ -279,8 +285,52 @@ export const VerticalPianoRoll: React.FC = () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      if (hasRegisteredTrackRef.current) {
+        removeTrack(pianoTrackIdRef.current);
+        hasRegisteredTrackRef.current = false;
+      }
     };
-  }, []);
+  }, [removeTrack]);
+
+  const patternLengthSteps = useMemo(() => {
+    const noteEndSteps = tracks.flatMap(track => track.notes.map(note => note.step + note.length));
+    if (noteEndSteps.length === 0) {
+      return STEPS;
+    }
+    return Math.max(...noteEndSteps);
+  }, [tracks]);
+
+  useEffect(() => {
+    const clipLengthBars = Math.max(1, Math.ceil(patternLengthSteps / 16));
+    const clipPayload = {
+      tracks,
+      bpm,
+      key: currentKey,
+      progression: selectedProgression,
+    };
+
+    const clip = {
+      id: pianoTrackIdRef.current,
+      kind: 'piano' as const,
+      name: `Piano Roll - ${selectedTrack?.name ?? 'Track'}`,
+      lengthBars: clipLengthBars,
+      startBar: 0,
+      payload: clipPayload,
+    };
+
+    if (hasRegisteredTrackRef.current) {
+      updateTrack(pianoTrackIdRef.current, clip);
+    } else {
+      addTrack(clip);
+      hasRegisteredTrackRef.current = true;
+    }
+  }, [tracks, bpm, currentKey, selectedProgression, selectedTrack, addTrack, updateTrack, patternLengthSteps]);
+
+  useEffect(() => {
+    if (currentSession) {
+      updateSession(currentSession.sessionId, { tracks: registeredClips });
+    }
+  }, [registeredClips, currentSession, updateSession]);
 
   // Playback control
   const handlePlay = useCallback(() => {
@@ -331,7 +381,10 @@ export const VerticalPianoRoll: React.FC = () => {
         });
       }, stepDuration);
     }
-  }, [isPlaying, bpm, tracks]);
+    if (!isPlaying) {
+      startTransport();
+    }
+  }, [isPlaying, bpm, tracks, startTransport]);
 
   const handleStop = useCallback(() => {
     if (intervalRef.current) {
@@ -340,7 +393,8 @@ export const VerticalPianoRoll: React.FC = () => {
     }
     setIsPlaying(false);
     setCurrentStep(0);
-  }, []);
+    stopTransport();
+  }, [stopTransport]);
 
   // 🎙️ RECORDING CONTROLS
   const startRecording = useCallback(() => {

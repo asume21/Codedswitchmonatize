@@ -27,11 +27,9 @@ import {
   Activity,
   Settings,
   Play,
-  Pause,
   Square,
   Circle,
-  SkipBack,
-  SkipForward
+  SkipBack
 } from 'lucide-react';
 
 export type PanelType = 

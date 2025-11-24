@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { 
-  Layout, 
   Maximize2, 
   Grid3x3, 
   Columns,
@@ -22,7 +21,6 @@ import {
   Trash2,
   Edit2,
   GripVertical,
-  Download,
   Pencil,
   Check,
   X,
@@ -51,7 +49,7 @@ export default function DesignPlayground() {
     { id: 'effects', name: 'Effects', icon: 'sliders' },
     { id: 'samples', name: 'Samples', icon: 'file-audio' },
   ]);
-  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [_editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingTabName, setEditingTabName] = useState('');
   
   // Resize states

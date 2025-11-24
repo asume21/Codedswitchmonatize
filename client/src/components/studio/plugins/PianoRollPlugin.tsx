@@ -24,20 +24,7 @@ interface PianoRollPluginProps {
   onPlayNote: (note: string, octave: number, duration: number, instrument?: string) => void;
 }
 
-export function PianoRollPlugin({ 
-  tracks,
-  notes, 
-  onNotesChange, 
-  selectedTrack, 
-  isPlaying, 
-  onPlayNote 
-}: PianoRollPluginProps) {
-  const [noteDuration, setNoteDuration] = useState(0.5);
-
-  const playKey = (note: string, octave: number) => {
-    onPlayNote(note, octave, noteDuration, 'piano');
-  };
-
+export function PianoRollPlugin() {
   return (
     <div className="h-full flex flex-col bg-gray-800 rounded-lg overflow-hidden">
       <div className="px-6 pt-6 pb-3">
@@ -48,16 +35,7 @@ export function PianoRollPlugin({
 
       <div className="flex-1 px-6 pb-6 overflow-hidden">
         <div className="h-full bg-gray-900/70 rounded-lg p-4 shadow-inner border border-gray-700/60">
-          <VerticalPianoRoll
-            tracks={tracks}
-            notes={notes}
-            onNotesChange={onNotesChange}
-            selectedTrack={selectedTrack}
-            isPlaying={isPlaying}
-            onPlayNote={onPlayNote}
-            noteDuration={noteDuration}
-            className="h-full"
-          />
+          <VerticalPianoRoll />
         </div>
       </div>
     </div>

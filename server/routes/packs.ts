@@ -13,7 +13,7 @@ const sendError = (res: Response, statusCode: number, message: string) => {
   res.status(statusCode).json({ success: false, message });
 };
 
-export function createPackRoutes(storage: IStorage) {
+export function createPackRoutes(_storage: IStorage) {
   // Unified Pack Generator endpoint
   router.post(
     "/generate",

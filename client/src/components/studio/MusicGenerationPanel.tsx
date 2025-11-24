@@ -24,13 +24,13 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [isGenerating, setIsGenerating] = useState(false);
   const [useRealisticInstruments, setUseRealisticInstruments] = useState(true); // Default to realistic
   const [isPlaying, setIsPlaying] = useState(false);
-  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null); // For raw audio files
+  const [_generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null); // For raw audio files
   const { toast } = useToast();
   
   const audioEngineRef = useRef<RealisticAudioEngine | null>(null);
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentPatternRef = useRef<any>(null);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null); // For playing raw audio files
+  const _audioElementRef = useRef<HTMLAudioElement | null>(null); // For playing raw audio files
   
   // Initialize audio engine
   useEffect(() => {

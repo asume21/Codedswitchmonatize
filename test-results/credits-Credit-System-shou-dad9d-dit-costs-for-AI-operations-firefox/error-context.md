@@ -1,0 +1,98 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "Back to Studio" [ref=e6] [cursor=pointer]:
+        - img
+        - text: Back to Studio
+      - generic [ref=e7]:
+        - heading "Get More Credits" [level=1] [ref=e8]
+        - paragraph [ref=e9]: Choose the perfect plan for your creative needs
+        - generic [ref=e11]:
+          - img [ref=e12]
+          - text: "Current Balance: 0 Credits"
+    - generic [ref=e17]:
+      - tablist [ref=e18]:
+        - tab "One-Time Purchase" [selected] [ref=e19] [cursor=pointer]
+        - tab "Monthly Membership" [ref=e20] [cursor=pointer]
+      - tabpanel "One-Time Purchase" [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e24]:
+              - img [ref=e27]
+              - generic [ref=e32]: Starter Pack
+              - generic [ref=e33]: Perfect for trying out features
+            - generic [ref=e34]:
+              - generic [ref=e35]:
+                - generic [ref=e36]: "100"
+                - generic [ref=e37]: Credits
+              - generic [ref=e38]: $4.99
+              - generic [ref=e39]: $0.050 per credit
+            - button "Buy Now" [ref=e41] [cursor=pointer]:
+              - img
+              - text: Buy Now
+          - generic [ref=e42]:
+            - generic [ref=e44]: Popular
+            - generic [ref=e45]:
+              - img [ref=e48]
+              - generic [ref=e53]: Popular Pack
+              - generic [ref=e54]: Save 20% - Best for regular users
+            - generic [ref=e55]:
+              - generic [ref=e56]:
+                - generic [ref=e57]: "500"
+                - generic [ref=e58]: Credits
+              - generic [ref=e59]: $19.99
+              - generic [ref=e60]: $0.040 per credit
+            - button "Buy Now" [ref=e62] [cursor=pointer]:
+              - img
+              - text: Buy Now
+          - generic [ref=e63]:
+            - generic [ref=e65]: Best Value
+            - generic [ref=e66]:
+              - img [ref=e69]
+              - generic [ref=e74]: Pro Pack
+              - generic [ref=e75]: Save 30% - For power users
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - generic [ref=e78]: "1000"
+                - generic [ref=e79]: Credits
+              - generic [ref=e80]: $34.99
+              - generic [ref=e81]: $0.035 per credit
+            - button "Buy Now" [ref=e83] [cursor=pointer]:
+              - img
+              - text: Buy Now
+          - generic [ref=e84]:
+            - generic [ref=e85]:
+              - img [ref=e88]
+              - generic [ref=e93]: Enterprise Pack
+              - generic [ref=e94]: Save 40% - Maximum value
+            - generic [ref=e95]:
+              - generic [ref=e96]:
+                - generic [ref=e97]: "5000"
+                - generic [ref=e98]: Credits
+              - generic [ref=e99]: $149.99
+              - generic [ref=e100]: $0.030 per credit
+            - button "Buy Now" [ref=e102] [cursor=pointer]:
+              - img
+              - text: Buy Now
+    - generic [ref=e104]:
+      - generic [ref=e106]: How Credits Work
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - heading "Music Generation:" [level=3] [ref=e110]
+          - list [ref=e111]:
+            - listitem [ref=e112]: "• Full Song: 25 credits"
+            - listitem [ref=e113]: "• Beat Generation: 5 credits"
+            - listitem [ref=e114]: "• Melody: 5 credits"
+            - listitem [ref=e115]: "• Instrumental: 8 credits"
+        - generic [ref=e116]:
+          - heading "Lyrics & Analysis:" [level=3] [ref=e117]
+          - list [ref=e118]:
+            - listitem [ref=e119]: "• Lyrics Generation: 4 credits"
+            - listitem [ref=e120]: "• Lyrics Analysis: 2 credits"
+            - listitem [ref=e121]: "• Rhyme Suggestions: 1 credit"
+```

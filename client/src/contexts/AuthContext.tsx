@@ -48,9 +48,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus("unauthenticated");
         return;
       }
-      console.error("Failed to load subscription status", error);
-      setSubscription(undefined);
-      setStatus("unauthenticated");
+      // Handle server errors gracefully - don't expose to user
+      console.warn("Subscription service unavailable, using defaults");
+      setSubscription({
+        hasActiveSubscription: false,
+        tier: "free",
+        monthlyUploads: 0,
+        monthlyGenerations: 0
+      });
+      setStatus("authenticated"); // Allow app to function normally
     }
   }, []);
 

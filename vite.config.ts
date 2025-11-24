@@ -26,9 +26,9 @@ export default defineConfig({
     strictPort: false,
     allowedHosts: true,
     hmr: {
-      protocol: 'wss',
-      host: undefined,
-      clientPort: 443,
+      protocol: 'ws',
+      host: 'localhost',
+      port: 3211,
     },
     proxy: {
       '/api': {

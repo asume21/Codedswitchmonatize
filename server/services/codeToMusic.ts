@@ -8,7 +8,6 @@ import type {
   CodeToMusicResponse,
   MusicData,
   ParsedCode,
-  CodeElement,
 } from '../../shared/types/codeToMusic';
 import { getGenreConfig, DEFAULT_GENRE } from './codeToMusic/genreConfigs';
 import { parseCodeStructure, getCodeStatistics } from './codeToMusic/codeParser';

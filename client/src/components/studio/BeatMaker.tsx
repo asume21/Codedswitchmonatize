@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useContext, useMemo } from "react";
+import { useState, useRef, useEffect, useContext, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +16,9 @@ import { AudioPlayer } from "@/components/ui/audio-player";
 import audioRouter from "@/lib/audioRouter";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useLocation } from "wouter";
-import { Send, Layers, Music, FileMusic, AlertCircle } from "lucide-react";
+import { Send, Layers, Music, FileMusic, AlertCircle, Sliders } from "lucide-react";
+import { useTransport } from "@/contexts/TransportContext";
+import { useTrackStore } from "@/contexts/TrackStoreContext";
 
 const GENRE_OPTIONS = [
   { value: "hip-hop", label: "Hip-Hop" },
@@ -92,10 +94,17 @@ const normalizeToBeatPattern = (source?: Record<string, any>): BeatPattern => {
   };
 };
 
-export default function BeatMaker() {
+interface BeatMakerProps {
+  onPatternSend?: (pattern: BeatPattern, meta?: { bpm: number; name?: string }) => void;
+  onRoute?: (destination: 'mixer' | 'audio-tools' | 'export') => void;
+}
+
+export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {}) {
   const studioContext = useContext(StudioAudioContext);
   const { currentSession, setCurrentSessionId, updateSession } = useSongWorkSession();
   const [location] = useLocation();
+  const { play: startTransport, stop: stopTransport } = useTransport();
+  const { tracks: trackClips, addTrack, updateTrack, removeTrack } = useTrackStore();
   const [bpm, setBpm] = useState(120);
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -137,6 +146,8 @@ export default function BeatMaker() {
   const { isConnected: midiConnected, activeNotes, settings: midiSettings } = useMIDI();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const stepCounterRef = useRef<number>(0);
+  const beatTrackIdRef = useRef<string>(`beat-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`);
+  const hasRegisteredTrackRef = useRef(false);
 
   // Initialize audio on first interaction
   useEffect(() => {
@@ -169,6 +180,50 @@ export default function BeatMaker() {
     }
   }, [location, setCurrentSessionId]);
 
+  // Register beat pattern as a track for the shared track store
+  useEffect(() => {
+    const beatTrackId = beatTrackIdRef.current;
+    const clipLengthBars = Math.max(1, bars || 1);
+    const clipPayload = {
+      pattern,
+      bpm,
+      genre: selectedGenre,
+      clipLength,
+      drumKit: selectedDrumKit,
+    };
+
+    const clip = {
+      id: beatTrackId,
+      kind: 'beat' as const,
+      name: `Beat - ${selectedGenre}`,
+      lengthBars: clipLengthBars,
+      startBar: 0,
+      payload: clipPayload,
+    };
+
+    if (hasRegisteredTrackRef.current) {
+      updateTrack(beatTrackId, clip);
+    } else {
+      addTrack(clip);
+      hasRegisteredTrackRef.current = true;
+    }
+  }, [pattern, bpm, selectedGenre, clipLength, bars, selectedDrumKit, addTrack, updateTrack]);
+
+  // Cleanup beat track when component unmounts
+  useEffect(() => () => {
+    if (hasRegisteredTrackRef.current) {
+      removeTrack(beatTrackIdRef.current);
+      hasRegisteredTrackRef.current = false;
+    }
+  }, [removeTrack]);
+
+  // Persist track list into the current session when it changes
+  useEffect(() => {
+    if (currentSession) {
+      updateSession(currentSession.sessionId, { tracks: trackClips });
+    }
+  }, [trackClips, currentSession, updateSession]);
+
   const calculatedDuration = useMemo(() => {
     const safeBpm = Math.max(40, Math.min(240, bpm || 120));
     const barCount = Math.max(1, bars || 1);
@@ -176,6 +231,29 @@ export default function BeatMaker() {
     const seconds = (totalBeats * 60) / safeBpm;
     return Math.max(1, Math.round(seconds));
   }, [bars, bpm]);
+  
+  const handleSendToTracks = useCallback(() => {
+    const normalizedPattern = normalizeToBeatPattern(pattern);
+    onPatternSend?.(normalizedPattern, { bpm, name: "BeatMaker Pattern" });
+    toast({
+      title: "Pattern sent to timeline",
+      description: "Registered beat with the shared track store",
+      duration: 2500,
+    });
+  }, [onPatternSend, pattern, bpm, toast]);
+
+  const handleRoute = useCallback((destination: 'mixer' | 'audio-tools' | 'export') => {
+    onRoute?.(destination);
+    toast({
+      title: "Routing beat",
+      description: destination === 'mixer' 
+        ? "Opening Mixer for detailed balancing"
+        : destination === 'audio-tools'
+        ? "Sending beat to Audio Tools"
+        : "Preparing beat for export/save",
+      duration: 2000,
+    });
+  }, [onRoute, toast]);
 
   // Beat generation mutation
   const generateBeatMutation = useMutation({
@@ -372,6 +450,7 @@ export default function BeatMaker() {
         variant: "destructive"
       });
     }
+    startTransport();
   };
 
   const stopPattern = () => {
@@ -382,6 +461,7 @@ export default function BeatMaker() {
     }
     setCurrentStep(0);
     stepCounterRef.current = 0;
+    stopTransport();
   };
 
   // Export functions for audio routing
@@ -401,7 +481,7 @@ export default function BeatMaker() {
       type: 'drums',
       instrument: 'drums',
       pattern: pattern,
-      audioUrl: generatedAudioUrl,
+      audioUrl: generatedAudioUrl ?? undefined,
       volume: 75,
       pan: 0,
       muted: false,
@@ -459,7 +539,7 @@ export default function BeatMaker() {
 
   // Get tracks safely with fallback
   const currentDrumKit = drumKits[selectedDrumKit as keyof typeof drumKits];
-  const tracks = currentDrumKit?.sounds || defaultTracks;
+  const instrumentTracks = currentDrumKit?.sounds || defaultTracks;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -493,6 +573,41 @@ export default function BeatMaker() {
               </div>
             </div>
           )}
+          
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-500"
+              onClick={handleSendToTracks}
+            >
+              <Send className="w-4 h-4 mr-2" />
+              Send to Timeline
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRoute('mixer')}
+            >
+              <Layers className="w-4 h-4 mr-2" />
+              Route to Mixer
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRoute('audio-tools')}
+            >
+              <Sliders className="w-4 h-4 mr-2" />
+              Audio Tools
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRoute('export')}
+            >
+              <FileMusic className="w-4 h-4 mr-2" />
+              Save / Export
+            </Button>
+          </div>
           
           {/* Navigation Tabs */}
           <div className="flex space-x-8 border-b border-gray-700 mb-6">
@@ -713,7 +828,7 @@ export default function BeatMaker() {
               
               {/* Drum Grid */}
               <div className="space-y-4">
-                {tracks.map((track) => (
+                {instrumentTracks.map((track, trackIndex) => (
                   <div key={track.id} className="flex items-center space-x-4">
                     <div className="w-24 text-sm font-medium flex items-center space-x-2">
                       <button

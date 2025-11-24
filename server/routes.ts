@@ -24,6 +24,7 @@ import { convertCodeToMusic } from "./services/codeToMusic";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID } from "./utils/security";
 import { insertPlaylistSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -905,6 +906,111 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
+  // Vulnerability Scanner endpoint
+  app.post('/api/security/scan', async (req, res) => {
+    try {
+      const { code, language, aiProvider } = req.body;
+
+      if (!code || !language) {
+        return res.status(400).json({ error: 'Code and language are required' });
+      }
+
+      // Get AI client for analysis
+      const aiClient = getAIClient();
+      
+      if (!aiClient) {
+        return res.status(503).json({ error: 'AI service unavailable' });
+      }
+      
+      const prompt = `Analyze the following ${language} code for security vulnerabilities. Please identify:
+1. Common security vulnerabilities (SQL injection, XSS, CSRF, etc.)
+2. Code quality issues that could lead to security problems
+3. Best practices violations
+4. Potential security improvements
+
+Provide your analysis in JSON format with the following structure:
+{
+  "vulnerabilities": [
+    {
+      "type": "vulnerability_type",
+      "severity": "low|medium|high|critical",
+      "line": line_number,
+      "description": "description of the issue",
+      "recommendation": "how to fix it"
+    }
+  ],
+  "securityScore": 0-100,
+  "summary": "overall security assessment"
+}
+
+Code to analyze:
+\`\`\`${language}
+${code}
+\`\`\``;
+
+      const response = await aiClient.chat.completions.create({
+        model: aiProvider === 'grok' ? 'grok-beta' : 'gpt-4',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
+        temperature: 0.3,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      
+      if (!content) {
+        throw new Error('No response from AI');
+      }
+
+      // Try to parse JSON response
+      let scanResult;
+      try {
+        // Extract JSON from the response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          scanResult = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('No JSON found in response');
+        }
+      } catch (parseError) {
+        // Fallback if JSON parsing fails
+        scanResult = {
+          vulnerabilities: [
+            {
+              type: 'parse_error',
+              severity: 'low',
+              line: 0,
+              description: 'Could not parse AI response properly',
+              recommendation: 'Manual review recommended'
+            }
+          ],
+          securityScore: 75,
+          summary: content.substring(0, 500) + '...'
+        };
+      }
+
+      res.json(scanResult);
+    } catch (error) {
+      console.error('Security scan error:', error);
+      
+      // Fallback response if AI analysis fails
+      const fallbackResult = {
+        vulnerabilities: [
+          {
+            type: 'analysis_error',
+            severity: 'medium',
+            line: 0,
+            description: 'AI analysis failed',
+            recommendation: 'Try again or use manual security review'
+          }
+        ],
+        securityScore: 50,
+        summary: 'Security scan could not be completed due to an error. Please try again.'
+      };
+
+      res.json(fallbackResult);
+    }
+  });
+
   // Waitlist endpoint
   app.post("/api/waitlist", express.json(), (req: Request, res: Response) => {
     try {
@@ -1253,18 +1359,25 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     async (req: Request, res: Response) => {
       try {
         const objectKeyEncoded = (req.params as any)[0] as string;
-        const objectKey = decodeURIComponent(objectKeyEncoded || "");
-        const sanitizedObjectKey = path.normalize(objectKey).replace(/^(\.\.[\\/])+/,'');
-        if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
-                    return sendError(res, 400, "Invalid object key");
+        
+        // Use security utility for path sanitization
+        const sanitizedKey = sanitizeObjectKey(objectKeyEncoded);
+        if (!sanitizedKey) {
+          return sendError(res, 400, "Invalid object key");
         }
-        const fullPath = path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey);
+        
+        // Use secure path resolution
+        const fullPath = sanitizePath(sanitizedKey, LOCAL_OBJECTS_DIR);
+        if (!fullPath) {
+          return sendError(res, 400, "Invalid path");
+        }
+        
         const dir = path.dirname(fullPath);
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(fullPath, req.body as Buffer);
-                return res.json({ ok: true, path: `/objects/${sanitizedObjectKey}` });
+        return res.json({ ok: true, path: `/objects/${sanitizedKey}` });
       } catch (err: any) {
-                sendError(res, 500, err?.message || "Upload failed");
+        sendError(res, 500, err?.message || "Upload failed");
       }
     },
   );
@@ -1273,20 +1386,16 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   app.get("/api/internal/uploads/*", async (req: Request, res: Response) => {
     try {
       const objectKey = (req.params as any)[0] as string;
-      console.log('🎵 Internal upload GET request:', objectKey);
-      console.log('📁 LOCAL_OBJECTS_DIR:', LOCAL_OBJECTS_DIR);
-      console.log('📁 CWD:', process.cwd());
       
-      const sanitizedObjectKey = path.normalize(objectKey).replace(/^(\.\.[\\/])+/,'');
-      if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
+      // Use security utility for path sanitization
+      const sanitizedKey = sanitizeObjectKey(objectKey);
+      if (!sanitizedKey) {
         console.error('❌ Invalid path detected');
         return res.status(400).send("Invalid path");
       }
-      const fullPath = path.resolve(path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey));
-      console.log('📂 Full path:', fullPath);
       
-      // SECURITY: Ensure the resolved path is still within LOCAL_OBJECTS_DIR
-      if (!fullPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+      const fullPath = sanitizePath(sanitizedKey, LOCAL_OBJECTS_DIR);
+      if (!fullPath) {
         console.error('❌ Path traversal attempt detected');
         return res.status(403).send("Access denied");
       }
@@ -1336,14 +1445,15 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   app.get("/objects/*", async (req: Request, res: Response) => {
     try {
       const objectKey = (req.params as any)[0] as string;
-      const sanitizedObjectKey = path.normalize(objectKey).replace(/^(\.\.[\\/])+/,'');
-      if (!sanitizedObjectKey || sanitizedObjectKey.includes("..")) {
+      
+      // Use security utility for path sanitization
+      const sanitizedKey = sanitizeObjectKey(objectKey);
+      if (!sanitizedKey) {
         return res.status(400).send("Invalid path");
       }
-      const fullPath = path.resolve(path.join(LOCAL_OBJECTS_DIR, sanitizedObjectKey));
       
-      // SECURITY: Ensure the resolved path is still within LOCAL_OBJECTS_DIR
-      if (!fullPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+      const fullPath = sanitizePath(sanitizedKey, LOCAL_OBJECTS_DIR);
+      if (!fullPath) {
         return res.status(403).send("Access denied");
       }
       

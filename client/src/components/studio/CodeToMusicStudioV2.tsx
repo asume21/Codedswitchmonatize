@@ -78,24 +78,28 @@ export default function CodeToMusicStudioV2() {
 
     setIsGenerating(true);
     try {
-      const response = await apiRequest('/api/code-to-music', {
-        method: 'POST',
-        body: JSON.stringify({
-          code,
-          language,
-          genre,
-          variation: variation[0],
-        }),
+      const response = await apiRequest('POST', '/api/code-to-music', {
+        code,
+        language,
+        genre,
+        variation: variation[0],
       });
 
-      if (response.success) {
-        setMusicData(response.music);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Generation failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setMusicData(data.music);
         toast({
           title: 'Music Generated! 🎵',
-          description: `Created ${response.music.melody.length} notes in ${response.metadata.genre} style`,
+          description: `Created ${data.music.melody.length} notes in ${data.metadata.genre} style`,
         });
       } else {
-        throw new Error(response.error || 'Generation failed');
+        throw new Error(data.error || 'Generation failed');
       }
     } catch (error) {
       console.error('Generation error:', error);

@@ -1,8 +1,8 @@
 import Replicate from "replicate";
 import OpenAI from "openai";
 
-// Replicate client for music generation
-const replicate = new Replicate({
+// Replicate client for music generation (reserved for future audio generation)
+const _replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 

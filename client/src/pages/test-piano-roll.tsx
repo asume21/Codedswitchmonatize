@@ -13,8 +13,8 @@ export default function TestPianoRoll() {
 
   // Load session from navigation payload or URL params
   useEffect(() => {
-    const pendingNav = getPendingNavigation('piano-roll');
-    const workSessionId = pendingNav?.workSessionId || 
+    const pendingNav = getPendingNavigation();
+    const workSessionId = pendingNav?.payload?.params?.workSessionId || 
                          new URLSearchParams(window.location.search).get('sessionId');
     
     if (workSessionId) {

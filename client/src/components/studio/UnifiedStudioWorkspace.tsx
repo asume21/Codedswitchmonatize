@@ -1,4 +1,4 @@
-import { useState, useContext, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -162,7 +162,6 @@ export default function UnifiedStudioWorkspace() {
   const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab'>('arrangement');
   
   // Section expansion states
-  const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
   const [timelineExpanded, setTimelineExpanded] = useState(true);
   const [pianoRollExpanded, setPianoRollExpanded] = useState(false);
   const [lyricsExpanded, setLyricsExpanded] = useState(false);
@@ -342,18 +341,6 @@ export default function UnifiedStudioWorkspace() {
   const handleSkipWorkflow = () => {
     localStorage.setItem('hasSeenWorkflowSelector', 'true');
     setShowWorkflowSelector(false);
-  };
-
-  // Instrument categories
-  const instrumentCategories = {
-    Piano: ['Grand Piano', 'Electric Piano', 'Synth Piano', 'Harpsichord'],
-    Bass: ['808 Bass', 'Synth Bass', 'Electric Bass', 'Upright Bass', 'Sub Bass'],
-    Guitar: ['Acoustic Guitar', 'Electric Guitar', 'Classical Guitar', 'Bass Guitar'],
-    Strings: ['Violin', 'Viola', 'Cello', 'Double Bass', 'String Ensemble'],
-    Winds: ['Flute', 'Clarinet', 'Saxophone', 'Trumpet', 'Horn', 'Trombone'],
-    Drums: ['Kick', 'Snare', 'Hi-Hat', 'Tom', 'Cymbal', 'Full Kit'],
-    Synth: ['Lead Synth', 'Pad Synth', 'Arp Synth', 'Bass Synth'],
-    Other: ['Percussion', 'Sound Effects', 'Vocal', 'Samples'],
   };
 
   const addTrack = (instrument: string, type: 'midi' | 'audio') => {
@@ -808,7 +795,6 @@ export default function UnifiedStudioWorkspace() {
 
   // Window menu actions
   const handleResetLayout = () => {
-    setInstrumentsExpanded(true);
     setActiveView('arrangement');
     toast({ title: "Layout Reset", description: "Default layout restored" });
   };
@@ -882,7 +868,7 @@ export default function UnifiedStudioWorkspace() {
           <div className="flex space-x-0.5">
             <div className="relative group">
               <Button variant="ghost" size="sm">File ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>New Project</span>
                   <span className="text-xs text-gray-500">Ctrl+N</span>
@@ -940,7 +926,7 @@ export default function UnifiedStudioWorkspace() {
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">Edit ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>Undo</span>
                   <span className="text-xs text-gray-500">Ctrl+Z</span>
@@ -1015,7 +1001,7 @@ export default function UnifiedStudioWorkspace() {
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">View ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
                   <span className="text-xs text-gray-500">F1</span>
@@ -1094,7 +1080,7 @@ export default function UnifiedStudioWorkspace() {
             {/* CREATE Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm">Create ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>New MIDI Track</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+T</span>
@@ -1140,7 +1126,7 @@ export default function UnifiedStudioWorkspace() {
             {/* ARRANGE Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm">Arrange ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={() => toast({ title: "Insert Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>Insert Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+I</span>
@@ -1196,7 +1182,7 @@ export default function UnifiedStudioWorkspace() {
             {/* MIX Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm">Mix ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>Normalize</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+N</span>
@@ -1257,14 +1243,14 @@ export default function UnifiedStudioWorkspace() {
             {/* MORE Menu - Groups Tools, Window, Help */}
             <div className="relative group">
               <Button variant="ghost" size="sm">More ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 {/* Tools Submenu */}
                 <div className="relative group/tools">
                   <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                     <span>🔧 Tools</span>
                     <span>▶</span>
                   </div>
-                  <div className="hidden group-hover/tools:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-50">
+                  <div className="hidden group-hover/tools:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
                     <div onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                       <span>Tuner</span>
                       <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
@@ -1295,7 +1281,7 @@ export default function UnifiedStudioWorkspace() {
                     <span>🪟 Window</span>
                     <span>▶</span>
                   </div>
-                  <div className="hidden group-hover/window:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-50">
+                  <div className="hidden group-hover/window:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
                     <div onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                       <span>Reset Layout</span>
                       <span className="text-xs text-gray-500">Ctrl+Alt+R</span>
@@ -1316,7 +1302,7 @@ export default function UnifiedStudioWorkspace() {
                     <span>❓ Help</span>
                     <span>▶</span>
                   </div>
-                  <div className="hidden group-hover/help:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-50">
+                  <div className="hidden group-hover/help:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
                     <div onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                       <span>Keyboard Shortcuts</span>
                       <span className="text-xs text-gray-500">Ctrl+/</span>
@@ -1336,7 +1322,7 @@ export default function UnifiedStudioWorkspace() {
             {/* OLD TOOLS Menu - REMOVE */}
             <div className="relative group hidden">
               <Button variant="ghost" size="sm">Tools ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>Tuner</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
@@ -1388,7 +1374,7 @@ export default function UnifiedStudioWorkspace() {
             {/* WINDOW Menu - NOW IN MORE MENU */}
             <div className="relative group hidden">
               <Button variant="ghost" size="sm">Window ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={() => toast({ title: "Minimize" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>Minimize</span>
                   <span className="text-xs text-gray-500">Ctrl+M</span>
@@ -1418,9 +1404,6 @@ export default function UnifiedStudioWorkspace() {
                   Load Layout...
                 </div>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
-                </div>
                 <div onClick={() => toast({ title: "Browser toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
                   Show Browser
                 </div>
@@ -1436,7 +1419,7 @@ export default function UnifiedStudioWorkspace() {
             {/* HELP Menu - NOW IN MORE MENU */}
             <div className="relative group hidden">
               <Button variant="ghost" size="sm">Help ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
                 <div onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
                   <span>Keyboard Shortcuts</span>
                   <span className="text-xs text-gray-500">Ctrl+/</span>
@@ -1488,7 +1471,7 @@ export default function UnifiedStudioWorkspace() {
                 MIDI ▼
                 {midiConnected && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>}
               </Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-72 z-50 p-3 space-y-3">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-72 z-[100] p-3 space-y-3">
                 {/* MIDI Status */}
                 <div className="pb-2 border-b border-gray-700">
                   <div className="flex items-center justify-between mb-2">
@@ -1924,72 +1907,6 @@ export default function UnifiedStudioWorkspace() {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Instrument Library - Collapsible */}
-        {instrumentsExpanded && (
-          <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
-            <div className="p-3 border-b border-gray-700 flex items-center justify-between">
-              <Input
-                placeholder="Search instruments..."
-                className="w-full mr-2"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setInstrumentsExpanded(false)}
-                className="h-8 w-8 p-0 flex-shrink-0"
-                title="Hide Instrument Library (Ctrl+1)"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-            </div>
-          
-          <div className="flex-1 overflow-y-auto p-2">
-            <div className="space-y-1">
-              {Object.entries(instrumentCategories).map(([category, instruments]) => (
-                <div key={category}>
-                  <button
-                    className="w-full text-left px-2 py-1.5 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700 rounded flex items-center"
-                    onClick={() => {
-                      // Toggle category expansion
-                    }}
-                  >
-                    <ChevronRight className="w-4 h-4 mr-1" />
-                    {category}
-                  </button>
-                  <div className="ml-4 space-y-0.5">
-                    {instruments.map((inst) => (
-                      <button
-                        key={inst}
-                        onClick={() => addTrack(inst, 'midi')}
-                        className="w-full text-left px-2 py-1 text-xs text-gray-300 hover:bg-blue-600 hover:text-white rounded"
-                        title={`Click to add ${inst} track`}
-                      >
-                        + {inst}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          </div>
-        )}
-
-        {/* Toggle Button when Library is Hidden */}
-        {!instrumentsExpanded && (
-          <div className="w-12 bg-gray-800 border-r border-gray-700 flex flex-col items-center py-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setInstrumentsExpanded(true)}
-              className="h-8 w-8 p-0"
-              title="Show Instrument Library (Ctrl+1)"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
-
         {/* Center: Main Workspace with Tab Views */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* ARRANGEMENT VIEW */}
@@ -2057,11 +1974,8 @@ export default function UnifiedStudioWorkspace() {
                       key={track.id}
                       onClick={() => {
                         setSelectedTrack(track.id);
-                        if (track.type === 'midi') {
-                          setPianoRollExpanded(true);
-                        } else if (track.type === 'lyrics') {
-                          setLyricsExpanded(true);
-                        }
+                        if (track.type === 'midi') setPianoRollExpanded(true);
+                        else if (track.type === 'lyrics') setLyricsExpanded(true);
                       }}
                       className={`border rounded overflow-hidden cursor-pointer transition ${
                         selectedTrack === track.id
@@ -2084,18 +1998,8 @@ export default function UnifiedStudioWorkspace() {
                                 setTracks(tracks.map(t =>
                                   t.id === track.id ? { ...t, muted: !t.muted } : t
                                 ));
-                                toast({
-                                  title: track.muted ? '🔊 Unmuted' : '🔇 Muted',
-                                  description: `${track.name} is now ${track.muted ? 'unmuted' : 'muted'}`,
-                                  duration: 1500,
-                                });
                               }}
-                              className={`h-6 w-6 p-0 transition-all ${
-                                track.muted 
-                                  ? 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/50' 
-                                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
-                              }`}
-                              title={track.muted ? 'Unmute Track' : 'Mute Track'}
+                              className={`h-6 w-6 p-0 ${track.muted ? 'bg-red-600 text-white' : 'text-gray-400'}`}
                             >
                               M
                             </Button>
@@ -2107,18 +2011,8 @@ export default function UnifiedStudioWorkspace() {
                                 setTracks(tracks.map(t =>
                                   t.id === track.id ? { ...t, solo: !t.solo } : t
                                 ));
-                                toast({
-                                  title: track.solo ? '👥 Solo Off' : '⭐ Solo On',
-                                  description: `${track.name} solo ${track.solo ? 'disabled' : 'enabled'}`,
-                                  duration: 1500,
-                                });
                               }}
-                              className={`h-6 w-6 p-0 transition-all ${
-                                track.solo 
-                                  ? 'bg-yellow-600 text-white hover:bg-yellow-700 shadow-lg shadow-yellow-500/50' 
-                                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
-                              }`}
-                              title={track.solo ? 'Disable Solo' : 'Enable Solo'}
+                              className={`h-6 w-6 p-0 ${track.solo ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
                             >
                               S
                             </Button>
@@ -2129,8 +2023,7 @@ export default function UnifiedStudioWorkspace() {
                                 e.stopPropagation();
                                 setTracks(tracks.filter(t => t.id !== track.id));
                               }}
-                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
-                              title="Delete"
+                              className="h-6 w-6 p-0 text-red-500"
                             >
                               <i className="fas fa-trash text-xs"></i>
                             </Button>
@@ -2157,196 +2050,46 @@ export default function UnifiedStudioWorkspace() {
                           </div>
                         </div>
                         
-                        {/* Track Timeline Visualization */}
+                        {/* Timeline Visualization */}
                         <div className="flex-1 bg-gray-900 p-2 relative">
-                          {track.type === 'audio' ? (
-                            // Real Audio Waveform - Load from track.audioUrl
-                            <div className="h-full flex items-center">
-                              {track.audioUrl ? (
-                                <div className="w-full h-16 bg-blue-900/20 border border-blue-700/50 rounded relative overflow-hidden">
-                                  <canvas 
-                                    id={`waveform-${track.id}`}
-                                    className="w-full h-full"
-                                    style={{ imageRendering: 'pixelated' }}
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center text-xs text-blue-400 pointer-events-none">
-                                    {track.name}
+                          {track.type === 'midi' ? (
+                            <div className="h-16 relative">
+                              {track.notes?.length > 0 ? (
+                                track.notes.map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className="absolute top-2 h-12 bg-green-600/80 border border-green-400 rounded text-xs flex items-center justify-center"
+                                    style={{
+                                      left: `${note.step * 15}px`,
+                                      width: `${(note.length || 4) * 15 - 4}px`,
+                                    }}
+                                  >
+                                    {note.note}{note.octave}
                                   </div>
-                                </div>
+                                ))
                               ) : (
-                                <div className="w-full h-16 bg-gray-800/50 border border-gray-700 rounded flex items-center justify-center">
-                                  <div className="text-xs text-gray-500">
-                                    No audio file - Click to upload
-                                  </div>
-                                </div>
+                                <div className="text-xs text-gray-500 text-center">No notes</div>
                               )}
                             </div>
-                          ) : track.type === 'midi' ? (
-                            // MIDI blocks visualization - REAL NOTES
-                            <div className="h-full flex items-center">
-                              <div className="w-full h-12 relative">
-                                {track.notes && track.notes.length > 0 ? (
-                                  (() => {
-                                    // Sort notes by step to process them in order
-                                    const sortedNotes = [...track.notes].sort((a, b) => a.step - b.step);
-                                    
-                                    return sortedNotes.map((note, index) => {
-                                      // Calculate note width, preventing overlap with next note
-                                      let noteLength = note.length || 1;
-                                      
-                                      // Find next note that comes after this one
-                                      const nextNote = sortedNotes.find((n, i) => i > index && n.step > note.step);
-                                      
-                                      if (nextNote) {
-                                        // Limit length to not overlap with next note
-                                        const maxLength = nextNote.step - note.step;
-                                        noteLength = Math.min(noteLength, maxLength);
-                                      }
-                                      
-                                      // Check if this note is currently playing (align to transport steps)
-                                      const noteStartStep = note.step;
-                                      const noteEndStep = noteStartStep + noteLength;
-                                      const isCurrentlyPlaying = transportPlaying && 
-                                        playheadPosition >= noteStartStep && 
-                                        playheadPosition <= noteEndStep;
-                                      
-                                      return (
-                                        <div
-                                          key={note.id}
-                                          className={`absolute top-0 h-8 border rounded flex items-center justify-center text-xs cursor-move group transition-all ${
-                                            isCurrentlyPlaying 
-                                              ? 'bg-yellow-400 border-yellow-300 shadow-lg shadow-yellow-500/50 scale-110 z-10' 
-                                              : 'bg-green-600/80 border-green-400 hover:bg-green-500'
-                                          }`}
-                                          style={{
-                                            left: `${note.step * 15}px`, // 15px per step (4 steps per bar)
-                                            width: `${Math.max(1, noteLength) * 15 - 2}px`, // -2px gap
-                                          }}
-                                          draggable
-                                          onDragStart={(e) => {
-                                            e.dataTransfer.setData('noteId', note.id);
-                                            e.dataTransfer.setData('trackId', track.id);
-                                            e.dataTransfer.effectAllowed = 'move';
-                                          }}
-                                          onDragOver={(e) => {
-                                            e.preventDefault();
-                                            e.dataTransfer.dropEffect = 'move';
-                                          }}
-                                          onDrop={(e) => {
-                                            e.preventDefault();
-                                            const noteId = e.dataTransfer.getData('noteId');
-                                            const trackId = e.dataTransfer.getData('trackId');
-                                            if (trackId === track.id) {
-                                              const rect = e.currentTarget.parentElement?.getBoundingClientRect();
-                                              if (rect) {
-                                                const newStep = Math.round((e.clientX - rect.left) / 15);
-                                                setTracks(tracks.map(t => {
-                                                  if (t.id === track.id && t.notes) {
-                                                    return {
-                                                      ...t,
-                                                      notes: t.notes.map(n => 
-                                                        n.id === noteId ? { ...n, step: Math.max(0, newStep) } : n
-                                                      )
-                                                    };
-                                                  }
-                                                  return t;
-                                                }));
-                                              }
-                                            }
-                                          }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            playNote(note.note, note.octave, track.instrument);
-                                          }}
-                                          onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            if (confirm(`Delete note ${note.note}${note.octave}?`)) {
-                                              setTracks(tracks.map(t => {
-                                                if (t.id === track.id && t.notes) {
-                                                  return {
-                                                    ...t,
-                                                    notes: t.notes.filter(n => n.id !== note.id)
-                                                  };
-                                                }
-                                                return t;
-                                              }));
-                                              toast({
-                                                title: '🗑️ Note Deleted',
-                                                description: `${note.note}${note.octave} removed from timeline`,
-                                                duration: 1500,
-                                              });
-                                            }
-                                          }}
-                                          title={`${note.note}${note.octave} - Click: play | Drag: move | Right-click: delete`}
-                                        >
-                                          {note.note}{note.octave}
-                                          {/* Resize handle */}
-                                          <div
-                                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-green-300/0 hover:bg-green-300/50 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            onMouseDown={(e) => {
-                                              e.stopPropagation();
-                                              const startX = e.clientX;
-                                              const startWidth = noteLength * 15;
-                                              
-                                              const handleMouseMove = (moveEvent: MouseEvent) => {
-                                                const deltaX = moveEvent.clientX - startX;
-                                                const newWidth = Math.max(15, startWidth + deltaX);
-                                                const newLength = Math.round(newWidth / 15);
-                                                
-                                                setTracks(tracks.map(t => {
-                                                  if (t.id === track.id && t.notes) {
-                                                    return {
-                                                      ...t,
-                                                      notes: t.notes.map(n => 
-                                                        n.id === note.id ? { ...n, length: newLength } : n
-                                                      )
-                                                    };
-                                                  }
-                                                  return t;
-                                                }));
-                                              };
-                                              
-                                              const handleMouseUp = () => {
-                                                document.removeEventListener('mousemove', handleMouseMove);
-                                                document.removeEventListener('mouseup', handleMouseUp);
-                                              };
-                                              
-                                              document.addEventListener('mousemove', handleMouseMove);
-                                              document.addEventListener('mouseup', handleMouseUp);
-                                            }}
-                                            title="Drag to resize"
-                                          />
-                                        </div>
-                                      );
-                                    });
-                                  })()
-                                ) : (
-                                  <div className="text-xs text-gray-500 text-center">
-                                    No notes - Add notes in Piano Roll
-                                  </div>
-                                )}
-                              </div>
+                          ) : track.type === 'audio' ? (
+                            <div className="h-16 bg-gray-800/50 border border-gray-700 rounded flex items-center justify-center text-xs text-gray-500">
+                              Audio track
                             </div>
                           ) : (
-                            // Lyrics blocks
-                            <div className="h-full flex items-center">
-                              <div className="text-sm text-purple-400 truncate">
-                                🎤 [Verse 1] Walking down this empty street...
-                              </div>
+                            <div className="h-16 bg-purple-900/20 border border-purple-700 rounded flex items-center justify-center text-xs text-purple-400">
+                              Lyrics track
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
                   ))}
+
                   {tracks.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      <div className="mb-2">
-                        <i className="fas fa-music text-4xl opacity-20"></i>
-                      </div>
-                      <p className="mb-2">No tracks yet</p>
-                      <p className="text-xs">Click instruments from the left panel or use the "+ Add Track" button above</p>
+                      <i className="fas fa-music text-4xl opacity-20 mb-2"></i>
+                      <p>No tracks yet</p>
+                      <p className="text-xs">Use "+ Add Track" to create one</p>
                     </div>
                   )}
                 </div>
@@ -2582,7 +2325,6 @@ Your lyrics will sync with the timeline
             </div>
           )}
         </div>
-      </div>
 
       {/* Floating/Overlay Components */}
       {/* TEMPORARILY DISABLED - React hooks error on mobile */}
@@ -2623,5 +2365,6 @@ Your lyrics will sync with the timeline
         </DialogContent>
       </Dialog>
     </div>
+    </div>
   );
-}
+} 

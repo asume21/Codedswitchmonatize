@@ -1,0 +1,83 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link "CodedSwitch" [ref=e8] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e11]: CodedSwitch
+          - link "🥁 Beat Studio" [ref=e12] [cursor=pointer]:
+            - /url: /beat-studio
+          - link "🎹 Piano Roll" [ref=e13] [cursor=pointer]:
+            - /url: /piano-roll
+        - button "CS" [ref=e15] [cursor=pointer]:
+          - generic [ref=e17]: CS
+    - main [ref=e18]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - img [ref=e25]
+            - generic [ref=e28]:
+              - heading "Settings" [level=1] [ref=e29]
+              - paragraph [ref=e30]: Customize your CodedSwitch experience
+          - generic [ref=e31]: Pro Account Active
+        - generic [ref=e32]:
+          - tablist [ref=e33]:
+            - tab "General" [selected] [ref=e34] [cursor=pointer]:
+              - img [ref=e35]
+              - text: General
+            - tab "Audio" [ref=e38] [cursor=pointer]:
+              - img [ref=e39]
+              - text: Audio
+            - tab "Appearance" [ref=e43] [cursor=pointer]:
+              - img [ref=e44]
+              - text: Appearance
+            - tab "Performance" [ref=e50] [cursor=pointer]:
+              - img [ref=e51]
+              - text: Performance
+            - tab "Privacy" [ref=e54] [cursor=pointer]:
+              - img [ref=e55]
+              - text: Privacy
+            - tab "Billing" [ref=e57] [cursor=pointer]:
+              - img [ref=e58]
+              - text: Billing
+          - tabpanel "General" [ref=e60]:
+            - generic [ref=e61]:
+              - generic [ref=e62]:
+                - generic [ref=e63]: Account Information
+                - generic [ref=e64]: Manage your profile and preferences
+              - generic [ref=e66]:
+                - generic [ref=e67]:
+                  - text: Display Name
+                  - textbox "Display Name" [ref=e68]: CodedSwitch User
+                - generic [ref=e69]:
+                  - text: Email
+                  - textbox "Email" [ref=e70]: user@example.com
+                - generic [ref=e71]:
+                  - text: Language
+                  - combobox [ref=e72] [cursor=pointer]:
+                    - generic: English
+                    - img [ref=e73]
+                - generic [ref=e75]:
+                  - text: Timezone
+                  - combobox [ref=e76] [cursor=pointer]:
+                    - generic: UTC
+                    - img [ref=e77]
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - generic [ref=e82]:
+                  - img [ref=e83]
+                  - text: AI Provider Selection
+                - generic [ref=e85]: Choose your preferred AI provider for enhanced features
+              - paragraph [ref=e87]: No AI providers are currently configured. Please add API keys to enable AI features.
+        - generic [ref=e88]:
+          - button "Reset to Defaults" [ref=e89] [cursor=pointer]
+          - generic [ref=e90]:
+            - button "Cancel" [ref=e91] [cursor=pointer]
+            - button "Save Changes" [ref=e92] [cursor=pointer]
+```

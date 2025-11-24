@@ -19,11 +19,9 @@ import {
   Plus,
   Trash2,
   Play,
-  Pause,
   Square,
   Circle,
-  SkipBack,
-  SkipForward
+  SkipBack
 } from 'lucide-react';
 import type { PanelType } from './PanelContainer';
 

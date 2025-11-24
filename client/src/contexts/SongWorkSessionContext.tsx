@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import type { TrackClip } from '@/types/studioTracks';
 
 export interface SongIssue {
   type: 'melody' | 'rhythm' | 'harmony' | 'structure' | 'production';
@@ -13,6 +14,7 @@ export interface SongWorkSession {
   sessionId: string;
   songName: string;
   audioUrl?: string;
+  tracks?: TrackClip[];
   analysis?: {
     bpm?: number;
     key?: string;
@@ -71,6 +73,7 @@ export function SongWorkSessionProvider({ children }: { children: ReactNode }) {
       sessionId,
       songName: song.name,
       audioUrl: song.audioUrl,
+      tracks: [],
       createdAt: Date.now()
     };
     

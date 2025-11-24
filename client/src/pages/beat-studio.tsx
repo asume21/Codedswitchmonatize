@@ -24,7 +24,11 @@ const DRUM_SAMPLES = [
   "Kick", "Snare", "Hi-Hat", "Open Hat", "Crash", "Ride", "Tom", "Clap"
 ];
 
-export default function BeatStudio() {
+interface BeatStudioProps {
+  onBeatReady?: (beat: any) => void;
+}
+
+export default function BeatStudio({ onBeatReady }: BeatStudioProps = {}) {
   const [genre, setGenre] = useState("");
   const [bpm, setBpm] = useState([120]);
   const [duration, setDuration] = useState([16]);
@@ -86,6 +90,7 @@ export default function BeatStudio() {
         title: "Beat generated!",
         description: `Created a ${genre} beat at ${bpm[0]} BPM`,
       });
+      onBeatReady?.(data);
     },
     onError: (error) => {
       toast({

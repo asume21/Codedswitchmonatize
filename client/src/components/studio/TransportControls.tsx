@@ -5,6 +5,7 @@ import { StudioAudioContext } from "@/pages/studio";
 import { useQuery } from "@tanstack/react-query";
 import { Music, ChevronDown, ChevronUp, Pin, PinOff } from "lucide-react";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
+import { useTracks } from "@/hooks/useTracks";
 
 interface TransportControlsProps {
   currentTool?: string;
@@ -37,6 +38,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const { setMasterVolume, initialize, isInitialized } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
   const studioContext = useContext(StudioAudioContext);
+  const { addTrack } = useTracks();
 
   // Fetch uploaded songs
   const { data: songs = [] } = useQuery<any[]>({
@@ -201,16 +203,28 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   };
 
   const saveRecording = (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
+    const playbackUrl = URL.createObjectURL(blob);
+    const downloadUrl = URL.createObjectURL(blob);
+    
+    addTrack({
+      id: `recording-${Date.now()}`,
+      name: `Recording ${new Date().toLocaleTimeString()}`,
+      type: 'audio',
+      audioUrl: playbackUrl,
+      source: 'recording',
+      lengthBars: 8,
+      startBar: 0,
+    });
+
     const a = document.createElement('a');
-    a.href = url;
+    a.href = downloadUrl;
     a.download = `CodedSwitch-Recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(downloadUrl);
     
-    console.log("✅ Recording saved successfully");
+    console.log("? Recording saved successfully");
   };
 
   const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {

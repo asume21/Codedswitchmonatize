@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
@@ -32,19 +33,40 @@ import {
 } from './index';
 
 interface AudioToolRouterProps {
-  songUrl: string;
-  songName: string;
+  songUrl?: string;
+  songName?: string;
   recommendations?: ToolRecommendation[];
+  onAudioLoad?: (url: string, name: string) => void;
 }
 
-export function AudioToolRouter({ songUrl, songName, recommendations = [] }: AudioToolRouterProps) {
+export function AudioToolRouter({ songUrl, songName, recommendations = [], onAudioLoad }: AudioToolRouterProps) {
   const [activeTool, setActiveTool] = useState<ToolType | null>(null);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
   const { toast } = useToast();
   const { createSession, updateSession } = useSongWorkSession();
   const [, setLocation] = useLocation();
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onAudioLoad) {
+      const url = URL.createObjectURL(file);
+      onAudioLoad(url, file.name);
+      toast({
+        title: "Audio Loaded",
+        description: `Loaded ${file.name} for processing`,
+      });
+    }
+  };
+
   const handleAutoFix = async () => {
+    if (!songUrl) {
+      toast({
+        title: "No Audio",
+        description: "Please load an audio file first.",
+        variant: "destructive"
+      });
+      return;
+    }
     setIsAutoFixing(true);
     try {
       toast({
@@ -87,13 +109,13 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [] }: Aud
   const handleOpenInLyricLab = () => {
     // Create or update session with song data
     const sessionId = createSession({
-      name: songName,
-      audioUrl: songUrl
+      name: songName || 'Unknown Track',
+      audioUrl: songUrl || ''
     });
     
     toast({
       title: "Opening Lyric Lab",
-      description: `Routing ${songName} to Lyric Lab for editing`,
+      description: `Routing ${songName || 'Unknown Track'} to Lyric Lab for editing`,
     });
     
     // Navigate to Lyric Lab with session parameter
@@ -102,13 +124,13 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [] }: Aud
 
   const handleOpenInPianoRoll = () => {
     const sessionId = createSession({
-      name: songName,
-      audioUrl: songUrl
+      name: songName || 'Unknown Track',
+      audioUrl: songUrl || ''
     });
     
     toast({
       title: "Opening Piano Roll",
-      description: `Routing ${songName} to Piano Roll for melody editing`,
+      description: `Routing ${songName || 'Unknown Track'} to Piano Roll for melody editing`,
     });
     
     setLocation(`/melody-composer?session=${sessionId}`);
@@ -201,39 +223,45 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [] }: Aud
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
+    <Card className="w-full border-none shadow-none bg-transparent">
+      <CardHeader className="px-0">
         <CardTitle>Audio Processing Tools</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Select a tool to process: <strong>{songName}</strong>
+          {songName ? (
+            <>Select a tool to process: <strong>{songName}</strong></>
+          ) : (
+            "Select a tool to begin processing audio"
+          )}
         </p>
       </CardHeader>
 
-      <CardContent>
-        {/* AI Auto Fix Button */}
-        <div className="mb-6">
-          <Button
-            onClick={handleAutoFix}
-            disabled={isAutoFixing}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-6 text-lg"
-            size="lg"
-          >
-            {isAutoFixing ? (
-              <>
-                <i className="fas fa-spinner fa-spin mr-2"></i>
-                AI Processing...
-              </>
-            ) : (
-              <>
-                <i className="fas fa-magic mr-2"></i>
-                AI Auto Fix - Mix & Master Automatically
-              </>
-            )}
-          </Button>
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            AI will analyze and automatically apply professional mixing & mastering
-          </p>
-        </div>
+      <CardContent className="px-0">
+        {/* AI Auto Fix Button - Only show if audio is loaded */}
+        {songUrl && (
+          <div className="mb-6">
+            <Button
+              onClick={handleAutoFix}
+              disabled={isAutoFixing}
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-6 text-lg"
+              size="lg"
+            >
+              {isAutoFixing ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  AI Processing...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-magic mr-2"></i>
+                  AI Auto Fix - Mix & Master Automatically
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              AI will analyze and automatically apply professional mixing & mastering
+            </p>
+          </div>
+        )}
 
         {/* AI Recommendations */}
         {recommendations.length > 0 && (

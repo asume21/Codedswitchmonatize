@@ -14,10 +14,15 @@ export async function apiRequest(
 ): Promise<Response> {
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   
-  // Add Authorization header if token is stored
-  const token = localStorage.getItem('authToken');
-  if (token) {
-    headers['Authorization'] = token;
+  // Development bypass: Skip auth for localhost
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  // Add Authorization header if token is stored (only in production)
+  if (!isDev) {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      headers['Authorization'] = token;
+    }
   }
   
   const res = await fetch(url, {

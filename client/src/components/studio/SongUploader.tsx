@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useCallback } from "react";
 import * as Tone from "tone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import type { Song, Recommendation } from "../../../../shared/schema";
 import { emitEvent } from "@/lib/eventBus";
 import type { ToolRecommendation } from "@/components/studio/effects";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
+import { useTracks } from "@/hooks/useTracks";
 
 interface UploadContext {
   name?: string;
@@ -49,6 +50,23 @@ export default function SongUploader() {
   const studioContext = useContext(StudioAudioContext);
   const { addMessage } = useAIMessages();
   const { createSession, updateSession } = useSongWorkSession();
+  const { addTrack, tracks } = useTracks();
+  const registerSongTrack = useCallback((song: Song) => {
+    const audioUrl = song.url || (song as any).audioUrl || (song as any).songURL || (song as any).accessibleUrl;
+    if (!audioUrl) return;
+    const trackId = `song-${song.id ?? audioUrl}`;
+    const exists = tracks.some((track) => track.id === trackId || track.audioUrl === audioUrl);
+    if (exists) return;
+    addTrack({
+      id: trackId,
+      name: song.name || 'Uploaded Audio',
+      type: 'audio',
+      audioUrl,
+      source: 'upload',
+      lengthBars: 8,
+      startBar: 0,
+    });
+  }, [tracks, addTrack]);
 
   const { data: songs, isLoading: songsLoading, refetch } = useQuery<Song[]>({
     queryKey: ['/api/songs'],
@@ -59,6 +77,12 @@ export default function SongUploader() {
   useEffect(() => {
     refetch();
   }, [refetch]);
+
+  useEffect(() => {
+    if (selectedSong) {
+      registerSongTrack(selectedSong);
+    }
+  }, [selectedSong, registerSongTrack]);
 
   const uploadSongMutation = useMutation({
     mutationFn: async (songData: any) => {
@@ -74,6 +98,8 @@ export default function SongUploader() {
     onSuccess: (newSong: Song) => {
       queryClient.invalidateQueries({ queryKey: ['/api/songs'] });
       setUploadContext({});
+      registerSongTrack(newSong);
+      setSelectedSong(newSong);
       
       // Emit event for other components
       emitEvent('song:uploaded', {

@@ -2,7 +2,7 @@ import type { JSX } from "react";
 
 import AIAssistant from "@/components/studio/AIAssistant";
 import AudioToolsPage from "@/components/studio/AudioToolsPage";
-import BeatMaker from "@/components/studio/BeatMaker";
+import BeatLab from "@/components/studio/BeatLab";
 import CodeToMusicStudioV2 from "@/components/studio/CodeToMusicStudioV2";
 import CodeTranslator from "@/components/studio/CodeTranslator";
 import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
@@ -95,12 +95,12 @@ export const STUDIO_TABS: StudioTabConfig[] = [
   },
   {
     id: "beatmaker",
-    label: "Beat Maker",
-    shortName: "Beat Maker",
-    icon: "fas fa-drum",
-    description: "Create drum patterns and beats",
+    label: "Beat Lab",
+    shortName: "Beat Lab",
+    icon: "fas fa-flask",
+    description: "Create beats with generator, editor, samples, and CodeBeat",
     routes: ["/beat-studio"],
-    component: () => <BeatMaker />,
+    component: () => <BeatLab />,
   },
   {
     id: "melody",
