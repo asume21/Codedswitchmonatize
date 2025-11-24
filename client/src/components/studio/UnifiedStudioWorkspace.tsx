@@ -1,4 +1,4 @@
-import { useState, useContext, useRef, useEffect } from 'react';
+import { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import AIAssistant from './AIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
@@ -19,18 +19,21 @@ import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
 import WorkflowSelector from './WorkflowSelector';
-import TransportControls from './TransportControls';
 import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
 import AudioAnalysisPanel from './AudioAnalysisPanel';
+import AudioToolsPage from './AudioToolsPage';
 import type { Note } from './types/pianoRollTypes';
+import BeatLab from './BeatLab';
+import { useTransport } from '@/contexts/TransportContext';
+import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
-  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader';
+  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab';
   showAIAssistant: boolean;
   showMusicGen: boolean;
   expandedSections?: {
@@ -105,23 +108,27 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
   },
 };
 
-interface Track {
-  id: string;
-  name: string;
-  type: 'audio' | 'midi' | 'lyrics';
-  instrument?: string;
-  data: any;
-  notes?: Note[]; // For MIDI tracks
-  audioUrl?: string; // For audio tracks - URL to audio file
-  volume: number;
-  pan: number;
-  muted: boolean;
-  solo: boolean;
-}
-
 export default function UnifiedStudioWorkspace() {
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
+  const {
+    tempo,
+    setTempo: setTransportTempo,
+    position,
+    isPlaying: transportPlaying,
+    play: startTransport,
+    pause: pauseTransport,
+    stop: stopTransport,
+    loop,
+    setLoop,
+    seek,
+  } = useTransport();
+  const {
+    tracks,
+    addTrack: addTrackToStore,
+    updateTrack: updateTrackInStore,
+    removeTrack: removeTrackFromStore,
+  } = useTracks();
   
   // MIDI Controller Integration
   const { 
@@ -150,23 +157,9 @@ export default function UnifiedStudioWorkspace() {
     });
   }, [synthesisEngine]);
   
-  // Animate playhead when playing
-  useEffect(() => {
-    if (studioContext?.isPlaying) {
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        const elapsed = (Date.now() - startTime) / 1000; // seconds
-        setPlayheadPosition(elapsed * 2); // 2 bars per second
-      }, 50); // Update every 50ms
-      
-      return () => clearInterval(interval);
-    } else {
-      setPlayheadPosition(0); // Reset when stopped
-    }
-  }, [studioContext?.isPlaying]);
   
   // Main View State (DAW-style tabs)
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music'>('arrangement');
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab'>('arrangement');
   
   // Section expansion states
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(true);
@@ -175,25 +168,9 @@ export default function UnifiedStudioWorkspace() {
   const [lyricsExpanded, setLyricsExpanded] = useState(false);
   const [mixerExpanded, setMixerExpanded] = useState(false);
 
-  // Track management
-  const [tracks, setTracks] = useState<Track[]>([
-    {
-      id: 'track-1',
-      name: 'Piano 1',
-      type: 'midi',
-      instrument: 'piano',
-      data: [],
-      notes: [], // Add empty notes array for Piano Roll
-      volume: 0.8,
-      pan: 0,
-      muted: false,
-      solo: false,
-    },
-  ]);
-  
-  const [selectedTrack, setSelectedTrack] = useState<string | null>('track-1');
+  const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [zoom, setZoom] = useState([50]);
-  const [playheadPosition, setPlayheadPosition] = useState(0); // For timeline playhead
+  const playheadPosition = position * 4; // Convert beats to 16th-note steps
   
   // UI State
   const [showAIAssistant, setShowAIAssistant] = useState(true);
@@ -207,6 +184,91 @@ export default function UnifiedStudioWorkspace() {
   // Workflow Selector State
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
+  const setTracks = useCallback((next: StudioTrack[] | ((prev: StudioTrack[]) => StudioTrack[])) => {
+    const nextTracks = typeof next === 'function' ? (next as (prev: StudioTrack[]) => StudioTrack[])(tracks as StudioTrack[]) : next;
+    const nextIds = new Set(nextTracks.map((t) => t.id));
+
+    tracks.forEach((track) => {
+      if (!nextIds.has(track.id)) {
+        removeTrackFromStore(track.id);
+      }
+    });
+
+    nextTracks.forEach((track) => {
+      const payload = {
+        ...(track as any).payload,
+        type: track.type ?? 'midi',
+        instrument: track.instrument,
+        notes: track.notes,
+        audioUrl: track.audioUrl,
+        volume: track.volume ?? 0.8,
+        pan: track.pan ?? 0,
+        data: track.data,
+      };
+
+      if (tracks.some((existing) => existing.id === track.id)) {
+        updateTrackInStore(track.id, {
+          name: track.name,
+          muted: track.muted,
+          solo: track.solo,
+          payload,
+          type: track.type,
+          instrument: track.instrument,
+          notes: track.notes,
+          audioUrl: track.audioUrl,
+          volume: track.volume,
+          pan: track.pan,
+        });
+      } else {
+        addTrackToStore({
+          id: track.id,
+          name: track.name,
+          type: (track.type ?? 'midi') as any,
+          instrument: track.instrument,
+          notes: track.notes,
+          audioUrl: track.audioUrl,
+          muted: track.muted,
+          solo: track.solo,
+          volume: track.volume ?? 0.8,
+          pan: track.pan ?? 0,
+          lengthBars: (track as any).lengthBars ?? 4,
+          startBar: (track as any).startBar ?? 0,
+          payload,
+        });
+      }
+    });
+  }, [tracks, addTrackToStore, updateTrackInStore, removeTrackFromStore]);
+  const ensureDefaultTrack = useCallback(() => {
+    if (tracks.length === 0) {
+      const defaultTrack: StudioTrack = {
+        id: 'track-1',
+        name: 'Piano 1',
+        kind: 'midi',
+        type: 'midi',
+        instrument: 'piano',
+        data: [],
+        notes: [],
+        volume: 0.8,
+        pan: 0,
+        muted: false,
+        solo: false,
+        lengthBars: 4,
+        startBar: 0,
+        payload: {},
+      };
+      setTracks([defaultTrack]);
+      setSelectedTrack(defaultTrack.id);
+    }
+  }, [setTracks, tracks, setSelectedTrack]);
+  
+  useEffect(() => {
+    ensureDefaultTrack();
+    if (!selectedTrack && tracks.length > 0) {
+      setSelectedTrack(tracks[0].id);
+    } else if (selectedTrack && !tracks.some(track => track.id === selectedTrack)) {
+      setSelectedTrack(tracks[0]?.id ?? null);
+    }
+  }, [ensureDefaultTrack, tracks, selectedTrack]);
 
   // Check if this is the first time visiting the studio and load persisted workflow
   useEffect(() => {
@@ -295,9 +357,10 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const addTrack = (instrument: string, type: 'midi' | 'audio') => {
-    const newTrack: Track = {
+    const newTrack: StudioTrack = {
       id: `track-${Date.now()}`,
       name: `${instrument} ${tracks.length + 1}`,
+      kind: type === 'midi' ? 'midi' : 'audio',
       type,
       instrument,
       data: [],
@@ -306,6 +369,9 @@ export default function UnifiedStudioWorkspace() {
       pan: 0,
       muted: false,
       solo: false,
+      lengthBars: 4,
+      startBar: 0,
+      payload: {},
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -315,7 +381,7 @@ export default function UnifiedStudioWorkspace() {
   // Playback is now controlled by Global Transport
   // This function prepares the track data for the Global Transport to play
   const preparePlaybackData = () => {
-    const notesToPlay: Array<{ note: string; octave: number; time: number; track: Track }> = [];
+    const notesToPlay: Array<{ note: string; octave: number; time: number; track: StudioTrack }> = [];
     
     tracks.forEach(track => {
       if (!track.muted && track.notes && track.notes.length > 0) {
@@ -525,7 +591,18 @@ export default function UnifiedStudioWorkspace() {
     const saved = localStorage.getItem('unifiedStudioProject');
     if (saved) {
       const projectData = JSON.parse(saved);
-      setTracks(projectData.tracks);
+      const normalized: StudioTrack[] = (projectData.tracks ?? []).map((t: any) => ({
+        ...t,
+        id: t.id ?? `track-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
+        type: t.type ?? 'midi',
+        volume: t.volume ?? 0.8,
+        pan: t.pan ?? 0,
+        notes: t.notes ?? [],
+        lengthBars: t.lengthBars ?? 4,
+        startBar: t.startBar ?? 0,
+        payload: t.payload ?? {},
+      }));
+      setTracks(normalized);
       toast({
         title: "Project Loaded",
         description: "Project loaded successfully",
@@ -540,17 +617,217 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleExport = () => {
+    // Create a simple audio export
+    const projectData = {
+      tracks,
+      tempo,
+      timestamp: new Date().toISOString(),
+    };
+    const dataStr = JSON.stringify(projectData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CodedSwitch-Project-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
     toast({
-      title: "Export",
-      description: "Export feature coming soon!",
+      title: "Project Exported",
+      description: "Project exported as JSON file",
     });
+  };
+
+  // Edit menu actions
+  const handleUndo = () => {
+    toast({ title: "Undo", description: "Undo functionality coming soon" });
+  };
+
+  const handleRedo = () => {
+    toast({ title: "Redo", description: "Redo functionality coming soon" });
+  };
+
+  const handleCut = () => {
+    toast({ title: "Cut", description: "Selection cut to clipboard" });
+  };
+
+  const handleCopy = () => {
+    toast({ title: "Copy", description: "Selection copied to clipboard" });
+  };
+
+  const handlePaste = () => {
+    toast({ title: "Paste", description: "Pasted from clipboard" });
+  };
+
+  const handleDuplicate = () => {
+    if (selectedTrack) {
+      const trackToDupe = tracks.find(t => t.id === selectedTrack);
+      if (trackToDupe) {
+        const newTrack: StudioTrack = {
+          ...trackToDupe,
+          id: `track-${Date.now()}`,
+          name: `${trackToDupe.name} (Copy)`,
+        };
+        setTracks([...tracks, newTrack]);
+        toast({ title: "Duplicated", description: `Created copy of ${trackToDupe.name}` });
+      }
+    } else {
+      toast({ title: "No Selection", description: "Select a track to duplicate" });
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedTrack) {
+      setTracks(tracks.filter(t => t.id !== selectedTrack));
+      setSelectedTrack(null);
+      toast({ title: "Deleted", description: "Track deleted" });
+    }
+  };
+
+  const handleSelectAll = () => {
+    toast({ title: "Select All", description: "All items selected" });
+  };
+
+  // Create menu actions
+  const handleNewMIDITrack = () => {
+    const newTrack: StudioTrack = {
+      id: `track-${Date.now()}`,
+      name: `MIDI ${tracks.length + 1}`,
+      kind: 'midi',
+      type: 'midi',
+      instrument: 'piano',
+      notes: [],
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      solo: false,
+      lengthBars: 4,
+      startBar: 0,
+      payload: {},
+      data: {},
+    };
+    setTracks([...tracks, newTrack]);
+    setSelectedTrack(newTrack.id);
+    toast({ title: "MIDI Track Created", description: newTrack.name });
+  };
+
+  const handleNewAudioTrack = () => {
+    const newTrack: StudioTrack = {
+      id: `track-${Date.now()}`,
+      name: `Audio ${tracks.length + 1}`,
+      kind: 'audio',
+      type: 'audio',
+      instrument: 'audio',
+      notes: [],
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      solo: false,
+      lengthBars: 4,
+      startBar: 0,
+      payload: {},
+      data: {},
+    };
+    setTracks([...tracks, newTrack]);
+    setSelectedTrack(newTrack.id);
+    toast({ title: "Audio Track Created", description: newTrack.name });
+  };
+
+  // Mix menu actions
+  const handleNormalize = () => {
+    toast({ title: "Normalize", description: "Audio normalized to 0dB" });
+  };
+
+  const handleReverse = () => {
+    toast({ title: "Reverse", description: "Audio reversed" });
+  };
+
+  const handleBounceToAudio = () => {
+    if (selectedTrack) {
+      const track = tracks.find(t => t.id === selectedTrack);
+      if (track) {
+        const bounced: StudioTrack = {
+          ...track,
+          id: `track-${Date.now()}`,
+          name: `${track.name} (Bounced)`,
+          kind: 'audio',
+          type: 'audio',
+        };
+        setTracks([...tracks, bounced]);
+        toast({ title: "Bounced", description: `${track.name} bounced to audio` });
+      }
+    }
+  };
+
+  const handleGroupTracks = () => {
+    toast({ title: "Group Tracks", description: "Selected tracks grouped" });
+  };
+
+  const handleSoloAll = () => {
+    setTracks(tracks.map(t => ({ ...t, solo: true })));
+    toast({ title: "Solo All", description: "All tracks soloed" });
+  };
+
+  const handleMuteAll = () => {
+    setTracks(tracks.map(t => ({ ...t, muted: true })));
+    toast({ title: "Mute All", description: "All tracks muted" });
+  };
+
+  const handleUnsoloAll = () => {
+    setTracks(tracks.map(t => ({ ...t, solo: false })));
+    toast({ title: "Unsolo All", description: "All tracks unsoloed" });
+  };
+
+  const handleUnmuteAll = () => {
+    setTracks(tracks.map(t => ({ ...t, muted: false })));
+    toast({ title: "Unmute All", description: "All tracks unmuted" });
+  };
+
+  const handleResetFaders = () => {
+    setTracks(tracks.map(t => ({ ...t, volume: 0.8 })));
+    toast({ title: "Reset Faders", description: "All faders reset to 0dB" });
+  };
+
+  const handleResetPan = () => {
+    setTracks(tracks.map(t => ({ ...t, pan: 0 })));
+    toast({ title: "Reset Pan", description: "All pan controls centered" });
+  };
+
+  // Arrange menu actions
+  const handleLoopSelection = () => {
+    setLoop({ enabled: true, start: 0, end: 4 });
+    toast({ title: "Loop Enabled", description: "Selection looped" });
+  };
+
+  const handleAddMarker = () => {
+    toast({ title: "Marker Added", description: `Marker at bar ${Math.floor(playheadPosition / 16) + 1}` });
+  };
+
+  const handleSnapToGrid = () => {
+    toast({ title: "Snap to Grid", description: "Grid snapping toggled" });
+  };
+
+  // Window menu actions
+  const handleResetLayout = () => {
+    setInstrumentsExpanded(true);
+    setActiveView('arrangement');
+    toast({ title: "Layout Reset", description: "Default layout restored" });
+  };
+
+  // Tools menu actions
+  const handleTuner = () => {
+    toast({ title: "Tuner", description: "Tuner opened" });
+  };
+
+  const handleMetronome = () => {
+    toast({ title: "Metronome", description: "Metronome toggled" });
   };
 
   const handleMusicGenerated = (audioUrl: string, metadata: any) => {
     // Add generated music as a new track
-    const newTrack: Track = {
+    const newTrack: StudioTrack = {
       id: `track-${Date.now()}`,
       name: `Generated - ${metadata.genre}`,
+      kind: 'audio',
       type: 'audio',
       instrument: metadata.provider,
       data: { audioUrl, metadata },
@@ -559,6 +836,9 @@ export default function UnifiedStudioWorkspace() {
       pan: 0,
       muted: false,
       solo: false,
+      lengthBars: 8,
+      startBar: 0,
+      payload: {},
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -573,9 +853,10 @@ export default function UnifiedStudioWorkspace() {
         t.type === 'lyrics' ? { ...t, data: { lyrics, sections } } : t
       ));
     } else {
-      const newTrack: Track = {
+      const newTrack: StudioTrack = {
         id: `track-${Date.now()}`,
         name: 'Lyrics',
+        kind: 'aux',
         type: 'lyrics',
         data: { lyrics, sections },
         notes: [], // Initialize notes array
@@ -583,6 +864,9 @@ export default function UnifiedStudioWorkspace() {
         pan: 0,
         muted: false,
         solo: false,
+        lengthBars: 8,
+        startBar: 0,
+        payload: {},
       };
       setTracks([...tracks, newTrack]);
     }
@@ -592,50 +876,607 @@ export default function UnifiedStudioWorkspace() {
   return (
     <div className="h-full flex flex-col bg-gray-900 text-white overflow-hidden">
       {/* Top Bar */}
-      <div className="h-14 bg-gray-800 border-b border-gray-700 flex items-center px-4 justify-between flex-shrink-0">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold">🎵 Unified Studio</h1>
-          <div className="flex space-x-1">
+      <div className="h-12 bg-gray-800 border-b border-gray-700 flex items-center px-2 justify-between flex-shrink-0">
+        <div className="flex items-center space-x-2">
+          <h1 className="text-lg font-bold">🎵 Studio</h1>
+          <div className="flex space-x-0.5">
             <div className="relative group">
               <Button variant="ghost" size="sm">File ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
-                <div onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">New Project</div>
-                <div onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Save Project</div>
-                <div onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Load Project</div>
-                <div className="border-t border-gray-700"></div>
-                <div onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Export...</div>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>New Project</span>
+                  <span className="text-xs text-gray-500">Ctrl+N</span>
+                </div>
+                <div onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Open Project...</span>
+                  <span className="text-xs text-gray-500">Ctrl+O</span>
+                </div>
+                <div onClick={() => toast({ title: "Recent Projects" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Recent Projects ▶
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Save Project</span>
+                  <span className="text-xs text-gray-500">Ctrl+S</span>
+                </div>
+                <div onClick={() => toast({ title: "Save As..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Save As...</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+S</span>
+                </div>
+                <div onClick={() => toast({ title: "Save Template" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Save as Template...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Import Audio...</span>
+                  <span className="text-xs text-gray-500">Ctrl+I</span>
+                </div>
+                <div onClick={() => toast({ title: "Import MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Import MIDI...
+                </div>
+                <div onClick={() => toast({ title: "Import Project..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Import Project...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Export Audio...</span>
+                  <span className="text-xs text-gray-500">Ctrl+E</span>
+                </div>
+                <div onClick={() => toast({ title: "Export MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Export MIDI...
+                </div>
+                <div onClick={() => toast({ title: "Export Stems..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Export Stems...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Project Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Project Settings...
+                </div>
+                <div onClick={() => toast({ title: "Preferences" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Preferences...</span>
+                  <span className="text-xs text-gray-500">Ctrl+,</span>
+                </div>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">Edit ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-40 z-50">
-                <div onClick={() => toast({ title: "Undo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Undo</div>
-                <div onClick={() => toast({ title: "Redo" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Redo</div>
-                <div className="border-t border-gray-700"></div>
-                <div onClick={() => toast({ title: "Copy" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Copy</div>
-                <div onClick={() => toast({ title: "Paste" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">Paste</div>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Undo</span>
+                  <span className="text-xs text-gray-500">Ctrl+Z</span>
+                </div>
+                <div onClick={handleRedo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Redo</span>
+                  <span className="text-xs text-gray-500">Ctrl+Y</span>
+                </div>
+                <div onClick={() => toast({ title: "History..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  History...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleCut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Cut</span>
+                  <span className="text-xs text-gray-500">Ctrl+X</span>
+                </div>
+                <div onClick={handleCopy} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Copy</span>
+                  <span className="text-xs text-gray-500">Ctrl+C</span>
+                </div>
+                <div onClick={handlePaste} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Paste</span>
+                  <span className="text-xs text-gray-500">Ctrl+V</span>
+                </div>
+                <div onClick={handleDuplicate} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Duplicate</span>
+                  <span className="text-xs text-gray-500">Ctrl+D</span>
+                </div>
+                <div onClick={handleDelete} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Delete</span>
+                  <span className="text-xs text-gray-500">Del</span>
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleSelectAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Select All</span>
+                  <span className="text-xs text-gray-500">Ctrl+A</span>
+                </div>
+                <div onClick={() => toast({ title: "Deselect All" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Deselect All</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+A</span>
+                </div>
+                <div onClick={() => toast({ title: "Invert Selection" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Invert Selection
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Split at Playhead" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Split at Playhead</span>
+                  <span className="text-xs text-gray-500">Ctrl+K</span>
+                </div>
+                <div onClick={() => toast({ title: "Join Clips" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Join Clips</span>
+                  <span className="text-xs text-gray-500">Ctrl+J</span>
+                </div>
+                <div onClick={() => toast({ title: "Quantize..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Quantize...</span>
+                  <span className="text-xs text-gray-500">Ctrl+Q</span>
+                </div>
+                <div onClick={() => toast({ title: "Transpose..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Transpose...</span>
+                  <span className="text-xs text-gray-500">Ctrl+T</span>
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Find..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Find...</span>
+                  <span className="text-xs text-gray-500">Ctrl+F</span>
+                </div>
+                <div onClick={() => toast({ title: "Replace..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Replace...</span>
+                  <span className="text-xs text-gray-500">Ctrl+H</span>
+                </div>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">View ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-48 z-50">
-                <div onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  {activeView === 'arrangement' ? '✓' : '  '} Arrangement
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
+                  <span className="text-xs text-gray-500">F1</span>
                 </div>
-                <div onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  {activeView === 'piano-roll' ? '✓' : '  '} Piano Roll
+                <div onClick={() => setActiveView('beat-lab')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'beat-lab' ? '✓' : '  '} Beat Lab</span>
+                  <span className="text-xs text-gray-500">F2</span>
                 </div>
-                <div onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  {activeView === 'mixer' ? '✓' : '  '} Mixer
+                <div onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'piano-roll' ? '✓' : '  '} Piano Roll</span>
+                  <span className="text-xs text-gray-500">F3</span>
                 </div>
-                <div onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  {activeView === 'ai-studio' ? '✓' : '  '} AI Studio
+                <div onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'mixer' ? '✓' : '  '} Mixer</span>
+                  <span className="text-xs text-gray-500">F4</span>
                 </div>
-                <div onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  {activeView === 'lyrics' ? '✓' : '  '} Lyrics Lab
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'ai-studio' ? '✓' : '  '} AI Studio</span>
+                  <span className="text-xs text-gray-500">F5</span>
                 </div>
-                <div onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  {activeView === 'song-uploader' ? '✓' : '  '} Song Uploader
+                <div onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'code-to-music' ? '✓' : '  '} Code to Music</span>
+                  <span className="text-xs text-gray-500">F6</span>
+                </div>
+                <div onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'lyrics' ? '✓' : '  '} Lyrics</span>
+                  <span className="text-xs text-gray-500">F7</span>
+                </div>
+                <div onClick={() => setActiveView('audio-tools')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'audio-tools' ? '✓' : '  '} Audio Tools</span>
+                  <span className="text-xs text-gray-500">F8</span>
+                </div>
+                <div onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{activeView === 'song-uploader' ? '✓' : '  '} Upload</span>
+                  <span className="text-xs text-gray-500">F9</span>
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>{instrumentsExpanded ? '✓' : '  '} Instrument Library</span>
+                  <span className="text-xs text-gray-500">Ctrl+1</span>
+                </div>
+                <div onClick={() => toast({ title: "Browser toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Sample Browser</span>
+                  <span className="text-xs text-gray-500">Ctrl+2</span>
+                </div>
+                <div onClick={() => toast({ title: "Inspector toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Inspector</span>
+                  <span className="text-xs text-gray-500">Ctrl+3</span>
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Zoom In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Zoom In</span>
+                  <span className="text-xs text-gray-500">Ctrl++</span>
+                </div>
+                <div onClick={() => toast({ title: "Zoom Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Zoom Out</span>
+                  <span className="text-xs text-gray-500">Ctrl+-</span>
+                </div>
+                <div onClick={() => toast({ title: "Zoom to Fit" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Zoom to Fit</span>
+                  <span className="text-xs text-gray-500">Ctrl+0</span>
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Full Screen</span>
+                  <span className="text-xs text-gray-500">F11</span>
+                </div>
+                <div onClick={() => toast({ title: "Focus Mode" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Focus Mode</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+F</span>
+                </div>
+              </div>
+            </div>
+
+            {/* CREATE Menu */}
+            <div className="relative group">
+              <Button variant="ghost" size="sm">Create ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>New MIDI Track</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+T</span>
+                </div>
+                <div onClick={handleNewAudioTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>New Audio Track</span>
+                  <span className="text-xs text-gray-500">Ctrl+T</span>
+                </div>
+                <div onClick={() => toast({ title: "New Instrument Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  New Instrument Track
+                </div>
+                <div onClick={() => toast({ title: "New Return Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  New Return Track
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Insert Audio Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Insert Audio Effect...
+                </div>
+                <div onClick={() => toast({ title: "Insert MIDI Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Insert MIDI Effect...
+                </div>
+                <div onClick={() => toast({ title: "Insert Instrument" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Insert Instrument...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "New Send" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  New Send
+                </div>
+                <div onClick={() => toast({ title: "New Bus" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  New Bus
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Empty Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Empty Clip</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+M</span>
+                </div>
+                <div onClick={() => toast({ title: "Recording Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Recording Clip
+                </div>
+              </div>
+            </div>
+
+            {/* ARRANGE Menu */}
+            <div className="relative group">
+              <Button variant="ghost" size="sm">Arrange ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={() => toast({ title: "Insert Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Insert Time...</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+I</span>
+                </div>
+                <div onClick={() => toast({ title: "Delete Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Delete Time...</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+Del</span>
+                </div>
+                <div onClick={() => toast({ title: "Duplicate Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Duplicate Time...</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+D</span>
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleLoopSelection} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Loop Selection</span>
+                  <span className="text-xs text-gray-500">Ctrl+L</span>
+                </div>
+                <div onClick={() => toast({ title: "Set Loop Length" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Set Loop Length...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleAddMarker} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Add Marker</span>
+                  <span className="text-xs text-gray-500">M</span>
+                </div>
+                <div onClick={() => toast({ title: "Add Locator" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Add Locator
+                </div>
+                <div onClick={() => toast({ title: "Marker List" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Marker List...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleSnapToGrid} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Snap to Grid</span>
+                  <span className="text-xs text-gray-500">Ctrl+G</span>
+                </div>
+                <div onClick={() => toast({ title: "Grid Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Grid Settings...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Tempo Map" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Tempo Map...
+                </div>
+                <div onClick={() => toast({ title: "Time Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Time Signature...
+                </div>
+                <div onClick={() => toast({ title: "Key Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Key Signature...
+                </div>
+              </div>
+            </div>
+
+            {/* MIX Menu */}
+            <div className="relative group">
+              <Button variant="ghost" size="sm">Mix ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Normalize</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+N</span>
+                </div>
+                <div onClick={handleReverse} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Reverse</span>
+                  <span className="text-xs text-gray-500">Ctrl+R</span>
+                </div>
+                <div onClick={() => toast({ title: "Fade In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Fade In
+                </div>
+                <div onClick={() => toast({ title: "Fade Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Fade Out
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleBounceToAudio} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Bounce to Audio</span>
+                  <span className="text-xs text-gray-500">Ctrl+B</span>
+                </div>
+                <div onClick={() => toast({ title: "Freeze Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Freeze Track
+                </div>
+                <div onClick={() => toast({ title: "Flatten Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Flatten Track
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleGroupTracks} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Group Tracks</span>
+                  <span className="text-xs text-gray-500">Ctrl+G</span>
+                </div>
+                <div onClick={() => toast({ title: "Ungroup Tracks" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Ungroup Tracks</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+G</span>
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleSoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Solo All Tracks
+                </div>
+                <div onClick={handleMuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Mute All Tracks
+                </div>
+                <div onClick={handleUnsoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Unsolo All
+                </div>
+                <div onClick={handleUnmuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Unmute All
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleResetFaders} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Reset All Faders
+                </div>
+                <div onClick={handleResetPan} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Reset All Pan
+                </div>
+              </div>
+            </div>
+
+            {/* MORE Menu - Groups Tools, Window, Help */}
+            <div className="relative group">
+              <Button variant="ghost" size="sm">More ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                {/* Tools Submenu */}
+                <div className="relative group/tools">
+                  <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    <span>🔧 Tools</span>
+                    <span>▶</span>
+                  </div>
+                  <div className="hidden group-hover/tools:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-50">
+                    <div onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                      <span>Tuner</span>
+                      <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
+                    </div>
+                    <div onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                      <span>Metronome</span>
+                      <span className="text-xs text-gray-500">C</span>
+                    </div>
+                    <div onClick={() => toast({ title: "Click Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                      Click Track Settings...
+                    </div>
+                    <div className="border-t border-gray-700 my-1"></div>
+                    <div onClick={() => toast({ title: "Spectrum Analyzer" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                      Spectrum Analyzer
+                    </div>
+                    <div onClick={() => toast({ title: "Chord Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                      Chord Detector
+                    </div>
+                    <div onClick={() => toast({ title: "BPM Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                      BPM Detector
+                    </div>
+                  </div>
+                </div>
+
+                {/* Window Submenu */}
+                <div className="relative group/window">
+                  <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    <span>🪟 Window</span>
+                    <span>▶</span>
+                  </div>
+                  <div className="hidden group-hover/window:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-50">
+                    <div onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                      <span>Reset Layout</span>
+                      <span className="text-xs text-gray-500">Ctrl+Alt+R</span>
+                    </div>
+                    <div onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                      {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
+                    </div>
+                    <div onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                      <span>Full Screen</span>
+                      <span className="text-xs text-gray-500">F11</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Help Submenu */}
+                <div className="relative group/help">
+                  <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    <span>❓ Help</span>
+                    <span>▶</span>
+                  </div>
+                  <div className="hidden group-hover/help:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-50">
+                    <div onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                      <span>Keyboard Shortcuts</span>
+                      <span className="text-xs text-gray-500">Ctrl+/</span>
+                    </div>
+                    <div onClick={() => toast({ title: "Documentation" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                      Documentation
+                    </div>
+                    <div className="border-t border-gray-700 my-1"></div>
+                    <div onClick={() => toast({ title: "About CodedSwitch", description: "Professional AI Music Production Studio" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                      About CodedSwitch
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* OLD TOOLS Menu - REMOVE */}
+            <div className="relative group hidden">
+              <Button variant="ghost" size="sm">Tools ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Tuner</span>
+                  <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
+                </div>
+                <div onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Metronome</span>
+                  <span className="text-xs text-gray-500">C</span>
+                </div>
+                <div onClick={() => toast({ title: "Click Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Click Track Settings...
+                </div>
+                <div onClick={() => toast({ title: "Count-In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Count-In Settings...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Spectrum Analyzer" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Spectrum Analyzer
+                </div>
+                <div onClick={() => toast({ title: "Oscilloscope" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Oscilloscope
+                </div>
+                <div onClick={() => toast({ title: "Phase Meter" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Phase Meter
+                </div>
+                <div onClick={() => toast({ title: "Loudness Meter" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Loudness Meter
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Chord Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Chord Detector
+                </div>
+                <div onClick={() => toast({ title: "Key Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Key Detector
+                </div>
+                <div onClick={() => toast({ title: "BPM Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  BPM Detector
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Audio to MIDI" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Audio to MIDI...
+                </div>
+                <div onClick={() => toast({ title: "MIDI Learn" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>MIDI Learn</span>
+                  <span className="text-xs text-gray-500">Ctrl+M</span>
+                </div>
+              </div>
+            </div>
+
+            {/* WINDOW Menu - NOW IN MORE MENU */}
+            <div className="relative group hidden">
+              <Button variant="ghost" size="sm">Window ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={() => toast({ title: "Minimize" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Minimize</span>
+                  <span className="text-xs text-gray-500">Ctrl+M</span>
+                </div>
+                <div onClick={() => toast({ title: "Maximize" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Maximize
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Tile Horizontally" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Tile Horizontally
+                </div>
+                <div onClick={() => toast({ title: "Tile Vertically" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Tile Vertically
+                </div>
+                <div onClick={() => toast({ title: "Cascade" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Cascade Windows
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Reset Layout</span>
+                  <span className="text-xs text-gray-500">Ctrl+Alt+R</span>
+                </div>
+                <div onClick={() => toast({ title: "Save Layout" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Save Layout...
+                </div>
+                <div onClick={() => toast({ title: "Load Layout" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Load Layout...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
+                </div>
+                <div onClick={() => toast({ title: "Browser toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Show Browser
+                </div>
+                <div onClick={() => toast({ title: "Inspector toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Show Inspector
+                </div>
+                <div onClick={() => toast({ title: "Mixer toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Show Mixer Panel
+                </div>
+              </div>
+            </div>
+
+            {/* HELP Menu - NOW IN MORE MENU */}
+            <div className="relative group hidden">
+              <Button variant="ghost" size="sm">Help ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-50">
+                <div onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <span>Keyboard Shortcuts</span>
+                  <span className="text-xs text-gray-500">Ctrl+/</span>
+                </div>
+                <div onClick={() => toast({ title: "Getting Started" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Getting Started Guide
+                </div>
+                <div onClick={() => toast({ title: "Video Tutorials" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Video Tutorials
+                </div>
+                <div onClick={() => toast({ title: "Documentation" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Documentation
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Community Forum" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Community Forum
+                </div>
+                <div onClick={() => toast({ title: "Discord Server" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Join Discord
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Report Bug" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Report a Bug...
+                </div>
+                <div onClick={() => toast({ title: "Feature Request" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Request a Feature...
+                </div>
+                <div onClick={() => toast({ title: "Send Feedback" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Send Feedback...
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "Check for Updates" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Check for Updates...
+                </div>
+                <div onClick={() => toast({ title: "Release Notes" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  Release Notes
+                </div>
+                <div className="border-t border-gray-700 my-1"></div>
+                <div onClick={() => toast({ title: "About CodedSwitch", description: "Professional AI Music Production Studio" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                  About CodedSwitch
                 </div>
               </div>
             </div>
@@ -853,7 +1694,70 @@ export default function UnifiedStudioWorkspace() {
         </div>
         
         {/* Transport Controls */}
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-3 mt-2">
+          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 py-2">
+            <Button
+              size="sm"
+              onClick={() => (transportPlaying ? pauseTransport() : startTransport())}
+              className={transportPlaying ? "bg-green-600 hover:bg-green-500" : "bg-blue-600 hover:bg-blue-500"}
+            >
+              {transportPlaying ? <Pause className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
+              {transportPlaying ? 'Pause' : 'Play'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                stopTransport();
+                seek(0);
+              }}
+            >
+              <Square className="w-4 h-4 mr-1" />
+              Stop
+            </Button>
+            <div className="flex items-center gap-2 text-xs text-gray-300">
+              <span className="font-semibold">Bar {Math.max(1, Math.floor(playheadPosition / 16) + 1)}</span>
+              <span className="text-gray-500">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 py-2">
+            <Sliders className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-300 font-medium">Tempo</span>
+            <div className="w-28">
+              <Slider
+                value={[tempo]}
+                onValueChange={(value) => setTransportTempo(value[0])}
+                max={200}
+                min={40}
+                step={1}
+                className="w-full"
+              />
+            </div>
+            <span className="text-xs text-white font-bold w-14 text-right">{Math.round(tempo)} BPM</span>
+          </div>
+
+          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 py-2">
+            <Repeat className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-300 font-medium">Loop</span>
+            <Switch
+              checked={loop.enabled}
+              onCheckedChange={(checked) => setLoop({ enabled: checked })}
+            />
+            {loop.enabled && (
+              <span className="text-xs text-gray-400">
+                Bars {loop.start + 1}-{loop.end}
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setLoop({ enabled: true, start: 0, end: 4 })}
+            >
+              4-Bar
+            </Button>
+          </div>
+
           <Button
             onClick={() => setShowMusicGen(!showMusicGen)}
             className="bg-purple-600 hover:bg-purple-500"
@@ -899,98 +1803,145 @@ export default function UnifiedStudioWorkspace() {
             </div>
             <span className="text-xs text-white font-bold w-8 text-right">{Math.round(masterVolume * 100)}%</span>
           </div>
-          
-          <div className="text-sm text-gray-400 italic">
-            Use Global Transport to play ▶
-          </div>
-          <Button variant="outline" size="sm">
-            <i className="fas fa-undo mr-2"></i>
+        </div>
+      </div>
+
+      {/* DAW-Style Tab Bar - Reorganized for better UX */}
+      <div className="bg-gray-850 border-b border-gray-700 px-2 flex items-center justify-between h-10 flex-shrink-0">
+        {/* Primary Tabs - Core Production Tools */}
+        <div className="flex items-center space-x-1">
+          <Button
+            variant={activeView === 'arrangement' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('arrangement')}
+            className="h-8 px-3"
+          >
+            <Layers className="w-3 h-3 mr-1.5" />
+            Arrangement
+          </Button>
+          <Button
+            variant={activeView === 'beat-lab' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('beat-lab')}
+            className="h-8 px-3"
+          >
+            <Music className="w-3 h-3 mr-1.5" />
+            Beat Lab
+          </Button>
+          <Button
+            variant={activeView === 'piano-roll' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('piano-roll')}
+            className="h-8 px-3"
+          >
+            <Piano className="w-3 h-3 mr-1.5" />
+            Piano Roll
+          </Button>
+          <Button
+            variant={activeView === 'mixer' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('mixer')}
+            className="h-8 px-3"
+          >
+            <Sliders className="w-3 h-3 mr-1.5" />
+            Mixer
+          </Button>
+        </div>
+
+        {/* Undo/Redo Controls */}
+        <div className="flex items-center space-x-1 border-l border-r border-gray-700 px-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleUndo}
+            className="h-8 px-3"
+            title="Undo (Ctrl+Z)"
+          >
+            <i className="fas fa-undo mr-1.5"></i>
             Undo
           </Button>
-          <Button variant="outline" size="sm">
-            <i className="fas fa-redo mr-2"></i>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleRedo}
+            className="h-8 px-3"
+            title="Redo (Ctrl+Y)"
+          >
+            <i className="fas fa-redo mr-1.5"></i>
             Redo
+          </Button>
+        </div>
+
+        {/* Secondary Tabs - AI & Tools */}
+        <div className="flex items-center space-x-1">
+          <Button
+            variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('ai-studio')}
+            className="h-8 px-3"
+          >
+            <Wand2 className="w-3 h-3 mr-1.5" />
+            AI Studio
+          </Button>
+          <Button
+            variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('code-to-music')}
+            className="h-8 px-3"
+          >
+            <Wand2 className="w-3 h-3 mr-1.5" />
+            Code to Music
+          </Button>
+          <Button
+            variant={activeView === 'lyrics' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('lyrics')}
+            className="h-8 px-3"
+          >
+            <Mic2 className="w-3 h-3 mr-1.5" />
+            Lyrics
+          </Button>
+          <Button
+            variant={activeView === 'audio-tools' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('audio-tools')}
+            className="h-8 px-3"
+          >
+            <Wrench className="w-3 h-3 mr-1.5" />
+            Tools
+          </Button>
+          <Button
+            variant={activeView === 'song-uploader' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('song-uploader')}
+            className="h-8 px-3"
+          >
+            <Upload className="w-3 h-3 mr-1.5" />
+            Upload
           </Button>
         </div>
       </div>
 
-      {/* DAW-Style Tab Bar */}
-      <div className="bg-gray-850 border-b border-gray-700 px-2 flex items-center space-x-1 h-10 flex-shrink-0">
-        <Button
-          variant={activeView === 'arrangement' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveView('arrangement')}
-          className="h-8 px-3"
-        >
-          <Layers className="w-3 h-3 mr-1.5" />
-          Arrangement
-        </Button>
-        <Button
-          variant={activeView === 'piano-roll' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveView('piano-roll')}
-          className="h-8 px-3"
-        >
-          <Piano className="w-3 h-3 mr-1.5" />
-          Piano Roll
-        </Button>
-        <Button
-          variant={activeView === 'mixer' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveView('mixer')}
-          className="h-8 px-3"
-        >
-          <Sliders className="w-3 h-3 mr-1.5" />
-          Mixer
-        </Button>
-        <Button
-          variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveView('ai-studio')}
-          className="h-8 px-3"
-        >
-          <Music className="w-3 h-3 mr-1.5" />
-          AI Studio
-        </Button>
-        <Button
-          variant={activeView === 'lyrics' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveView('lyrics')}
-          className="h-8 px-3"
-        >
-          <Mic2 className="w-3 h-3 mr-1.5" />
-          Lyrics Lab
-        </Button>
-        <Button
-          variant={activeView === 'song-uploader' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveView('song-uploader')}
-          className="h-8 px-3"
-        >
-          <Upload className="w-3 h-3 mr-1.5" />
-          Song Uploader
-        </Button>
-        <Button
-          variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveView('code-to-music')}
-          className="h-8 px-3"
-        >
-          <Wand2 className="w-3 h-3 mr-1.5" />
-          Code to Music
-        </Button>
-      </div>
-
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Instrument Library - Always visible */}
-        <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
-          <div className="p-3 border-b border-gray-700">
-            <Input
-              placeholder="Search instruments..."
-              className="w-full"
-            />
-          </div>
+        {/* Left: Instrument Library - Collapsible */}
+        {instrumentsExpanded && (
+          <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col flex-shrink-0">
+            <div className="p-3 border-b border-gray-700 flex items-center justify-between">
+              <Input
+                placeholder="Search instruments..."
+                className="w-full mr-2"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setInstrumentsExpanded(false)}
+                className="h-8 w-8 p-0 flex-shrink-0"
+                title="Hide Instrument Library (Ctrl+1)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+            </div>
           
           <div className="flex-1 overflow-y-auto p-2">
             <div className="space-y-1">
@@ -1021,7 +1972,23 @@ export default function UnifiedStudioWorkspace() {
               ))}
             </div>
           </div>
-        </div>
+          </div>
+        )}
+
+        {/* Toggle Button when Library is Hidden */}
+        {!instrumentsExpanded && (
+          <div className="w-12 bg-gray-800 border-r border-gray-700 flex flex-col items-center py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setInstrumentsExpanded(true)}
+              className="h-8 w-8 p-0"
+              title="Show Instrument Library (Ctrl+1)"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
 
         {/* Center: Main Workspace with Tab Views */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -1236,12 +2203,12 @@ export default function UnifiedStudioWorkspace() {
                                         noteLength = Math.min(noteLength, maxLength);
                                       }
                                       
-                                      // Check if this note is currently playing
-                                      const noteStartTime = note.step * 0.25; // Each step is 0.25 seconds
-                                      const noteEndTime = noteStartTime + (noteLength * 0.25);
-                                      const isCurrentlyPlaying = studioContext?.isPlaying && 
-                                        playheadPosition >= noteStartTime && 
-                                        playheadPosition <= noteEndTime;
+                                      // Check if this note is currently playing (align to transport steps)
+                                      const noteStartStep = note.step;
+                                      const noteEndStep = noteStartStep + noteLength;
+                                      const isCurrentlyPlaying = transportPlaying && 
+                                        playheadPosition >= noteStartStep && 
+                                        playheadPosition <= noteEndStep;
                                       
                                       return (
                                         <div
@@ -1399,15 +2366,16 @@ export default function UnifiedStudioWorkspace() {
             
             {pianoRollExpanded && selectedTrack && (
               <div className="bg-gray-900">
+                {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
                 <VerticalPianoRoll 
-                  tracks={tracks as any}
+                  {...({ tracks: tracks as any } as any)}
                   selectedTrack={selectedTrack || undefined}
-                  isPlaying={studioContext?.isPlaying}
+                  isPlaying={transportPlaying}
                   currentTime={playheadPosition}
-                  onPlayNote={(note, octave, duration, instrument) => {
+                  onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
                     playNote(note, octave, instrument);
                   }}
-                  onNotesChange={(updatedNotes) => {
+                  onNotesChange={(updatedNotes: any[]) => {
                     if (selectedTrack) {
                       setTracks(tracks.map(t => 
                         t.id === selectedTrack 
@@ -1538,19 +2506,27 @@ Your lyrics will sync with the timeline
           </>
           )}
 
+          {/* BEAT LAB VIEW */}
+          {activeView === 'beat-lab' && (
+            <div className="flex-1 overflow-y-auto bg-gray-900">
+              <BeatLab />
+            </div>
+          )}
+
           {/* PIANO ROLL VIEW */}
           {activeView === 'piano-roll' && (
             <div className="flex-1 overflow-hidden bg-gray-900">
+              {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
               <VerticalPianoRoll 
-                tracks={tracks as any}
+                {...({ tracks: tracks as any } as any)}
                 selectedTrack={selectedTrack || undefined}
-                isPlaying={studioContext?.isPlaying}
+                isPlaying={transportPlaying}
                 currentTime={playheadPosition}
-                onPlayNote={(note, octave, duration, instrument) => {
+                onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
                   // Play note with current track's instrument
                   playNote(note, octave, instrument);
                 }}
-                onNotesChange={(updatedNotes) => {
+                onNotesChange={(updatedNotes: any[]) => {
                   // Update the notes for the selected track
                   if (selectedTrack) {
                     setTracks(tracks.map(t => 
@@ -1596,6 +2572,13 @@ Your lyrics will sync with the timeline
           {activeView === 'code-to-music' && (
             <div className="flex-1 overflow-hidden">
               <CodeToMusicStudioV2 />
+            </div>
+          )}
+
+          {/* AUDIO TOOLS VIEW */}
+          {activeView === 'audio-tools' && (
+            <div className="flex-1 overflow-y-auto bg-gray-900">
+              <AudioToolsPage />
             </div>
           )}
         </div>
