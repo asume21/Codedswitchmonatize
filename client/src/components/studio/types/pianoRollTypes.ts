@@ -284,7 +284,7 @@ export type KeyType = keyof typeof DEFAULT_customKeys;
 
 // Constants
 export const CIRCLE_OF_FIFTHS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'] as const;
-export const STEPS = 32;
+export const STEPS = 64;
 export const KEY_HEIGHT = 20;
 export const STEP_WIDTH = 25;
 

@@ -12,10 +12,15 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { User, Settings, CreditCard, LogOut, LogIn } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+interface UserInfo {
+  username?: string;
+  email?: string;
+}
+
 export function UserAccountMenu() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,7 +34,7 @@ export function UserAccountMenu() {
       });
       
       if (response.ok) {
-        const userData = await response.json();
+        const userData: UserInfo = await response.json();
         setUser(userData);
       } else {
         setUser(null);
@@ -55,7 +60,7 @@ export function UserAccountMenu() {
         description: "You have been successfully logged out.",
       });
       setLocation('/');
-    } catch (error) {
+    } catch (_error) {
       toast({
         title: "Error",
         description: "Failed to log out. Please try again.",

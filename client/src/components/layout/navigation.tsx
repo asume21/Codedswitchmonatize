@@ -6,9 +6,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { User, Settings, LogOut, CreditCard, LogIn } from "lucide-react";
+import { Settings, CreditCard, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function Navigation() {

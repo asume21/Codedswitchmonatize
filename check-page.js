@@ -1,3 +1,4 @@
+/* eslint-env node */
 const puppeteer = require('puppeteer');
 
 async function checkPage() {

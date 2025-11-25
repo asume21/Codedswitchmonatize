@@ -7,7 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Zap, Brain, Sparkles } from "lucide-react";
 
@@ -102,6 +101,14 @@ export function AIProviderSelector() {
                     : "border-border"
                 }`}
                 onClick={() => setSelectedProvider(provider.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedProvider(provider.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">

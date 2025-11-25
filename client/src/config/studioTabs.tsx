@@ -1,29 +1,50 @@
-import type { JSX } from "react";
+import { lazy, Suspense, type JSX } from "react";
 
-import AIAssistant from "@/components/studio/AIAssistant";
-import AudioToolsPage from "@/components/studio/AudioToolsPage";
-import BeatLab from "@/components/studio/BeatLab";
-import CodeToMusicStudioV2 from "@/components/studio/CodeToMusicStudioV2";
-import CodeTranslator from "@/components/studio/CodeTranslator";
-import DAWLayoutWorkspace from "@/components/studio/DAWLayoutWorkspace";
-import DynamicLayering from "@/components/studio/DynamicLayering";
-import LyricLab from "@/components/studio/LyricLab";
-import MelodyComposerV2 from "@/components/studio/MelodyComposerV2";
-import Mixer from "@/components/studio/Mixer";
-import MusicToCode from "@/components/studio/MusicToCode";
-import PackGenerator from "@/components/producer/PackGenerator";
-import ProfessionalMixer from "@/components/studio/ProfessionalMixer";
-import SongUploader from "@/components/studio/SongUploader";
-import UnifiedMusicStudio from "@/components/studio/UnifiedMusicStudio";
-import UnifiedStudioWorkspace from "@/components/studio/UnifiedStudioWorkspace";
-import VulnerabilityScanner from "@/components/studio/VulnerabilityScanner";
-import GranularEngine from "@/components/producer/GranularEngine";
-import OutputSequencer from "@/components/producer/OutputSequencer";
-import WavetableOscillator from "@/components/producer/WavetableOscillator";
-import { MIDIController } from "@/components/studio/MIDIController";
-import { PerformanceMetrics } from "@/components/studio/PerformanceMetrics";
-import { SongStructureManager } from "@/components/studio/SongStructureManager";
-import CodeBeatStudio from "@/pages/codebeat-studio";
+// Lazy load all studio components for code splitting
+// This dramatically reduces initial bundle size
+const AIAssistant = lazy(() => import("@/components/studio/AIAssistant"));
+const AIBassGenerator = lazy(() => import("@/components/studio/AIBassGenerator"));
+const AudioToolsPage = lazy(() => import("@/components/studio/AudioToolsPage"));
+const BeatLab = lazy(() => import("@/components/studio/BeatLab"));
+const CodeToMusicStudioV2 = lazy(() => import("@/components/studio/CodeToMusicStudioV2"));
+const CodeTranslator = lazy(() => import("@/components/studio/CodeTranslator"));
+const DAWLayoutWorkspace = lazy(() => import("@/components/studio/DAWLayoutWorkspace"));
+const DynamicLayering = lazy(() => import("@/components/studio/DynamicLayering"));
+const LyricLab = lazy(() => import("@/components/studio/LyricLab"));
+const MelodyComposerV2 = lazy(() => import("@/components/studio/MelodyComposerV2"));
+const Mixer = lazy(() => import("@/components/studio/Mixer"));
+const MusicToCode = lazy(() => import("@/components/studio/MusicToCode"));
+const PackGenerator = lazy(() => import("@/components/producer/PackGenerator"));
+const ProfessionalMixer = lazy(() => import("@/components/studio/ProfessionalMixer"));
+const SongUploader = lazy(() => import("@/components/studio/SongUploader"));
+const UnifiedMusicStudio = lazy(() => import("@/components/studio/UnifiedMusicStudio"));
+const UnifiedStudioWorkspace = lazy(() => import("@/components/studio/UnifiedStudioWorkspace"));
+const VulnerabilityScanner = lazy(() => import("@/components/studio/VulnerabilityScanner"));
+const GranularEngine = lazy(() => import("@/components/producer/GranularEngine"));
+const OutputSequencer = lazy(() => import("@/components/producer/OutputSequencer"));
+const WavetableOscillator = lazy(() => import("@/components/producer/WavetableOscillator"));
+const MIDIController = lazy(() => import("@/components/studio/MIDIController").then(m => ({ default: m.MIDIController })));
+const PerformanceMetrics = lazy(() => import("@/components/studio/PerformanceMetrics").then(m => ({ default: m.PerformanceMetrics })));
+const SongStructureManager = lazy(() => import("@/components/studio/SongStructureManager").then(m => ({ default: m.SongStructureManager })));
+const CodeBeatStudio = lazy(() => import("@/pages/codebeat-studio"));
+const MasterMultiTrackPlayer = lazy(() => import("@/components/studio/MasterMultiTrackPlayer"));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center h-full min-h-[400px]">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+      <p className="text-gray-400">Loading...</p>
+    </div>
+  </div>
+);
+
+// Wrapper to add Suspense to lazy components
+const withSuspense = (Component: React.LazyExoticComponent<any>) => () => (
+  <Suspense fallback={<LoadingFallback />}>
+    <Component />
+  </Suspense>
+);
 
 export type StudioTabId =
   | "translator"
@@ -49,7 +70,8 @@ export type StudioTabId =
   | "granular-engine"
   | "wavetable-oscillator"
   | "pack-generator"
-  | "song-structure";
+  | "song-structure"
+  | "bass-generator";
 
 export interface StudioTabConfig {
   id: StudioTabId;
@@ -73,16 +95,25 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-star",
     description: "Complete DAW with Timeline, Piano Roll, Lyrics, AI Generation",
     routes: ["/", "/studio", "/unified-studio"],
-    component: () => <UnifiedStudioWorkspace />,
+    component: withSuspense(UnifiedStudioWorkspace),
+  },
+  {
+    id: "multitrack",
+    label: "🎛️ Multi-Track",
+    shortName: "Multi-Track",
+    icon: "fas fa-layer-group",
+    description: "Layer multiple audio tracks with waveform editing",
+    routes: ["/multitrack", "/multi-track", "/music-studio", "/multitrack-studio"],
+    component: withSuspense(MasterMultiTrackPlayer),
   },
   {
     id: "daw-layout",
     label: "🎚️ DAW Layout",
     shortName: "DAW Layout",
-    icon: "fas fa-layer-group",
+    icon: "fas fa-sliders-h",
     description: "Custom DAW workspace with instruments, effects, and timeline",
     routes: ["/daw-layout"],
-    component: () => <DAWLayoutWorkspace />,
+    component: withSuspense(DAWLayoutWorkspace),
   },
   {
     id: "translator",
@@ -91,7 +122,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-code",
     description: "Convert code between languages",
     routes: ["/code-translator"],
-    component: () => <CodeTranslator />,
+    component: withSuspense(CodeTranslator),
   },
   {
     id: "beatmaker",
@@ -100,7 +131,16 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-flask",
     description: "Create beats with generator, editor, samples, and CodeBeat",
     routes: ["/beat-studio"],
-    component: () => <BeatLab />,
+    component: withSuspense(BeatLab),
+  },
+  {
+    id: "bass-generator",
+    label: "🎸 Bass Generator",
+    shortName: "Bass",
+    icon: "fas fa-guitar",
+    description: "Interactive bass keyboard with AI bass line generation",
+    routes: ["/bass-generator", "/bass"],
+    component: withSuspense(AIBassGenerator),
   },
   {
     id: "melody",
@@ -109,15 +149,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-music",
     description: "Compose musical melodies",
     routes: ["/melody-composer"],
-    component: () => <MelodyComposerV2 />,
-  },
-  {
-    id: "multitrack",
-    label: "Multi-Track Studio",
-    shortName: "Multi-Track Studio",
-    icon: "fas fa-layer-group",
-    description: "Layer multiple instrument tracks",
-    component: () => <CodeBeatStudio />,
+    component: withSuspense(MelodyComposerV2),
   },
   {
     id: "audio-tools",
@@ -126,7 +158,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-sliders-h",
     description: "EQ, Compressor, Reverb, and more",
     routes: ["/audio-tools"],
-    component: () => <AudioToolsPage />,
+    component: withSuspense(AudioToolsPage),
   },
   {
     id: "uploader",
@@ -135,7 +167,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-upload",
     description: "Upload and analyze songs",
     routes: ["/song-uploader"],
-    component: () => <SongUploader />,
+    component: withSuspense(SongUploader),
   },
   {
     id: "codebeat",
@@ -144,7 +176,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-exchange-alt",
     description: "Turn code into harmonic music with the four chords algorithm",
     routes: ["/codebeat-studio", "/code-to-music-studio"],
-    component: () => <CodeToMusicStudioV2 />,
+    component: withSuspense(CodeToMusicStudioV2),
   },
   {
     id: "musiccode",
@@ -154,7 +186,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Convert music back to code",
     routes: ["/music-to-code"],
     requireAuth: true,
-    component: () => <MusicToCode />,
+    component: withSuspense(MusicToCode),
   },
   {
     id: "layers",
@@ -163,7 +195,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-layer-group",
     description: "AI-powered instrument layering",
     requireAuth: true,
-    component: () => <DynamicLayering />,
+    component: withSuspense(DynamicLayering),
   },
   {
     id: "assistant",
@@ -173,7 +205,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "AI-powered music help & song uploads",
     routes: ["/ai-assistant"],
     requireAuth: true,
-    component: () => <AIAssistant />,
+    component: withSuspense(AIAssistant),
   },
   {
     id: "security",
@@ -183,7 +215,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Scan code for vulnerabilities",
     routes: ["/vulnerability-scanner"],
     requireAuth: true,
-    component: () => <VulnerabilityScanner />,
+    component: withSuspense(VulnerabilityScanner),
   },
   {
     id: "lyrics",
@@ -193,7 +225,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Write and edit song lyrics",
     routes: ["/lyric-lab"],
     requireAuth: true,
-    component: () => <LyricLab />,
+    component: withSuspense(LyricLab),
   },
   {
     id: "musicmixer",
@@ -203,7 +235,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Unified music studio with all advanced tools",
     routes: ["/music-studio"],
     requirePro: true,
-    component: () => <UnifiedMusicStudio />,
+    component: withSuspense(UnifiedMusicStudio),
   },
   {
     id: "professionalmixer",
@@ -213,7 +245,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "World-class professional mixing console",
     routes: ["/pro-console"],
     requirePro: true,
-    component: () => <ProfessionalMixer />,
+    component: withSuspense(ProfessionalMixer),
   },
   {
     id: "mixer",
@@ -223,7 +255,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Mix and master individual tracks",
     routes: ["/mix-studio"],
     requirePro: true,
-    component: () => <Mixer />,
+    component: withSuspense(Mixer),
   },
   {
     id: "pack-generator",
@@ -233,7 +265,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "AI-powered sample pack creation",
     routes: ["/pack-generator"],
     requireAuth: true,
-    component: () => <PackGenerator />,
+    component: withSuspense(PackGenerator),
   },
   {
     id: "advanced-sequencer",
@@ -243,7 +275,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Professional multi-layered sequencer",
     routes: ["/advanced-sequencer"],
     requireAuth: true,
-    component: () => <OutputSequencer />,
+    component: withSuspense(OutputSequencer),
   },
   {
     id: "granular-engine",
@@ -253,7 +285,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Advanced texture manipulation",
     routes: ["/granular-engine"],
     requireAuth: true,
-    component: () => <GranularEngine />,
+    component: withSuspense(GranularEngine),
   },
   {
     id: "wavetable-oscillator",
@@ -263,7 +295,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Wavetable synthesis engine",
     routes: ["/wavetable-oscillator"],
     requireAuth: true,
-    component: () => <WavetableOscillator />,
+    component: withSuspense(WavetableOscillator),
   },
   {
     id: "midi",
@@ -272,7 +304,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     icon: "fas fa-piano",
     description: "Connect physical MIDI controllers",
     routes: ["/midi-controller"],
-    component: () => <MIDIController />,
+    component: withSuspense(MIDIController),
   },
   {
     id: "metrics",
@@ -280,7 +312,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     shortName: "Performance Metrics",
     icon: "fas fa-chart-line",
     description: "AI music generation analytics",
-    component: () => <PerformanceMetrics />,
+    component: withSuspense(PerformanceMetrics),
   },
   {
     id: "song-structure",
@@ -290,7 +322,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     description: "Arrange and manage song sections",
     routes: ["/song-structure"],
     requirePro: true,
-    component: () => <SongStructureManager />,
+    component: withSuspense(SongStructureManager),
   },
 ];
 

@@ -23,6 +23,7 @@ import {
   Circle,
   SkipBack
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { PanelType } from './PanelContainer';
 
 export interface FreeformPanel {
@@ -41,7 +42,7 @@ interface FreeformLayoutEditorProps {
   onChange: (panels: FreeformPanel[]) => void;
 }
 
-const panelTypeIcons: Record<PanelType, any> = {
+const panelTypeIcons: Record<PanelType, LucideIcon> = {
   'timeline': Activity,
   'mixer': Sliders,
   'piano-roll': Piano,
@@ -64,46 +65,6 @@ const panelTypeLabels: Record<PanelType, string> = {
   'transport': 'Transport',
   'empty': 'Empty Panel'
 };
-
-// Default panels for freeform mode
-const getDefaultPanels = (): FreeformPanel[] => [
-  {
-    id: 'panel-1',
-    x: 20,
-    y: 20,
-    width: 300,
-    height: 200,
-    content: 'instruments',
-    zIndex: 1
-  },
-  {
-    id: 'panel-2',
-    x: 340,
-    y: 20,
-    width: 500,
-    height: 300,
-    content: 'timeline',
-    zIndex: 2
-  },
-  {
-    id: 'panel-3',
-    x: 860,
-    y: 20,
-    width: 280,
-    height: 400,
-    content: 'mixer',
-    zIndex: 3
-  },
-  {
-    id: 'panel-4',
-    x: 340,
-    y: 340,
-    width: 500,
-    height: 200,
-    content: 'piano-roll',
-    zIndex: 4
-  }
-];
 
 export function FreeformLayoutEditor({ density, panels, onChange }: FreeformLayoutEditorProps) {
   const [selectedPanel, setSelectedPanel] = useState<string | null>(null);

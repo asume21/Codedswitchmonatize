@@ -9,9 +9,11 @@ import { useTransport } from "@/contexts/TransportContext";
 import { StudioAudioContext } from "@/pages/studio";
 import BeatStudio from "@/pages/beat-studio";
 import BeatMaker from "./BeatMaker";
+import ProBeatMaker from "./ProBeatMaker";
 import { BeatMaker as ProducerBeatMaker } from "@/components/producer/BeatMaker";
+import { StepSequencer } from "@/components/producer/StepSequencer";
 import CodeBeatStudio from "@/pages/codebeat-studio";
-import { Music, Send, SlidersHorizontal, Waves, Rocket } from "lucide-react";
+import { Music, Send, SlidersHorizontal, Waves, Rocket, Drum, Sparkles } from "lucide-react";
 
 export default function BeatLab() {
   const { addTrack } = useTracks();
@@ -139,13 +141,62 @@ export default function BeatLab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Tabs defaultValue="generator" className="w-full">
+          <Tabs defaultValue="pro" className="w-full">
             <TabsList className="flex flex-wrap gap-2 bg-gray-800">
+              <TabsTrigger value="pro" className="flex items-center gap-1 bg-gradient-to-r from-purple-600 to-blue-600">
+                <Sparkles className="w-4 h-4" />
+                Pro Beat Maker
+              </TabsTrigger>
+              <TabsTrigger value="sequencer" className="flex items-center gap-1">
+                <Drum className="w-4 h-4" />
+                Step Sequencer
+              </TabsTrigger>
               <TabsTrigger value="generator">AI Generator</TabsTrigger>
-              <TabsTrigger value="editor">Beat Maker</TabsTrigger>
+              <TabsTrigger value="editor">Classic Editor</TabsTrigger>
               <TabsTrigger value="samples">Sample Packs</TabsTrigger>
               <TabsTrigger value="codebeat">CodeBeat</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="pro" className="mt-4">
+              <ProBeatMaker 
+                onPatternChange={(tracks, bpm) => {
+                  // Convert tracks to pattern format for timeline
+                  const pattern: Record<string, boolean[]> = {};
+                  tracks.forEach(t => {
+                    pattern[t.id] = t.pattern.map(s => s.active);
+                  });
+                  setLatestPattern(pattern);
+                  toast({
+                    title: "🎵 Pattern Ready",
+                    description: `Beat at ${bpm} BPM captured`,
+                  });
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="sequencer" className="mt-4">
+              <StepSequencer 
+                bpm={Math.round(tempo)}
+                onPatternChange={(tracks) => {
+                  // Convert tracks to pattern format
+                  const pattern = {
+                    kick: tracks.find(t => t.id === 'kick')?.pattern || [],
+                    snare: tracks.find(t => t.id === 'snare')?.pattern || [],
+                    hihat: tracks.find(t => t.id === 'hihat')?.pattern || [],
+                    clap: tracks.find(t => t.id === 'clap')?.pattern || [],
+                    openhat: tracks.find(t => t.id === 'openhat')?.pattern || [],
+                    crash: tracks.find(t => t.id === 'crash')?.pattern || [],
+                  };
+                  setLatestPattern(pattern);
+                }}
+              />
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" className="bg-green-600 hover:bg-green-500" onClick={() => sendPatternToTracks()}>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send to Timeline
+                </Button>
+              </div>
+            </TabsContent>
 
             <TabsContent value="generator" className="mt-4">
               <BeatStudio

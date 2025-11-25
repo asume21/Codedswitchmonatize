@@ -61,7 +61,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   const decrementBpm = () => handleBpmChange(bpm - BPM_STEP);
 
   // Keyboard shortcuts
-  useHotkeys('space', (e: React.KeyboardEvent) => {
+  useHotkeys('space', (e) => {
     e.preventDefault();
     if (isPlaying) onStop();
     else onPlay();

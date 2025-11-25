@@ -117,7 +117,10 @@ const DEFAULT_TRACKS: Track[] = [
 ];
 
 export const VerticalPianoRoll: React.FC = () => {
-  // State
+  // Get transport state from context for sync with floating transport
+  const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx } = useTransport();
+  
+  // State - sync with transport context
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [bpm, setBpm] = useState(120);
@@ -180,7 +183,7 @@ export const VerticalPianoRoll: React.FC = () => {
   
   const { toast } = useToast();
   const { currentSession, updateSession } = useSongWorkSession();
-  const { play: startTransport, stop: stopTransport } = useTransport();
+  // Note: useTransport is already called at the top for transport sync
   const { tracks: registeredClips, addTrack, updateTrack, removeTrack } = useTrackStore();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pianoKeysRef = useRef<HTMLDivElement>(null);
@@ -202,6 +205,24 @@ export const VerticalPianoRoll: React.FC = () => {
   const pianoRollIssue = currentSession?.analysis?.issues?.find(
     issue => issue.targetTool === 'piano-roll'
   );
+
+  // Sync local isPlaying with transport context - this makes floating transport work!
+  useEffect(() => {
+    if (transportIsPlaying && !isPlaying) {
+      // Transport started externally (e.g., floating transport bar)
+      handlePlay();
+    } else if (!transportIsPlaying && isPlaying) {
+      // Transport stopped externally
+      handleStop();
+    }
+  }, [transportIsPlaying]);
+
+  // Sync BPM with transport tempo
+  useEffect(() => {
+    if (transportTempo && transportTempo !== bpm) {
+      setBpm(transportTempo);
+    }
+  }, [transportTempo]);
 
   // Scroll synchronization - keep piano keys and grid in sync
   const handlePianoScroll = useCallback(() => {
@@ -332,22 +353,26 @@ export const VerticalPianoRoll: React.FC = () => {
     }
   }, [registeredClips, currentSession, updateSession]);
 
-  // Playback control
+  // Playback control - synced with transport context
   const handlePlay = useCallback(() => {
     if (isPlaying) {
+      // Pause
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
       setIsPlaying(false);
+      pauseTransport(); // Sync with transport context
     } else {
-      // Debug: Log track state before playback
+      // Play
       console.log('▶️ Starting playback...');
       tracks.forEach((track, idx) => {
         console.log(`Track ${idx} (${track.name}): ${track.notes.length} notes`, track.notes);
       });
       
       setIsPlaying(true);
+      playTransport(); // Sync with transport context
+      
       const stepDuration = (60 / bpm / 4) * 1000; // 16th note duration in ms
 
       intervalRef.current = setInterval(() => {
@@ -362,8 +387,6 @@ export const VerticalPianoRoll: React.FC = () => {
                 console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes`, notesAtStep);
               }
               notesAtStep.forEach(note => {
-                // Calculate duration based on note length and BPM
-                // Each step is a 16th note, so duration = (note.length * stepDuration) / 1000 seconds
                 const noteDuration = (note.length * stepDuration) / 1000;
                 
                 realisticAudio.playNote(
@@ -381,10 +404,7 @@ export const VerticalPianoRoll: React.FC = () => {
         });
       }, stepDuration);
     }
-    if (!isPlaying) {
-      startTransport();
-    }
-  }, [isPlaying, bpm, tracks, startTransport]);
+  }, [isPlaying, bpm, tracks, playTransport, pauseTransport]);
 
   const handleStop = useCallback(() => {
     if (intervalRef.current) {
@@ -393,8 +413,8 @@ export const VerticalPianoRoll: React.FC = () => {
     }
     setIsPlaying(false);
     setCurrentStep(0);
-    stopTransport();
-  }, [stopTransport]);
+    stopTransportCtx(); // Use context stop to sync with floating transport
+  }, [stopTransportCtx]);
 
   // 🎙️ RECORDING CONTROLS
   const startRecording = useCallback(() => {

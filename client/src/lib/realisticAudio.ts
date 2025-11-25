@@ -186,6 +186,17 @@ export class RealisticAudioEngine {
     return this.initPromise; // Return the initialization promise
   }
 
+  public async resume(): Promise<void> {
+    if (!this.audioContext) {
+      await this.initialize();
+    }
+
+    if (this.audioContext && this.audioContext.state !== 'running') {
+      await this.audioContext.resume();
+      console.log('RealisticAudio context resumed');
+    }
+  }
+
   private async loadInstruments(instrumentNames: string[]): Promise<void> {
     if (!this.audioContext) {
       throw new Error('Audio context not initialized');
@@ -836,6 +847,21 @@ export class RealisticAudioEngine {
     } catch (error) {
       console.error('🎵 Bass drum error:', error);
     }
+  }
+
+  // Master volume control
+  private masterVolume: number = 1.0;
+  private masterGain: GainNode | null = null;
+
+  setMasterVolume(volume: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, volume));
+    if (this.masterGain && this.audioContext) {
+      this.masterGain.gain.setValueAtTime(this.masterVolume, this.audioContext.currentTime);
+    }
+  }
+
+  getMasterVolume(): number {
+    return this.masterVolume;
   }
 }
 

@@ -52,7 +52,7 @@ export default function SongUploader() {
   const { createSession, updateSession } = useSongWorkSession();
   const { addTrack, tracks } = useTracks();
   const registerSongTrack = useCallback((song: Song) => {
-    const audioUrl = song.url || (song as any).audioUrl || (song as any).songURL || (song as any).accessibleUrl;
+    const audioUrl = (song as any).url || (song as any).audioUrl || (song as any).songURL || song.accessibleUrl;
     if (!audioUrl) return;
     const trackId = `song-${song.id ?? audioUrl}`;
     const exists = tracks.some((track) => track.id === trackId || track.audioUrl === audioUrl);
@@ -102,10 +102,11 @@ export default function SongUploader() {
       setSelectedSong(newSong);
       
       // Emit event for other components
+      const audioUrl = (newSong as any).url || newSong.accessibleUrl || newSong.originalUrl;
       emitEvent('song:uploaded', {
         songId: newSong.id.toString(),
         songName: newSong.name,
-        audioUrl: newSong.url
+        audioUrl: audioUrl
       });
       
       toast({
@@ -498,10 +499,12 @@ export default function SongUploader() {
       type = 'production';
     } else if (category === 'tempo') {
       type = 'rhythm';
-    } else if (category === 'melody' || category === 'harmony') {
+    } else if (category === 'melody') {
       type = 'melody';
     } else if (category === 'structure') {
       type = 'structure';
+    } else if (category === 'lyrics') {
+      type = 'lyrics' as SongIssue['type'];
     } else {
       // Other unsupported categories
       console.warn('⚠️ Unsupported recommendation category:', category);
@@ -1073,6 +1076,21 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         >
                           <i className="fas fa-brain mr-1"></i>
                           Analyze
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            registerSongTrack(song);
+                            toast({
+                              title: "Added to Multi-Track!",
+                              description: `"${song.name}" is now available in the Multi-Track Studio for layering and recording.`,
+                            });
+                          }}
+                          className="bg-blue-600 hover:bg-blue-500"
+                          data-testid={`button-add-to-tracks-${song.id}`}
+                        >
+                          <i className="fas fa-layer-group mr-1"></i>
+                          Add to Tracks
                         </Button>
                         
                         {/* Suno AI Actions Dropdown */}

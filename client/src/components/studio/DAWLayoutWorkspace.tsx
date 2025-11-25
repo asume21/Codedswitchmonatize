@@ -295,7 +295,7 @@ export default function DAWLayoutWorkspace() {
     "instruments": <InstrumentsPanel />,
     "effects": <EffectsPanel />,
     "timeline": <TimelinePanel />,
-    "piano-roll": <VerticalPianoRoll tracks={tracks} selectedTrack="1" />,
+    "piano-roll": <VerticalPianoRoll />,
     "transport": <TransportControls />,
     "ai-assistant": <FloatingAIAssistant />,
     "mixer": <ProfessionalMixer />,

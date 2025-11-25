@@ -66,7 +66,8 @@ function App() {
   // Initialize Google Analytics when app loads
   useEffect(() => {
     // Verify required environment variable is present
-    if (!(import.meta as any).env.VITE_GA_MEASUREMENT_ID) {
+    const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
+    if (!measurementId) {
       console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
     } else {
       initGA();

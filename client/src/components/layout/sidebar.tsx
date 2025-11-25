@@ -3,12 +3,10 @@ import { cn } from "@/lib/utils";
 import {
   Code,
   Music,
-  MessageSquare,
   Zap,
   Mic,
   Drum,
   Piano,
-  Headphones,
   Upload,
   Shield,
   BarChart3,

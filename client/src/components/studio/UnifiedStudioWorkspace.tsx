@@ -176,6 +176,7 @@ export default function UnifiedStudioWorkspace() {
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showLyricsFocus, setShowLyricsFocus] = useState(false);
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
+  const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
@@ -869,211 +870,211 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">File ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>New Project</span>
                   <span className="text-xs text-gray-500">Ctrl+N</span>
-                </div>
-                <div onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Open Project...</span>
                   <span className="text-xs text-gray-500">Ctrl+O</span>
-                </div>
-                <div onClick={() => toast({ title: "Recent Projects" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Recent Projects" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Recent Projects ▶
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Save Project</span>
                   <span className="text-xs text-gray-500">Ctrl+S</span>
-                </div>
-                <div onClick={() => toast({ title: "Save As..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Save As..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Save As...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+S</span>
-                </div>
-                <div onClick={() => toast({ title: "Save Template" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Save Template" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Save as Template...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Import Audio...</span>
                   <span className="text-xs text-gray-500">Ctrl+I</span>
-                </div>
-                <div onClick={() => toast({ title: "Import MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Import MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Import MIDI...
-                </div>
-                <div onClick={() => toast({ title: "Import Project..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Import Project..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Import Project...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Export Audio...</span>
                   <span className="text-xs text-gray-500">Ctrl+E</span>
-                </div>
-                <div onClick={() => toast({ title: "Export MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Export MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Export MIDI...
-                </div>
-                <div onClick={() => toast({ title: "Export Stems..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Export Stems..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Export Stems...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Project Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                <button onClick={() => toast({ title: "Project Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Project Settings...
-                </div>
-                <div onClick={() => toast({ title: "Preferences" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Preferences" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Preferences...</span>
                   <span className="text-xs text-gray-500">Ctrl+,</span>
-                </div>
+                </button>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">Edit ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Undo</span>
                   <span className="text-xs text-gray-500">Ctrl+Z</span>
-                </div>
-                <div onClick={handleRedo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handleRedo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Redo</span>
                   <span className="text-xs text-gray-500">Ctrl+Y</span>
-                </div>
-                <div onClick={() => toast({ title: "History..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "History..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   History...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleCut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleCut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Cut</span>
                   <span className="text-xs text-gray-500">Ctrl+X</span>
-                </div>
-                <div onClick={handleCopy} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handleCopy} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Copy</span>
                   <span className="text-xs text-gray-500">Ctrl+C</span>
-                </div>
-                <div onClick={handlePaste} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handlePaste} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Paste</span>
                   <span className="text-xs text-gray-500">Ctrl+V</span>
-                </div>
-                <div onClick={handleDuplicate} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handleDuplicate} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Duplicate</span>
                   <span className="text-xs text-gray-500">Ctrl+D</span>
-                </div>
-                <div onClick={handleDelete} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handleDelete} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Delete</span>
                   <span className="text-xs text-gray-500">Del</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleSelectAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleSelectAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Select All</span>
                   <span className="text-xs text-gray-500">Ctrl+A</span>
-                </div>
-                <div onClick={() => toast({ title: "Deselect All" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Deselect All" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Deselect All</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+A</span>
-                </div>
-                <div onClick={() => toast({ title: "Invert Selection" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Invert Selection" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Invert Selection
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Split at Playhead" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => toast({ title: "Split at Playhead" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Split at Playhead</span>
                   <span className="text-xs text-gray-500">Ctrl+K</span>
-                </div>
-                <div onClick={() => toast({ title: "Join Clips" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Join Clips" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Join Clips</span>
                   <span className="text-xs text-gray-500">Ctrl+J</span>
-                </div>
-                <div onClick={() => toast({ title: "Quantize..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Quantize..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Quantize...</span>
                   <span className="text-xs text-gray-500">Ctrl+Q</span>
-                </div>
-                <div onClick={() => toast({ title: "Transpose..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Transpose..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Transpose...</span>
                   <span className="text-xs text-gray-500">Ctrl+T</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Find..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => toast({ title: "Find..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Find...</span>
                   <span className="text-xs text-gray-500">Ctrl+F</span>
-                </div>
-                <div onClick={() => toast({ title: "Replace..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Replace..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Replace...</span>
                   <span className="text-xs text-gray-500">Ctrl+H</span>
-                </div>
+                </button>
               </div>
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">View ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
                   <span className="text-xs text-gray-500">F1</span>
-                </div>
-                <div onClick={() => setActiveView('beat-lab')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => setActiveView('beat-lab')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'beat-lab' ? '✓' : '  '} Beat Lab</span>
                   <span className="text-xs text-gray-500">F2</span>
-                </div>
-                <div onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'piano-roll' ? '✓' : '  '} Piano Roll</span>
                   <span className="text-xs text-gray-500">F3</span>
-                </div>
-                <div onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'mixer' ? '✓' : '  '} Mixer</span>
                   <span className="text-xs text-gray-500">F4</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'ai-studio' ? '✓' : '  '} AI Studio</span>
                   <span className="text-xs text-gray-500">F5</span>
-                </div>
-                <div onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'code-to-music' ? '✓' : '  '} Code to Music</span>
                   <span className="text-xs text-gray-500">F6</span>
-                </div>
-                <div onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'lyrics' ? '✓' : '  '} Lyrics</span>
                   <span className="text-xs text-gray-500">F7</span>
-                </div>
-                <div onClick={() => setActiveView('audio-tools')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => setActiveView('audio-tools')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'audio-tools' ? '✓' : '  '} Audio Tools</span>
                   <span className="text-xs text-gray-500">F8</span>
-                </div>
-                <div onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'song-uploader' ? '✓' : '  '} Upload</span>
                   <span className="text-xs text-gray-500">F9</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{instrumentsExpanded ? '✓' : '  '} Instrument Library</span>
                   <span className="text-xs text-gray-500">Ctrl+1</span>
-                </div>
-                <div onClick={() => toast({ title: "Browser toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Browser toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Sample Browser</span>
                   <span className="text-xs text-gray-500">Ctrl+2</span>
-                </div>
-                <div onClick={() => toast({ title: "Inspector toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Inspector toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Inspector</span>
                   <span className="text-xs text-gray-500">Ctrl+3</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Zoom In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => toast({ title: "Zoom In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Zoom In</span>
                   <span className="text-xs text-gray-500">Ctrl++</span>
-                </div>
-                <div onClick={() => toast({ title: "Zoom Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Zoom Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Zoom Out</span>
                   <span className="text-xs text-gray-500">Ctrl+-</span>
-                </div>
-                <div onClick={() => toast({ title: "Zoom to Fit" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Zoom to Fit" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Zoom to Fit</span>
                   <span className="text-xs text-gray-500">Ctrl+0</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Full Screen</span>
                   <span className="text-xs text-gray-500">F11</span>
-                </div>
-                <div onClick={() => toast({ title: "Focus Mode" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Focus Mode" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Focus Mode</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+F</span>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -1081,45 +1082,45 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">Create ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>New MIDI Track</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+T</span>
-                </div>
-                <div onClick={handleNewAudioTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handleNewAudioTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>New Audio Track</span>
                   <span className="text-xs text-gray-500">Ctrl+T</span>
-                </div>
-                <div onClick={() => toast({ title: "New Instrument Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "New Instrument Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Instrument Track
-                </div>
-                <div onClick={() => toast({ title: "New Return Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "New Return Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Return Track
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Insert Audio Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                <button onClick={() => toast({ title: "Insert Audio Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Insert Audio Effect...
-                </div>
-                <div onClick={() => toast({ title: "Insert MIDI Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Insert MIDI Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Insert MIDI Effect...
-                </div>
-                <div onClick={() => toast({ title: "Insert Instrument" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Insert Instrument" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Insert Instrument...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "New Send" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                <button onClick={() => toast({ title: "New Send" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Send
-                </div>
-                <div onClick={() => toast({ title: "New Bus" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "New Bus" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Bus
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Empty Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => toast({ title: "Empty Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Empty Clip</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+M</span>
-                </div>
-                <div onClick={() => toast({ title: "Recording Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Recording Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Recording Clip
-                </div>
+                </button>
               </div>
             </div>
 
@@ -1127,55 +1128,55 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">Arrange ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={() => toast({ title: "Insert Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={() => toast({ title: "Insert Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Insert Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+I</span>
-                </div>
-                <div onClick={() => toast({ title: "Delete Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Delete Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Delete Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+Del</span>
-                </div>
-                <div onClick={() => toast({ title: "Duplicate Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Duplicate Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Duplicate Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+D</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleLoopSelection} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleLoopSelection} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Loop Selection</span>
                   <span className="text-xs text-gray-500">Ctrl+L</span>
-                </div>
-                <div onClick={() => toast({ title: "Set Loop Length" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Set Loop Length" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Set Loop Length...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleAddMarker} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleAddMarker} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Add Marker</span>
                   <span className="text-xs text-gray-500">M</span>
-                </div>
-                <div onClick={() => toast({ title: "Add Locator" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Add Locator" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Add Locator
-                </div>
-                <div onClick={() => toast({ title: "Marker List" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Marker List" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Marker List...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleSnapToGrid} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleSnapToGrid} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Snap to Grid</span>
                   <span className="text-xs text-gray-500">Ctrl+G</span>
-                </div>
-                <div onClick={() => toast({ title: "Grid Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Grid Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Grid Settings...
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Tempo Map" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                <button onClick={() => toast({ title: "Tempo Map" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Tempo Map...
-                </div>
-                <div onClick={() => toast({ title: "Time Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Time Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Time Signature...
-                </div>
-                <div onClick={() => toast({ title: "Key Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Key Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Key Signature...
-                </div>
+                </button>
               </div>
             </div>
 
@@ -1183,60 +1184,60 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">Mix ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Normalize</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+N</span>
-                </div>
-                <div onClick={handleReverse} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={handleReverse} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Reverse</span>
                   <span className="text-xs text-gray-500">Ctrl+R</span>
-                </div>
-                <div onClick={() => toast({ title: "Fade In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Fade In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Fade In
-                </div>
-                <div onClick={() => toast({ title: "Fade Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Fade Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Fade Out
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleBounceToAudio} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleBounceToAudio} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Bounce to Audio</span>
                   <span className="text-xs text-gray-500">Ctrl+B</span>
-                </div>
-                <div onClick={() => toast({ title: "Freeze Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Freeze Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Freeze Track
-                </div>
-                <div onClick={() => toast({ title: "Flatten Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={() => toast({ title: "Flatten Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Flatten Track
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleGroupTracks} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                <button onClick={handleGroupTracks} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Group Tracks</span>
                   <span className="text-xs text-gray-500">Ctrl+G</span>
-                </div>
-                <div onClick={() => toast({ title: "Ungroup Tracks" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                </button>
+                <button onClick={() => toast({ title: "Ungroup Tracks" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Ungroup Tracks</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+G</span>
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleSoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                <button onClick={handleSoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Solo All Tracks
-                </div>
-                <div onClick={handleMuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={handleMuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Mute All Tracks
-                </div>
-                <div onClick={handleUnsoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={handleUnsoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Unsolo All
-                </div>
-                <div onClick={handleUnmuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={handleUnmuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Unmute All
-                </div>
+                </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleResetFaders} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                <button onClick={handleResetFaders} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Reset All Faders
-                </div>
-                <div onClick={handleResetPan} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                </button>
+                <button onClick={handleResetPan} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Reset All Pan
-                </div>
+                </button>
               </div>
             </div>
 
@@ -1251,27 +1252,27 @@ export default function UnifiedStudioWorkspace() {
                     <span>▶</span>
                   </div>
                   <div className="hidden group-hover/tools:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
-                    <div onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    <button onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                       <span>Tuner</span>
                       <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
-                    </div>
-                    <div onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    </button>
+                    <button onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                       <span>Metronome</span>
                       <span className="text-xs text-gray-500">C</span>
-                    </div>
-                    <div onClick={() => toast({ title: "Click Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                    </button>
+                    <button onClick={() => toast({ title: "Click Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Click Track Settings...
-                    </div>
+                    </button>
                     <div className="border-t border-gray-700 my-1"></div>
-                    <div onClick={() => toast({ title: "Spectrum Analyzer" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                    <button onClick={() => toast({ title: "Spectrum Analyzer" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Spectrum Analyzer
-                    </div>
-                    <div onClick={() => toast({ title: "Chord Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                    </button>
+                    <button onClick={() => toast({ title: "Chord Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Chord Detector
-                    </div>
-                    <div onClick={() => toast({ title: "BPM Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                    </button>
+                    <button onClick={() => toast({ title: "BPM Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       BPM Detector
-                    </div>
+                    </button>
                   </div>
                 </div>
 
@@ -1282,17 +1283,17 @@ export default function UnifiedStudioWorkspace() {
                     <span>▶</span>
                   </div>
                   <div className="hidden group-hover/window:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
-                    <div onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    <button onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                       <span>Reset Layout</span>
                       <span className="text-xs text-gray-500">Ctrl+Alt+R</span>
-                    </div>
-                    <div onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                    </button>
+                    <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
-                    </div>
-                    <div onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    </button>
+                    <button onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                       <span>Full Screen</span>
                       <span className="text-xs text-gray-500">F11</span>
-                    </div>
+                    </button>
                   </div>
                 </div>
 
@@ -1303,167 +1304,22 @@ export default function UnifiedStudioWorkspace() {
                     <span>▶</span>
                   </div>
                   <div className="hidden group-hover/help:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
-                    <div onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                    <button onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                       <span>Keyboard Shortcuts</span>
                       <span className="text-xs text-gray-500">Ctrl+/</span>
-                    </div>
-                    <div onClick={() => toast({ title: "Documentation" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                    </button>
+                    <button onClick={() => toast({ title: "Documentation" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Documentation
-                    </div>
+                    </button>
                     <div className="border-t border-gray-700 my-1"></div>
-                    <div onClick={() => toast({ title: "About CodedSwitch", description: "Professional AI Music Production Studio" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
+                    <button onClick={() => toast({ title: "About CodedSwitch", description: "Professional AI Music Production Studio" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       About CodedSwitch
-                    </div>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* OLD TOOLS Menu - REMOVE */}
-            <div className="relative group hidden">
-              <Button variant="ghost" size="sm">Tools ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
-                  <span>Tuner</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
-                </div>
-                <div onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
-                  <span>Metronome</span>
-                  <span className="text-xs text-gray-500">C</span>
-                </div>
-                <div onClick={() => toast({ title: "Click Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Click Track Settings...
-                </div>
-                <div onClick={() => toast({ title: "Count-In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Count-In Settings...
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Spectrum Analyzer" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Spectrum Analyzer
-                </div>
-                <div onClick={() => toast({ title: "Oscilloscope" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Oscilloscope
-                </div>
-                <div onClick={() => toast({ title: "Phase Meter" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Phase Meter
-                </div>
-                <div onClick={() => toast({ title: "Loudness Meter" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Loudness Meter
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Chord Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Chord Detector
-                </div>
-                <div onClick={() => toast({ title: "Key Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Key Detector
-                </div>
-                <div onClick={() => toast({ title: "BPM Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  BPM Detector
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Audio to MIDI" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Audio to MIDI...
-                </div>
-                <div onClick={() => toast({ title: "MIDI Learn" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
-                  <span>MIDI Learn</span>
-                  <span className="text-xs text-gray-500">Ctrl+M</span>
-                </div>
-              </div>
-            </div>
-
-            {/* WINDOW Menu - NOW IN MORE MENU */}
-            <div className="relative group hidden">
-              <Button variant="ghost" size="sm">Window ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={() => toast({ title: "Minimize" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
-                  <span>Minimize</span>
-                  <span className="text-xs text-gray-500">Ctrl+M</span>
-                </div>
-                <div onClick={() => toast({ title: "Maximize" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Maximize
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Tile Horizontally" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Tile Horizontally
-                </div>
-                <div onClick={() => toast({ title: "Tile Vertically" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Tile Vertically
-                </div>
-                <div onClick={() => toast({ title: "Cascade" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Cascade Windows
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
-                  <span>Reset Layout</span>
-                  <span className="text-xs text-gray-500">Ctrl+Alt+R</span>
-                </div>
-                <div onClick={() => toast({ title: "Save Layout" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Save Layout...
-                </div>
-                <div onClick={() => toast({ title: "Load Layout" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Load Layout...
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Browser toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Show Browser
-                </div>
-                <div onClick={() => toast({ title: "Inspector toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Show Inspector
-                </div>
-                <div onClick={() => toast({ title: "Mixer toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Show Mixer Panel
-                </div>
-              </div>
-            </div>
-
-            {/* HELP Menu - NOW IN MORE MENU */}
-            <div className="relative group hidden">
-              <Button variant="ghost" size="sm">Help ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-                <div onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
-                  <span>Keyboard Shortcuts</span>
-                  <span className="text-xs text-gray-500">Ctrl+/</span>
-                </div>
-                <div onClick={() => toast({ title: "Getting Started" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Getting Started Guide
-                </div>
-                <div onClick={() => toast({ title: "Video Tutorials" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Video Tutorials
-                </div>
-                <div onClick={() => toast({ title: "Documentation" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Documentation
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Community Forum" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Community Forum
-                </div>
-                <div onClick={() => toast({ title: "Discord Server" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Join Discord
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Report Bug" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Report a Bug...
-                </div>
-                <div onClick={() => toast({ title: "Feature Request" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Request a Feature...
-                </div>
-                <div onClick={() => toast({ title: "Send Feedback" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Send Feedback...
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "Check for Updates" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Check for Updates...
-                </div>
-                <div onClick={() => toast({ title: "Release Notes" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  Release Notes
-                </div>
-                <div className="border-t border-gray-700 my-1"></div>
-                <div onClick={() => toast({ title: "About CodedSwitch", description: "Professional AI Music Production Studio" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer">
-                  About CodedSwitch
-                </div>
-              </div>
-            </div>
-            
             {/* MIDI Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm" className="flex items-center gap-1">
@@ -1740,52 +1596,6 @@ export default function UnifiedStudioWorkspace() {
               4-Bar
             </Button>
           </div>
-
-          <Button
-            onClick={() => setShowMusicGen(!showMusicGen)}
-            className="bg-purple-600 hover:bg-purple-500"
-          >
-            <Music className="w-4 h-4 mr-2" />
-            Generate Music
-          </Button>
-          <Button
-            onClick={() => {
-              setActiveView('ai-studio');
-            }}
-            className="bg-blue-600 hover:bg-blue-500"
-          >
-            <MessageSquare className="w-4 h-4 mr-2" />
-            AI Assistant
-          </Button>
-          <Button
-            onClick={() => setShowWorkflowSelector(true)}
-            className="bg-green-600 hover:bg-green-500"
-            data-testid="button-change-workflow"
-          >
-            <Workflow className="w-4 h-4 mr-2" />
-            Change Workflow
-          </Button>
-          
-          {/* Master Volume Control */}
-          <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded border border-gray-700">
-            <Sliders className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-400 font-medium">Master</span>
-            <div className="w-24">
-              <Slider
-                value={[masterVolume * 100]}
-                onValueChange={(value) => {
-                  const newVolume = value[0] / 100;
-                  setMasterVolume(newVolume);
-                  setMIDIMasterVolume(newVolume); // Actually update audio gain
-                }}
-                max={100}
-                min={0}
-                step={1}
-                className="w-full"
-              />
-            </div>
-            <span className="text-xs text-white font-bold w-8 text-right">{Math.round(masterVolume * 100)}%</span>
-          </div>
         </div>
       </div>
 
@@ -1831,41 +1641,57 @@ export default function UnifiedStudioWorkspace() {
           </Button>
         </div>
 
-        {/* Undo/Redo Controls */}
-        <div className="flex items-center space-x-1 border-l border-r border-gray-700 px-2">
-          <Button 
-            variant="outline" 
+        {/* Action Buttons */}
+        <div className="flex items-center space-x-1">
+          <Button
+            onClick={() => setShowMusicGen(!showMusicGen)}
+            className="bg-purple-600 hover:bg-purple-500 h-8 px-3"
             size="sm"
-            onClick={handleUndo}
-            className="h-8 px-3"
-            title="Undo (Ctrl+Z)"
           >
-            <i className="fas fa-undo mr-1.5"></i>
-            Undo
+            <Music className="w-3 h-3 mr-1.5" />
+            Generate
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            onClick={() => setActiveView('ai-studio')}
+            className="bg-blue-600 hover:bg-blue-500 h-8 px-3"
             size="sm"
-            onClick={handleRedo}
-            className="h-8 px-3"
-            title="Redo (Ctrl+Y)"
           >
-            <i className="fas fa-redo mr-1.5"></i>
-            Redo
+            <MessageSquare className="w-3 h-3 mr-1.5" />
+            AI Assistant
           </Button>
+          <Button
+            onClick={() => setShowWorkflowSelector(true)}
+            className="bg-green-600 hover:bg-green-500 h-8 px-3"
+            data-testid="button-change-workflow"
+            size="sm"
+          >
+            <Workflow className="w-3 h-3 mr-1.5" />
+            Workflow
+          </Button>
+          
+          {/* Master Volume */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-gray-800 rounded border border-gray-700">
+            <Sliders className="w-3 h-3 text-gray-400" />
+            <div className="w-16">
+              <Slider
+                value={[masterVolume * 100]}
+                onValueChange={(value) => {
+                  const newVolume = value[0] / 100;
+                  setMasterVolume(newVolume);
+                  setMIDIMasterVolume(newVolume);
+                }}
+                max={100}
+                min={0}
+                step={1}
+                className="w-full"
+              />
+            </div>
+            <span className="text-xs text-white font-bold w-6">{Math.round(masterVolume * 100)}%</span>
+          </div>
         </div>
 
         {/* Secondary Tabs - AI & Tools */}
         <div className="flex items-center space-x-1">
-          <Button
-            variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('ai-studio')}
-            className="h-8 px-3"
-          >
-            <Wand2 className="w-3 h-3 mr-1.5" />
-            AI Studio
-          </Button>
           <Button
             variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
             size="sm"

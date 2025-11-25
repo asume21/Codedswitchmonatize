@@ -2478,5 +2478,223 @@ Return this exact JSON format:
     }
   );
 
+  // ============================================
+  // MISSING ROUTES - Added to fix frontend calls
+  // ============================================
+
+  // Generate full song (alias for /api/songs/generate-professional)
+  app.post("/api/audio/generate-song", async (req: Request, res: Response) => {
+    try {
+      const { prompt, lyrics, options = {} } = req.body;
+      
+      if (!prompt && !lyrics) {
+        return sendError(res, 400, "Prompt or lyrics required");
+      }
+
+      console.log('🎵 Generating full song via /api/audio/generate-song...');
+      
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
+      
+      const result = await replicateMusic.generateFullSong(
+        prompt || `Song with lyrics: ${lyrics?.substring(0, 100)}...`,
+        {
+          genre: options.genre || 'pop',
+          mood: options.mood || 'uplifting',
+          duration: options.duration || 120,
+          vocals: options.vocals !== false
+        }
+      );
+
+      console.log('✅ Full song generated');
+      res.json({
+        status: 'success',
+        audioUrl: result.audioUrl,
+        result: result
+      });
+
+    } catch (error: any) {
+      console.error('❌ Song generation error:', error);
+      sendError(res, 500, error?.message || "Failed to generate song");
+    }
+  });
+
+  // Generate lyrics (alias for /api/lyrics/generate)
+  app.post("/api/audio/generate-lyrics", async (req: Request, res: Response) => {
+    try {
+      const { theme, genre, mood, style } = req.body;
+      
+      if (!theme) {
+        return sendError(res, 400, "Theme is required");
+      }
+
+      console.log('✍️ Generating lyrics via /api/audio/generate-lyrics...');
+      
+      const token = process.env.REPLICATE_API_TOKEN;
+      if (!token) {
+        return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
+      }
+
+      const prompt = `Write song lyrics about "${theme}".
+Genre: ${genre || 'pop'}
+Mood: ${mood || 'uplifting'}
+Style: ${style || 'modern'}
+
+Create complete lyrics with verses, chorus, and bridge.`;
+
+      const response = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${token}`,
+        },
+        body: JSON.stringify({
+          version: "2d19859030ff705a87c746f7e96eea03aefb71f166725aee39692f1476566d48",
+          input: { prompt, max_tokens: 800, temperature: 0.8 },
+        }),
+      });
+
+      const prediction = await response.json();
+      
+      // Poll for result
+      let result;
+      let attempts = 0;
+      do {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+          headers: { "Authorization": `Token ${token}` },
+        });
+        result = await statusResponse.json();
+        attempts++;
+      } while ((result.status === "starting" || result.status === "processing") && attempts < 60);
+
+      if (result.status === "succeeded" && result.output) {
+        const lyrics = Array.isArray(result.output) ? result.output.join('') : result.output;
+        res.json({ content: lyrics, lyrics });
+      } else {
+        throw new Error('Lyrics generation failed');
+      }
+
+    } catch (error: any) {
+      console.error('❌ Lyrics generation error:', error);
+      sendError(res, 500, error?.message || "Failed to generate lyrics");
+    }
+  });
+
+  // Generate beat from lyrics
+  app.post("/api/audio/generate-beat-from-lyrics", async (req: Request, res: Response) => {
+    try {
+      const { lyrics, genre, complexity, bpm } = req.body;
+      
+      if (!lyrics) {
+        return sendError(res, 400, "Lyrics are required");
+      }
+
+      console.log('🥁 Generating beat from lyrics...');
+      
+      const { replicateMusic } = await import('./services/replicateMusicGenerator');
+      
+      // Analyze lyrics to determine beat style
+      const prompt = `${genre || 'hip-hop'} beat for lyrics: "${lyrics.substring(0, 200)}..."`;
+      
+      const result = await replicateMusic.generateBeatAndMelody(prompt, {
+        genre: genre || 'hip-hop',
+        duration: 30,
+        style: complexity === 'high' ? 'complex' : 'simple'
+      });
+
+      console.log('✅ Beat generated from lyrics');
+      res.json({
+        status: 'success',
+        audioUrl: result.audioUrl,
+        result: result
+      });
+
+    } catch (error: any) {
+      console.error('❌ Beat from lyrics error:', error);
+      sendError(res, 500, error?.message || "Failed to generate beat from lyrics");
+    }
+  });
+
+  // Generate dynamic layers
+  app.post("/api/layers/generate", async (req: Request, res: Response) => {
+    try {
+      const { baseTrack, style, complexity, instruments } = req.body;
+      
+      console.log('🎚️ Generating dynamic layers...');
+      
+      const { patternGenerator } = await import('./services/patternGenerator');
+      
+      // Generate layered patterns
+      const layers = [];
+      const instrumentList = instruments || ['piano', 'strings', 'bass', 'drums'];
+      
+      for (const instrument of instrumentList) {
+        const pattern = patternGenerator.generatePattern(
+          `${style || 'ambient'} ${instrument} layer`,
+          30,
+          baseTrack?.bpm || 120
+        );
+        layers.push({
+          instrument,
+          pattern: pattern.patterns[0] || pattern,
+          volume: 0.7,
+          pan: Math.random() * 0.4 - 0.2 // Slight stereo spread
+        });
+      }
+
+      console.log('✅ Generated', layers.length, 'layers');
+      res.json({
+        status: 'success',
+        layers: layers,
+        style: style,
+        complexity: complexity
+      });
+
+    } catch (error: any) {
+      console.error('❌ Layer generation error:', error);
+      sendError(res, 500, error?.message || "Failed to generate layers");
+    }
+  });
+
+  // Generate bass line
+  app.post("/api/music/generate-bass", async (req: Request, res: Response) => {
+    try {
+      const { chordProgression, key, bpm, style, duration } = req.body;
+      
+      console.log('🎸 Generating bass line...');
+      
+      const { generateBassLine } = await import('./services/bassGenerator');
+      
+      // Convert chord array to ChordInfo format
+      const chords = (chordProgression || ['C', 'G', 'Am', 'F']).map((chord: string) => ({
+        chord,
+        duration: 4 // 4 beats per chord
+      }));
+      
+      const bassNotes = generateBassLine(
+        chords,
+        style || 'fingerstyle',
+        'root-fifth', // default pattern
+        2, // octave
+        0.5, // groove
+        0.5, // noteLength
+        0.8, // velocity
+        0 // glide
+      );
+
+      console.log('✅ Bass line generated');
+      res.json({
+        status: 'success',
+        notes: bassNotes,
+        pattern: 'root-fifth',
+        style: style || 'fingerstyle'
+      });
+
+    } catch (error: any) {
+      console.error('❌ Bass generation error:', error);
+      sendError(res, 500, error?.message || "Failed to generate bass line");
+    }
+  });
+
   return createServer(app);
 }

@@ -63,7 +63,7 @@ export function ObjectUploader({
   const [showModal, setShowModal] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
   const dashboardRef = useRef<HTMLDivElement>(null);
-  const dashboardInstanceRef = useRef<any>(null);
+  const dashboardInstanceRef = useRef<Dashboard | null>(null);
   
   const [uppy] = useState(() => {
     try {
@@ -149,7 +149,7 @@ export function ObjectUploader({
             console.log('Removing existing Dashboard plugin');
             uppy.removePlugin(existingDashboard);
           }
-        } catch (e) {
+        } catch {
           // Plugin doesn't exist, that's fine
         }
 

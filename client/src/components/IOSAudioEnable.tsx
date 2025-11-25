@@ -3,9 +3,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   Volume2, 
-  VolumeX,
   Smartphone
 } from "lucide-react";
+
+interface AudioContextWithWebkit extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
+const getAudioContextCtor = () => window.AudioContext || (window as AudioContextWithWebkit).webkitAudioContext;
 
 export function IOSAudioEnable() {
   const [isMobile, setIsMobile] = useState(false);
@@ -21,13 +26,18 @@ export function IOSAudioEnable() {
       // Check if audio context is already enabled
       const checkAudioContext = () => {
         try {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const AudioContextCtor = getAudioContextCtor();
+          if (!AudioContextCtor) {
+            setShowPrompt(false);
+            return;
+          }
+          const audioContext = new AudioContextCtor();
           if (audioContext.state === 'suspended') {
             setShowPrompt(true);
           } else {
             setAudioEnabled(true);
           }
-        } catch (error) {
+        } catch {
           console.warn('AudioContext not supported');
         }
       };
@@ -38,7 +48,12 @@ export function IOSAudioEnable() {
 
   const enableAudio = async () => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextCtor = getAudioContextCtor();
+      if (!AudioContextCtor) {
+        console.warn('AudioContext not supported');
+        return;
+      }
+      const audioContext = new AudioContextCtor();
       
       if (audioContext.state === 'suspended') {
         await audioContext.resume();

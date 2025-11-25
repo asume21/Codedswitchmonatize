@@ -4,11 +4,12 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 import {
   Play,
   Pause,
@@ -18,13 +19,25 @@ import {
   Volume2,
   VolumeX,
   Headphones,
-  Download,
   Plus,
   Music,
   Repeat,
   SkipBack,
   SkipForward,
+  Library,
+  FolderOpen,
+  Mic,
+  Drum,
+  Piano,
+  StopCircle,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 interface AudioTrack {
   id: string;
@@ -36,6 +49,7 @@ interface AudioTrack {
   muted: boolean;
   solo: boolean;
   color: string;
+  trackType?: 'beat' | 'melody' | 'vocal' | 'audio'; // Track type for tool integration
   gainNode?: GainNode;
   panNode?: StereoPannerNode;
   sourceNode?: AudioBufferSourceNode;
@@ -52,6 +66,131 @@ const TRACK_COLORS = [
   '#F97316', // orange
 ];
 
+// Inline waveform component for each track
+interface TrackWaveformProps {
+  audioBuffer: AudioBuffer | null;
+  color: string;
+  currentTime: number;
+  duration: number;
+  isPlaying: boolean;
+  onSeek: (time: number) => void;
+}
+
+function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, onSeek }: TrackWaveformProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Draw waveform
+  useEffect(() => {
+    if (!canvasRef.current || !audioBuffer) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const data = audioBuffer.getChannelData(0);
+    const step = Math.ceil(data.length / width);
+
+    ctx.clearRect(0, 0, width, height);
+    
+    // Draw waveform background
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw waveform
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i < width; i++) {
+      const sliceStart = i * step;
+      const sliceEnd = sliceStart + step;
+      let min = 1.0;
+      let max = -1.0;
+
+      for (let j = sliceStart; j < sliceEnd && j < data.length; j++) {
+        const value = data[j];
+        if (value < min) min = value;
+        if (value > max) max = value;
+      }
+
+      const yMin = ((1 + min) / 2) * height;
+      const yMax = ((1 + max) / 2) * height;
+
+      ctx.moveTo(i, yMin);
+      ctx.lineTo(i, yMax);
+    }
+    ctx.stroke();
+
+    // Draw playhead
+    if (duration > 0) {
+      const playheadX = (currentTime / duration) * width;
+      ctx.beginPath();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, height);
+      ctx.stroke();
+    }
+  }, [audioBuffer, color, currentTime, duration]);
+
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !duration) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const seekTime = (x / rect.width) * duration;
+    onSeek(Math.max(0, Math.min(duration, seekTime)));
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    handleClick(e as any);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      handleClick(e as any);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  if (!audioBuffer) {
+    return (
+      <div className="h-16 bg-gray-900 rounded mb-2 flex items-center justify-center">
+        <span className="text-xs text-gray-500">No audio data</span>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      ref={containerRef}
+      className="h-16 bg-gray-900 rounded mb-2 cursor-pointer relative overflow-hidden"
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      <canvas
+        ref={canvasRef}
+        width={600}
+        height={64}
+        className="w-full h-full"
+        onClick={handleClick}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+      />
+      <div className="absolute bottom-1 right-2 text-xs text-gray-400 bg-gray-900/80 px-1 rounded">
+        {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
+      </div>
+    </div>
+  );
+}
+
 export default function MasterMultiTrackPlayer() {
   const { toast } = useToast();
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
@@ -61,12 +200,27 @@ export default function MasterMultiTrackPlayer() {
   const [masterVolume, setMasterVolume] = useState(80);
   const [loop, setLoop] = useState(false);
   const [tempo, setTempo] = useState(120);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [showAddTrack, setShowAddTrack] = useState(false);
+  
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const pauseTimeRef = useRef<number>(0);
+
+  // Fetch uploaded songs from library
+  const { data: librarySongs = [] } = useQuery<any[]>({
+    queryKey: ['/api/songs'],
+    enabled: showLibrary || showAddTrack,
+  });
 
   // Initialize Audio Context
   useEffect(() => {
@@ -143,6 +297,165 @@ export default function MasterMultiTrackPlayer() {
       if (file.type.startsWith('audio/')) {
         loadAudioFile(file);
       }
+    });
+  };
+
+  // Load song from library (uploaded songs)
+  const loadFromLibrary = async (song: any) => {
+    if (!audioContextRef.current) return;
+
+    const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+    if (!audioUrl) {
+      toast({
+        title: '❌ Error',
+        description: 'No audio URL available for this song',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      toast({ title: '⏳ Loading...', description: `Loading ${song.name}...` });
+      
+      const response = await fetch(audioUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+
+      const newTrack: AudioTrack = {
+        id: `track-${Date.now()}-${song.id}`,
+        name: song.name,
+        audioBuffer,
+        audioUrl,
+        volume: 80,
+        pan: 0,
+        muted: false,
+        solo: false,
+        color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+      };
+
+      setTracks(prev => [...prev, newTrack]);
+      setShowLibrary(false);
+      
+      toast({
+        title: '✅ Track Added!',
+        description: `${song.name} loaded into multi-track`,
+      });
+    } catch (error) {
+      console.error('Error loading from library:', error);
+      toast({
+        title: '❌ Error',
+        description: 'Failed to load song from library',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Start recording from microphone
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      recordedChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+        const arrayBuffer = await blob.arrayBuffer();
+        
+        if (audioContextRef.current) {
+          try {
+            const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+            const audioUrl = URL.createObjectURL(blob);
+
+            const newTrack: AudioTrack = {
+              id: `recording-${Date.now()}`,
+              name: `Recording ${tracks.length + 1}`,
+              audioBuffer,
+              audioUrl,
+              volume: 80,
+              pan: 0,
+              muted: false,
+              solo: false,
+              color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+            };
+
+            setTracks(prev => [...prev, newTrack]);
+            toast({
+              title: '🎤 Recording Saved!',
+              description: `Recording added as new track`,
+            });
+          } catch (err) {
+            console.error('Error decoding recording:', err);
+          }
+        }
+
+        // Stop all tracks from the stream
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      // Update recording time
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+
+      toast({
+        title: '🔴 Recording Started',
+        description: 'Speak or sing into your microphone',
+      });
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast({
+        title: '❌ Microphone Error',
+        description: 'Could not access microphone. Please check permissions.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Stop recording
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
+    }
+  };
+
+  // Add empty track for Beat Lab / Melody import
+  const addEmptyTrack = (name: string, type: 'beat' | 'melody' | 'vocal') => {
+    const newTrack: AudioTrack = {
+      id: `${type}-${Date.now()}`,
+      name,
+      audioBuffer: null,
+      audioUrl: '',
+      volume: 80,
+      pan: 0,
+      muted: false,
+      solo: false,
+      color: type === 'beat' ? '#F59E0B' : type === 'melody' ? '#8B5CF6' : '#10B981',
+      trackType: type,
+    };
+
+    setTracks(prev => [...prev, newTrack]);
+    setShowAddTrack(false);
+    
+    toast({
+      title: '✅ Track Created',
+      description: `${name} track ready - click "Open ${type === 'beat' ? 'Beat Lab' : type === 'melody' ? 'Melody Composer' : 'Recorder'}" to create content`,
     });
   };
 
@@ -340,11 +653,131 @@ export default function MasterMultiTrackPlayer() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Recording Button */}
+            {isRecording ? (
+              <Button 
+                onClick={stopRecording}
+                className="bg-red-600 hover:bg-red-500 animate-pulse"
+              >
+                <StopCircle className="w-4 h-4 mr-2" />
+                Stop ({formatTime(recordingTime)})
+              </Button>
+            ) : (
+              <Button 
+                onClick={startRecording}
+                variant="outline"
+                className="border-red-500 text-red-400 hover:bg-red-500/20"
+              >
+                <Mic className="w-4 h-4 mr-2" />
+                Record
+              </Button>
+            )}
+
+            {/* Add Track Dialog */}
+            <Dialog open={showAddTrack} onOpenChange={setShowAddTrack}>
+              <DialogTrigger asChild>
+                <Button variant="default" className="bg-green-600 hover:bg-green-500">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Track
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-gray-900 border-gray-700 max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-white">Add New Track</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <Button
+                    onClick={() => addEmptyTrack('Beat Track', 'beat')}
+                    className="h-20 flex-col bg-amber-600 hover:bg-amber-500"
+                  >
+                    <Drum className="w-6 h-6 mb-1" />
+                    <span>Beat Track</span>
+                  </Button>
+                  <Button
+                    onClick={() => addEmptyTrack('Melody Track', 'melody')}
+                    className="h-20 flex-col bg-purple-600 hover:bg-purple-500"
+                  >
+                    <Piano className="w-6 h-6 mb-1" />
+                    <span>Melody Track</span>
+                  </Button>
+                  <Button
+                    onClick={() => addEmptyTrack('Vocal Track', 'vocal')}
+                    className="h-20 flex-col bg-green-600 hover:bg-green-500"
+                  >
+                    <Mic className="w-6 h-6 mb-1" />
+                    <span>Vocal Track</span>
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowAddTrack(false);
+                      setShowLibrary(true);
+                    }}
+                    className="h-20 flex-col bg-blue-600 hover:bg-blue-500"
+                  >
+                    <Library className="w-6 h-6 mb-1" />
+                    <span>From Library</span>
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Load from Library Button */}
+            <Dialog open={showLibrary} onOpenChange={setShowLibrary}>
+              <DialogTrigger asChild>
+                <Button variant="default" className="bg-purple-600 hover:bg-purple-500">
+                  <Library className="w-4 h-4 mr-2" />
+                  From Library
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl max-h-[70vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-white flex items-center gap-2">
+                    <FolderOpen className="w-5 h-5" />
+                    Load from Song Library
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2 mt-4">
+                  {librarySongs.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <Music className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No songs in library yet.</p>
+                      <p className="text-sm">Upload songs in the Song Uploader tab first.</p>
+                    </div>
+                  ) : (
+                    librarySongs.map((song: any) => (
+                      <div
+                        key={song.id}
+                        className="flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Music className="w-5 h-5 text-blue-400" />
+                          <div>
+                            <p className="font-medium text-white">{song.name}</p>
+                            <p className="text-xs text-gray-400">
+                              {song.format?.toUpperCase()} • {song.duration ? `${Math.round(song.duration)}s` : 'Unknown duration'}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => loadFromLibrary(song)}
+                          className="bg-green-600 hover:bg-green-500"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <label htmlFor="audio-upload">
-              <Button variant="default" className="cursor-pointer" asChild>
+              <Button variant="outline" className="cursor-pointer" asChild>
                 <span>
                   <Upload className="w-4 h-4 mr-2" />
-                  Load Audio Files
+                  Upload New
                 </span>
               </Button>
             </label>
@@ -506,12 +939,92 @@ export default function MasterMultiTrackPlayer() {
                         </Button>
                       </div>
 
-                      {/* Waveform Placeholder */}
-                      <div className="h-12 bg-gray-900 rounded mb-2 flex items-center justify-center">
-                        <div className="text-xs text-gray-500">
-                          Duration: {track.audioBuffer ? formatTime(track.audioBuffer.duration) : '0:00'}
+                      {/* Editable Waveform or Empty Track Action */}
+                      {track.audioBuffer ? (
+                        <TrackWaveform 
+                          audioBuffer={track.audioBuffer}
+                          color={track.color}
+                          currentTime={currentTime}
+                          duration={track.audioBuffer?.duration || 0}
+                          isPlaying={isPlaying}
+                          onSeek={(time) => {
+                            pauseTimeRef.current = time;
+                            setCurrentTime(time);
+                            if (isPlaying) {
+                              stopTracks();
+                              playTracks();
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="h-16 bg-gray-900 rounded flex items-center justify-center gap-3 border-2 border-dashed border-gray-600">
+                          {track.trackType === 'beat' && (
+                            <Button
+                              size="sm"
+                              className="bg-amber-600 hover:bg-amber-500"
+                              onClick={() => {
+                                // Navigate to Beat Lab - emit event or use callback
+                                window.dispatchEvent(new CustomEvent('openStudioTool', { 
+                                  detail: { tool: 'beat-lab', trackId: track.id } 
+                                }));
+                                toast({
+                                  title: '🥁 Opening Beat Lab',
+                                  description: 'Create your beat, then export to load it here',
+                                });
+                              }}
+                            >
+                              <Drum className="w-4 h-4 mr-2" />
+                              Open Beat Lab
+                            </Button>
+                          )}
+                          {track.trackType === 'melody' && (
+                            <Button
+                              size="sm"
+                              className="bg-purple-600 hover:bg-purple-500"
+                              onClick={() => {
+                                window.dispatchEvent(new CustomEvent('openStudioTool', { 
+                                  detail: { tool: 'melody', trackId: track.id } 
+                                }));
+                                toast({
+                                  title: '🎹 Opening Melody Composer',
+                                  description: 'Create your melody, then export to load it here',
+                                });
+                              }}
+                            >
+                              <Piano className="w-4 h-4 mr-2" />
+                              Open Melody Composer
+                            </Button>
+                          )}
+                          {track.trackType === 'vocal' && (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-500"
+                              onClick={startRecording}
+                            >
+                              <Mic className="w-4 h-4 mr-2" />
+                              Start Recording
+                            </Button>
+                          )}
+                          {!track.trackType && (
+                            <span className="text-gray-500 text-sm">Drop audio file here or use buttons above</span>
+                          )}
+                          <label htmlFor={`track-upload-${track.id}`} className="cursor-pointer">
+                            <Button size="sm" variant="outline" asChild>
+                              <span>
+                                <Upload className="w-4 h-4 mr-2" />
+                                Upload Audio
+                              </span>
+                            </Button>
+                          </label>
+                          <input
+                            id={`track-upload-${track.id}`}
+                            type="file"
+                            accept="audio/*"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
                         </div>
-                      </div>
+                      )}
 
                       {/* Controls */}
                       <div className="flex items-center gap-4">

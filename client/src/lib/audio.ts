@@ -76,6 +76,17 @@ export class AudioEngine {
     }
   }
 
+  public async resume(): Promise<void> {
+    if (!this.audioContext) {
+      await this.initialize();
+    }
+
+    if (this.audioContext && this.audioContext.state !== 'running') {
+      await this.audioContext.resume();
+      console.log('AudioEngine context resumed');
+    }
+  }
+
   private async createReverb(): Promise<void> {
     if (!this.audioContext) return;
 
