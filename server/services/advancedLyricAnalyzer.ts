@@ -7,6 +7,7 @@
 import natural from 'natural';
 import { SentimentAnalyzer, PorterStemmer } from 'natural';
 import { syllable } from 'syllable';
+import { makeAICall } from './grok';
 
 interface LyricAnalysis {
   basic_stats: {
@@ -437,13 +438,6 @@ class AdvancedLyricAnalyzer {
       vocabulary_analysis: vocabularyAnalysis
     };
   }
-
-import { makeAICall } from './grok';
-
-class AdvancedLyricAnalyzer {
-  // ... (existing properties)
-
-  // ... (existing methods)
 
   /**
    * Enhance analysis with AI insights
