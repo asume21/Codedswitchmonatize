@@ -237,7 +237,10 @@ export function createSongRoutes(storage: IStorage) {
       
       const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
       const convertedDir = join(objectsDir, 'converted');
-      const filePath = join(convertedDir, `${fileId}.mp3`);
+      
+      // Use consistent sanitization for file path
+      const safeFileId = fileId.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+      const filePath = join(convertedDir, `${safeFileId}.mp3`);
 
       // Security: ensure file is in converted directory
       if (!filePath.startsWith(convertedDir)) {
@@ -254,7 +257,7 @@ export function createSongRoutes(storage: IStorage) {
       }
 
       // File doesn't exist - attempt on-demand conversion
-      console.log(`⚠️ Converted file not found, attempting on-demand conversion: ${fileId}`);
+      console.log(`⚠️ Converted file not found, attempting on-demand conversion: ${fileId} -> ${safeFileId}`);
       
       if (!song.originalUrl) {
         console.log(`❌ Original file not found for song: ${song.id}`);
@@ -264,7 +267,7 @@ export function createSongRoutes(storage: IStorage) {
       console.log(`🔄 Converting on-demand: ${song.name} for user ${req.userId}`);
       
       // Perform conversion
-      const convertedURL = await convertToMp3WithCustomId(song.originalUrl, fileId);
+      await convertToMp3WithCustomId(song.originalUrl, fileId);
       
       // Serve the newly converted file
       if (existsSync(filePath)) {
@@ -593,11 +596,16 @@ async function convertToMp3WithCustomId(inputURL: string, fileId: string): Promi
   return new Promise((resolve, reject) => {
     const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
     const convertedDir = join(objectsDir, 'converted');
+    
+    // Sanitize fileId to prevent directory traversal but allow nested structure if needed
+    // But simpler is to just flatten the structure for converted files
+    const safeFileId = fileId.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+    
     if (!existsSync(convertedDir)) {
       mkdirSync(convertedDir, { recursive: true });
     }
 
-    const outputPath = join(convertedDir, `${fileId}.mp3`);
+    const outputPath = join(convertedDir, `${safeFileId}.mp3`);
 
     // Convert API URL to file system path
     let inputPath = inputURL;
@@ -624,7 +632,8 @@ async function convertToMp3WithCustomId(inputURL: string, fileId: string): Promi
       .on('end', () => {
         clearTimeout(timeout);
         console.log('✅ FFmpeg conversion finished');
-        const serveURL = `/api/songs/converted/${fileId}`;
+        // Use the safe ID for the serving URL
+        const serveURL = `/api/songs/converted/${safeFileId}`;
         console.log('📡 Converted file will be served at:', serveURL);
         resolve(serveURL);
       })
