@@ -438,6 +438,13 @@ class AdvancedLyricAnalyzer {
     };
   }
 
+import { makeAICall } from './grok';
+
+class AdvancedLyricAnalyzer {
+  // ... (existing properties)
+
+  // ... (existing methods)
+
   /**
    * Enhance analysis with AI insights
    */
@@ -446,28 +453,7 @@ class AdvancedLyricAnalyzer {
     lyrics: string,
     genre: string = 'unknown'
   ): Promise<AIEnhancedAnalysis> {
-    const XAI_API_KEY = process.env.XAI_API_KEY;
     
-    if (!XAI_API_KEY) {
-      // Return basic analysis without AI enhancement
-      return {
-        ...analysis,
-        ai_insights: {
-          vocal_delivery: "AI analysis unavailable",
-          musical_suggestions: ["Add AI analysis for better suggestions"],
-          production_notes: ["AI analysis unavailable"],
-          genre_recommendations: [genre],
-          improvement_areas: []
-        },
-        overall_rating: {
-          score: analysis.quality_score,
-          strengths: this.identifyStrengths(analysis),
-          weaknesses: this.identifyWeaknesses(analysis),
-          commercial_potential: Math.min(10, analysis.quality_score / 10)
-        }
-      };
-    }
-
     try {
       const prompt = `As a professional music producer and vocal coach, analyze these lyrics and provide detailed insights:
 
@@ -498,38 +484,30 @@ Provide a comprehensive analysis in JSON format:
 
 Focus on actionable, professional advice that would help an artist improve and produce these lyrics.`;
 
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XAI_API_KEY}`
+      const response = await makeAICall([
+        {
+          role: 'system',
+          content: 'You are a Grammy-winning music producer and vocal coach with 20+ years of experience. Provide detailed, actionable advice for artists.'
         },
-        body: JSON.stringify({
-          model: 'grok-beta',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a Grammy-winning music producer and vocal coach with 20+ years of experience. Provide detailed, actionable advice for artists.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7
-        })
+        {
+          role: 'user',
+          content: prompt
+        }
+      ], {
+        response_format: { type: "json_object" },
+        temperature: 0.7
       });
 
-      const data = await response.json();
-      const aiContent = data.choices[0].message.content;
+      const aiContent = response.choices[0].message.content || "{}";
       
       // Parse AI response
       let aiInsights;
       try {
+        aiInsights = JSON.parse(aiContent);
+      } catch {
+        // Fallback to regex extraction if strict JSON fails (though makeAICall asks for JSON)
         const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
         aiInsights = jsonMatch ? JSON.parse(jsonMatch[0]) : this.getDefaultAIInsights();
-      } catch {
-        aiInsights = this.getDefaultAIInsights();
       }
 
       return {
@@ -546,6 +524,7 @@ Focus on actionable, professional advice that would help an artist improve and p
 
     } catch (error) {
       console.error('AI enhancement failed:', error);
+      // Fallback to basic analysis without AI
       return {
         ...analysis,
         ai_insights: this.getDefaultAIInsights(),
@@ -558,6 +537,7 @@ Focus on actionable, professional advice that would help an artist improve and p
       };
     }
   }
+
 
   private identifyStrengths(analysis: LyricAnalysis): string[] {
     const strengths: string[] = [];

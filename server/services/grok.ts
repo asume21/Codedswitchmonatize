@@ -37,7 +37,7 @@ function getPreferredClient() {
 }
 
 // Helper function to make AI calls with fallback
-async function makeAICall(messages: any[], options: any = {}) {
+export async function makeAICall(messages: any[], options: any = {}) {
   const preferred = getPreferredClient();
 
   if (!preferred) {

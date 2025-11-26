@@ -21,6 +21,7 @@ import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import { convertCodeToMusic } from "./services/codeToMusic";
+import { transcribeAudio } from "./services/transcriptionService";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -2003,6 +2004,55 @@ ${code}
       sendError(res, 500, "Failed to get AI provider");
     }
   });
+
+  // Transcription endpoint
+  app.post(
+    "/api/transcribe",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.TRANSCRIPTION, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl } = req.body;
+        
+        if (!objectKey && !fileUrl) {
+          return sendError(res, 400, "Missing objectKey or fileUrl");
+        }
+
+        let targetPath: string;
+
+        if (objectKey) {
+           targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else {
+           // Try to extract objectKey from fileUrl if it's a local URL
+           if (fileUrl && fileUrl.includes('/api/internal/uploads/')) {
+              const extractedKey = fileUrl.split('/api/internal/uploads/')[1];
+              targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+           } else {
+              return sendError(res, 400, "External URLs not yet supported for transcription");
+           }
+        }
+
+        // Security check to prevent directory traversal
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+            return sendError(res, 403, "Access denied");
+        }
+
+        if (!fs.existsSync(targetPath)) {
+           return sendError(res, 404, "Audio file not found on server");
+        }
+
+        console.log('🎤 Transcribing file:', targetPath);
+        const result = await transcribeAudio(targetPath);
+        
+        res.json({ success: true, transcription: result });
+
+      } catch (error: any) {
+        console.error("Transcription error:", error);
+        sendError(res, 500, error.message || "Transcription failed");
+      }
+    }
+  );
 
   // Advanced lyrics analysis endpoint
   app.post(
