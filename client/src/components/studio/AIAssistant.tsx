@@ -13,7 +13,7 @@ import { useAIMessages } from "@/contexts/AIMessageContext";
 import { StudioAudioContext } from "@/pages/studio";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import type { UploadResult } from "@uppy/core";
-import { Upload, Music, Play, Pause, RotateCcw, Volume2 } from "lucide-react";
+import { Upload, Music, Play, Pause, RotateCcw, Volume2, Square, FileText, Trash2 } from "lucide-react";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
 import type { Recommendation, Song } from "../../../../shared/schema";
@@ -51,16 +51,60 @@ export default function AIAssistant() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [aiProvider, setAiProvider] = useState("grok");
+  const [transcribingId, setTranscribingId] = useState<string | null>(null);
 
   const { messages: aiMessages, addMessage } = useAIMessages();
   const studioContext = useContext(StudioAudioContext);
+
+  const transcribeSong = async (song: Song) => {
+    setTranscribingId(song.id.toString());
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      toast({ title: "Transcribing...", description: `Transcribing lyrics for ${song.name}` });
+      
+      const response = await apiRequest('POST', '/api/transcribe', {
+        fileUrl: audioUrl
+      });
+      const data = await response.json();
+      
+      if (data.transcription && data.transcription.text) {
+        const message = `📝 **Transcribed Lyrics for ${song.name}:**\n\n${data.transcription.text}`;
+        
+        // Sync transcribed lyrics into global studio context so Lyrics tab and unified editor can use them
+        if (studioContext?.setCurrentLyrics) {
+          studioContext.setCurrentLyrics(data.transcription.text);
+        }
+
+        const aiMessage: Message = {
+          id: Date.now().toString(),
+          type: "ai",
+          content: message,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        toast({
+          title: "Transcription Complete",
+          description: "Lyrics sent to Lyrics tab and editor.",
+        });
+      }
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast({
+        title: "Transcription Failed",
+        description: "Could not transcribe the song.",
+        variant: "destructive"
+      });
+    } finally {
+      setTranscribingId(null);
+    }
+  };
 
   // Add AI messages from context to local messages
   useEffect(() => {
     if (aiMessages.length > 0) {
       const latestAIMessage = aiMessages[aiMessages.length - 1];
 
-      
       setMessages(prev => {
         const exists = prev.some(msg => msg.id === latestAIMessage.id);
         if (!exists) {
@@ -100,11 +144,12 @@ export default function AIAssistant() {
       setUploadContext({});
       toast({
         title: "Song Uploaded",
-        description: `${newSong.name} has been added to your library!`,
+        description: `${newSong.name} has been added to your library! Starting auto-transcription...`,
       });
 
-      // Automatically trigger analysis after upload
+      // Automatically trigger analysis and transcription after upload
       analyzeSong(newSong);
+      transcribeSong(newSong);
     },
     onError: () => {
       toast({
@@ -113,6 +158,34 @@ export default function AIAssistant() {
         variant: "destructive",
       });
     },
+  });
+
+  // Delete song mutation
+  const deleteSongMutation = useMutation({
+    mutationFn: async (songId: string) => {
+      const response = await apiRequest("DELETE", `/api/songs/${songId}`);
+      if (!response.ok) {
+        throw new Error("Failed to delete song");
+      }
+      return songId;
+    },
+    onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/songs'] });
+      toast({
+        title: "Song Deleted",
+        description: "Song removed from library",
+      });
+      if (currentSong?.id.toString() === id) {
+        stopSong();
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Delete Failed",
+        description: "Could not delete song.",
+        variant: "destructive",
+      });
+    }
   });
 
   const chatMutation = useMutation({
@@ -713,17 +786,54 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                     
                     <div className="flex items-center space-x-2">
                       <Button
-                        onClick={() => playSong(song)}
+                        onClick={() => {
+                          if (currentSong?.id === song.id && isPlaying) {
+                            if (audioElement) {
+                               audioElement.pause();
+                               setIsPlaying(false);
+                            }
+                          } else {
+                            playSong(song);
+                          }
+                        }}
                         size="sm"
                         variant="outline"
                         className="h-8 w-8 p-0 border-gray-600"
-                        disabled={currentSong?.id === song.id && isPlaying}
+                        disabled={false}
                       >
                         {currentSong?.id === song.id && isPlaying ? (
                           <Pause className="w-3 h-3" />
                         ) : (
                           <Play className="w-3 h-3" />
                         )}
+                      </Button>
+
+                      {/* Stop Button */}
+                      {currentSong?.id === song.id && (
+                        <Button
+                          onClick={stopSong}
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 border-red-600 text-red-400 hover:bg-red-900/30"
+                          title="Stop"
+                        >
+                          <Square className="w-3 h-3" />
+                        </Button>
+                      )}
+                      
+                      {/* Delete Button */}
+                      <Button
+                        onClick={() => {
+                          if (window.confirm(`Delete "${song.name}"? This cannot be undone.`)) {
+                            deleteSongMutation.mutate(song.id.toString());
+                          }
+                        }}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-8 p-0 border-red-600 text-red-400 hover:bg-red-900/30"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                       
                       <Button

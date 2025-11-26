@@ -2022,14 +2022,22 @@ ${code}
 
         if (objectKey) {
            targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else {
-           // Try to extract objectKey from fileUrl if it's a local URL
-           if (fileUrl && fileUrl.includes('/api/internal/uploads/')) {
+        } else if (fileUrl) {
+           // Try to extract path from fileUrl if it's a local URL
+           if (fileUrl.includes('/api/internal/uploads/')) {
               const extractedKey = fileUrl.split('/api/internal/uploads/')[1];
               targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+           } else if (fileUrl.includes('/api/songs/converted/')) {
+              // Handle converted MP3 files
+              const fileId = fileUrl.split('/api/songs/converted/')[1];
+              const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_\.]/g, '_');
+              targetPath = path.join(LOCAL_OBJECTS_DIR, 'converted', `${safeFileId}.mp3`);
+              console.log('🎤 Using converted file for transcription:', targetPath);
            } else {
               return sendError(res, 400, "External URLs not yet supported for transcription");
            }
+        } else {
+           return sendError(res, 400, "Missing objectKey or fileUrl");
         }
 
         // Security check to prevent directory traversal

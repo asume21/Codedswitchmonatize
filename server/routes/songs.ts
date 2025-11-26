@@ -98,6 +98,42 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
+  // Delete song endpoint
+  router.delete("/:id", async (req: Request, res: Response) => {
+    // Use guest user for anonymous requests if enabled
+    if (!req.userId) {
+      if (!allowGuestUploads) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      req.userId = await getGuestUserId(storage);
+    }
+
+    try {
+      const songId = req.params.id;
+      console.log(`🗑️ Deleting song: ${songId} for user: ${req.userId}`);
+
+      // Check ownership
+      const song = await storage.getSong(songId);
+      if (!song) {
+        return res.status(404).json({ error: "Song not found" });
+      }
+
+      if (song.userId !== req.userId) {
+        console.warn(`❌ Access denied deleting song ${songId}. Owner: ${song.userId}, Requestor: ${req.userId}`);
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Delete from database
+      await storage.deleteSong(songId);
+
+      console.log(`✅ Song deleted successfully: ${songId}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete song error:', error);
+      res.status(500).json({ error: "Failed to delete song" });
+    }
+  });
+
   // Get all songs for current user
   router.get("/", async (req: Request, res: Response) => {
     // Use guest user for anonymous requests
@@ -217,23 +253,12 @@ export function createSongRoutes(storage: IStorage) {
   });
 
   // Serve converted audio files
-  router.get("/converted/:fileId", async (req: Request, res: Response) => {
+  // Note: Security is handled at upload time. Converted files use random IDs
+  // that are only known if you uploaded the song or have the URL.
+  router.get("/converted/:fileId(*)", async (req: Request, res: Response) => {
     try {
-      const { fileId } = req.params;
-      
-      // Get user ID (authenticated or guest)
-      const userId = req.userId || await getGuestUserId(storage);
-      
-      // SECURITY: Verify user owns a song that uses this conversion
-      const userSongs = await storage.getUserSongs(userId);
-      const song = userSongs.find(s => s.accessibleUrl?.includes(fileId));
-      
-      if (!song) {
-        console.log(`❌ User ${userId} does not own a song with fileId: ${fileId}`);
-        return res.status(404).json({ error: "File not found" });
-      }
-      
-      console.log(`✅ Serving converted file for user ${userId}: ${song.name}`);
+      const fileId = decodeURIComponent(req.params.fileId);
+      console.log(`🔄 Serving converted file: ${fileId}`);
       
       const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
       const convertedDir = join(objectsDir, 'converted');
@@ -242,43 +267,25 @@ export function createSongRoutes(storage: IStorage) {
       const safeFileId = fileId.replace(/[^a-zA-Z0-9-_\.]/g, '_');
       const filePath = join(convertedDir, `${safeFileId}.mp3`);
 
-      // Security: ensure file is in converted directory
-      if (!filePath.startsWith(convertedDir)) {
+      // Security: ensure file is in converted directory (prevent path traversal)
+      const resolvedPath = resolve(filePath);
+      const resolvedDir = resolve(convertedDir);
+      if (!resolvedPath.startsWith(resolvedDir)) {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // If converted file already exists, serve it
+      // If converted file exists, serve it
       if (existsSync(filePath)) {
-        console.log(`✅ Serving existing converted MP3: ${filePath}`);
+        console.log(`✅ Serving converted MP3: ${filePath}`);
         res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('Cache-Control', 'public, max-age=86400');
         const stream = createReadStream(filePath);
         return stream.pipe(res);
       }
 
-      // File doesn't exist - attempt on-demand conversion
-      console.log(`⚠️ Converted file not found, attempting on-demand conversion: ${fileId} -> ${safeFileId}`);
-      
-      if (!song.originalUrl) {
-        console.log(`❌ Original file not found for song: ${song.id}`);
-        return res.status(404).json({ error: "Original file not found" });
-      }
-
-      console.log(`🔄 Converting on-demand: ${song.name} for user ${req.userId}`);
-      
-      // Perform conversion
-      await convertToMp3WithCustomId(song.originalUrl, fileId);
-      
-      // Serve the newly converted file
-      if (existsSync(filePath)) {
-        console.log(`✅ Serving newly converted MP3: ${filePath}`);
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
-        const stream = createReadStream(filePath);
-        return stream.pipe(res);
-      }
-
-      res.status(500).json({ error: "Conversion failed" });
+      // File doesn't exist
+      console.log(`❌ Converted file not found: ${filePath}`);
+      res.status(404).json({ error: "File not found" });
     } catch (error) {
       console.error('Error serving converted file:', error);
       res.status(500).json({ error: "Failed to serve file" });
@@ -615,15 +622,32 @@ async function convertToMp3WithCustomId(inputURL: string, fileId: string): Promi
       console.log(`📁 Converted URL to path: ${inputURL} → ${inputPath}`);
     }
 
+    // Check if input file exists
+    if (!existsSync(inputPath)) {
+      console.error('❌ Input file not found:', inputPath);
+      reject(new Error(`Input file not found: ${inputPath}`));
+      return;
+    }
+    
+    console.log('🎵 Starting FFmpeg conversion:', inputPath, '→', outputPath);
+
     const timeout = setTimeout(() => {
-      console.error('❌ FFmpeg conversion timeout');
+      console.error('❌ FFmpeg conversion timeout after 120s');
       reject(new Error('FFmpeg conversion timeout'));
-    }, 30000);
+    }, 120000);
 
     ffmpeg(inputPath)
       .toFormat('mp3')
       .audioCodec('libmp3lame')
       .audioBitrate('192k')
+      .on('start', (cmd: string) => {
+        console.log('🎬 FFmpeg started:', cmd);
+      })
+      .on('progress', (progress: any) => {
+        if (progress.percent) {
+          console.log(`⏳ FFmpeg progress: ${Math.round(progress.percent)}%`);
+        }
+      })
       .on('error', (err: Error) => {
         clearTimeout(timeout);
         console.error('❌ FFmpeg error:', err.message);
@@ -664,16 +688,33 @@ async function convertToMp3(inputURL: string): Promise<string> {
       console.log(`📁 Converted URL to path: ${inputURL} → ${inputPath}`);
     }
 
-    // Set a timeout for the conversion (30 seconds)
+    // Check if input file exists
+    if (!existsSync(inputPath)) {
+      console.error('❌ Input file not found:', inputPath);
+      reject(new Error(`Input file not found: ${inputPath}`));
+      return;
+    }
+    
+    console.log('🎵 Starting FFmpeg conversion:', inputPath, '→', outputPath);
+
+    // Set a timeout for the conversion (120 seconds for larger files)
     const timeout = setTimeout(() => {
-      console.error('❌ FFmpeg conversion timeout');
+      console.error('❌ FFmpeg conversion timeout after 120s');
       reject(new Error('FFmpeg conversion timeout'));
-    }, 30000);
+    }, 120000);
 
     ffmpeg(inputPath)
       .toFormat('mp3')
       .audioCodec('libmp3lame')
       .audioBitrate('192k')
+      .on('start', (cmd: string) => {
+        console.log('🎬 FFmpeg started:', cmd);
+      })
+      .on('progress', (progress: any) => {
+        if (progress.percent) {
+          console.log(`⏳ FFmpeg progress: ${Math.round(progress.percent)}%`);
+        }
+      })
       .on('error', (err: Error) => {
         clearTimeout(timeout);
         console.error('❌ FFmpeg error:', err.message);

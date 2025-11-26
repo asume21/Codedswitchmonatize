@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import AIAssistant from './AIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
@@ -1734,7 +1734,24 @@ export default function UnifiedStudioWorkspace() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Center: Main Workspace with Tab Views */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          
+          {/* Floating Back to Studio Button - Shows when not in arrangement view */}
+          {activeView !== 'arrangement' && (
+            <div className="absolute top-4 left-4 z-50">
+              <Button
+                onClick={() => setActiveView('arrangement')}
+                variant="outline"
+                size="sm"
+                className="bg-gray-900/95 border-gray-600 hover:bg-gray-800 shadow-lg backdrop-blur-sm flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Back to Studio</span>
+                <Home className="w-4 h-4 sm:hidden" />
+              </Button>
+            </div>
+          )}
+
           {/* ARRANGEMENT VIEW */}
           {activeView === 'arrangement' && (
           <>
@@ -1898,8 +1915,58 @@ export default function UnifiedStudioWorkspace() {
                               )}
                             </div>
                           ) : track.type === 'audio' ? (
-                            <div className="h-16 bg-gray-800/50 border border-gray-700 rounded flex items-center justify-center text-xs text-gray-500">
-                              Audio track
+                            <div className="h-16 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded relative overflow-hidden group">
+                              {/* Fake waveform visualization */}
+                              <div className="absolute inset-0 flex items-center justify-center px-2">
+                                <div className="w-full h-12 flex items-center gap-[1px]">
+                                  {Array.from({ length: 100 }).map((_, i) => {
+                                    const height = Math.sin(i * 0.3) * 30 + Math.random() * 20 + 10;
+                                    return (
+                                      <div
+                                        key={i}
+                                        className="flex-1 bg-blue-400/60 rounded-sm"
+                                        style={{ height: `${height}%` }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              {/* Track name overlay */}
+                              <div className="absolute bottom-1 left-2 text-xs text-blue-300 font-medium truncate max-w-[200px]">
+                                {track.name}
+                              </div>
+                              {/* Play button overlay on hover */}
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-3 bg-green-600 border-green-500 hover:bg-green-500"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (track.audioUrl) {
+                                      const audio = new Audio(track.audioUrl);
+                                      audio.play();
+                                      toast({ title: "Playing", description: track.name });
+                                    }
+                                  }}
+                                >
+                                  <Play className="w-3 h-3 mr-1" />
+                                  Play
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-3"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveView('multitrack');
+                                    toast({ title: "Opening Multi-Track", description: "Track sent to multi-track player" });
+                                  }}
+                                >
+                                  <Layers className="w-3 h-3 mr-1" />
+                                  Multi-Track
+                                </Button>
+                              </div>
                             </div>
                           ) : (
                             <div className="h-16 bg-purple-900/20 border border-purple-700 rounded flex items-center justify-center text-xs text-purple-400">
@@ -1982,8 +2049,8 @@ export default function UnifiedStudioWorkspace() {
             </button>
             
             {lyricsExpanded && (
-              <div className="bg-gray-900 p-4">
-                <div className="border border-gray-700 rounded p-4">
+            <div className="bg-gray-900 p-4">
+              <div className="border border-gray-700 rounded p-4">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="font-medium">Song Lyrics</h3>
                     <div className="flex space-x-2">
@@ -1999,13 +2066,15 @@ export default function UnifiedStudioWorkspace() {
                   
                   <textarea
                     className="w-full h-48 bg-gray-800 border border-gray-700 rounded p-3 text-sm resize-none"
-                    placeholder="Write your lyrics here...
+                    value={studioContext.currentLyrics || ''}
+                    onChange={(e) => studioContext.setCurrentLyrics(e.target.value)}
+                    placeholder={`Write your lyrics here...
 
 [Verse 1]
 Your lyrics will sync with the timeline
 
 [Chorus]
-..."
+...`}
                   />
                 </div>
               </div>
@@ -2077,14 +2146,14 @@ Your lyrics will sync with the timeline
 
           {/* BEAT LAB VIEW */}
           {activeView === 'beat-lab' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <BeatLab initialTab={beatLabTab} />
             </div>
           )}
 
           {/* PIANO ROLL VIEW */}
           {activeView === 'piano-roll' && (
-            <div className="flex-1 overflow-hidden bg-gray-900">
+            <div className="flex-1 overflow-hidden bg-gray-900 pt-14">
               {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
               <VerticalPianoRoll 
                 {...({ tracks: tracks as any } as any)}
@@ -2111,49 +2180,49 @@ Your lyrics will sync with the timeline
 
           {/* MIXER VIEW */}
           {activeView === 'mixer' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <ProfessionalMixer />
             </div>
           )}
 
           {/* AI STUDIO VIEW */}
           {activeView === 'ai-studio' && (
-            <div className="flex-1 overflow-hidden bg-gray-900">
+            <div className="flex-1 overflow-hidden bg-gray-900 pt-14">
               <AIAssistant />
             </div>
           )}
 
           {/* LYRICS LAB VIEW */}
           {activeView === 'lyrics' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <LyricLab />
             </div>
           )}
 
           {/* SONG UPLOADER VIEW */}
           {activeView === 'song-uploader' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <SongUploader />
             </div>
           )}
 
           {/* CODE TO MUSIC VIEW */}
           {activeView === 'code-to-music' && (
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden pt-14">
               <CodeToMusicStudioV2 />
             </div>
           )}
 
           {/* AUDIO TOOLS VIEW */}
           {activeView === 'audio-tools' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <AudioToolsPage />
             </div>
           )}
 
           {/* MULTI-TRACK PLAYER */}
           {activeView === 'multitrack' && (
-            <div className="flex-1 overflow-hidden bg-gray-900">
+            <div className="flex-1 overflow-hidden bg-gray-900 pt-14">
               <MasterMultiTrackPlayer />
             </div>
           )}

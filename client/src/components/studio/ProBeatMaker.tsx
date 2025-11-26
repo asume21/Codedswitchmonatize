@@ -28,6 +28,7 @@ import { useTransport } from '@/contexts/TransportContext';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
+import { realisticAudio } from '@/lib/realisticAudio';
 import {
   Play, Square, RotateCcw, Undo2, Redo2, Shuffle, Send, ChevronDown, Wand2,
   Copy, Clipboard, Volume2, Disc, Zap, Timer,
@@ -231,6 +232,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [groove, setGroove] = useState(0);
   const [humanize, setHumanize] = useState(0); // Timing/velocity variation
   const [masterVol, setMasterVol] = useState(80);
+  const [useRealisticDrums, setUseRealisticDrums] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedStep, setSelectedStep] = useState<{t: number, s: number} | null>(null);
@@ -330,6 +332,65 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   };
 
   const playSound = useCallback(async (id: string, vel: number, vol: number) => {
+    // When using the realistic engine, delegate to realisticAudio
+    if (useRealisticDrums) {
+      const baseVelocity = (vel / 127) * (vol / 100) * (masterVol / 100);
+      const normalizedVelocity = Math.max(0, Math.min(1, baseVelocity));
+
+      let drumType: string;
+      switch (id) {
+        case 'kick':
+        case '808 Kick':
+          drumType = 'kick';
+          break;
+        case 'snare':
+        case 'Trap Snare':
+          drumType = 'snare';
+          break;
+        case 'clap':
+          drumType = 'clap';
+          break;
+        case 'hihat':
+        case 'Closed HH':
+        case 'Soft Hat':
+        case 'shaker':
+          drumType = 'hihat';
+          break;
+        case 'openhat':
+        case 'Open Hat':
+        case 'Open HH':
+          drumType = 'openhat';
+          break;
+        case 'tom':
+        case 'tom1':
+        case 'tom2':
+        case 'tom3':
+        case 'Conga':
+        case 'conga':
+          drumType = 'tom';
+          break;
+        case 'cowbell':
+        case 'ride':
+        case 'Crash':
+        case 'crash':
+        case 'perc':
+        case 'bell':
+        case 'vox':
+        case 'rim':
+        case 'fx':
+        case 'foley':
+          drumType = 'crash';
+          break;
+        default:
+          drumType = 'snare';
+          break;
+      }
+
+      await realisticAudio.playDrumSound(drumType, normalizedVelocity);
+      return;
+    }
+
+    // Classic internal synth path
     if (!audioCtx.current) return;
     const ctx = audioCtx.current;
     if (ctx.state === 'suspended') await ctx.resume();
@@ -368,6 +429,21 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       const s = ctx.createBufferSource(); s.buffer = buf;
       const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 5000;
       s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.25);
+    } else if (id === 'cowbell') {
+      // Short metallic cowbell hit
+      const o1 = ctx.createOscillator();
+      const o2 = ctx.createOscillator();
+      o1.type = 'square';
+      o2.type = 'square';
+      o1.frequency.setValueAtTime(560, ctx.currentTime);
+      o2.frequency.setValueAtTime(840, ctx.currentTime);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(1, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
+      o1.connect(g); o2.connect(g); g.connect(gain);
+      o1.start(); o2.start();
+      o1.stop(ctx.currentTime + 0.2);
+      o2.stop(ctx.currentTime + 0.2);
     } else if (id === 'tom') {
       const o = ctx.createOscillator();
       o.frequency.setValueAtTime(200, ctx.currentTime);
@@ -376,6 +452,16 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       g.gain.setValueAtTime(1, ctx.currentTime);
       g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
       o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.25);
+    } else if (id === 'conga') {
+      // Percussive conga-like hit, a bit higher than tom
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(260, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.15);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(1, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+      o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.22);
     } else if (id === 'crash' || id === 'perc') {
       const buf = ctx.createBuffer(1, ctx.sampleRate * 0.8, ctx.sampleRate);
       const d = buf.getChannelData(0);
@@ -722,6 +808,17 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
           <Slider value={[masterVol]} onValueChange={v => setMasterVol(v[0])} max={100} className="w-20" />
           <span className="text-xs w-8">{masterVol}</span>
         </div>
+        <div className="flex items-center gap-2" title="Choose drum sound engine">
+          <span className="text-sm text-gray-400">Sound</span>
+          <Button
+            variant={useRealisticDrums ? 'default' : 'outline'}
+            size="sm"
+            className="text-xs"
+            onClick={() => setUseRealisticDrums(prev => !prev)}
+          >
+            {useRealisticDrums ? 'Realistic' : 'Classic'}
+          </Button>
+        </div>
         <div className="flex items-center gap-2" title="Swing: delays off-beat steps for groove feel">
           <span className="text-sm text-gray-400">Swing</span>
           <Slider value={[swing]} onValueChange={v => setSwing(v[0])} max={100} className="w-20" />
@@ -824,9 +921,14 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         {tracks.map((track, ti) => (
           <div key={track.id} className="flex items-center gap-2">
             {/* Track Controls */}
-            <div className="flex items-center gap-1 w-36 flex-shrink-0">
+            <div className="flex items-center gap-1 w-44 flex-shrink-0">
               <div className={`w-3 h-3 rounded ${track.color}`} />
-              <span className="text-xs font-medium text-white truncate flex-1">{track.name}</span>
+              <span
+                className="text-xs font-medium text-white flex-1"
+                title={track.name}
+              >
+                {track.name}
+              </span>
               <Button size="sm" variant={track.muted ? 'destructive' : 'outline'}
                 onClick={() => setTracks(p => { const c = [...p]; c[ti] = {...c[ti], muted: !c[ti].muted}; return c; })}
                 className="h-5 w-5 p-0 text-xs" title="Mute">M</Button>

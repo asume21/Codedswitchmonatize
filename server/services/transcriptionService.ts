@@ -5,6 +5,16 @@ import path from 'path';
 // Initialize OpenAI client
 const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
 
+if (!openaiApiKey) {
+  console.log('🔐 OPENAI_API_KEY debug: missing or empty');
+} else {
+  console.log('🔐 OPENAI_API_KEY debug:', {
+    length: openaiApiKey.length,
+    prefix: openaiApiKey.slice(0, 8),
+    suffix: openaiApiKey.slice(-4),
+  });
+}
+
 let openaiClient: OpenAI | null = null;
 if (openaiApiKey && openaiApiKey.startsWith('sk-')) {
   openaiClient = new OpenAI({

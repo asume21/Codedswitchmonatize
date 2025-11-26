@@ -16,7 +16,7 @@ import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionCo
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
-import { Sparkles, Copy, Plus, Scissors, Mic } from "lucide-react";
+import { Sparkles, Copy, Plus, Scissors, Mic, FileText, Trash2 } from "lucide-react";
 import type { Song, Recommendation } from "../../../../shared/schema";
 import { emitEvent } from "@/lib/eventBus";
 import type { ToolRecommendation } from "@/components/studio/effects";
@@ -45,12 +45,67 @@ export default function SongUploader() {
   
   // Per-song session IDs (Map<songId, sessionId>)
   const [sessionIdsBySong, setSessionIdsBySong] = useState<Map<string, string>>(new Map());
+  
+  // Transcription state
+  const [transcriptions, setTranscriptions] = useState<Map<string, string>>(new Map());
+  const [isTranscribing, setIsTranscribing] = useState<Map<string, boolean>>(new Map());
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
   const { addMessage } = useAIMessages();
   const { createSession, updateSession } = useSongWorkSession();
   const { addTrack, tracks } = useTracks();
+
+  const transcribeSong = async (song: Song) => {
+    const songId = song.id.toString();
+    // Set transcribing state for this song
+    setIsTranscribing(prev => {
+      const newMap = new Map(prev);
+      newMap.set(songId, true);
+      return newMap;
+    });
+    
+    try {
+      const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      console.log('🎤 Transcribing song:', song.name, audioUrl);
+      
+      const response = await apiRequest('POST', '/api/transcribe', {
+        fileUrl: audioUrl
+      });
+      const data = await response.json();
+      
+      if (data.transcription && data.transcription.text) {
+        setTranscriptions(prev => {
+          const newMap = new Map(prev);
+          newMap.set(songId, data.transcription.text);
+          return newMap;
+        });
+        setExpandedAnalysis(song.id); // Auto-expand to show result
+        
+        toast({
+          title: "Transcription Complete",
+          description: "Lyrics have been transcribed successfully.",
+        });
+        
+        // Store in AI context
+        addMessage(`📝 **Transcribed Lyrics for ${song.name}:**\n\n${data.transcription.text}`, 'transcription');
+      }
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast({
+        title: "Transcription Failed",
+        description: "Could not transcribe the song. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTranscribing(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(songId);
+        return newMap;
+      });
+    }
+  };
+
   const registerSongTrack = useCallback((song: Song) => {
     const audioUrl = (song as any).url || (song as any).audioUrl || (song as any).songURL || song.accessibleUrl;
     if (!audioUrl) return;
@@ -111,8 +166,11 @@ export default function SongUploader() {
       
       toast({
         title: "Song Uploaded",
-        description: `${newSong.name} has been added to your library!`,
+        description: `${newSong.name} has been added to your library! Starting auto-transcription...`,
       });
+
+      // Auto-transcribe newly uploaded song
+      transcribeSong(newSong);
     },
     onError: (error: any) => {
       console.error('Upload mutation error:', error);
@@ -127,6 +185,35 @@ export default function SongUploader() {
         duration: isAuthError ? 10000 : 5000,
       });
     },
+  });
+
+  const deleteSongMutation = useMutation({
+    mutationFn: async (songId: string) => {
+      const response = await apiRequest("DELETE", `/api/songs/${songId}`);
+      if (!response.ok) {
+        throw new Error("Failed to delete song");
+      }
+      return songId;
+    },
+    onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/songs'] });
+      toast({
+        title: "Song Deleted",
+        description: "Song removed from library",
+      });
+      // If deleted song was selected, clear selection
+      if (selectedSong?.id.toString() === id) {
+        setSelectedSong(null);
+        studioContext.setCurrentUploadedSong(null, null);
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Delete Failed",
+        description: "Could not delete song. Please try again.",
+        variant: "destructive",
+      });
+    }
   });
 
   const getUploadParameters = async (file?: File) => {
@@ -403,15 +490,39 @@ export default function SongUploader() {
           console.log('🔄 Trying server-converted audio...');
           
           // Extract file ID from URL and use conversion endpoint
+          // Handle multiple URL formats:
+          // - /api/internal/uploads/songs%2Fuser123%2Ffile.m4a
+          // - /api/internal/uploads/songs/user123/file.m4a
+          // - /uploads/songs/file.m4a
           let fileId = '';
-          if (accessibleURL.includes('/uploads/')) {
+          
+          if (accessibleURL.includes('/api/internal/uploads/')) {
+            const parts = accessibleURL.split('/api/internal/uploads/');
+            if (parts.length > 1) {
+              fileId = decodeURIComponent(parts[1].split('?')[0]); // Decode and remove query params
+            }
+          } else if (accessibleURL.includes('/uploads/')) {
             const parts = accessibleURL.split('/uploads/');
             if (parts.length > 1) {
-              fileId = parts[1].split('?')[0]; // Remove query params
+              fileId = decodeURIComponent(parts[1].split('?')[0]); // Decode and remove query params
             }
           }
           
-          const convertedURL = `/api/songs/converted/${fileId}`;
+          console.log(`🔄 Extracted fileId for conversion: ${fileId}`);
+          
+          if (!fileId) {
+            console.error('❌ Could not extract fileId from URL:', accessibleURL);
+            toast({
+              title: "⚠️ Playback Failed",
+              description: `Cannot play ${song.name}. Audio format not supported by your browser. M4A files may not work in all browsers. Try re-uploading as MP3 or WAV.`,
+              variant: "destructive",
+              duration: 8000,
+            });
+            studioContext.setCurrentUploadedSong(null, null);
+            return;
+          }
+          
+          const convertedURL = `/api/songs/converted/${encodeURIComponent(fileId)}`;
           
           const convertedAudio = new Audio();
           convertedAudio.crossOrigin = "anonymous";
@@ -1079,6 +1190,20 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         </Button>
                         <Button
                           size="sm"
+                          onClick={() => transcribeSong(song)}
+                          disabled={isTranscribing.get(song.id.toString())}
+                          className="bg-orange-600 hover:bg-orange-500"
+                          data-testid={`button-transcribe-song-${song.id}`}
+                        >
+                          {isTranscribing.get(song.id.toString()) ? (
+                            <i className="fas fa-spinner fa-spin mr-1"></i>
+                          ) : (
+                            <FileText className="w-3 h-3 mr-1" />
+                          )}
+                          Transcribe
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => {
                             registerSongTrack(song);
                             toast({
@@ -1091,6 +1216,19 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         >
                           <i className="fas fa-layer-group mr-1"></i>
                           Add to Tracks
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (window.confirm(`Delete "${song.name}"? This cannot be undone.`)) {
+                              deleteSongMutation.mutate(song.id.toString());
+                            }
+                          }}
+                          className="bg-red-600 hover:bg-red-500"
+                          data-testid={`button-delete-song-${song.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                         
                         {/* Suno AI Actions Dropdown */}
@@ -1200,38 +1338,53 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                           
                           {expandedAnalysis === song.id && (() => {
                             const analysis = songAnalyses.get(song.id);
+                            const lyrics = transcriptions.get(song.id.toString());
+                            
                             return (
                               <div className="space-y-4">
+                                {/* Transcribed Lyrics */}
+                                {lyrics && (
+                                  <div className="bg-gray-800/50 rounded p-4 border border-orange-500/30">
+                                    <h5 className="text-sm font-semibold text-orange-300 mb-2 flex items-center gap-2">
+                                      <FileText className="w-4 h-4" />
+                                      Transcribed Lyrics
+                                    </h5>
+                                    <div className="text-sm text-gray-300 whitespace-pre-wrap max-h-60 overflow-y-auto pr-2">
+                                      {lyrics}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* Quick Metrics */}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                                  {analysis.estimatedBPM && (
+                                  {analysis?.estimatedBPM && (
                                     <div className="bg-gray-800/50 rounded p-2">
                                       <div className="text-gray-400 text-xs">BPM</div>
                                       <div className="font-bold text-purple-300">{analysis.estimatedBPM}</div>
                                     </div>
                                   )}
-                                  {analysis.keySignature && (
+                                  {analysis?.keySignature && (
                                     <div className="bg-gray-800/50 rounded p-2">
                                       <div className="text-gray-400 text-xs">Key</div>
                                       <div className="font-bold text-purple-300">{analysis.keySignature}</div>
                                     </div>
                                   )}
-                                  {analysis.genre && (
+                                  {analysis?.genre && (
                                     <div className="bg-gray-800/50 rounded p-2">
                                       <div className="text-gray-400 text-xs">Genre</div>
                                       <div className="font-bold text-purple-300">{analysis.genre}</div>
                                     </div>
                                   )}
-                                  {analysis.overallScore && (
+                                  {analysis?.overallScore && (
                                     <div className="bg-gray-800/50 rounded p-2">
-                                      <div className="text-gray-400 text-xs">Quality</div>
-                                      <div className="font-bold text-purple-300">{analysis.overallScore}/10</div>
+                                      <div className="text-gray-400 text-xs">Score</div>
+                                      <div className="font-bold text-green-400">{analysis.overallScore}/10</div>
                                     </div>
                                   )}
                                 </div>
                                 
                                 {/* Recommendations */}
-                                {analysis.actionableRecommendations && analysis.actionableRecommendations.length > 0 && (
+                                {analysis?.actionableRecommendations && analysis.actionableRecommendations.length > 0 && (
                                   <div>
                                     <RecommendationList 
                                       recommendations={analysis.actionableRecommendations} 
