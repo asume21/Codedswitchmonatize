@@ -133,8 +133,13 @@ export function createAuthRoutes(storage: IStorage) {
     try {
       const { ownerKey } = req.body;
       
-      // Owner key is set via environment variable
-      const validOwnerKey = process.env.OWNER_KEY || 'codedswitch-owner-2024';
+      // Owner key MUST be set via environment variable - no fallback for security
+      const validOwnerKey = process.env.OWNER_KEY;
+      
+      if (!validOwnerKey) {
+        console.error('🚨 SECURITY: OWNER_KEY not set in environment');
+        return res.status(500).json({ message: "Server configuration error" });
+      }
       
       if (ownerKey !== validOwnerKey) {
         return res.status(401).json({ message: "Invalid owner key" });

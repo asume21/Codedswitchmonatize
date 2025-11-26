@@ -419,12 +419,12 @@ export const VerticalPianoRoll: React.FC = () => {
   // 🎙️ RECORDING CONTROLS
   const startRecording = useCallback(() => {
     setIsRecording(true);
-    setRecordingStartTime(Date.now());
+    setRecordingStartTime(0); // Will be set on first note!
     recordingNotesRef.current = [];
     setCurrentStep(0);
     toast({
-      title: "🔴 Recording Started",
-      description: "Play notes on your keyboard - timing will be captured!",
+      title: "🔴 Recording Armed",
+      description: "Play your first note to start - timing begins when you play!",
     });
   }, [toast]);
 
@@ -437,6 +437,9 @@ export const VerticalPianoRoll: React.FC = () => {
     
     // Clear the ref immediately
     recordingNotesRef.current = [];
+    
+    // 🔄 RETURN TO BEGINNING when recording stops
+    setCurrentStep(0);
     
     // Add all recorded notes to the track
     if (recordedNotes.length > 0) {
@@ -467,6 +470,19 @@ export const VerticalPianoRoll: React.FC = () => {
       });
     }
   }, [selectedTrackIndex, toast]);
+
+  // 🔄 RETURN TO BEGINNING button
+  const goToBeginning = useCallback(() => {
+    setCurrentStep(0);
+    if (isPlaying) {
+      handleStop();
+    }
+    toast({
+      title: "⏮️ Back to Start",
+      description: "Playhead returned to beginning",
+      duration: 1500,
+    });
+  }, [isPlaying, handleStop, toast]);
 
   // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
   useEffect(() => {
@@ -595,24 +611,70 @@ export const VerticalPianoRoll: React.FC = () => {
             selectedTrack.volume / 100
           );
 
-          // 🎙️ RECORDING MODE - Capture timing!
+          // RECORDING MODE - Capture timing!
           if (isRecording) {
-            const elapsedMs = Date.now() - recordingStartTime;
+            const now = Date.now();
+            
+            // 🎯 FIRST NOTE STARTS THE TIMER - no rushing after hitting record!
+            let actualStartTime = recordingStartTime;
+            if (actualStartTime === 0) {
+              // This is the first note - start the timer NOW
+              actualStartTime = now;
+              setRecordingStartTime(now);
+              toast({
+                title: "🎵 Recording Started!",
+                description: "Timer started - keep playing!",
+                duration: 1500,
+              });
+              console.log('🎬 Recording timer started on first note!');
+            }
+            
+            const elapsedMs = now - actualStartTime;
             // Convert milliseconds to steps based on BPM
             // Each step is a 16th note: (60000ms / bpm) / 4
             const msPerStep = (60000 / bpm) / 4;
             
-            // 🎯 QUANTIZATION: Round to nearest step for tighter timing
-            // This makes chords easier - notes within ~60ms snap together
-            const rawStep = elapsedMs / msPerStep;
-            const calculatedStep = Math.round(rawStep); // Round instead of floor!
+            // 🎹 CHORD TOLERANCE: Notes played within 150ms snap to the same step
+            // Keyboard events fire sequentially even when keys pressed "together"
+            // 150ms is generous enough to catch all notes in a chord
+            const CHORD_TOLERANCE_MS = 150;
+            
+            let step: number;
+            const recentNotes = recordingNotesRef.current;
+            
+            // Find the most recent note by looking at its timestamp (stored in id)
+            // We need to check if THIS note is close in TIME to the last one
+            if (recentNotes.length > 0) {
+              // Get the last note's actual recording timestamp from its ID
+              const lastNote = recentNotes[recentNotes.length - 1];
+              const lastNoteTimestamp = parseInt(lastNote.id.split('-').pop() || '0');
+              const timeSinceLastNote = now - lastNoteTimestamp;
+              
+              console.log(`⏱️ Time since last note: ${timeSinceLastNote}ms`);
+              
+              if (timeSinceLastNote <= CHORD_TOLERANCE_MS) {
+                // Snap to the same step as the last note (chord grouping)
+                step = lastNote.step;
+                console.log(`🎹 CHORD! Snapping to step ${step} (${timeSinceLastNote}ms apart)`);
+              } else {
+                // Normal quantization - this is a new beat
+                const rawStep = elapsedMs / msPerStep;
+                step = Math.round(rawStep) % STEPS;
+                console.log(`🎵 New beat at step ${step} (${timeSinceLastNote}ms since last)`);
+              }
+            } else {
+              // First note - always step 0
+              step = 0;
+              console.log(`🎵 First note at step 0`);
+            }
             
             // Wrap around if exceeding grid (loop back to start)
-            const step = calculatedStep % STEPS;
+            step = step % STEPS;
             
             // Create and add note to recording buffer
+            // IMPORTANT: Timestamp is stored in the ID for chord detection!
             const newNote: Note = {
-              id: `rec-${pianoKey.key}-${Date.now()}`,
+              id: `rec-${pianoKey.key}-${now}`,
               note: pianoKey.note,
               octave: pianoKey.octave,
               step,
@@ -625,17 +687,26 @@ export const VerticalPianoRoll: React.FC = () => {
             // Visual feedback - move playhead to show position
             setCurrentStep(step);
             
-            console.log(`🎵 Recorded: ${pianoKey.note}${pianoKey.octave} at step ${step}`);
+            console.log(`✅ Recorded: ${pianoKey.note}${pianoKey.octave} at step ${step}`);
           } 
           // Chord mode (not recording)
           else if (chordMode) {
-            // In chord mode, accumulate selected keys
-            setActiveKeys(prev => new Set(prev).add(keyIndex));
+            // In chord mode, accumulate selected keys and audition together
+            setActiveKeys(prev => {
+              const next = new Set(prev);
+              next.add(keyIndex);
+              return next;
+            });
+            realisticAudio.playNote(pianoKey.note, pianoKey.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
           } 
-          // Normal mode
+          // Normal mode (allow multiple simultaneous keys)
           else {
-            // In normal mode, just show which key is pressed
-            setActiveKeys(new Set([keyIndex]));
+            setActiveKeys(prev => {
+              const next = new Set(prev);
+              next.add(keyIndex);
+              return next;
+            });
+            realisticAudio.playNote(pianoKey.note, pianoKey.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
           }
         }
       }
@@ -645,11 +716,17 @@ export const VerticalPianoRoll: React.FC = () => {
       const key = e.key.toLowerCase();
       pressedKeys.delete(key);
 
-      // Clear visual feedback when not in chord mode
+      // Clear released key from visual feedback when not in chord mode
       if (!chordMode) {
         const noteMapping = KEYBOARD_TO_NOTE[key];
         if (noteMapping) {
-          setActiveKeys(new Set());
+          setActiveKeys(prev => {
+            const next = new Set(prev);
+            // remove the released key index
+            const keyIndex = PIANO_KEYS.findIndex(k => k.note.toLowerCase() === noteMapping.note.toLowerCase() && k.octave === noteMapping.octave);
+            if (keyIndex >= 0) next.delete(keyIndex);
+            return next;
+          });
         }
       }
     };
@@ -1142,15 +1219,80 @@ export const VerticalPianoRoll: React.FC = () => {
   }, [loopEnabled, selectedTrack.notes, toast]);
 
   // AI SUGGEST FUNCTION (placeholder for AI integration)
-  const handleAISuggest = useCallback(() => {
-    toast({ 
-      title: '🪄 AI Suggest', 
-      description: 'AI melody generation coming soon! This will analyze your current notes and suggest improvements.',
-      duration: 4000 
-    });
-    // TODO: Integrate with AI melody generation API
-    // Example: Call /api/melody/suggest with current notes
-  }, [toast]);
+  const handleAISuggest = useCallback(async () => {
+    try {
+      toast({ 
+        title: '🪄 AI Suggest', 
+        description: 'Generating melody ideas...',
+      });
+
+      const stepDurationSeconds = 60 / bpm / 4; // 16th note duration in seconds
+      const response = await fetch('/api/melody/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          scale: `${currentKey} Major`,
+          style: 'melodic',
+          complexity: 5,
+          availableTracks: tracks.map((t) => ({
+            instrument: t.instrument,
+            name: t.name,
+            notes: t.notes?.length || 0,
+          })),
+          musicalParams: {
+            bpm,
+            key: currentKey,
+            timeSignature: '4/4',
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.message || result?.error || 'AI melody generation failed');
+      }
+
+      const aiNotes = result?.data?.notes || result?.data || [];
+      if (!Array.isArray(aiNotes) || aiNotes.length === 0) {
+        throw new Error('No notes returned from AI');
+      }
+
+      const generatedNotes: Note[] = aiNotes.map((n: any, index: number) => {
+        const timeSec = n.time ?? n.start ?? 0;
+        const durationSec = n.duration ?? stepDurationSeconds;
+        const step = Math.max(0, Math.round(timeSec / stepDurationSeconds));
+        const length = Math.max(1, Math.round(durationSec / stepDurationSeconds));
+        return {
+          id: `ai-note-${Date.now()}-${index}`,
+          note: n.note || n.pitch || 'C',
+          octave: n.octave ?? 4,
+          step,
+          length,
+          velocity: Math.max(1, Math.min(127, Math.round((n.velocity ?? 0.8) * 127))),
+        };
+      });
+
+      setTracks((prev) =>
+        prev.map((track, idx) =>
+          idx === selectedTrackIndex ? { ...track, notes: generatedNotes } : track
+        )
+      );
+      addToHistory(generatedNotes);
+
+      toast({ 
+        title: 'AI Suggest Applied', 
+        description: `Added ${generatedNotes.length} notes to ${selectedTrack.name}`,
+      });
+    } catch (error) {
+      console.error('AI Suggest failed:', error);
+      toast({ 
+        title: 'AI Suggest Failed', 
+        description: error instanceof Error ? error.message : 'Could not generate melody',
+        variant: 'destructive'
+      });
+    }
+  }, [addToHistory, bpm, currentKey, selectedTrack.name, selectedTrackIndex, toast, tracks]);
 
   // DUPLICATE TRACK FUNCTION
   const duplicateTrack = useCallback(() => {
@@ -1293,13 +1435,14 @@ export const VerticalPianoRoll: React.FC = () => {
       onPlay={handlePlay}
       onStop={handleStop}
       onClear={clearAll}
+      onGoToBeginning={goToBeginning}
       onToggleChordMode={() => setChordMode(!chordMode)}
       onBpmChange={setBpm}
       onToggleMetronome={setMetronomeEnabled}
       onToggleCountIn={setCountInEnabled}
       chordMode={chordMode}
     />
-  ), [isPlaying, bpm, metronomeEnabled, countInEnabled, handlePlay, handleStop, clearAll, chordMode]);
+  ), [isPlaying, bpm, metronomeEnabled, countInEnabled, handlePlay, handleStop, clearAll, goToBeginning, chordMode]);
 
   const keyScaleSelector = useMemo(() => (
     <KeyScaleSelector
@@ -1543,6 +1686,18 @@ export const VerticalPianoRoll: React.FC = () => {
                   <span className="text-base">
                     {isRecording ? '⏹️ STOP RECORDING' : '🎙️ RECORD'}
                   </span>
+                </Button>
+                
+                {/* Go to Beginning Button */}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="text-sm font-bold px-4 bg-gray-700 hover:bg-gray-600 border-gray-500"
+                  onClick={goToBeginning}
+                  data-testid="button-go-to-beginning"
+                  title="Return to beginning (also happens automatically when recording stops)"
+                >
+                  <span className="text-base">⏮️ Beginning</span>
                 </Button>
                 
                 <Button

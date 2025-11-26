@@ -11,8 +11,8 @@ export function SubscriptionButton() {
   
   // Fetch user credits
   const { data: creditData, isLoading } = useQuery({
-    queryKey: ['/api/credits'],
-    queryFn: () => apiRequest("GET", "/api/credits").then(res => res.json()),
+    queryKey: ['/api/credits/balance'],
+    queryFn: () => apiRequest("GET", "/api/credits/balance").then(res => res.json()),
     refetchInterval: 30000, // Check every 30 seconds
   });
 
@@ -29,8 +29,10 @@ export function SubscriptionButton() {
     );
   }
 
-  const credits = creditData?.credits || 0;
-  const isLowCredits = credits < 5;
+  const credits = creditData?.balance ?? 0;
+  const isOwner = creditData?.isOwner || creditData?.creditInfinite;
+  const isLowCredits = !isOwner && credits < 5;
+  const displayCredits = isOwner ? '∞' : credits;
 
   return (
     <div className="flex items-center space-x-2">
@@ -40,7 +42,7 @@ export function SubscriptionButton() {
         data-testid="badge-credits"
       >
         <Coins className="h-3 w-3 mr-1" />
-        {credits} Credits
+        {displayCredits} Credits
       </Badge>
       <Button 
         onClick={handleBuyCredits}

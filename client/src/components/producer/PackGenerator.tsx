@@ -11,6 +11,7 @@ import {
   Loader2, Package, Headphones, Music, DatabaseIcon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTracks } from "@/hooks/useTracks";
 
 interface GeneratedPack {
   id: string;
@@ -82,9 +83,11 @@ export default function PackGenerator() {
   const [packCount, setPackCount] = useState(4);
   const [generatedPacks, setGeneratedPacks] = useState<GeneratedPack[]>([]);
   const [playingPack, setPlayingPack] = useState<string | null>(null);
+  // Default to real audio provider; user can switch to intelligent/offline if needed
   const [aiProvider, setAiProvider] = useState("musicgen");
   const [previewVolume, setPreviewVolume] = useState([75]);
   const { toast } = useToast();
+  const { addTrack } = useTracks();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const stopPreview = () => {
@@ -114,7 +117,11 @@ export default function PackGenerator() {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Failed to generate packs");
+        const statusMessage =
+          response.status === 401
+            ? `Unauthorized: provider "${body.provider}" needs valid API credentials`
+            : data.message || "Failed to generate packs";
+        throw new Error(statusMessage);
       }
 
       return data.packs as GeneratedPack[];
@@ -134,11 +141,12 @@ export default function PackGenerator() {
         description: "Scroll down to preview, download, or save them.",
       });
     },
-    onError: (error) => {
+    onError: (error, vars) => {
+      const message = error?.message || "Unknown error";
       toast({
         variant: "destructive",
         title: "Generation failed",
-        description: error?.message || "Unknown error",
+        description: `${vars?.provider ?? "provider"}: ${message}`,
       });
     },
   });
@@ -179,6 +187,30 @@ export default function PackGenerator() {
   const handleRandomPrompt = () => {
     const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
     setPrompt(randomPrompt);
+  };
+
+  const handleSendToTracks = (pack: GeneratedPack) => {
+    const firstSample = pack.samples.find((s) => s.audioUrl || s.url);
+    addTrack({
+      name: pack.title || "Generated Pack",
+      type: "audio",
+      audioUrl: firstSample?.audioUrl || firstSample?.url,
+      payload: {
+        source: "pack-generator",
+        packId: pack.id,
+        samples: pack.samples,
+        bpm: pack.bpm,
+        key: pack.key,
+        genre: pack.genre,
+      },
+      lengthBars: 4,
+      startBar: 0,
+    });
+
+    toast({
+      title: "Sent to timeline",
+      description: "Pack registered in the track store for arrangement.",
+    });
   };
 
   const handlePlayPack = (pack: GeneratedPack) => {
@@ -518,6 +550,16 @@ export default function PackGenerator() {
                       >
                         <Download className="h-4 w-4 mr-1" />
                         Download
+                      </Button>
+
+                      <Button
+                        onClick={() => handleSendToTracks(pack)}
+                        size="sm"
+                        variant="outline"
+                        className="border-purple-500 text-purple-500 hover:bg-purple-50"
+                      >
+                        <Music className="h-4 w-4 mr-1" />
+                        Send to Timeline
                       </Button>
 
                       <Button

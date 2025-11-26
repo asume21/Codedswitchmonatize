@@ -25,7 +25,7 @@ export function requireCredits(cost: number, storage: IStorage) {
       const creditService = getCreditService(storage);
 
       // Check for owner bypass
-      let isOwner = false;
+      let isOwner = req.isOwner || false;
       
       // Check 1: x-owner-key bypass (sets userId to 'owner-user')
       if (req.userId === 'owner-user') {
@@ -35,7 +35,8 @@ export function requireCredits(cost: number, storage: IStorage) {
       else if (process.env.OWNER_EMAIL) {
         try {
           const user = await storage.getUser(req.userId);
-          if (user && user.email === process.env.OWNER_EMAIL) {
+          const ownerEmail = process.env.OWNER_EMAIL.toLowerCase();
+          if (user?.email && user.email.toLowerCase() === ownerEmail) {
             isOwner = true;
             console.log(`👑 Owner authenticated: ${user.email}`);
           }
@@ -44,10 +45,12 @@ export function requireCredits(cost: number, storage: IStorage) {
         }
       }
 
-      // If owner, allow operation without checking credits
+      // If owner, allow operation without checking credits but still populate credit service
       if (isOwner) {
+        req.isOwner = true;
         req.creditCost = 0; // No cost for owner
         req.creditService = creditService;
+        req.creditInfinite = true; // Explicit flag to denote unlimited credits
         return next();
       }
 
@@ -92,8 +95,8 @@ export async function deductCredits(
   reason: string,
   metadata?: Record<string, any>
 ): Promise<void> {
-  // Skip if cost is 0 (e.g. owner)
-  if (req.creditCost === 0) {
+  // Skip if cost is 0 or owner has infinite credits
+  if (req.creditCost === 0 || (req as any).creditInfinite) {
     return;
   }
 

@@ -10,16 +10,17 @@ test.describe('Authentication', () => {
   test('login page renders correctly', async ({ page }) => {
     await page.goto('/login');
     
-    await expect(page.locator('input[type="email"], input[name="email"]')).toBeVisible();
-    await expect(page.locator('input[type="password"], input[name="password"]')).toBeVisible();
+    await expect(page.getByLabel('Email')).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
   test('signup page renders correctly', async ({ page }) => {
     await page.goto('/signup');
     
-    await expect(page.locator('input[type="email"], input[name="email"]')).toBeVisible();
-    await expect(page.locator('input[type="password"], input[name="password"]')).toBeVisible();
+    await expect(page.getByLabel(/^Email$/)).toBeVisible();
+    await expect(page.getByLabel(/^Password$/)).toBeVisible();
+    await expect(page.getByLabel(/^Confirm Password$/)).toBeVisible();
   });
 
   test('shows error for invalid login', async ({ page }) => {
@@ -30,7 +31,7 @@ test.describe('Authentication', () => {
     await page.click('button[type="submit"]');
     
     // Should show error message
-    await expect(page.locator(':text("error"), :text("invalid"), :text("incorrect"), .error')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/invalid email or password/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('shows error for empty form submission', async ({ page }) => {

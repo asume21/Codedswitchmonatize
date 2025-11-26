@@ -1,15 +1,17 @@
 /**
  * Master Multi-Track Audio Player
  * Professional audio player for loading and mixing multiple audio files
+ * Integrates with: Uploaded Songs, Beat Lab, Melody Composer, Piano Roll
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { StudioAudioContext } from '@/pages/studio';
 import {
   Play,
   Pause,
@@ -30,6 +32,8 @@ import {
   Drum,
   Piano,
   StopCircle,
+  Layers,
+  Wand2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -38,6 +42,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface AudioTrack {
   id: string;
@@ -193,6 +198,8 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
 
 export default function MasterMultiTrackPlayer() {
   const { toast } = useToast();
+  const studioContext = useContext(StudioAudioContext);
+  
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -202,13 +209,14 @@ export default function MasterMultiTrackPlayer() {
   const [tempo, setTempo] = useState(120);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showAddTrack, setShowAddTrack] = useState(false);
+  const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'beatlab' | 'melody' | 'pianoroll'>('library');
   
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -221,6 +229,75 @@ export default function MasterMultiTrackPlayer() {
     queryKey: ['/api/songs'],
     enabled: showLibrary || showAddTrack,
   });
+
+  // Listen for tracks from other studio tools (Beat Lab, Melody, Piano Roll)
+  useEffect(() => {
+    const handleImportTrack = async (event: CustomEvent) => {
+      const { type, name, audioData, audioUrl } = event.detail;
+      
+      if (!audioContextRef.current) return;
+      
+      try {
+        let audioBuffer: AudioBuffer | null = null;
+        let url = audioUrl || '';
+        
+        if (audioData instanceof ArrayBuffer) {
+          audioBuffer = await audioContextRef.current.decodeAudioData(audioData);
+        } else if (audioData instanceof Blob) {
+          const arrayBuffer = await audioData.arrayBuffer();
+          audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+          url = URL.createObjectURL(audioData);
+        } else if (audioUrl) {
+          const response = await fetch(audioUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+        }
+        
+        const trackColor = type === 'beat' ? '#F59E0B' : 
+                          type === 'melody' ? '#8B5CF6' : 
+                          type === 'pianoroll' ? '#3B82F6' : 
+                          TRACK_COLORS[tracks.length % TRACK_COLORS.length];
+        
+        const newTrack: AudioTrack = {
+          id: `${type}-${Date.now()}`,
+          name: name || `${type.charAt(0).toUpperCase() + type.slice(1)} Track`,
+          audioBuffer,
+          audioUrl: url,
+          volume: 80,
+          pan: 0,
+          muted: false,
+          solo: false,
+          color: trackColor,
+          trackType: type as 'beat' | 'melody' | 'vocal' | 'audio',
+        };
+        
+        setTracks(prev => [...prev, newTrack]);
+        toast({
+          title: '✅ Track Imported',
+          description: `${newTrack.name} added from ${type}`,
+        });
+      } catch (error) {
+        console.error('Error importing track:', error);
+        toast({
+          title: '❌ Import Failed',
+          description: 'Could not import track from studio tool',
+          variant: 'destructive',
+        });
+      }
+    };
+    
+    window.addEventListener('importToMultiTrack' as any, handleImportTrack);
+    return () => {
+      window.removeEventListener('importToMultiTrack' as any, handleImportTrack);
+    };
+  }, [tracks.length, toast]);
+
+  // Sync with studio context tracks
+  useEffect(() => {
+    if (studioContext.currentTracks && studioContext.currentTracks.length > 0) {
+      // Could auto-import tracks from context if needed
+    }
+  }, [studioContext.currentTracks]);
 
   // Initialize Audio Context
   useEffect(() => {
@@ -435,8 +512,8 @@ export default function MasterMultiTrackPlayer() {
     }
   };
 
-  // Add empty track for Beat Lab / Melody import
-  const addEmptyTrack = (name: string, type: 'beat' | 'melody' | 'vocal') => {
+  // Add empty track for Beat Lab / Melody / Piano Roll import
+  const addEmptyTrack = (name: string, type: 'beat' | 'melody' | 'vocal' | 'audio') => {
     const newTrack: AudioTrack = {
       id: `${type}-${Date.now()}`,
       name,
@@ -681,42 +758,213 @@ export default function MasterMultiTrackPlayer() {
                   Add Track
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-gray-900 border-gray-700 max-w-md">
+              <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle className="text-white">Add New Track</DialogTitle>
+                  <DialogTitle className="text-white flex items-center gap-2">
+                    <Layers className="w-5 h-5" />
+                    Add Track to Multi-Track Player
+                  </DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <Button
-                    onClick={() => addEmptyTrack('Beat Track', 'beat')}
-                    className="h-20 flex-col bg-amber-600 hover:bg-amber-500"
-                  >
-                    <Drum className="w-6 h-6 mb-1" />
-                    <span>Beat Track</span>
-                  </Button>
-                  <Button
-                    onClick={() => addEmptyTrack('Melody Track', 'melody')}
-                    className="h-20 flex-col bg-purple-600 hover:bg-purple-500"
-                  >
-                    <Piano className="w-6 h-6 mb-1" />
-                    <span>Melody Track</span>
-                  </Button>
-                  <Button
-                    onClick={() => addEmptyTrack('Vocal Track', 'vocal')}
-                    className="h-20 flex-col bg-green-600 hover:bg-green-500"
-                  >
-                    <Mic className="w-6 h-6 mb-1" />
-                    <span>Vocal Track</span>
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setShowAddTrack(false);
-                      setShowLibrary(true);
-                    }}
-                    className="h-20 flex-col bg-blue-600 hover:bg-blue-500"
-                  >
-                    <Library className="w-6 h-6 mb-1" />
-                    <span>From Library</span>
-                  </Button>
+                
+                <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as any)} className="mt-4">
+                  <TabsList className="grid grid-cols-4 bg-gray-800">
+                    <TabsTrigger value="library" className="data-[state=active]:bg-blue-600">
+                      <Library className="w-4 h-4 mr-1" />
+                      Library
+                    </TabsTrigger>
+                    <TabsTrigger value="beatlab" className="data-[state=active]:bg-amber-600">
+                      <Drum className="w-4 h-4 mr-1" />
+                      Beat Lab
+                    </TabsTrigger>
+                    <TabsTrigger value="melody" className="data-[state=active]:bg-purple-600">
+                      <Piano className="w-4 h-4 mr-1" />
+                      Melody
+                    </TabsTrigger>
+                    <TabsTrigger value="pianoroll" className="data-[state=active]:bg-blue-500">
+                      <Music className="w-4 h-4 mr-1" />
+                      Piano Roll
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  {/* Library Tab - Uploaded Songs */}
+                  <TabsContent value="library" className="mt-4">
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {librarySongs.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400">
+                          <Music className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                          <p>No songs in library yet.</p>
+                          <p className="text-sm">Upload songs in the Song Uploader tab first.</p>
+                        </div>
+                      ) : (
+                        librarySongs.map((song: any) => (
+                          <div
+                            key={song.id}
+                            className="flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Music className="w-5 h-5 text-blue-400" />
+                              <div>
+                                <p className="font-medium text-white">{song.name}</p>
+                                <p className="text-xs text-gray-400">
+                                  {song.format?.toUpperCase()} • {song.duration ? `${Math.round(song.duration)}s` : 'Unknown'}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                loadFromLibrary(song);
+                                setShowAddTrack(false);
+                              }}
+                              className="bg-green-600 hover:bg-green-500"
+                            >
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Beat Lab Tab */}
+                  <TabsContent value="beatlab" className="mt-4">
+                    <div className="text-center py-8">
+                      <Drum className="w-16 h-16 mx-auto mb-4 text-amber-500" />
+                      <h3 className="text-lg font-semibold mb-2">Import from Beat Lab</h3>
+                      <p className="text-gray-400 mb-4 text-sm">
+                        Create beats in Beat Lab and export them here
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        <Button
+                          onClick={() => {
+                            addEmptyTrack('Beat Track', 'beat');
+                            setShowAddTrack(false);
+                          }}
+                          className="bg-amber-600 hover:bg-amber-500"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Empty Beat Track
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'beatmaker' }));
+                            setShowAddTrack(false);
+                            toast({ title: '🥁 Opening Beat Lab', description: 'Create your beat, then export to Multi-Track' });
+                          }}
+                        >
+                          <Wand2 className="w-4 h-4 mr-2" />
+                          Open Beat Lab
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Melody Tab */}
+                  <TabsContent value="melody" className="mt-4">
+                    <div className="text-center py-8">
+                      <Piano className="w-16 h-16 mx-auto mb-4 text-purple-500" />
+                      <h3 className="text-lg font-semibold mb-2">Import from Melody Composer</h3>
+                      <p className="text-gray-400 mb-4 text-sm">
+                        Create melodies and export them here
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        <Button
+                          onClick={() => {
+                            addEmptyTrack('Melody Track', 'melody');
+                            setShowAddTrack(false);
+                          }}
+                          className="bg-purple-600 hover:bg-purple-500"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Empty Melody Track
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'melody' }));
+                            setShowAddTrack(false);
+                            toast({ title: '🎹 Opening Melody Composer', description: 'Create your melody, then export to Multi-Track' });
+                          }}
+                        >
+                          <Wand2 className="w-4 h-4 mr-2" />
+                          Open Melody Composer
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Piano Roll Tab */}
+                  <TabsContent value="pianoroll" className="mt-4">
+                    <div className="text-center py-8">
+                      <Music className="w-16 h-16 mx-auto mb-4 text-blue-500" />
+                      <h3 className="text-lg font-semibold mb-2">Import from Piano Roll</h3>
+                      <p className="text-gray-400 mb-4 text-sm">
+                        Create MIDI sequences in Piano Roll and export them here
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        <Button
+                          onClick={() => {
+                            addEmptyTrack('Piano Roll Track', 'audio');
+                            setShowAddTrack(false);
+                          }}
+                          className="bg-blue-600 hover:bg-blue-500"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Empty Track
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'unified-studio' }));
+                            setShowAddTrack(false);
+                            toast({ title: '🎵 Opening Piano Roll', description: 'Create your sequence, then export to Multi-Track' });
+                          }}
+                        >
+                          <Wand2 className="w-4 h-4 mr-2" />
+                          Open Piano Roll
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+                
+                {/* Quick Add Options */}
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  <p className="text-sm text-gray-400 mb-3">Quick Add:</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        addEmptyTrack('Vocal Track', 'vocal');
+                        setShowAddTrack(false);
+                      }}
+                    >
+                      <Mic className="w-4 h-4 mr-1" />
+                      Vocal Track
+                    </Button>
+                    <label htmlFor="quick-upload" className="cursor-pointer">
+                      <Button size="sm" variant="outline" asChild>
+                        <span>
+                          <Upload className="w-4 h-4 mr-1" />
+                          Upload Audio File
+                        </span>
+                      </Button>
+                    </label>
+                    <input
+                      id="quick-upload"
+                      type="file"
+                      accept="audio/*"
+                      multiple
+                      onChange={(e) => {
+                        handleFileUpload(e);
+                        setShowAddTrack(false);
+                      }}
+                      className="hidden"
+                    />
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>

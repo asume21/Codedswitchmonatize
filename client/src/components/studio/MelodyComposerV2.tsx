@@ -175,8 +175,7 @@ function MelodyComposerV2() {
       const response = await fetch('/api/melody/generate', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'x-owner-key': (import.meta as any).env.VITE_OWNER_KEY || ''
+          'Content-Type': 'application/json'
         },
         credentials: 'include',
         body: JSON.stringify({

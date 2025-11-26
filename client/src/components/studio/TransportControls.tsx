@@ -14,12 +14,13 @@ interface TransportControlsProps {
 
 const FLOAT_MIN_WIDTH = 800;
 const FLOAT_MIN_HEIGHT = 200;
+const FALLBACK_DURATION_SECONDS = 165; // 02:45 fallback when no duration available
 
 export default function TransportControls({ currentTool = "Studio" }: TransportControlsProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [currentTime, setCurrentTime] = useState("00:00");
-  const [totalTime] = useState("02:45");
+  const [totalDuration, setTotalDuration] = useState<number | null>(null);
   const [bar] = useState(1);
   const [beat] = useState(1);
   const [volume, setVolume] = useState(75);
@@ -45,6 +46,27 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     queryKey: ['/api/songs'],
     initialData: [],
   });
+
+  // Keep total duration in sync with uploaded song metadata
+  useEffect(() => {
+    const audioEl = studioContext.uploadedSongAudio;
+    if (!audioEl) {
+      setTotalDuration(null);
+      return;
+    }
+
+    const updateDuration = () => {
+      if (Number.isFinite(audioEl.duration)) {
+        setTotalDuration(audioEl.duration);
+      }
+    };
+
+    updateDuration();
+    audioEl.addEventListener('loadedmetadata', updateDuration);
+    return () => {
+      audioEl.removeEventListener('loadedmetadata', updateDuration);
+    };
+  }, [studioContext.uploadedSongAudio]);
 
   const handlePlay = async () => {
     try {
@@ -125,7 +147,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   };
 
   const handleFastForward = () => {
-    const totalSeconds = 165; // 02:45 in seconds
+    const totalSeconds = totalDuration ?? FALLBACK_DURATION_SECONDS; // fallback to 02:45
     const newTime = Math.min(totalSeconds, playbackTimeSeconds + 10);
     setPlaybackTimeSeconds(newTime);
     const minutes = Math.floor(newTime / 60);
@@ -151,6 +173,12 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     console.log('⏭ Skip to next track');
     setPlaybackTimeSeconds(0);
     setCurrentTime("00:00");
+  };
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleRecord = async () => {
@@ -351,7 +379,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
         
         // Stop at end of track
-        if (newTime >= 165) { // 02:45
+        if (newTime >= (totalDuration ?? FALLBACK_DURATION_SECONDS)) {
           setIsPlaying(false);
           return 0;
         }
@@ -371,6 +399,8 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const containerStyle = isFloating
     ? { left: `${position.x}px`, top: `${position.y}px`, transform: "none" }
     : undefined;
+
+  const formattedTotalTime = formatTime(totalDuration ?? FALLBACK_DURATION_SECONDS);
 
   const renderMinimized = () => (
     <div className="mt-8 flex items-center justify-between gap-4 px-4 py-2">
@@ -501,7 +531,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         <div className="flex items-center space-x-2">
           <span className="font-mono text-gray-300">{currentTime}</span>
           <span className="text-gray-500">/</span>
-          <span className="font-mono text-gray-500">{totalTime}</span>
+          <span className="font-mono text-gray-500">{formattedTotalTime}</span>
         </div>
         
         <div className="border-l border-gray-700 pl-6">

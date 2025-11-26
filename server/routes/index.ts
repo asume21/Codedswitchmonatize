@@ -270,6 +270,7 @@ Return JSON format:
       try {
         bassData = JSON.parse(content);
       } catch (parseError) {
+        console.error("Failed to parse bassline AI response, using fallback", parseError);
         // Fallback bass pattern
         bassData = {
           notes: [
@@ -365,7 +366,7 @@ Return a JSON object with this structure:
         const jsonStr = jsonMatch ? jsonMatch[1] : content;
         musicData = JSON.parse(jsonStr);
       } catch (parseError) {
-        console.error("Failed to parse AI response, using fallback");
+        console.error("Failed to parse AI response, using fallback", parseError);
         // Fallback music data
         musicData = {
           melody: [
@@ -559,7 +560,7 @@ Base your analysis on:
       try {
         analysis = JSON.parse(content);
       } catch (parseError) {
-        console.error("Failed to parse AI analysis, using fallback");
+        console.error("Failed to parse AI analysis, using fallback", parseError);
         analysis = getFallbackAnalysis(songName);
       }
 
@@ -617,7 +618,7 @@ Base your analysis on:
   app.post("/api/songs/auto-master", requireAuth, async (req, res) => {
     const { songUrl, songName } = req.body;
 
-    console.log(`🎛️ AI Auto-Master requested for: ${songName}`);
+    console.log(`🎛️ AI Auto-Master requested for: ${songName}`, { songUrl });
 
     try {
       const aiClient = getAIClient();
@@ -790,6 +791,7 @@ Base your analysis on:
         .map(({ name, score }) => ({ name, score }));
       res.json({ top });
     } catch (err) {
+      console.error("Snake leaderboard error:", err);
       res.status(500).json({ error: "Failed to load leaderboard" });
     }
   });
@@ -797,7 +799,7 @@ Base your analysis on:
   app.post("/api/snake/score", async (req, res) => {
     try {
       const { name, score } = req.body || {};
-      const cleanName = String(name ?? "Guest").slice(0, 24).replace(/[^\w \-\.]/g, "").trim() || "Guest";
+      const cleanName = String(name ?? "Guest").slice(0, 24).replace(/[^\w .-]/g, "").trim() || "Guest";
       const s = Number(score);
       if (!Number.isFinite(s) || s < 0 || s > 1000000) {
         return res.status(400).json({ error: "Invalid score" });
@@ -805,6 +807,7 @@ Base your analysis on:
       snakeScores.push({ name: cleanName, score: Math.floor(s), ts: Date.now() });
       res.json({ ok: true });
     } catch (err) {
+      console.error("Snake score submit error:", err);
       res.status(500).json({ error: "Failed to submit score" });
     }
   });
@@ -814,7 +817,7 @@ Base your analysis on:
       console.log("📋 Fetching saved beats");
 
       // For now, return empty array - in a real app you'd fetch from database
-      const beats: any[] = [];
+      const beats: Array<Record<string, never>> = [];
 
       res.json({
         success: true,

@@ -1,4 +1,4 @@
-import { lazy, Suspense, type JSX } from "react";
+import React, { lazy, Suspense, type JSX } from "react";
 
 // Lazy load all studio components for code splitting
 // This dramatically reduces initial bundle size
@@ -26,7 +26,8 @@ const WavetableOscillator = lazy(() => import("@/components/producer/WavetableOs
 const MIDIController = lazy(() => import("@/components/studio/MIDIController").then(m => ({ default: m.MIDIController })));
 const PerformanceMetrics = lazy(() => import("@/components/studio/PerformanceMetrics").then(m => ({ default: m.PerformanceMetrics })));
 const SongStructureManager = lazy(() => import("@/components/studio/SongStructureManager").then(m => ({ default: m.SongStructureManager })));
-const CodeBeatStudio = lazy(() => import("@/pages/codebeat-studio"));
+// Deprecated: CodeBeat page is routed separately; keep lazy import commented to avoid unused warning
+// const CodeBeatStudio = lazy(() => import("@/pages/codebeat-studio"));
 const MasterMultiTrackPlayer = lazy(() => import("@/components/studio/MasterMultiTrackPlayer"));
 
 // Loading fallback component

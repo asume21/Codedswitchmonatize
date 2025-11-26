@@ -348,7 +348,7 @@ export function PerformanceMetrics() {
                 <CardContent className="space-y-6">
                   <div className="text-center py-8">
                     <i className="fas fa-chart-line text-gray-400 text-3xl mb-4"></i>
-                    <p className="text-gray-400">Advanced analytics coming soon...</p>
+                    <p className="text-gray-400">Advanced analytics dashboards available via Metrics view..</p>
                     <p className="text-sm text-gray-500 mt-2">
                       Will include trend analysis, pattern recognition, and optimization suggestions
                     </p>

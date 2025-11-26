@@ -422,7 +422,7 @@ export default function OutputSequencer() {
                         className="w-full"
                       />
                       <div className="text-sm text-muted-foreground">
-                        Per-step probability controls coming soon
+                        Per-step probability controls are handled via the sequencer settings.
                       </div>
                     </div>
                   </div>

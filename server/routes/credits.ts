@@ -35,11 +35,36 @@ export function createCreditRoutes(storage: IStorage) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
+      // Determine owner/infinite credits state
+      let isOwner = req.isOwner || req.userId === 'owner-user';
+      if (!isOwner && process.env.OWNER_EMAIL) {
+        try {
+          const user = await storage.getUser(req.userId);
+          const ownerEmail = process.env.OWNER_EMAIL.toLowerCase();
+          if (user?.email && user.email.toLowerCase() === ownerEmail) {
+            isOwner = true;
+          }
+        } catch (e) {
+          console.warn('Owner email check failed:', e);
+        }
+      }
+
+      if (isOwner) {
+        return res.json({
+          balance: Number.MAX_SAFE_INTEGER,
+          userId: req.userId,
+          isOwner: true,
+          creditInfinite: true,
+        });
+      }
+
       const balance = await creditService.getBalance(req.userId);
       
       res.json({ 
         balance,
-        userId: req.userId 
+        userId: req.userId,
+        isOwner: false,
+        creditInfinite: false,
       });
     } catch (error) {
       console.error('Get balance error:', error);
@@ -114,7 +139,7 @@ export function createCreditRoutes(storage: IStorage) {
 
   /**
    * POST /api/credits/grant-monthly
-   * Grant monthly credits to pro subscribers (admin or cron job)
+   * Grant monthly credits to pro subscribers (admin/owner only)
    */
   router.post('/grant-monthly', async (req: Request, res: Response) => {
     try {
@@ -122,9 +147,17 @@ export function createCreditRoutes(storage: IStorage) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      await creditService.grantMonthlyCredits(req.userId);
+      // Only owner can grant monthly credits
+      const isOwner = req.isOwner || req.userId === 'owner-user';
+      if (!isOwner) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      // Allow granting to a specific user via body, or self
+      const targetUserId = req.body.userId || req.userId;
+      await creditService.grantMonthlyCredits(targetUserId);
       
-      const newBalance = await creditService.getBalance(req.userId);
+      const newBalance = await creditService.getBalance(targetUserId);
       
       res.json({ 
         message: 'Monthly credits granted successfully',
@@ -138,7 +171,7 @@ export function createCreditRoutes(storage: IStorage) {
 
   /**
    * POST /api/credits/refund
-   * Refund credits for a transaction (admin only)
+   * Refund credits for a transaction (admin/owner only)
    */
   router.post('/refund', async (req: Request, res: Response) => {
     try {
@@ -146,9 +179,16 @@ export function createCreditRoutes(storage: IStorage) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
+      // Only owner can issue refunds
+      const isOwner = req.isOwner || req.userId === 'owner-user';
+      if (!isOwner) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
       const schema = z.object({
         transactionId: z.string(),
-        reason: z.string()
+        reason: z.string(),
+        userId: z.string().optional() // Allow refunding for specific user
       });
 
       const parsed = schema.safeParse(req.body);
@@ -159,10 +199,12 @@ export function createCreditRoutes(storage: IStorage) {
         });
       }
 
-      const { transactionId, reason } = parsed.data;
+      const { transactionId, reason, userId } = parsed.data;
 
+      // Use provided userId or fall back to requester
+      const targetUserId = userId || req.userId;
       const transaction = await creditService.refundCredits(
-        req.userId,
+        targetUserId,
         transactionId,
         reason
       );

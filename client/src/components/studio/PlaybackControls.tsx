@@ -12,7 +12,8 @@ import {
   Volume2,
   ChevronDown,
   ChevronUp,
-  Keyboard
+  Keyboard,
+  SkipBack
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -26,6 +27,7 @@ interface PlaybackControlsProps {
   onPlay: () => void;
   onStop: () => void;
   onClear: () => void;
+  onGoToBeginning?: () => void;
   onToggleChordMode: () => void;
   onBpmChange: (bpm: number) => void;
   onToggleMetronome: (enabled: boolean) => void;
@@ -46,6 +48,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   onPlay,
   onStop,
   onClear,
+  onGoToBeginning,
   onToggleChordMode,
   onBpmChange,
   onToggleMetronome,
@@ -74,10 +77,24 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   useHotkeys('h', onToggleChordMode, [onToggleChordMode]);
   useHotkeys('up', incrementBpm, [bpm, onBpmChange]);
   useHotkeys('down', decrementBpm, [bpm, onBpmChange]);
+  useHotkeys('home', () => onGoToBeginning?.(), [onGoToBeginning]);
   return (
     <div className={cn("flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border", className)}>
       {/* Transport Controls */}
       <div className="flex items-center gap-2">
+        {/* Go to Beginning Button */}
+        {onGoToBeginning && (
+          <Button 
+            onClick={onGoToBeginning} 
+            variant="outline" 
+            className="w-12 justify-center"
+            aria-label="Go to Beginning"
+            title="Return to beginning (Home)"
+          >
+            <SkipBack className="h-4 w-4" />
+          </Button>
+        )}
+        
         <Button
           onClick={onPlay}
           className={cn(

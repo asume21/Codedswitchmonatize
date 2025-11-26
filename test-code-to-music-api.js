@@ -63,7 +63,7 @@ async function testCodeToMusic() {
                 throw new Error('Invalid JSON response');
             }
             
-            console.log(`   Has success field: ${data.hasOwnProperty('success')}`);
+            console.log(`   Has success field: ${Object.prototype.hasOwnProperty.call(data, 'success')}`);
             console.log(`   Data keys: ${Object.keys(data).join(', ')}`);
             
             if (data.success) {

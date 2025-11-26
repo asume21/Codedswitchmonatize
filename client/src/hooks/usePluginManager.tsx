@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Settings } from 'lucide-react';
 
 export interface Plugin {
@@ -11,21 +11,13 @@ export interface Plugin {
   active: boolean;
 }
 
-// Simple placeholder component
-const PlaceholderComponent = () => (
-  <div className="p-4 text-center text-muted-foreground">
-    <Settings className="w-8 h-8 mx-auto mb-2" />
-    <p>Plugin coming soon...</p>
-  </div>
-);
-
 const defaultPlugins: Plugin[] = [
   {
     id: 'melody-composer',
     name: 'Melody Composer',
     description: 'AI-powered melody generation and composition tools',
     category: 'studio',
-    component: PlaceholderComponent,
+    component: () => null,
     icon: Settings,
     active: false,
   },
@@ -34,7 +26,7 @@ const defaultPlugins: Plugin[] = [
     name: 'Song Uploader',
     description: 'Upload and manage your music files',
     category: 'studio',
-    component: PlaceholderComponent,
+    component: () => null,
     icon: Settings,
     active: false,
   },
@@ -43,7 +35,7 @@ const defaultPlugins: Plugin[] = [
     name: 'Beat Studio',
     description: 'Create and edit drum patterns and beats',
     category: 'studio',
-    component: PlaceholderComponent,
+    component: () => null,
     icon: Settings,
     active: false,
   },
@@ -52,7 +44,7 @@ const defaultPlugins: Plugin[] = [
     name: 'Mix Studio',
     description: 'Professional mixing and mastering tools',
     category: 'production',
-    component: PlaceholderComponent,
+    component: () => null,
     icon: Settings,
     active: false,
   },
@@ -61,7 +53,7 @@ const defaultPlugins: Plugin[] = [
     name: 'AI Assistant',
     description: 'Intelligent music production assistant',
     category: 'studio',
-    component: PlaceholderComponent,
+    component: () => null,
     icon: Settings,
     active: false,
   },

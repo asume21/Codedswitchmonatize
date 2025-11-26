@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, MessageSquare, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import AIAssistant from './AIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
@@ -28,12 +28,15 @@ import AudioAnalysisPanel from './AudioAnalysisPanel';
 import AudioToolsPage from './AudioToolsPage';
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
+import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
-  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab';
+  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack';
   showAIAssistant: boolean;
   showMusicGen: boolean;
   expandedSections?: {
@@ -159,7 +162,7 @@ export default function UnifiedStudioWorkspace() {
   
   
   // Main View State (DAW-style tabs)
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab'>('arrangement');
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack'>('arrangement');
   
   // Section expansion states
   const [timelineExpanded, setTimelineExpanded] = useState(true);
@@ -176,7 +179,11 @@ export default function UnifiedStudioWorkspace() {
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showLyricsFocus, setShowLyricsFocus] = useState(false);
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
+  const [beatLabTab, setBeatLabTab] = useState<'pro' | 'pack-generator' | 'codebeat'>('pro');
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
+  const [trackHistory, setTrackHistory] = useState<StudioTrack[][]>([]);
+  const [trackFuture, setTrackFuture] = useState<StudioTrack[][]>([]);
+  const isRestoringTracksRef = useRef(false);
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
@@ -185,6 +192,12 @@ export default function UnifiedStudioWorkspace() {
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
   const setTracks = useCallback((next: StudioTrack[] | ((prev: StudioTrack[]) => StudioTrack[])) => {
+    if (!isRestoringTracksRef.current) {
+      setTrackHistory((prev) => [...prev.slice(-19), tracks]);
+      setTrackFuture([]);
+    } else {
+      isRestoringTracksRef.current = false;
+    }
     const nextTracks = typeof next === 'function' ? (next as (prev: StudioTrack[]) => StudioTrack[])(tracks as StudioTrack[]) : next;
     const nextIds = new Set(nextTracks.map((t) => t.id));
 
@@ -627,11 +640,29 @@ export default function UnifiedStudioWorkspace() {
 
   // Edit menu actions
   const handleUndo = () => {
-    toast({ title: "Undo", description: "Undo functionality coming soon" });
+    if (trackHistory.length === 0) {
+      toast({ title: "Nothing to undo" });
+      return;
+    }
+    const previous = trackHistory[trackHistory.length - 1];
+    setTrackHistory((prev) => prev.slice(0, -1));
+    setTrackFuture((prev) => [tracks, ...prev]);
+    isRestoringTracksRef.current = true;
+    setTracks(previous);
+    toast({ title: "Undo", description: "Reverted last track change" });
   };
 
   const handleRedo = () => {
-    toast({ title: "Redo", description: "Redo functionality coming soon" });
+    if (trackFuture.length === 0) {
+      toast({ title: "Nothing to redo" });
+      return;
+    }
+    const next = trackFuture[0];
+    setTrackFuture((prev) => prev.slice(1));
+    setTrackHistory((prev) => [...prev, tracks]);
+    isRestoringTracksRef.current = true;
+    setTracks(next);
+    toast({ title: "Redo", description: "Reapplied track change" });
   };
 
   const handleCut = () => {
@@ -878,50 +909,20 @@ export default function UnifiedStudioWorkspace() {
                   <span>Open Project...</span>
                   <span className="text-xs text-gray-500">Ctrl+O</span>
                 </button>
-                <button onClick={() => toast({ title: "Recent Projects" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Recent Projects ▶
-                </button>
                 <div className="border-t border-gray-700 my-1"></div>
                 <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Save Project</span>
                   <span className="text-xs text-gray-500">Ctrl+S</span>
-                </button>
-                <button onClick={() => toast({ title: "Save As..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Save As...</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+S</span>
-                </button>
-                <button onClick={() => toast({ title: "Save Template" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Save as Template...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
                 <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Import Audio...</span>
                   <span className="text-xs text-gray-500">Ctrl+I</span>
                 </button>
-                <button onClick={() => toast({ title: "Import MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Import MIDI...
-                </button>
-                <button onClick={() => toast({ title: "Import Project..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Import Project...
-                </button>
                 <div className="border-t border-gray-700 my-1"></div>
                 <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Export Audio...</span>
                   <span className="text-xs text-gray-500">Ctrl+E</span>
-                </button>
-                <button onClick={() => toast({ title: "Export MIDI..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Export MIDI...
-                </button>
-                <button onClick={() => toast({ title: "Export Stems..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Export Stems...
-                </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Project Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Project Settings...
-                </button>
-                <button onClick={() => toast({ title: "Preferences" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Preferences...</span>
-                  <span className="text-xs text-gray-500">Ctrl+,</span>
                 </button>
               </div>
             </div>
@@ -936,9 +937,6 @@ export default function UnifiedStudioWorkspace() {
                   <span>Redo</span>
                   <span className="text-xs text-gray-500">Ctrl+Y</span>
                 </button>
-                <button onClick={() => toast({ title: "History..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  History...
-                </button>
                 <div className="border-t border-gray-700 my-1"></div>
                 <button onClick={handleCut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Cut</span>
@@ -952,10 +950,6 @@ export default function UnifiedStudioWorkspace() {
                   <span>Paste</span>
                   <span className="text-xs text-gray-500">Ctrl+V</span>
                 </button>
-                <button onClick={handleDuplicate} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Duplicate</span>
-                  <span className="text-xs text-gray-500">Ctrl+D</span>
-                </button>
                 <button onClick={handleDelete} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Delete</span>
                   <span className="text-xs text-gray-500">Del</span>
@@ -964,39 +958,6 @@ export default function UnifiedStudioWorkspace() {
                 <button onClick={handleSelectAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Select All</span>
                   <span className="text-xs text-gray-500">Ctrl+A</span>
-                </button>
-                <button onClick={() => toast({ title: "Deselect All" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Deselect All</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+A</span>
-                </button>
-                <button onClick={() => toast({ title: "Invert Selection" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Invert Selection
-                </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Split at Playhead" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Split at Playhead</span>
-                  <span className="text-xs text-gray-500">Ctrl+K</span>
-                </button>
-                <button onClick={() => toast({ title: "Join Clips" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Join Clips</span>
-                  <span className="text-xs text-gray-500">Ctrl+J</span>
-                </button>
-                <button onClick={() => toast({ title: "Quantize..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Quantize...</span>
-                  <span className="text-xs text-gray-500">Ctrl+Q</span>
-                </button>
-                <button onClick={() => toast({ title: "Transpose..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Transpose...</span>
-                  <span className="text-xs text-gray-500">Ctrl+T</span>
-                </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Find..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Find...</span>
-                  <span className="text-xs text-gray-500">Ctrl+F</span>
-                </button>
-                <button onClick={() => toast({ title: "Replace..." })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Replace...</span>
-                  <span className="text-xs text-gray-500">Ctrl+H</span>
                 </button>
               </div>
             </div>
@@ -1533,8 +1494,8 @@ export default function UnifiedStudioWorkspace() {
         </div>
         
         {/* Transport Controls */}
-        <div className="flex flex-wrap items-center gap-3 mt-2">
-          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 py-2">
+        <div className="w-full flex items-center gap-3 mt-2 mb-3 relative z-0 py-1 overflow-x-auto overflow-y-visible whitespace-nowrap">
+          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 h-12 shrink-0">
             <Button
               size="sm"
               onClick={() => (transportPlaying ? pauseTransport() : startTransport())}
@@ -1554,13 +1515,13 @@ export default function UnifiedStudioWorkspace() {
               <Square className="w-4 h-4 mr-1" />
               Stop
             </Button>
-            <div className="flex items-center gap-2 text-xs text-gray-300">
-              <span className="font-semibold">Bar {Math.max(1, Math.floor(playheadPosition / 16) + 1)}</span>
-              <span className="text-gray-500">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
+            <div className="flex items-center gap-2 text-xs text-gray-300 min-w-[110px]">
+              <span className="font-semibold whitespace-nowrap">Bar {Math.max(1, Math.floor(playheadPosition / 16) + 1)}</span>
+              <span className="text-gray-500 whitespace-nowrap">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 py-2">
+          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 h-12 shrink-0">
             <Sliders className="w-4 h-4 text-gray-400" />
             <span className="text-xs text-gray-300 font-medium">Tempo</span>
             <div className="w-28">
@@ -1576,101 +1537,180 @@ export default function UnifiedStudioWorkspace() {
             <span className="text-xs text-white font-bold w-14 text-right">{Math.round(tempo)} BPM</span>
           </div>
 
-          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 py-2">
+          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 h-12 shrink-0">
             <Repeat className="w-4 h-4 text-gray-400" />
             <span className="text-xs text-gray-300 font-medium">Loop</span>
             <Switch
               checked={loop.enabled}
               onCheckedChange={(checked) => setLoop({ enabled: checked })}
             />
-            {loop.enabled && (
-              <span className="text-xs text-gray-400">
-                Bars {loop.start + 1}-{loop.end}
-              </span>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setLoop({ enabled: true, start: 0, end: 4 })}
-            >
-              4-Bar
-            </Button>
+            <span className="text-xs text-gray-400 whitespace-nowrap">
+              Bars {loop.start + 1}-{loop.end}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={loop.enabled ? 'default' : 'outline'}
+                  className="px-3"
+                >
+                  {Math.max(1, Math.round((loop.end ?? 4) - (loop.start ?? 0)))}-Bar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-gray-900 border border-gray-700 text-white">
+                {[1, 2, 4, 8].map((bars) => (
+                  <DropdownMenuItem
+                    key={bars}
+                    className="text-sm"
+                    onClick={() => setLoop({ enabled: true, start: loop.start ?? 0, end: (loop.start ?? 0) + bars })}
+                  >
+                    {bars}-Bar
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
 
-      {/* DAW-Style Tab Bar - Reorganized for better UX */}
-      <div className="bg-gray-850 border-b border-gray-700 px-2 flex items-center justify-between h-10 flex-shrink-0">
-        {/* Primary Tabs - Core Production Tools */}
-        <div className="flex items-center space-x-1">
+      {/* DAW-Style Tab Bar - All tabs together */}
+      <div className="bg-gray-850 border-b border-gray-700 px-2 py-2 flex flex-wrap items-center justify-between gap-2">
+        {/* All Tabs - Left Side */}
+        <div className="flex flex-wrap items-center gap-1">
           <Button
             variant={activeView === 'arrangement' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('arrangement')}
-            className="h-8 px-3"
+            className="h-8 px-3 text-xs"
           >
-            <Layers className="w-3 h-3 mr-1.5" />
-            Arrangement
+            <Layers className="w-3 h-3 mr-1" />
+            Arrange
           </Button>
           <Button
             variant={activeView === 'beat-lab' ? 'default' : 'ghost'}
             size="sm"
-            onClick={() => setActiveView('beat-lab')}
-            className="h-8 px-3"
+            onClick={() => {
+              setBeatLabTab('pro');
+              setActiveView('beat-lab');
+            }}
+            className="h-8 px-3 text-xs"
           >
-            <Music className="w-3 h-3 mr-1.5" />
-            Beat Lab
+            <Music className="w-3 h-3 mr-1" />
+            Beats
+          </Button>
+          <Button
+            variant={activeView === 'beat-lab' && beatLabTab === 'pack-generator' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setBeatLabTab('pack-generator');
+              setActiveView('beat-lab');
+            }}
+            className="h-8 px-3 text-xs"
+            title="Open Pack Generator"
+          >
+            <Package className="w-3 h-3 mr-1" />
+            Pack Generator
           </Button>
           <Button
             variant={activeView === 'piano-roll' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('piano-roll')}
-            className="h-8 px-3"
+            className="h-8 px-3 text-xs"
           >
-            <Piano className="w-3 h-3 mr-1.5" />
-            Piano Roll
+            <Piano className="w-3 h-3 mr-1" />
+            Piano
           </Button>
           <Button
             variant={activeView === 'mixer' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('mixer')}
-            className="h-8 px-3"
+            className="h-8 px-3 text-xs"
           >
-            <Sliders className="w-3 h-3 mr-1.5" />
+            <Sliders className="w-3 h-3 mr-1" />
             Mixer
+          </Button>
+          <Button
+            variant={activeView === 'multitrack' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('multitrack')}
+            className="h-8 px-3 text-xs"
+          >
+            <Layers className="w-3 h-3 mr-1" />
+            Multi-Track
+          </Button>
+          <div className="w-px h-5 bg-gray-600 mx-1" />
+          <Button
+            variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('ai-studio')}
+            className="h-8 px-3 text-xs"
+          >
+            <Wand2 className="w-3 h-3 mr-1" />
+            AI Studio
+          </Button>
+          <Button
+            variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('code-to-music')}
+            className="h-8 px-3 text-xs"
+            data-testid="tab-code-to-music"
+          >
+            <Wand2 className="w-3 h-3 mr-1" />
+            Code to Music
+          </Button>
+          <Button
+            variant={activeView === 'lyrics' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('lyrics')}
+            className="h-8 px-3 text-xs"
+          >
+            <Mic2 className="w-3 h-3 mr-1" />
+            Lyrics
+          </Button>
+          <Button
+            variant={activeView === 'audio-tools' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('audio-tools')}
+            className="h-8 px-3 text-xs"
+          >
+            <Wrench className="w-3 h-3 mr-1" />
+            Tools
+          </Button>
+          <Button
+            variant={activeView === 'song-uploader' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('song-uploader')}
+            className="h-8 px-3 text-xs"
+          >
+            <Upload className="w-3 h-3 mr-1" />
+            Upload
           </Button>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center space-x-1">
+        {/* Right Side - Compact Action Buttons & Volume */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={() => setShowMusicGen(!showMusicGen)}
             className="bg-purple-600 hover:bg-purple-500 h-8 px-3"
             size="sm"
+            title="Generate Music"
           >
-            <Music className="w-3 h-3 mr-1.5" />
+            <Music className="w-3 h-3 mr-1" />
             Generate
-          </Button>
-          <Button
-            onClick={() => setActiveView('ai-studio')}
-            className="bg-blue-600 hover:bg-blue-500 h-8 px-3"
-            size="sm"
-          >
-            <MessageSquare className="w-3 h-3 mr-1.5" />
-            AI Assistant
           </Button>
           <Button
             onClick={() => setShowWorkflowSelector(true)}
             className="bg-green-600 hover:bg-green-500 h-8 px-3"
             data-testid="button-change-workflow"
             size="sm"
+            title="Change Workflow"
           >
-            <Workflow className="w-3 h-3 mr-1.5" />
+            <Workflow className="w-3 h-3 mr-1" />
             Workflow
           </Button>
           
-          {/* Master Volume */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-gray-800 rounded border border-gray-700">
+          {/* Master Volume - Compact */}
+          <div className="flex items-center gap-2 px-2 py-1 bg-gray-800 rounded border border-gray-700">
             <Sliders className="w-3 h-3 text-gray-400" />
             <div className="w-16">
               <Slider
@@ -1686,48 +1726,8 @@ export default function UnifiedStudioWorkspace() {
                 className="w-full"
               />
             </div>
-            <span className="text-xs text-white font-bold w-6">{Math.round(masterVolume * 100)}%</span>
+            <span className="text-xs text-white font-bold w-8 text-right">{Math.round(masterVolume * 100)}%</span>
           </div>
-        </div>
-
-        {/* Secondary Tabs - AI & Tools */}
-        <div className="flex items-center space-x-1">
-          <Button
-            variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('code-to-music')}
-            className="h-8 px-3"
-          >
-            <Wand2 className="w-3 h-3 mr-1.5" />
-            Code to Music
-          </Button>
-          <Button
-            variant={activeView === 'lyrics' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('lyrics')}
-            className="h-8 px-3"
-          >
-            <Mic2 className="w-3 h-3 mr-1.5" />
-            Lyrics
-          </Button>
-          <Button
-            variant={activeView === 'audio-tools' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('audio-tools')}
-            className="h-8 px-3"
-          >
-            <Wrench className="w-3 h-3 mr-1.5" />
-            Tools
-          </Button>
-          <Button
-            variant={activeView === 'song-uploader' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('song-uploader')}
-            className="h-8 px-3"
-          >
-            <Upload className="w-3 h-3 mr-1.5" />
-            Upload
-          </Button>
         </div>
       </div>
 
@@ -2078,7 +2078,7 @@ Your lyrics will sync with the timeline
           {/* BEAT LAB VIEW */}
           {activeView === 'beat-lab' && (
             <div className="flex-1 overflow-y-auto bg-gray-900">
-              <BeatLab />
+              <BeatLab initialTab={beatLabTab} />
             </div>
           )}
 
@@ -2150,6 +2150,13 @@ Your lyrics will sync with the timeline
               <AudioToolsPage />
             </div>
           )}
+
+          {/* MULTI-TRACK PLAYER */}
+          {activeView === 'multitrack' && (
+            <div className="flex-1 overflow-hidden bg-gray-900">
+              <MasterMultiTrackPlayer />
+            </div>
+          )}
         </div>
 
       {/* Floating/Overlay Components */}
@@ -2190,6 +2197,93 @@ Your lyrics will sync with the timeline
           />
         </DialogContent>
       </Dialog>
+
+      {/* Floating Transport Bar - Surfaces in Piano Roll and Arrangement views */}
+      {(activeView === 'piano-roll' || activeView === 'arrangement') && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3">
+            {/* Play/Pause */}
+            <Button
+              size="sm"
+              onClick={() => (transportPlaying ? pauseTransport() : startTransport())}
+              className={`rounded-full w-10 h-10 p-0 ${transportPlaying ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}
+            >
+              {transportPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            </Button>
+            
+            {/* Stop */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                stopTransport();
+                seek(0);
+              }}
+              className="rounded-full w-10 h-10 p-0"
+            >
+              <Square className="w-4 h-4" />
+            </Button>
+
+            {/* Position Display */}
+            <div className="px-3 py-1 bg-gray-800 rounded-full text-sm font-mono">
+              <span className="text-white">Bar {Math.max(1, Math.floor(playheadPosition / 16) + 1)}</span>
+              <span className="text-gray-400 mx-1">:</span>
+              <span className="text-gray-300">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
+            </div>
+
+            {/* Loop Toggle */}
+            <Button
+              size="sm"
+              variant={loop.enabled ? 'default' : 'outline'}
+              onClick={() => setLoop({ enabled: !loop.enabled })}
+              className="rounded-full w-10 h-10 p-0"
+              title="Toggle Loop"
+            >
+              <Repeat className="w-4 h-4" />
+            </Button>
+
+            {/* Clear All Tracks */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                stopTransport();
+                seek(0);
+                setTracks([]);
+              }}
+              className="rounded-full px-3 py-1"
+              title="Clear all tracks"
+            >
+              Clear
+            </Button>
+
+            {/* Tempo */}
+            <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full">
+              <span className="text-xs text-gray-400">BPM</span>
+              <span className="text-sm font-bold text-white">{Math.round(tempo)}</span>
+            </div>
+
+            {/* Volume */}
+            <div className="flex items-center gap-1 px-2">
+              <Sliders className="w-3 h-3 text-gray-400" />
+              <div className="w-16">
+                <Slider
+                  value={[masterVolume * 100]}
+                  onValueChange={(value) => {
+                    const newVolume = value[0] / 100;
+                    setMasterVolume(newVolume);
+                    setMIDIMasterVolume(newVolume);
+                  }}
+                  max={100}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </div>
   );

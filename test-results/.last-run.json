@@ -1,25 +1,4 @@
 {
-  "status": "failed",
-  "failedTests": [
-    "4b8be3bb3b93a27e0f0c-c06c9639ed724caed0de",
-    "4b8be3bb3b93a27e0f0c-784bc8fb5ae6da21b8d8",
-    "4b8be3bb3b93a27e0f0c-ae7260f2f395982cf3ce",
-    "4b8be3bb3b93a27e0f0c-4908e21e1b7f249d56fa",
-    "4b8be3bb3b93a27e0f0c-3659069390a7d089976a",
-    "4b8be3bb3b93a27e0f0c-35a0506ba78651bd43ef",
-    "4b8be3bb3b93a27e0f0c-491a12709ed0d5d310be",
-    "4b8be3bb3b93a27e0f0c-0e1ecf032afd5d616b78",
-    "4b8be3bb3b93a27e0f0c-b8dfd38a63531d1ccbfc",
-    "4b8be3bb3b93a27e0f0c-ffd1a27dd76c5a858e40",
-    "4b8be3bb3b93a27e0f0c-188afed9de8a6d4b451c",
-    "4b8be3bb3b93a27e0f0c-b3f665d2bcf6c7983eb9",
-    "4b8be3bb3b93a27e0f0c-54374e237179efffc148",
-    "4b8be3bb3b93a27e0f0c-91ee2c55322fcac48c1f",
-    "4b8be3bb3b93a27e0f0c-807720fcebeef4416a31",
-    "4b8be3bb3b93a27e0f0c-3ad96f5c9d53a39cf6ef",
-    "4b8be3bb3b93a27e0f0c-43832bd259a0ba57a5ab",
-    "4b8be3bb3b93a27e0f0c-1c4321e957e6b2dc595a",
-    "4b8be3bb3b93a27e0f0c-dfc52b3a773bba201965",
-    "4b8be3bb3b93a27e0f0c-076f78e77462c920be9d"
-  ]
+  "status": "passed",
+  "failedTests": []
 }

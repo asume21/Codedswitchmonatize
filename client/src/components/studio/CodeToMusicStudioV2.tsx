@@ -309,6 +309,7 @@ export default function CodeToMusicStudioV2() {
             {/* Actions */}
             <div className="flex gap-2">
               <Button
+                data-testid="code-to-music-generate"
                 onClick={generateMusic}
                 disabled={isGenerating}
                 className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
@@ -326,6 +327,7 @@ export default function CodeToMusicStudioV2() {
                 )}
               </Button>
               <Button
+                data-testid="code-to-music-load-sample"
                 onClick={loadSample}
                 variant="outline"
                 className="border-purple-500/50"
@@ -413,6 +415,7 @@ export default function CodeToMusicStudioV2() {
                 {/* Actions */}
                 <div className="flex gap-2 pt-2">
                   <Button
+                    data-testid="code-to-music-play"
                     className="flex-1 bg-purple-600 hover:bg-purple-700"
                     disabled={isGenerating || !musicData}
                     onClick={isPlaying ? handleStop : handlePlay}

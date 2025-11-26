@@ -18,6 +18,7 @@ export function currentUser(storage: IStorage) {
       
       if (ownerKey && expectedOwnerKey && ownerKey === expectedOwnerKey) {
         req.userId = 'owner-user';
+        req.isOwner = true;
         console.log('✅ Owner key authenticated successfully');
         return next();
       }

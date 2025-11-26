@@ -11,9 +11,11 @@ import fetch from "node-fetch";
 import { unlink } from "fs/promises";
 import { sunoApi } from "../services/sunoApi";
 import { getGuestUserId } from "../guestUser";
+import { isIP } from "net";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
+  const allowGuestUploads = process.env.ALLOW_GUEST_UPLOADS !== "false";
 
   // Song upload endpoint - saves uploaded song metadata to database
   router.post("/upload", async (req: Request, res: Response) => {
@@ -24,8 +26,11 @@ export function createSongRoutes(storage: IStorage) {
     console.log('  - req.session?.userId:', req.session?.userId);
     console.log('  - cookies:', req.headers.cookie);
     
-    // Check if user is authenticated (use guest user for anonymous uploads)
+    // Check if user is authenticated (use guest user for anonymous uploads if enabled)
     if (!req.userId) {
+      if (!allowGuestUploads) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
       console.warn('⚠️ No auth - using guest user for development');
       req.userId = await getGuestUserId(storage);
       console.log('✅ Using guest user ID:', req.userId);
@@ -97,6 +102,9 @@ export function createSongRoutes(storage: IStorage) {
   router.get("/", async (req: Request, res: Response) => {
     // Use guest user for anonymous requests
     if (!req.userId) {
+      if (!allowGuestUploads) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
       req.userId = await getGuestUserId(storage);
       console.log('✅ Using guest user ID for song list:', req.userId);
     }
@@ -114,6 +122,9 @@ export function createSongRoutes(storage: IStorage) {
   router.post("/analyze", async (req: Request, res: Response) => {
     // Use guest user for anonymous analysis (same as upload)
     if (!req.userId) {
+      if (!allowGuestUploads) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
       console.warn('⚠️ No auth - using guest user for song analysis');
       req.userId = await getGuestUserId(storage);
       console.log('✅ Using guest user ID for analysis:', req.userId);
@@ -439,6 +450,141 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
+  // ===== MIGRATION ENDPOINT =====
+  // Fix old uploaded tracks that weren't converted to MP3
+  router.post("/migrate-old-tracks", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      console.log('🔄 Starting migration of old tracks for user:', req.userId);
+      
+      const userSongs = await storage.getUserSongs(req.userId);
+      const songsToMigrate: any[] = [];
+      const migratedSongs: any[] = [];
+      const failedSongs: any[] = [];
+
+      // Find songs that need migration (non-MP3 or missing converted URL)
+      for (const song of userSongs) {
+        const accessibleUrl = song.accessibleUrl || '';
+        const format = (song.format || '').toLowerCase();
+        
+        // Check if already converted
+        const isConverted = accessibleUrl.includes('/api/songs/converted/');
+        const isMp3 = format === 'mp3' || accessibleUrl.toLowerCase().endsWith('.mp3');
+        
+        if (!isConverted && !isMp3 && song.originalUrl) {
+          songsToMigrate.push(song);
+        }
+      }
+
+      console.log(`📋 Found ${songsToMigrate.length} songs to migrate`);
+
+      // Convert each song
+      for (const song of songsToMigrate) {
+        try {
+          console.log(`🔄 Converting: ${song.name} (${song.format || 'unknown format'})`);
+          
+          // Generate a unique file ID for this conversion
+          const fileId = `migrated-${song.id}-${Date.now()}`;
+          
+          // Attempt conversion
+          const convertedUrl = await convertToMp3WithCustomId(song.originalUrl, fileId);
+          
+          // Update the song in database
+          await storage.updateSong(song.id, {
+            accessibleUrl: convertedUrl,
+            format: 'mp3'
+          });
+          
+          migratedSongs.push({
+            id: song.id,
+            name: song.name,
+            oldUrl: song.accessibleUrl,
+            newUrl: convertedUrl
+          });
+          
+          console.log(`✅ Migrated: ${song.name}`);
+        } catch (conversionError) {
+          console.error(`❌ Failed to migrate ${song.name}:`, conversionError);
+          failedSongs.push({
+            id: song.id,
+            name: song.name,
+            error: conversionError instanceof Error ? conversionError.message : 'Unknown error'
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        totalFound: songsToMigrate.length,
+        migrated: migratedSongs.length,
+        failed: failedSongs.length,
+        migratedSongs,
+        failedSongs
+      });
+    } catch (error) {
+      console.error('Migration error:', error);
+      res.status(500).json({
+        error: "Migration failed",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Check migration status for a user's songs
+  router.get("/migration-status", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const userSongs = await storage.getUserSongs(req.userId);
+      
+      const stats = {
+        total: userSongs.length,
+        converted: 0,
+        needsMigration: 0,
+        mp3Native: 0,
+        songs: [] as any[]
+      };
+
+      for (const song of userSongs) {
+        const accessibleUrl = song.accessibleUrl || '';
+        const format = (song.format || '').toLowerCase();
+        
+        const isConverted = accessibleUrl.includes('/api/songs/converted/');
+        const isMp3 = format === 'mp3' || accessibleUrl.toLowerCase().endsWith('.mp3');
+        
+        let status = 'unknown';
+        if (isConverted) {
+          stats.converted++;
+          status = 'converted';
+        } else if (isMp3) {
+          stats.mp3Native++;
+          status = 'mp3_native';
+        } else {
+          stats.needsMigration++;
+          status = 'needs_migration';
+        }
+
+        stats.songs.push({
+          id: song.id,
+          name: song.name,
+          format: song.format,
+          status,
+          accessibleUrl: song.accessibleUrl
+        });
+      }
+
+      res.json(stats);
+    } catch (error) {
+      console.error('Migration status error:', error);
+      res.status(500).json({ error: "Failed to get migration status" });
+    }
+  });
+
   return router;
 }
 
@@ -537,6 +683,31 @@ async function convertToMp3(inputURL: string): Promise<string> {
   });
 }
 
+// Basic SSRF guardrails for external fetches
+function isBlockedHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  if (!hostname) return true;
+  if (lower === "localhost" || lower === "127.0.0.1" || lower === "::1") return true;
+  if (lower.endsWith(".local")) return true;
+
+  // Block common private ranges
+  if (isIP(hostname)) {
+    if (hostname.startsWith("10.") || hostname.startsWith("127.") || hostname.startsWith("192.168.")) return true;
+    if (hostname.startsWith("169.254.")) return true; // link-local
+    const parts = hostname.split(".");
+    if (parts.length >= 2) {
+      const [a, b] = parts.map(Number);
+      if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    }
+  }
+  // Basic IPv6 private ranges
+  if (lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80") || lower.startsWith("::ffff:127.")) {
+    return true;
+  }
+
+  return false;
+}
+
 // Helper function to download audio file for analysis
 async function downloadAudioFile(url: string, filename: string): Promise<string> {
   const tempDir = join(tmpdir(), 'codedswitch-analysis');
@@ -572,8 +743,23 @@ async function downloadAudioFile(url: string, filename: string): Promise<string>
     return tempFilePath;
   }
 
-  // External URL - download it
-  const response = await fetch(fileURL);
+  // External URL - download it with basic SSRF protections
+  let parsed: URL;
+  try {
+    parsed = new URL(fileURL);
+  } catch (err) {
+    throw new Error(`Invalid audio URL: ${fileURL}`);
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error("Only http/https URLs are allowed for audio analysis");
+  }
+
+  if (!parsed.hostname || isBlockedHost(parsed.hostname)) {
+    throw new Error("Audio URL host is not allowed");
+  }
+
+  const response = await fetch(parsed.toString());
   if (!response.ok) {
     throw new Error(`Failed to download audio file: ${response.statusText}`);
   }

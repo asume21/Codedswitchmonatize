@@ -76,9 +76,11 @@ interface SequenceStep {
 
 type PatternType = SequenceStep[] | Record<string, boolean[]>;
 
+type TimeoutHandle = ReturnType<typeof setTimeout>;
+
 export function useSequencer() {
   const { playDrum } = useAudio();
-  const sequenceTimeouts = useRef<NodeJS.Timeout[]>([]);
+  const sequenceTimeouts = useRef<TimeoutHandle[]>([]);
   const isPlayingRef = useRef(false);
 
   const playPattern = useCallback((pattern: PatternType, bpm: number = 120) => {
@@ -128,7 +130,7 @@ export function useSequencer() {
 // Melody player hook for playing note sequences
 export function useMelodyPlayer() {
   const { playNote } = useAudio();
-  let melodyTimeouts: NodeJS.Timeout[] = [];
+  let melodyTimeouts: TimeoutHandle[] = [];
   let isPlaying = false;
   
   return {

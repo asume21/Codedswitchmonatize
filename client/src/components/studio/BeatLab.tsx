@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -7,21 +7,30 @@ import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
 import { useTransport } from "@/contexts/TransportContext";
 import { StudioAudioContext } from "@/pages/studio";
-import BeatStudio from "@/pages/beat-studio";
-import BeatMaker from "./BeatMaker";
 import ProBeatMaker from "./ProBeatMaker";
-import { BeatMaker as ProducerBeatMaker } from "@/components/producer/BeatMaker";
-import { StepSequencer } from "@/components/producer/StepSequencer";
 import CodeBeatStudio from "@/pages/codebeat-studio";
-import { Music, Send, SlidersHorizontal, Waves, Rocket, Drum, Sparkles } from "lucide-react";
+import { Music, Send, SlidersHorizontal, Waves, Rocket, Sparkles, Package, Code } from "lucide-react";
+import PackGenerator from "@/components/producer/PackGenerator";
 
-export default function BeatLab() {
+// Consolidated to 3 tabs: Pro Beat Maker has all sequencer/generator features
+type BeatLabTab = "pro" | "pack-generator" | "codebeat";
+
+interface BeatLabProps {
+  initialTab?: BeatLabTab;
+}
+
+export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
   const { addTrack } = useTracks();
   const { tempo } = useTransport();
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
   const [latestPattern, setLatestPattern] = useState<any | null>(null);
   const [latestMelody, setLatestMelody] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<BeatLabTab>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const sendPatternToTracks = (pattern?: any, meta?: { bpm?: number; name?: string }) => {
     const payloadPattern = pattern ?? latestPattern ?? studioContext.currentPattern;
@@ -141,22 +150,23 @@ export default function BeatLab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Tabs defaultValue="pro" className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as BeatLabTab)} className="w-full">
             <TabsList className="flex flex-wrap gap-2 bg-gray-800">
               <TabsTrigger value="pro" className="flex items-center gap-1 bg-gradient-to-r from-purple-600 to-blue-600">
                 <Sparkles className="w-4 h-4" />
                 Pro Beat Maker
               </TabsTrigger>
-              <TabsTrigger value="sequencer" className="flex items-center gap-1">
-                <Drum className="w-4 h-4" />
-                Step Sequencer
+              <TabsTrigger value="pack-generator" className="flex items-center gap-1">
+                <Package className="w-4 h-4" />
+                Pack Generator
               </TabsTrigger>
-              <TabsTrigger value="generator">AI Generator</TabsTrigger>
-              <TabsTrigger value="editor">Classic Editor</TabsTrigger>
-              <TabsTrigger value="samples">Sample Packs</TabsTrigger>
-              <TabsTrigger value="codebeat">CodeBeat</TabsTrigger>
+              <TabsTrigger value="codebeat" className="flex items-center gap-1">
+                <Code className="w-4 h-4" />
+                CodeBeat
+              </TabsTrigger>
             </TabsList>
 
+            {/* Pro Beat Maker - Full-featured drum machine with all professional features */}
             <TabsContent value="pro" className="mt-4">
               <ProBeatMaker 
                 onPatternChange={(tracks, bpm) => {
@@ -174,68 +184,12 @@ export default function BeatLab() {
               />
             </TabsContent>
 
-            <TabsContent value="sequencer" className="mt-4">
-              <StepSequencer 
-                bpm={Math.round(tempo)}
-                onPatternChange={(tracks) => {
-                  // Convert tracks to pattern format
-                  const pattern = {
-                    kick: tracks.find(t => t.id === 'kick')?.pattern || [],
-                    snare: tracks.find(t => t.id === 'snare')?.pattern || [],
-                    hihat: tracks.find(t => t.id === 'hihat')?.pattern || [],
-                    clap: tracks.find(t => t.id === 'clap')?.pattern || [],
-                    openhat: tracks.find(t => t.id === 'openhat')?.pattern || [],
-                    crash: tracks.find(t => t.id === 'crash')?.pattern || [],
-                  };
-                  setLatestPattern(pattern);
-                }}
-              />
-              <div className="mt-3 flex gap-2">
-                <Button size="sm" className="bg-green-600 hover:bg-green-500" onClick={() => sendPatternToTracks()}>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send to Timeline
-                </Button>
-              </div>
+            {/* Pack Generator - AI-powered sample pack creation */}
+            <TabsContent value="pack-generator" className="mt-4">
+              <PackGenerator />
             </TabsContent>
 
-            <TabsContent value="generator" className="mt-4">
-              <BeatStudio
-                onBeatReady={(beat) => {
-                  if (beat?.pattern) {
-                    setLatestPattern(beat.pattern);
-                    toast({
-                      title: "Generator ready",
-                      description: "Captured pattern from Beat Studio",
-                    });
-                  }
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="editor" className="mt-4 space-y-2">
-              <BeatMaker
-                onPatternSend={(pattern, meta) => {
-                  setLatestPattern(pattern);
-                  sendPatternToTracks(pattern, meta);
-                }}
-                onRoute={(destination) => handleRoute(destination === "export" ? "uploader" : destination)}
-              />
-            </TabsContent>
-
-            <TabsContent value="samples" className="mt-4">
-              <ProducerBeatMaker
-                onBeatGenerated={(beat) => {
-                  if (beat?.pattern) {
-                    setLatestPattern(beat.pattern);
-                    toast({
-                      title: "Sample pack pattern captured",
-                      description: "Tap Send Pattern to sync it to the timeline.",
-                    });
-                  }
-                }}
-              />
-            </TabsContent>
-
+            {/* CodeBeat - Code-to-music translation */}
             <TabsContent value="codebeat" className="mt-4">
               <CodeBeatStudio />
               <div className="mt-3 flex gap-2">
