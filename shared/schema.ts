@@ -187,6 +187,8 @@ export const songs = pgTable("songs", {
   instruments: text("instruments").array(),
   analysisNotes: text("analysis_notes"),
   analyzedAt: timestamp("analyzed_at"),
+  // Social sharing
+  isPublic: boolean("is_public").default(false),
 });
 
 export const playlists = pgTable("playlists", {

@@ -134,6 +134,86 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
+  // Get a public song (no auth required) - for social sharing
+  router.get("/public/:id", async (req: Request, res: Response) => {
+    try {
+      const songId = req.params.id;
+      const song = await storage.getSong(songId);
+      
+      if (!song) {
+        return res.status(404).json({ error: "Song not found" });
+      }
+      
+      if (!song.isPublic) {
+        return res.status(403).json({ error: "This song is not public" });
+      }
+      
+      // Get owner info for display
+      let artistName = "Unknown Artist";
+      if (song.userId) {
+        const owner = await storage.getUser(song.userId);
+        if (owner) {
+          artistName = owner.username || "Unknown Artist";
+        }
+      }
+      
+      // Return only safe public fields
+      res.json({
+        id: song.id,
+        name: song.name,
+        accessibleUrl: song.accessibleUrl,
+        duration: song.duration,
+        genre: song.genre,
+        mood: song.mood,
+        uploadDate: song.uploadDate,
+        artistName,
+      });
+    } catch (error) {
+      console.error('Get public song error:', error);
+      res.status(500).json({ error: "Failed to fetch song" });
+    }
+  });
+
+  // Toggle song public status (auth required, owner only)
+  router.patch("/:id/public", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      if (!allowGuestUploads) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      req.userId = await getGuestUserId(storage);
+    }
+
+    try {
+      const songId = req.params.id;
+      const { isPublic } = req.body;
+      
+      if (typeof isPublic !== 'boolean') {
+        return res.status(400).json({ error: "isPublic must be a boolean" });
+      }
+
+      const song = await storage.getSong(songId);
+      if (!song) {
+        return res.status(404).json({ error: "Song not found" });
+      }
+
+      if (song.userId !== req.userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const updated = await storage.updateSong(songId, { isPublic });
+      console.log(`🔓 Song ${songId} public status set to: ${isPublic}`);
+      
+      res.json({ 
+        success: true, 
+        isPublic: updated.isPublic,
+        shareUrl: isPublic ? `/s/${songId}` : null
+      });
+    } catch (error) {
+      console.error('Toggle public error:', error);
+      res.status(500).json({ error: "Failed to update song" });
+    }
+  });
+
   // Get all songs for current user
   router.get("/", async (req: Request, res: Response) => {
     // Use guest user for anonymous requests

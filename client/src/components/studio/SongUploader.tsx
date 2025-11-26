@@ -16,7 +16,7 @@ import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionCo
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
-import { Sparkles, Copy, Plus, Scissors, Mic, FileText, Trash2 } from "lucide-react";
+import { Sparkles, Copy, Plus, Scissors, Mic, FileText, Trash2, Share2, Globe, Lock } from "lucide-react";
 import type { Song, Recommendation } from "../../../../shared/schema";
 import { emitEvent } from "@/lib/eventBus";
 import type { ToolRecommendation } from "@/components/studio/effects";
@@ -1205,7 +1205,21 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         <Button
                           size="sm"
                           onClick={() => {
+                            // Add to timeline track store
                             registerSongTrack(song);
+                            
+                            // Also dispatch event for MasterMultiTrackPlayer
+                            const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+                            if (audioUrl) {
+                              window.dispatchEvent(new CustomEvent('importToMultiTrack', {
+                                detail: {
+                                  type: 'audio',
+                                  name: song.name,
+                                  audioUrl: audioUrl,
+                                }
+                              }));
+                            }
+                            
                             toast({
                               title: "Added to Multi-Track!",
                               description: `"${song.name}" is now available in the Multi-Track Studio for layering and recording.`,
@@ -1230,6 +1244,81 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         >
                           <Trash2 className="w-3 h-3" />
                         </Button>
+                        
+                        {/* Share / Public Toggle */}
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            const newPublicState = !song.isPublic;
+                            try {
+                              const response = await apiRequest('PATCH', `/api/songs/${song.id}/public`, {
+                                isPublic: newPublicState
+                              });
+                              const data = await response.json();
+                              
+                              if (data.success) {
+                                // Refresh song list
+                                queryClient.invalidateQueries({ queryKey: ['/api/songs'] });
+                                
+                                if (newPublicState && data.shareUrl) {
+                                  const fullUrl = `${window.location.origin}${data.shareUrl}`;
+                                  await navigator.clipboard.writeText(fullUrl);
+                                  toast({
+                                    title: "Song is now public!",
+                                    description: "Share link copied to clipboard.",
+                                  });
+                                } else {
+                                  toast({
+                                    title: "Song is now private",
+                                    description: "Only you can access this song.",
+                                  });
+                                }
+                              }
+                            } catch (error) {
+                              toast({
+                                title: "Failed to update",
+                                description: "Could not change song visibility.",
+                                variant: "destructive"
+                              });
+                            }
+                          }}
+                          className={song.isPublic 
+                            ? "bg-green-600 hover:bg-green-500" 
+                            : "bg-gray-600 hover:bg-gray-500"
+                          }
+                          title={song.isPublic ? "Click to make private" : "Click to make public & copy link"}
+                        >
+                          {song.isPublic ? (
+                            <>
+                              <Globe className="w-3 h-3 mr-1" />
+                              Public
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-3 h-3 mr-1" />
+                              Private
+                            </>
+                          )}
+                        </Button>
+                        
+                        {/* Copy Share Link (only if public) */}
+                        {song.isPublic && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              const shareUrl = `${window.location.origin}/s/${song.id}`;
+                              await navigator.clipboard.writeText(shareUrl);
+                              toast({
+                                title: "Link copied!",
+                                description: shareUrl,
+                              });
+                            }}
+                            title="Copy share link"
+                          >
+                            <Share2 className="w-3 h-3" />
+                          </Button>
+                        )}
                         
                         {/* Suno AI Actions Dropdown */}
                         <Select

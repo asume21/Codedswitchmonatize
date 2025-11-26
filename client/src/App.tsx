@@ -35,6 +35,7 @@ const BuyCreditsPage = React.lazy(() => import("@/pages/buy-credits"));
 const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success"));
 const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel"));
 const ActivatePage = React.lazy(() => import("@/pages/activate"));
+const PublicSongPage = React.lazy(() => import("@/pages/public-song"));
 
 // Loading fallback component
 function LoadingFallback() {
@@ -233,6 +234,7 @@ function App() {
                   <Route path="/credits/success" component={CreditsSuccessPage} />
                   <Route path="/credits/cancel" component={CreditsCancelPage} />
                   <Route path="/credits" component={BuyCreditsPage} />
+                  <Route path="/s/:id" component={PublicSongPage} />
                   <Route component={NotFound} />
                 </Switch>
                 </Suspense>

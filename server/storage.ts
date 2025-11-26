@@ -593,6 +593,7 @@ export class MemStorage implements IStorage {
       instruments: null,
       analysisNotes: null,
       analyzedAt: null,
+      isPublic: false,
     };
     this.songs.set(id, song);
     return song;

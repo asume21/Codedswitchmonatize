@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, Scissors, Copy, Clipboard, Volume2, Trash2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Scissors, Copy, Clipboard, Volume2, Trash2, SlidersHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface WaveformVisualizerProps {
@@ -33,10 +33,43 @@ export default function WaveformVisualizer({
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [copiedRegion, setCopiedRegion] = useState<{ start: number; end: number; data: Float32Array } | null>(null);
-  const [volumePoints, setVolumePoints] = useState<{ time: number; volume: number }[]>([]);
+  const [volumePoints, setVolumePoints] = useState<{ id: string; time: number; volume: number }[]>([]);
   const [isDraggingVolume, setIsDraggingVolume] = useState(false);
+  const [draggingVolumeId, setDraggingVolumeId] = useState<string | null>(null);
   
   const { toast } = useToast();
+
+  const makePointId = () => (crypto.randomUUID ? crypto.randomUUID() : `vp-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+  const sortVolumePoints = (points: { id: string; time: number; volume: number }[]) =>
+    [...points].sort((a, b) => a.time - b.time);
+
+  const getVolumeAtTime = (time: number) => {
+    if (volumePoints.length === 0 || !audioBuffer) return 1;
+    const sorted = sortVolumePoints(volumePoints);
+
+    // Before first point, ramp from unity to first point
+    if (time <= sorted[0].time) {
+      const first = sorted[0];
+      const t = Math.max(0, first.time);
+      if (t === 0) return first.volume;
+      const progress = Math.min(1, time / t);
+      return 1 + (first.volume - 1) * progress;
+    }
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const a = sorted[i];
+      const b = sorted[i + 1];
+      if (time >= a.time && time <= b.time) {
+        const range = b.time - a.time || 1;
+        const ratio = (time - a.time) / range;
+        return a.volume + (b.volume - a.volume) * ratio;
+      }
+    }
+
+    // After last point, hold last value
+    return sorted[sorted.length - 1].volume;
+  };
 
   // Initialize Web Audio API
   useEffect(() => {
@@ -197,14 +230,15 @@ export default function WaveformVisualizer({
       ctx.stroke();
     }
 
+    const sortedVolumePoints = [...volumePoints].sort((a, b) => a.time - b.time);
+
     // Draw volume automation points and envelope
-    if (volumePoints.length > 0) {
+    if (sortedVolumePoints.length > 0) {
       ctx.strokeStyle = '#10b981'; // Green line
       ctx.lineWidth = 2;
       ctx.beginPath();
       
-      volumePoints.sort((a, b) => a.time - b.time);
-      volumePoints.forEach((point, i) => {
+      sortedVolumePoints.forEach((point, i) => {
         const x = (point.time / buffer.duration) * width * zoom;
         const y = centerY - (point.volume * centerY * 0.5); // Volume affects Y position
         
@@ -258,8 +292,16 @@ export default function WaveformVisualizer({
     }
 
     const updatePlayhead = () => {
-      setCurrentTime(audioElement.currentTime);
-      drawWaveform(audioBuffer, audioElement.currentTime);
+      const now = audioElement.currentTime;
+      setCurrentTime(now);
+
+      // Apply real-time volume automation to the audio element
+      const targetVolume = getVolumeAtTime(now);
+      const clampedVolume = Math.min(Math.max(targetVolume, 0), 2);
+      // audioElement.volume caps at 1, so values >1 are treated as max
+      audioElement.volume = Math.min(clampedVolume, 1);
+
+      drawWaveform(audioBuffer, now);
       animationFrameRef.current = requestAnimationFrame(updatePlayhead);
     };
 
@@ -272,6 +314,13 @@ export default function WaveformVisualizer({
     };
   }, [isPlaying, audioElement, audioBuffer, zoom]);
 
+  // Keep element volume in sync when automation changes, even while paused
+  useEffect(() => {
+    if (!audioElement) return;
+    const target = Math.min(Math.max(getVolumeAtTime(audioElement.currentTime), 0), 2);
+    audioElement.volume = Math.min(target, 1);
+  }, [audioElement, audioBuffer, volumePoints]);
+
   // Handle canvas mouse down (start selection or add volume point)
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!audioBuffer || !canvasRef.current) return;
@@ -280,7 +329,7 @@ export default function WaveformVisualizer({
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / canvas.width;
-    const clickTime = (percentage * audioBuffer.duration) / zoom;
+    const clickTime = Math.max(0, Math.min((percentage * audioBuffer.duration) / zoom, audioBuffer.duration));
 
     if (editMode === 'select') {
       // Start selection
@@ -288,13 +337,33 @@ export default function WaveformVisualizer({
       setSelectionStart(clickTime);
       setSelectionEnd(clickTime);
     } else if (editMode === 'volume') {
-      // Add volume point
       const y = e.clientY - rect.top;
       const centerY = canvas.height / 2;
       const volume = Math.max(0, Math.min(2, 1 - ((y - centerY) / centerY))); // 0-2x volume
-      
-      setVolumePoints(prev => [...prev, { time: clickTime, volume }].sort((a, b) => a.time - b.time));
+
+      // Check if we're grabbing an existing handle
+      const sorted = sortVolumePoints(volumePoints);
+      const handleIndex = sorted.findIndex((point) => {
+        const px = (point.time / audioBuffer.duration) * canvas.width * zoom;
+        const py = centerY - (point.volume * centerY * 0.5);
+        return Math.abs(px - x) <= 8 && Math.abs(py - y) <= 8;
+      });
+
+      if (handleIndex !== -1) {
+        setIsDraggingVolume(true);
+        setDraggingVolumeId(sorted[handleIndex].id);
+        return;
+      }
+
+      const newPoint = { id: makePointId(), time: clickTime, volume };
+      let createdId = newPoint.id;
+      setVolumePoints(prev => {
+        const next = sortVolumePoints([...prev, newPoint]);
+        createdId = newPoint.id;
+        return next;
+      });
       setIsDraggingVolume(true);
+      setDraggingVolumeId(createdId);
       
       toast({
         title: "Volume Point Added",
@@ -311,13 +380,31 @@ export default function WaveformVisualizer({
 
   // Handle canvas mouse move (update selection)
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!audioBuffer || !canvasRef.current || !isSelecting) return;
+    if (!audioBuffer || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / canvas.width;
-    const moveTime = (percentage * audioBuffer.duration) / zoom;
+    const moveTime = Math.max(0, Math.min((percentage * audioBuffer.duration) / zoom, audioBuffer.duration));
+
+    if (editMode === 'volume' && isDraggingVolume && draggingVolumeId) {
+      const y = e.clientY - rect.top;
+      const centerY = canvas.height / 2;
+      const volume = Math.max(0, Math.min(2, 1 - ((y - centerY) / centerY)));
+
+      setVolumePoints(prev => {
+        const sorted = sortVolumePoints(prev);
+        const targetIndex = sorted.findIndex((p) => p.id === draggingVolumeId);
+        if (targetIndex === -1) return prev;
+        sorted[targetIndex] = { ...sorted[targetIndex], time: moveTime, volume };
+        return sortVolumePoints(sorted);
+      });
+      drawWaveform(audioBuffer, currentTime);
+      return;
+    }
+
+    if (!isSelecting) return;
 
     setSelectionEnd(moveTime);
     drawWaveform(audioBuffer, currentTime);
@@ -327,6 +414,7 @@ export default function WaveformVisualizer({
   const handleCanvasMouseUp = () => {
     setIsSelecting(false);
     setIsDraggingVolume(false);
+    setDraggingVolumeId(null);
     
     if (selectionStart !== null && selectionEnd !== null && Math.abs(selectionEnd - selectionStart) < 0.1) {
       // Click without drag - clear selection
@@ -432,6 +520,55 @@ export default function WaveformVisualizer({
       title: "Volume Automation Cleared",
       description: "All volume points removed",
       duration: 2000,
+    });
+  };
+
+  const handleTrimPeaks = () => {
+    if (selectionStart === null || selectionEnd === null || !audioBuffer) return;
+
+    const start = Math.max(0, Math.min(selectionStart, selectionEnd));
+    const end = Math.min(audioBuffer.duration, Math.max(selectionStart, selectionEnd));
+
+    const channelData = audioBuffer.getChannelData(0);
+    const sampleRate = audioBuffer.sampleRate;
+    const startSample = Math.floor(start * sampleRate);
+    const endSample = Math.floor(end * sampleRate);
+
+    let peak = 0;
+    for (let i = startSample; i < endSample; i++) {
+      const amp = Math.abs(channelData[i]);
+      if (amp > peak) peak = amp;
+    }
+
+    if (peak <= 0.9) {
+      toast({
+        title: "No Clipping Detected",
+        description: "Selected region is already below the safe ceiling.",
+        duration: 2000,
+      });
+      return;
+    }
+
+    const reduction = 0.9 / peak;
+    const fade = Math.min(0.15, (end - start) / 3);
+    const entryTime = Math.max(0, start - fade);
+    const exitTime = Math.min(audioBuffer.duration, end + fade);
+
+    const anchorBefore = getVolumeAtTime(entryTime);
+    const anchorAfter = getVolumeAtTime(exitTime);
+
+    setVolumePoints(prev => sortVolumePoints([
+      ...prev,
+      { id: makePointId(), time: entryTime, volume: anchorBefore },
+      { id: makePointId(), time: start, volume: reduction },
+      { id: makePointId(), time: end, volume: reduction },
+      { id: makePointId(), time: exitTime, volume: anchorAfter },
+    ]));
+
+    toast({
+      title: "Trim Applied",
+      description: `Rounded peaks in selection (${formatTime(end - start)}).`,
+      duration: 2500,
     });
   };
 
@@ -556,6 +693,16 @@ export default function WaveformVisualizer({
               <Button
                 size="sm"
                 variant="ghost"
+                onClick={handleTrimPeaks}
+                className="h-7 px-2 text-xs hover:bg-green-700"
+                title="Tame clipping by rounding peaks in the selection"
+              >
+                <SlidersHorizontal className="w-3 h-3 mr-1" />
+                Trim Peaks
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={handleDelete}
                 className="h-7 px-2 text-xs hover:bg-orange-600"
                 title="Delete selected region"
@@ -591,9 +738,9 @@ export default function WaveformVisualizer({
       {/* Instructions */}
       {audioBuffer && (
         <div className="mt-2 text-xs text-gray-400 text-center">
-          {editMode === 'select' && 'Click and drag to select region • Cut, copy, or delete selected audio'}
-          {editMode === 'volume' && 'Click to add volume automation points • Higher = louder, lower = quieter'}
-          {!editMode && 'Click anywhere on the waveform to seek • Use zoom controls to see details'}
+          {editMode === 'select' && 'Click and drag to select a region - cut, copy, delete, or Trim Peaks to tame clipping'}
+          {editMode === 'volume' && 'Add or drag green squares to shape volume - higher is louder, lower is quieter'}
+          {!editMode && 'Click anywhere on the waveform to seek - use zoom controls to see details'}
         </div>
       )}
     </div>
