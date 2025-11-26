@@ -37,7 +37,7 @@ export default function BeatStudio({ onBeatReady }: BeatStudioProps = {}) {
   const [beatPattern, setBeatPattern] = useState<number[]>([]);
   const [selectedSample, setSelectedSample] = useState("Kick");
   const [volume, setVolume] = useState([75]);
-  const [aiProvider, setAiProvider] = useState<"grok" | "openai" | "gemini">("grok");
+  const [aiProvider, setAiProvider] = useState<string>("grok");
   const [audioInitialized, setAudioInitialized] = useState(false);
   const { toast } = useToast();
   const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -289,10 +289,7 @@ export default function BeatStudio({ onBeatReady }: BeatStudioProps = {}) {
 
                 <div>
                   <label className="text-sm font-medium mb-2 block">AI Provider</label>
-                  <AIProviderSelector
-                    value={aiProvider}
-                    onValueChange={(v) => setAiProvider(v as "grok" | "openai" | "gemini")}
-                  />
+                  <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} />
                 </div>
               </div>
 

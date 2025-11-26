@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -37,7 +38,7 @@ export function ProAudioGenerator() {
   const [songDescription, setSongDescription] = useState('');
   const [genre, setGenre] = useState('');
   const [mood, setMood] = useState('');
-  const [aiProvider, setAiProvider] = useState('');
+  const [aiProvider, setAiProvider] = useState('replicate-musicgen');
   const [duration, setDuration] = useState([180]); // 3:00 in seconds
   const [bpm, setBpm] = useState([120]);
   const [key, setKey] = useState('C Major');
@@ -200,19 +201,7 @@ export function ProAudioGenerator() {
                   
                   <div>
                     <Label className="mb-2 block font-medium">AI Provider</Label>
-                    <Select value={aiProvider} onValueChange={setAiProvider}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="No AI providers available" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="grok">
-                          <div className="flex items-center gap-2">
-                            <Zap className="h-4 w-4" />
-                            xAI Grok
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} />
                   </div>
                 </div>
                   

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { AIProviderSelector } from "@/components/AIProviderSelector";
+import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import { 
   Settings as SettingsIcon, 
   Bell, 
@@ -71,6 +71,7 @@ export default function Settings() {
     language: 'en',
     timezone: 'UTC',
   });
+  const [aiProviderSetting, setAiProviderSetting] = useState('replicate-musicgen');
 
   const handleSave = () => {
     // Save settings to localStorage and backend
@@ -209,7 +210,7 @@ export default function Settings() {
 
             {/* AI Provider Settings */}
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <AIProviderSelector />
+              <AIProviderSelector value={aiProviderSetting} onValueChange={setAiProviderSetting} />
             </div>
           </TabsContent>
 

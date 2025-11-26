@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bot, Sparkles, Zap, FileText, Music } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
-interface AIProvider {
+type AIProvider = {
   name: string;
   label: string;
   description: string;
@@ -16,7 +16,7 @@ interface AIProvider {
     analysis: boolean;
   };
   requiresAuth: boolean;
-}
+};
 
 interface AIProviderSelectorProps {
   value: string;
@@ -25,76 +25,53 @@ interface AIProviderSelectorProps {
   feature?: string;
 }
 
-const PROVIDERS: Record<string, AIProvider> = {
-  'replicate-suno': {
+const FALLBACK_PROVIDERS: AIProvider[] = [
+  {
     name: 'replicate-suno',
     label: 'Suno (via Replicate)',
     description: 'Professional full-song generation with vocals',
-    capabilities: {
-      fullSongs: true,
-      beats: false,
-      instrumentals: false,
-      lyrics: false,
-      analysis: false
-    },
-    requiresAuth: true
+    capabilities: { fullSongs: true, beats: false, instrumentals: false, lyrics: false, analysis: false },
+    requiresAuth: true,
   },
-  'replicate-musicgen': {
+  {
     name: 'replicate-musicgen',
     label: 'MusicGen (via Replicate)',
     description: 'Beats, melodies, and instrumental generation',
-    capabilities: {
-      fullSongs: false,
-      beats: true,
-      instrumentals: true,
-      lyrics: false,
-      analysis: false
-    },
-    requiresAuth: true
+    capabilities: { fullSongs: false, beats: true, instrumentals: true, lyrics: false, analysis: false },
+    requiresAuth: true,
   },
-  'grok': {
+  {
     name: 'grok',
     label: 'Grok (XAI)',
     description: 'Lyrics generation and analysis',
-    capabilities: {
-      fullSongs: false,
-      beats: false,
-      instrumentals: false,
-      lyrics: true,
-      analysis: true
-    },
-    requiresAuth: true
+    capabilities: { fullSongs: false, beats: false, instrumentals: false, lyrics: true, analysis: true },
+    requiresAuth: true,
   },
-  'openai': {
+  {
     name: 'openai',
     label: 'OpenAI',
     description: 'Code translation and text analysis',
-    capabilities: {
-      fullSongs: false,
-      beats: false,
-      instrumentals: false,
-      lyrics: false,
-      analysis: true
-    },
-    requiresAuth: true
+    capabilities: { fullSongs: false, beats: false, instrumentals: false, lyrics: false, analysis: true },
+    requiresAuth: true,
   },
-  'local': {
+  {
+    name: 'huggingface',
+    label: 'Hugging Face',
+    description: 'Music generation and audio processing',
+    capabilities: { fullSongs: false, beats: true, instrumentals: true, lyrics: false, analysis: true },
+    requiresAuth: true,
+  },
+  {
     name: 'local',
     label: 'Local Processing',
     description: 'Basic analysis without external API',
-    capabilities: {
-      fullSongs: false,
-      beats: false,
-      instrumentals: false,
-      lyrics: false,
-      analysis: true
-    },
-    requiresAuth: false
-  }
-};
+    capabilities: { fullSongs: false, beats: false, instrumentals: false, lyrics: false, analysis: true },
+    requiresAuth: false,
+  },
+];
 
 export function AIProviderSelector({ value, onValueChange, className, feature }: AIProviderSelectorProps) {
-  const [providers, setProviders] = useState<AIProvider[]>(Object.values(PROVIDERS));
+  const [providers, setProviders] = useState<AIProvider[]>(FALLBACK_PROVIDERS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -103,11 +80,16 @@ export function AIProviderSelector({ value, onValueChange, className, feature }:
         const response = await apiRequest('GET', '/api/ai-providers');
         if (response.ok) {
           const data = await response.json();
-          setProviders(data.providers || Object.values(PROVIDERS));
+          // Server returns { status, providers, authenticated }
+          if (Array.isArray(data.providers)) {
+            setProviders(data.providers as AIProvider[]);
+          } else {
+            setProviders(FALLBACK_PROVIDERS);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch AI providers:', error);
-        setProviders(Object.values(PROVIDERS));
+        setProviders(FALLBACK_PROVIDERS);
       } finally {
         setLoading(false);
       }
