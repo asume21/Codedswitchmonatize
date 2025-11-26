@@ -27,9 +27,16 @@ interface AIProviderSelectorProps {
 
 const FALLBACK_PROVIDERS: AIProvider[] = [
   {
+    name: 'suno',
+    label: 'Suno (Official API)',
+    description: 'Official Suno API - Professional full-song generation with vocals, up to 4 minutes',
+    capabilities: { fullSongs: true, beats: true, instrumentals: true, lyrics: true, analysis: false },
+    requiresAuth: true,
+  },
+  {
     name: 'replicate-suno',
     label: 'Suno (via Replicate)',
-    description: 'Professional full-song generation with vocals',
+    description: 'Suno through Replicate - Full-song generation with vocals',
     capabilities: { fullSongs: true, beats: false, instrumentals: false, lyrics: false, analysis: false },
     requiresAuth: true,
   },
@@ -107,6 +114,8 @@ export function AIProviderSelector({ value, onValueChange, className, feature }:
         return <Bot className="h-4 w-4" />;
       case "grok":
         return <Zap className="h-4 w-4" />;
+      case "suno":
+        return <Sparkles className="h-4 w-4" />;
       case "replicate-suno":
         return <Music className="h-4 w-4" />;
       case "replicate-musicgen":
@@ -124,6 +133,8 @@ export function AIProviderSelector({ value, onValueChange, className, feature }:
         return "text-emerald-400";
       case "grok":
         return "text-purple-400";
+      case "suno":
+        return "text-yellow-400";
       case "replicate-suno":
         return "text-blue-400";
       case "replicate-musicgen":

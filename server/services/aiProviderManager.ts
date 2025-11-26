@@ -3,7 +3,7 @@
  * Allows users to select which AI service to use for music generation
  */
 
-export type AIProvider = 'replicate-suno' | 'replicate-musicgen' | 'openai' | 'grok' | 'huggingface' | 'local';
+export type AIProvider = 'suno' | 'replicate-suno' | 'replicate-musicgen' | 'openai' | 'grok' | 'huggingface' | 'local';
 
 export interface AIProviderConfig {
   name: string;
@@ -21,10 +21,24 @@ export interface AIProviderConfig {
 }
 
 export const AI_PROVIDERS: Record<AIProvider, AIProviderConfig> = {
+  'suno': {
+    name: 'suno',
+    label: 'Suno (Official API)',
+    description: 'Official Suno API - Professional full-song generation with vocals, up to 4 minutes',
+    capabilities: {
+      fullSongs: true,
+      beats: true,
+      instrumentals: true,
+      lyrics: true,
+      analysis: false
+    },
+    requiresAuth: true,
+    envVar: 'SUNO_API_KEY'
+  },
   'replicate-suno': {
     name: 'replicate-suno',
     label: 'Suno (via Replicate)',
-    description: 'Professional full-song generation with vocals',
+    description: 'Suno through Replicate - Full-song generation with vocals',
     capabilities: {
       fullSongs: true,
       beats: false,
