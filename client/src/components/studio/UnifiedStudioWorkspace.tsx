@@ -2397,7 +2397,7 @@ Your lyrics will sync with the timeline
 
           {/* SONG UPLOADER VIEW */}
           {activeView === 'song-uploader' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 min-h-0">
               <SongUploader />
             </div>
           )}

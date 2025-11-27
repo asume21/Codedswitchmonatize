@@ -1018,10 +1018,10 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden text-white">
       <div className="p-6 border-b border-gray-600 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-heading font-bold">Song Upload & Library</h2>
+          <h2 className="text-2xl font-heading font-bold text-white">Song Upload & Library</h2>
           <div className="text-xs text-gray-400 px-2">
             <div>Upload existing songs for AI analysis</div>
             <div>Supported: MP3, WAV, M4A, OGG</div>

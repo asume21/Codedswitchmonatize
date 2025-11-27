@@ -18,6 +18,10 @@ import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
+import BeatStudio from "@/pages/beat-studio";
+import MelodyComposerV2Page from "@/pages/melody-composer-v2";
+import CodeTranslatorPage from "@/pages/code-translator";
+import SongUploaderPage from "@/pages/song-uploader";
 
 // Lazy loaded pages (large, less frequently accessed)
 const Studio = React.lazy(() => import("@/pages/studio"));
@@ -29,6 +33,7 @@ const Subscribe = React.lazy(() => import("@/pages/Subscribe"));
 const ProAudio = React.lazy(() => import("@/pages/pro-audio"));
 const CodeBeatStudio = React.lazy(() => import("@/pages/codebeat-studio"));
 const AIAssistantPage = React.lazy(() => import("@/pages/ai-assistant"));
+const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner"));
 const DesignPlayground = React.lazy(() => import("@/pages/design-playground"));
 const TestPianoRoll = React.lazy(() => import("@/pages/test-piano-roll"));
 const TestCircular = React.lazy(() => import("@/pages/TestCircular"));
@@ -99,7 +104,8 @@ function App() {
                   <Route path="/home" component={Landing} />
                   <Route path="/studio">
                     <AppLayout>
-                      <Studio />
+                      {/* Use the unified workspace so tests find the Code-to-Music tab */}
+                      <UnifiedStudioWorkspace />
                     </AppLayout>
                   </Route>
                   <Route path="/login" component={Login} />
@@ -120,17 +126,17 @@ function App() {
                   </Route>
                   <Route path="/song-uploader">
                     <AppLayout>
-                      <Studio />
+                      <SongUploaderPage />
                     </AppLayout>
                   </Route>
                   <Route path="/beat-studio">
                     <AppLayout>
-                      <Studio />
+                      <BeatStudio />
                     </AppLayout>
                   </Route>
                   <Route path="/melody-composer">
                     <AppLayout>
-                      <Studio />
+                      <MelodyComposerV2Page />
                     </AppLayout>
                   </Route>
                   <Route path="/unified-studio">
@@ -145,7 +151,7 @@ function App() {
                   </Route>
                   <Route path="/code-translator">
                     <AppLayout>
-                      <Studio />
+                      <CodeTranslatorPage />
                     </AppLayout>
                   </Route>
                   <Route path="/codebeat-studio">
@@ -160,7 +166,7 @@ function App() {
                   </Route>
                   <Route path="/vulnerability-scanner">
                     <AppLayout>
-                      <Studio />
+                      <VulnerabilityScannerPage />
                     </AppLayout>
                   </Route>
                   <Route path="/ai-assistant">

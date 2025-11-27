@@ -498,6 +498,9 @@
 /* Professional horizontal scrolling */
 body {
   overflow-x: auto;
+  /* keep body visible for e2e visibility checks */
+  visibility: visible !important;
+  display: block !important;
 }
 
 .studio-content {

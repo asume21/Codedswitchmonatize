@@ -183,7 +183,11 @@ export default function BuyCreditsPage() {
               Choose the perfect plan for your creative needs
             </p>
             <div className="mt-4">
-              <Badge variant="secondary" className="bg-purple-600 text-white text-lg px-4 py-2">
+              <Badge
+                variant="secondary"
+                className="bg-purple-600 text-white text-lg px-4 py-2"
+                data-testid="credits-balance"
+              >
                 <Coins className="h-5 w-5 mr-2" />
                 Current Balance: {currentCredits} Credits
               </Badge>
@@ -204,6 +208,7 @@ export default function BuyCreditsPage() {
               {creditPackages.map((pkg) => (
                 <Card
                   key={pkg.key}
+                  data-testid="credit-package"
                   className={`relative ${
                     pkg.popular
                       ? 'border-purple-500 border-2 shadow-lg shadow-purple-500/50'

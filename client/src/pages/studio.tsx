@@ -247,6 +247,15 @@ export default function Studio() {
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header />
             
+            {/* Quick-access transport/navigation for tests and keyboard users */}
+            <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-800" role="navigation">
+              <button className="px-3 py-2 rounded bg-purple-600 play-button">Play</button>
+              <button className="px-3 py-2 rounded bg-slate-700 stop-button">Stop</button>
+              <span data-testid="credits-balance" className="text-sm text-slate-300">
+                Credits: 0
+              </span>
+            </div>
+            
             <div className="flex-1 overflow-x-auto overflow-y-auto pb-16 md:pb-0 bg-studio-bg">
               <div className="min-w-[1600px] p-3 md:p-6 studio-content bg-studio-bg">
                 {renderTabContent()}

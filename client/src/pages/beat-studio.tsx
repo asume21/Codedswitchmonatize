@@ -206,7 +206,7 @@ export default function BeatStudio({ onBeatReady }: BeatStudioProps = {}) {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6" data-testid="beat-maker">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center mb-4">
@@ -270,6 +270,7 @@ export default function BeatStudio({ onBeatReady }: BeatStudioProps = {}) {
                     min={60}
                     step={1}
                     className="w-full"
+                    data-testid="bpm-control"
                   />
                 </div>
 

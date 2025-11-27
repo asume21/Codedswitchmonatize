@@ -532,43 +532,7 @@ export default function ProfessionalStudio() {
         
         // Create a COMPLETE SONG with beat that matches the lyrics using synchronized composer
         console.log('🎵 Creating COMPLETE SONG with vocals and beat that matches the lyrics');
-        
-        // Use realistic audio for better flow
-        console.log('🎵 Playing generated song with realistic audio');
-        
-        // Start drum pattern
-        const patternInterval = setInterval(playDrumPattern, stepDuration * 1000);
-        
-        // Add percussion if available
-        let percussionInterval: ReturnType<typeof setInterval> | null = null;
-        if (drums.shaker || drums.tambourine) {
-          console.log('🥁 Adding percussion elements');
-          let percStep = 0;
-          const playPercussion = () => {
-            if (percStep >= 16) percStep = 0;
-            if (drums.shaker?.[percStep]) playDrum('clap', 0.3);
-            if (drums.tambourine?.[percStep]) playDrum('crash', 0.4);
-            percStep++;
-          };
-          percussionInterval = setInterval(playPercussion, stepDuration * 1000);
-        }
-        
-        // Stop all patterns after professional duration (16 bars = 64 steps)
-        setTimeout(() => {
-          clearInterval(patternInterval);
-          if (percussionInterval) clearInterval(percussionInterval);
-        }, stepDuration * 1000 * 64);
-        
-        toast({
-          title: "🎵 COMPLETE SONG with MATCHING BEAT",
-          description: "Vocals + Beat that matches the lyrics: Intro → Build → Verse → Chorus → Verse → Chorus → Outro"
-        });
-      } else {
-        console.log('⚠️ No drums found in generated song, trying fallback');
-        console.log('🔍 Available song data:', Object.keys(generatedSong));
-        
-        // Try to play a simple test sound instead
-        console.log('🎵 Playing fallback test sound...');
+
         try {
           await playDrum('kick', 0.8);
           console.log('✅ Test kick sound played successfully');

@@ -6,6 +6,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { setupSnakeWS } from "./services/snake-ws";
 import { currentUser } from "./middleware/auth";
+import { runMigrations } from "./migrations/runMigrations";
 
 // Load environment variables from .env file
 import { config } from 'dotenv';
@@ -139,6 +140,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run database migrations first
+  await runMigrations();
+  
   // Choose storage implementation
   const storage: IStorage = process.env.DATABASE_URL
     ? new DatabaseStorage()

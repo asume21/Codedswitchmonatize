@@ -16,7 +16,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
     await page.keyboard.press('Tab');
     
     // Should be able to navigate without errors
-    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('input[name="email"], input[type="email"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('can tab through signup form', async ({ page }) => {
@@ -26,7 +26,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     
-    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('input[name="email"], input[type="email"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('can tab through studio', async ({ page }) => {
@@ -36,7 +36,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     
-    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('nav, header, main').first()).toBeVisible({ timeout: 15000 });
   });
 
 });
@@ -82,9 +82,8 @@ test.describe('Accessibility - ARIA Labels', () => {
     await page.goto('/studio');
     await page.waitForLoadState('networkidle');
     
-    const main = page.locator('main, [role="main"], .main-content');
-    // May or may not have explicit main element
-    await expect(page.locator('body')).toBeVisible();
+    const main = page.locator('main, [role="main"], .main-content, nav, header');
+    await expect(main.first()).toBeVisible({ timeout: 15000 });
   });
 
   test('buttons have accessible names', async ({ page }) => {
@@ -92,10 +91,7 @@ test.describe('Accessibility - ARIA Labels', () => {
     await page.waitForLoadState('networkidle');
     
     const buttons = page.locator('button');
-    const buttonCount = await buttons.count();
-    
-    // Should have buttons
-    expect(buttonCount).toBeGreaterThan(0);
+    await expect(buttons.first()).toBeVisible({ timeout: 15000 });
   });
 
 });
