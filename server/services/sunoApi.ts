@@ -1,18 +1,26 @@
 import fetch from 'node-fetch';
 
-const SUNO_API_BASE = 'https://api.sunoapi.org';
+const SUNO_API_BASE = 'https://api.sunoapi.org/api/v1';
 const SUNO_API_KEY = process.env.SUNO_API_KEY;
+
+interface SunoApiResponse {
+  code: number;
+  msg: string;
+  data?: any;
+}
 
 interface SunoResponse {
   success: boolean;
   data?: any;
+  taskId?: string;
   error?: string;
   message?: string;
 }
 
 /**
  * Official Suno API Integration
- * Documentation: https://api.sunoapi.org
+ * Documentation: https://docs.sunoapi.org
+ * Base URL: https://api.sunoapi.org/api/v1
  */
 export class SunoApiService {
   private apiKey: string;
@@ -32,13 +40,16 @@ export class SunoApiService {
     if (!this.apiKey) {
       return {
         success: false,
-        error: 'SUNO_API_KEY not configured'
+        error: 'SUNO_API_KEY not configured. Get your key at https://sunoapi.org'
       };
     }
 
     try {
       const url = `${SUNO_API_BASE}${endpoint}`;
-      console.log(`🎵 Suno API Request: ${method} ${endpoint}`);
+      console.log(`🎵 Suno API Request: ${method} ${url}`);
+      if (body) {
+        console.log(`📦 Request body:`, JSON.stringify(body, null, 2));
+      }
 
       const response = await fetch(url, {
         method,
@@ -49,21 +60,22 @@ export class SunoApiService {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      const data = await response.json();
+      const data = await response.json() as SunoApiResponse;
 
-      if (!response.ok) {
+      if (data.code !== 200) {
         console.error('❌ Suno API Error:', data);
         return {
           success: false,
-          error: data.message || data.error || 'Suno API request failed',
+          error: data.msg || 'Suno API request failed',
           data
         };
       }
 
-      console.log('✅ Suno API Success');
+      console.log('✅ Suno API Success:', data.msg);
       return {
         success: true,
-        data
+        data: data.data,
+        taskId: data.data?.taskId
       };
     } catch (error) {
       console.error('❌ Suno API Exception:', error);
@@ -75,139 +87,139 @@ export class SunoApiService {
   }
 
   /**
-   * Upload and Cover Audio - Transform existing audio with new styles
-   * https://api.sunoapi.org/docs/upload-and-cover
-   */
-  async uploadAndCover(params: {
-    audioUrl: string;
-    prompt: string;
-    model?: string; // v3_5, v4, v4_5, v4_5plus, v5
-    makeInstrumental?: boolean;
-    callbackUrl?: string;
-  }) {
-    return this.makeRequest('/api/upload-and-cover', 'POST', params);
-  }
-
-  /**
-   * Upload and Extend Audio - Extend uploaded tracks with AI continuation
-   * https://api.sunoapi.org/docs/upload-and-extend
-   */
-  async uploadAndExtend(params: {
-    audioUrl: string;
-    prompt?: string;
-    continueAt?: number; // Timestamp in seconds
-    model?: string;
-    callbackUrl?: string;
-  }) {
-    return this.makeRequest('/api/upload-and-extend', 'POST', params);
-  }
-
-  /**
-   * Separate Vocals from Music - Extract vocals and instrumentals
-   * https://api.sunoapi.org/docs/separate-vocals
-   */
-  async separateVocals(params: {
-    audioUrl: string;
-    callbackUrl?: string;
-  }) {
-    return this.makeRequest('/api/separate-vocals', 'POST', params);
-  }
-
-  /**
    * Generate Music - Create new music from text prompts
-   * https://api.sunoapi.org/docs/generate-music
+   * Models: V3_5, V4, V4_5, V4_5PLUS, V5
    */
   async generateMusic(params: {
     prompt: string;
-    makeInstrumental?: boolean;
-    model?: string; // v3_5, v4, v4_5, v4_5plus, v5
-    waitAudio?: boolean;
-    callbackUrl?: string;
+    customMode?: boolean;
+    instrumental?: boolean;
+    model?: 'V3_5' | 'V4' | 'V4_5' | 'V4_5PLUS' | 'V5';
+    style?: string;       // Required if customMode=true
+    title?: string;       // Required if customMode=true
+    callBackUrl?: string;
   }) {
-    return this.makeRequest('/api/generate', 'POST', params);
+    return this.makeRequest('/generate', 'POST', {
+      prompt: params.prompt,
+      customMode: params.customMode ?? false,
+      instrumental: params.instrumental ?? false,
+      model: params.model || 'V4_5',
+      style: params.style,
+      title: params.title,
+      callBackUrl: params.callBackUrl
+    });
   }
 
   /**
-   * Extend Music - Continue existing generated music
-   * https://api.sunoapi.org/docs/extend-music
+   * Get Task Status - Check generation status and get results
    */
-  async extendMusic(params: {
-    audioId: string;
-    prompt?: string;
-    continueAt?: number;
-    model?: string;
-    callbackUrl?: string;
-  }) {
-    return this.makeRequest('/api/extend', 'POST', params);
-  }
-
-  /**
-   * Add Vocals - Generate vocal tracks for instrumentals
-   * https://api.sunoapi.org/docs/add-vocals
-   */
-  async addVocals(params: {
-    audioUrl: string;
-    prompt: string;
-    model?: string;
-    callbackUrl?: string;
-  }) {
-    return this.makeRequest('/api/add-vocals', 'POST', params);
-  }
-
-  /**
-   * Add Instrumental - Create instrumental accompaniment
-   * https://api.sunoapi.org/docs/add-instrumental
-   */
-  async addInstrumental(params: {
-    audioUrl: string;
-    prompt: string;
-    model?: string;
-    callbackUrl?: string;
-  }) {
-    return this.makeRequest('/api/add-instrumental', 'POST', params);
-  }
-
-  /**
-   * Get Music Generation Details - Check status and get results
-   * https://api.sunoapi.org/docs/get-music-details
-   */
-  async getMusicDetails(ids: string[]) {
-    return this.makeRequest('/api/get', 'POST', { ids });
-  }
-
-  /**
-   * Get Remaining Credits - Check account balance
-   * https://api.sunoapi.org/docs/get-credits
-   */
-  async getRemainingCredits() {
-    return this.makeRequest('/api/get-credits', 'GET');
-  }
-
-  /**
-   * Convert to WAV Format - Convert to high-quality WAV
-   * https://api.sunoapi.org/docs/convert-to-wav
-   */
-  async convertToWav(audioId: string) {
-    return this.makeRequest('/api/convert-to-wav', 'POST', { audio_id: audioId });
+  async getTaskStatus(taskId: string) {
+    return this.makeRequest(`/generate/record-info?taskId=${taskId}`, 'GET');
   }
 
   /**
    * Generate Lyrics - Create AI-powered lyrics
-   * https://api.sunoapi.org/docs/generate-lyrics
    */
   async generateLyrics(params: {
     prompt: string;
-    callbackUrl?: string;
+    callBackUrl?: string;
   }) {
-    return this.makeRequest('/api/generate-lyrics', 'POST', params);
+    return this.makeRequest('/lyrics', 'POST', params);
   }
 
   /**
-   * Get Timestamped Lyrics - Retrieve synced lyrics
-   * https://api.sunoapi.org/docs/timestamped-lyrics
+   * Extend Music - Continue existing generated music
    */
-  async getTimestampedLyrics(audioId: string) {
-    return this.makeRequest('/api/get-timestamped-lyrics', 'POST', { audio_id: audioId });
+  async extendMusic(params: {
+    audioId: string;
+    defaultParamFlag?: boolean;
+    prompt?: string;
+    continueAt?: number;
+    model?: 'V3_5' | 'V4' | 'V4_5' | 'V4_5PLUS' | 'V5';
+    callBackUrl?: string;
+  }) {
+    return this.makeRequest('/generate/extend', 'POST', params);
+  }
+
+  /**
+   * Upload and Cover - Transform existing audio with new styles
+   */
+  async uploadAndCover(params: {
+    uploadUrl: string;
+    customMode?: boolean;
+    style?: string;
+    title?: string;
+    prompt?: string;
+    callBackUrl?: string;
+  }) {
+    return this.makeRequest('/generate/upload-and-cover', 'POST', params);
+  }
+
+  /**
+   * Separate Vocals - Extract vocals and instrumentals
+   */
+  async separateVocals(params: {
+    taskId: string;
+    audioId: string;
+    callBackUrl?: string;
+  }) {
+    return this.makeRequest('/vocal-removal/generate', 'POST', params);
+  }
+
+  /**
+   * Convert to WAV - High quality audio conversion
+   */
+  async convertToWav(params: {
+    taskId: string;
+    audioId: string;
+    callBackUrl?: string;
+  }) {
+    return this.makeRequest('/wav/generate', 'POST', params);
+  }
+
+  /**
+   * Get Remaining Credits - Check account balance
+   */
+  async getRemainingCredits() {
+    return this.makeRequest('/get-credits', 'GET');
+  }
+
+  /**
+   * Wait for task completion with polling
+   */
+  async waitForCompletion(taskId: string, maxWaitMs = 600000, pollIntervalMs = 30000): Promise<SunoResponse> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitMs) {
+      const status = await this.getTaskStatus(taskId);
+      
+      if (!status.success) {
+        return status;
+      }
+      
+      const taskStatus = status.data?.status;
+      console.log(`⏳ Task ${taskId} status: ${taskStatus}`);
+      
+      if (taskStatus === 'SUCCESS') {
+        return {
+          success: true,
+          data: status.data?.response?.data || status.data
+        };
+      } else if (taskStatus === 'FAILED') {
+        return {
+          success: false,
+          error: status.data?.errorMessage || 'Generation failed'
+        };
+      }
+      
+      // Wait before polling again
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+    
+    return {
+      success: false,
+      error: 'Generation timeout - task took too long'
+    };
   }
 
   /**

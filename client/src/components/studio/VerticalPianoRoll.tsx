@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2 } from "lucide-react";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
@@ -194,6 +194,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const selectedTrack = tracks[selectedTrackIndex];
   const pianoTrackIdRef = useRef<string>(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `piano-${Date.now()}`);
   const hasRegisteredTrackRef = useRef(false);
+  const wavCacheRef = useRef<string | null>(null);
   
   // Original song playback state
   const [originalAudioPlaying, setOriginalAudioPlaying] = useState(false);
@@ -706,7 +707,7 @@ export const VerticalPianoRoll: React.FC = () => {
               next.add(keyIndex);
               return next;
             });
-            realisticAudio.playNote(pianoKey.note, pianoKey.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
+            addNote(keyIndex);
           }
         }
       }
@@ -742,7 +743,7 @@ export const VerticalPianoRoll: React.FC = () => {
   }, [chordMode, selectedTrack, handlePlay, isRecording, recordingStartTime, bpm, selectedProgression, currentKey, chordInversion, toast, selectedNoteIds]);
 
   // Note management
-  const addNote = useCallback((keyIndex: number, step?: number) => {
+  const addNote = useCallback((keyIndex: number, step?: number, playAudio: boolean = true) => {
     const key = PIANO_KEYS[keyIndex];
     
     // If no step provided (from PianoKeys), use current step or 0
@@ -763,14 +764,15 @@ export const VerticalPianoRoll: React.FC = () => {
         : track
     ));
 
-    // Play the note
-    realisticAudio.playNote(
-      key.note, 
-      key.octave, 
-      0.8, 
-      selectedTrack.instrument, 
-      selectedTrack.volume / 100
-    );
+    if (playAudio) {
+      realisticAudio.playNote(
+        key.note, 
+        key.octave, 
+        0.8, 
+        selectedTrack.instrument, 
+        selectedTrack.volume / 100
+      );
+    }
   }, [selectedTrackIndex, selectedTrack, currentStep]);
 
   const removeNote = useCallback((noteId: string) => {
@@ -817,7 +819,7 @@ export const VerticalPianoRoll: React.FC = () => {
         const pianoKey = PIANO_KEYS[keyIndex];
         if (pianoKey) {
           // Add note to grid
-          addNote(keyIndex, step);
+          addNote(keyIndex, step, false);
           
           // Play the note with slight delay for chord effect
           setTimeout(() => {
@@ -1294,6 +1296,120 @@ export const VerticalPianoRoll: React.FC = () => {
     }
   }, [addToHistory, bpm, currentKey, selectedTrack.name, selectedTrackIndex, toast, tracks]);
 
+  const noteToMidi = (key: string) => {
+    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const match = key.match(/([A-G]#?)(-?\d)/);
+    if (!match) return 60;
+    const [, note, oct] = match;
+    const idx = names.indexOf(note.toUpperCase());
+    const octave = parseInt(oct, 10);
+    return (octave + 1) * 12 + idx;
+  };
+
+  const renderNotesToAudioBuffer = async (notes: Note[], bpmValue: number) => {
+    const secondsPerBeat = 60 / bpmValue;
+    // Cast notes to any to handle different note formats (some have time/duration, others have step/length)
+    const anyNotes = notes as any[];
+    const duration = Math.max(
+      anyNotes.reduce((m, n) => Math.max(m, (n.time ?? n.step ?? 0) + (n.duration ?? n.length ?? 0.5)), 1) * secondsPerBeat,
+      1
+    );
+    const sampleRate = 44100;
+    const offline = new OfflineAudioContext(1, Math.ceil(duration * sampleRate), sampleRate);
+
+    anyNotes.forEach((n) => {
+      const start = (n.time ?? n.step ?? 0) * secondsPerBeat;
+      const len = (n.duration ?? n.length ?? 0.5) * secondsPerBeat;
+      const freq = 220 * Math.pow(2, ((n.midi ?? noteToMidi(n.key ?? `${n.note ?? 'C'}${n.octave ?? 4}`)) - 60) / 12);
+      const osc = offline.createOscillator();
+      const gain = offline.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.35, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + len);
+      osc.connect(gain).connect(offline.destination);
+      osc.start(start);
+      osc.stop(start + len + 0.05);
+    });
+
+    return offline.startRendering();
+  };
+
+  const bufferToWav = (buffer: AudioBuffer) => {
+    const numOfChan = buffer.numberOfChannels;
+    const length = buffer.length * numOfChan * 2 + 44;
+    const arrayBuffer = new ArrayBuffer(length);
+    const view = new DataView(arrayBuffer);
+    let offset = 0;
+
+    const writeString = (s: string) => {
+      for (let i = 0; i < s.length; i++) view.setUint8(offset++, s.charCodeAt(i));
+    };
+
+    writeString('RIFF');
+    view.setUint32(offset, length - 8, true); offset += 4;
+    writeString('WAVE');
+    writeString('fmt ');
+    view.setUint32(offset, 16, true); offset += 4;
+    view.setUint16(offset, 1, true); offset += 2;
+    view.setUint16(offset, numOfChan, true); offset += 2;
+    view.setUint32(offset, buffer.sampleRate, true); offset += 4;
+    view.setUint32(offset, buffer.sampleRate * numOfChan * 2, true); offset += 4;
+    view.setUint16(offset, numOfChan * 2, true); offset += 2;
+    view.setUint16(offset, 16, true); offset += 2;
+    writeString('data');
+    view.setUint32(offset, length - offset - 4, true); offset += 4;
+
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numOfChan; channel++) {
+        const sample = buffer.getChannelData(channel)[i];
+        const clamped = Math.max(-1, Math.min(1, sample));
+        view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+        offset += 2;
+      }
+    }
+
+    return arrayBuffer;
+  };
+
+  const handleSendToMaster = useCallback(async () => {
+    try {
+      const notePool = tracks.flatMap(t => t.notes);
+      if (notePool.length === 0) {
+        toast({ title: "Nothing to send", description: "Add some notes first.", variant: "destructive" });
+        return;
+      }
+
+      const audioBuffer = await renderNotesToAudioBuffer(notePool, bpm);
+      const wavBuffer = bufferToWav(audioBuffer);
+      const url = URL.createObjectURL(new Blob([wavBuffer], { type: 'audio/wav' }));
+      wavCacheRef.current = url;
+
+      updateTrack(pianoTrackIdRef.current, {
+        payload: {
+          ...(registeredClips.find(c => c.id === pianoTrackIdRef.current)?.payload ?? {}),
+          notes: notePool,
+          bpm,
+          audioUrl: url,
+        }
+      });
+
+      window.dispatchEvent(new CustomEvent('importToMultiTrack', {
+        detail: {
+          type: 'melody',
+          name: `Piano Roll ${selectedTrack?.name ?? ''}`.trim(),
+          audioData: wavBuffer,
+        }
+      }));
+
+      toast({ title: "Sent to Master", description: "Piano roll bounced to audio and routed to Multi-Track." });
+    } catch (error) {
+      console.error('Send to master failed', error);
+      toast({ title: "Send failed", description: "Could not bounce piano roll.", variant: "destructive" });
+    }
+  }, [tracks, bpm, toast, registeredClips, updateTrack, selectedTrack]);
+
   // DUPLICATE TRACK FUNCTION
   const duplicateTrack = useCallback(() => {
     const newTrack: Track = {
@@ -1531,6 +1647,13 @@ export const VerticalPianoRoll: React.FC = () => {
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold">🎹 Piano Roll</h1>
               {playbackControls}
+            </div>
+            
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button size="sm" variant="outline" onClick={handleSendToMaster} className="flex items-center gap-2">
+                <Send className="w-4 h-4" />
+                Send to Master
+              </Button>
             </div>
             
             {/* New Features: Recording, Loop, AI Suggest */}

@@ -118,14 +118,4 @@ export async function deductCredits(
   }
 }
 
-/**
- * Extended Request type with credit properties
- */
-declare global {
-  namespace Express {
-    interface Request {
-      creditCost?: number;
-      creditService?: ReturnType<typeof getCreditService>;
-    }
-  }
-}
+// Note: Request type extensions are defined in server/types/express.d.ts

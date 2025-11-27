@@ -11,6 +11,7 @@ import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SongWorkSessionProvider } from "@/contexts/SongWorkSessionContext";
+import { licenseGuard } from "@/lib/LicenseGuard";
 
 // Eagerly loaded pages (small, frequently accessed)
 import Landing from "@/pages/landing";
@@ -74,6 +75,11 @@ function App() {
       initGA();
       console.log('🔍 Google Analytics initialized - now tracking website visitors!');
     }
+  }, []);
+
+  // Validate license on app load
+  useEffect(() => {
+    licenseGuard.initialize();
   }, []);
 
   // Track page views when routes change

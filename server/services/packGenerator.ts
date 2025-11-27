@@ -141,9 +141,8 @@ export async function generateSunoPacks(prompt: string, count: number) {
     const variationPrompt = `${prompt} (instrumental focus ${i + 1})`;
     const response = await sunoApi.generateMusic({
       prompt: variationPrompt,
-      makeInstrumental: true,
-      waitAudio: true,
-      model: "v5",
+      instrumental: true,
+      model: "V5",
     });
 
     if (!response.success) {

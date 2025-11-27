@@ -1749,14 +1749,14 @@ ${code}
         return sendError(res, 400, "Missing prompt");
       }
 
-      console.log('🎵 Generating professional song with Suno via Replicate...');
+      console.log('🎵 Generating professional song with MusicGen via Replicate...');
       
       const { replicateMusic } = await import('./services/replicateMusicGenerator');
       
       const song = await replicateMusic.generateFullSong(prompt, {
         genre: genre || 'pop',
         mood: mood || 'uplifting',
-        duration: duration || 180,
+        duration: duration || 30, // MusicGen max 30 seconds
         style: style || 'modern',
         vocals: vocals !== false,
         bpm: bpm || 120,
@@ -1765,6 +1765,7 @@ ${code}
 
       console.log('✅ Professional song generated');
       res.json({
+        success: true,
         status: 'success',
         song: song
       });
@@ -2082,10 +2083,42 @@ ${code}
         console.log('🎤 Transcribing file:', targetPath);
         const result = await transcribeAudio(targetPath);
         
+        // Extract text from result (could be string or object with text property)
+        const transcriptionText = typeof result === 'string' 
+          ? result 
+          : (result?.text || JSON.stringify(result));
+        
+        // Save transcription to database if songId is provided
+        const { songId } = req.body;
+        if (songId && req.userId) {
+          try {
+            await storage.updateSongTranscription(songId, req.userId, {
+              transcription: transcriptionText,
+              transcriptionStatus: 'completed',
+              transcribedAt: new Date()
+            });
+            console.log('✅ Transcription saved to database for song:', songId);
+          } catch (dbError) {
+            console.warn('⚠️ Could not save transcription to database:', dbError);
+            // Continue anyway - transcription was successful
+          }
+        }
+        
         res.json({ success: true, transcription: result });
 
       } catch (error: any) {
         console.error("Transcription error:", error);
+        
+        // Update status to failed if songId provided
+        const { songId } = req.body;
+        if (songId && req.userId) {
+          try {
+            await storage.updateSongTranscription(songId, req.userId, {
+              transcriptionStatus: 'failed'
+            });
+          } catch (e) { /* ignore */ }
+        }
+        
         sendError(res, 500, error.message || "Transcription failed");
       }
     }

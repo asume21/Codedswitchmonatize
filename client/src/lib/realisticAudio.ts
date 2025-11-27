@@ -340,25 +340,24 @@ export class RealisticAudioEngine {
 
     try {
       const noteWithOctave = `${note}${adjustedOctave}`;
-      console.log(`🎵 Attempting to play realistic ${realInstrument}: ${noteWithOctave} for ${duration}s at velocity ${velocity}`);
+      // Only log in debug mode to reduce console spam
+      if (process.env.NODE_ENV === 'development') {
+        console.debug(`🎵 Playing ${realInstrument}: ${noteWithOctave}`);
+      }
 
       const audioNode = this.instruments[realInstrument].play(noteWithOctave, this.audioContext!.currentTime, {
         duration,
         gain: velocity
       });
 
-      if (audioNode) {
-        console.log(`✅ Successfully triggered realistic ${realInstrument}: ${noteWithOctave}`);
-      } else {
-        console.error(`❌ Failed to play realistic ${realInstrument}: ${noteWithOctave} - instrumentSampler.play returned null`);
-        // Fallback to synthetic generation for unsupported octaves
+      if (!audioNode) {
+        // Sample not available for this octave - silently fall back to synthetic
+        // This is expected for extreme octaves (E8, A8, etc.) - not an error
         await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
       }
     } catch (error) {
-      console.error(`❌ Error playing realistic ${realInstrument}:`, error);
-      console.log('🎵 DEBUG: Falling back to synthetic generation for unsupported octave');
-
-      // Fallback to synthetic generation for extreme octaves
+      // Silently fall back to synthetic for unsupported notes
+      // This is expected behavior, not an error worth logging
       await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
     }
   }
@@ -399,11 +398,38 @@ export class RealisticAudioEngine {
         case 'tom':
           this.playSyntheticTom(currentTime, velocity);
           break;
+        case 'tom_hi':
+          // Slightly higher tom
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.95));
+          break;
+        case 'tom_mid':
+          this.playSyntheticTom(currentTime, velocity);
+          break;
+        case 'tom_lo':
+          // Slightly deeper, heavier tom
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 1.05));
+          break;
+        case 'conga':
+          // Conga-style: reuse tom but a bit brighter
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.9));
+          break;
         case 'clap':
           this.playSyntheticClap(currentTime, velocity);
           break;
+        case 'perc':
+          // Perc: shorter, clickier clap
+          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.8));
+          break;
+        case 'rim':
+          // Rimshot-ish: also clap-based but quieter
+          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.7));
+          break;
         case 'crash':
           this.playSyntheticCrash(currentTime, velocity);
+          break;
+        case 'fx':
+          // FX: use crash with lower velocity so it sits back in the mix
+          this.playSyntheticCrash(currentTime, Math.min(1, velocity * 0.6));
           break;
         default:
           console.warn(`🎵 Unknown drum type: ${drumType}`);
@@ -415,10 +441,8 @@ export class RealisticAudioEngine {
 
   // Fallback to synthetic audio generation for unsupported octaves
   private async fallbackToSynthetic(note: string, octave: number, duration: number, velocity: number): Promise<void> {
-    console.log(`🎵 Fallback: Generating synthetic ${note}${octave} for ${duration}s`);
-
+    // Silent fallback - no logging needed as this is expected behavior for extreme octaves
     if (!this.audioContext) {
-      console.error('AudioContext not available for synthetic fallback');
       return;
     }
 
@@ -444,10 +468,8 @@ export class RealisticAudioEngine {
 
       oscillator.start(currentTime);
       oscillator.stop(currentTime + duration);
-
-      console.log(`✅ Synthetic fallback played: ${note}${octave} (${frequency}Hz)`);
     } catch (error) {
-      console.error('❌ Synthetic fallback failed:', error);
+      // Silent failure - synthetic fallback is best-effort
     }
   }
 

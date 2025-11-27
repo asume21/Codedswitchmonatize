@@ -14,14 +14,18 @@ export class AudioEngine {
   public masterGain: GainNode | null = null;
   private activeOscillators: Map<string, OscillatorData[]> = new Map();
   private reverbConvolver: ConvolverNode | null = null;
+  private isDisposed = false;
   private isInitialized = false;
 
   async initialize(): Promise<void> {
-    if (this.isInitialized) return;
+    if (this.isInitialized && this.audioContext) return;
 
     try {
-      this.audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
+      if (!this.audioContext) {
+        this.audioContext = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+      }
+      this.isDisposed = false;
 
       console.log(
         "🎵 Synthetic audio context created, state:",
@@ -63,9 +67,11 @@ export class AudioEngine {
         );
       }
 
-      this.masterGain = this.audioContext.createGain();
-      this.masterGain.gain.value = 0.3;
-      this.masterGain.connect(this.audioContext.destination);
+      if (!this.masterGain) {
+        this.masterGain = this.audioContext.createGain();
+        this.masterGain.gain.value = 0.3;
+        this.masterGain.connect(this.audioContext.destination);
+      }
 
       await this.createReverb();
       this.isInitialized = true;
@@ -85,6 +91,7 @@ export class AudioEngine {
       await this.audioContext.resume();
       console.log('AudioEngine context resumed');
     }
+    this.isDisposed = false;
   }
 
   private async createReverb(): Promise<void> {
@@ -133,11 +140,14 @@ export class AudioEngine {
     instrument: string = "piano",
     sustainEnabled: boolean = true,
   ): Promise<void> {
+    if (this.isDisposed) return;
     if (!this.audioContext || !this.masterGain) {
       await this.initialize();
     }
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
+      await this.audioContext.resume();
       const currentTime = this.audioContext!.currentTime;
 
       // Route to completely different synthesis methods for each instrument
@@ -1687,7 +1697,8 @@ export class AudioEngine {
       | "tom",
     velocity: number = 0.7,
   ): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
+    void this.audioContext.resume();
 
     const currentTime = this.audioContext.currentTime;
 
@@ -1720,7 +1731,7 @@ export class AudioEngine {
   }
 
   private playKick(currentTime: number, velocity: number): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
       // PROFESSIONAL 808-STYLE KICK DRUM - Deep, punchy, realistic
@@ -1852,7 +1863,7 @@ export class AudioEngine {
   }
 
   private playSnare(currentTime: number, velocity: number): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
       // REALISTIC SNARE DRUM - Multiple layers for authentic sound
@@ -1998,7 +2009,7 @@ export class AudioEngine {
     velocity: number,
     open: boolean = false,
   ): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
       // REALISTIC HI-HAT - Multiple metallic layers
@@ -2154,7 +2165,7 @@ export class AudioEngine {
   }
 
   private playCrash(currentTime: number, velocity: number): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
       // ISOLATED CRASH CYMBAL - Explosive metallic crash
@@ -2202,7 +2213,7 @@ export class AudioEngine {
   }
 
   private playRide(currentTime: number, velocity: number): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
       // ISOLATED RIDE CYMBAL - Smooth metallic ride
@@ -2261,7 +2272,7 @@ export class AudioEngine {
   }
 
   private playClap(currentTime: number, velocity: number): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
       // ISOLATED CLAP - Multiple burst layers
@@ -2315,7 +2326,7 @@ export class AudioEngine {
   }
 
   private playTom(currentTime: number, velocity: number): void {
-    if (!this.audioContext || !this.masterGain) return;
+    if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
       // REALISTIC TOM DRUM - Multiple resonance layers
@@ -2456,7 +2467,7 @@ export class AudioEngine {
     }
   }
 
-  stopAllInstruments(): void {
+  async stopAllInstruments(): Promise<void> {
     this.activeOscillators.forEach((oscillators, instrument) => {
       oscillators.forEach((oscData) => {
         try {
@@ -2467,6 +2478,11 @@ export class AudioEngine {
       });
     });
     this.activeOscillators.clear();
+
+    this.isDisposed = true;
+    if (this.audioContext?.state === "running") {
+      await this.audioContext.suspend();
+    }
   }
 
   setMasterVolume(volume: number): void {
@@ -2678,3 +2694,14 @@ class AudioManager {
 }
 
 export const audioManager = new AudioManager();
+
+let hasUserGesture = false;
+const resumeOnInteraction = () => {
+  if (hasUserGesture) return;
+  hasUserGesture = true;
+  audioEngine.resume();
+  document.removeEventListener("click", resumeOnInteraction);
+  document.removeEventListener("keydown", resumeOnInteraction);
+};
+document.addEventListener("click", resumeOnInteraction);
+document.addEventListener("keydown", resumeOnInteraction);

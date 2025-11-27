@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Piano Roll Layout Tests', () => {
   test('notes should not overlap - each note should have unique horizontal position', async ({ page }) => {
-    await page.goto('http://localhost:3211');
+  await page.goto('/');
     
     // Wait for piano roll to load
     await page.waitForSelector('[data-testid="piano-roll"]', { timeout: 10000 });
@@ -33,7 +33,7 @@ test.describe('Piano Roll Layout Tests', () => {
   });
   
   test('grid should have proper width for all steps', async ({ page }) => {
-    await page.goto('http://localhost:3211');
+  await page.goto('/');
     
     await page.waitForSelector('[data-testid="piano-roll-grid"]', { timeout: 10000 });
     

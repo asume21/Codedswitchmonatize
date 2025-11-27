@@ -40,7 +40,13 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
   onNoteRemove,
   onNoteResize,
   chordMode,
-  onScroll
+  onScroll,
+  onSelectionStart,
+  onSelectionMove,
+  onSelectionEnd,
+  isSelecting,
+  selectionStart,
+  selectionEnd,
 }, ref) => {
   const handleCellClick = useCallback((keyIndex: number, step: number) => {
     const note = selectedTrack.notes.find(
@@ -191,6 +197,38 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                     border: 'none'
                   }}
                   onClick={() => handleCellClick(keyIndex, step)}
+                  onMouseDown={(e) => {
+                    // Primary button starts selection
+                    if (e.button === 0 && onSelectionStart) {
+                      onSelectionStart(e, keyIndex, step);
+                    }
+                  }}
+                  onMouseEnter={(e) => {
+                    // While mouse button is held, extend selection
+                    if ((e.buttons & 1) === 1 && onSelectionMove) {
+                      onSelectionMove(keyIndex, step);
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    if (onSelectionEnd) {
+                      onSelectionEnd(e);
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    if (onSelectionStart) {
+                      onSelectionStart(e as unknown as React.MouseEvent, keyIndex, step);
+                    }
+                  }}
+                  onTouchMove={() => {
+                    if (onSelectionMove) {
+                      onSelectionMove(keyIndex, step);
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    if (onSelectionEnd) {
+                      onSelectionEnd(e as unknown as React.MouseEvent);
+                    }
+                  }}
                 />
               ))}
               

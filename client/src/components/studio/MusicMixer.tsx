@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Play, Pause, RotateCcw, Square, Download, Settings as MixerIcon, Volume2, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAudio, type DrumType } from '@/hooks/use-audio';
+import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 
 interface MixerTrack {
   id: string;
@@ -28,6 +29,13 @@ export default function MusicMixer() {
   const [currentStep, setCurrentStep] = useState(0);
   const [bpm, setBpm] = useState(120);
   const [masterVolume, setMasterVolume] = useState([80]);
+  const { requirePro } = useLicenseGate();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const vibrateTap = () => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+  };
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mixerRef = useRef<HTMLDivElement>(null);
@@ -181,6 +189,7 @@ export default function MusicMixer() {
   };
 
   const handlePlayPause = async () => {
+    vibrateTap();
     if (isPlaying) {
       stopPlayback();
     } else {
@@ -202,6 +211,8 @@ export default function MusicMixer() {
   };
 
   const exportMix = async () => {
+    if (!requirePro("export", () => setShowUpgrade(true))) return;
+    vibrateTap();
     toast({
       title: "Export Started",
       description: "Your mixed composition is being prepared for download...",
@@ -284,7 +295,7 @@ export default function MusicMixer() {
           <div className="flex items-center gap-4">
             <Button
               onClick={handlePlayPause}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 min-h-8 min-w-8 text-base hover:bg-[#333] active:bg-[#444]"
               disabled={enabledTracks.length === 0}
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -292,9 +303,12 @@ export default function MusicMixer() {
             </Button>
 
             <Button
-              onClick={stopPlayback}
+              onClick={() => {
+                vibrateTap();
+                stopPlayback();
+              }}
               variant="outline"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 min-h-8 min-w-8 text-base hover:bg-[#333] active:bg-[#444]"
             >
               <Square className="w-4 h-4" />
               Stop
@@ -305,7 +319,7 @@ export default function MusicMixer() {
             <Button
               onClick={exportMix}
               variant="outline"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 min-h-8 min-w-8 text-base hover:bg-[#333] active:bg-[#444]"
               disabled={enabledTracks.length === 0}
             >
               <Download className="w-4 h-4" />
@@ -422,6 +436,7 @@ export default function MusicMixer() {
           </div>
         </CardContent>
       </Card>
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }

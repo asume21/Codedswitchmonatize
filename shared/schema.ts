@@ -189,6 +189,10 @@ export const songs = pgTable("songs", {
   analyzedAt: timestamp("analyzed_at"),
   // Social sharing
   isPublic: boolean("is_public").default(false),
+  // Transcription data
+  transcription: text("transcription"), // Full transcription text
+  transcriptionStatus: varchar("transcription_status"), // pending, processing, completed, failed
+  transcribedAt: timestamp("transcribed_at"),
 });
 
 export const playlists = pgTable("playlists", {

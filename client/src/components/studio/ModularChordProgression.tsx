@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Play, Sparkles } from 'lucide-react';
 import { useAudio } from '@/hooks/use-audio';
+import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 
 export type Chord = {
   root: string; // e.g. 'C', 'D#', 'F#'
@@ -24,6 +25,8 @@ export default function ModularChordProgression({ progression, onProgressionChan
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [presetIdx, setPresetIdx] = useState<number>(-1);
+  const { requirePro } = useLicenseGate();
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Preset progressions
   const PRESETS: Chord[][] = [
@@ -87,15 +90,28 @@ export default function ModularChordProgression({ progression, onProgressionChan
     }
   };
 
+  // Convert MIDI pitch to note name and octave
+  const midiToNote = (pitch: number): { note: string; octave: number } => {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(pitch / 12) - 1;
+    const noteIndex = pitch % 12;
+    return { note: noteNames[noteIndex], octave };
+  };
+
   // Playback: play each chord as a block chord
   const handlePlay = () => {
     progression.forEach((chord, i) => {
       setTimeout(() => {
-        // Map root/quality to notes (simple triad for demo)
+        // Map root/quality to notes (simple triad)
         const rootMidi = CHORD_ROOTS.indexOf(chord.root.replace('m','')) + 60; // C4 = 60
         const isMinor = chord.quality.includes('min') || chord.quality === 'm7';
-        const notes = [rootMidi, rootMidi + (isMinor ? 3 : 4), rootMidi + 7];
-        notes.forEach(n => playNote && playNote('C', 4, 1, 'piano', 0.8, true)); // Replace with real note mapping
+        const chordMidiNotes = [rootMidi, rootMidi + (isMinor ? 3 : 4), rootMidi + 7];
+        
+        // Play each note in the chord with actual pitch
+        chordMidiNotes.forEach(midiNote => {
+          const { note, octave } = midiToNote(midiNote);
+          playNote && playNote(note, octave, 1, 'piano', 0.8, true);
+        });
       }, i * 600);
     });
   };
@@ -116,7 +132,15 @@ export default function ModularChordProgression({ progression, onProgressionChan
       </CardHeader>
       <CardContent>
         <div className="flex gap-2 mb-2">
-          <Button size="sm" onClick={onAISuggest || handleAISuggest}><Sparkles className="w-4 h-4 mr-1" /> AI Suggest</Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (!requirePro("ai-chords", () => setShowUpgrade(true))) return;
+              (onAISuggest || handleAISuggest)();
+            }}
+          >
+            <Sparkles className="w-4 h-4 mr-1" /> AI Suggest
+          </Button>
           <Button size="sm" onClick={onPlay || handlePlay}><Play className="w-4 h-4 mr-1" /> Play</Button>
           <Button size="sm" onClick={handleAddChord}>Add Chord</Button>
           <select value={presetIdx} onChange={e => handlePreset(Number(e.target.value))} className="rounded px-2 ml-2">
@@ -161,6 +185,7 @@ export default function ModularChordProgression({ progression, onProgressionChan
         </div>
         <div className="mt-2 text-xs text-blue-700">{getAnalysis()}</div>
       </CardContent>
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </Card>
   );
 }

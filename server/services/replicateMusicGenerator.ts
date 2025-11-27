@@ -13,8 +13,8 @@ const replicate = new Replicate({
 export class ReplicateMusicGenerator {
   
   /**
-   * Generate studio-quality full songs using Suno via Replicate
-   * Supports up to 8 minutes of audio
+   * Generate studio-quality audio using Suno Bark via Replicate
+   * Bark can generate speech, music, and sound effects
    */
   async generateFullSong(prompt: string, options: {
     genre?: string;
@@ -29,40 +29,44 @@ export class ReplicateMusicGenerator {
       const {
         genre = "pop",
         mood = "uplifting",
-        duration = 180,
+        duration = 30,
         style = "modern",
         vocals = true,
         bpm = 120,
         key = "C Major"
       } = options;
 
-      console.log('🎵 Generating professional song with Suno via Replicate...');
+      console.log('🎵 Generating audio with Suno Bark via Replicate...');
 
-      // Use Suno API via Replicate for full song generation
+      // Use Suno Bark for audio generation (speech, music, sound effects)
+      // Bark uses special tags: ♪ for music, [laughs] for sounds
+      const musicPrompt = vocals 
+        ? `♪ ${prompt}. ${genre} ${style} song, ${mood} mood ♪`
+        : `♪ ${prompt}. ${genre} ${style} instrumental, ${mood} mood ♪`;
+
       const output = await replicate.run(
-        "suno-ai/udio:7d58d6a6-0dde-42bd-a29b-92bf0351bc18",
+        "suno-ai/bark:b76242b40d67c76ab6742e987628a2a9ac019e11d56ab96c4e91ce03b79b2787",
         {
           input: {
-            prompt: `${prompt}. Genre: ${genre}, Mood: ${mood}, BPM: ${bpm}, Key: ${key}. ${vocals ? 'Include vocals' : 'Instrumental only'}.`,
-            duration: Math.min(duration, 480), // Max 8 minutes
+            prompt: musicPrompt,
+            text_temp: 0.7,
+            waveform_temp: 0.7,
+            history_prompt: "announcer" // Can be: announcer, en_speaker_0-9, etc.
           }
         }
       );
 
-      console.log('✅ Professional song generated');
+      console.log('✅ Audio generated with Suno Bark');
 
       return {
         status: 'success',
         audio_url: output,
         metadata: {
           duration: duration,
-          quality: "44.1kHz_professional",
-          format: "MP3",
-          channels: 2,
-          bitRate: "320_kbps",
-          dynamicRange: "14_LUFS",
-          masteringLevel: "commercial_standard",
-          generator: "suno-via-replicate"
+          quality: "24kHz",
+          format: "WAV",
+          channels: 1,
+          generator: "suno-bark-via-replicate"
         },
         audioFeatures: {
           realtimePlayback: true,
@@ -353,6 +357,155 @@ export class ReplicateMusicGenerator {
     } catch (error) {
       console.error("Melody generation failed:", error);
       throw new Error("Failed to generate melody: " + (error as Error).message);
+    }
+  }
+
+  /**
+   * Generate fixed-BPM loops using MusicGen-Looper via Replicate
+   * Perfect for sample packs - generates multiple variations at exact BPM
+   */
+  async generateLoop(prompt: string, options: {
+    bpm?: number;
+    variations?: number;
+    maxDuration?: number;
+    genre?: string;
+    outputFormat?: 'wav' | 'mp3';
+  }): Promise<any> {
+    try {
+      const {
+        bpm = 140,
+        variations = 4,
+        maxDuration = 8,
+        genre = "electronic",
+        outputFormat = "wav"
+      } = options;
+
+      console.log(`🔁 Generating ${variations} loop variations at ${bpm} BPM with MusicGen-Looper...`);
+
+      // Use MusicGen-Looper for fixed-BPM loops
+      const output = await replicate.run(
+        "andreasjansson/musicgen-looper:ad041aebc8406f8883e7f28313614c4a11c6e623dd934a54f2bf30127b4bc7a8",
+        {
+          input: {
+            prompt: `${prompt}, ${bpm} bpm, ${genre}`,
+            bpm: bpm,
+            variations: Math.min(variations, 20),
+            max_duration: Math.min(maxDuration, 20),
+            model_version: "medium",
+            top_k: 250,
+            top_p: 0,
+            temperature: 1,
+            classifier_free_guidance: 3,
+            output_format: outputFormat,
+            seed: -1
+          }
+        }
+      );
+
+      console.log(`✅ Generated ${variations} loop variations`);
+
+      // Output is an object with variation_01, variation_02, etc.
+      const loops = [];
+      if (typeof output === 'object' && output !== null) {
+        for (const [key, url] of Object.entries(output)) {
+          if (key.startsWith('variation_')) {
+            loops.push({
+              id: key,
+              audio_url: url,
+              bpm: bpm,
+              duration: maxDuration
+            });
+          }
+        }
+      }
+
+      return {
+        status: 'success',
+        loops: loops,
+        audio_url: loops[0]?.audio_url, // Primary loop
+        metadata: {
+          bpm: bpm,
+          variations: loops.length,
+          maxDuration: maxDuration,
+          quality: "44.1kHz",
+          format: outputFormat.toUpperCase(),
+          channels: 2,
+          generator: "musicgen-looper-via-replicate",
+          genre: genre,
+          type: "loop"
+        }
+      };
+      
+    } catch (error) {
+      console.error("Loop generation failed:", error);
+      throw new Error("Failed to generate loop: " + (error as Error).message);
+    }
+  }
+
+  /**
+   * Generate a complete sample pack with multiple loops
+   */
+  async generateSamplePack(prompt: string, options: {
+    bpm?: number;
+    loopsPerType?: number;
+    genre?: string;
+    types?: string[];
+  }): Promise<any> {
+    try {
+      const {
+        bpm = 120,
+        loopsPerType = 2,
+        genre = "electronic",
+        types = ["drums", "melody", "bass", "percussion"]
+      } = options;
+
+      console.log(`📦 Generating sample pack: ${types.length} types x ${loopsPerType} variations at ${bpm} BPM...`);
+
+      const packSamples = [];
+
+      for (const type of types) {
+        const typePrompt = `${type} ${prompt}, ${genre} style`;
+        
+        try {
+          const result = await this.generateLoop(typePrompt, {
+            bpm,
+            variations: loopsPerType,
+            maxDuration: type === 'drums' ? 4 : 8,
+            genre,
+            outputFormat: 'wav'
+          });
+
+          if (result.loops) {
+            for (const loop of result.loops) {
+              packSamples.push({
+                ...loop,
+                type: type,
+                name: `${genre}_${type}_${bpm}bpm_${loop.id}`
+              });
+            }
+          }
+        } catch (err) {
+          console.warn(`⚠️ Failed to generate ${type} loops:`, err);
+        }
+      }
+
+      console.log(`✅ Sample pack generated with ${packSamples.length} samples`);
+
+      return {
+        status: 'success',
+        samples: packSamples,
+        metadata: {
+          bpm: bpm,
+          genre: genre,
+          totalSamples: packSamples.length,
+          types: types,
+          generator: "musicgen-looper-pack"
+        }
+      };
+      
+    } catch (error) {
+      console.error("Sample pack generation failed:", error);
+      throw new Error("Failed to generate sample pack: " + (error as Error).message);
     }
   }
 

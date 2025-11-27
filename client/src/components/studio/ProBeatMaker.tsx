@@ -41,6 +41,52 @@ import {
   DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 
+// Logical drum engine types – expanded so different rows can sound distinct
+type DrumEngineType =
+  | 'kick'
+  | 'snare'
+  | 'clap'
+  | 'hihat'
+  | 'openhat'
+  | 'tom'
+  | 'tom_hi'
+  | 'tom_mid'
+  | 'tom_lo'
+  | 'conga'
+  | 'perc'
+  | 'rim'
+  | 'crash'
+  | 'fx';
+
+// Normalize drum ids to sound engine types
+const DRUM_ID_TO_TYPE: Record<string, DrumEngineType> = {
+  kick: 'kick',
+  '808 kick': 'kick',
+  snare: 'snare',
+  'trap snare': 'snare',
+  clap: 'clap',
+  vox: 'perc',
+  hihat: 'hihat',
+  'closed hh': 'hihat',
+  'soft hat': 'hihat',
+  shaker: 'hihat',
+  openhat: 'openhat',
+  'open hh': 'openhat',
+  ride: 'crash',
+  crash: 'crash',
+  cowbell: 'fx',
+  fx: 'fx',
+  foley: 'fx',
+  bell: 'fx',
+  perc: 'perc',
+  rim: 'rim',
+  tom: 'tom_mid',
+  tom1: 'tom_hi',
+  tom2: 'tom_mid',
+  tom3: 'tom_lo',
+  conga: 'conga',
+};
+
 // Types
 interface DrumStep {
   active: boolean;
@@ -332,59 +378,13 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   };
 
   const playSound = useCallback(async (id: string, vel: number, vol: number) => {
+    const normalizedId = id.toLowerCase();
+    const drumType = DRUM_ID_TO_TYPE[normalizedId] || 'snare';
+
     // When using the realistic engine, delegate to realisticAudio
     if (useRealisticDrums) {
       const baseVelocity = (vel / 127) * (vol / 100) * (masterVol / 100);
       const normalizedVelocity = Math.max(0, Math.min(1, baseVelocity));
-
-      let drumType: string;
-      switch (id) {
-        case 'kick':
-        case '808 Kick':
-          drumType = 'kick';
-          break;
-        case 'snare':
-        case 'Trap Snare':
-          drumType = 'snare';
-          break;
-        case 'clap':
-          drumType = 'clap';
-          break;
-        case 'hihat':
-        case 'Closed HH':
-        case 'Soft Hat':
-        case 'shaker':
-          drumType = 'hihat';
-          break;
-        case 'openhat':
-        case 'Open Hat':
-        case 'Open HH':
-          drumType = 'openhat';
-          break;
-        case 'tom':
-        case 'tom1':
-        case 'tom2':
-        case 'tom3':
-        case 'Conga':
-        case 'conga':
-          drumType = 'tom';
-          break;
-        case 'cowbell':
-        case 'ride':
-        case 'Crash':
-        case 'crash':
-        case 'perc':
-        case 'bell':
-        case 'vox':
-        case 'rim':
-        case 'fx':
-        case 'foley':
-          drumType = 'crash';
-          break;
-        default:
-          drumType = 'snare';
-          break;
-      }
 
       await realisticAudio.playDrumSound(drumType, normalizedVelocity);
       return;
@@ -398,78 +398,85 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     gain.gain.value = (vel / 127) * (vol / 100) * (masterVol / 100);
     gain.connect(ctx.destination);
 
-    if (id === 'kick') {
-      const o = ctx.createOscillator();
-      o.frequency.setValueAtTime(150, ctx.currentTime);
-      o.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(1, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.3);
-    } else if (id === 'snare' || id === 'clap') {
-      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
-      const s = ctx.createBufferSource(); s.buffer = buf;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(1, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-      s.connect(g); g.connect(gain); s.start(); s.stop(ctx.currentTime + 0.15);
-    } else if (id === 'hihat') {
-      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
-      const s = ctx.createBufferSource(); s.buffer = buf;
-      const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
-      s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.05);
-    } else if (id === 'openhat') {
-      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.2);
-      const s = ctx.createBufferSource(); s.buffer = buf;
-      const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 5000;
-      s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.25);
-    } else if (id === 'cowbell') {
-      // Short metallic cowbell hit
-      const o1 = ctx.createOscillator();
-      const o2 = ctx.createOscillator();
-      o1.type = 'square';
-      o2.type = 'square';
-      o1.frequency.setValueAtTime(560, ctx.currentTime);
-      o2.frequency.setValueAtTime(840, ctx.currentTime);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(1, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
-      o1.connect(g); o2.connect(g); g.connect(gain);
-      o1.start(); o2.start();
-      o1.stop(ctx.currentTime + 0.2);
-      o2.stop(ctx.currentTime + 0.2);
-    } else if (id === 'tom') {
-      const o = ctx.createOscillator();
-      o.frequency.setValueAtTime(200, ctx.currentTime);
-      o.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.2);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(1, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-      o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.25);
-    } else if (id === 'conga') {
-      // Percussive conga-like hit, a bit higher than tom
-      const o = ctx.createOscillator();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(260, ctx.currentTime);
-      o.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.15);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(1, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-      o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.22);
-    } else if (id === 'crash' || id === 'perc') {
-      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.8, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 0.5);
-      const s = ctx.createBufferSource(); s.buffer = buf;
-      s.connect(gain); s.start(); s.stop(ctx.currentTime + 0.8);
+    switch (drumType) {
+      case 'kick': {
+        const o = ctx.createOscillator();
+        o.frequency.setValueAtTime(150, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(1, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.3);
+        break;
+      }
+      case 'snare':
+      case 'clap': {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(1, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        s.connect(g); g.connect(gain); s.start(); s.stop(ctx.currentTime + 0.15);
+        break;
+      }
+      case 'hihat': {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
+        s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.05);
+        break;
+      }
+      case 'openhat': {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.2);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 5000;
+        s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.25);
+        break;
+      }
+      case 'tom': {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(220, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.2);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.9, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.35);
+        break;
+      }
+      case 'crash': {
+        // Metallic crash/ride-ish hit
+        const o1 = ctx.createOscillator();
+        const o2 = ctx.createOscillator();
+        o1.type = 'square';
+        o2.type = 'square';
+        o1.frequency.setValueAtTime(560, ctx.currentTime);
+        o2.frequency.setValueAtTime(840, ctx.currentTime);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(1, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
+        o1.connect(g); o2.connect(g); g.connect(gain);
+        o1.start(); o2.start();
+        o1.stop(ctx.currentTime + 0.2);
+        o2.stop(ctx.currentTime + 0.2);
+        break;
+      }
+      default: {
+        // Fallback short noise so no pad is silent
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        s.connect(gain); s.start(); s.stop(ctx.currentTime + 0.08);
+      }
     }
-  }, [masterVol]);
+  }, [masterVol, useRealisticDrums]);
 
   useEffect(() => {
     if (!isPlaying) return;

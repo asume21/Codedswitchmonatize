@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:4000';
+
 /**
  * Credit System Tests
  * Tests the core monetization functionality
@@ -120,12 +122,12 @@ test.describe('Studio Navigation', () => {
 test.describe('API Endpoints', () => {
   
   test('should return 401 for unauthenticated credit requests', async ({ request }) => {
-    const response = await request.get('/api/credits');
+    const response = await request.get(`${API_BASE}/api/credits`);
     expect(response.status()).toBe(401);
   });
 
   test('should return 401 for unauthenticated beat generation', async ({ request }) => {
-    const response = await request.post('/api/beats/generate', {
+    const response = await request.post(`${API_BASE}/api/beats/generate`, {
       data: { genre: 'pop', bpm: 120, duration: 10 }
     });
     expect(response.status()).toBe(401);
@@ -133,7 +135,7 @@ test.describe('API Endpoints', () => {
 
   test('should return 400 for invalid beat generation params', async ({ request }) => {
     // This should fail validation even before auth check
-    const response = await request.post('/api/beats/generate', {
+    const response = await request.post(`${API_BASE}/api/beats/generate`, {
       data: {} // Missing required fields
     });
     // Either 400 (validation) or 401 (auth) is acceptable

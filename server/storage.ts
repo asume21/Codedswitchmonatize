@@ -131,6 +131,15 @@ export interface IStorage {
       analysisNotes?: string;
     },
   ): Promise<Song>;
+  updateSongTranscription(
+    songId: string,
+    userId: string,
+    data: {
+      transcription?: string;
+      transcriptionStatus?: string;
+      transcribedAt?: Date;
+    },
+  ): Promise<Song>;
 
   // Playlists
   getPlaylist(id: string): Promise<Playlist | undefined>;
@@ -594,6 +603,9 @@ export class MemStorage implements IStorage {
       analysisNotes: null,
       analyzedAt: null,
       isPublic: false,
+      transcription: null,
+      transcriptionStatus: null,
+      transcribedAt: null,
     };
     this.songs.set(id, song);
     return song;
@@ -640,6 +652,26 @@ export class MemStorage implements IStorage {
       analyzedAt: new Date(),
     };
     this.songs.set(id, updated);
+    return updated;
+  }
+
+  async updateSongTranscription(
+    songId: string,
+    userId: string,
+    data: {
+      transcription?: string;
+      transcriptionStatus?: string;
+      transcribedAt?: Date;
+    },
+  ): Promise<Song> {
+    const song = this.songs.get(songId);
+    if (!song) throw new Error("Song not found");
+    if (song.userId !== userId) throw new Error("Access denied");
+    const updated = {
+      ...song,
+      ...data,
+    };
+    this.songs.set(songId, updated);
     return updated;
   }
 
@@ -1071,6 +1103,7 @@ export class DatabaseStorage implements IStorage {
         instruments: null,
         analysisNotes: null,
         analyzedAt: null,
+        isPublic: false,
       })
       .returning();
     return song;
@@ -1119,6 +1152,29 @@ export class DatabaseStorage implements IStorage {
         analyzedAt: new Date(),
       })
       .where(eq(songs.id, id))
+      .returning();
+    if (!song) throw new Error("Song not found");
+    return song;
+  }
+
+  async updateSongTranscription(
+    songId: string,
+    userId: string,
+    data: {
+      transcription?: string;
+      transcriptionStatus?: string;
+      transcribedAt?: Date;
+    },
+  ): Promise<Song> {
+    // Verify ownership
+    const [existing] = await db.select().from(songs).where(eq(songs.id, songId));
+    if (!existing) throw new Error("Song not found");
+    if (existing.userId !== userId) throw new Error("Access denied");
+    
+    const [song] = await db
+      .update(songs)
+      .set(data)
+      .where(eq(songs.id, songId))
       .returning();
     if (!song) throw new Error("Song not found");
     return song;

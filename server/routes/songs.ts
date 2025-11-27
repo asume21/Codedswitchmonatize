@@ -411,14 +411,14 @@ export function createSongRoutes(storage: IStorage) {
     }
 
     try {
-      const { audioUrl, prompt, model, makeInstrumental } = req.body;
-      console.log('🎵 Suno Cover:', { prompt, model });
+      const { audioUrl, prompt, style, title } = req.body;
+      console.log('🎵 Suno Cover:', { prompt, style });
 
       const result = await sunoApi.uploadAndCover({
-        audioUrl,
+        uploadUrl: audioUrl,
         prompt,
-        model: model || 'v4_5plus',
-        makeInstrumental
+        style,
+        title
       });
 
       if (!result.success) {
@@ -432,21 +432,21 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Upload and Extend - Extend song with AI continuation
+  // Extend Music - Extend existing generated music
   router.post("/suno/extend", async (req: Request, res: Response) => {
     if (!req.userId) {
       return res.status(401).json({ error: "Please log in" });
     }
 
     try {
-      const { audioUrl, prompt, continueAt, model } = req.body;
-      console.log('🎵 Suno Extend:', { continueAt, model });
+      const { audioId, prompt, continueAt, model } = req.body;
+      console.log('🎵 Suno Extend:', { audioId, continueAt, model });
 
-      const result = await sunoApi.uploadAndExtend({
-        audioUrl,
+      const result = await sunoApi.extendMusic({
+        audioId,
         prompt,
         continueAt,
-        model: model || 'v4_5plus'
+        model: model || 'V4_5'
       });
 
       if (!result.success) {
@@ -467,10 +467,10 @@ export function createSongRoutes(storage: IStorage) {
     }
 
     try {
-      const { audioUrl } = req.body;
-      console.log('🎵 Suno Separate Vocals');
+      const { taskId, audioId } = req.body;
+      console.log('🎵 Suno Separate Vocals:', { taskId, audioId });
 
-      const result = await sunoApi.separateVocals({ audioUrl });
+      const result = await sunoApi.separateVocals({ taskId, audioId });
 
       if (!result.success) {
         return res.status(500).json({ error: result.error });
@@ -483,20 +483,21 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Add Vocals - Generate vocals for instrumental
+  // Add Vocals - Generate vocals for instrumental (uses cover with vocal prompt)
   router.post("/suno/add-vocals", async (req: Request, res: Response) => {
     if (!req.userId) {
       return res.status(401).json({ error: "Please log in" });
     }
 
     try {
-      const { audioUrl, prompt, model } = req.body;
+      const { audioUrl, prompt, style } = req.body;
       console.log('🎵 Suno Add Vocals:', { prompt });
 
-      const result = await sunoApi.addVocals({
-        audioUrl,
-        prompt,
-        model: model || 'v4_5plus'
+      // Use uploadAndCover with vocal-focused prompt
+      const result = await sunoApi.uploadAndCover({
+        uploadUrl: audioUrl,
+        prompt: prompt || 'Add professional vocals',
+        style: style || 'with vocals'
       });
 
       if (!result.success) {
@@ -510,20 +511,21 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Add Instrumental - Generate instrumental backing for vocals
+  // Add Instrumental - Generate instrumental backing (uses cover with instrumental prompt)
   router.post("/suno/add-instrumental", async (req: Request, res: Response) => {
     if (!req.userId) {
       return res.status(401).json({ error: "Please log in" });
     }
 
     try {
-      const { audioUrl, prompt, model } = req.body;
+      const { audioUrl, prompt, style } = req.body;
       console.log('🎵 Suno Add Instrumental:', { prompt });
 
-      const result = await sunoApi.addInstrumental({
-        audioUrl,
-        prompt,
-        model: model || 'v4_5plus'
+      // Use uploadAndCover with instrumental-focused prompt
+      const result = await sunoApi.uploadAndCover({
+        uploadUrl: audioUrl,
+        prompt: prompt || 'Add professional instrumental backing',
+        style: style || 'instrumental arrangement'
       });
 
       if (!result.success) {
@@ -540,8 +542,8 @@ export function createSongRoutes(storage: IStorage) {
   // Get Suno job status
   router.post("/suno/status", async (req: Request, res: Response) => {
     try {
-      const { ids } = req.body;
-      const result = await sunoApi.getMusicDetails(ids);
+      const { taskId } = req.body;
+      const result = await sunoApi.getTaskStatus(taskId);
 
       if (!result.success) {
         return res.status(500).json({ error: result.error });

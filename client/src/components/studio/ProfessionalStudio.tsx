@@ -21,17 +21,21 @@ import DAWMultiTrackPianoRoll, { demoDAWSession } from './DAWMultiTrackPianoRoll
 import ModularChordProgression from './ModularChordProgression';
 import ModularPianoRoll from './ModularPianoRoll';
 import ModularDrumMachine from './ModularDrumMachine';
+import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 
 // Professional Studio Component - Professional-Grade AI Music Generation Integrated in Main Studio
 export default function ProfessionalStudio() {
   const { toast } = useToast();
   const { playDrum, initialize, isInitialized } = useAudio();
   const [activeTab, setActiveTab] = useState('full-song');
+  const { requirePro } = useLicenseGate();
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Chord Progression State
   const [chordProgression, setChordProgression] = useState<Array<{ root: string; quality: string }>>([]);
 
   function handleAISuggestChordProgression() {
+    if (!requirePro("ai-chords", () => setShowUpgrade(true))) return;
     setChordProgression([
       { root: 'C', quality: 'maj' },
       { root: 'F', quality: 'maj7' },
@@ -430,10 +434,40 @@ export default function ProfessionalStudio() {
         hasBeat: !!generatedSong.beat,
         hasDrums: !!generatedSong.beat?.drums,
         drumKeys: generatedSong.beat?.drums ? Object.keys(generatedSong.beat.drums) : 'none',
-        songKeys: Object.keys(generatedSong)
+        songKeys: Object.keys(generatedSong),
+        hasAudioUrl: !!(generatedSong.audio_url || generatedSong.audioUrl || generatedSong.url)
       });
       
-      // Check for different song structure formats
+      // First check if there's an actual audio URL from AI generation (Suno, MusicGen, etc.)
+      const audioUrl = generatedSong.audio_url || generatedSong.audioUrl || generatedSong.url;
+      if (audioUrl) {
+        console.log('🎵 Found audio URL, playing actual audio file:', audioUrl);
+        const audio = new Audio(audioUrl);
+        audio.crossOrigin = "anonymous";
+        audio.volume = 0.8;
+        
+        audio.addEventListener('loadedmetadata', () => {
+          console.log(`✅ Audio loaded: duration ${audio.duration}s`);
+        });
+        
+        audio.addEventListener('error', (e) => {
+          console.error('❌ Audio playback error:', e);
+          toast({
+            title: "Playback Error",
+            description: "Could not play the generated audio. Falling back to drum pattern.",
+            variant: "destructive"
+          });
+        });
+        
+        await audio.play();
+        toast({
+          title: "🎵 Playing AI Generated Song",
+          description: "Full audio track from AI is now playing!"
+        });
+        return;
+      }
+      
+      // Check for different song structure formats (fallback to drum patterns)
       let drumsFound = false;
       let drumPatterns = null;
       let songBpm = 120;
@@ -506,6 +540,7 @@ export default function ProfessionalStudio() {
         const patternInterval = setInterval(playDrumPattern, stepDuration * 1000);
         
         // Add percussion if available
+        let percussionInterval: ReturnType<typeof setInterval> | null = null;
         if (drums.shaker || drums.tambourine) {
           console.log('🥁 Adding percussion elements');
           let percStep = 0;
@@ -515,12 +550,13 @@ export default function ProfessionalStudio() {
             if (drums.tambourine?.[percStep]) playDrum('crash', 0.4);
             percStep++;
           };
-          setInterval(playPercussion, stepDuration * 1000);
+          percussionInterval = setInterval(playPercussion, stepDuration * 1000);
         }
         
         // Stop all patterns after professional duration (16 bars = 64 steps)
         setTimeout(() => {
           clearInterval(patternInterval);
+          if (percussionInterval) clearInterval(percussionInterval);
         }, stepDuration * 1000 * 64);
         
         toast({
@@ -2000,6 +2036,7 @@ export default function ProfessionalStudio() {
           </Card>
         </TabsContent>
       </Tabs>
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }

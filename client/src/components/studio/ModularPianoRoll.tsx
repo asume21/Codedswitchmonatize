@@ -34,12 +34,21 @@ export default function ModularPianoRoll({ notes, onNotesChange, onAISuggest }: 
     return acc;
   }, {} as Record<string, typeof AVAILABLE_INSTRUMENTS>);
 
+  // Convert MIDI pitch to note name and octave
+  const midiToNote = (pitch: number): { note: string; octave: number } => {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(pitch / 12) - 1;
+    const noteIndex = pitch % 12;
+    return { note: noteNames[noteIndex], octave };
+  };
+
   const handlePlay = () => {
     setIsPlaying(true);
-    // Simple sequential playback for demo
+    // Sequential playback using actual note pitches
     notes.forEach((note, idx) => {
       setTimeout(() => {
-        playNote && playNote('C', 4, note.duration / 2, selectedInstrument, note.velocity / 127, true);
+        const { note: noteName, octave } = midiToNote(note.pitch);
+        playNote && playNote(noteName, octave, note.duration / 2, selectedInstrument, note.velocity / 127, true);
         if (idx === notes.length - 1) setIsPlaying(false);
       }, note.start * 300); // 300ms per beat (adjust for tempo)
     });
@@ -59,7 +68,8 @@ export default function ModularPianoRoll({ notes, onNotesChange, onAISuggest }: 
     setIsPlaying(true);
     loop.forEach((note, idx) => {
       setTimeout(() => {
-        playNote && playNote('C', 4, note.duration / 2, selectedInstrument, note.velocity / 127, true);
+        const { note: noteName, octave } = midiToNote(note.pitch);
+        playNote && playNote(noteName, octave, note.duration / 2, selectedInstrument, note.velocity / 127, true);
         if (idx === loop.length - 1) setIsPlaying(false);
       }, note.start * 300);
     });

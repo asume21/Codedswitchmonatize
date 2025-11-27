@@ -43,6 +43,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useTracks } from '@/hooks/useTracks';
+import { Resizable } from 'react-resizable';
 
 interface AudioTrack {
   id: string;
@@ -58,6 +60,10 @@ interface AudioTrack {
   gainNode?: GainNode;
   panNode?: StereoPannerNode;
   sourceNode?: AudioBufferSourceNode;
+  origin?: 'store' | 'manual';
+  height?: number; // per-track visual height for arranger-style view
+  trimStartSeconds?: number; // per-track trim start (seconds, within audioBuffer)
+  trimEndSeconds?: number; // per-track trim end (seconds, within audioBuffer)
 }
 
 const TRACK_COLORS = [
@@ -71,6 +77,8 @@ const TRACK_COLORS = [
   '#F97316', // orange
 ];
 
+const DEFAULT_TRACK_HEIGHT = 80; // px
+
 // Inline waveform component for each track
 interface TrackWaveformProps {
   audioBuffer: AudioBuffer | null;
@@ -79,12 +87,28 @@ interface TrackWaveformProps {
   duration: number;
   isPlaying: boolean;
   onSeek: (time: number) => void;
+  height?: number;
+  trimStartSeconds?: number;
+  trimEndSeconds?: number;
+  onTrimChange?: (startSeconds: number, endSeconds: number) => void;
 }
 
-function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, onSeek }: TrackWaveformProps) {
+function TrackWaveform({
+  audioBuffer,
+  color,
+  currentTime,
+  duration,
+  isPlaying,
+  onSeek,
+  height,
+  trimStartSeconds,
+  trimEndSeconds,
+  onTrimChange,
+}: TrackWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [draggingHandle, setDraggingHandle] = useState<'start' | 'end' | null>(null);
 
   // Draw waveform
   useEffect(() => {
@@ -97,7 +121,11 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
     const width = canvas.width;
     const height = canvas.height;
     const data = audioBuffer.getChannelData(0);
-    const step = Math.ceil(data.length / width);
+
+    const fullDuration = audioBuffer.duration || duration || 0;
+    const effectiveStart = Math.max(0, trimStartSeconds ?? 0);
+    const effectiveEnd = Math.min(fullDuration, trimEndSeconds ?? fullDuration);
+    const clipDuration = Math.max(0.01, effectiveEnd - effectiveStart);
 
     ctx.clearRect(0, 0, width, height);
     
@@ -111,7 +139,11 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
     ctx.lineWidth = 1;
 
     for (let i = 0; i < width; i++) {
-      const sliceStart = i * step;
+      // Map canvas X to time within trimmed region, then to sample index
+      const relTime = effectiveStart + (i / width) * clipDuration;
+      const sampleIndex = Math.floor((relTime / fullDuration) * data.length);
+      const step = Math.max(1, Math.floor(data.length / width));
+      const sliceStart = sampleIndex;
       const sliceEnd = sliceStart + step;
       let min = 1.0;
       let max = -1.0;
@@ -130,9 +162,13 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
     }
     ctx.stroke();
 
-    // Draw playhead
-    if (duration > 0) {
-      const playheadX = (currentTime / duration) * width;
+    // Draw playhead (relative to trimmed region)
+    if (clipDuration > 0) {
+      const localTime = Math.min(
+        Math.max(currentTime - effectiveStart, 0),
+        clipDuration
+      );
+      const playheadX = (localTime / clipDuration) * width;
       ctx.beginPath();
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
@@ -140,14 +176,19 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
       ctx.lineTo(playheadX, height);
       ctx.stroke();
     }
-  }, [audioBuffer, color, currentTime, duration]);
+  }, [audioBuffer, color, currentTime, duration, trimStartSeconds, trimEndSeconds]);
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !duration) return;
+    if (!canvasRef.current || !audioBuffer) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const seekTime = (x / rect.width) * duration;
-    onSeek(Math.max(0, Math.min(duration, seekTime)));
+    const fullDuration = audioBuffer.duration || duration || 0;
+    const effectiveStart = Math.max(0, trimStartSeconds ?? 0);
+    const effectiveEnd = Math.min(fullDuration, trimEndSeconds ?? fullDuration);
+    const clipDuration = Math.max(0.01, effectiveEnd - effectiveStart);
+    const localTime = (x / rect.width) * clipDuration;
+    const seekTime = effectiveStart + localTime;
+    onSeek(Math.max(0, Math.min(fullDuration, seekTime)));
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -163,11 +204,50 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setDraggingHandle(null);
+  };
+
+  const handleContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!draggingHandle || !containerRef.current || !audioBuffer) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const fullDuration = audioBuffer.duration || duration || 0;
+    const effectiveStart = Math.max(0, trimStartSeconds ?? 0);
+    const effectiveEnd = Math.min(fullDuration, trimEndSeconds ?? fullDuration);
+    const clipDuration = Math.max(0.01, effectiveEnd - effectiveStart);
+
+    const ratio = Math.min(Math.max(x / rect.width, 0), 1);
+    const newGlobalTime = effectiveStart + ratio * clipDuration;
+
+    let nextStart = effectiveStart;
+    let nextEnd = effectiveEnd;
+
+    if (draggingHandle === 'start') {
+      nextStart = Math.min(newGlobalTime, effectiveEnd - 0.01);
+    } else {
+      nextEnd = Math.max(newGlobalTime, effectiveStart + 0.01);
+    }
+
+    if (onTrimChange) {
+      onTrimChange(nextStart, nextEnd);
+    }
+  };
+
+  const handleTrimMouseDown = (
+    e: React.MouseEvent<HTMLDivElement>,
+    handle: 'start' | 'end'
+  ) => {
+    e.stopPropagation();
+    setDraggingHandle(handle);
   };
 
   if (!audioBuffer) {
     return (
-      <div className="h-16 bg-gray-900 rounded mb-2 flex items-center justify-center">
+      <div
+        ref={containerRef}
+        className="bg-gray-900 rounded mb-2 flex items-center justify-center"
+        style={{ height: height ?? 64 }}
+      >
         <span className="text-xs text-gray-500">No audio data</span>
       </div>
     );
@@ -176,9 +256,11 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
   return (
     <div 
       ref={containerRef}
-      className="h-16 bg-gray-900 rounded mb-2 cursor-pointer relative overflow-hidden"
+      className="bg-gray-900 rounded mb-2 cursor-pointer relative overflow-hidden"
+      style={{ height: height ?? 64 }}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onMouseMove={handleContainerMouseMove}
     >
       <canvas
         ref={canvasRef}
@@ -189,6 +271,26 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
       />
+      {/* Trim handles overlay */}
+      {audioBuffer && (
+        <>
+          <div
+            className="absolute top-0 bottom-0 w-1 bg-blue-300 cursor-ew-resize"
+            style={{
+              left: `${((Math.max(0, trimStartSeconds ?? 0)) / (audioBuffer.duration || duration || 1)) * 100}%`,
+            }}
+            onMouseDown={(e) => handleTrimMouseDown(e, 'start')}
+          />
+          <div
+            className="absolute top-0 bottom-0 w-1 bg-blue-300 cursor-ew-resize"
+            style={{
+              left: `${((Math.min(audioBuffer.duration || duration || 0, trimEndSeconds ?? (audioBuffer.duration || duration || 0))) /
+                (audioBuffer.duration || duration || 1)) * 100}%`,
+            }}
+            onMouseDown={(e) => handleTrimMouseDown(e, 'end')}
+          />
+        </>
+      )}
       <div className="absolute bottom-1 right-2 text-xs text-gray-400 bg-gray-900/80 px-1 rounded">
         {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
       </div>
@@ -199,6 +301,7 @@ function TrackWaveform({ audioBuffer, color, currentTime, duration, isPlaying, o
 export default function MasterMultiTrackPlayer() {
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
+  const { tracks: storeTracks } = useTracks();
   
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -221,8 +324,18 @@ export default function MasterMultiTrackPlayer() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const isPlayingRef = useRef(false);
   const startTimeRef = useRef<number>(0);
   const pauseTimeRef = useRef<number>(0);
+  const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const manualTracksRef = useRef<AudioTrack[]>([]);
+
+  const getTrackEffectiveDuration = (track: AudioTrack): number => {
+    const full = track.audioBuffer?.duration || 0;
+    const start = Math.max(0, track.trimStartSeconds ?? 0);
+    const end = Math.min(full, track.trimEndSeconds ?? full);
+    return Math.max(0, end - start);
+  };
 
   // Fetch uploaded songs from library
   const { data: librarySongs = [] } = useQuery<any[]>({
@@ -269,6 +382,8 @@ export default function MasterMultiTrackPlayer() {
           solo: false,
           color: trackColor,
           trackType: type as 'beat' | 'melody' | 'vocal' | 'audio',
+          origin: 'manual',
+          height: DEFAULT_TRACK_HEIGHT,
         };
         
         setTracks(prev => [...prev, newTrack]);
@@ -299,6 +414,11 @@ export default function MasterMultiTrackPlayer() {
     }
   }, [studioContext.currentTracks]);
 
+  // Track manual (locally added) tracks so store sync doesn't overwrite them
+  useEffect(() => {
+    manualTracksRef.current = tracks.filter(t => t.origin !== 'store');
+  }, [tracks]);
+
   // Initialize Audio Context
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -313,6 +433,138 @@ export default function MasterMultiTrackPlayer() {
     };
   }, []);
 
+  // Sync canonical track store into the master player (central hub)
+  useEffect(() => {
+    if (!audioContextRef.current) return;
+    let cancelled = false;
+    const ctx = audioContextRef.current;
+    const cache = audioBufferCacheRef.current;
+
+    const renderPatternToBuffer = async (track: any): Promise<AudioBuffer | null> => {
+      const bpm = track.payload?.bpm || 120;
+      const pattern = track.payload?.pattern || track.pattern;
+      const notes = track.payload?.notes || track.notes;
+
+      if (pattern && typeof pattern === 'object') {
+        const stepArrays = Object.values(pattern) as any[];
+        const steps = stepArrays.reduce((max, arr) => Math.max(max, Array.isArray(arr) ? arr.length : 0), 0) || 16;
+        const secondsPerBeat = 60 / bpm;
+        const stepDur = secondsPerBeat / 4;
+        const duration = Math.max(steps * stepDur, 1);
+        const sampleRate = 44100;
+        const offline = new OfflineAudioContext(1, Math.ceil(duration * sampleRate), sampleRate);
+
+        const clickEnv = (time: number) => {
+          const osc = offline.createOscillator();
+          const gain = offline.createGain();
+          osc.frequency.value = 1500;
+          gain.gain.setValueAtTime(0.4, time);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.08);
+          osc.connect(gain).connect(offline.destination);
+          osc.start(time);
+          osc.stop(time + 0.1);
+        };
+
+        for (let i = 0; i < steps; i++) {
+          const anyHit = stepArrays.some((arr: any) => Array.isArray(arr) && arr[i]);
+          if (anyHit) clickEnv(i * stepDur);
+        }
+
+        return offline.startRendering();
+      }
+
+      if (Array.isArray(notes) && notes.length > 0) {
+        const secondsPerBeat = 60 / bpm;
+        const duration = Math.max(notes.reduce((m, n) => Math.max(m, (n.time || 0) + (n.duration || 0.5)), 1) * secondsPerBeat, 1);
+        const sampleRate = 44100;
+        const offline = new OfflineAudioContext(1, Math.ceil(duration * sampleRate), sampleRate);
+
+        notes.forEach((n: any) => {
+          const start = (n.time || 0) * secondsPerBeat;
+          const len = (n.duration || 0.5) * secondsPerBeat;
+          const freq = 220 * Math.pow(2, ((n.midi || n.note || 60) - 60) / 12);
+          const osc = offline.createOscillator();
+          const gain = offline.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.3, start + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + len);
+          osc.connect(gain).connect(offline.destination);
+          osc.start(start);
+          osc.stop(start + len + 0.05);
+        });
+
+        return offline.startRendering();
+      }
+
+      return null;
+    };
+
+    const syncFromStore = async () => {
+      const manualTracks = manualTracksRef.current;
+      const synced: AudioTrack[] = [];
+
+      for (const storeTrack of storeTracks) {
+        const audioUrl = storeTrack.audioUrl || (storeTrack.payload as any)?.audioUrl;
+
+        let audioBuffer: AudioBuffer | null | undefined = cache.get(storeTrack.id);
+        if (!audioBuffer) {
+          try {
+            if (audioUrl) {
+              const response = await fetch(audioUrl);
+              const arrayBuffer = await response.arrayBuffer();
+              audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+              cache.set(storeTrack.id, audioBuffer);
+            } else {
+              audioBuffer = await renderPatternToBuffer(storeTrack);
+              if (audioBuffer) cache.set(storeTrack.id, audioBuffer);
+            }
+          } catch (error) {
+            console.error('Failed to load store track audio', error);
+          }
+        }
+
+        if (!audioBuffer) {
+          try {
+            audioBuffer = await renderPatternToBuffer(storeTrack);
+            if (audioBuffer) cache.set(storeTrack.id, audioBuffer);
+          } catch (error) {
+            console.error('Failed to render pattern/notes for track', error);
+          }
+        }
+
+        if (!audioBuffer) continue;
+
+        const mapped: AudioTrack = {
+          id: storeTrack.id,
+          name: storeTrack.name,
+          audioBuffer,
+          audioUrl,
+          volume: storeTrack.volume > 1 ? storeTrack.volume : Math.round((storeTrack.volume ?? 0.8) * 100),
+          pan: storeTrack.pan ?? 0,
+          muted: storeTrack.muted ?? false,
+          solo: storeTrack.solo ?? false,
+          color: storeTrack.color || TRACK_COLORS[synced.length % TRACK_COLORS.length],
+          trackType: (storeTrack as any).type ?? 'audio',
+          origin: 'store',
+          height: DEFAULT_TRACK_HEIGHT,
+          trimStartSeconds: 0,
+          trimEndSeconds: audioBuffer.duration,
+        };
+
+        synced.push(mapped);
+      }
+
+      if (!cancelled) {
+        setTracks([...manualTracks, ...synced]);
+      }
+    };
+
+    syncFromStore();
+    return () => { cancelled = true; };
+  }, [storeTracks]);
+
   // Update master volume
   useEffect(() => {
     if (masterGainRef.current) {
@@ -322,8 +574,13 @@ export default function MasterMultiTrackPlayer() {
 
   // Calculate total duration
   useEffect(() => {
+    if (tracks.length === 0) {
+      setDuration(0);
+      return;
+    }
+
     const maxDuration = Math.max(
-      ...tracks.map(t => t.audioBuffer?.duration || 0),
+      ...tracks.map(t => getTrackEffectiveDuration(t)),
       0
     );
     setDuration(maxDuration);
@@ -348,6 +605,9 @@ export default function MasterMultiTrackPlayer() {
         muted: false,
         solo: false,
         color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+        origin: 'manual',
+        trimStartSeconds: 0,
+        trimEndSeconds: audioBuffer.duration,
       };
 
       setTracks(prev => [...prev, newTrack]);
@@ -408,6 +668,7 @@ export default function MasterMultiTrackPlayer() {
         muted: false,
         solo: false,
         color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+        origin: 'manual',
       };
 
       setTracks(prev => [...prev, newTrack]);
@@ -460,6 +721,9 @@ export default function MasterMultiTrackPlayer() {
               muted: false,
               solo: false,
               color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+              origin: 'manual',
+              trimStartSeconds: 0,
+              trimEndSeconds: audioBuffer.duration,
             };
 
             setTracks(prev => [...prev, newTrack]);
@@ -525,6 +789,9 @@ export default function MasterMultiTrackPlayer() {
       solo: false,
       color: type === 'beat' ? '#F59E0B' : type === 'melody' ? '#8B5CF6' : '#10B981',
       trackType: type,
+      height: DEFAULT_TRACK_HEIGHT,
+      trimStartSeconds: 0,
+      trimEndSeconds: 0,
     };
 
     setTracks(prev => [...prev, newTrack]);
@@ -561,7 +828,14 @@ export default function MasterMultiTrackPlayer() {
       const panNode = ctx.createStereoPanner();
 
       source.buffer = track.audioBuffer;
-      source.loop = loop;
+
+      const fullDur = track.audioBuffer.duration;
+      const trimStart = Math.max(0, track.trimStartSeconds ?? 0);
+      const trimEnd = Math.min(fullDur, track.trimEndSeconds ?? fullDur);
+      const clipDuration = Math.max(0, trimEnd - trimStart);
+
+      // Only loop untrimmed clips for now; trimmed clips play their region once
+      source.loop = loop && clipDuration === fullDur;
 
       // Set volume and pan
       gainNode.gain.value = track.volume / 100;
@@ -577,8 +851,19 @@ export default function MasterMultiTrackPlayer() {
       track.gainNode = gainNode;
       track.panNode = panNode;
 
-      // Start playback
-      source.start(0, startOffset);
+      // Start playback within trimmed region
+      if (clipDuration <= 0) {
+        return;
+      }
+
+      if (startOffset >= clipDuration) {
+        // Playback position is past the trimmed region; this track stays silent
+        return;
+      }
+
+      const bufferStart = trimStart + startOffset;
+      const playDuration = clipDuration - startOffset;
+      source.start(0, bufferStart, playDuration);
 
       // Handle end of playback
       source.onended = () => {
@@ -594,6 +879,7 @@ export default function MasterMultiTrackPlayer() {
     });
 
     setIsPlaying(true);
+    isPlayingRef.current = true;
     updateCurrentTime();
   };
 
@@ -619,6 +905,7 @@ export default function MasterMultiTrackPlayer() {
     }
     stopTracks();
     setIsPlaying(false);
+    isPlayingRef.current = false;
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
@@ -628,6 +915,7 @@ export default function MasterMultiTrackPlayer() {
   const stopPlayback = () => {
     stopTracks();
     setIsPlaying(false);
+    isPlayingRef.current = false;
     pauseTimeRef.current = 0;
     setCurrentTime(0);
     if (animationFrameRef.current) {
@@ -637,7 +925,7 @@ export default function MasterMultiTrackPlayer() {
 
   // Update current time
   const updateCurrentTime = () => {
-    if (!audioContextRef.current || !isPlaying) return;
+    if (!audioContextRef.current || !isPlayingRef.current) return;
 
     const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
     setCurrentTime(elapsed);
@@ -1165,171 +1453,198 @@ export default function MasterMultiTrackPlayer() {
         ) : (
           <div className="space-y-3">
             {tracks.map((track, index) => (
-              <Card key={track.id} className="bg-gray-800 border-gray-700">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    {/* Track Color */}
-                    <div
-                      className="w-2 h-16 rounded"
-                      style={{ backgroundColor: track.color }}
-                    />
-
-                    {/* Track Info */}
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold">{track.name}</h4>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteTrack(track.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      {/* Editable Waveform or Empty Track Action */}
-                      {track.audioBuffer ? (
-                        <TrackWaveform 
-                          audioBuffer={track.audioBuffer}
-                          color={track.color}
-                          currentTime={currentTime}
-                          duration={track.audioBuffer?.duration || 0}
-                          isPlaying={isPlaying}
-                          onSeek={(time) => {
-                            pauseTimeRef.current = time;
-                            setCurrentTime(time);
-                            if (isPlaying) {
-                              stopTracks();
-                              playTracks();
-                            }
-                          }}
+              <Resizable
+                key={track.id}
+                axis="y"
+                height={track.height ?? DEFAULT_TRACK_HEIGHT}
+                width={0}
+                minConstraints={[0, 40]}
+                maxConstraints={[0, 300]}
+                onResize={(_, data) => {
+                  const nextHeight = Math.max(40, Math.min(300, data.size.height));
+                  setTracks(prev =>
+                    prev.map(t =>
+                      t.id === track.id ? { ...t, height: nextHeight } : t
+                    )
+                  );
+                }}
+                resizeHandles={['s']}
+              >
+                <div style={{ height: (track.height ?? DEFAULT_TRACK_HEIGHT) + 32 }}>
+                  <Card className="bg-gray-800 border-gray-700 relative overflow-hidden h-full">
+                    <CardContent className="p-4 h-full flex flex-col">
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* Track color stripe */}
+                        <div
+                          className="w-2 h-full rounded"
+                          style={{ backgroundColor: track.color }}
                         />
-                      ) : (
-                        <div className="h-16 bg-gray-900 rounded flex items-center justify-center gap-3 border-2 border-dashed border-gray-600">
-                          {track.trackType === 'beat' && (
+
+                        <div className="flex-1 flex flex-col gap-2">
+                          {/* Header with name + delete */}
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold">{track.name}</h4>
                             <Button
                               size="sm"
-                              className="bg-amber-600 hover:bg-amber-500"
-                              onClick={() => {
-                                // Navigate to Beat Lab - emit event or use callback
-                                window.dispatchEvent(new CustomEvent('openStudioTool', { 
-                                  detail: { tool: 'beat-lab', trackId: track.id } 
-                                }));
-                                toast({
-                                  title: '🥁 Opening Beat Lab',
-                                  description: 'Create your beat, then export to load it here',
-                                });
+                              variant="ghost"
+                              onClick={() => deleteTrack(track.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+
+                          {/* Waveform or empty state */}
+                          {track.audioBuffer ? (
+                            <TrackWaveform
+                              audioBuffer={track.audioBuffer}
+                              color={track.color}
+                              currentTime={currentTime}
+                              duration={track.audioBuffer?.duration || 0}
+                              isPlaying={isPlaying}
+                              height={track.height ?? DEFAULT_TRACK_HEIGHT}
+                              onSeek={(time) => {
+                                pauseTimeRef.current = time;
+                                setCurrentTime(time);
+                                if (isPlaying) {
+                                  stopTracks();
+                                  playTracks();
+                                }
                               }}
+                            />
+                          ) : (
+                            <div
+                              className="bg-gray-900 rounded flex items-center justify-center gap-3 border-2 border-dashed border-gray-600"
+                              style={{ height: track.height ?? DEFAULT_TRACK_HEIGHT }}
                             >
-                              <Drum className="w-4 h-4 mr-2" />
-                              Open Beat Lab
-                            </Button>
+                              {track.trackType === 'beat' && (
+                                <Button
+                                  size="sm"
+                                  className="bg-amber-600 hover:bg-amber-500"
+                                  onClick={() => {
+                                    window.dispatchEvent(new CustomEvent('openStudioTool', {
+                                      detail: { tool: 'beat-lab', trackId: track.id },
+                                    }));
+                                    toast({
+                                      title: '🥁 Opening Beat Lab',
+                                      description: 'Create your beat, then export to load it here',
+                                    });
+                                  }}
+                                >
+                                  <Drum className="w-4 h-4 mr-2" />
+                                  Open Beat Lab
+                                </Button>
+                              )}
+                              {track.trackType === 'melody' && (
+                                <Button
+                                  size="sm"
+                                  className="bg-purple-600 hover:bg-purple-500"
+                                  onClick={() => {
+                                    window.dispatchEvent(new CustomEvent('openStudioTool', {
+                                      detail: { tool: 'melody', trackId: track.id },
+                                    }));
+                                    toast({
+                                      title: '🎹 Opening Melody Composer',
+                                      description: 'Create your melody, then export to load it here',
+                                    });
+                                  }}
+                                >
+                                  <Piano className="w-4 h-4 mr-2" />
+                                  Open Melody Composer
+                                </Button>
+                              )}
+                              {track.trackType === 'vocal' && (
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-500"
+                                  onClick={startRecording}
+                                >
+                                  <Mic className="w-4 h-4 mr-2" />
+                                  Start Recording
+                                </Button>
+                              )}
+                              {!track.trackType && (
+                                <span className="text-gray-500 text-sm">
+                                  Drop audio file here or use buttons above
+                                </span>
+                              )}
+                              <label htmlFor={`track-upload-${track.id}`} className="cursor-pointer">
+                                <Button size="sm" variant="outline" asChild>
+                                  <span>
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Upload Audio
+                                  </span>
+                                </Button>
+                              </label>
+                              <input
+                                id={`track-upload-${track.id}`}
+                                type="file"
+                                accept="audio/*"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                              />
+                            </div>
                           )}
-                          {track.trackType === 'melody' && (
-                            <Button
-                              size="sm"
-                              className="bg-purple-600 hover:bg-purple-500"
-                              onClick={() => {
-                                window.dispatchEvent(new CustomEvent('openStudioTool', { 
-                                  detail: { tool: 'melody', trackId: track.id } 
-                                }));
-                                toast({
-                                  title: '🎹 Opening Melody Composer',
-                                  description: 'Create your melody, then export to load it here',
-                                });
-                              }}
-                            >
-                              <Piano className="w-4 h-4 mr-2" />
-                              Open Melody Composer
-                            </Button>
-                          )}
-                          {track.trackType === 'vocal' && (
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-500"
-                              onClick={startRecording}
-                            >
-                              <Mic className="w-4 h-4 mr-2" />
-                              Start Recording
-                            </Button>
-                          )}
-                          {!track.trackType && (
-                            <span className="text-gray-500 text-sm">Drop audio file here or use buttons above</span>
-                          )}
-                          <label htmlFor={`track-upload-${track.id}`} className="cursor-pointer">
-                            <Button size="sm" variant="outline" asChild>
-                              <span>
-                                <Upload className="w-4 h-4 mr-2" />
-                                Upload Audio
+
+                          {/* Controls */}
+                          <div className="flex items-center gap-4 mt-2">
+                            {/* Mute/Solo */}
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant={track.muted ? 'default' : 'outline'}
+                                onClick={() => toggleMute(track.id)}
+                                className="w-8 h-8 p-0"
+                              >
+                                {track.muted ? <VolumeX className="w-3 h-3" /> : 'M'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={track.solo ? 'default' : 'outline'}
+                                onClick={() => toggleSolo(track.id)}
+                                className="w-8 h-8 p-0"
+                              >
+                                S
+                              </Button>
+                            </div>
+
+                            {/* Volume */}
+                            <div className="flex items-center gap-2 flex-1">
+                              <Volume2 className="w-3 h-3 text-gray-400" />
+                              <Slider
+                                value={[track.volume]}
+                                onValueChange={(val) => updateTrackVolume(track.id, val[0])}
+                                max={100}
+                                min={0}
+                                step={1}
+                                className="flex-1"
+                              />
+                              <span className="text-xs w-10">{track.volume}%</span>
+                            </div>
+
+                            {/* Pan */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">Pan</span>
+                              <Slider
+                                value={[track.pan * 100]}
+                                onValueChange={(val) => updateTrackPan(track.id, val[0] / 100)}
+                                max={100}
+                                min={-100}
+                                step={1}
+                                className="w-24"
+                              />
+                              <span className="text-xs w-8">
+                                {track.pan > 0 ? 'R' : track.pan < 0 ? 'L' : 'C'}
                               </span>
-                            </Button>
-                          </label>
-                          <input
-                            id={`track-upload-${track.id}`}
-                            type="file"
-                            accept="audio/*"
-                            onChange={handleFileUpload}
-                            className="hidden"
-                          />
-                        </div>
-                      )}
-
-                      {/* Controls */}
-                      <div className="flex items-center gap-4">
-                        {/* Mute/Solo */}
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant={track.muted ? 'default' : 'outline'}
-                            onClick={() => toggleMute(track.id)}
-                            className="w-8 h-8 p-0"
-                          >
-                            {track.muted ? <VolumeX className="w-3 h-3" /> : 'M'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={track.solo ? 'default' : 'outline'}
-                            onClick={() => toggleSolo(track.id)}
-                            className="w-8 h-8 p-0"
-                          >
-                            S
-                          </Button>
-                        </div>
-
-                        {/* Volume */}
-                        <div className="flex items-center gap-2 flex-1">
-                          <Volume2 className="w-3 h-3 text-gray-400" />
-                          <Slider
-                            value={[track.volume]}
-                            onValueChange={(val) => updateTrackVolume(track.id, val[0])}
-                            max={100}
-                            min={0}
-                            step={1}
-                            className="flex-1"
-                          />
-                          <span className="text-xs w-10">{track.volume}%</span>
-                        </div>
-
-                        {/* Pan */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">Pan</span>
-                          <Slider
-                            value={[track.pan * 100]}
-                            onValueChange={(val) => updateTrackPan(track.id, val[0] / 100)}
-                            max={100}
-                            min={-100}
-                            step={1}
-                            className="w-24"
-                          />
-                          <span className="text-xs w-8">
-                            {track.pan > 0 ? 'R' : track.pan < 0 ? 'L' : 'C'}
-                          </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                    {/* Resize handle */}
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700/70 hover:bg-gray-400/90 cursor-row-resize" />
+                  </Card>
+                </div>
+              </Resizable>
             ))}
           </div>
         )}

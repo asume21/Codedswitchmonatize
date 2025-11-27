@@ -100,6 +100,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
+    "cryptlex": "^4.0.0",
     "date-fns": "3.6.0",
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.4",

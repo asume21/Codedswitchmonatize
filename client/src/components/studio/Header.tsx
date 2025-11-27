@@ -1,8 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { SubscriptionButton } from "./SubscriptionButton";
 import { UserAccountMenu } from "@/components/UserAccountMenu";
+import { useState } from "react";
+import { UpgradeModal, useLicenseGate } from "@/lib/LicenseGuard";
 
 export default function Header() {
+  const { requirePro } = useLicenseGate();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  const gate = (feature: "export" | "save") =>
+    requirePro(feature, () => setShowUpgrade(true));
+
   return (
     <div className="bg-studio-panel border-b border-gray-700 px-6 py-3 flex items-center justify-between">
       <div className="flex items-center space-x-4">
@@ -252,17 +260,26 @@ export default function Header() {
 
       <div className="flex items-center space-x-4">
         <SubscriptionButton />
-        <Button className="bg-studio-accent hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <Button
+          className="bg-studio-accent hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          onClick={() => {
+            if (!gate("save")) return;
+          }}
+        >
           <i className="fas fa-save mr-2"></i>Save Project
         </Button>
         <Button
           variant="secondary"
           className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          onClick={() => {
+            if (!gate("export")) return;
+          }}
         >
           <i className="fas fa-share mr-2"></i>Export
         </Button>
         <UserAccountMenu />
       </div>
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }

@@ -9,7 +9,8 @@ export default defineConfig({
   reporter: 'html',
   
   use: {
-    baseURL: 'http://localhost:3211',
+    // Frontend runs on Vite (5173 by default); API tests use full URLs
+    baseURL: process.env.BASE_URL || 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -31,7 +32,8 @@ export default defineConfig({
 
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3211',
+    // Wait for the Vite dev server (frontend) that Playwright pages hit
+    url: process.env.BASE_URL || 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

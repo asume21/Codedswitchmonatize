@@ -1,0 +1,105 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link "CodedSwitch" [ref=e8] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e11]: CodedSwitch
+          - link "🥁 Beat Studio" [ref=e12] [cursor=pointer]:
+            - /url: /beat-studio
+          - link "🎹 Piano Roll" [ref=e13] [cursor=pointer]:
+            - /url: /piano-roll
+        - button "CS" [ref=e15] [cursor=pointer]:
+          - generic [ref=e17]: CS
+    - main [ref=e18]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - generic [ref=e23]:
+              - generic [ref=e24]:
+                - img [ref=e26]
+                - generic [ref=e46]:
+                  - heading "CodedSwitch" [level=1] [ref=e47]
+                  - paragraph [ref=e48]: AI Godfather
+              - generic [ref=e51]: AI Engine Active
+            - generic [ref=e52]:
+              - generic [ref=e53]:
+                - generic [ref=e54]:
+                  - img [ref=e55]
+                  - text: 0 Credits
+                - button "Low Credits!" [ref=e60] [cursor=pointer]:
+                  - img
+                  - text: Low Credits!
+              - button " Save Project" [ref=e61] [cursor=pointer]:
+                - generic [ref=e62]: 
+                - text: Save Project
+              - button " Export" [ref=e63] [cursor=pointer]:
+                - generic [ref=e64]: 
+                - text: Export
+              - link "Log In" [ref=e65] [cursor=pointer]:
+                - /url: /login
+                - button "Log In" [ref=e66]:
+                  - img [ref=e67]
+                  - generic [ref=e70]: Log In
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - generic [ref=e75]:
+                - heading "Song Upload & Library" [level=2] [ref=e76]
+                - generic [ref=e77]:
+                  - generic [ref=e78]: Upload existing songs for AI analysis
+                  - generic [ref=e79]: "Supported: MP3, WAV, M4A, OGG"
+              - button " Upload Song" [ref=e82] [cursor=pointer]:
+                - generic [ref=e83]:
+                  - generic [ref=e84]: 
+                  - generic [ref=e85]: Upload Song
+            - generic [ref=e88]:
+              - generic [ref=e89]: 
+              - heading "No Songs Uploaded" [level=3] [ref=e90]
+              - paragraph [ref=e91]: Upload your existing songs to integrate them with CodedSwitch's AI tools. Once uploaded, you can analyze them for musical insights, extract patterns, or use them as reference for new compositions.
+              - generic [ref=e92]:
+                - paragraph [ref=e93]:
+                  - strong [ref=e94]: "What you can do with uploaded songs:"
+                - paragraph [ref=e95]: • AI analysis for musical structure and patterns
+                - paragraph [ref=e96]: • Extract beats and melodies for remixing
+                - paragraph [ref=e97]: • Generate lyrics that match the song's mood
+                - paragraph [ref=e98]: • Use as reference for Dynamic Layering
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - button "" [ref=e102] [cursor=pointer]:
+                - generic [ref=e103]: 
+              - button "" [ref=e104] [cursor=pointer]:
+                - generic [ref=e105]: 
+              - button "" [ref=e106] [cursor=pointer]:
+                - generic [ref=e107]: 
+              - button "" [ref=e108] [cursor=pointer]:
+                - generic [ref=e109]: 
+              - button "" [ref=e110] [cursor=pointer]:
+                - generic [ref=e111]: 
+              - button "" [ref=e112] [cursor=pointer]:
+                - generic [ref=e113]: 
+              - button "" [ref=e115] [cursor=pointer]:
+                - generic [ref=e116]: 
+              - button "" [ref=e117] [cursor=pointer]:
+                - generic [ref=e118]: 
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e121]: 00:00
+                - generic [ref=e122]: /
+                - generic [ref=e123]: 02:45
+              - generic [ref=e125]: 120 BPM
+              - button "Song Library" [ref=e127] [cursor=pointer]:
+                - img
+            - generic [ref=e128]:
+              - generic [ref=e129]: 
+              - 'slider "Master volume: 75%" [ref=e130] [cursor=pointer]': "75"
+              - generic [ref=e131]: 75%
+              - button "" [ref=e132] [cursor=pointer]:
+                - generic [ref=e133]: 
+        - text:     
+```

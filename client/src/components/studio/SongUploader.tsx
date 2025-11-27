@@ -410,6 +410,7 @@ export default function SongUploader() {
     try {
       // Try multiple URL sources in order of preference (including legacy songURL for backward compatibility)
       let accessibleURL = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+      const songFormat = (song.format || '').toLowerCase();
       
       if (!accessibleURL) {
         throw new Error("No URL available for this song");
@@ -424,23 +425,27 @@ export default function SongUploader() {
           : `${accessibleURL}?t=${timestamp}&direct=true`;
       }
 
-      // For M4A files, try to add format parameter to help browser
-      if (accessibleURL.includes('.m4a')) {
+      // Check format using song.format field (more reliable than URL extension)
+      const isM4A = songFormat === 'm4a' || songFormat === 'mp4' || songFormat === 'aac' || accessibleURL.includes('.m4a');
+      const isMP3 = songFormat === 'mp3' || accessibleURL.includes('.mp3');
+      const isConverted = accessibleURL.includes('/api/songs/converted/');
+
+      // For M4A files that haven't been converted, add format hint
+      if (isM4A && !isConverted) {
         accessibleURL = accessibleURL.includes('?') 
           ? `${accessibleURL}&format=mp4`
           : `${accessibleURL}?format=mp4`;
       }
 
-      // For MP3 files, try multiple browser compatibility strategies
-      if (accessibleURL.includes('.mp3')) {
-        // Strategy 1: Add cache-busting and range headers
+      // For MP3 files or converted files, add cache-busting
+      if (isMP3 || isConverted) {
         const timestamp = Date.now();
         accessibleURL = accessibleURL.includes('?') 
-          ? `${accessibleURL}&t=${timestamp}&range=0-`
-          : `${accessibleURL}?t=${timestamp}&range=0-`;
+          ? `${accessibleURL}&t=${timestamp}`
+          : `${accessibleURL}?t=${timestamp}`;
       }
 
-      console.log(`🎵 Attempting to play: ${song.name} from URL: ${accessibleURL.substring(0, 100)}...`);
+      console.log(`🎵 Attempting to play: ${song.name} (format: ${songFormat}) from URL: ${accessibleURL.substring(0, 100)}...`);
 
       // Stop any currently playing audio
       if (studioContext.uploadedSongAudio) {
@@ -537,10 +542,10 @@ export default function SongUploader() {
           });
           
           convertedAudio.addEventListener('error', () => {
-            // If conversion fails, show helpful message
-            if (accessibleURL.includes('.m4a') || accessibleURL.includes('.mp4')) {
+            // If conversion fails, show helpful message based on format field
+            if (isM4A) {
               errorMessage += '. M4A files may not work in all browsers. Try re-uploading as MP3 or WAV.';
-            } else if (accessibleURL.includes('.mp3')) {
+            } else if (isMP3) {
               errorMessage += '. This MP3 may use an unsupported encoding or bitrate. Server conversion failed - try re-uploading a standard MP3 (128-320 kbps).';
             } else {
               errorMessage += '. This audio format is not supported. Try converting to MP3 or WAV format.';

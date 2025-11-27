@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import AIAssistant from './AIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
 import ProfessionalStudio from './ProfessionalStudio';
+import { Resizable } from 'react-resizable';
 import LyricLab from './LyricLab';
 import CodeToMusicStudioV2 from './CodeToMusicStudioV2';
 import VerticalPianoRoll from './VerticalPianoRoll';
@@ -33,6 +34,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
+import { UndoManager } from '@/lib/UndoManager';
+import 'react-resizable/css/styles.css';
+import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
@@ -55,6 +59,8 @@ const LEGACY_WORKFLOW_ID_MAP: Record<string, WorkflowPreset['id']> = {
   'ai-assisted': 'ai',
   'immersive-mode': 'immersive',
 };
+
+const DEFAULT_TRACK_HEIGHT = 120;
 
 // Workflow Configuration Profiles
 const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
@@ -171,8 +177,14 @@ export default function UnifiedStudioWorkspace() {
   const [mixerExpanded, setMixerExpanded] = useState(false);
 
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
+  const [trackHeights, setTrackHeights] = useState<Record<string, number>>({});
+  const trackListRef = useRef<HTMLDivElement>(null);
+  const [trackListWidth, setTrackListWidth] = useState(1000);
   const [zoom, setZoom] = useState([50]);
   const playheadPosition = position * 4; // Convert beats to 16th-note steps
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const waveformCacheRef = useRef<Map<string, Float32Array>>(new Map());
+  const [waveformData, setWaveformData] = useState<Record<string, Float32Array>>({});
   
   // UI State
   const [showAIAssistant, setShowAIAssistant] = useState(true);
@@ -181,24 +193,43 @@ export default function UnifiedStudioWorkspace() {
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
   const [beatLabTab, setBeatLabTab] = useState<'pro' | 'pack-generator' | 'codebeat'>('pro');
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
+  const undoManagerRef = useRef<UndoManager<StudioTrack[]> | null>(null);
+  const isRestoringTracksRef = useRef(false);
   const [trackHistory, setTrackHistory] = useState<StudioTrack[][]>([]);
   const [trackFuture, setTrackFuture] = useState<StudioTrack[][]>([]);
-  const isRestoringTracksRef = useRef(false);
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
+  const { isPro } = useLicenseGate();
+  const [showLicenseModal, setShowLicenseModal] = useState(false);
+  useEffect(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+  }, []);
 
   // Workflow Selector State
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
   const setTracks = useCallback((next: StudioTrack[] | ((prev: StudioTrack[]) => StudioTrack[])) => {
+    if (!undoManagerRef.current) {
+      undoManagerRef.current = new UndoManager<StudioTrack[]>();
+    }
+
+    let nextTracks: StudioTrack[];
+    if (typeof next === 'function') {
+      nextTracks = (next as (prev: StudioTrack[]) => StudioTrack[])(tracks as StudioTrack[]);
+    } else {
+      nextTracks = next;
+    }
+
     if (!isRestoringTracksRef.current) {
-      setTrackHistory((prev) => [...prev.slice(-19), tracks]);
-      setTrackFuture([]);
+      // Record current state for undo; clone to avoid future mutation issues
+      undoManagerRef.current.record(tracks.map(t => ({ ...t })));
     } else {
       isRestoringTracksRef.current = false;
     }
-    const nextTracks = typeof next === 'function' ? (next as (prev: StudioTrack[]) => StudioTrack[])(tracks as StudioTrack[]) : next;
+    
     const nextIds = new Set(nextTracks.map((t) => t.id));
 
     tracks.forEach((track) => {
@@ -251,6 +282,31 @@ export default function UnifiedStudioWorkspace() {
       }
     });
   }, [tracks, addTrackToStore, updateTrackInStore, removeTrackFromStore]);
+
+  // Global undo/redo keyboard shortcuts (Ctrl+Z / Ctrl+Y)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!undoManagerRef.current) return;
+
+      const isCtrlZ = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z';
+      const isCtrlY = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y';
+
+      if (isCtrlZ || isCtrlY) {
+        e.preventDefault();
+        const current = tracks as StudioTrack[];
+        const manager = undoManagerRef.current;
+        const next = isCtrlZ ? manager.undo(current.map(t => ({ ...t }))) : manager.redo(current.map(t => ({ ...t })));
+        if (next) {
+          isRestoringTracksRef.current = true;
+          setTracks(next);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [tracks, setTracks]);
+
   const ensureDefaultTrack = useCallback(() => {
     if (tracks.length === 0) {
       const defaultTrack: StudioTrack = {
@@ -282,6 +338,120 @@ export default function UnifiedStudioWorkspace() {
       setSelectedTrack(tracks[0]?.id ?? null);
     }
   }, [ensureDefaultTrack, tracks, selectedTrack]);
+
+  useEffect(() => {
+    setTrackHeights((prev) => {
+      const next = { ...prev };
+      let changed = false;
+
+      tracks.forEach((track) => {
+        if (!next[track.id]) {
+          next[track.id] = DEFAULT_TRACK_HEIGHT;
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((id) => {
+        if (!tracks.some((t) => t.id === id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [tracks]);
+
+  useEffect(() => {
+    const measureWidth = () => {
+      setTrackListWidth(trackListRef.current?.clientWidth || 1000);
+    };
+    measureWidth();
+    window.addEventListener('resize', measureWidth);
+    return () => window.removeEventListener('resize', measureWidth);
+  }, []);
+
+  // Pre-decode waveforms for audio tracks so timeline can render real data
+  useEffect(() => {
+    const loadWaveforms = async () => {
+      if (!audioContextRef.current) return;
+      const ctx = audioContextRef.current;
+      const updates: Record<string, Float32Array> = {};
+
+      for (const track of tracks) {
+        if (track.type !== 'audio') continue;
+        const url = (track as any).audioUrl || (track.payload as any)?.audioUrl;
+        if (!url) continue;
+        if (waveformCacheRef.current.has(track.id)) {
+          updates[track.id] = waveformCacheRef.current.get(track.id)!;
+          continue;
+        }
+
+        try {
+          const response = await fetch(url);
+          const arrayBuffer = await response.arrayBuffer();
+          const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+          const channel = audioBuffer.getChannelData(0);
+          const buckets = 400;
+          const samplesPerBucket = Math.max(1, Math.floor(channel.length / buckets));
+          const reduced = new Float32Array(buckets);
+
+          for (let i = 0; i < buckets; i++) {
+            let sum = 0;
+            const start = i * samplesPerBucket;
+            const end = Math.min(channel.length, start + samplesPerBucket);
+            for (let j = start; j < end; j++) {
+              sum += Math.abs(channel[j]);
+            }
+            reduced[i] = sum / (end - start || 1);
+          }
+
+          waveformCacheRef.current.set(track.id, reduced);
+          updates[track.id] = reduced;
+        } catch (error) {
+          console.error('Failed to decode waveform', error);
+        }
+      }
+
+      if (Object.keys(updates).length) {
+        setWaveformData(prev => ({ ...prev, ...updates }));
+      }
+    };
+
+    loadWaveforms();
+  }, [tracks]);
+
+  const TimelineWaveformCanvas: React.FC<{ data: Float32Array; height: number }> = ({ data, height }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const width = canvas.width;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x < width; x++) {
+        const idx = Math.floor((x / width) * data.length);
+        const amp = data[idx] ?? 0;
+        const barHeight = Math.max(1, amp * height);
+        const y = (height - barHeight) / 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + barHeight);
+        ctx.stroke();
+      }
+    }, [data, height]);
+
+    return <canvas ref={canvasRef} width={600} height={height} className="w-full h-full" />;
+  };
 
   // Check if this is the first time visiting the studio and load persisted workflow
   useEffect(() => {
@@ -358,6 +528,14 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const addTrack = (instrument: string, type: 'midi' | 'audio') => {
+    if (!isPro && tracks.length >= 8) {
+      setShowLicenseModal(true);
+      toast({
+        title: "Upgrade to Pro",
+        description: "Free tier supports up to 8 tracks. Upgrade to add more.",
+      });
+      return;
+    }
     const newTrack: StudioTrack = {
       id: `track-${Date.now()}`,
       name: `${instrument} ${tracks.length + 1}`,
@@ -1810,173 +1988,191 @@ export default function UnifiedStudioWorkspace() {
             </button>
             
             {timelineExpanded && (
-              <div className="bg-gray-900 p-4 max-h-96 overflow-y-auto">
-                <div className="space-y-2">
-                  {tracks.map((track) => (
-                    <div
-                      key={track.id}
-                      onClick={() => {
-                        setSelectedTrack(track.id);
-                        if (track.type === 'midi') setPianoRollExpanded(true);
-                        else if (track.type === 'lyrics') setLyricsExpanded(true);
-                      }}
-                      className={`border rounded overflow-hidden cursor-pointer transition ${
-                        selectedTrack === track.id
-                          ? 'border-blue-500 bg-blue-900/20'
-                          : 'border-gray-700 hover:border-gray-600'
-                      }`}
-                    >
-                      <div className="flex">
-                        {/* Track Info Panel */}
-                        <div className="w-48 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-sm truncate">{track.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 mb-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTracks(tracks.map(t =>
-                                  t.id === track.id ? { ...t, muted: !t.muted } : t
-                                ));
-                              }}
-                              className={`h-6 w-6 p-0 ${track.muted ? 'bg-red-600 text-white' : 'text-gray-400'}`}
-                            >
-                              M
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTracks(tracks.map(t =>
-                                  t.id === track.id ? { ...t, solo: !t.solo } : t
-                                ));
-                              }}
-                              className={`h-6 w-6 p-0 ${track.solo ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
-                            >
-                              S
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTracks(tracks.filter(t => t.id !== track.id));
-                              }}
-                              className="h-6 w-6 p-0 text-red-500"
-                            >
-                              <i className="fas fa-trash text-xs"></i>
-                            </Button>
-                          </div>
-                          <div className="text-xs space-y-1">
-                            <div className="text-gray-400">Type: <span className="text-gray-200">{track.type.toUpperCase()}</span></div>
-                            {track.instrument && <div className="text-gray-400">Inst: <span className="text-gray-200">{track.instrument}</span></div>}
-                            <div className="mt-2">
-                              <div className="text-gray-400 mb-1">Vol: {Math.round(track.volume * 100)}%</div>
-                              <Slider
-                                value={[track.volume * 100]}
-                                onValueChange={(val) => {
-                                  setTracks(tracks.map(t =>
-                                    t.id === track.id ? { ...t, volume: val[0] / 100 } : t
-                                  ));
-                                }}
-                                max={100}
-                                min={0}
-                                step={1}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-full"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Timeline Visualization */}
-                        <div className="flex-1 bg-gray-900 p-2 relative">
-                          {track.type === 'midi' ? (
-                            <div className="h-16 relative">
-                              {track.notes?.length > 0 ? (
-                                track.notes.map((note) => (
-                                  <div
-                                    key={note.id}
-                                    className="absolute top-2 h-12 bg-green-600/80 border border-green-400 rounded text-xs flex items-center justify-center"
-                                    style={{
-                                      left: `${note.step * 15}px`,
-                                      width: `${(note.length || 4) * 15 - 4}px`,
+              <div ref={trackListRef} className="bg-gray-900 p-4 max-h-96 overflow-y-auto">
+                <div className="grid gap-2" style={{ gridTemplateRows: 'repeat(auto-fit, minmax(80px, 1fr))' }}>
+                  {tracks.map((track) => {
+                    const trackHeight = trackHeights[track.id] ?? DEFAULT_TRACK_HEIGHT;
+                    const laneHeight = Math.max(trackHeight - 32, 80);
+                    const noteLaneHeight = Math.max(laneHeight - 8, 48);
+                    const waveform = waveformData[track.id];
+
+                    return (
+                      <Resizable
+                        key={track.id}
+                        axis="y"
+                        height={trackHeight}
+                        width={trackListWidth}
+                        minConstraints={[trackListWidth, 80]}
+                        handle={<div className="react-resizable-handle react-resizable-handle-s w-full h-2 bg-gray-800 hover:bg-blue-500 cursor-row-resize" />}
+                        onResizeStop={(_, data) => {
+                          const nextHeight = Math.max(80, data.size.height);
+                          setTrackHeights((prev) => ({ ...prev, [track.id]: nextHeight }));
+                        }}
+                      >
+                        <div
+                          onClick={() => {
+                            setSelectedTrack(track.id);
+                            if (track.type === 'midi') setPianoRollExpanded(true);
+                            else if (track.type === 'lyrics') setLyricsExpanded(true);
+                          }}
+                          style={{ height: trackHeight }}
+                          className={`border rounded overflow-hidden cursor-pointer transition flex flex-col ${
+                            selectedTrack === track.id
+                              ? 'border-blue-500 bg-blue-900/20'
+                              : 'border-gray-700 hover:border-gray-600'
+                          }`}
+                        >
+                          <div className="flex flex-1 overflow-hidden">
+                            {/* Track Info Panel */}
+                            <div className="w-48 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0 h-full">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-medium text-sm truncate">{track.name}</span>
+                              </div>
+                              <div className="flex items-center space-x-1 mb-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTracks(tracks.map(t =>
+                                      t.id === track.id ? { ...t, muted: !t.muted } : t
+                                    ));
+                                  }}
+                                  className={`h-6 w-6 p-0 ${track.muted ? 'bg-red-600 text-white' : 'text-gray-400'}`}
+                                >
+                                  M
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTracks(tracks.map(t =>
+                                      t.id === track.id ? { ...t, solo: !t.solo } : t
+                                    ));
+                                  }}
+                                  className={`h-6 w-6 p-0 ${track.solo ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
+                                >
+                                  S
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTracks(tracks.filter(t => t.id !== track.id));
+                                  }}
+                                  className="h-6 w-6 p-0 text-red-500"
+                                >
+                                  <i className="fas fa-trash text-xs"></i>
+                                </Button>
+                              </div>
+                              <div className="text-xs space-y-1">
+                                <div className="text-gray-400">Type: <span className="text-gray-200">{track.type.toUpperCase()}</span></div>
+                                {track.instrument && <div className="text-gray-400">Inst: <span className="text-gray-200">{track.instrument}</span></div>}
+                                <div className="mt-2">
+                                  <div className="text-gray-400 mb-1">Vol: {Math.round(track.volume * 100)}%</div>
+                                  <Slider
+                                    value={[track.volume * 100]}
+                                    onValueChange={(val) => {
+                                      setTracks(tracks.map(t =>
+                                        t.id === track.id ? { ...t, volume: val[0] / 100 } : t
+                                      ));
                                     }}
-                                  >
-                                    {note.note}{note.octave}
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-xs text-gray-500 text-center">No notes</div>
-                              )}
-                            </div>
-                          ) : track.type === 'audio' ? (
-                            <div className="h-16 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/50 rounded relative overflow-hidden group">
-                              {/* Fake waveform visualization */}
-                              <div className="absolute inset-0 flex items-center justify-center px-2">
-                                <div className="w-full h-12 flex items-center gap-[1px]">
-                                  {Array.from({ length: 100 }).map((_, i) => {
-                                    const height = Math.sin(i * 0.3) * 30 + Math.random() * 20 + 10;
-                                    return (
-                                      <div
-                                        key={i}
-                                        className="flex-1 bg-blue-400/60 rounded-sm"
-                                        style={{ height: `${height}%` }}
-                                      />
-                                    );
-                                  })}
+                                    max={100}
+                                    min={0}
+                                    step={1}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full"
+                                  />
                                 </div>
                               </div>
-                              {/* Track name overlay */}
-                              <div className="absolute bottom-1 left-2 text-xs text-blue-300 font-medium truncate max-w-[200px]">
-                                {track.name}
-                              </div>
-                              {/* Play button overlay on hover */}
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 px-3 bg-green-600 border-green-500 hover:bg-green-500"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (track.audioUrl) {
-                                      const audio = new Audio(track.audioUrl);
-                                      audio.play();
-                                      toast({ title: "Playing", description: track.name });
-                                    }
-                                  }}
-                                >
-                                  <Play className="w-3 h-3 mr-1" />
-                                  Play
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 px-3"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveView('multitrack');
-                                    toast({ title: "Opening Multi-Track", description: "Track sent to multi-track player" });
-                                  }}
-                                >
-                                  <Layers className="w-3 h-3 mr-1" />
-                                  Multi-Track
-                                </Button>
-                              </div>
                             </div>
-                          ) : (
-                            <div className="h-16 bg-purple-900/20 border border-purple-700 rounded flex items-center justify-center text-xs text-purple-400">
-                              Lyrics track
+                            
+                            {/* Timeline Visualization */}
+                            <div className="flex-1 bg-gray-900 p-2 relative h-full">
+                              {track.type === 'midi' ? (
+                                <div className="relative" style={{ height: laneHeight }}>
+                                  {track.notes?.length > 0 ? (
+                                    track.notes.map((note) => (
+                                      <div
+                                        key={note.id}
+                                        className="absolute top-2 bg-green-600/80 border border-green-400 rounded text-xs flex items-center justify-center"
+                                        style={{
+                                          left: `${note.step * 15}px`,
+                                          width: `${(note.length || 4) * 15 - 4}px`,
+                                          height: noteLaneHeight,
+                                        }}
+                                      >
+                                        {note.note}{note.octave}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-xs text-gray-500 text-center">No notes</div>
+                                  )}
+                                </div>
+                              ) : track.type === 'audio' ? (
+                                <div
+                                  className="bg-gray-900 border border-blue-700/50 rounded relative overflow-hidden group"
+                                  style={{ height: laneHeight }}
+                                >
+                                  {waveform ? (
+                                    <TimelineWaveformCanvas data={waveform} height={laneHeight} />
+                                  ) : (
+                                    <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-500">
+                                      Loading waveform...
+                                    </div>
+                                  )}
+                                  <div className="absolute bottom-1 left-2 text-xs text-blue-300 font-medium truncate max-w-[200px]">
+                                    {track.name}
+                                  </div>
+                                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 px-3 bg-green-600 border-green-500 hover:bg-green-500"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const url = (track as any).audioUrl || (track.payload as any)?.audioUrl;
+                                        if (url) {
+                                          const audio = new Audio(url);
+                                          audio.play();
+                                          toast({ title: "Playing", description: track.name });
+                                        }
+                                      }}
+                                    >
+                                      <Play className="w-3 h-3 mr-1" />
+                                      Play
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 px-3"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveView('multitrack');
+                                        toast({ title: "Opening Multi-Track", description: "Track sent to multi-track player" });
+                                      }}
+                                    >
+                                      <Layers className="w-3 h-3 mr-1" />
+                                      Multi-Track
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div
+                                  className="bg-purple-900/20 border border-purple-700 rounded flex items-center justify-center text-xs text-purple-400"
+                                  style={{ height: laneHeight }}
+                                >
+                                  Lyrics track
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
+                      </Resizable>
+                    );
+                  })}
 
                   {tracks.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
@@ -2354,6 +2550,7 @@ Your lyrics will sync with the timeline
         </div>
       )}
     </div>
+    <UpgradeModal open={showLicenseModal} onClose={() => setShowLicenseModal(false)} />
     </div>
   );
 } 

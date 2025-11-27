@@ -1,0 +1,332 @@
+# Page snapshot
+
+```yaml
+- generic:
+  - generic:
+    - list
+    - generic:
+      - generic:
+        - navigation:
+          - generic:
+            - generic:
+              - link:
+                - /url: /
+                - generic:
+                  - generic: CodedSwitch
+              - link:
+                - /url: /beat-studio
+                - text: 🥁 Beat Studio
+              - link:
+                - /url: /piano-roll
+                - text: 🎹 Piano Roll
+            - generic:
+              - button:
+                - generic:
+                  - generic: CS
+        - main:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                      - generic:
+                        - heading [level=1]: CodedSwitch
+                        - paragraph: AI Godfather
+                    - generic:
+                      - generic: AI Engine Active
+                  - generic:
+                    - generic:
+                      - generic:
+                        - img
+                        - text: 0 Credits
+                      - button:
+                        - img
+                        - text: Low Credits!
+                    - button:
+                      - generic: 
+                      - text: Save Project
+                    - button:
+                      - generic: 
+                      - text: Export
+                    - link:
+                      - /url: /login
+                      - button:
+                        - img
+                        - generic: Log In
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - heading [level=1]: 🎵 Studio
+                          - generic:
+                            - generic:
+                              - button: File ▼
+                            - generic:
+                              - button: Edit ▼
+                            - generic:
+                              - button: View ▼
+                            - generic:
+                              - button: Create ▼
+                            - generic:
+                              - button: Arrange ▼
+                            - generic:
+                              - button: Mix ▼
+                            - generic:
+                              - button: More ▼
+                            - generic:
+                              - button:
+                                - img
+                                - text: MIDI ▼
+                        - generic:
+                          - generic:
+                            - button:
+                              - img
+                              - text: Play
+                            - button:
+                              - img
+                              - text: Stop
+                            - generic:
+                              - generic: Bar 1
+                              - generic: Beat 1
+                          - generic:
+                            - img
+                            - generic: Tempo
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - slider
+                            - generic: 120 BPM
+                          - generic:
+                            - img
+                            - generic: Loop
+                            - switch
+                            - generic: Bars 1-8
+                            - button: 8-Bar
+                      - generic:
+                        - generic:
+                          - button:
+                            - img
+                            - text: Arrange
+                          - button:
+                            - img
+                            - text: Beats
+                          - button:
+                            - img
+                            - text: Pack Generator
+                          - button:
+                            - img
+                            - text: Piano
+                          - button:
+                            - img
+                            - text: Mixer
+                          - button:
+                            - img
+                            - text: Multi-Track
+                          - button:
+                            - img
+                            - text: AI Studio
+                          - button:
+                            - img
+                            - text: Code to Music
+                          - button:
+                            - img
+                            - text: Lyrics
+                          - button:
+                            - img
+                            - text: Tools
+                          - button:
+                            - img
+                            - text: Upload
+                        - generic:
+                          - button:
+                            - img
+                            - text: Generate
+                          - button:
+                            - img
+                            - text: Workflow
+                          - generic:
+                            - img
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - slider
+                            - generic: 70%
+                      - generic:
+                        - generic:
+                          - generic:
+                            - button:
+                              - generic:
+                                - img
+                                - text: TIMELINE - ALL TRACKS (1)
+                              - generic:
+                                - button:
+                                  - img
+                                  - text: AI Arrange
+                                - button:
+                                  - generic: +
+                                  - text: Add Track
+                                - generic:
+                                  - generic: "Zoom:"
+                                  - generic:
+                                    - generic:
+                                      - slider
+                                  - generic: 50%
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - generic:
+                                      - generic:
+                                        - generic: Piano 1
+                                      - generic:
+                                        - button: M
+                                        - button: S
+                                        - button:
+                                          - generic: 
+                                      - generic:
+                                        - generic: "Type: MIDI"
+                                        - generic: "Inst: piano"
+                                        - generic:
+                                          - generic: "Vol: 80%"
+                                          - generic:
+                                            - generic:
+                                              - slider
+                                    - generic:
+                                      - generic:
+                                        - generic: No notes
+                          - generic:
+                            - button:
+                              - img
+                              - text: PIANO ROLL (Piano 1)
+                          - generic:
+                            - button:
+                              - generic:
+                                - img
+                                - text: LYRICS EDITOR
+                              - button:
+                                - img
+                                - text: Focus Mode
+                          - generic:
+                            - button:
+                              - img
+                              - text: MIXER & EFFECTS (Piano 1)
+                        - generic:
+                          - generic:
+                            - button:
+                              - img
+                            - button:
+                              - img
+                            - generic:
+                              - generic: Bar 1
+                              - text: ":"
+                              - generic: Beat 1
+                            - button:
+                              - img
+                            - button: Clear
+                            - generic:
+                              - generic: BPM
+                              - generic: "120"
+                            - generic:
+                              - img
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - slider
+                - generic:
+                  - generic:
+                    - generic:
+                      - button:
+                        - generic: 
+                      - button:
+                        - generic: 
+                      - button:
+                        - generic: 
+                      - button:
+                        - generic: 
+                      - button:
+                        - generic: 
+                      - button:
+                        - generic: 
+                      - button:
+                        - generic: 
+                      - button:
+                        - generic: 
+                    - generic:
+                      - generic:
+                        - generic: 00:00
+                        - generic: /
+                        - generic: 02:45
+                      - generic:
+                        - generic: 120 BPM
+                      - generic:
+                        - button:
+                          - img
+                    - generic:
+                      - generic: 
+                      - slider: "75"
+                      - generic: 75%
+                      - button:
+                        - generic: 
+              - text:     
+  - dialog [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "What are you working on today?" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Choose a workflow optimized for your task
+      - generic [ref=e8]:
+        - generic [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]:
+            - generic [ref=e11]:
+              - img [ref=e13]
+              - generic [ref=e16]: 🎵 Song Uploader & Analyzer
+            - generic [ref=e17]: Upload existing songs for AI analysis, insights, and enhancement
+          - paragraph [ref=e19]: AI analysis for musical structure and patterns
+        - generic [ref=e20] [cursor=pointer]:
+          - generic [ref=e21]:
+            - generic [ref=e22]:
+              - img [ref=e24]
+              - generic [ref=e27]: Beginner Guided
+            - generic [ref=e28]: Step-by-step guidance for creating your first song
+          - paragraph [ref=e30]: Perfect for newcomers - learn as you create
+        - generic [ref=e31] [cursor=pointer]:
+          - generic [ref=e32]:
+            - generic [ref=e33]:
+              - img [ref=e35]
+              - generic [ref=e36]: Mixing Console
+            - generic [ref=e37]: Focus on mixing and mastering your tracks
+          - paragraph [ref=e39]: Timeline + Effects + Large Mixer
+        - generic [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]:
+            - generic [ref=e42]:
+              - img [ref=e44]
+              - generic [ref=e52]: AI-Assisted
+            - generic [ref=e53]: Get creative help from AI throughout your workflow
+          - paragraph [ref=e55]: Instruments + Timeline + Large AI Panel
+        - generic [ref=e56] [cursor=pointer]:
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - img [ref=e60]
+              - generic [ref=e62]: Composition
+            - generic [ref=e63]: Create melodies with piano roll and instruments
+          - paragraph [ref=e65]: Instruments + Samples + Large Piano Roll
+        - generic [ref=e66] [cursor=pointer]:
+          - generic [ref=e67]:
+            - generic [ref=e68]:
+              - img [ref=e70]
+              - generic [ref=e75]: Immersive Mode
+            - generic [ref=e76]: Full-screen DAW experience with minimal distractions
+          - paragraph [ref=e78]: Timeline + Piano Roll (fullscreen)
+        - generic [ref=e79] [cursor=pointer]:
+          - generic [ref=e80]:
+            - generic [ref=e81]: Custom Layout
+            - generic [ref=e82]: Start with the default layout and customize later
+          - paragraph [ref=e84]: Access Design Playground anytime
+      - button "Skip for now" [active] [ref=e86] [cursor=pointer]
+    - button "Close" [ref=e87] [cursor=pointer]:
+      - img [ref=e88]
+      - generic [ref=e91]: Close
+```

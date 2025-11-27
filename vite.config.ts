@@ -21,14 +21,14 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3211,
+    port: 5173, // standard Vite dev port
     host: '0.0.0.0',
     strictPort: false,
     allowedHosts: true,
     hmr: {
       protocol: 'ws',
       host: 'localhost',
-      port: 3211,
+      port: 5173,
     },
     proxy: {
       '/api': {
