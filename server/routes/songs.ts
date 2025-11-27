@@ -357,10 +357,40 @@ export function createSongRoutes(storage: IStorage) {
       // If converted file exists, serve it
       if (existsSync(filePath)) {
         console.log(`✅ Serving converted MP3: ${filePath}`);
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
-        const stream = createReadStream(filePath);
-        return stream.pipe(res);
+        
+        const stat = require('fs').statSync(filePath);
+        const fileSize = stat.size;
+        const range = req.headers.range;
+        
+        // iOS Safari requires Accept-Ranges and proper range request handling
+        if (range) {
+          // Handle range request (iOS Safari needs this for audio)
+          const parts = range.replace(/bytes=/, "").split("-");
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+          const chunkSize = (end - start) + 1;
+          
+          console.log(`📱 Range request: ${start}-${end}/${fileSize}`);
+          
+          res.writeHead(206, {
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunkSize,
+            'Content-Type': 'audio/mpeg',
+            'Cache-Control': 'public, max-age=86400',
+          });
+          
+          const stream = createReadStream(filePath, { start, end });
+          return stream.pipe(res);
+        } else {
+          // Normal request
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Length', fileSize);
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('Cache-Control', 'public, max-age=86400');
+          const stream = createReadStream(filePath);
+          return stream.pipe(res);
+        }
       }
 
       // File doesn't exist

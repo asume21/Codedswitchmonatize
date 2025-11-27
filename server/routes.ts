@@ -1429,13 +1429,42 @@ ${code}
       else if (ext === ".flac") type = "audio/flac";
       
       console.log('🎵 Serving with MIME type:', type);
-      res.setHeader("Content-Type", type);
-      res.setHeader("Accept-Ranges", "bytes");
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET");
-      res.setHeader("Access-Control-Allow-Headers", "Range");
-      fs.createReadStream(fullPath).pipe(res);
+      
+      const stat = fs.statSync(fullPath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+      
+      // iOS Safari requires proper range request handling for audio
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunkSize = (end - start) + 1;
+        
+        console.log(`📱 Range request: ${start}-${end}/${fileSize}`);
+        
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunkSize,
+          'Content-Type': type,
+          'Cache-Control': 'public, max-age=86400',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET',
+          'Access-Control-Allow-Headers': 'Range',
+        });
+        
+        fs.createReadStream(fullPath, { start, end }).pipe(res);
+      } else {
+        res.setHeader("Content-Type", type);
+        res.setHeader("Content-Length", fileSize);
+        res.setHeader("Accept-Ranges", "bytes");
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET");
+        res.setHeader("Access-Control-Allow-Headers", "Range");
+        fs.createReadStream(fullPath).pipe(res);
+      }
     } catch (err: any) {
       console.error('❌ Internal upload error:', err);
       res.status(500).send("Server error");
