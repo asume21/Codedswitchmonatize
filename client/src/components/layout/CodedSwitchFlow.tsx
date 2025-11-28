@@ -233,7 +233,22 @@ const MixerPanel: React.FC = () => {
 // ============================================
 // BROWSER PANEL - Sound & sample browser
 // ============================================
+interface Sample {
+  id: string;
+  name: string;
+  category: string;
+  bpm: number;
+  key?: string;
+  duration: number;
+  url: string;
+  color: string;
+}
+
 const BrowserPanel: React.FC = () => {
+  const { toast } = useToast();
+  const { position } = useTransport();
+  const { addTrack } = useTrackStore();
+  
   const categories = [
     { id: 'drums', name: 'Drums', icon: Drum, count: 245, color: '#EC4899' },
     { id: 'bass', name: 'Bass', icon: Guitar, count: 128, color: '#10B981' },
@@ -243,12 +258,58 @@ const BrowserPanel: React.FC = () => {
     { id: 'fx', name: 'FX', icon: Sparkles, count: 156, color: '#06B6D4' },
   ];
 
-  const recentSounds = [
-    { name: '808 Kick Heavy', category: 'Drums', bpm: 140 },
-    { name: 'Analog Bass 01', category: 'Bass', bpm: 128 },
-    { name: 'Pad Atmosphere', category: 'Synths', bpm: 120 },
-    { name: 'Hi-Hat Loop', category: 'Drums', bpm: 140 },
+  // Sample library with real audio URLs (using free samples)
+  const samples: Sample[] = [
+    { id: 's1', name: '808 Kick Heavy', category: 'Drums', bpm: 140, key: 'C', duration: 0.5, url: '/samples/808-kick.wav', color: '#EC4899' },
+    { id: 's2', name: 'Analog Bass 01', category: 'Bass', bpm: 128, key: 'F', duration: 2.0, url: '/samples/analog-bass.wav', color: '#10B981' },
+    { id: 's3', name: 'Pad Atmosphere', category: 'Synths', bpm: 120, key: 'Am', duration: 4.0, url: '/samples/pad-atmos.wav', color: '#8B5CF6' },
+    { id: 's4', name: 'Hi-Hat Loop', category: 'Drums', bpm: 140, key: '-', duration: 2.0, url: '/samples/hihat-loop.wav', color: '#EC4899' },
+    { id: 's5', name: 'Snare Trap', category: 'Drums', bpm: 140, key: '-', duration: 0.3, url: '/samples/snare-trap.wav', color: '#EC4899' },
+    { id: 's6', name: 'Synth Lead', category: 'Synths', bpm: 128, key: 'G', duration: 1.5, url: '/samples/synth-lead.wav', color: '#8B5CF6' },
   ];
+
+  // Handle sample click - add to timeline as audio clip
+  const handleSampleClick = (sample: Sample) => {
+    // Create new audio clip at current playhead position
+    const newClip = {
+      id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: sample.name,
+      audioUrl: sample.url,
+      startTime: position, // Current playhead position
+      duration: sample.duration,
+      volume: 0.8,
+      color: sample.color,
+      type: 'audio' as const,
+    };
+
+    // Add to track store
+    addTrack(newClip);
+
+    // Play preview sound using Web Audio API
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      // Quick confirmation beep
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.frequency.value = sample.category === 'Drums' ? 80 : 440;
+      oscillator.type = sample.category === 'Bass' ? 'sine' : 'triangle';
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.15);
+    } catch (e) {
+      console.log('Audio preview not available');
+    }
+
+    // Show success toast
+    toast({
+      title: '🎵 Sample Added!',
+      description: `${sample.name} added at beat ${Math.floor(position) + 1}`,
+    });
+  };
 
   return (
     <div className="h-full flex gap-4">
@@ -281,16 +342,17 @@ const BrowserPanel: React.FC = () => {
         })}
       </div>
 
-      {/* Recent sounds */}
+      {/* Sample list */}
       <div className="flex-1 ml-4">
         <h4 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.purple }}>
-          Recent
+          Samples
         </h4>
-        <div className="space-y-2">
-          {recentSounds.map((sound, i) => (
+        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+          {samples.map((sample) => (
             <div 
-              key={i}
-              className="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.02]"
+              key={sample.id}
+              onClick={() => handleSampleClick(sample)}
+              className="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.02] hover:bg-white/10 active:scale-[0.98]"
               style={{ 
                 background: 'rgba(139, 92, 246, 0.05)',
                 border: `1px solid ${COLORS.border}`,
@@ -298,19 +360,25 @@ const BrowserPanel: React.FC = () => {
             >
               <div className="flex items-center gap-3">
                 <div 
-                  className="w-8 h-8 rounded-lg flex items-center justify-center"
-                  style={{ background: 'rgba(139, 92, 246, 0.2)' }}
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ background: `${sample.color}30` }}
                 >
-                  <FileAudio className="w-4 h-4" style={{ color: COLORS.purple }} />
+                  <Play className="w-5 h-5" style={{ color: sample.color }} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium" style={{ color: COLORS.text }}>{sound.name}</p>
-                  <p className="text-xs" style={{ color: COLORS.textMuted }}>{sound.category} • {sound.bpm} BPM</p>
+                  <p className="text-sm font-medium" style={{ color: COLORS.text }}>{sample.name}</p>
+                  <p className="text-xs" style={{ color: COLORS.textMuted }}>
+                    {sample.category} • {sample.bpm} BPM {sample.key !== '-' && `• ${sample.key}`}
+                  </p>
                 </div>
               </div>
               <button 
-                className="p-2 rounded-lg transition-all hover:scale-110"
-                style={{ background: 'rgba(139, 92, 246, 0.2)' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSampleClick(sample);
+                }}
+                className="p-2 rounded-lg transition-all hover:scale-110 hover:bg-purple-500"
+                style={{ background: 'rgba(139, 92, 246, 0.3)' }}
               >
                 <Plus className="w-4 h-4" style={{ color: COLORS.purple }} />
               </button>
@@ -451,50 +519,152 @@ const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
   
   // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedKey, setSelectedKey] = useState('C');
-  const [selectedMood, setSelectedMood] = useState('happy');
+  const [activeAction, setActiveAction] = useState<string | null>(null);
   
   // Early return AFTER hooks
   if (!isOpen) return null;
   
   const aiActions = [
-    { icon: '🎵', title: 'Generate Chords', desc: 'AI suggests chord progressions', action: 'chords' },
-    { icon: '🎹', title: 'Create Melody', desc: 'Generate melody from chords', action: 'melody' },
-    { icon: '🥁', title: 'Add Drums', desc: 'AI creates drum patterns', action: 'drums' },
-    { icon: '🎸', title: 'Generate Bass', desc: 'Create bass from progression', action: 'bass' },
+    { icon: '🎵', title: 'Generate Chords', desc: 'Play C-Am-F-G progression', action: 'chords' },
+    { icon: '🎹', title: 'Create Melody', desc: 'Play C major scale melody', action: 'melody' },
+    { icon: '🥁', title: 'Add Drums', desc: 'Kick on 1+3, snare on 2+4', action: 'drums' },
+    { icon: '🎸', title: 'Generate Bass', desc: '808 bass root notes', action: 'bass' },
   ];
+
+  // Import realisticAudio dynamically to avoid circular deps
+  const playChordProgression = async () => {
+    const { realisticAudio } = await import('@/lib/realisticAudio');
+    await realisticAudio.initialize();
+    
+    // C - Am - F - G progression
+    const chords = [
+      { notes: ['C', 'E', 'G'], name: 'C' },
+      { notes: ['A', 'C', 'E'], name: 'Am' },
+      { notes: ['F', 'A', 'C'], name: 'F' },
+      { notes: ['G', 'B', 'D'], name: 'G' },
+    ];
+    
+    for (let i = 0; i < chords.length; i++) {
+      const chord = chords[i];
+      setTimeout(() => {
+        chord.notes.forEach(note => {
+          realisticAudio.playNote(note, 4, 0.8, 'piano', 0.7);
+        });
+      }, i * 600);
+    }
+    
+    return chords.map(c => c.name).join(' - ');
+  };
+
+  const playMelody = async () => {
+    const { realisticAudio } = await import('@/lib/realisticAudio');
+    await realisticAudio.initialize();
+    
+    // C major scale ascending
+    const melody = [
+      { note: 'C', octave: 4 },
+      { note: 'D', octave: 4 },
+      { note: 'E', octave: 4 },
+      { note: 'F', octave: 4 },
+      { note: 'G', octave: 4 },
+      { note: 'A', octave: 4 },
+      { note: 'B', octave: 4 },
+      { note: 'C', octave: 5 },
+    ];
+    
+    melody.forEach((n, i) => {
+      setTimeout(() => {
+        realisticAudio.playNote(n.note, n.octave, 0.3, 'piano', 0.8);
+      }, i * 200);
+    });
+    
+    return 'C major scale';
+  };
+
+  const playDrums = async () => {
+    const { realisticAudio } = await import('@/lib/realisticAudio');
+    await realisticAudio.initialize();
+    
+    // 4 beats: kick on 1+3, snare on 2+4, hihat on all
+    const beatMs = 500; // 120 BPM
+    
+    // Kicks on 1 and 3
+    [0, 2].forEach(beat => {
+      setTimeout(() => realisticAudio.playDrumSound('kick', 0.9), beat * beatMs);
+    });
+    
+    // Snares on 2 and 4
+    [1, 3].forEach(beat => {
+      setTimeout(() => realisticAudio.playDrumSound('snare', 0.8), beat * beatMs);
+    });
+    
+    // Hihats on every beat
+    [0, 1, 2, 3].forEach(beat => {
+      setTimeout(() => realisticAudio.playDrumSound('hihat', 0.5), beat * beatMs);
+    });
+    
+    return 'Kick-Snare pattern';
+  };
+
+  const playBass = async () => {
+    const { realisticAudio } = await import('@/lib/realisticAudio');
+    await realisticAudio.initialize();
+    
+    // Bass notes following C-Am-F-G
+    const bassNotes = [
+      { note: 'C', octave: 2 },
+      { note: 'A', octave: 2 },
+      { note: 'F', octave: 2 },
+      { note: 'G', octave: 2 },
+    ];
+    
+    bassNotes.forEach((n, i) => {
+      setTimeout(() => {
+        realisticAudio.playNote(n.note, n.octave, 0.8, 'bass-synth', 0.9);
+      }, i * 600);
+    });
+    
+    return 'C-A-F-G bass';
+  };
 
   const handleAction = async (action: string, title: string) => {
     setIsGenerating(true);
-    toast({ title: `✨ ${title}`, description: 'AI is generating...' });
+    setActiveAction(action);
+    toast({ title: `✨ ${title}`, description: 'Generating...' });
     
     try {
-      if (action === 'chords') {
-        // Use the real backend AI chord generation
-        const res = await fetch('/api/chords', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: selectedKey, mood: selectedMood })
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-          toast({ 
-            title: '🎵 Chords Generated!', 
-            description: `${data.progression}: ${data.chords.join(' - ')}` 
-          });
-        } else {
-          toast({ title: '❌ Generation Failed', description: data.error, variant: 'destructive' });
-        }
-      } else {
-        // Placeholder for other AI actions
-        toast({ title: `✨ ${title}`, description: 'Coming soon!' });
+      let result = '';
+      
+      switch (action) {
+        case 'chords':
+          result = await playChordProgression();
+          toast({ title: '🎵 Chords Playing!', description: result });
+          break;
+        case 'melody':
+          result = await playMelody();
+          toast({ title: '🎹 Melody Playing!', description: result });
+          break;
+        case 'drums':
+          result = await playDrums();
+          toast({ title: '🥁 Drums Playing!', description: result });
+          break;
+        case 'bass':
+          result = await playBass();
+          toast({ title: '🎸 Bass Playing!', description: result });
+          break;
       }
+      
+      // Keep modal open so user can try other buttons
+      setTimeout(() => {
+        setIsGenerating(false);
+        setActiveAction(null);
+      }, 2000);
+      
     } catch (error) {
-      toast({ title: '❌ Error', description: 'AI generation failed', variant: 'destructive' });
-    } finally {
+      console.error('AI action error:', error);
+      toast({ title: '❌ Error', description: 'Generation failed', variant: 'destructive' });
       setIsGenerating(false);
-      onClose();
+      setActiveAction(null);
     }
   };
 
@@ -541,22 +711,32 @@ const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
 
         {/* AI Actions Grid */}
         <div className="grid grid-cols-2 gap-3 mb-6">
-          {aiActions.map(item => (
-            <button 
-              key={item.title}
-              onClick={() => handleAction(item.action, item.title)}
-              disabled={isGenerating}
-              className="p-4 rounded-xl text-left transition-all hover:scale-[1.02] disabled:opacity-50"
-              style={{ 
-                background: 'rgba(139, 92, 246, 0.05)',
-                border: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <span className="text-2xl mb-2 block">{item.icon}</span>
-              <span className="text-sm font-semibold block" style={{ color: COLORS.text }}>{item.title}</span>
-              <span className="text-xs" style={{ color: COLORS.textMuted }}>{item.desc}</span>
-            </button>
-          ))}
+          {aiActions.map(item => {
+            const isActive = activeAction === item.action;
+            return (
+              <button 
+                key={item.title}
+                onClick={() => handleAction(item.action, item.title)}
+                disabled={isGenerating && !isActive}
+                className={`p-4 rounded-xl text-left transition-all hover:scale-[1.02] ${isActive ? 'animate-pulse' : ''}`}
+                style={{ 
+                  background: isActive 
+                    ? `linear-gradient(135deg, ${COLORS.purple}40, ${COLORS.pink}40)` 
+                    : 'rgba(139, 92, 246, 0.05)',
+                  border: isActive 
+                    ? `2px solid ${COLORS.purple}` 
+                    : `1px solid ${COLORS.border}`,
+                  opacity: isGenerating && !isActive ? 0.5 : 1,
+                }}
+              >
+                <span className="text-2xl mb-2 block">{isActive ? '🎶' : item.icon}</span>
+                <span className="text-sm font-semibold block" style={{ color: COLORS.text }}>
+                  {isActive ? 'Playing...' : item.title}
+                </span>
+                <span className="text-xs" style={{ color: COLORS.textMuted }}>{item.desc}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* AI Chat Input */}

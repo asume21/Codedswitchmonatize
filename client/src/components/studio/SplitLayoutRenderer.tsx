@@ -74,7 +74,16 @@ export function SplitLayoutRenderer({ config, contentMap }: SplitLayoutRendererP
     );
   };
 
-  const density = config.metadata.density || "comfortable";
+  // Safety check for missing config or metadata
+  if (!config || !config.splitLayout) {
+    return (
+      <div className="h-full w-full p-4 flex items-center justify-center text-gray-400">
+        No layout configuration
+      </div>
+    );
+  }
+
+  const density = config.metadata?.density || "comfortable";
   const paddingClass = {
     dense: "p-2",
     comfortable: "p-4",
