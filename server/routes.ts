@@ -54,6 +54,58 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   app.use("/api", createAstutelyRoutes());
 
   // ============================================
+  // GROK AI ENDPOINT - General purpose AI generation
+  // ============================================
+  app.post("/api/grok", async (req: Request, res: Response) => {
+    try {
+      const { prompt } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ error: 'Prompt is required' });
+      }
+
+      const XAI_API_KEY = process.env.XAI_API_KEY;
+      
+      if (!XAI_API_KEY) {
+        // Fallback to OpenAI if no Grok key
+        const aiClient = getAIClient();
+        if (!aiClient) {
+          return res.status(503).json({ error: 'No AI provider configured' });
+        }
+        
+        const completion = await aiClient.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+        });
+        
+        return res.json({ response: completion.choices[0].message.content });
+      }
+
+      // Use Grok (xAI)
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${XAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'grok-2-1212',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+        })
+      });
+
+      const data = await response.json();
+      return res.json({ response: data.choices?.[0]?.message?.content || '' });
+      
+    } catch (error) {
+      console.error('Grok API error:', error);
+      res.status(500).json({ error: 'AI generation failed' });
+    }
+  });
+
+  // ============================================
   // AI CHORD GENERATION ENDPOINT
   // Secure server-side OpenAI integration
   // ============================================
