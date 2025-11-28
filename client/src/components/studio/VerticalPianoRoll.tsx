@@ -823,6 +823,32 @@ export const VerticalPianoRoll: React.FC = () => {
     ));
   }, [selectedTrackIndex]);
 
+  // Copy a note to a new position (Alt+drag)
+  const copyNote = useCallback((noteId: string, newStep: number, newKeyIndex: number) => {
+    const newKey = PIANO_KEYS[newKeyIndex];
+    if (!newKey) return;
+    
+    setTracks(prev => prev.map((track, index) => {
+      if (index !== selectedTrackIndex) return track;
+      
+      const originalNote = track.notes.find(n => n.id === noteId);
+      if (!originalNote) return track;
+      
+      // Create a copy with new ID and position
+      const copiedNote: Note = {
+        ...originalNote,
+        id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        step: newStep,
+        note: newKey.note,
+        octave: newKey.octave,
+      };
+      
+      return { ...track, notes: [...track.notes, copiedNote] };
+    }));
+    
+    toast({ title: '📋 Note Copied', description: `${newKey.note}${newKey.octave} at step ${newStep + 1}` });
+  }, [selectedTrackIndex, toast]);
+
   // Resize multiple notes at once
   const resizeMultipleNotes = useCallback((noteIds: string[], deltaLength: number) => {
     setTracks(prev => prev.map((track, index) =>
@@ -1953,6 +1979,7 @@ export const VerticalPianoRoll: React.FC = () => {
               onNoteRemove={removeNote}
               onNoteResize={resizeNote}
               onNoteMove={moveNote}
+              onNoteCopy={copyNote}
               onMultiNoteResize={resizeMultipleNotes}
               onNoteSelect={selectNote}
               chordMode={chordMode}

@@ -14,6 +14,7 @@ import { useTransport } from '@/contexts/TransportContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import VerticalPianoRoll from '@/components/studio/VerticalPianoRoll';
 import AstutelyPanel from '@/components/ai/AstutelyPanel';
+import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 
 // ============================================
 // CODEDSWITCH FLOW - THE SOUL OF THE DAW
@@ -1055,10 +1056,21 @@ export const CodedSwitchFlow: React.FC = () => {
       {showAstutely && (
         <AstutelyPanel 
           onClose={() => setShowAstutely(false)}
-          onGenerated={(result) => {
+          onGenerated={(result: AstutelyResult) => {
+            // Convert Astutely result to track notes and add to timeline
+            const notes = astutelyToNotes(result);
+            const drumNotes = notes.filter(n => n.trackType === 'drums');
+            const bassNotes = notes.filter(n => n.trackType === 'bass');
+            const chordNotes = notes.filter(n => n.trackType === 'chords');
+            const melodyNotes = notes.filter(n => n.trackType === 'melody');
+            
+            // Update BPM to match generated beat
+            setBpm(result.bpm);
+            setTransportTempo(result.bpm);
+            
             toast({ 
               title: '🔥 Astutely Complete!', 
-              description: `Generated ${result.style} beat at ${result.bpm} BPM` 
+              description: `Added ${drumNotes.length} drums, ${bassNotes.length} bass, ${chordNotes.length} chords, ${melodyNotes.length} melody notes at ${result.bpm} BPM` 
             });
           }}
         />

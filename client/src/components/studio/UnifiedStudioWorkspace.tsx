@@ -208,6 +208,42 @@ export default function UnifiedStudioWorkspace() {
     }
   }, []);
 
+  // 1-2-3-4 Hotkeys for instant view switching
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if typing in input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Skip if modifier keys are pressed
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      
+      switch (e.key) {
+        case '1':
+          e.preventDefault();
+          setActiveView('beat-lab');
+          toast({ title: '🥁 Beat Lab', description: 'Press 1' });
+          break;
+        case '2':
+          e.preventDefault();
+          setActiveView('piano-roll');
+          toast({ title: '🎹 Piano Roll', description: 'Press 2' });
+          break;
+        case '3':
+          e.preventDefault();
+          setActiveView('mixer');
+          toast({ title: '🎚️ Mixer', description: 'Press 3' });
+          break;
+        case '4':
+          e.preventDefault();
+          setActiveView('arrangement');
+          toast({ title: '📐 Arrangement', description: 'Press 4' });
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toast]);
+
   // Workflow Selector State
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);

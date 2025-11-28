@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, forwardRef, CSSProperties } from 'react';
+import React, { useCallback, useMemo, forwardRef, CSSProperties, useState } from 'react';
 import { Note, Track, PianoKey } from './types/pianoRollTypes';
 
 const KEY_COLUMN_WIDTH = 112; // Matches PianoKeys w-28
@@ -17,6 +17,7 @@ interface StepGridProps {
   onNoteRemove: (noteId: string) => void;
   onNoteResize?: (noteId: string, newLength: number) => void;
   onNoteMove?: (noteId: string, newStep: number, newKeyIndex: number) => void;
+  onNoteCopy?: (noteId: string, newStep: number, newKeyIndex: number) => void;
   onMultiNoteResize?: (noteIds: string[], deltaLength: number) => void;
   onNoteSelect?: (noteId: string, addToSelection: boolean) => void;
   chordMode: boolean;
@@ -43,6 +44,7 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
   onNoteRemove,
   onNoteResize,
   onNoteMove,
+  onNoteCopy,
   onMultiNoteResize,
   onNoteSelect,
   chordMode,
@@ -288,6 +290,7 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                       const startStep = note.step;
                       const startKeyIndex = keyIndex;
                       let hasMoved = false;
+                      const isAltDrag = e.altKey; // Alt+drag = copy
                       
                       const handleMouseMove = (moveEvent: MouseEvent) => {
                         const deltaX = moveEvent.clientX - startX;
@@ -299,13 +302,29 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                           hasMoved = true;
                           const newStep = Math.max(0, Math.min(steps - 1, startStep + deltaSteps));
                           const newKeyIndex = Math.max(0, Math.min(pianoKeys.length - 1, startKeyIndex + deltaKeys));
-                          onNoteMove?.(note.id, newStep, newKeyIndex);
+                          
+                          // Alt+drag = copy, regular drag = move
+                          if (!isAltDrag) {
+                            onNoteMove?.(note.id, newStep, newKeyIndex);
+                          }
                         }
                       };
                       
-                      const handleMouseUp = () => {
+                      const handleMouseUp = (upEvent: MouseEvent) => {
                         document.removeEventListener('mousemove', handleMouseMove);
                         document.removeEventListener('mouseup', handleMouseUp);
+                        
+                        // Alt+drag = create copy at new position
+                        if (isAltDrag && hasMoved && onNoteCopy) {
+                          const deltaX = upEvent.clientX - startX;
+                          const deltaY = upEvent.clientY - startY;
+                          const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
+                          const deltaKeys = Math.round(deltaY / keyHeight);
+                          const newStep = Math.max(0, Math.min(steps - 1, startStep + deltaSteps));
+                          const newKeyIndex = Math.max(0, Math.min(pianoKeys.length - 1, startKeyIndex + deltaKeys));
+                          onNoteCopy(note.id, newStep, newKeyIndex);
+                        }
+                        
                         // If we didn't move, treat as a click for selection
                         if (!hasMoved && onNoteSelect) {
                           onNoteSelect(note.id, e.ctrlKey || e.metaKey);
@@ -315,7 +334,7 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                       document.addEventListener('mousemove', handleMouseMove);
                       document.addEventListener('mouseup', handleMouseUp);
                     }}
-                    title={`${note.note}${note.octave} - Drag to move, Ctrl+click to multi-select, drag right edge to resize`}
+                    title={`${note.note}${note.octave} - Drag to move, Alt+drag to copy, Ctrl+click to multi-select`}
                   >
                     {/* Note label */}
                     <div className="text-xs text-white font-bold px-1 truncate pointer-events-none">
