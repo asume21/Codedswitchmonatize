@@ -10,6 +10,7 @@ import { createKeyRoutes } from "./routes/keys";
 import { createSongRoutes } from "./routes/songs";
 import { createCreditRoutes } from "./routes/credits";
 import { createPackRoutes } from "./routes/packs";
+import { createAstutelyRoutes } from "./routes/astutely";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -48,6 +49,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Mount pack routes
   app.use("/api/packs", createPackRoutes(storage));
+
+  // Mount Astutely AI routes
+  app.use("/api", createAstutelyRoutes());
 
   // ============================================
   // AI CHORD GENERATION ENDPOINT
