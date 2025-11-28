@@ -11,6 +11,7 @@ import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SongWorkSessionProvider } from "@/contexts/SongWorkSessionContext";
+import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 
 // Eagerly loaded pages (small, frequently accessed)
@@ -37,6 +38,7 @@ const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-
 const DesignPlayground = React.lazy(() => import("@/pages/design-playground"));
 const TestPianoRoll = React.lazy(() => import("@/pages/test-piano-roll"));
 const TestCircular = React.lazy(() => import("@/pages/TestCircular"));
+const CodedSwitchFlow = React.lazy(() => import("@/components/layout/CodedSwitchFlow"));
 const BuyCreditsPage = React.lazy(() => import("@/pages/buy-credits"));
 const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success"));
 const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel"));
@@ -103,10 +105,12 @@ function App() {
                   <Route path="/" component={Landing} />
                   <Route path="/home" component={Landing} />
                   <Route path="/studio">
-                    <AppLayout>
-                      {/* Use the unified workspace so tests find the Code-to-Music tab */}
-                      <UnifiedStudioWorkspace />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        {/* Use the unified workspace so tests find the Code-to-Music tab */}
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/login" component={Login} />
                   <Route path="/signup" component={Signup} />
@@ -140,14 +144,19 @@ function App() {
                     </AppLayout>
                   </Route>
                   <Route path="/unified-studio">
-                    <div className="h-screen w-screen bg-background">
-                      <UnifiedStudioWorkspace />
-                    </div>
+                    <AIMessageProvider>
+                      <div className="h-screen w-screen bg-background">
+                        <UnifiedStudioWorkspace />
+                      </div>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/daw-layout">
                     <div className="h-screen w-screen bg-background">
                       <DAWLayoutWorkspace />
                     </div>
+                  </Route>
+                  <Route path="/flow">
+                    <CodedSwitchFlow />
                   </Route>
                   <Route path="/code-translator">
                     <AppLayout>

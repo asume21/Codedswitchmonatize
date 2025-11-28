@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { StudioAudioContext } from "@/pages/studio";
-import { useAIMessages } from "@/contexts/AIMessageContext";
+import { AIMessageContext } from "@/contexts/AIMessageContext";
 import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionContext";
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
@@ -52,7 +52,8 @@ export default function SongUploader() {
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
-  const { addMessage } = useAIMessages();
+  const aiContext = useContext(AIMessageContext);
+  const addMessage = aiContext?.addMessage || (() => {});
   const { createSession, updateSession } = useSongWorkSession();
   const { addTrack, tracks } = useTracks();
 
@@ -416,19 +417,49 @@ export default function SongUploader() {
         throw new Error("No URL available for this song");
       }
 
+      // Check format
+      const isMP3 = songFormat === 'mp3' || accessibleURL.toLowerCase().includes('.mp3');
+      const isM4A = songFormat === 'm4a' || songFormat === 'mp4' || songFormat === 'aac' || 
+                    accessibleURL.toLowerCase().includes('.m4a');
+      const isConverted = accessibleURL.includes('/api/songs/converted/') || accessibleURL.includes('/api/songs/convert-and-play/');
+
+      // FOR ALL NON-MP3 FILES: Always use conversion endpoint (M4A, WAV, etc don't play reliably)
+      if (!isMP3 && !isConverted) {
+        console.log('🔄 Non-MP3 detected - using server conversion immediately');
+        
+        // Extract file ID from URL
+        let fileId = '';
+        if (accessibleURL.includes('/api/internal/uploads/')) {
+          const parts = accessibleURL.split('/api/internal/uploads/');
+          if (parts.length > 1) {
+            fileId = decodeURIComponent(parts[1].split('?')[0]);
+          }
+        } else if (accessibleURL.includes('/uploads/')) {
+          const parts = accessibleURL.split('/uploads/');
+          if (parts.length > 1) {
+            fileId = decodeURIComponent(parts[1].split('?')[0]);
+          }
+        } else if (accessibleURL.includes('/objects/')) {
+          const parts = accessibleURL.split('/objects/');
+          if (parts.length > 1) {
+            fileId = decodeURIComponent(parts[1].split('?')[0]);
+          }
+        }
+        
+        if (fileId) {
+          // Use the conversion endpoint
+          accessibleURL = `/api/songs/convert-and-play/${encodeURIComponent(fileId)}`;
+          console.log('🎵 Using conversion URL:', accessibleURL);
+        }
+      }
+
       // Fix internal URLs to ensure they're accessible
       if (accessibleURL.includes('/api/internal/uploads/')) {
-        // Add timestamp and proper headers for internal URLs
         const timestamp = Date.now();
         accessibleURL = accessibleURL.includes('?') 
           ? `${accessibleURL}&t=${timestamp}&direct=true`
           : `${accessibleURL}?t=${timestamp}&direct=true`;
       }
-
-      // Check format using song.format field (more reliable than URL extension)
-      const isM4A = songFormat === 'm4a' || songFormat === 'mp4' || songFormat === 'aac' || accessibleURL.includes('.m4a');
-      const isMP3 = songFormat === 'mp3' || accessibleURL.includes('.mp3');
-      const isConverted = accessibleURL.includes('/api/songs/converted/');
 
       // For M4A files that haven't been converted, add format hint
       if (isM4A && !isConverted) {

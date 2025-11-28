@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import type { IStorage } from "../storage";
 import { checkUsageLimit } from "../middleware/featureGating";
 import ffmpeg from "fluent-ffmpeg";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, copyFileSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, copyFileSync, statSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
 import { createReadStream } from "fs";
@@ -358,7 +358,7 @@ export function createSongRoutes(storage: IStorage) {
       if (existsSync(filePath)) {
         console.log(`✅ Serving converted MP3: ${filePath}`);
         
-        const stat = require('fs').statSync(filePath);
+        const stat = statSync(filePath);
         const fileSize = stat.size;
         const range = req.headers.range;
         
@@ -399,6 +399,73 @@ export function createSongRoutes(storage: IStorage) {
     } catch (error) {
       console.error('Error serving converted file:', error);
       res.status(500).json({ error: "Failed to serve file" });
+    }
+  });
+
+  // Convert M4A to MP3 on-demand and serve immediately
+  router.get("/convert-and-play/:fileId(*)", async (req: Request, res: Response) => {
+    try {
+      const fileId = decodeURIComponent(req.params.fileId);
+      console.log(`🔄 Convert-and-play request for: ${fileId}`);
+      
+      const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+      const convertedDir = join(objectsDir, 'converted');
+      
+      // Create safe filename for converted file
+      const safeFileId = fileId.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+      const convertedPath = join(convertedDir, `${safeFileId}.mp3`);
+      
+      // Check if already converted
+      if (existsSync(convertedPath)) {
+        console.log(`✅ Already converted, serving: ${convertedPath}`);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return createReadStream(convertedPath).pipe(res);
+      }
+      
+      // Find the source file
+      const sourcePath = join(objectsDir, fileId);
+      
+      if (!existsSync(sourcePath)) {
+        console.error(`❌ Source file not found: ${sourcePath}`);
+        return res.status(404).json({ error: "Source file not found" });
+      }
+      
+      // Ensure converted directory exists
+      if (!existsSync(convertedDir)) {
+        mkdirSync(convertedDir, { recursive: true });
+      }
+      
+      console.log(`🎵 Converting: ${sourcePath} → ${convertedPath}`);
+      
+      // Convert using ffmpeg
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(sourcePath)
+          .toFormat('mp3')
+          .audioCodec('libmp3lame')
+          .audioBitrate('192k')
+          .on('start', (cmd: string) => console.log('🎬 FFmpeg:', cmd))
+          .on('error', (err: Error) => {
+            console.error('❌ FFmpeg error:', err.message);
+            reject(err);
+          })
+          .on('end', () => {
+            console.log('✅ Conversion complete');
+            resolve();
+          })
+          .save(convertedPath);
+      });
+      
+      // Serve the converted file
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      createReadStream(convertedPath).pipe(res);
+      
+    } catch (error) {
+      console.error('Convert-and-play error:', error);
+      res.status(500).json({ error: "Conversion failed" });
     }
   });
 

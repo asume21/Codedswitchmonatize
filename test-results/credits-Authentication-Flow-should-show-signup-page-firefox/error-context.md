@@ -1,0 +1,43 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e8]
+      - generic [ref=e12]: Create Account
+      - generic [ref=e13]: Join CodedSwitch and start creating music
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - text: Email
+          - textbox "Email" [ref=e17]:
+            - /placeholder: you@example.com
+        - generic [ref=e18]:
+          - text: Username
+          - textbox "Username" [ref=e19]:
+            - /placeholder: musicmaker
+          - paragraph [ref=e20]: Optional - we'll use your email if blank
+        - generic [ref=e21]:
+          - text: Password
+          - textbox "Password" [ref=e22]:
+            - /placeholder: ••••••••
+          - paragraph [ref=e23]: At least 8 characters
+        - generic [ref=e24]:
+          - text: Confirm Password
+          - textbox "Confirm Password" [ref=e25]:
+            - /placeholder: ••••••••
+        - generic [ref=e27]:
+          - generic [ref=e28]: Activation Key (Optional)
+          - textbox "Activation Key (Optional)" [ref=e29]:
+            - /placeholder: CS-XXXX-XXXX-XXXX-XXXX
+          - paragraph [ref=e30]: Have a Pro activation key? Enter it now or upgrade later
+      - generic [ref=e31]:
+        - button "Create Account" [ref=e32] [cursor=pointer]
+        - generic [ref=e33]:
+          - text: Already have an account?
+          - link "Sign in" [ref=e34] [cursor=pointer]:
+            - /url: /login
+```

@@ -794,10 +794,63 @@ export const VerticalPianoRoll: React.FC = () => {
   }, [selectedTrackIndex]);
 
   const clearAll = useCallback(() => {
+    console.log('🗑️ Clear button clicked, clearing track:', selectedTrackIndex);
     setTracks(prev => prev.map((track, index) =>
       index === selectedTrackIndex ? { ...track, notes: [] } : track
     ));
+    toast({
+      title: "Notes Cleared",
+      description: `Cleared all notes from track ${selectedTrackIndex + 1}`,
+    });
+  }, [selectedTrackIndex, toast]);
+
+  // Move a note to a new position (drag and drop)
+  const moveNote = useCallback((noteId: string, newStep: number, newKeyIndex: number) => {
+    const newKey = PIANO_KEYS[newKeyIndex];
+    if (!newKey) return;
+    
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex
+        ? { 
+            ...track, 
+            notes: track.notes.map(note => 
+              note.id === noteId 
+                ? { ...note, step: newStep, note: newKey.note, octave: newKey.octave }
+                : note
+            ) 
+          }
+        : track
+    ));
   }, [selectedTrackIndex]);
+
+  // Resize multiple notes at once
+  const resizeMultipleNotes = useCallback((noteIds: string[], deltaLength: number) => {
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex
+        ? { 
+            ...track, 
+            notes: track.notes.map(note => 
+              noteIds.includes(note.id)
+                ? { ...note, length: Math.max(1, (note.length || 1) + deltaLength) }
+                : note
+            ) 
+          }
+        : track
+    ));
+  }, [selectedTrackIndex]);
+
+  // Select/deselect a note
+  const selectNote = useCallback((noteId: string, addToSelection: boolean) => {
+    setSelectedNoteIds(prev => {
+      const next = new Set(addToSelection ? prev : []);
+      if (prev.has(noteId) && addToSelection) {
+        next.delete(noteId);
+      } else {
+        next.add(noteId);
+      }
+      return next;
+    });
+  }, []);
 
   // Chord progression functions - adds YOUR selected keys to the grid
   const addChordToGrid = useCallback((step: number) => {
@@ -1899,6 +1952,9 @@ export const VerticalPianoRoll: React.FC = () => {
               onChordAdd={addChordToGrid}
               onNoteRemove={removeNote}
               onNoteResize={resizeNote}
+              onNoteMove={moveNote}
+              onMultiNoteResize={resizeMultipleNotes}
+              onNoteSelect={selectNote}
               chordMode={chordMode}
               onScroll={handleGridScroll}
               selectedNoteIds={selectedNoteIds}

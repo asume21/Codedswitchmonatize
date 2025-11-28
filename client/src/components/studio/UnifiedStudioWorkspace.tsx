@@ -1912,7 +1912,7 @@ export default function UnifiedStudioWorkspace() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Center: Main Workspace with Tab Views */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 flex flex-col overflow-auto relative">
           
           {/* Floating Back to Studio Button - Shows when not in arrangement view */}
           {activeView !== 'arrangement' && (
@@ -2349,7 +2349,7 @@ Your lyrics will sync with the timeline
 
           {/* PIANO ROLL VIEW */}
           {activeView === 'piano-roll' && (
-            <div className="flex-1 overflow-hidden bg-gray-900 pt-14">
+            <div className="flex-1 overflow-auto bg-gray-900 pt-14">
               {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
               <VerticalPianoRoll 
                 {...({ tracks: tracks as any } as any)}

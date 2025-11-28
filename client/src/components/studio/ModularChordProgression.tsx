@@ -68,20 +68,42 @@ export default function ModularChordProgression({ progression, onProgressionChan
     if (onProgressionChange) onProgressionChange(PRESETS[idx]);
   };
 
-  // AI Suggest real backend
+  // AI Suggest real backend - uses secure server-side OpenAI
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState('C');
+  const [selectedMood, setSelectedMood] = useState('happy');
+  
   const handleAISuggest = async () => {
     if (!onProgressionChange) return;
     setLoading(true); setError(null);
     try {
-      const res = await fetch('/api/ai/chord-suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      if (!res.ok) throw new Error('Failed to fetch chord suggestion');
+      const res = await fetch('/api/chords', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: selectedKey, mood: selectedMood })
+      });
+      
       const data = await res.json();
-      if (data && Array.isArray(data.progression)) {
-        onProgressionChange(data.progression);
+      
+      if (data.success && Array.isArray(data.chords)) {
+        // Convert chord strings to Chord objects
+        const newProgression: Chord[] = data.chords.map((chordStr: string, idx: number) => {
+          // Parse chord string like "Am" or "Cmaj7"
+          const match = chordStr.match(/^([A-G]#?)(.*)$/);
+          if (match) {
+            return {
+              root: match[1],
+              quality: match[2] || 'maj',
+              duration: 1,
+              position: idx
+            };
+          }
+          return { root: 'C', quality: 'maj', duration: 1, position: idx };
+        });
+        onProgressionChange(newProgression);
       } else {
-        setError('Invalid response from AI');
+        setError(data.error || 'Invalid response from AI');
       }
     } catch (e: any) {
       setError(e.message || 'AI suggestion failed');

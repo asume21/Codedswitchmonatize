@@ -16,6 +16,9 @@ interface StepGridProps {
   onChordAdd: (step: number) => void;
   onNoteRemove: (noteId: string) => void;
   onNoteResize?: (noteId: string, newLength: number) => void;
+  onNoteMove?: (noteId: string, newStep: number, newKeyIndex: number) => void;
+  onMultiNoteResize?: (noteIds: string[], deltaLength: number) => void;
+  onNoteSelect?: (noteId: string, addToSelection: boolean) => void;
   chordMode: boolean;
   onScroll?: () => void;
   selectedNoteIds?: Set<string>;
@@ -39,8 +42,12 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
   onChordAdd,
   onNoteRemove,
   onNoteResize,
+  onNoteMove,
+  onMultiNoteResize,
+  onNoteSelect,
   chordMode,
   onScroll,
+  selectedNoteIds,
   onSelectionStart,
   onSelectionMove,
   onSelectionEnd,
@@ -235,32 +242,90 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
               {/* Render notes as overlays */}
               {selectedTrack.notes
                 .filter(note => note.note === key.note && note.octave === key.octave)
-                .map(note => (
+                .map(note => {
+                  const isSelected = selectedNoteIds?.has(note.id);
+                  return (
                   <div
                     key={note.id}
-                    className="absolute group bg-blue-500 hover:bg-blue-400 rounded-sm border border-blue-600 cursor-pointer transition-colors"
+                    className={`absolute group rounded-sm border cursor-grab active:cursor-grabbing transition-colors ${
+                      isSelected 
+                        ? 'bg-yellow-500 hover:bg-yellow-400 border-yellow-300 ring-2 ring-yellow-300' 
+                        : 'bg-blue-500 hover:bg-blue-400 border-blue-600'
+                    }`}
                     style={{
                       left: `${note.step * stepWidth * zoom}px`,
                       width: `${(note.length || 1) * stepWidth * zoom - 2}px`,
                       height: `${keyHeight - 4}px`,
                       top: '2px',
-                      zIndex: 5
+                      zIndex: isSelected ? 10 : 5
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onNoteRemove(note.id);
+                      // Ctrl/Cmd+click to add to selection, otherwise toggle or remove
+                      if (e.ctrlKey || e.metaKey) {
+                        onNoteSelect?.(note.id, true);
+                      } else if (e.shiftKey) {
+                        // Shift+click to add to selection
+                        onNoteSelect?.(note.id, true);
+                      } else {
+                        // Regular click - if not selected, select it; if selected, delete it
+                        if (!isSelected) {
+                          onNoteSelect?.(note.id, false);
+                        } else {
+                          onNoteRemove(note.id);
+                        }
+                      }
                     }}
-                    title={`${note.note}${note.octave} - Click to delete, drag right edge to resize`}
+                    onMouseDown={(e) => {
+                      // Only drag on left click, not on resize handle
+                      if (e.button !== 0) return;
+                      const target = e.target as HTMLElement;
+                      if (target.classList.contains('resize-handle')) return;
+                      
+                      e.stopPropagation();
+                      const startX = e.clientX;
+                      const startY = e.clientY;
+                      const startStep = note.step;
+                      const startKeyIndex = keyIndex;
+                      let hasMoved = false;
+                      
+                      const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const deltaX = moveEvent.clientX - startX;
+                        const deltaY = moveEvent.clientY - startY;
+                        const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
+                        const deltaKeys = Math.round(deltaY / keyHeight);
+                        
+                        if (Math.abs(deltaSteps) > 0 || Math.abs(deltaKeys) > 0) {
+                          hasMoved = true;
+                          const newStep = Math.max(0, Math.min(steps - 1, startStep + deltaSteps));
+                          const newKeyIndex = Math.max(0, Math.min(pianoKeys.length - 1, startKeyIndex + deltaKeys));
+                          onNoteMove?.(note.id, newStep, newKeyIndex);
+                        }
+                      };
+                      
+                      const handleMouseUp = () => {
+                        document.removeEventListener('mousemove', handleMouseMove);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                        // If we didn't move, treat as a click for selection
+                        if (!hasMoved && onNoteSelect) {
+                          onNoteSelect(note.id, e.ctrlKey || e.metaKey);
+                        }
+                      };
+                      
+                      document.addEventListener('mousemove', handleMouseMove);
+                      document.addEventListener('mouseup', handleMouseUp);
+                    }}
+                    title={`${note.note}${note.octave} - Drag to move, Ctrl+click to multi-select, drag right edge to resize`}
                   >
                     {/* Note label */}
-                    <div className="text-xs text-white font-bold px-1 truncate">
+                    <div className="text-xs text-white font-bold px-1 truncate pointer-events-none">
                       {note.note}{note.octave}
                     </div>
                     
                     {/* Resize handle */}
-                    {onNoteResize && (
+                    {(onNoteResize || onMultiNoteResize) && (
                       <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="resize-handle absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize bg-white/20 hover:bg-white/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-r-sm"
                         onMouseDown={(e) => {
                           e.stopPropagation();
                           const startX = e.clientX;
@@ -269,8 +334,14 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                           const handleMouseMove = (moveEvent: MouseEvent) => {
                             const deltaX = moveEvent.clientX - startX;
                             const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
-                            const newLength = Math.max(1, startLength + deltaSteps);
-                            onNoteResize(note.id, newLength);
+                            
+                            // If this note is selected and there are multiple selected, resize all
+                            if (isSelected && selectedNoteIds && selectedNoteIds.size > 1 && onMultiNoteResize) {
+                              onMultiNoteResize(Array.from(selectedNoteIds), deltaSteps);
+                            } else if (onNoteResize) {
+                              const newLength = Math.max(1, startLength + deltaSteps);
+                              onNoteResize(note.id, newLength);
+                            }
                           };
                           
                           const handleMouseUp = () => {
@@ -281,11 +352,12 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                           document.addEventListener('mousemove', handleMouseMove);
                           document.addEventListener('mouseup', handleMouseUp);
                         }}
-                        title="Drag to resize"
+                        title="Drag to resize (resizes all selected notes)"
                       />
                     )}
                   </div>
-                ))}
+                );
+                })}
             </div>
             );
           })}

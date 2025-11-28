@@ -21,7 +21,7 @@ interface AIMessageContextType {
   clearMessages: () => void;
 }
 
-const AIMessageContext = createContext<AIMessageContextType | undefined>(
+export const AIMessageContext = createContext<AIMessageContextType | undefined>(
   undefined,
 );
 
