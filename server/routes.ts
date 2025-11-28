@@ -10,10 +10,9 @@ import { createKeyRoutes } from "./routes/keys";
 import { createSongRoutes } from "./routes/songs";
 import { createCreditRoutes } from "./routes/credits";
 import { createPackRoutes } from "./routes/packs";
-import {
-  createCheckoutSession,
-  handleStripeWebhook,
-} from "./services/stripe";
+import { createCheckoutHandler } from "./api/create-checkout";
+import { stripeWebhookHandler } from "./api/webhook";
+import { checkLicenseHandler } from "./api/check-license";
 import { musicGenService } from "./services/musicgen";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
@@ -1157,22 +1156,12 @@ ${code}
     }
   });
 
-  // Create Checkout Session
-  app.post(
-    "/api/create-checkout-session",
-    async (req: Request, res: Response) => {
-      try {
-        // Temporarily use test user if not authenticated
-        const userId = req.userId || 'test-user-' + Date.now();
-        
-        const { url } = await createCheckoutSession(storage, userId);
-        res.json({ url });
-      } catch (err: any) {
-        console.error('Checkout session error:', err);
-        sendError(res, 400, err.message || "Failed to create session");
-      }
-    },
-  );
+  // License + Stripe checkout endpoints
+  const checkoutHandler = createCheckoutHandler(storage);
+  app.get("/api/check-license", checkLicenseHandler(storage));
+  app.post("/api/create-checkout", requireAuth(), checkoutHandler);
+  app.post("/api/create-checkout-session", requireAuth(), checkoutHandler);
+  app.post("/api/billing/create-checkout-session", requireAuth(), checkoutHandler);
 
   // Playlist endpoints
   app.get("/api/playlists", requireAuth(), async (req: Request, res: Response) => {
@@ -1290,16 +1279,7 @@ ${code}
   });
 
   // Stripe Webhook - raw body is provided by express.raw mounted in index.ts
-  app.post("/api/webhooks/stripe", async (req: Request, res: Response) => {
-    try {
-      const signature = req.headers["stripe-signature"];
-      const payload = req.body as Buffer; // raw body
-      const result = await handleStripeWebhook(storage, payload, signature);
-      res.json(result);
-    } catch (err: any) {
-            sendError(res, 400, `Webhook Error: ${err.message}`);
-    }
-  });
+  app.post("/api/webhooks/stripe", stripeWebhookHandler(storage));
 
   // Music generation endpoint (temporarily free)
   app.post(

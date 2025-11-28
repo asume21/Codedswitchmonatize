@@ -28,7 +28,7 @@ export default function ProfessionalStudio() {
   const { toast } = useToast();
   const { playDrum, initialize, isInitialized } = useAudio();
   const [activeTab, setActiveTab] = useState('full-song');
-  const { requirePro } = useLicenseGate();
+  const { requirePro, startUpgrade } = useLicenseGate();
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Chord Progression State
@@ -2000,7 +2000,7 @@ export default function ProfessionalStudio() {
           </Card>
         </TabsContent>
       </Tabs>
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={startUpgrade} />
     </div>
   );
 }

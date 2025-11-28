@@ -200,7 +200,7 @@ export default function UnifiedStudioWorkspace() {
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
-  const { isPro } = useLicenseGate();
+  const { isPro, requirePro, startUpgrade } = useLicenseGate();
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   useEffect(() => {
     if (!audioContextRef.current) {
@@ -755,6 +755,7 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleSaveProject = () => {
+    if (!requirePro("save", () => setShowLicenseModal(true))) return;
     const projectData = {
       tracks,
       timestamp: new Date().toISOString(),
@@ -796,6 +797,7 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleExport = () => {
+    if (!requirePro("export", () => setShowLicenseModal(true))) return;
     // Create a simple audio export
     const projectData = {
       tracks,
@@ -2383,7 +2385,7 @@ Your lyrics will sync with the timeline
 
           {/* AI STUDIO VIEW */}
           {activeView === 'ai-studio' && (
-            <div className="flex-1 overflow-hidden bg-gray-900 pt-14">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <AIAssistant />
             </div>
           )}
@@ -2404,7 +2406,7 @@ Your lyrics will sync with the timeline
 
           {/* CODE TO MUSIC VIEW */}
           {activeView === 'code-to-music' && (
-            <div className="flex-1 overflow-hidden pt-14">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <CodeToMusicStudioV2 />
             </div>
           )}
@@ -2418,7 +2420,7 @@ Your lyrics will sync with the timeline
 
           {/* MULTI-TRACK PLAYER */}
           {activeView === 'multitrack' && (
-            <div className="flex-1 overflow-hidden bg-gray-900 pt-14">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <MasterMultiTrackPlayer />
             </div>
           )}
@@ -2550,7 +2552,11 @@ Your lyrics will sync with the timeline
         </div>
       )}
     </div>
-    <UpgradeModal open={showLicenseModal} onClose={() => setShowLicenseModal(false)} />
+    <UpgradeModal
+      open={showLicenseModal}
+      onClose={() => setShowLicenseModal(false)}
+      onUpgrade={startUpgrade}
+    />
     </div>
   );
 } 

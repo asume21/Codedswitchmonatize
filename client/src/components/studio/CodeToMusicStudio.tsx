@@ -233,8 +233,8 @@ function CodeToMusicStudio() {
   };
 
   return (
-    <div className="h-full bg-gradient-to-br from-gray-900 to-black p-6 overflow-auto">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 to-black p-6 overflow-y-auto">
+      <div className="max-w-7xl mx-auto space-y-6 pb-12">
 
         {/* Header */}
         <div className="text-center mb-8">

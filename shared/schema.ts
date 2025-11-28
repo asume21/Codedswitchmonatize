@@ -8,6 +8,7 @@ import {
   timestamp,
   boolean,
   integer,
+  serial,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -34,6 +35,17 @@ export const users = pgTable("users", {
   credits: integer("credits").default(10), // Free credits on signup
   totalCreditsSpent: integer("total_credits_spent").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userSubscriptions = pgTable("user_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  status: text("status"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const creditTransactions = pgTable("credit_transactions", {
@@ -152,6 +164,9 @@ export const insertMelodySchema = createInsertSchema(melodies).pick({
   notes: true,
   scale: true,
 });
+
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;
 
 export const insertVulnerabilityScanSchema = createInsertSchema(
   vulnerabilityScans,

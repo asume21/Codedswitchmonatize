@@ -13,6 +13,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SongWorkSessionProvider } from "@/contexts/SongWorkSessionContext";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
+import { GlobalNav } from "@/components/layout/GlobalNav";
 
 // Eagerly loaded pages (small, frequently accessed)
 import Landing from "@/pages/landing";
@@ -100,6 +101,8 @@ function App() {
             <SongWorkSessionProvider>
               <TooltipProvider>
                 <Toaster />
+                {/* GLOBAL NAVIGATION - Available on ALL pages */}
+                <GlobalNav className="fixed top-4 left-4 z-[9999]" />
                 <Suspense fallback={<LoadingFallback />}>
                 <Switch>
                   <Route path="/" component={Landing} />

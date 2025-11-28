@@ -272,7 +272,8 @@ async function playAstutelyPreview(result: AstutelyResult) {
         setTimeout(() => {
           try {
             const { note, octave } = midiToNoteOctave(b.note);
-            realisticAudio.playNote(note, octave, stepDuration * b.duration, 'bass', 0.8);
+            // Use 'synth_bass_1' which is a valid instrument in the library
+            realisticAudio.playNote(note, octave, stepDuration * b.duration, 'synth_bass_1', 0.8);
           } catch (e) {
             console.log(`Bass: ${b.note}`);
           }
@@ -286,7 +287,8 @@ async function playAstutelyPreview(result: AstutelyResult) {
         setTimeout(() => {
           try {
             const { note, octave } = midiToNoteOctave(m.note);
-            realisticAudio.playNote(note, octave, stepDuration * m.duration, 'piano', 0.6);
+            // Use 'acoustic_grand_piano' which is a valid instrument in the library
+            realisticAudio.playNote(note, octave, stepDuration * m.duration, 'acoustic_grand_piano', 0.6);
           } catch (e) {
             console.log(`Melody: ${m.note}`);
           }

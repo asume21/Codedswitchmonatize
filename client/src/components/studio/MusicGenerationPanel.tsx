@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Wand2, Music, DollarSign, Piano, Play, Pause, Square } from 'lucide-react';
 import { RealisticAudioEngine } from '@/lib/realisticAudio';
+import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 
 interface MusicGenerationPanelProps {
   onMusicGenerated?: (audioUrl: string, metadata: any) => void;
@@ -26,6 +27,8 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [isPlaying, setIsPlaying] = useState(false);
   const [_generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null); // For raw audio files
   const { toast } = useToast();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const { requirePro, startUpgrade } = useLicenseGate();
   
   const audioEngineRef = useRef<RealisticAudioEngine | null>(null);
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -142,6 +145,9 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   };
 
   const handleGenerate = async () => {
+    if (!requirePro("ai", () => setShowUpgrade(true))) {
+      return;
+    }
     if (!prompt.trim()) {
       toast({
         title: 'Prompt Required',
@@ -243,6 +249,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const ProviderIcon = currentProvider.icon;
 
   return (
+    <>
     <Card className="bg-gray-800 border-gray-700">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
@@ -443,5 +450,11 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
         </div>
       </CardContent>
     </Card>
+    <UpgradeModal
+      open={showUpgrade}
+      onClose={() => setShowUpgrade(false)}
+      onUpgrade={startUpgrade}
+    />
+    </>
   );
 }

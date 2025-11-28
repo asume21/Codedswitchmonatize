@@ -7,13 +7,23 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
 const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO || "";
+const SUCCESS_URL =
+  process.env.STRIPE_SUCCESS_URL || `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+const CANCEL_URL = process.env.STRIPE_CANCEL_URL || `${APP_URL}/billing/cancel`;
 
 // Generate cryptographically secure activation key
 function generateActivationKey(): string {
   const prefix = "CS"; // CodedSwitch
-  const randomPart = crypto.randomBytes(16).toString('hex').toUpperCase();
+  const randomPart = crypto.randomBytes(16).toString("hex").toUpperCase();
   // Format: CS-XXXX-XXXX-XXXX-XXXX
-  return `${prefix}-${randomPart.slice(0,4)}-${randomPart.slice(4,8)}-${randomPart.slice(8,12)}-${randomPart.slice(12,16)}`;
+  return `${prefix}-${randomPart.slice(0, 4)}-${randomPart.slice(4, 8)}-${randomPart.slice(
+    8,
+    12,
+  )}-${randomPart.slice(12, 16)}`;
+}
+
+function deriveTier(status?: string | null) {
+  return status === "active" || status === "trialing" ? "pro" : "free";
 }
 
 function getStripe(): Stripe {
@@ -43,11 +53,15 @@ export async function createCheckoutSession(storage: IStorage, userId: string) {
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
+    payment_method_types: ["card"],
     customer: customerId,
     line_items: [{ price: PRICE_ID, quantity: 1 }],
-    success_url: `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${APP_URL}/billing/cancel`,
+    success_url: SUCCESS_URL,
+    cancel_url: CANCEL_URL,
     metadata: { userId },
+    subscription_data: {
+      metadata: { userId },
+    },
   });
 
   return { url: session.url };
@@ -73,44 +87,61 @@ export async function handleStripeWebhook(
       const subscriptionId = (session.subscription as string) || undefined;
       let userId = (session.metadata && (session.metadata as any).userId) || undefined;
 
+      if (!customerId) {
+        throw new Error("Missing customer on checkout session");
+      }
+
       // Try to locate by metadata userId or fallback to customerId
       if (!userId && customerId) {
         const user = await storage.getUserByStripeCustomerId(customerId);
         userId = user?.id;
       }
 
+      const subscription =
+        subscriptionId && subscriptionId.length > 0
+          ? await stripe.subscriptions.retrieve(subscriptionId)
+          : undefined;
+      const status = subscription?.status || "active";
+      const currentPeriodEnd = subscription?.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : null;
+
       // Handle credit purchases (one-time payments)
-      if (session.mode === 'payment' && userId) {
+      if (session.mode === "payment" && userId) {
         const packageKey = session.metadata?.packageKey as keyof typeof CREDIT_PACKAGES;
-        const credits = parseInt(session.metadata?.credits || '0');
+        const credits = parseInt(session.metadata?.credits || "0");
         const paymentIntentId = session.payment_intent as string;
 
         if (packageKey && credits && paymentIntentId) {
           const creditService = getCreditService(storage);
-          
+
           try {
-            await creditService.purchaseCredits(
-              userId,
-              packageKey,
-              paymentIntentId
+            await creditService.purchaseCredits(userId, packageKey, paymentIntentId);
+            console.log(
+              `?? Credits purchased via webhook: User ${userId}, +${credits} credits (${packageKey})`,
             );
-            console.log(`💳 Credits purchased via webhook: User ${userId}, +${credits} credits (${packageKey})`);
           } catch (error) {
-            console.error(`❌ Failed to add credits for user ${userId}:`, error);
+            console.error(`? Failed to add credits for user ${userId}:`, error);
           }
         }
       }
 
       // Handle subscription checkouts
       if (userId && customerId && subscriptionId) {
-        const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        const status = sub.status;
-        const tier = status === "active" || status === "trialing" ? "pro" : "free";
-        
+        await storage.upsertUserSubscription({
+          userId,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId,
+          status,
+          currentPeriodEnd,
+        });
+
+        const tier = deriveTier(status);
+
         // Generate activation key for new pro subscribers
         const activationKey = generateActivationKey();
-        console.log(`🔑 Generated activation key for user ${userId}: ${activationKey}`);
-        
+        console.log(`?? Generated activation key for user ${userId}: ${activationKey}`);
+
         // Update user with Stripe info AND activation key
         await storage.updateUserStripeInfo(userId, {
           customerId,
@@ -118,12 +149,50 @@ export async function handleStripeWebhook(
           status,
           tier,
         });
-        
-        // Store the activation key in user record
         await storage.setUserActivationKey(userId, activationKey);
-        
-        // TODO: Send activation key via email to user
-        console.log(`📧 TODO: Email activation key ${activationKey} to user`);
+        console.log(`?? TODO: Email activation key ${activationKey} to user`);
+      }
+      break;
+    }
+
+    case "invoice.paid":
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = (invoice.subscription as string) || undefined;
+      const customerId = (invoice.customer as string) || undefined;
+
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const status = subscription.status || (event.type === "invoice.paid" ? "active" : "past_due");
+        const currentPeriodEnd = subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
+          : null;
+
+        const updatedRecord = await storage.updateSubscriptionStatusByStripeId(
+          subscriptionId,
+          status,
+          currentPeriodEnd,
+        );
+
+        const userId =
+          updatedRecord?.userId ||
+          (customerId ? (await storage.getUserByStripeCustomerId(customerId))?.id : undefined);
+
+        if (userId) {
+          await storage.upsertUserSubscription({
+            userId,
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: subscriptionId,
+            status,
+            currentPeriodEnd,
+          });
+          await storage.updateUserStripeInfo(userId, {
+            customerId: customerId || undefined,
+            subscriptionId,
+            status,
+            tier: deriveTier(status),
+          });
+        }
       }
       break;
     }
@@ -138,7 +207,16 @@ export async function handleStripeWebhook(
       const user = await storage.getUserByStripeCustomerId(customerId);
       if (!user) break;
       const status = sub.status;
-      const tier = status === "active" || status === "trialing" ? "pro" : "free";
+      const tier = deriveTier(status);
+      await storage.upsertUserSubscription({
+        userId: user.id,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscriptionId,
+        status,
+        currentPeriodEnd: sub.current_period_end
+          ? new Date(sub.current_period_end * 1000)
+          : null,
+      });
       await storage.updateUserStripeInfo(user.id, {
         customerId,
         subscriptionId,

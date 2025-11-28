@@ -29,7 +29,7 @@ export default function MusicMixer() {
   const [currentStep, setCurrentStep] = useState(0);
   const [bpm, setBpm] = useState(120);
   const [masterVolume, setMasterVolume] = useState([80]);
-  const { requirePro } = useLicenseGate();
+  const { requirePro, startUpgrade } = useLicenseGate();
   const [showUpgrade, setShowUpgrade] = useState(false);
   const vibrateTap = () => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -436,7 +436,7 @@ export default function MusicMixer() {
           </div>
         </CardContent>
       </Card>
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={startUpgrade} />
     </div>
   );
 }

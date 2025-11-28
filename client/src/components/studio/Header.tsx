@@ -5,7 +5,7 @@ import { useState } from "react";
 import { UpgradeModal, useLicenseGate } from "@/lib/LicenseGuard";
 
 export default function Header() {
-  const { requirePro } = useLicenseGate();
+  const { requirePro, startUpgrade } = useLicenseGate();
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const gate = (feature: "export" | "save") =>
@@ -279,7 +279,7 @@ export default function Header() {
         </Button>
         <UserAccountMenu />
       </div>
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={startUpgrade} />
     </div>
   );
 }

@@ -1,10 +1,10 @@
 // Simple Stripe Checkout redirect flow
 import { useState } from 'react';
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Music, Code, Zap, Shield, Star, Crown } from "lucide-react";
+import { useLicenseGate } from "@/lib/LicenseGuard";
 
 interface SubscribeFormProps {
   selectedTier: 'basic' | 'pro';
@@ -13,24 +13,14 @@ interface SubscribeFormProps {
 const SubscribeForm = ({ selectedTier }: SubscribeFormProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const { startUpgrade } = useLicenseGate();
 
   const handleSubscribe = async () => {
     setIsLoading(true);
     
     try {
       // Create checkout session and redirect to Stripe
-      const response = await apiRequest("POST", "/api/billing/create-checkout-session", { 
-        tier: selectedTier 
-      });
-      
-      const data = await response.json();
-      
-      if (data.url) {
-        // Redirect to Stripe Checkout
-        window.location.href = data.url;
-      } else {
-        throw new Error("No checkout URL received");
-      }
+      await startUpgrade();
     } catch (error) {
       console.error("Checkout creation failed:", error);
       toast({

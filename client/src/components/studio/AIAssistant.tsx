@@ -17,6 +17,7 @@ import { Upload, Music, Play, Pause, RotateCcw, Volume2, Square, FileText, Trash
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
 import type { Recommendation, Song } from "../../../../shared/schema";
+import { UpgradeModal, useLicenseGate } from "@/lib/LicenseGuard";
 
 interface Message {
   id: string;
@@ -52,9 +53,11 @@ export default function AIAssistant() {
   const [duration, setDuration] = useState(0);
   const [aiProvider, setAiProvider] = useState("grok");
   const [transcribingId, setTranscribingId] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const { messages: aiMessages, addMessage } = useAIMessages();
   const studioContext = useContext(StudioAudioContext);
+  const { requirePro, startUpgrade } = useLicenseGate();
 
   const transcribeSong = async (song: Song) => {
     setTranscribingId(song.id.toString());
@@ -212,6 +215,9 @@ export default function AIAssistant() {
   });
 
   const handleSendMessage = () => {
+    if (!requirePro("ai", () => setShowUpgrade(true))) {
+      return;
+    }
     if (!inputMessage.trim()) return;
 
     const userMessage: Message = {
@@ -618,7 +624,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   ];
 
   return (
-    <div className="h-full flex flex-col">
+    <>
+    <div className="min-h-screen w-full flex flex-col overflow-y-auto">
       <div className="p-6 border-b border-gray-600">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-heading font-bold">AI Music & Code Assistant</h2>
@@ -893,5 +900,11 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
         </div>
       </ScrollArea>
     </div>
+    <UpgradeModal
+      open={showUpgrade}
+      onClose={() => setShowUpgrade(false)}
+      onUpgrade={startUpgrade}
+    />
+    </>
   );
 }

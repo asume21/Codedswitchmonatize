@@ -24,7 +24,10 @@ import {
   type InsertSample,
   type CreditTransaction,
   type InsertCreditTransaction,
+  type UserSubscription,
+  type InsertUserSubscription,
   users,
+  userSubscriptions,
   projects,
   codeTranslations,
   beatPatterns,
@@ -65,6 +68,13 @@ export interface IStorage {
   getUserByActivationKey(activationKey: string): Promise<User | undefined>;
   activateUserKey(userId: string): Promise<User>;
   setUserActivationKey(userId: string, activationKey: string): Promise<User>;
+  getUserSubscription(userId: string): Promise<UserSubscription | undefined>;
+  upsertUserSubscription(subscription: InsertUserSubscription): Promise<UserSubscription>;
+  updateSubscriptionStatusByStripeId(
+    stripeSubscriptionId: string,
+    status: string,
+    currentPeriodEnd?: Date | null,
+  ): Promise<UserSubscription | undefined>;
   
   // Credit Transactions
   logCreditTransaction(transaction: any): Promise<void>;
@@ -181,6 +191,7 @@ export class MemStorage implements IStorage {
   private samplePacks: Map<string, SamplePack>;
   private samples: Map<string, Sample>;
   private creditTransactions: Map<string, CreditTransaction>;
+  private subscriptions: Map<string, UserSubscription>;
 
   constructor() {
     this.users = new Map();
@@ -196,6 +207,7 @@ export class MemStorage implements IStorage {
     this.samplePacks = new Map();
     this.samples = new Map();
     this.creditTransactions = new Map();
+    this.subscriptions = new Map();
 
     // Create default user
     const defaultUser: User = {
@@ -217,6 +229,18 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
     };
     this.users.set(defaultUser.id, defaultUser);
+
+    // Default subscription state (free tier)
+    this.subscriptions.set(defaultUser.id, {
+      id: 1,
+      userId: defaultUser.id,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      status: "free",
+      currentPeriodEnd: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   }
 
   // Users
@@ -368,6 +392,47 @@ export class MemStorage implements IStorage {
       activationKey,
     };
     this.users.set(userId, updated);
+    return updated;
+  }
+
+  async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
+    return this.subscriptions.get(userId);
+  }
+
+  async upsertUserSubscription(subscription: InsertUserSubscription): Promise<UserSubscription> {
+    const existing = this.subscriptions.get(subscription.userId);
+    const now = new Date();
+    const record: UserSubscription = {
+      id: existing?.id ?? this.subscriptions.size + 1,
+      userId: subscription.userId,
+      stripeCustomerId: subscription.stripeCustomerId ?? existing?.stripeCustomerId ?? null,
+      stripeSubscriptionId: subscription.stripeSubscriptionId ?? existing?.stripeSubscriptionId ?? null,
+      status: subscription.status ?? existing?.status ?? null,
+      currentPeriodEnd: subscription.currentPeriodEnd ?? existing?.currentPeriodEnd ?? null,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.subscriptions.set(subscription.userId, record);
+    return record;
+  }
+
+  async updateSubscriptionStatusByStripeId(
+    stripeSubscriptionId: string,
+    status: string,
+    currentPeriodEnd?: Date | null,
+  ): Promise<UserSubscription | undefined> {
+    const entry = Array.from(this.subscriptions.values()).find(
+      (sub) => sub.stripeSubscriptionId === stripeSubscriptionId,
+    );
+    if (!entry) return undefined;
+
+    const updated: UserSubscription = {
+      ...entry,
+      status,
+      currentPeriodEnd: currentPeriodEnd ?? entry.currentPeriodEnd ?? null,
+      updatedAt: new Date(),
+    };
+    this.subscriptions.set(entry.userId, updated);
     return updated;
   }
 
@@ -1423,6 +1488,75 @@ export class DatabaseStorage implements IStorage {
       .returning();
     if (!user) throw new Error("User not found");
     return user;
+  }
+
+  async getUserSubscription(userId: string): Promise<UserSubscription | undefined> {
+    const [subscription] = await db
+      .select()
+      .from(userSubscriptions)
+      .where(eq(userSubscriptions.userId, userId))
+      .limit(1);
+    return subscription || undefined;
+  }
+
+  async upsertUserSubscription(subscription: InsertUserSubscription): Promise<UserSubscription> {
+    const now = new Date();
+    const updatePayload: Partial<InsertUserSubscription> & { updatedAt: Date } = {
+      updatedAt: now,
+    };
+
+    if (subscription.stripeCustomerId !== undefined) {
+      updatePayload.stripeCustomerId = subscription.stripeCustomerId;
+    }
+    if (subscription.stripeSubscriptionId !== undefined) {
+      updatePayload.stripeSubscriptionId = subscription.stripeSubscriptionId;
+    }
+    if (subscription.status !== undefined) {
+      updatePayload.status = subscription.status;
+    }
+    if (subscription.currentPeriodEnd !== undefined) {
+      updatePayload.currentPeriodEnd = subscription.currentPeriodEnd;
+    }
+
+    const [record] = await db
+      .insert(userSubscriptions)
+      .values({
+        userId: subscription.userId,
+        stripeCustomerId: subscription.stripeCustomerId ?? null,
+        stripeSubscriptionId: subscription.stripeSubscriptionId ?? null,
+        status: subscription.status ?? null,
+        currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+        createdAt: subscription.createdAt ?? now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: userSubscriptions.userId,
+        set: updatePayload,
+      })
+      .returning();
+    return record;
+  }
+
+  async updateSubscriptionStatusByStripeId(
+    stripeSubscriptionId: string,
+    status: string,
+    currentPeriodEnd?: Date | null,
+  ): Promise<UserSubscription | undefined> {
+    const updateData: Partial<InsertUserSubscription> & { status: string; updatedAt: Date } = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    if (currentPeriodEnd !== undefined) {
+      updateData.currentPeriodEnd = currentPeriodEnd;
+    }
+
+    const [record] = await db
+      .update(userSubscriptions)
+      .set(updateData)
+      .where(eq(userSubscriptions.stripeSubscriptionId, stripeSubscriptionId))
+      .returning();
+    return record || undefined;
   }
 
   // Credit Transactions

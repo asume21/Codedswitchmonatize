@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'wouter';
 import { 
   Play, Pause, Square, SkipBack, SkipForward,
   Undo2, Redo2, Sparkles, Plus, Volume2, 
   FolderOpen, Settings, X, Music, Mic2, 
   Drum, Guitar, Piano, Waves, Sliders,
-  FileAudio, Upload, Download, Save, Zap
+  FileAudio, Upload, Download, Save, Zap,
+  Menu, Home, LayoutDashboard, Wand2, Code,
+  Shield, MessageSquare, Headphones, ChevronDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTransport } from '@/contexts/TransportContext';
@@ -445,11 +448,13 @@ const InspectorPanel: React.FC = () => {
 const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { toast } = useToast();
   
-  if (!isOpen) return null;
-
+  // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedKey, setSelectedKey] = useState('C');
   const [selectedMood, setSelectedMood] = useState('happy');
+  
+  // Early return AFTER hooks
+  if (!isOpen) return null;
   
   const aiActions = [
     { icon: '🎵', title: 'Generate Chords', desc: 'AI suggests chord progressions', action: 'chords' },
@@ -607,6 +612,10 @@ export const CodedSwitchFlow: React.FC = () => {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [aiHelpOpen, setAIHelpOpen] = useState(false);
   const [showAstutely, setShowAstutely] = useState(false);
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
+  
+  // Navigation
+  const [, navigate] = useLocation();
 
   // Sync with transport
   useEffect(() => {
@@ -640,6 +649,7 @@ export const CodedSwitchFlow: React.FC = () => {
     setBrowserOpen(false);
     setInspectorOpen(false);
     setAIHelpOpen(false);
+    setNavMenuOpen(false);
   }, []);
 
   // Global keyboard shortcuts
@@ -740,29 +750,87 @@ export const CodedSwitchFlow: React.FC = () => {
           borderBottom: `1px solid ${COLORS.border}`,
         }}
       >
-        {/* Left: Logo + Project Name */}
+        {/* Left: Logo + Navigation Menu + Project Name */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            {/* Logo */}
-            <div 
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
+          {/* Navigation Menu Button */}
+          <div className="relative">
+            <button
+              onClick={() => setNavMenuOpen(!navMenuOpen)}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl transition-all hover:scale-105"
               style={{ 
-                background: `linear-gradient(135deg, ${COLORS.purple}, ${COLORS.pink})`,
-                boxShadow: `0 0 20px ${COLORS.purpleGlow}`,
+                background: navMenuOpen ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
               }}
             >
-              <span className="text-white font-black text-sm">CS</span>
-            </div>
-            <span 
-              className="text-lg font-black tracking-tight"
-              style={{ 
-                background: `linear-gradient(135deg, ${COLORS.purple}, ${COLORS.pink})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              CodedSwitch
-            </span>
+              <div 
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ 
+                  background: `linear-gradient(135deg, ${COLORS.purple}, ${COLORS.pink})`,
+                  boxShadow: `0 0 20px ${COLORS.purpleGlow}`,
+                }}
+              >
+                <span className="text-white font-black text-sm">CS</span>
+              </div>
+              <span 
+                className="text-lg font-black tracking-tight hidden sm:block"
+                style={{ 
+                  background: `linear-gradient(135deg, ${COLORS.purple}, ${COLORS.pink})`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                CodedSwitch
+              </span>
+              <ChevronDown 
+                className={`w-4 h-4 transition-transform ${navMenuOpen ? 'rotate-180' : ''}`} 
+                style={{ color: COLORS.textMuted }} 
+              />
+            </button>
+            
+            {/* Navigation Dropdown Menu */}
+            {navMenuOpen && (
+              <div 
+                className="absolute top-full left-0 mt-2 w-64 rounded-xl py-2 z-50"
+                style={{ 
+                  background: COLORS.bgPanel,
+                  backdropFilter: 'blur(20px)',
+                  border: `1px solid ${COLORS.border}`,
+                  boxShadow: `0 20px 60px rgba(0,0,0,0.5)`,
+                }}
+              >
+                <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider" style={{ color: COLORS.purple }}>
+                  Navigate
+                </div>
+                
+                {[
+                  { icon: Home, label: 'Home', path: '/' },
+                  { icon: LayoutDashboard, label: 'Full Studio', path: '/studio' },
+                  { icon: Music, label: 'Unified Studio', path: '/unified-studio' },
+                  { icon: Piano, label: 'DAW Layout', path: '/daw-layout' },
+                  { icon: Wand2, label: 'Melody Composer', path: '/melody-composer' },
+                  { icon: Mic2, label: 'Lyric Lab', path: '/lyric-lab' },
+                  { icon: Drum, label: 'Beat Studio', path: '/beat-studio' },
+                  { icon: Code, label: 'Code Translator', path: '/code-translator' },
+                  { icon: Shield, label: 'Security Scanner', path: '/vulnerability-scanner' },
+                  { icon: MessageSquare, label: 'AI Assistant', path: '/ai-assistant' },
+                  { icon: Headphones, label: 'Mix Studio', path: '/mix-studio' },
+                ].map(item => (
+                  <button
+                    key={item.path}
+                    onClick={() => { navigate(item.path); setNavMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all hover:bg-white/5"
+                  >
+                    <item.icon className="w-4 h-4" style={{ color: COLORS.purple }} />
+                    <span style={{ color: COLORS.text }}>{item.label}</span>
+                  </button>
+                ))}
+                
+                <div className="mx-3 my-2 h-px" style={{ background: COLORS.border }} />
+                
+                <div className="px-3 py-2 text-xs" style={{ color: COLORS.textMuted }}>
+                  Current: CodedSwitch Flow
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="h-6 w-px" style={{ background: COLORS.border }} />
@@ -896,10 +964,10 @@ export const CodedSwitchFlow: React.FC = () => {
       {/* ============================================ */}
       {/* MAIN CANVAS - Full Bleed, No Borders */}
       {/* ============================================ */}
-      <main className="flex-1 relative overflow-hidden">
+      <main className="flex-1 relative overflow-auto">
         {/* Ambient Background Glow - Breathes with the music */}
         <div 
-          className="absolute inset-0 pointer-events-none transition-opacity duration-500"
+          className="absolute inset-0 pointer-events-none transition-opacity duration-500 z-0"
           style={{
             background: isPlaying 
               ? `radial-gradient(ellipse at center, ${COLORS.purpleGlow} 0%, transparent 60%)`
@@ -909,7 +977,7 @@ export const CodedSwitchFlow: React.FC = () => {
         />
         
         {/* The Hybrid View - Piano Roll + Timeline */}
-        <div className="h-full w-full relative z-10">
+        <div className="h-full w-full relative z-10 overflow-auto">
           <VerticalPianoRoll />
         </div>
         

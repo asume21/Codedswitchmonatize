@@ -25,7 +25,7 @@ export default function ModularChordProgression({ progression, onProgressionChan
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [presetIdx, setPresetIdx] = useState<number>(-1);
-  const { requirePro } = useLicenseGate();
+  const { requirePro, startUpgrade } = useLicenseGate();
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Preset progressions
@@ -207,7 +207,7 @@ export default function ModularChordProgression({ progression, onProgressionChan
         </div>
         <div className="mt-2 text-xs text-blue-700">{getAnalysis()}</div>
       </CardContent>
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} onUpgrade={startUpgrade} />
     </Card>
   );
 }

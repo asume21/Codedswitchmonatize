@@ -211,7 +211,7 @@ export default function CodeToMusicStudioV2() {
   }, []);
 
   return (
-    <div className="h-full flex flex-col gap-4 p-4 bg-gradient-to-br from-slate-950 via-purple-950/20 to-slate-950">
+    <div className="min-h-screen w-full flex flex-col gap-4 p-4 pb-16 bg-gradient-to-br from-slate-950 via-purple-950/20 to-slate-950 overflow-y-auto">
       {/* Header */}
       <Card className="bg-slate-900/50 border-purple-500/20">
         <CardHeader>
