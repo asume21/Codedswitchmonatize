@@ -4,12 +4,13 @@ import {
   Undo2, Redo2, Sparkles, Plus, Volume2, 
   FolderOpen, Settings, X, Music, Mic2, 
   Drum, Guitar, Piano, Waves, Sliders,
-  FileAudio, Upload, Download, Save
+  FileAudio, Upload, Download, Save, Zap
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTransport } from '@/contexts/TransportContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import VerticalPianoRoll from '@/components/studio/VerticalPianoRoll';
+import AstutelyPanel from '@/components/ai/AstutelyPanel';
 
 // ============================================
 // CODEDSWITCH FLOW - THE SOUL OF THE DAW
@@ -605,6 +606,7 @@ export const CodedSwitchFlow: React.FC = () => {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [aiHelpOpen, setAIHelpOpen] = useState(false);
+  const [showAstutely, setShowAstutely] = useState(false);
 
   // Sync with transport
   useEffect(() => {
@@ -861,6 +863,20 @@ export const CodedSwitchFlow: React.FC = () => {
             </button>
           </div>
           
+          {/* ASTUTELY BUTTON - The viral feature */}
+          <button
+            onClick={() => setShowAstutely(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl transition-all hover:scale-105"
+            style={{ 
+              background: 'linear-gradient(135deg, #F59E0B, #EF4444)',
+              boxShadow: '0 0 20px rgba(245, 158, 11, 0.4)',
+            }}
+            title="Astutely - AI Beat Transformer"
+          >
+            <Zap className="w-4 h-4 text-white" />
+            <span className="text-sm font-bold text-white">Astutely</span>
+          </button>
+          
           {/* AI Button */}
           <button
             onClick={() => setAIHelpOpen(true)}
@@ -966,6 +982,19 @@ export const CodedSwitchFlow: React.FC = () => {
       
       {/* AI Help Modal */}
       <AIHelpModal isOpen={aiHelpOpen} onClose={() => setAIHelpOpen(false)} />
+      
+      {/* ASTUTELY PANEL - The viral feature */}
+      {showAstutely && (
+        <AstutelyPanel 
+          onClose={() => setShowAstutely(false)}
+          onGenerated={(result) => {
+            toast({ 
+              title: '🔥 Astutely Complete!', 
+              description: `Generated ${result.style} beat at ${result.bpm} BPM` 
+            });
+          }}
+        />
+      )}
       
       {/* Edge Triggers - Subtle hints to open panels */}
       {!inspectorOpen && (
