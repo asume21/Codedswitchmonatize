@@ -46,9 +46,12 @@ export default function SongUploader() {
   // Per-song session IDs (Map<songId, sessionId>)
   const [sessionIdsBySong, setSessionIdsBySong] = useState<Map<string, string>>(new Map());
   
-  // Transcription state
+  // Transcription + lyrics analysis state
   const [transcriptions, setTranscriptions] = useState<Map<string, string>>(new Map());
   const [isTranscribing, setIsTranscribing] = useState<Map<string, boolean>>(new Map());
+  const [lyricsAnalyses, setLyricsAnalyses] = useState<Map<string, any>>(new Map());
+  const [isAnalyzingLyrics, setIsAnalyzingLyrics] = useState<Map<string, boolean>>(new Map());
+  const [isTranscribeAndAnalyze, setIsTranscribeAndAnalyze] = useState<Map<string, boolean>>(new Map());
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
@@ -57,7 +60,7 @@ export default function SongUploader() {
   const { createSession, updateSession } = useSongWorkSession();
   const { addTrack, tracks } = useTracks();
 
-  const transcribeSong = async (song: Song) => {
+  const transcribeSong = async (song: Song): Promise<string | null> => {
     const songId = song.id.toString();
     // Set transcribing state for this song
     setIsTranscribing(prev => {
@@ -76,9 +79,10 @@ export default function SongUploader() {
       const data = await response.json();
       
       if (data.transcription && data.transcription.text) {
+        const text = data.transcription.text;
         setTranscriptions(prev => {
           const newMap = new Map(prev);
-          newMap.set(songId, data.transcription.text);
+          newMap.set(songId, text);
           return newMap;
         });
         setExpandedAnalysis(song.id); // Auto-expand to show result
@@ -89,8 +93,11 @@ export default function SongUploader() {
         });
         
         // Store in AI context
-        addMessage(`📝 **Transcribed Lyrics for ${song.name}:**\n\n${data.transcription.text}`, 'transcription');
+        addMessage(`📝 **Transcribed Lyrics for ${song.name}:**\n\n${text}`, 'transcription');
+
+        return text;
       }
+      return null;
     } catch (error) {
       console.error('Transcription error:', error);
       toast({
@@ -105,6 +112,136 @@ export default function SongUploader() {
         return newMap;
       });
     }
+    return null;
+  };
+
+  const analyzeLyrics = async (song: Song, lyricsText?: string) => {
+    const songId = song.id.toString();
+    const lyrics = lyricsText || transcriptions.get(songId);
+    if (!lyrics) {
+      toast({
+        title: "No Lyrics Available",
+        description: "Transcribe the song first to analyze lyrics.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    setIsAnalyzingLyrics(prev => {
+      const newMap = new Map(prev);
+      newMap.set(songId, true);
+      return newMap;
+    });
+
+    try {
+      const songGenre = (song as any).genre || (song as any).tags || undefined;
+      const response = await apiRequest('POST', '/api/lyrics/analyze', {
+        lyrics,
+        genre: songGenre,
+        enhanceWithAI: true,
+      });
+      const data = await response.json();
+      if (data.analysis) {
+        setLyricsAnalyses(prev => {
+          const newMap = new Map(prev);
+          newMap.set(songId, data.analysis);
+          return newMap;
+        });
+        setExpandedAnalysis(song.id);
+        toast({
+          title: "Lyrics Analysis Ready",
+          description: `${song.name} lyrics analyzed successfully.`,
+        });
+
+        const analysis = data.analysis;
+        const score = analysis?.overall_rating?.score ?? analysis?.quality_score ?? 'N/A';
+        const themes = (analysis?.themes || [])
+          .map((t: any) => `${t.theme} (${Math.round((t.confidence || 0) * 100)}%)`)
+          .join(', ');
+        const lyricsQuality = analysis?.lyricsQuality || {};
+        const aiInsights = analysis?.ai_insights || {};
+        const improvements =
+          aiInsights?.improvement_areas && aiInsights.improvement_areas.length
+            ? aiInsights.improvement_areas
+                .slice(0, 3)
+                .map((i: any) => `${i.area} (${i.priority}): ${i.suggestion}`)
+                .join('\n')
+            : null;
+        const hook = aiInsights?.hook_assessment;
+        const sectionFeedback = Array.isArray(aiInsights?.section_feedback) ? aiInsights.section_feedback.slice(0, 2) : [];
+        const lineFixes = Array.isArray(aiInsights?.line_fixes) ? aiInsights.line_fixes.slice(0, 3) : [];
+        const syllables = Array.isArray(aiInsights?.syllable_counts) ? aiInsights.syllable_counts : [];
+        const cadenceNotes = aiInsights?.cadence_notes;
+
+        let details = `Score: ${score}\nKey Themes: ${themes || 'N/A'}`;
+        if (lyricsQuality.rhymeScheme) details += `\nRhyme Scheme: ${lyricsQuality.rhymeScheme}`;
+        if (lyricsQuality.wordplay) details += `\nWordplay: ${lyricsQuality.wordplay}`;
+        if (lyricsQuality.syllableRhythm) details += `\nSyllable & Rhythm: ${lyricsQuality.syllableRhythm}`;
+        if (lyricsQuality.hookCatchiness) details += `\nHook Catchiness: ${lyricsQuality.hookCatchiness}/10`;
+        if (lyricsQuality.complexity) details += `\nComplexity: ${lyricsQuality.complexity}`;
+        if (aiInsights.rhyme_density) details += `\nRhyme Density: ${aiInsights.rhyme_density}`;
+        if (aiInsights.vocal_delivery) details += `\nVocal Delivery: ${aiInsights.vocal_delivery}`;
+        if (aiInsights.production_notes && aiInsights.production_notes.length) {
+          details += `\nProduction Notes: ${aiInsights.production_notes.slice(0, 2).join('; ')}`;
+        }
+        if (aiInsights.imagery_notes) details += `\nImagery: ${aiInsights.imagery_notes}`;
+        if (aiInsights.story_clarity) details += `\nStory: ${aiInsights.story_clarity}`;
+        if (cadenceNotes) details += `\nCadence: ${cadenceNotes}`;
+        if (hook) {
+          details += `\nHook: ${hook.hook_strength}`;
+          if (hook.quick_fixes?.length) details += ` | Fixes: ${hook.quick_fixes.slice(0, 2).join('; ')}`;
+        }
+        if (syllables.length) details += `\nSyllables/line: ${syllables.slice(0, 8).join(', ')}${syllables.length > 8 ? '...' : ''}`;
+        if (improvements) details += `\nTop Fixes:\n${improvements}`;
+        if (sectionFeedback.length) {
+          const sections = sectionFeedback
+            .map((s: any) => `${s.section}: ${[...(s.strengths || []), ...(s.issues || []), ...(s.fixes || [])].slice(0, 2).join('; ')}`)
+            .join('\n');
+          details += `\nSections:\n${sections}`;
+        }
+        if (lineFixes.length) {
+          const fixes = lineFixes.map((f: any) => `Line ${f.line}: ${f.issue} → ${f.rewrite}${f.syllables ? ` (${f.syllables} syllables)` : ''}`).join('\n');
+          details += `\nLine Fixes:\n${fixes}`;
+        }
+
+        addMessage(`📘 **Lyrics Analysis for ${song.name}:**\n${details}`, 'lyrics-analysis');
+
+        return data.analysis;
+      }
+      return null;
+    } catch (error) {
+      console.error('Lyrics analysis error:', error);
+      toast({
+        title: "Lyrics Analysis Failed",
+        description: "Unable to analyze lyrics. Please try again.",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsAnalyzingLyrics(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(songId);
+        return newMap;
+      });
+    }
+  };
+
+  const transcribeAndAnalyzeSong = async (song: Song) => {
+    const songId = song.id.toString();
+    setIsTranscribeAndAnalyze(prev => {
+      const newMap = new Map(prev);
+      newMap.set(songId, true);
+      return newMap;
+    });
+    const lyrics = await transcribeSong(song);
+    if (lyrics) {
+      await analyzeLyrics(song, lyrics);
+    }
+    setIsTranscribeAndAnalyze(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(songId);
+      return newMap;
+    });
   };
 
   const registerSongTrack = useCallback((song: Song) => {
@@ -619,6 +756,11 @@ export default function SongUploader() {
       
       // Store in context for Global Transport to play
       studioContext.setCurrentUploadedSong(song, audio);
+      
+      // Also load into global audio player for persistent playback across navigation
+      window.dispatchEvent(new CustomEvent('globalAudio:load', {
+        detail: { name: song.name, url: accessibleURL, type: 'song', autoplay: false }
+      }));
       
       toast({
         title: "Song Loaded",
@@ -1240,6 +1382,41 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         </Button>
                         <Button
                           size="sm"
+                          onClick={() => transcribeAndAnalyzeSong(song)}
+                          disabled={
+                            isTranscribing.get(song.id.toString()) ||
+                            isAnalyzingLyrics.get(song.id.toString()) ||
+                            isTranscribeAndAnalyze.get(song.id.toString())
+                          }
+                          className="bg-pink-600 hover:bg-pink-500"
+                          data-testid={`button-transcribe-analyze-song-${song.id}`}
+                        >
+                          {isTranscribeAndAnalyze.get(song.id.toString()) ? (
+                            <i className="fas fa-spinner fa-spin mr-1"></i>
+                          ) : (
+                            <Sparkles className="w-3 h-3 mr-1" />
+                          )}
+                          Transcribe + Analyze
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => analyzeLyrics(song)}
+                          disabled={
+                            !transcriptions.get(song.id.toString()) ||
+                            isAnalyzingLyrics.get(song.id.toString())
+                          }
+                          className="bg-indigo-600 hover:bg-indigo-500"
+                          data-testid={`button-analyze-lyrics-${song.id}`}
+                        >
+                          {isAnalyzingLyrics.get(song.id.toString()) ? (
+                            <i className="fas fa-spinner fa-spin mr-1"></i>
+                          ) : (
+                            <FileText className="w-3 h-3 mr-1" />
+                          )}
+                          Analyze Lyrics
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => {
                             // Add to timeline track store
                             registerSongTrack(song);
@@ -1464,6 +1641,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                           {expandedAnalysis === song.id && (() => {
                             const analysis = songAnalyses.get(song.id);
                             const lyrics = transcriptions.get(song.id.toString());
+                            const lyricsAnalysis = lyricsAnalyses.get(song.id.toString());
                             
                             return (
                               <div className="space-y-4">
@@ -1508,6 +1686,120 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                                   )}
                                 </div>
                                 
+                                {/* Lyrics Analysis Metrics */}
+                                {lyricsAnalysis && (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                      {lyricsAnalysis.overall_rating?.score && (
+                                        <div className="bg-gray-800/50 rounded p-2">
+                                          <div className="text-gray-400 text-xs">Lyrics Score</div>
+                                          <div className="font-bold text-green-400">{lyricsAnalysis.overall_rating.score}/10</div>
+                                        </div>
+                                      )}
+                                      {lyricsAnalysis.hook_metrics?.score !== undefined && (
+                                        <div className="bg-gray-800/50 rounded p-2">
+                                          <div className="text-gray-400 text-xs">Hook Catchiness</div>
+                                          <div className="font-bold text-purple-300">{lyricsAnalysis.hook_metrics.score}/100</div>
+                                        </div>
+                                      )}
+                                      {lyricsAnalysis.lexical_diversity !== undefined && (
+                                        <div className="bg-gray-800/50 rounded p-2">
+                                          <div className="text-gray-400 text-xs">Lexical Diversity</div>
+                                          <div className="font-bold text-blue-300">{(lyricsAnalysis.lexical_diversity * 100).toFixed(0)}%</div>
+                                        </div>
+                                      )}
+                                      {lyricsAnalysis.flow_analysis?.rhythm_consistency !== undefined && (
+                                        <div className="bg-gray-800/50 rounded p-2">
+                                          <div className="text-gray-400 text-xs">Flow Consistency</div>
+                                          <div className="font-bold text-blue-300">{(lyricsAnalysis.flow_analysis.rhythm_consistency * 100).toFixed(0)}%</div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    {lyricsAnalysis.hook_metrics && (
+                                      <div className="bg-gray-800/50 rounded p-3 border border-purple-500/30">
+                                        <h5 className="text-sm font-semibold text-purple-300 mb-1">Hook Insights</h5>
+                                        {lyricsAnalysis.hook_metrics.repeated_phrases?.length > 0 && (
+                                          <div className="text-xs text-gray-300 mb-1">
+                                            <span className="font-semibold">Repeated Phrases:</span> {lyricsAnalysis.hook_metrics.repeated_phrases.join(', ')}
+                                          </div>
+                                        )}
+                                        {lyricsAnalysis.hook_metrics.recommendations?.length > 0 && (
+                                          <ul className="list-disc list-inside text-xs text-gray-300">
+                                            {lyricsAnalysis.hook_metrics.recommendations.map((r: string, idx: number) => (
+                                              <li key={idx}>{r}</li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {lyricsAnalysis.breath_map && (
+                                      <div className="bg-gray-800/50 rounded p-3 border border-blue-500/30 max-h-40 overflow-y-auto">
+                                        <h5 className="text-sm font-semibold text-blue-300 mb-1">Breath Map</h5>
+                                        <div className="text-[11px] text-gray-300 grid grid-cols-3 gap-1">
+                                          {lyricsAnalysis.breath_map.map((entry: any) => (
+                                            <div key={entry.line} className="flex justify-between">
+                                              <span>Line {entry.line}</span>
+                                              <span>{entry.syllables} syll</span>
+                                              <span className={entry.breath_risk === 'high' ? 'text-red-400' : entry.breath_risk === 'medium' ? 'text-yellow-300' : 'text-green-400'}>
+                                                {entry.breath_risk}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {lyricsAnalysis.audience_fit && (
+                                      <div className="bg-gray-800/50 rounded p-3 border border-green-500/30">
+                                        <h5 className="text-sm font-semibold text-green-300 mb-1">Audience & Playlists</h5>
+                                        {lyricsAnalysis.audience_fit.playlists && (
+                                          <div className="text-xs text-gray-300 mb-1">
+                                            <span className="font-semibold">Playlists:</span> {lyricsAnalysis.audience_fit.playlists.join(', ')}
+                                          </div>
+                                        )}
+                                        {lyricsAnalysis.audience_fit.moods && (
+                                          <div className="text-xs text-gray-300 mb-1">
+                                            <span className="font-semibold">Moods:</span> {lyricsAnalysis.audience_fit.moods.join(', ')}
+                                          </div>
+                                        )}
+                                        {lyricsAnalysis.audience_fit.marketingIdeas && (
+                                          <ul className="list-disc list-inside text-xs text-gray-300">
+                                            {lyricsAnalysis.audience_fit.marketingIdeas.map((idea: string, idx: number) => (
+                                              <li key={idx}>{idea}</li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {lyricsAnalysis.production_checklist && lyricsAnalysis.production_checklist.length > 0 && (
+                                      <div className="bg-gray-800/50 rounded p-3 border border-yellow-500/30">
+                                        <h5 className="text-sm font-semibold text-yellow-300 mb-1">Production Checklist</h5>
+                                        <ul className="list-disc list-inside text-xs text-gray-300">
+                                          {lyricsAnalysis.production_checklist.map((item: string, idx: number) => (
+                                            <li key={idx}>{item}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    
+                                    {lyricsAnalysis.rewrite_suggestions && lyricsAnalysis.rewrite_suggestions.length > 0 && (
+                                      <div className="bg-gray-800/50 rounded p-3 border border-red-500/30">
+                                        <h5 className="text-sm font-semibold text-red-300 mb-1">Rewrite Suggestions</h5>
+                                        <ul className="list-disc list-inside text-xs text-gray-300 max-h-32 overflow-y-auto">
+                                          {lyricsAnalysis.rewrite_suggestions.map((s: any, idx: number) => (
+                                            <li key={idx}>
+                                              <span className="font-semibold">Line {s.line}:</span> {s.suggestion}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
                                 {/* Recommendations */}
                                 {analysis?.actionableRecommendations && analysis.actionableRecommendations.length > 0 && (
                                   <div>
@@ -1517,7 +1809,6 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                                     />
                                   </div>
                                 )}
-                                
                                 <div className="text-xs text-gray-400 italic">
                                   Full analysis available in AI Assistant panel
                                 </div>

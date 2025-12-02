@@ -4,13 +4,17 @@ import OpenAI from "openai";
 const xaiApiKey = process.env.XAI_API_KEY?.trim();
 const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
 
+// Shared timeout to avoid slow requests blocking the route
+const AI_TIMEOUT_MS = 8000;
+const AI_RESPONSE_DEADLINE_MS = 9000; // hard cap per request before fallback
+
 // Configure Grok (xAI) client
 let grokClient: OpenAI | null = null;
 if (xaiApiKey && xaiApiKey.startsWith('xai-')) {
   grokClient = new OpenAI({
     baseURL: "https://api.x.ai/v1",
     apiKey: xaiApiKey,
-    timeout: 30000
+    timeout: AI_TIMEOUT_MS
   });
 }
 
@@ -19,7 +23,7 @@ let openaiClient: OpenAI | null = null;
 if (openaiApiKey && openaiApiKey.startsWith('sk-')) {
   openaiClient = new OpenAI({
     apiKey: openaiApiKey,
-    timeout: 30000
+    timeout: AI_TIMEOUT_MS
   });
 }
 
@@ -146,7 +150,7 @@ export async function generateBeatPattern(style: string, bpm: number, complexity
     const timestamp = Date.now();
     const randomSeed = Math.floor(Math.random() * 10000);
 
-    const response = await makeAICall([
+    const aiCall = makeAICall([
       {
         role: "system",
         content: `You are a creative AI beat producer. Generate unique, varied ${style} patterns that are ${randomVariation}. Each pattern must be COMPLETELY DIFFERENT from previous ones. Use creativity and musical knowledge. Return JSON with kick, bass, tom, snare, hihat, openhat, clap, crash arrays (16 boolean values each). Make patterns musically interesting with proper spacing, fills, and groove. Variation is KEY.`
@@ -168,6 +172,13 @@ Requirements:
       temperature: 0.95
     });
 
+    const response = await Promise.race([
+      aiCall,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("AI generation timed out")), AI_RESPONSE_DEADLINE_MS)
+      )
+    ]);
+
     const result = JSON.parse(response.choices[0].message.content || "{}");
 
     // Add fallback with randomization if JSON parsing fails
@@ -182,7 +193,7 @@ Requirements:
   }
 }
 
-function generateRandomFallbackPattern(style: string, variation: string): any {
+export function generateRandomFallbackPattern(style: string, variation: string): any {
   const patterns = {
     kick: Array(16).fill(false),
     bass: Array(16).fill(false),

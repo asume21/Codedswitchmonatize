@@ -305,6 +305,10 @@ export const AVAILABLE_INSTRUMENTS = [
   { value: 'synth_bass_2', label: '🎛️ Synth Bass 2', category: 'Bass' },
   { value: 'fretless_bass', label: '🎸 Fretless Bass', category: 'Bass' },
   { value: 'slap_bass_1', label: '🎸 Slap Bass', category: 'Bass' },
+  // Neumann Bass Pack (mapped to realisticAudio aliases)
+  { value: 'neumann_sub_bass', label: '🎵 Neumann Sub Bass', category: 'Neumann Bass Pack' },
+  { value: 'neumann_punch_bass', label: '🎵 Neumann Punch Bass', category: 'Neumann Bass Pack' },
+  { value: 'neumann_grit_bass', label: '🎵 Neumann Grit Bass', category: 'Neumann Bass Pack' },
   
   // Guitars
   { value: 'guitar-acoustic', label: '🎸 Acoustic Guitar (Steel)', category: 'Guitar' },

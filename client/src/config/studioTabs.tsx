@@ -91,10 +91,10 @@ export const DEFAULT_STUDIO_TAB: StudioTabId = "unified-studio";
 export const STUDIO_TABS: StudioTabConfig[] = [
   {
     id: "unified-studio",
-    label: "🎵 Unified Studio",
-    shortName: "Unified Studio",
+    label: "🎵 DAW",
+    shortName: "DAW",
     icon: "fas fa-star",
-    description: "Complete DAW with Timeline, Piano Roll, Lyrics, AI Generation",
+    description: "Main DAW workspace with Timeline, Piano Roll, Lyrics, AI Generation",
     routes: ["/", "/studio", "/unified-studio"],
     component: withSuspense(UnifiedStudioWorkspace),
   },

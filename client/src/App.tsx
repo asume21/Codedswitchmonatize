@@ -12,8 +12,10 @@ import { useAnalytics } from "@/hooks/use-analytics";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SongWorkSessionProvider } from "@/contexts/SongWorkSessionContext";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
+import { GlobalAudioProvider } from "@/contexts/GlobalAudioContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
+import { GlobalAudioPlayer } from "@/components/GlobalAudioPlayer";
 
 // Eagerly loaded pages (small, frequently accessed)
 import Landing from "@/pages/landing";
@@ -29,7 +31,6 @@ import SongUploaderPage from "@/pages/song-uploader";
 const Studio = React.lazy(() => import("@/pages/studio"));
 const Dashboard = React.lazy(() => import("@/pages/dashboard"));
 const UnifiedStudioWorkspace = React.lazy(() => import("@/components/studio/UnifiedStudioWorkspace"));
-const DAWLayoutWorkspace = React.lazy(() => import("@/components/studio/DAWLayoutWorkspace"));
 const Settings = React.lazy(() => import("@/pages/settings"));
 const Subscribe = React.lazy(() => import("@/pages/Subscribe"));
 const ProAudio = React.lazy(() => import("@/pages/pro-audio"));
@@ -97,24 +98,25 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TransportProvider>
-          <TrackStoreProvider>
-            <SongWorkSessionProvider>
-              <TooltipProvider>
+          <GlobalAudioProvider>
+            <TrackStoreProvider>
+              <SongWorkSessionProvider>
+                <TooltipProvider>
                 <Toaster />
                 {/* GLOBAL NAVIGATION - Available on ALL pages */}
                 <GlobalNav className="fixed top-4 left-4 z-[9999]" />
+                {/* GLOBAL AUDIO PLAYER - Persists across all pages */}
+                <GlobalAudioPlayer />
                 <Suspense fallback={<LoadingFallback />}>
                 <Switch>
-                  <Route path="/" component={Landing} />
-                  <Route path="/home" component={Landing} />
-                  <Route path="/studio">
+                  <Route path="/">
                     <AIMessageProvider>
                       <AppLayout>
-                        {/* Use the unified workspace so tests find the Code-to-Music tab */}
                         <UnifiedStudioWorkspace />
                       </AppLayout>
                     </AIMessageProvider>
                   </Route>
+                  <Route path="/home" component={Landing} />
                   <Route path="/login" component={Login} />
                   <Route path="/signup" component={Signup} />
                   <Route path="/activate">
@@ -127,9 +129,11 @@ function App() {
                     <Dashboard />
                   </Route>
                   <Route path="/music-studio">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/song-uploader">
                     <AppLayout>
@@ -148,15 +152,17 @@ function App() {
                   </Route>
                   <Route path="/unified-studio">
                     <AIMessageProvider>
-                      <div className="h-screen w-screen bg-background">
+                      <AppLayout>
                         <UnifiedStudioWorkspace />
-                      </div>
+                      </AppLayout>
                     </AIMessageProvider>
                   </Route>
                   <Route path="/daw-layout">
-                    <div className="h-screen w-screen bg-background">
-                      <DAWLayoutWorkspace />
-                    </div>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/flow">
                     <CodedSwitchFlow />
@@ -243,9 +249,11 @@ function App() {
                     </AppLayout>
                   </Route>
                   <Route path="/studio">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/subscribe" component={Subscribe} />
                   <Route path="/test-circular" component={TestCircular} />
@@ -262,9 +270,10 @@ function App() {
                   <Route component={NotFound} />
                 </Switch>
                 </Suspense>
-              </TooltipProvider>
-            </SongWorkSessionProvider>
-          </TrackStoreProvider>
+                </TooltipProvider>
+              </SongWorkSessionProvider>
+            </TrackStoreProvider>
+          </GlobalAudioProvider>
         </TransportProvider>
       </AuthProvider>
     </QueryClientProvider>

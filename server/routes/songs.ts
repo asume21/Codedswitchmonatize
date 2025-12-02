@@ -54,8 +54,20 @@ export function createSongRoutes(storage: IStorage) {
 
       console.log('🎵 Saving song to database:', { name, songURL, format });
 
+      // Ensure duration is stored as an integer number of seconds (or null)
+      let normalizedDuration: number | null = null;
+      if (typeof duration === 'number' && !Number.isNaN(duration)) {
+        normalizedDuration = Math.round(duration);
+      } else if (typeof duration === 'string') {
+        const parsed = Number(duration);
+        if (!Number.isNaN(parsed)) {
+          normalizedDuration = Math.round(parsed);
+        }
+      }
+
       // Convert non-MP3 formats to MP3 for browser compatibility
       let finalURL = songURL;
+      
       const lowerFormat = format?.toLowerCase() || '';
       const lowerURL = songURL.toLowerCase();
       
@@ -80,7 +92,7 @@ export function createSongRoutes(storage: IStorage) {
         accessibleUrl: finalURL, // Use converted URL if available
         fileSize: fileSize || 0,
         format: format || 'audio',
-        duration: duration || null,
+        duration: normalizedDuration,
       });
 
       // Increment upload count for usage tracking
@@ -248,6 +260,7 @@ export function createSongRoutes(storage: IStorage) {
 
     try {
       const { songId, songURL, songName } = req.body;
+      const lyricsText = (req.body.transcript || req.body.lyrics || req.body.lyricsText || '').toString();
 
       if (!songId || !songURL) {
         return res.status(400).json({ error: "Missing songId or songURL" });
@@ -285,7 +298,8 @@ export function createSongRoutes(storage: IStorage) {
           duration,
           bitrate,
           sampleRate,
-          codec
+          codec,
+          lyricsText
         });
 
         console.log('✅ AI analysis complete');
@@ -1027,6 +1041,7 @@ Duration: ${Math.floor(metadata.duration / 60)}:${Math.floor(metadata.duration %
 Bitrate: ${metadata.bitrate} kbps
 Sample Rate: ${metadata.sampleRate} Hz
 Codec: ${metadata.codec}
+${metadata.lyricsText ? `Transcribed Lyrics (use this for lyrical analysis, keep private): ${metadata.lyricsText.slice(0, 1200)}` : 'No transcript provided; still assess likely lyrics but keep lyricQuality non-empty with concrete guidance.'}
 
 **REQUIRED COMPREHENSIVE ANALYSIS:**
 
@@ -1047,13 +1062,13 @@ Codec: ${metadata.codec}
    - Emotional delivery and expression
    - Timing issues or strengths
 
-3. **LYRICS QUALITY** (if available):
-   - Rhyme scheme quality
-   - Wordplay and metaphors
-   - Theme and storytelling
-   - Syllable count and rhythm
-   - Hook catchiness
-   - Lyrical complexity
+3. **LYRICS QUALITY** (MANDATORY, USE TRANSCRIPT IF PRESENT):
+   - Rhyme scheme quality (describe pattern and any internal rhymes)
+   - Wordplay and metaphors (what works, what’s missing)
+   - Theme and storytelling (clarity, consistency)
+   - Syllable count and rhythm (cadence, breathability)
+   - Hook catchiness (1-10 with reasoning)
+   - Lyrical complexity (vocab density, figurative language, imagery)
    
 4. **PRODUCTION QUALITY:**
    - Mix quality (1-10 score)
@@ -1112,12 +1127,12 @@ Respond ONLY with valid JSON in this EXACT format:
     "timingIssues": "Slightly rushed on bridge, otherwise tight"
   },
   "lyricsQuality": {
-    "rhymeScheme": "Complex multisyllabic rhymes (AABB)",
-    "wordplay": "Strong metaphors and double entendres",
-    "theme": "Street struggles and triumph",
-    "syllableRhythm": "Varied cadence keeps it interesting",
+    "rhymeScheme": "Complex multisyllabic rhymes (AABB) with internal rhymes noted",
+    "wordplay": "Strong metaphors/doubles; note missing imagery if absent",
+    "theme": "Street struggles and triumph; state if unclear",
+    "syllableRhythm": "Varied cadence keeps it interesting; breathability notes",
     "hookCatchiness": 9,
-    "complexity": "Advanced vocabulary with street slang"
+    "complexity": "Advanced vocabulary with street slang and figurative language"
   },
   "productionQuality": {
     "mixQuality": 8,

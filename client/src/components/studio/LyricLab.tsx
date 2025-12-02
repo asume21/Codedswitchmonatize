@@ -8,6 +8,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,10 +26,37 @@ import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useLocation } from "wouter";
 import { Music2, FileMusic, AlertCircle } from "lucide-react";
+import { SongUploadPanel } from "./SongUploadPanel";
 
 interface RhymeSuggestion {
   word: string;
   type: "perfect" | "near";
+}
+
+function autoStructureLyrics(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return raw;
+  if (/\[verse\s+1\]/i.test(trimmed) || /\[chorus\]/i.test(trimmed)) {
+    return raw;
+  }
+
+  const blocks = trimmed.split(/\n\s*\n+/).map((b) => b.trim()).filter(Boolean);
+  if (blocks.length === 0) return raw;
+
+  const labeled: string[] = [];
+  blocks.forEach((block, index) => {
+    if (index === 0) {
+      labeled.push("[Verse 1]", block);
+    } else if (index === 1) {
+      labeled.push("", "[Chorus]", block);
+    } else if (index === 2) {
+      labeled.push("", "[Verse 2]", block);
+    } else {
+      labeled.push("", `[Section ${index + 1}]`, block);
+    }
+  });
+
+  return labeled.join("\n");
 }
 
 export default function LyricLab() {
@@ -28,7 +64,7 @@ export default function LyricLab() {
   const { currentSession, setCurrentSessionId } = useSongWorkSession();
   const [location] = useLocation();
   const { toast } = useToast();
-  
+
   const [title, setTitle] = useState("My Awesome Track");
   const [content, setContent] = useState(`[Verse 1]
 Started from the bottom of the code base,
@@ -49,26 +85,42 @@ In this digital symphony we're designing.
 [Verse 2]
 Type here or use AI generation...`);
 
-  // Update studio context whenever lyrics content changes
+  // Update studio context and localStorage whenever lyrics content changes
   React.useEffect(() => {
     if (studioContext.currentLyrics !== content) {
       studioContext.setCurrentLyrics(content);
     }
-  }, [content]);
+    try {
+      localStorage.setItem('lyricLabCurrentLyrics', content);
+    } catch {
+      // Ignore storage errors (e.g. private mode)
+    }
+  }, [content, studioContext]);
 
-  // Load persisted lyrics from studio context on component mount (once)
+  // Load persisted lyrics on component mount (localStorage first, then studio context)
   React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('lyricLabCurrentLyrics');
+      if (stored && stored !== content) {
+        setContent(stored);
+        studioContext.setCurrentLyrics(stored);
+        return;
+      }
+    } catch {
+      // If localStorage fails, fall back to studio context below
+    }
+
     if (studioContext.currentLyrics && studioContext.currentLyrics !== content) {
       setContent(studioContext.currentLyrics);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
-  
+
   // Load session from URL parameters
   useEffect(() => {
     const params = new URLSearchParams(location.split('?')[1]);
     const sessionId = params.get('session');
-    
+
     if (sessionId) {
       setCurrentSessionId(sessionId);
       toast({
@@ -78,14 +130,14 @@ Type here or use AI generation...`);
       });
     }
   }, [location, setCurrentSessionId]);
-  
+
   // Load lyrics from session when session changes
   useEffect(() => {
     if (currentSession?.analysis?.issues) {
-      const lyricIssues = currentSession.analysis.issues.filter(issue => 
+      const lyricIssues = currentSession.analysis.issues.filter(issue =>
         issue.type === 'melody' || issue.description.toLowerCase().includes('lyric')
       );
-      
+
       if (lyricIssues.length > 0) {
         toast({
           title: "Lyric Issues Detected",
@@ -95,7 +147,7 @@ Type here or use AI generation...`);
       }
     }
   }, [currentSession, toast]);
-  
+
   const [genre, setGenre] = useState("hip-hop");
   const [rhymeScheme, setRhymeScheme] = useState("ABAB");
   const [theme, setTheme] = useState("technology, coding");
@@ -108,27 +160,29 @@ Type here or use AI generation...`);
   const [aiProvider, setAiProvider] = useState("grok");
   const [analysis, setAnalysis] = useState<any>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
+  const [creditsDialogReason, setCreditsDialogReason] = useState<"auth" | "credits" | null>(null);
 
   // Check if there's already generated music in studio context and localStorage
   React.useEffect(() => {
-    const hasPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 && 
+    const hasPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 &&
       Object.values(studioContext.currentPattern).some(arr => Array.isArray(arr) && arr.some(val => val === true));
     const hasMelody = studioContext.currentMelody && studioContext.currentMelody.length > 0;
     const hasCodeMusic = studioContext.currentCodeMusic && Object.keys(studioContext.currentCodeMusic).length > 0;
-    
-    // Also check localStorage for persisted data  
+
+    // Also check localStorage for persisted data
     let hasStoredData = false;
     try {
       const storedData = localStorage.getItem('generatedMusicData');
       if (storedData) {
         const parsed = JSON.parse(storedData);
-        hasStoredData = parsed?.beatPattern && Object.values(parsed.beatPattern).some(arr => 
+        hasStoredData = parsed?.beatPattern && Object.values(parsed.beatPattern).some(arr =>
           Array.isArray(arr) && arr.some(val => val === true));
       }
     } catch (error) {
       // Ignore localStorage errors
     }
-    
+
     if (hasPattern || hasMelody || hasCodeMusic || hasStoredData) {
       setHasGeneratedMusic(true);
     } else {
@@ -144,11 +198,11 @@ Type here or use AI generation...`);
       const genres = ["hip-hop", "pop", "rock", "country", "R&B", "folk", "reggae", "electronic", "jazz", "blues"];
       const moods = ["upbeat", "melancholic", "energetic", "romantic", "rebellious", "peaceful", "intense", "nostalgic"];
       const themes = ["love", "freedom", "success", "struggle", "dreams", "technology", "nature", "friendship"];
-      
+
       const randomGenre = genres[Math.floor(Math.random() * genres.length)];
       const randomMood = moods[Math.floor(Math.random() * moods.length)];
       const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-      
+
       const response = await apiRequest("POST", "/api/lyrics/generate", {
         theme: `${data.theme}, ${randomTheme}`,
         genre: randomGenre,
@@ -207,6 +261,21 @@ Type here or use AI generation...`);
         });
       }
       setHasGeneratedMusic(true);
+
+      // Persist a lightweight marker so the session survives view switches / remounts
+      try {
+        const existing = localStorage.getItem('generatedMusicData');
+        const parsed = existing ? JSON.parse(existing) : {};
+        const updated = {
+          ...parsed,
+          lastSource: 'lyrics',
+          lastTitle: data.title ?? title,
+          lastUpdatedAt: Date.now(),
+        };
+        localStorage.setItem('generatedMusicData', JSON.stringify(updated));
+      } catch {
+        // Ignore storage errors (e.g. private mode)
+      }
     },
     onError: () => {
       toast({
@@ -219,10 +288,10 @@ Type here or use AI generation...`);
 
   // NEW: Mastering function to optimize the full song
   const masterSongMutation = useMutation({
-    mutationFn: async (data: { 
-      pattern: unknown; 
-      melody: any[]; 
-      lyrics: string; 
+    mutationFn: async (data: {
+      pattern: unknown;
+      melody: any[];
+      lyrics: string;
       codeMusic: any;
       bpm: number;
       genre: string;
@@ -280,11 +349,22 @@ Type here or use AI generation...`);
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Analysis Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      const message = error?.message || "";
+      const statusCode = parseInt(message.split(":")[0], 10);
+
+      if (statusCode === 401) {
+        setCreditsDialogReason("auth");
+        setCreditsDialogOpen(true);
+      } else if (statusCode === 402) {
+        setCreditsDialogReason("credits");
+        setCreditsDialogOpen(true);
+      } else {
+        toast({
+          title: "Analysis Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -432,7 +512,7 @@ Type here or use AI generation...`);
     <div className="h-full flex flex-col">
       <div className="p-6 border-b border-gray-600">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-heading font-bold">Lyric Lab</h2>
+          <h2 className="text-2xl font-heading font-bold">Song Doctor · Lyric Lab</h2>
           <div className="flex items-center space-x-4">
             <Button
               onClick={() => {
@@ -448,6 +528,17 @@ Type here or use AI generation...`);
           </div>
         </div>
       </div>
+
+      <SongUploadPanel
+        onTranscriptionComplete={({ songName, lyrics }) => {
+          if (songName && songName.trim().length > 0) {
+            setTitle(songName);
+          }
+          const structured = autoStructureLyrics(lyrics);
+          setContent(structured);
+          studioContext.setCurrentLyrics(structured);
+        }}
+      />
 
       {/* Session Status Banner */}
       {currentSession && (
@@ -524,6 +615,9 @@ Type here or use AI generation...`);
                 className="h-96 bg-transparent border-none resize-none font-mono text-sm leading-relaxed focus:outline-none"
                 placeholder="Start writing your lyrics here..."
               />
+              <p className="mt-2 text-xs text-gray-400">
+                These lyrics can come from your uploaded song or your own writing. Tweak anything here before running analysis.
+              </p>
             </div>
 
             {/* Rhyme Suggestions */}
@@ -613,7 +707,7 @@ Type here or use AI generation...`);
                   <Button
                     onClick={() => window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'beatmaker' }))}
                     size="sm"
-                    className="bg-green-600 hover:bg-green-500 text-xs"
+                    className="bg-green-600 hover:bg-green-500"
                   >
                     <i className="fas fa-drum mr-1"></i>
                     View Beat
@@ -621,7 +715,7 @@ Type here or use AI generation...`);
                   <Button
                     onClick={() => window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'melody' }))}
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-500 text-xs"
+                    className="bg-blue-600 hover:bg-blue-500"
                   >
                     <i className="fas fa-music mr-1"></i>
                     View Melody
@@ -728,10 +822,13 @@ Type here or use AI generation...`);
                     ) : (
                       <>
                         <i className="fas fa-chart-line mr-2"></i>
-                        Analyze Lyrics
+                        Analyze Lyrics (uses credits)
                       </>
                     )}
                   </Button>
+                  <p className="mt-1 text-[11px] text-gray-400 text-left">
+                    Scores clarity, imagery, rhyme and cadence, then suggests line-by-line fixes while keeping your flow and hook intact.
+                  </p>
                   <Button
                     onClick={() => generateMusicFromLyricsMutation.mutate({
                       lyrics: content,
@@ -820,10 +917,10 @@ Type here or use AI generation...`);
                   <span className="text-gray-400">Tempo Suggestion:</span>
                   <span className="text-studio-accent">
                     {genre === "hip-hop" ? "80-90 BPM" :
-                     genre === "pop" ? "120-130 BPM" :
-                     genre === "rock" ? "110-140 BPM" :
-                     genre === "r&b" ? "70-100 BPM" :
-                     genre === "electronic" ? "128-140 BPM" : "90-120 BPM"}
+                      genre === "pop" ? "120-130 BPM" :
+                        genre === "rock" ? "110-140 BPM" :
+                          genre === "r&b" ? "70-100 BPM" :
+                            genre === "electronic" ? "128-140 BPM" : "90-120 BPM"}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -836,7 +933,7 @@ Type here or use AI generation...`);
                   <span className="text-gray-400">Rhythm Style:</span>
                   <span className="text-studio-accent">
                     {wordCount / lineCount > 8 ? "Fast Flow" :
-                     wordCount / lineCount > 5 ? "Medium Flow" : "Slow Flow"}
+                      wordCount / lineCount > 5 ? "Medium Flow" : "Slow Flow"}
                   </span>
                 </div>
                 <Button
@@ -885,7 +982,7 @@ Type here or use AI generation...`);
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {/* Overall Score */}
               <div className="bg-gray-700 rounded-lg p-4">
@@ -896,7 +993,7 @@ Type here or use AI generation...`);
                   </div>
                   <div className="flex-1">
                     <div className="w-full bg-gray-600 rounded-full h-3">
-                      <div 
+                      <div
                         className="bg-gradient-to-r from-red-500 to-green-500 h-3 rounded-full"
                         style={{ width: `${analysis.overall_rating?.score || analysis.quality_score}%` }}
                       ></div>
@@ -1003,7 +1100,7 @@ Type here or use AI generation...`);
                       <div className="text-gray-400 mb-1">Vocal Delivery</div>
                       <div className="text-white">{analysis.ai_insights.vocal_delivery}</div>
                     </div>
-                    
+
                     {analysis.ai_insights.musical_suggestions && (
                       <div>
                         <div className="text-gray-400 mb-1">Musical Suggestions</div>
@@ -1040,7 +1137,7 @@ Type here or use AI generation...`);
                       ))}
                     </ul>
                   </div>
-                  
+
                   <div className="bg-gray-700 rounded-lg p-4">
                     <h4 className="text-lg font-semibold text-red-400 mb-2">Areas to Improve</h4>
                     <ul className="list-disc list-inside text-white space-y-1 text-sm">
@@ -1074,6 +1171,38 @@ Type here or use AI generation...`);
           </div>
         </div>
       )}
+
+      <Dialog open={creditsDialogOpen} onOpenChange={setCreditsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {creditsDialogReason === "auth" ? "Sign in required" : "Not enough credits"}
+            </DialogTitle>
+            <DialogDescription>
+              {creditsDialogReason === "auth"
+                ? "You need to be logged in to run Song Doctor lyric analysis. Please sign in, then try again."
+                : "You don\'t have enough credits to analyze these lyrics. Add credits or upgrade your plan to continue."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreditsDialogOpen(false)}
+            >
+              Close
+            </Button>
+            <Button
+              className="bg-studio-accent hover:bg-blue-500"
+              onClick={() => {
+                setCreditsDialogOpen(false);
+                window.location.href = creditsDialogReason === "auth" ? "/login" : "/billing";
+              }}
+            >
+              {creditsDialogReason === "auth" ? "Go to Login" : "Manage Plan & Credits"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

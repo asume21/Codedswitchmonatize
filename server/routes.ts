@@ -16,6 +16,7 @@ import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
 import { musicGenService } from "./services/musicgen";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
+import { callAI } from "./services/aiGateway";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
@@ -120,8 +121,11 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       {"chords": ["C", "Am", "F", "G"], "progression": "I-vi-IV-V"}`;
 
       // Use the existing AI client
-      const aiClient = getAIClient('openai');
-      
+      const aiClient = getAIClient();
+      if (!aiClient) {
+        return res.status(500).json({ error: 'AI client not configured' });
+      }
+
       const completion = await aiClient.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
@@ -232,6 +236,69 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
     console.log('📁 Using storage directory:', LOCAL_OBJECTS_DIR);
   } catch {}
+
+  // Local loop/asset directories (for Neumann Pack & Loop Library)
+  const LOCAL_ASSETS_DIR = path.resolve(process.cwd(), "server", "Assests");
+  const LOOPS_DIR = path.resolve(LOCAL_ASSETS_DIR, "loops");
+
+  // Loop Library endpoints - list and serve .wav files from Assests/loops
+  app.get("/api/loops", async (_req: Request, res: Response) => {
+    try {
+      if (!fs.existsSync(LOOPS_DIR)) {
+        return res.json({ loops: [] });
+      }
+
+      const files = await fs.promises.readdir(LOOPS_DIR);
+      const wavFiles = files.filter((f) => f.toLowerCase().endsWith(".wav"));
+
+      const loops = wavFiles.map((filename, index) => ({
+        id: index.toString(),
+        name: path.parse(filename).name,
+        filename,
+        audioUrl: `/api/loops/${encodeURIComponent(filename)}/audio`,
+      }));
+
+      res.json({ loops });
+    } catch (error) {
+      console.error("Failed to list loops from Assests/loops:", error);
+      res.status(500).json({ success: false, message: "Failed to list loops" });
+    }
+  });
+
+  app.get("/api/loops/:filename/audio", async (req: Request, res: Response) => {
+    try {
+      const raw = req.params.filename;
+      if (!raw) {
+        return sendError(res, 400, "Missing loop filename");
+      }
+
+      const safeName = sanitizePath(raw);
+      const filePath = path.resolve(LOOPS_DIR, safeName);
+
+      if (!filePath.startsWith(LOOPS_DIR)) {
+        return sendError(res, 400, "Invalid loop path");
+      }
+
+      if (!fs.existsSync(filePath)) {
+        return sendError(res, 404, "Loop not found");
+      }
+
+      res.setHeader("Content-Type", "audio/wav");
+      const stream = fs.createReadStream(filePath);
+      stream.on("error", (err) => {
+        console.error("Loop stream error", err);
+        if (!res.headersSent) {
+          sendError(res, 500, "Failed to stream loop");
+        }
+      });
+      stream.pipe(res);
+    } catch (error) {
+      console.error("Failed to serve loop audio:", error);
+      if (!res.headersSent) {
+        sendError(res, 500, "Failed to serve loop audio");
+      }
+    }
+  });
 
   // Validation schemas
   const updatePlaylistSchema = insertPlaylistSchema.partial();
@@ -426,31 +493,79 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           await storage.updateUserCredits(req.userId!, -BEAT_COST);
           remainingCredits = Math.max(0, userCredits - BEAT_COST);
         }
-        
-        // Generate a matching pattern for the step sequencer UI
-        const generatedPattern = generatePattern('kick', genre, bpm);
-        const pattern = {
-          kick: generatedPattern,
-          snare: generatePattern('snare', genre, bpm),
-          hihat: generatePattern('hihat', genre, bpm),
-          percussion: generatePattern('percussion', genre, bpm)
+
+        // Use Grok/OpenAI via callAI to generate the visible drum grid pattern.
+        // No helper fallback: if AI cannot provide a pattern, return an error so
+        // the user keeps full manual control of their existing grid.
+        type DrumGrid = {
+          kick?: Array<number | boolean>;
+          snare?: Array<number | boolean>;
+          hihat?: Array<number | boolean>;
+          percussion?: Array<number | boolean>;
         };
-        
+
+        const steps = 16;
+
+        const aiResult = await callAI<{ pattern?: DrumGrid }>({
+          system:
+            "You are a drum pattern generator for a step sequencer. " +
+            "Always return a JSON object with a 'pattern' property describing 16-step drum grids.",
+          user: `Create a tight ${genre} drum beat at ${bpm} BPM for a 16-step grid. ` +
+            "Return JSON with 'pattern' = { kick: number[16], snare: number[16], hihat: number[16], percussion: number[16] }. " +
+            "Each array element must be 0 or 1. Do not include any extra properties.",
+          responseFormat: "json",
+          jsonSchema: {
+            type: "object",
+            properties: {
+              pattern: {
+                type: "object",
+                properties: {
+                  kick: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                  snare: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                  hihat: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                  percussion: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                },
+                required: ["kick", "snare", "hihat", "percussion"],
+              },
+            },
+            required: ["pattern"],
+          },
+          temperature: 0.7,
+          maxTokens: 800,
+        });
+
+        const rawPattern = aiResult.content?.pattern as DrumGrid | undefined;
+        if (!rawPattern) {
+          return sendError(res, 500, "AI did not return a drum pattern");
+        }
+
+        const normalizeRow = (row: Array<number | boolean> | undefined): number[] => {
+          if (!row || !Array.isArray(row) || row.length === 0) return Array(steps).fill(0);
+          return row.slice(0, steps).map((v) => (v ? 1 : 0));
+        };
+
+        const pattern = {
+          kick: normalizeRow(rawPattern.kick),
+          snare: normalizeRow(rawPattern.snare),
+          hihat: normalizeRow(rawPattern.hihat),
+          percussion: normalizeRow(rawPattern.percussion),
+        };
+
         res.json({
           success: true,
           beat: {
             id: `beat-${Date.now()}`,
             audioUrl: result.output,
-            pattern: pattern,
+            pattern,
             bpm: Number(bpm),
             genre: String(genre),
             duration: Number(duration),
-            provider: 'MusicGen AI',
-            timestamp: new Date().toISOString()
+            provider: 'MusicGen AI + Grok/OpenAI grid',
+            timestamp: new Date().toISOString(),
           },
           paymentMethod,
           creditsRemaining: remainingCredits,
-          subscriptionStatus: user.subscriptionStatus
+          subscriptionStatus: user.subscriptionStatus,
         });
       } else {
         return sendError(res, 500, "Beat generation failed");
@@ -604,6 +719,91 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     } catch (error: any) {
       console.error("❌ Melody generation error:", error);
       sendError(res, 500, error.message || "Failed to generate melody");
+    }
+  });
+
+  // Phase 3: AI Melody endpoint for BeatMaker (MIDI-only via callAI)
+  app.post("/api/ai/music/melody", async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required - please log in");
+      }
+
+      const { key, bpm, lengthBars, songPlanId, sectionId } = req.body || {};
+
+      const safeKey = typeof key === "string" && key.trim().length > 0 ? key.trim() : "C minor";
+      const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
+      const safeBars = Math.max(1, Math.min(16, Number(lengthBars) || 4));
+
+      console.log(
+        `🎹 [Phase 3] Generating AI melody via callAI: key=${safeKey}, bpm=${safeBpm}, bars=${safeBars}`,
+      );
+
+      type AIMelodyTrack = {
+        notes: Array<{
+          pitch: string;
+          start: number;
+          duration: number;
+          velocity?: number;
+        }>;
+      };
+
+      const aiResult = await callAI<AIMelodyTrack>({
+        system:
+          "You are a professional melody writer and MIDI arranger. " +
+          "You must return a JSON object with a 'notes' array for a melody track.",
+        user:
+          `Create an expressive melody in ${safeKey} at ${safeBpm} BPM for ${safeBars} bars. ` +
+          "Return an array 'notes', where each note has { pitch: string (e.g. 'C4'), start: number (beats from 0), duration: number (beats), velocity: 0-1 }. " +
+          "Focus on a hooky, singable line that works over a modern beat. Do not include any extra top-level keys beyond 'notes'.",
+        responseFormat: "json",
+        jsonSchema: {
+          type: "object",
+          properties: {
+            notes: {
+              type: "array",
+              minItems: 1,
+              items: {
+                type: "object",
+                properties: {
+                  pitch: { type: "string" },
+                  start: { type: "number" },
+                  duration: { type: "number" },
+                  velocity: { type: "number" },
+                },
+                required: ["pitch", "start", "duration"],
+              },
+            },
+          },
+          required: ["notes"],
+        },
+        temperature: 0.7,
+        maxTokens: 800,
+      });
+
+      const notes = Array.isArray((aiResult as any)?.content?.notes)
+        ? (aiResult as any).content.notes
+        : [];
+
+      if (!notes.length) {
+        return sendError(res, 500, "AI did not return any melody notes");
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          notes,
+          key: safeKey,
+          bpm: safeBpm,
+          bars: safeBars,
+          provider: "Grok/OpenAI via callAI",
+          songPlanId: songPlanId || null,
+          sectionId: sectionId || "melody-section",
+        },
+      });
+    } catch (error: any) {
+      console.error("❌ Phase 3 AI melody error:", error);
+      sendError(res, 500, error?.message || "Failed to generate AI melody");
     }
   });
 
@@ -841,49 +1041,104 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
 
   // Helper function to generate drum patterns
   function generatePattern(instrument: string, genre: string, bpm: number) {
-    // Simple pattern generation based on genre and BPM
+    // Base patterns per genre (8 steps) – used as a starting groove
     const patterns: Record<string, Record<string, number[]>> = {
       "hip-hop": {
         kick: [1, 0, 0, 0, 1, 0, 0, 0],
         snare: [0, 0, 1, 0, 0, 0, 1, 0],
         hihat: [1, 1, 1, 1, 1, 1, 1, 1],
-        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0],
       },
       "house": {
         kick: [1, 0, 0, 0, 1, 0, 0, 0],
         snare: [0, 0, 1, 0, 0, 0, 1, 0],
         hihat: [0, 1, 0, 1, 0, 1, 0, 1],
-        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0],
       },
       "trap": {
         kick: [1, 0, 0, 1, 0, 1, 0, 0],
         snare: [0, 0, 1, 0, 0, 0, 1, 0],
         hihat: [1, 1, 1, 1, 1, 1, 1, 1],
-        percussion: [0, 0, 1, 0, 0, 1, 0, 0]
+        percussion: [0, 0, 1, 0, 0, 1, 0, 0],
       },
       "dnb": {
         kick: [1, 0, 0, 0, 1, 0, 0, 0],
         snare: [0, 0, 1, 0, 0, 0, 1, 0],
         hihat: [1, 1, 1, 1, 1, 1, 1, 1],
-        percussion: [0, 1, 0, 1, 0, 1, 0, 1]
+        percussion: [0, 1, 0, 1, 0, 1, 0, 1],
       },
       "techno": {
         kick: [1, 0, 0, 0, 1, 0, 0, 0],
         snare: [0, 0, 1, 0, 0, 0, 1, 0],
         hihat: [0, 1, 0, 1, 0, 1, 0, 1],
-        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0],
       },
       "ambient": {
         kick: [1, 0, 0, 0, 0, 0, 0, 0],
         snare: [0, 0, 0, 0, 1, 0, 0, 0],
         hihat: [0, 0, 1, 0, 0, 0, 1, 0],
-        percussion: [0, 0, 0, 0, 0, 0, 0, 0]
-      }
+        percussion: [0, 0, 0, 0, 0, 0, 0, 0],
+      },
     };
 
-    // Default to house pattern if genre not found
-    const genrePatterns = patterns[genre.toLowerCase()] || patterns["house"];
-    return genrePatterns[instrument] || [];
+    const normalizedGenre = genre.toLowerCase();
+    const genrePatterns = patterns[normalizedGenre] || patterns["house"];
+    const base = genrePatterns[instrument] || [];
+
+    if (!base.length) {
+      return [];
+    }
+
+    // Expand to 16 steps by repeating the base groove
+    const steps = 16;
+    const repeated = Array.from({ length: steps }, (_, i) => base[i % base.length]);
+
+    // Variation intensity: higher for faster tempos and busier genres
+    const tempoFactor = Math.max(0, Math.min(1, (bpm - 70) / 70)); // 0 around 70 BPM, ~1 at 140+
+
+    const isBusyGenre = normalizedGenre === "trap" || normalizedGenre === "dnb" || normalizedGenre === "techno";
+
+    const instrumentAddProb: Record<string, number> = {
+      kick: 0.12 + 0.12 * tempoFactor + (isBusyGenre ? 0.06 : 0),
+      snare: 0.10 + 0.10 * tempoFactor + (isBusyGenre ? 0.05 : 0),
+      hihat: 0.28 + 0.18 * tempoFactor + (isBusyGenre ? 0.08 : 0),
+      percussion: 0.20 + 0.14 * tempoFactor + (isBusyGenre ? 0.08 : 0),
+    };
+
+    const instrumentDropProb: Record<string, number> = {
+      kick: 0.06 + 0.04 * tempoFactor,
+      snare: 0.07 + 0.05 * tempoFactor,
+      hihat: 0.18 + 0.07 * tempoFactor,
+      percussion: 0.10 + 0.06 * tempoFactor,
+    };
+
+    const addProb = instrumentAddProb[instrument] ?? 0.05;
+    const dropProb = instrumentDropProb[instrument] ?? 0.03;
+
+    const result: number[] = [];
+
+    for (let i = 0; i < steps; i++) {
+      let v = repeated[i] ? 1 : 0;
+      const r = Math.random();
+
+      if (v === 1) {
+        // Occasionally drop hits (especially for hats) to avoid machine-gun feel
+        if (r < dropProb) {
+          v = 0;
+        }
+      } else {
+        // Occasionally add ghost hits, more likely on off-beats
+        const isOffbeat = i % 4 === 2;
+        const effectiveAddProb = addProb * (isOffbeat ? 1.4 : 1);
+        if (r < effectiveAddProb) {
+          v = 1;
+        }
+      }
+
+      result.push(v ? 1 : 0);
+    }
+
+    return result;
   }
 
   // Helper function to generate melody notes for piano roll
@@ -1175,7 +1430,7 @@ ${code}
   // Subscription status endpoint (public - returns free tier for guests)
   app.get("/api/subscription-status", async (req: Request, res: Response) => {
     try {
-      // If no userId, return free tier status
+      // If no userId, return free tier status for guests
       if (!req.userId) {
         return res.json({
           hasActiveSubscription: false,
@@ -1183,29 +1438,32 @@ ${code}
           monthlyUploads: 0,
           monthlyGenerations: 0,
           lastUsageReset: null,
+          isAuthenticated: false,
         });
       }
 
       const user = await storage.getUser(req.userId);
       if (!user) {
-        // User ID in session but user doesn't exist - return free tier
+        // User ID in session but user doesn't exist - treat as guest
         return res.json({
           hasActiveSubscription: false,
           tier: 'free',
           monthlyUploads: 0,
           monthlyGenerations: 0,
           lastUsageReset: null,
+          isAuthenticated: false,
         });
       }
-      
+
       const subscriptionStatus = {
         hasActiveSubscription: user.subscriptionTier === 'pro' || user.subscriptionStatus === 'active',
         tier: user.subscriptionTier || 'free',
         monthlyUploads: user.monthlyUploads || 0,
         monthlyGenerations: user.monthlyGenerations || 0,
         lastUsageReset: user.lastUsageReset,
+        isAuthenticated: true,
       };
-      
+
       res.json(subscriptionStatus);
     } catch (err: any) {
       sendError(res, 500, err?.message || "Failed to fetch subscription status");
@@ -2218,6 +2476,20 @@ ${code}
         
         res.json({ success: true, transcription: result });
 
+        // Deduct credits after successful transcription
+        if (req.creditService && req.creditCost) {
+          try {
+            await req.creditService.deductCredits(
+              req.userId!,
+              req.creditCost,
+              'Transcription',
+              { hasSongId: Boolean(songId) }
+            );
+          } catch (deductError) {
+            console.warn('⚠️ Failed to deduct transcription credits:', deductError);
+          }
+        }
+
       } catch (error: any) {
         console.error("Transcription error:", error);
         
@@ -2243,7 +2515,7 @@ ${code}
     requireCredits(CREDIT_COSTS.LYRICS_ANALYSIS, storage),
     async (req: Request, res: Response) => {
       try {
-        const { lyrics, genre, enhanceWithAI = true } = req.body;
+        const { lyrics, genre, enhanceWithAI = true, songId } = req.body;
         
         if (!lyrics || !lyrics.trim()) {
           return sendError(res, 400, "Missing lyrics text");
@@ -2285,6 +2557,18 @@ ${code}
             commercial_potential: basicAnalysis.quality_score / 10
           }
         };
+      }
+
+      if (songId && req.userId) {
+        try {
+          await storage.saveLyricsAnalysis(req.userId, {
+            songId,
+            content: lyrics,
+            analysis: enhancedAnalysis,
+          });
+        } catch (persistErr) {
+          console.warn('⚠️ Could not persist lyrics analysis:', persistErr);
+        }
       }
 
       console.log('✅ Advanced lyrics analysis complete');
@@ -2925,6 +3209,205 @@ Create complete lyrics with verses, chorus, and bridge.`;
     } catch (error: any) {
       console.error('❌ Bass generation error:', error);
       sendError(res, 500, error?.message || "Failed to generate bass line");
+    }
+  });
+
+  // Phase 3: AI Bassline endpoint for BeatMaker (real AI via callAI)
+  app.post("/api/ai/music/bass", async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required - please log in");
+      }
+
+      const { key, bpm, bars, songPlanId, sectionId } = req.body || {};
+
+      const safeKey = typeof key === "string" && key.trim().length > 0 ? key.trim() : "C minor";
+      const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
+      const safeBars = Math.max(1, Math.min(16, Number(bars) || 4));
+
+      console.log(
+        `🎸 [Phase 3] Generating AI bassline via callAI: key=${safeKey}, bpm=${safeBpm}, bars=${safeBars}`,
+      );
+
+      type AIBassTrack = {
+        notes: Array<{
+          pitch: string;
+          start: number;
+          duration: number;
+          velocity?: number;
+        }>;
+      };
+
+      const aiResult = await callAI<AIBassTrack>({
+        system:
+          "You are a professional bass player and MIDI arranger. " +
+          "You must return a JSON object with a 'notes' array for a bassline track.",
+        user:
+          `Create a groove-focused bassline in ${safeKey} at ${safeBpm} BPM for ${safeBars} bars. ` +
+          "Return an array 'notes', where each note has { pitch: string (e.g. 'C2'), start: number (beats from 0), duration: number (beats), velocity: 0-1 }. " +
+          "Emphasize root and fifth with tasteful passing tones. Do not include any extra top-level keys beyond 'notes'.",
+        responseFormat: "json",
+        jsonSchema: {
+          type: "object",
+          properties: {
+            notes: {
+              type: "array",
+              minItems: 1,
+              items: {
+                type: "object",
+                properties: {
+                  pitch: { type: "string" },
+                  start: { type: "number" },
+                  duration: { type: "number" },
+                  velocity: { type: "number" },
+                },
+                required: ["pitch", "start", "duration"],
+              },
+            },
+          },
+          required: ["notes"],
+        },
+        temperature: 0.7,
+        maxTokens: 800,
+      });
+
+      const notes = Array.isArray((aiResult as any)?.content?.notes)
+        ? (aiResult as any).content.notes
+        : [];
+
+      if (!notes.length) {
+        return sendError(res, 500, "AI did not return any bass notes");
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          notes,
+          key: safeKey,
+          bpm: safeBpm,
+          bars: safeBars,
+          provider: "Grok/OpenAI via callAI",
+          songPlanId: songPlanId || null,
+          sectionId: sectionId || "bass-section",
+        },
+      });
+    } catch (error: any) {
+      console.error("❌ Phase 3 AI bassline error:", error);
+      sendError(res, 500, error?.message || "Failed to generate AI bassline");
+    }
+  });
+
+  // Phase 3: AI Drum Grid endpoint for BeatMaker / ProBeatMaker (real AI via callAI)
+  app.post("/api/ai/music/drums", async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return sendError(res, 401, "Authentication required - please log in");
+      }
+
+      const { bpm, bars, style, songPlanId, sectionId, gridResolution } = req.body || {};
+
+      const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
+      const safeBars = Math.max(1, Math.min(16, Number(bars) || 4));
+      const safeStyle = typeof style === "string" && style.length > 0 ? style : "hip-hop";
+      const stepsPerBar = 16; // match BeatMaker gridResolution 1/16
+      const totalSteps = safeBars * stepsPerBar;
+
+      console.log(
+        `🥁 [Phase 3] Generating AI drum grid via callAI: style=${safeStyle}, bpm=${safeBpm}, bars=${safeBars}, steps=${totalSteps}`,
+      );
+
+      type DrumGrid = {
+        kick?: Array<number | boolean>;
+        snare?: Array<number | boolean>;
+        hihat?: Array<number | boolean>;
+        percussion?: Array<number | boolean>;
+      };
+
+      const aiResult = await callAI<{ pattern?: DrumGrid}>({
+        system:
+          "You generate drum patterns for a step sequencer. " +
+          "Always return a JSON object with a 'pattern' property describing drum grids.",
+        user:
+          `Create a modern ${safeStyle} drum pattern at ${safeBpm} BPM for a ${safeBars}-bar loop on a 16-step-per-bar grid. ` +
+          `Return JSON with 'pattern' = { kick: number[${totalSteps}], snare: number[${totalSteps}], hihat: number[${totalSteps}], percussion: number[${totalSteps}] }. ` +
+          "Each array element must be 0 or 1. Do not include any extra properties.",
+        responseFormat: "json",
+        jsonSchema: {
+          type: "object",
+          properties: {
+            pattern: {
+              type: "object",
+              properties: {
+                kick: {
+                  type: "array",
+                  items: { type: "number" },
+                  minItems: totalSteps,
+                  maxItems: totalSteps,
+                },
+                snare: {
+                  type: "array",
+                  items: { type: "number" },
+                  minItems: totalSteps,
+                  maxItems: totalSteps,
+                },
+                hihat: {
+                  type: "array",
+                  items: { type: "number" },
+                  minItems: totalSteps,
+                  maxItems: totalSteps,
+                },
+                percussion: {
+                  type: "array",
+                  items: { type: "number" },
+                  minItems: totalSteps,
+                  maxItems: totalSteps,
+                },
+              },
+              required: ["kick", "snare", "hihat", "percussion"],
+            },
+          },
+          required: ["pattern"],
+        },
+        temperature: 0.7,
+        maxTokens: 800,
+      });
+
+      const rawPattern = (aiResult as any)?.content?.pattern as DrumGrid | undefined;
+
+      if (!rawPattern) {
+        return sendError(res, 500, "AI did not return a drum pattern");
+      }
+
+      const normalizeRow = (row: Array<number | boolean> | undefined): number[] => {
+        if (!row || !Array.isArray(row) || row.length === 0) {
+          return Array(totalSteps).fill(0);
+        }
+        return row.slice(0, totalSteps).map((v) => (v ? 1 : 0));
+      };
+
+      const grid = {
+        kick: normalizeRow(rawPattern.kick),
+        snare: normalizeRow(rawPattern.snare),
+        hihat: normalizeRow(rawPattern.hihat),
+        percussion: normalizeRow(rawPattern.percussion),
+      };
+
+      return res.json({
+        success: true,
+        data: {
+          grid,
+          bpm: safeBpm,
+          bars: safeBars,
+          style: safeStyle,
+          resolution: gridResolution || "1/16",
+          provider: "Grok/OpenAI via callAI",
+          songPlanId: songPlanId || null,
+          sectionId: sectionId || "beat-section",
+        },
+      });
+    } catch (error: any) {
+      console.error("❌ Phase 3 AI drum grid error:", error);
+      sendError(res, 500, error?.message || "Failed to generate AI drum grid");
     }
   });
 

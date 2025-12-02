@@ -8,12 +8,13 @@ import { useTracks } from "@/hooks/useTracks";
 import { useTransport } from "@/contexts/TransportContext";
 import { StudioAudioContext } from "@/pages/studio";
 import ProBeatMaker from "./ProBeatMaker";
-import CodeBeatStudio from "@/pages/codebeat-studio";
-import { Music, Send, SlidersHorizontal, Waves, Rocket, Sparkles, Package, Code } from "lucide-react";
+import BassStudio from "./BassStudio";
+import LoopLibrary from "./LoopLibrary";
+import { Music, Send, SlidersHorizontal, Waves, Rocket, Sparkles, Package, Library } from "lucide-react";
 import PackGenerator from "@/components/producer/PackGenerator";
 
-// Consolidated to 3 tabs: Pro Beat Maker has all sequencer/generator features
-type BeatLabTab = "pro" | "pack-generator" | "codebeat";
+// Tabs: Pro Beat Maker, Bass Studio, Loop Library, and Pack Generator
+type BeatLabTab = "pro" | "bass-studio" | "loop-library" | "pack-generator";
 
 interface BeatLabProps {
   initialTab?: BeatLabTab;
@@ -118,7 +119,7 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
               Beat Lab
             </CardTitle>
             <p className="text-sm text-gray-400">
-              Orchestrate generators, pattern editors, sample packs, and CodeBeat into the timeline.
+              Orchestrate generators, pattern editors, and sample packs into the timeline.
             </p>
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline">Tempo: {Math.round(tempo)} BPM</Badge>
@@ -156,13 +157,17 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
                 <Sparkles className="w-4 h-4" />
                 Pro Beat Maker
               </TabsTrigger>
+              <TabsTrigger value="bass-studio" className="flex items-center gap-1">
+                <Waves className="w-4 h-4" />
+                Bass Studio
+              </TabsTrigger>
+              <TabsTrigger value="loop-library" className="flex items-center gap-1">
+                <Library className="w-4 h-4" />
+                Loop Library
+              </TabsTrigger>
               <TabsTrigger value="pack-generator" className="flex items-center gap-1">
                 <Package className="w-4 h-4" />
                 Pack Generator
-              </TabsTrigger>
-              <TabsTrigger value="codebeat" className="flex items-center gap-1">
-                <Code className="w-4 h-4" />
-                CodeBeat
               </TabsTrigger>
             </TabsList>
 
@@ -184,20 +189,19 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
               />
             </TabsContent>
 
+            {/* Bass Studio - Dedicated AI bassline generator wired to Multi-Track */}
+            <TabsContent value="bass-studio" className="mt-4">
+              <BassStudio />
+            </TabsContent>
+
+            {/* Loop Library - Browse and add audio loops as tracks */}
+            <TabsContent value="loop-library" className="mt-4">
+              <LoopLibrary />
+            </TabsContent>
+
             {/* Pack Generator - AI-powered sample pack creation */}
             <TabsContent value="pack-generator" className="mt-4">
               <PackGenerator />
-            </TabsContent>
-
-            {/* CodeBeat - Code-to-music translation */}
-            <TabsContent value="codebeat" className="mt-4">
-              <CodeBeatStudio />
-              <div className="mt-3 flex gap-2">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-500" onClick={() => sendMelodyToTracks()}>
-                  <Music className="w-4 h-4 mr-2" />
-                  Send CodeBeat Melody
-                </Button>
-              </div>
             </TabsContent>
           </Tabs>
         </CardContent>

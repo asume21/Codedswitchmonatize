@@ -11,6 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
+import {
+  applyPerformanceSettings,
+  DEFAULT_PERFORMANCE_PREFS,
+  detectPerformanceEnvironment,
+  loadPerformanceSettings,
+  type PerformanceEnvironment,
+} from "@/lib/performanceSettings";
 import { 
   Settings as SettingsIcon, 
   Bell, 
@@ -32,50 +39,59 @@ import {
   Monitor
 } from "lucide-react";
 
+const DEFAULT_SETTINGS = {
+  // Audio Settings
+  masterVolume: 80,
+  autoPlay: true,
+  highQuality: true,
+  midiSupport: true,
+  latency: "low",
+  bufferSize: "512",
+  sampleRate: "48000",
+
+  // Appearance
+  theme: "dark",
+  animations: true,
+  compactView: false,
+  visualizer: true,
+
+  // Performance (merged with performance prefs helper)
+  ...DEFAULT_PERFORMANCE_PREFS,
+
+  // Privacy
+  analytics: false,
+  saveLocally: true,
+  autoScan: true,
+
+  // Notifications
+  emailNotifications: false,
+  generationAlerts: true,
+  securityAlerts: true,
+
+  // Account
+  displayName: "CodedSwitch User",
+  email: "user@example.com",
+  language: "en",
+  timezone: "UTC",
+};
+
 export default function Settings() {
   const { toast } = useToast();
-  const [settings, setSettings] = useState({
-    // Audio Settings
-    masterVolume: 80,
-    autoPlay: true,
-    highQuality: true,
-    midiSupport: true,
-    latency: 'low',
-    bufferSize: '512',
-    sampleRate: '48000',
-    
-    // Appearance
-    theme: 'dark',
-    animations: true,
-    compactView: false,
-    visualizer: true,
-    
-    // Performance
-    gpuAcceleration: true,
-    multiThreading: true,
-    cacheSize: '1024',
-    
-    // Privacy
-    analytics: false,
-    saveLocally: true,
-    autoScan: true,
-    
-    // Notifications
-    emailNotifications: false,
-    generationAlerts: true,
-    securityAlerts: true,
-    
-    // Account
-    displayName: 'CodedSwitch User',
-    email: 'user@example.com',
-    language: 'en',
-    timezone: 'UTC',
-  });
-  const [aiProviderSetting, setAiProviderSetting] = useState('replicate-musicgen');
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [systemInfo, setSystemInfo] = useState<PerformanceEnvironment | null>(null);
+  const [aiProviderSetting, setAiProviderSetting] = useState("replicate-musicgen");
+  const gpuSupported =
+    systemInfo?.gpuAvailable || systemInfo?.webglAvailable || systemInfo === null;
+  const multiThreadSupported = (systemInfo?.cores ?? 2) > 1;
 
   const handleSave = () => {
     // Save settings to localStorage and backend
     localStorage.setItem('codedswitch-settings', JSON.stringify(settings));
+    applyPerformanceSettings({
+      gpuAcceleration: settings.gpuAcceleration,
+      multiThreading: settings.multiThreading,
+      cacheSize: settings.cacheSize,
+    });
     toast({
       title: "Settings saved",
       description: "Your preferences have been updated successfully.",
@@ -84,6 +100,8 @@ export default function Settings() {
 
   const handleReset = () => {
     // Reset to default settings
+    setSettings(DEFAULT_SETTINGS);
+    applyPerformanceSettings(DEFAULT_PERFORMANCE_PREFS);
     toast({
       title: "Settings reset",
       description: "All settings have been restored to defaults.",
@@ -94,9 +112,24 @@ export default function Settings() {
     // Load saved settings
     const saved = localStorage.getItem('codedswitch-settings');
     if (saved) {
-      setSettings(JSON.parse(saved));
+      const parsed = JSON.parse(saved);
+      setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+    } else {
+      // Ensure performance prefs from dedicated store are respected
+      const perf = loadPerformanceSettings();
+      setSettings({ ...DEFAULT_SETTINGS, ...perf });
     }
+    setSystemInfo(detectPerformanceEnvironment());
   }, []);
+
+  // Apply performance prefs live so the rest of the app can react (audio engine, workers, etc.)
+  useEffect(() => {
+    applyPerformanceSettings({
+      gpuAcceleration: settings.gpuAcceleration,
+      multiThreading: settings.multiThreading,
+      cacheSize: settings.cacheSize,
+    });
+  }, [settings.gpuAcceleration, settings.multiThreading, settings.cacheSize]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black p-6">
@@ -424,22 +457,30 @@ export default function Settings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="gpu" className="text-gray-300">GPU acceleration</Label>
-                      <p className="text-sm text-gray-500">Use graphics card for processing</p>
+                      <p className="text-sm text-gray-500">
+                        Use graphics card for processing
+                        {!gpuSupported && <span className="ml-2 text-amber-400">Not available on this device</span>}
+                      </p>
                     </div>
                     <Switch 
                       id="gpu" 
                       checked={settings.gpuAcceleration}
+                      disabled={!gpuSupported}
                       onCheckedChange={(checked) => setSettings({...settings, gpuAcceleration: checked})}
                     />
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="multi-thread" className="text-gray-300">Multi-threading</Label>
-                      <p className="text-sm text-gray-500">Use multiple CPU cores</p>
+                      <p className="text-sm text-gray-500">
+                        Use multiple CPU cores
+                        {!multiThreadSupported && <span className="ml-2 text-amber-400">Only one core detected</span>}
+                      </p>
                     </div>
                     <Switch 
                       id="multi-thread" 
                       checked={settings.multiThreading}
+                      disabled={!multiThreadSupported}
                       onCheckedChange={(checked) => setSettings({...settings, multiThreading: checked})}
                     />
                   </div>
@@ -466,9 +507,11 @@ export default function Settings() {
                 <div className="p-4 bg-gray-700 rounded-lg">
                   <h4 className="text-white font-medium mb-2">System Information</h4>
                   <div className="space-y-1 text-sm text-gray-400">
-                    <p>CPU Cores: {navigator.hardwareConcurrency || 'Unknown'}</p>
-                    <p>Memory: {(navigator as any).deviceMemory ? `${(navigator as any).deviceMemory} GB` : 'Unknown'}</p>
-                    <p>Platform: {navigator.platform}</p>
+                    <p>CPU Cores: {systemInfo?.cores ?? 'Unknown'}</p>
+                    <p>Memory: {systemInfo?.memoryGB ? `${systemInfo.memoryGB} GB` : 'Unknown'}</p>
+                    <p>Platform: {systemInfo?.platform ?? 'Unknown'}</p>
+                    <p>GPU: {gpuSupported ? 'Available' : 'Unavailable'}</p>
+                    <p>WebGL: {systemInfo?.webglAvailable ? 'Enabled' : 'Not supported'}</p>
                   </div>
                 </div>
               </CardContent>

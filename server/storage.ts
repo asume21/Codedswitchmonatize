@@ -22,6 +22,8 @@ import {
   type InsertSamplePack,
   type Sample,
   type InsertSample,
+  type LyricsAnalysis,
+  type InsertLyricsAnalysis,
   type CreditTransaction,
   type InsertCreditTransaction,
   type UserSubscription,
@@ -39,6 +41,7 @@ import {
   playlistSongs,
   samplePacks,
   samples,
+  lyricsAnalyses,
   creditTransactions,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
@@ -121,6 +124,8 @@ export interface IStorage {
   getLyrics(id: string): Promise<Lyrics | undefined>;
   getUserLyrics(userId: string): Promise<Lyrics[]>;
   createLyrics(userId: string, lyrics: InsertLyrics): Promise<Lyrics>;
+  saveLyricsAnalysis(userId: string, analysis: InsertLyricsAnalysis): Promise<LyricsAnalysis>;
+  getLyricsAnalysesBySong(songId: string): Promise<LyricsAnalysis[]>;
 
   // Songs
   getSong(id: string): Promise<Song | undefined>;
@@ -185,6 +190,7 @@ export class MemStorage implements IStorage {
   private melodies: Map<string, Melody>;
   private vulnerabilityScans: Map<string, VulnerabilityScan>;
   private lyrics: Map<string, Lyrics>;
+  private lyricsAnalyses: Map<string, LyricsAnalysis>;
   private songs: Map<string, Song>;
   private playlists: Map<string, Playlist>;
   private playlistSongs: Map<string, PlaylistSong>;
@@ -201,6 +207,7 @@ export class MemStorage implements IStorage {
     this.melodies = new Map();
     this.vulnerabilityScans = new Map();
     this.lyrics = new Map();
+    this.lyricsAnalyses = new Map();
     this.songs = new Map();
     this.playlists = new Map();
     this.playlistSongs = new Map();
@@ -635,6 +642,48 @@ export class MemStorage implements IStorage {
     };
     this.lyrics.set(id, lyrics);
     return lyrics;
+  }
+
+  async saveLyricsAnalysis(
+    userId: string,
+    analysis: InsertLyricsAnalysis,
+  ): Promise<LyricsAnalysis> {
+    const [record] = await db
+      .insert(lyricsAnalyses)
+      .values({
+        ...analysis,
+        userId,
+      })
+      .returning();
+    return record;
+  }
+
+  async getLyricsAnalysesBySong(songId: string): Promise<LyricsAnalysis[]> {
+    return await db
+      .select()
+      .from(lyricsAnalyses)
+      .where(eq(lyricsAnalyses.songId, songId));
+  }
+
+  async saveLyricsAnalysis(
+    userId: string,
+    analysis: InsertLyricsAnalysis,
+  ): Promise<LyricsAnalysis> {
+    const id = analysis.id || randomUUID();
+    const record: LyricsAnalysis = {
+      ...analysis,
+      id,
+      userId,
+      createdAt: new Date(),
+    };
+    this.lyricsAnalyses.set(id, record);
+    return record;
+  }
+
+  async getLyricsAnalysesBySong(songId: string): Promise<LyricsAnalysis[]> {
+    return Array.from(this.lyricsAnalyses.values()).filter(
+      (item) => item.songId === songId,
+    );
   }
 
   // Songs

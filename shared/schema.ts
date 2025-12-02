@@ -236,6 +236,26 @@ export const playlistSongs = pgTable("playlist_songs", {
   addedAt: timestamp("added_at").defaultNow(),
 });
 
+export const lyricsAnalyses = pgTable("lyrics_analyses", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  songId: varchar("song_id").references(() => songs.id, { onDelete: "cascade" }),
+  lyricsId: varchar("lyrics_id").references(() => lyrics.id),
+  content: text("content").notNull(), // raw lyrics text analyzed
+  analysis: jsonb("analysis"), // structured analysis payload
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLyricsAnalysisSchema = createInsertSchema(lyricsAnalyses).pick({
+  userId: true,
+  songId: true,
+  lyricsId: true,
+  content: true,
+  analysis: true,
+});
+
 export const samplePacks = pgTable("sample_packs", {
   id: varchar("id")
     .primaryKey()
@@ -448,6 +468,8 @@ export type InsertSong = z.infer<typeof insertSongSchema>;
 export type Playlist = typeof playlists.$inferSelect;
 export type InsertPlaylist = z.infer<typeof insertPlaylistSchema>;
 export type PlaylistSong = typeof playlistSongs.$inferSelect;
+export type LyricsAnalysis = typeof lyricsAnalyses.$inferSelect;
+export type InsertLyricsAnalysis = z.infer<typeof insertLyricsAnalysisSchema>;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
 export type InsertCreditTransaction = typeof creditTransactions.$inferInsert;
 export type SamplePack = typeof samplePacks.$inferSelect;

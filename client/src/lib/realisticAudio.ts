@@ -77,6 +77,10 @@ export class RealisticAudioEngine {
     'bass-electric': 'electric_bass_finger',
     'bass-upright': 'acoustic_bass',
     'bass-synth': 'synth_bass_1',
+    // Neumann Bass Pack aliases (mapped onto the most suitable GM bass programs)
+    'neumann_sub_bass': 'synth_bass_1',
+    'neumann_punch_bass': 'electric_bass_finger',
+    'neumann_grit_bass': 'synth_bass_2',
     'pads-warm': 'pad_2_warm',
     'pads-strings': 'string_ensemble_1',
     'pads-choir': 'choir_aahs',

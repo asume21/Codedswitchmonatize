@@ -28,10 +28,8 @@ export function RequireAuth({
   // 🔓 DEV MODE: Bypass auth checks on localhost
   const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   
-  // 🧪 TESTING MODE: Also bypass auth in production for testing (REMOVE BEFORE REAL LAUNCH)
-  const isTesting = true; // SET TO FALSE when you want real auth
-  
-  if (isDev || isTesting) {
+  // In production, enforce real auth. Only bypass on localhost during development.
+  if (isDev) {
     return <>{children}</>;
   }
 

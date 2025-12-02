@@ -6,8 +6,13 @@ import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { currentUser } from "./middleware/auth";
 import path from "path";
 import fs from "fs";
+import { ensureDataRoots } from "./services/localStorageService";
 
 const app = express();
+
+const dataRoot = path.resolve("data");
+ensureDataRoots(dataRoot);
+app.use("/data", express.static(dataRoot));
 
 // Stripe webhook must receive the raw body for signature verification.
 // Mount this BEFORE json/urlencoded parsers.

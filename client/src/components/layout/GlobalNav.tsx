@@ -4,8 +4,10 @@ import { useLocation } from 'wouter';
 import { 
   Home, LayoutDashboard, Music, Piano, Wand2, Mic2, 
   Drum, Code, Shield, MessageSquare, Headphones, 
-  ChevronDown, Zap, Menu, X
+  ChevronDown, Zap, Menu, X, LogIn
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 const NAV_ITEMS = [
   { icon: Home, label: 'Home', path: '/' },
@@ -30,6 +32,7 @@ interface GlobalNavProps {
 export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [location, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
 
   const currentPage = NAV_ITEMS.find(item => item.path === location)?.label || 'CodedSwitch';
 
@@ -81,7 +84,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
 
   // Default: Dropdown variant
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative flex items-center gap-2 ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-500/50 transition-all"
@@ -92,6 +95,27 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
         <span className="text-white font-semibold">{currentPage}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
+
+      {isAuthenticated ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-purple-500/40 text-gray-100 hover:bg-purple-600/30 hover:text-white"
+          onClick={() => navigate('/settings')}
+        >
+          Account
+        </Button>
+      ) : (
+        <Button
+          variant="default"
+          size="sm"
+          className="gap-1 bg-purple-600 hover:bg-purple-700"
+          onClick={() => navigate('/login')}
+        >
+          <LogIn className="w-4 h-4" />
+          Sign In
+        </Button>
+      )}
 
       {isOpen && (
         <>

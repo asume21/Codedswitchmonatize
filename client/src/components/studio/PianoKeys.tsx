@@ -13,6 +13,7 @@ interface PianoKeysProps {
   activeKeys: Set<number>;
   onActiveKeysChange: (keys: Set<number>) => void;
   onScroll?: () => void;
+  arpEnabled?: boolean; // When true, use hold mode instead of toggle
 }
 
 // Force rebuild
@@ -26,47 +27,64 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
   chordMode,
   activeKeys,
   onActiveKeysChange,
-  onScroll
+  onScroll,
+  arpEnabled = false
 }, ref) => {
   const sustainedNotesRef = useRef<Map<number, any>>(new Map());
 
-  const handleKeyClick = useCallback((keyIndex: number) => {
+  // Handle mouse/touch DOWN - activate key
+  const handleKeyDown = useCallback((keyIndex: number) => {
     const key = pianoKeys[keyIndex];
     
-    if (chordMode) {
-      // Chord mode: toggle key on/off with live playback (mobile-friendly!)
+    if (arpEnabled) {
+      // ARP MODE: Add key on press (arpeggiator handles the repeating)
       const newSet = new Set(activeKeys);
-      
-      if (newSet.has(keyIndex)) {
-        // Key already active, turn it off and stop its note
-        newSet.delete(keyIndex);
-        // Stop only this key's note (not all notes)
-        const notePlayer = sustainedNotesRef.current.get(keyIndex);
-        if (notePlayer?.stop) {
-          notePlayer.stop();
-        }
-        sustainedNotesRef.current.delete(keyIndex);
-      } else {
-        // Key not active, turn it on and play
+      if (!newSet.has(keyIndex)) {
         newSet.add(keyIndex);
-        // Play note with longer sustain
+        // Play initial note
         realisticAudio.playNote(
           key.note,
           key.octave,
-          1.5, // Sustain duration
+          0.3,
           selectedTrack?.instrument || 'piano',
           0.8
         );
-        // Note: We don't track individual players since realisticAudio doesn't return them
-        // but the shorter duration prevents buildup
+        onActiveKeysChange(newSet);
       }
-      
+    } else if (chordMode) {
+      // CHORD MODE: Toggle key on/off
+      const newSet = new Set(activeKeys);
+      if (newSet.has(keyIndex)) {
+        newSet.delete(keyIndex);
+        const notePlayer = sustainedNotesRef.current.get(keyIndex);
+        if (notePlayer?.stop) notePlayer.stop();
+        sustainedNotesRef.current.delete(keyIndex);
+      } else {
+        newSet.add(keyIndex);
+        realisticAudio.playNote(key.note, key.octave, 1.5, selectedTrack?.instrument || 'piano', 0.8);
+      }
       onActiveKeysChange(newSet);
     } else {
-      // Normal mode: single note (for grid placement)
+      // NORMAL MODE: Single note for grid placement
       onKeyClick(keyIndex);
     }
-  }, [chordMode, onKeyClick, pianoKeys, selectedTrack?.instrument, activeKeys, onActiveKeysChange]);
+  }, [arpEnabled, chordMode, onKeyClick, pianoKeys, selectedTrack?.instrument, activeKeys, onActiveKeysChange]);
+
+  // Handle mouse/touch UP - deactivate key (only in arp mode)
+  const handleKeyUp = useCallback((keyIndex: number) => {
+    if (arpEnabled) {
+      const newSet = new Set(activeKeys);
+      newSet.delete(keyIndex);
+      onActiveKeysChange(newSet);
+    }
+  }, [arpEnabled, activeKeys, onActiveKeysChange]);
+
+  // Legacy click handler for backwards compatibility
+  const handleKeyClick = useCallback((keyIndex: number) => {
+    if (!arpEnabled) {
+      handleKeyDown(keyIndex);
+    }
+  }, [arpEnabled, handleKeyDown]);
 
   const playKeyPreview = useCallback((key: PianoKey) => {
     // Only preview on hover if not in chord mode
@@ -137,11 +155,19 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
           return (
             <button
               key={key.key}
-              className="w-full text-xs font-semibold relative"
+              className="w-full text-xs font-semibold relative select-none"
               style={key.isBlack ? blackKeyStyle : whiteKeyStyle}
-              onClick={() => handleKeyClick(index)}
-              onMouseEnter={() => playKeyPreview(key)}
-              onTouchStart={() => playKeyPreview(key)}
+              onClick={() => !arpEnabled && handleKeyClick(index)}
+              onMouseDown={() => arpEnabled && handleKeyDown(index)}
+              onMouseUp={() => arpEnabled && handleKeyUp(index)}
+              onMouseLeave={() => arpEnabled && handleKeyUp(index)}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                if (arpEnabled) handleKeyDown(index);
+                else playKeyPreview(key);
+              }}
+              onTouchEnd={() => arpEnabled && handleKeyUp(index)}
+              onMouseEnter={() => !arpEnabled && playKeyPreview(key)}
               aria-label={`Piano key ${key.note}${key.octave}${isActive ? ' - Active' : ''}`}
               role="button"
               tabIndex={0}
@@ -153,7 +179,11 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
               }}
             >
               <div className="flex flex-col items-center justify-center h-full">
-                <span className={`${key.isBlack ? 'opacity-90' : 'opacity-90'} ${isActive ? 'font-extrabold' : ''}`}>
+                <span
+                  className={`${
+                    key.isBlack ? 'text-white opacity-90' : 'text-black opacity-90'
+                  } ${isActive ? 'font-extrabold' : ''}`}
+                >
                   {key.key}
                 </span>
                 {isActive && (

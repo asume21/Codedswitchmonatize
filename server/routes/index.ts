@@ -5,11 +5,15 @@ import { requireAuth } from "../middleware/auth";
 import musicRoutes from "./music";
 
 // AI Service imports
-import { generateBeatPattern } from "../services/grok";
+import { generateBeatPattern, generateRandomFallbackPattern } from "../services/grok";
 import { generateLyrics } from "../services/grok";
 import { generateMelody } from "../services/grok";
 import { generateSongStructureWithAI } from "../services/ai-structure-grok";
 import { getAIClient } from "../services/grok";
+import { createAiLyricsRoutes } from "./aiLyrics";
+import { createAiAudioRoutes } from "./aiAudio";
+import { createAiSongRoutes } from "./aiSong";
+import { createAiMusicRoutes } from "./aiMusic";
 
 // In-memory Snake leaderboard (replace with DB for production)
 const snakeScores: { name: string; score: number; ts: number }[] = [];
@@ -17,6 +21,14 @@ const snakeScores: { name: string; score: number; ts: number }[] = [];
 export async function registerRoutes(app: Express, storage: IStorage) {
   // Register existing billing routes
   app.use("/api/billing", billingRoutes(storage));
+  // Phase 2: AI Lyrics routes (generate/punchup)
+  app.use("/api/ai/lyrics", createAiLyricsRoutes());
+  // Phase 5: Song arrangement from SongPlan
+  app.use("/api/ai/song", createAiSongRoutes());
+  // Phase 4: Backing track audio generation (MusicGen microservice)
+  app.use("/api/ai/audio", createAiAudioRoutes());
+  // Phase 3: MIDI pattern engine (melody/drums/bass)
+  app.use("/api/ai/music", createAiMusicRoutes());
   
   // Register music AI routes (Bass Generator, Chord Generator, etc.)
   app.use("/api/music", musicRoutes);
@@ -121,6 +133,7 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   app.post("/api/beat/generate", async (req, res) => {
     try {
       const { style, bpm, complexity, aiProvider } = req.body;
+      let responded = false;
 
       if (!style) {
         return res.status(400).json({ error: "Style parameter is required" });
@@ -128,13 +141,28 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
 
       console.log(`🎵 Generating beat: ${style} at ${bpm} BPM, complexity ${complexity}`);
 
+      // Force a fast response if AI is slow
+      res.setTimeout(10000, () => {
+        if (responded || res.headersSent) return;
+        responded = true;
+        console.warn("Beat generation hit timeout; returning fallback");
+        res.json({
+          success: true,
+          data: generateRandomFallbackPattern(style, "fallback"),
+          message: "Beat generation timed out; returned fallback pattern"
+        });
+      });
+
       const beatData = await generateBeatPattern(style, bpm || 120, complexity || 5, aiProvider);
 
-      res.json({
-        success: true,
-        data: beatData,
-        message: `Generated ${style} beat successfully`
-      });
+      if (!responded) {
+        responded = true;
+        res.json({
+          success: true,
+          data: beatData,
+          message: `Generated ${style} beat successfully`
+        });
+      }
 
     } catch (error) {
       console.error("Beat generation error:", error);

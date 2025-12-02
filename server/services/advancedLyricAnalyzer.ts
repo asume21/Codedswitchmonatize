@@ -5,7 +5,6 @@
  */
 
 import natural from 'natural';
-import { SentimentAnalyzer, PorterStemmer } from 'natural';
 import { syllable } from 'syllable';
 import { makeAICall } from './grok';
 
@@ -45,6 +44,41 @@ interface LyricAnalysis {
     poetic_devices: string[];
     imagery_score: number;
   };
+  hook_metrics?: HookMetrics;
+  breath_map?: BreathMapEntry[];
+  emotion_flow?: EmotionFlowEntry[];
+  audience_fit?: AudienceFitSummary;
+  production_checklist?: string[];
+  rewrite_suggestions?: RewriteSuggestion[];
+}
+
+interface HookMetrics {
+  score: number;
+  repeated_phrases: string[];
+  recommendations: string[];
+}
+
+interface BreathMapEntry {
+  line: number;
+  syllables: number;
+  breath_risk: 'low' | 'medium' | 'high';
+}
+
+interface EmotionFlowEntry {
+  section: string;
+  sentiment: number;
+}
+
+interface AudienceFitSummary {
+  playlists: string[];
+  moods: string[];
+  marketingIdeas: string[];
+}
+
+interface RewriteSuggestion {
+  line: number;
+  original: string;
+  suggestion: string;
 }
 
 interface AIEnhancedAnalysis extends LyricAnalysis {
@@ -58,6 +92,30 @@ interface AIEnhancedAnalysis extends LyricAnalysis {
       priority: 'high' | 'medium' | 'low';
       suggestion: string;
     }>;
+    hook_assessment?: {
+      hook_strength: string;
+      weaknesses: string[];
+      quick_fixes: string[];
+    };
+    story_clarity?: string;
+    imagery_notes?: string;
+    rhyme_density?: string;
+    section_feedback?: Array<{
+      section: string;
+      strengths: string[];
+      issues: string[];
+      fixes: string[];
+    }>;
+    syllable_counts?: number[];
+    line_fixes?: Array<{
+      line: number;
+      issue: string;
+      rewrite: string;
+      syllables?: number;
+      rhyme_with?: string;
+    }>;
+    rhyme_map?: Array<{ line: number; end_word: string; rhyme_class: string }>;
+    cadence_notes?: string;
   };
   overall_rating: {
     score: number;
@@ -99,10 +157,13 @@ class AdvancedLyricAnalyzer {
 
   constructor() {
     // Initialize natural language processing
-    this.sentimentAnalyzer = new SentimentAnalyzer('English', 
-      PorterStemmer, 'afinn');
+    this.sentimentAnalyzer = new natural.SentimentAnalyzer(
+      'English',
+      natural.PorterStemmer,
+      'afinn',
+    );
     this.tokenizer = new natural.WordTokenizer();
-    this.stemmer = PorterStemmer;
+    this.stemmer = natural.PorterStemmer;
   }
 
   /**
@@ -426,6 +487,19 @@ class AdvancedLyricAnalyzer {
       vocabularyAnalysis
     );
 
+    const hookMetrics = this.analyzeHookCatchiness(lines);
+    const breathMap = this.generateBreathMap(lines, syllableCounts);
+    const emotionFlow = this.analyzeEmotionFlow(lines);
+    const audienceFit = this.predictAudienceFit({ themes, sentiment, quality_score: qualityScore });
+    const productionChecklist = this.generateProductionChecklist({
+      quality_score: qualityScore,
+      flow_analysis: flowAnalysis,
+      vocabulary_analysis: vocabularyAnalysis,
+      sentiment,
+      lexical_diversity: lexicalDiversity
+    });
+    const rewriteSuggestions = this.generateRewriteSuggestions(lines);
+
     return {
       basic_stats: basicStats,
       rhyme_scheme: rhymeScheme.join(''),
@@ -435,7 +509,13 @@ class AdvancedLyricAnalyzer {
       quality_score: qualityScore,
       themes,
       flow_analysis: flowAnalysis,
-      vocabulary_analysis: vocabularyAnalysis
+      vocabulary_analysis: vocabularyAnalysis,
+      hook_metrics: hookMetrics,
+      breath_map: breathMap,
+      emotion_flow: emotionFlow,
+      audience_fit: audienceFit,
+      production_checklist: productionChecklist,
+      rewrite_suggestions: rewriteSuggestions
     };
   }
 
@@ -449,34 +529,45 @@ class AdvancedLyricAnalyzer {
   ): Promise<AIEnhancedAnalysis> {
     
     try {
-      const prompt = `As a professional music producer and vocal coach, analyze these lyrics and provide detailed insights:
+      const prompt = `You are an elite songwriter, vocal coach, and producer. Give a no-fluff, actionable critique of these lyrics and how to record/produce them.
 
 LYRICS:
 ${lyrics}
 
-CURRENT ANALYSIS:
+CURRENT ANALYSIS (from our engine):
 - Quality Score: ${analysis.quality_score}/100
 - Rhyme Scheme: ${analysis.rhyme_scheme}
 - Themes: ${analysis.themes.map(t => t.theme).join(', ')}
 - Sentiment: ${analysis.sentiment.vader_compound > 0 ? 'Positive' : 'Negative'}
 - Genre: ${genre}
 
-Provide a comprehensive analysis in JSON format:
+Return strict JSON with:
 {
-  "vocal_delivery": "Describe ideal vocal delivery style (aggressive, melodic, laid-back, etc.)",
-  "musical_suggestions": ["3-4 specific musical suggestions for instrumentation"],
-  "production_notes": ["2-3 production tips for mixing/mastering"],
-  "genre_recommendations": ["2-3 genres that would fit these lyrics"],
+  "vocal_delivery": "Precise delivery guidance (tone, aggression vs softness, swing vs straight, dynamics)",
+  "musical_suggestions": ["3-4 specific instrumentation/arrangement moves tied to the lyrics"],
+  "production_notes": ["2-3 mix/master moves (eq/comp/reverb/doubles/ad-libs) tied to problem lines"],
+  "genre_recommendations": ["2-3 best-fit genres/subgenres"],
   "improvement_areas": [
-    {
-      "area": "Specific area needing improvement",
-      "priority": "high|medium|low",
-      "suggestion": "Concrete suggestion for improvement"
-    }
-  ]
+    { "area": "specific weakness", "priority": "high|medium|low", "suggestion": "tight, actionable rewrite or change" }
+  ],
+  "hook_assessment": { "hook_strength": "brief verdict", "weaknesses": ["issues"], "quick_fixes": ["fast fixes"] },
+  "story_clarity": "call out if narrative is clear or disjointed; what to fix",
+  "imagery_notes": "what imagery works/doesn't; how to add sensory detail",
+  "rhyme_density": "comment on rhyme/pattern sophistication and consistency",
+  "section_feedback": [
+    { "section": "verse/chorus/bridge/etc", "strengths": ["what works"], "issues": ["what fails"], "fixes": ["surgical rewrite tips"] }
+  ],
+  "syllable_counts": [list of syllable counts per line in order],
+  "line_fixes": [
+    { "line": <number>, "issue": "problem", "rewrite": "rewritten line", "syllables": <count>, "rhyme_with": "target rhyme if any" }
+  ],
+  "rhyme_map": [
+    { "line": <number>, "end_word": "word", "rhyme_class": "A/B/C etc" }
+  ],
+  "cadence_notes": "comment on cadence/groove (straight vs swing, rushed/dragging, breathability)"
 }
 
-Focus on actionable, professional advice that would help an artist improve and produce these lyrics.`;
+Be concise but concrete; avoid generic tips. Keep JSON valid.`;
 
       const response = await makeAICall([
         {
@@ -572,8 +663,135 @@ Focus on actionable, professional advice that would help an artist improve and p
         "Balance instrumental levels to support vocals"
       ],
       genre_recommendations: ["Pop", "R&B"],
-      improvement_areas: []
+      improvement_areas: [],
+      hook_assessment: {
+        hook_strength: "Hook needs clearer, repeatable tag",
+        weaknesses: ["Limited repetition", "Melody/meter not memorable yet"],
+        quick_fixes: ["Repeat the strongest line as a tag", "Tighten rhythm on the hook phrasing"]
+      },
+      story_clarity: "Story arc is present but could use sharper scene-setting in verses.",
+      imagery_notes: "Add concrete sensory details to avoid vagueness.",
+      rhyme_density: "Rhyme density is moderate; add internal rhymes in key lines.",
+      section_feedback: [],
+      syllable_counts: [],
+      line_fixes: [],
+      rhyme_map: [],
+      cadence_notes: "Keep cadence locked to pocket; avoid rushing line endings."
     };
+  }
+
+  private analyzeHookCatchiness(lines: string[]): HookMetrics {
+    const normalized = lines.map(line => line.trim().toLowerCase()).filter(Boolean);
+    const frequency = new Map<string, number>();
+    normalized.forEach(line => {
+      frequency.set(line, (frequency.get(line) || 0) + 1);
+    });
+
+    const repeated = [...frequency.entries()]
+      .filter(([, count]) => count > 1)
+      .sort((a, b) => b[1] - a[1])
+      .map(([line]) => line);
+
+    const score = Math.min(100, repeated.length * 20 + (frequency.size ? (normalized.length - frequency.size) * 5 : 0));
+    const recommendations: string[] = [];
+    if (score < 60) recommendations.push('Create a repeated chorus or hook phrase to increase memorability.');
+    if (repeated.length === 0) recommendations.push('Introduce call-and-response or tag lines to improve catchiness.');
+    if (repeated.length > 0) recommendations.push('Leverage the recurring lines as the hook and highlight them in production.');
+
+    return {
+      score,
+      repeated_phrases: repeated.slice(0, 5),
+      recommendations
+    };
+  }
+
+  private generateBreathMap(lines: string[], syllableCounts: number[]): BreathMapEntry[] {
+    return lines.map((line, index) => {
+      const syllables = syllableCounts[index] || 0;
+      let risk: BreathMapEntry['breath_risk'] = 'low';
+      if (syllables > 20) risk = 'high';
+      else if (syllables > 14) risk = 'medium';
+      return {
+        line: index + 1,
+        syllables,
+        breath_risk: risk
+      };
+    });
+  }
+
+  private analyzeEmotionFlow(lines: string[]): EmotionFlowEntry[] {
+    const sectionSize = 4;
+    const sections: EmotionFlowEntry[] = [];
+    for (let i = 0; i < lines.length; i += sectionSize) {
+      const chunk = lines.slice(i, i + sectionSize).join(' ');
+      const sentimentScore = this.analyzeSentiment(chunk).vader_compound;
+      sections.push({ section: `Lines ${i + 1}-${Math.min(i + sectionSize, lines.length)}`, sentiment: sentimentScore });
+    }
+    return sections;
+  }
+
+  private predictAudienceFit(data: { themes: LyricAnalysis['themes']; sentiment: LyricAnalysis['sentiment']; quality_score: number }): AudienceFitSummary {
+    const playlists: string[] = [];
+    const moods: string[] = [];
+    const marketingIdeas: string[] = [];
+
+    const dominantThemes = data.themes.map(t => t.theme.toLowerCase());
+    if (dominantThemes.includes('party')) playlists.push('Fresh Finds', 'Dance Party');
+    if (dominantThemes.includes('love')) playlists.push('Lorem Love', 'R&B Feels');
+    if (dominantThemes.includes('urban')) playlists.push('RapCaviar', 'Most Necessary');
+    if (playlists.length === 0) playlists.push('New Music Friday');
+
+    if (data.sentiment.vader_compound > 0.3) moods.push('uplifting', 'motivational');
+    else if (data.sentiment.vader_compound < -0.3) moods.push('moody', 'late-night');
+    else moods.push('chill', 'study vibes');
+
+    if (data.quality_score > 75) marketingIdeas.push('Pitch to editorial playlists', 'Run TikTok teaser campaign');
+    else marketingIdeas.push('Release acoustic version to build audience', 'Collaborate with influencers for storytelling');
+
+    return {
+      playlists: [...new Set(playlists)],
+      moods,
+      marketingIdeas
+    };
+  }
+
+  private generateProductionChecklist(data: {
+    quality_score: number;
+    flow_analysis: LyricAnalysis['flow_analysis'];
+    vocabulary_analysis: LyricAnalysis['vocabulary_analysis'];
+    sentiment: LyricAnalysis['sentiment'];
+    lexical_diversity: number;
+  }): string[] {
+    const checklist: string[] = [];
+    if (data.flow_analysis.rhythm_consistency < 0.6) checklist.push('Tighten rhythm using quantized delivery or metronome tracking.');
+    if (data.sentiment.vader_compound > 0.3) checklist.push('Use brighter instrumentation to match positive tone.');
+    if (data.sentiment.vader_compound < -0.3) checklist.push('Add atmospheric pads and reverbs to enhance emotional depth.');
+    if (data.lexical_diversity < 0.5) checklist.push('Layer backing vocals to add texture and complexity.');
+    if ((data.vocabulary_analysis.poetic_devices || []).length < 2) checklist.push('Use doubles or ad-libs to emphasize key phrases.');
+    if (checklist.length === 0) checklist.push('Finalize mix with parallel compression and stereo widening to polish.');
+    return checklist;
+  }
+
+  private generateRewriteSuggestions(lines: string[]): RewriteSuggestion[] {
+    const suggestions: RewriteSuggestion[] = [];
+    lines.forEach((line, index) => {
+      const words = line.trim().split(/\s+/);
+      if (words.length <= 3 && line.trim()) {
+        suggestions.push({
+          line: index + 1,
+          original: line,
+          suggestion: `${line} (add descriptive detail to strengthen imagery)`
+        });
+      }
+      if (words.length >= 12) {
+        suggestions.push({
+          line: index + 1,
+          original: line,
+          suggestion: 'Consider splitting this line into two for better breath control.'
+        });
+      }
+    });
+    return suggestions.slice(0, 5);
   }
 }
 

@@ -5,88 +5,96 @@
   - region "Notifications (F8)":
     - list
   - generic [ref=e3]:
-    - generic [ref=e10]:
-      - img [ref=e13]
-      - heading "CodedSwitch" [level=1] [ref=e18]
-      - generic [ref=e19]:
-        - img [ref=e20]
-        - paragraph [ref=e25]: AI-Powered Music Production Suite
-        - img [ref=e26]
-      - paragraph [ref=e31]: Create professional music with AI generation, advanced piano roll, multi-track studio, and revolutionary code-to-music translation
-      - generic [ref=e32]:
-        - link "Launch Studio" [ref=e33] [cursor=pointer]:
+    - button "CS Home" [ref=e4] [cursor=pointer]:
+      - generic [ref=e6]: CS
+      - generic [ref=e7]: Home
+      - img [ref=e8]
+    - button "Sign In" [ref=e10] [cursor=pointer]:
+      - img
+      - text: Sign In
+  - generic [ref=e11]:
+    - generic [ref=e18]:
+      - img [ref=e21]
+      - heading "CodedSwitch" [level=1] [ref=e26]
+      - generic [ref=e27]:
+        - img [ref=e28]
+        - paragraph [ref=e33]: AI-Powered Music Production Suite
+        - img [ref=e34]
+      - paragraph [ref=e39]: Create professional music with AI generation, advanced piano roll, multi-track studio, and revolutionary code-to-music translation
+      - generic [ref=e40]:
+        - link "Launch Studio" [ref=e41] [cursor=pointer]:
           - /url: /studio
-          - button "Launch Studio" [ref=e34]:
+          - button "Launch Studio" [ref=e42]:
             - img
             - text: Launch Studio
-        - link "Start Creating" [ref=e35] [cursor=pointer]:
+        - link "Start Creating" [ref=e43] [cursor=pointer]:
           - /url: /studio
-          - button "Start Creating" [ref=e36]:
+          - button "Start Creating" [ref=e44]:
             - img
             - text: Start Creating
-      - generic [ref=e37]:
-        - generic [ref=e38]:
-          - generic [ref=e39]: 100+
-          - generic [ref=e40]: Instruments
-        - generic [ref=e41]:
-          - generic [ref=e42]: AI
-          - generic [ref=e43]: Powered
-        - generic [ref=e44]:
-          - generic [ref=e45]: ∞
-          - generic [ref=e46]: Possibilities
-    - generic [ref=e47]:
-      - generic [ref=e48]:
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - generic [ref=e47]: 100+
+          - generic [ref=e48]: Instruments
         - generic [ref=e49]:
-          - generic [ref=e50]:
-            - img [ref=e51]
-            - generic [ref=e55]: Professional Piano Roll
-          - generic [ref=e57]: Advanced multi-track piano roll with pixel-perfect alignment, resizable notes, and 100+ instruments
-        - generic [ref=e58]:
-          - generic [ref=e59]:
-            - img [ref=e60]
-            - generic [ref=e62]: AI Music Generation
-          - generic [ref=e64]: Generate full songs, beats, and melodies with Suno and MusicGen AI models
-        - generic [ref=e65]:
-          - generic [ref=e66]:
-            - img [ref=e67]
-            - generic [ref=e69]: AI Lyrics Generator
-          - generic [ref=e71]: Create professional lyrics with Grok AI - genre-specific, rhyme schemes, and emotional depth
-        - generic [ref=e72]:
-          - generic [ref=e73]:
-            - img [ref=e74]
-            - generic [ref=e77]: Code to Music
-          - generic [ref=e79]: Revolutionary translation between code and musical compositions - turn your code into sound
+          - generic [ref=e50]: AI
+          - generic [ref=e51]: Powered
+        - generic [ref=e52]:
+          - generic [ref=e53]: ∞
+          - generic [ref=e54]: Possibilities
+    - generic [ref=e55]:
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - generic [ref=e58]:
+            - img [ref=e59]
+            - generic [ref=e63]: Professional Piano Roll
+          - generic [ref=e65]: Advanced multi-track piano roll with pixel-perfect alignment, resizable notes, and 100+ instruments
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - img [ref=e68]
+            - generic [ref=e70]: AI Music Generation
+          - generic [ref=e72]: Generate full songs, beats, and melodies with Suno and MusicGen AI models
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - img [ref=e75]
+            - generic [ref=e77]: AI Lyrics Generator
+          - generic [ref=e79]: Create professional lyrics with Grok AI - genre-specific, rhyme schemes, and emotional depth
         - generic [ref=e80]:
           - generic [ref=e81]:
             - img [ref=e82]
-            - generic [ref=e90]: Multi-Track Studio
-          - generic [ref=e92]: Professional beat maker, melody composer, and drum patterns with real-time playback
-        - generic [ref=e93]:
-          - generic [ref=e94]:
-            - img [ref=e95]
-            - generic [ref=e99]: Song Analyzer
-          - generic [ref=e101]: Upload and analyze songs with AI-powered insights, quality scoring, and recommendations
-      - generic [ref=e102]:
-        - heading "Join the Waitlist" [level=2] [ref=e103]
-        - paragraph [ref=e104]: Be the first to get access, product updates, and early adopter perks.
-        - generic [ref=e105]:
-          - generic [ref=e106]:
-            - generic [ref=e107]: Email
-            - textbox "Email" [ref=e108]:
+            - generic [ref=e85]: Code to Music
+          - generic [ref=e87]: Revolutionary translation between code and musical compositions - turn your code into sound
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - img [ref=e90]
+            - generic [ref=e98]: Multi-Track Studio
+          - generic [ref=e100]: Professional beat maker, melody composer, and drum patterns with real-time playback
+        - generic [ref=e101]:
+          - generic [ref=e102]:
+            - img [ref=e103]
+            - generic [ref=e107]: Song Analyzer
+          - generic [ref=e109]: Upload and analyze songs with AI-powered insights, quality scoring, and recommendations
+      - generic [ref=e110]:
+        - heading "Join the Waitlist" [level=2] [ref=e111]
+        - paragraph [ref=e112]: Be the first to get access, product updates, and early adopter perks.
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic [ref=e115]: Email
+            - textbox "Email" [ref=e116]:
               - /placeholder: your@email.com
-          - generic [ref=e109]:
-            - generic [ref=e110]: Name (optional)
-            - textbox "Name (optional)" [ref=e111]:
+          - generic [ref=e117]:
+            - generic [ref=e118]: Name (optional)
+            - textbox "Name (optional)" [ref=e119]:
               - /placeholder: Your name (optional)
-          - button "Join Waitlist" [ref=e112] [cursor=pointer]:
+          - button "Join Waitlist" [ref=e120] [cursor=pointer]:
             - img
             - text: Join Waitlist
-      - generic [ref=e113]:
-        - heading "Ready to Create Music?" [level=2] [ref=e114]
-        - paragraph [ref=e115]: Launch the studio and start creating professional music with AI-powered tools, advanced piano roll, and multi-track production.
-        - link "Launch Studio Now" [ref=e116] [cursor=pointer]:
+      - generic [ref=e121]:
+        - heading "Ready to Create Music?" [level=2] [ref=e122]
+        - paragraph [ref=e123]: Launch the studio and start creating professional music with AI-powered tools, advanced piano roll, and multi-track production.
+        - link "Launch Studio Now" [ref=e124] [cursor=pointer]:
           - /url: /studio
-          - button "Launch Studio Now" [ref=e117]:
+          - button "Launch Studio Now" [ref=e125]:
             - img
             - text: Launch Studio Now
 ```

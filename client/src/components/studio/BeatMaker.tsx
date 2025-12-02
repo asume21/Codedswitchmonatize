@@ -117,6 +117,8 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
   const [aiProvider, setAiProvider] = useState("grok");
   const [selectedGenre, setSelectedGenre] = useState(GENRE_OPTIONS[0].value);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [aiBassSummary, setAiBassSummary] = useState<string | null>(null);
+  const [aiMelodySummary, setAiMelodySummary] = useState<string | null>(null);
 
   // Initialize pattern with default structure or load from studio context
   const [pattern, setPattern] = useState<BeatPattern>(() => {
@@ -333,6 +335,223 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
       toast({
         title: "Generation Failed",
         description: error.message || "Failed to generate beat",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Phase 3: AI Melody (MIDI pattern engine)
+  const generateMelodyMutation = useMutation({
+    mutationFn: async () => {
+      const normalizedBpm = Math.max(40, Math.min(240, bpm || 120));
+      const safeBars = Math.max(1, bars || 4);
+      const key = (currentSession as any)?.songKey || "C minor";
+
+      const payload = {
+        songPlanId: (currentSession as any)?.songPlanId || undefined,
+        sectionId: (currentSession as any)?.currentSectionId || "melody-section",
+        key,
+        bpm: normalizedBpm,
+        lengthBars: safeBars,
+      };
+
+      const response = await apiRequest("POST", "/api/ai/music/melody", payload);
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const message = (errorBody as any)?.error || "Failed to generate AI melody";
+        throw new Error(message);
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const track = data?.data || data?.track;
+      const notes = track?.notes;
+
+      if (Array.isArray(notes) && notes.length > 0) {
+        const pitches = notes
+          .map((n: any) => (typeof n?.pitch === "string" ? n.pitch : null))
+          .filter((p: string | null) => !!p) as string[];
+
+        const uniquePitches = Array.from(new Set(pitches));
+
+        setAiMelodySummary(
+          `${notes.length} notes • ${uniquePitches.slice(0, 8).join(", ")}${
+            uniquePitches.length > 8 ? "…" : ""
+          }`,
+        );
+
+        toast({
+          title: "AI Melody Ready",
+          description: `Generated ${notes.length} melody notes in ${
+            (currentSession as any)?.songKey || "C minor"
+          }`,
+        });
+
+        if (currentSession) {
+          updateSession(currentSession.sessionId, {
+            melodySummary: {
+              noteCount: notes.length,
+              pitches: uniquePitches,
+            },
+          } as any);
+        }
+      } else {
+        toast({
+          title: "AI Melody",
+          description: "Response received, but no melody notes were returned.",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "AI Melody Failed",
+        description: error.message || "Failed to generate AI melody",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Phase 3: AI Bassline (MIDI pattern engine)
+  const generateBassMutation = useMutation({
+    mutationFn: async () => {
+      const normalizedBpm = Math.max(40, Math.min(240, bpm || 120));
+      const safeBars = Math.max(1, bars || 4);
+      const key = (currentSession as any)?.songKey || "C minor";
+
+      const payload = {
+        songPlanId: (currentSession as any)?.songPlanId || undefined,
+        sectionId: (currentSession as any)?.currentSectionId || "bass-section",
+        key,
+        bpm: normalizedBpm,
+        bars: safeBars,
+      };
+
+      const response = await apiRequest("POST", "/api/ai/music/bass", payload);
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const message = (errorBody as any)?.error || "Failed to generate AI bassline";
+        throw new Error(message);
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const track = data?.data || data?.track;
+      const notes = track?.notes;
+
+      if (Array.isArray(notes) && notes.length > 0) {
+        const pitches = notes
+          .map((n: any) => (typeof n?.pitch === "string" ? n.pitch : null))
+          .filter((p: string | null) => !!p) as string[];
+
+        const uniquePitches = Array.from(new Set(pitches));
+
+        setAiBassSummary(
+          `${notes.length} notes • ${uniquePitches.slice(0, 6).join(", ")}${
+            uniquePitches.length > 6 ? "…" : ""
+          }`,
+        );
+
+        toast({
+          title: "AI Bassline Ready",
+          description: `Generated ${notes.length} bass notes in ${
+            (currentSession as any)?.songKey || "C minor"
+          }`,
+        });
+
+        if (currentSession) {
+          updateSession(currentSession.sessionId, {
+            bassSummary: {
+              noteCount: notes.length,
+              pitches: uniquePitches,
+            },
+          } as any);
+        }
+      } else {
+        toast({
+          title: "AI Bassline",
+          description: "Response received, but no bass notes were returned.",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "AI Bassline Failed",
+        description: error.message || "Failed to generate AI bassline",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Phase 3: AI Drum Grid (MIDI pattern engine)
+  const generateDrumGridMutation = useMutation({
+    mutationFn: async () => {
+      const normalizedBpm = Math.max(40, Math.min(240, bpm || 120));
+      const safeBars = Math.max(1, bars || 4);
+
+      const payload = {
+        songPlanId: (currentSession as any)?.songPlanId || undefined,
+        sectionId: (currentSession as any)?.currentSectionId || 'beat-section',
+        bpm: normalizedBpm,
+        bars: safeBars,
+        style: selectedGenre,
+        gridResolution: '1/16' as const,
+      };
+
+      const response = await apiRequest("POST", "/api/ai/music/drums", payload);
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const message = (errorBody as any)?.error || "Failed to generate AI drum grid";
+        throw new Error(message);
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const grid = data?.data?.grid || data?.grid;
+
+      if (grid) {
+        const normalizedPattern = normalizeToBeatPattern({
+          kick: grid.kick,
+          snare: grid.snare,
+          hihat: grid.hihat,
+        });
+
+        setPattern(prev => ({
+          ...prev,
+          kick: normalizedPattern.kick,
+          snare: normalizedPattern.snare,
+          hihat: normalizedPattern.hihat,
+        }));
+
+        if (studioContext.setCurrentPattern) {
+          studioContext.setCurrentPattern({
+            ...pattern,
+            kick: normalizedPattern.kick,
+            snare: normalizedPattern.snare,
+            hihat: normalizedPattern.hihat,
+          });
+        }
+
+        toast({
+          title: "AI Drum Grid Ready 3b5",
+          description: `Loaded Phase 3 drum pattern (${selectedGenre}, ${bpm} BPM).`,
+        });
+      } else {
+        toast({
+          title: "AI Drum Grid",
+          description: "Response received, but no drum grid was returned.",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "AI Drum Grid Failed",
+        description: error.message || "Failed to generate AI drum grid",
         variant: "destructive",
       });
     },
@@ -684,23 +903,43 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
                       aria-label="BPM tempo control"
                     />
                   </div>
-                  <Button
-                    onClick={handleGenerateAI}
-                    disabled={generateBeatMutation.isPending}
-                    className="bg-studio-accent hover:bg-blue-500"
-                  >
-                    {generateBeatMutation.isPending ? (
-                      <>
-                        <i className="fas fa-spinner animate-spin mr-2"></i>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-magic mr-2"></i>
-                        Generate Beat
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center space-x-3">
+                    <Button
+                      onClick={handleGenerateAI}
+                      disabled={generateBeatMutation.isPending}
+                      className="bg-studio-accent hover:bg-blue-500"
+                    >
+                      {generateBeatMutation.isPending ? (
+                        <>
+                          <i className="fas fa-spinner animate-spin mr-2"></i>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-magic mr-2"></i>
+                          Generate Beat (Legacy)
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => generateDrumGridMutation.mutate()}
+                      disabled={generateDrumGridMutation.isPending}
+                      variant="outline"
+                      className="border-blue-500 text-blue-300 hover:bg-blue-500/10"
+                    >
+                      {generateDrumGridMutation.isPending ? (
+                        <>
+                          <i className="fas fa-spinner animate-spin mr-2"></i>
+                          AI Drum Grid...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-robot mr-2"></i>
+                          Phase 3: AI Drum Grid
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

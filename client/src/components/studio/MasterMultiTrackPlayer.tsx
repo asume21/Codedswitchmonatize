@@ -674,6 +674,11 @@ export default function MasterMultiTrackPlayer() {
       setTracks(prev => [...prev, newTrack]);
       setShowLibrary(false);
       
+      // Also load into global audio player for persistent playback across navigation
+      window.dispatchEvent(new CustomEvent('globalAudio:load', {
+        detail: { name: song.name, url: audioUrl, type: 'song', autoplay: false }
+      }));
+      
       toast({
         title: '✅ Track Added!',
         description: `${song.name} loaded into multi-track`,

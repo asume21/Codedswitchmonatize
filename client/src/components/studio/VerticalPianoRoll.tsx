@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send } from "lucide-react";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap } from "lucide-react";
+import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
@@ -160,6 +161,9 @@ export const VerticalPianoRoll: React.FC = () => {
   // EVEN MORE ADVANCED FEATURES
   const [arpeggioMode, setArpeggioMode] = useState<'off' | 'up' | 'down' | 'updown' | 'random'>('off');
   const [arpeggioSpeed, setArpeggioSpeed] = useState(4); // steps between notes
+  
+  // LIVE ARPEGGIATOR - plays notes automatically when keys are held
+  const [liveArpEnabled, setLiveArpEnabled] = useState(false);
   const [humanizeAmount, setHumanizeAmount] = useState(0); // 0-100% timing/velocity variation
   const [transposeAmount, setTransposeAmount] = useState(0); // semitones
   const [strumMode, setStrumMode] = useState(false); // guitar-style strum delay
@@ -224,6 +228,107 @@ export const VerticalPianoRoll: React.FC = () => {
       setBpm(transportTempo);
     }
   }, [transportTempo]);
+
+  // Listen for Astutely-generated notes and load them into tracks
+  useEffect(() => {
+    const handleAstutelyGenerated = (e: CustomEvent<{ notes: any[]; bpm: number }>) => {
+      const { notes, bpm: newBpm } = e.detail;
+      if (!notes || notes.length === 0) return;
+      
+      console.log('🎵 Loading Astutely-generated notes:', notes.length);
+      setBpm(newBpm);
+      
+      // Group notes by track type and add to appropriate tracks
+      const drumNotes = notes.filter((n: any) => n.trackType === 'drums');
+      const bassNotes = notes.filter((n: any) => n.trackType === 'bass');
+      const melodyNotes = notes.filter((n: any) => n.trackType === 'melody');
+      const chordNotes = notes.filter((n: any) => n.trackType === 'chords');
+      
+      setTracks(prev => {
+        const newTracks = [...prev];
+        
+        // Find or create tracks for each type
+        const findOrCreateTrack = (name: string, instrument: string, color: string) => {
+          let track = newTracks.find(t => t.name.toLowerCase().includes(name.toLowerCase()));
+          if (!track) {
+            track = {
+              id: `track-${Date.now()}-${name}`,
+              name: name.charAt(0).toUpperCase() + name.slice(1),
+              color,
+              notes: [],
+              muted: false,
+              volume: 80,
+              instrument
+            };
+            newTracks.push(track);
+          }
+          return track;
+        };
+        
+        // Convert Astutely notes to Piano Roll format
+        const convertNote = (n: any, trackIndex: number) => ({
+          id: `astutely-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          note: n.note || 'C',
+          octave: n.octave || 4,
+          step: Math.floor(n.start * 4), // Convert beats to steps (4 steps per beat)
+          length: Math.max(1, Math.floor(n.duration * 4)),
+          velocity: Math.floor((n.velocity || 0.8) * 127)
+        });
+        
+        // Add drum notes
+        if (drumNotes.length > 0) {
+          const drumTrack = findOrCreateTrack('drums', 'drums', 'bg-pink-500');
+          drumTrack.notes = drumNotes.map((n: any, i: number) => convertNote(n, i));
+        }
+        
+        // Add bass notes
+        if (bassNotes.length > 0) {
+          const bassTrack = findOrCreateTrack('bass', 'bass-electric', 'bg-green-500');
+          bassTrack.notes = bassNotes.map((n: any, i: number) => convertNote(n, i));
+        }
+        
+        // Add melody notes
+        if (melodyNotes.length > 0) {
+          const melodyTrack = findOrCreateTrack('melody', 'piano', 'bg-blue-500');
+          melodyTrack.notes = melodyNotes.map((n: any, i: number) => convertNote(n, i));
+        }
+        
+        // Add chord notes
+        if (chordNotes.length > 0) {
+          const chordTrack = findOrCreateTrack('chords', 'piano', 'bg-purple-500');
+          chordTrack.notes = chordNotes.map((n: any, i: number) => convertNote(n, i));
+        }
+        
+        return newTracks;
+      });
+      
+      toast({
+        title: '🎹 Notes Loaded!',
+        description: `${notes.length} notes added to Piano Roll tracks`,
+      });
+    };
+    
+    window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+    
+    // Also check localStorage on mount for any pending notes
+    const stored = localStorage.getItem('astutely-generated');
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        // Only load if generated in last 5 minutes
+        if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+          handleAstutelyGenerated(new CustomEvent('astutely:generated', { detail: data }));
+        }
+        localStorage.removeItem('astutely-generated');
+      } catch (e) {
+        console.error('Failed to load stored Astutely notes:', e);
+      }
+    }
+    
+    return () => {
+      window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+    };
+  }, [toast]);
 
   // Scroll synchronization - keep piano keys and grid in sync
   const handlePianoScroll = useCallback(() => {
@@ -1874,9 +1979,26 @@ export const VerticalPianoRoll: React.FC = () => {
               )}
             </div>
             
-            {/* Chord Mode Toggle & Sync Scroll - Moved from PianoKeys */}
+            {/* Chord Mode Toggle, Arpeggiator & Sync Scroll */}
             <div className="flex items-center justify-between gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                {/* Compact Arpeggiator */}
+                <Arpeggiator
+                  enabled={liveArpEnabled}
+                  onEnabledChange={(enabled) => {
+                    setLiveArpEnabled(enabled);
+                    // Auto-enable chord mode when arp is on so keys get added to activeKeys
+                    if (enabled && !chordMode) {
+                      setChordMode(true);
+                    }
+                  }}
+                  bpm={bpm}
+                  activeNotes={Array.from(activeKeys).map(keyIndex => {
+                    const key = PIANO_KEYS[keyIndex];
+                    return key ? { note: key.note, octave: key.octave } : { note: 'C', octave: 4 };
+                  }).filter(n => n.note)}
+                  instrument={selectedTrack?.instrument || 'piano'}
+                />
                 <Button
                   size="lg"
                   variant={isRecording ? "destructive" : "default"}
@@ -1958,10 +2080,11 @@ export const VerticalPianoRoll: React.FC = () => {
                 keyHeight={KEY_HEIGHT}
                 currentStep={currentStep}
                 isPlaying={isPlaying}
-                chordMode={chordMode}
+                chordMode={chordMode || liveArpEnabled}
                 activeKeys={activeKeys}
                 onActiveKeysChange={setActiveKeys}
                 onScroll={handlePianoScroll}
+                arpEnabled={liveArpEnabled}
               />
             </div>
             

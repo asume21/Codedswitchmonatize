@@ -17,6 +17,7 @@ export interface SubscriptionStatus {
   monthlyUploads: number;
   monthlyGenerations: number;
   lastUsageReset?: string;
+  isAuthenticated?: boolean;
 }
 
 interface AuthContextValue {
@@ -40,7 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await apiRequest("GET", "/api/subscription-status");
       const data = (await response.json()) as SubscriptionStatus;
       setSubscription(data);
-      setStatus("authenticated");
+      // Only treat as authenticated if backend marks user as authenticated
+      setStatus(data.isAuthenticated ? "authenticated" : "unauthenticated");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.startsWith("401")) {

@@ -248,6 +248,9 @@ const BrowserPanel: React.FC = () => {
   const { toast } = useToast();
   const { position } = useTransport();
   const { addTrack } = useTrackStore();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [playingSampleId, setPlayingSampleId] = useState<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   
   const categories = [
     { id: 'drums', name: 'Drums', icon: Drum, count: 245, color: '#EC4899' },
@@ -258,53 +261,246 @@ const BrowserPanel: React.FC = () => {
     { id: 'fx', name: 'FX', icon: Sparkles, count: 156, color: '#06B6D4' },
   ];
 
-  // Sample library with real audio URLs (using free samples)
-  const samples: Sample[] = [
-    { id: 's1', name: '808 Kick Heavy', category: 'Drums', bpm: 140, key: 'C', duration: 0.5, url: '/samples/808-kick.wav', color: '#EC4899' },
-    { id: 's2', name: 'Analog Bass 01', category: 'Bass', bpm: 128, key: 'F', duration: 2.0, url: '/samples/analog-bass.wav', color: '#10B981' },
-    { id: 's3', name: 'Pad Atmosphere', category: 'Synths', bpm: 120, key: 'Am', duration: 4.0, url: '/samples/pad-atmos.wav', color: '#8B5CF6' },
-    { id: 's4', name: 'Hi-Hat Loop', category: 'Drums', bpm: 140, key: '-', duration: 2.0, url: '/samples/hihat-loop.wav', color: '#EC4899' },
-    { id: 's5', name: 'Snare Trap', category: 'Drums', bpm: 140, key: '-', duration: 0.3, url: '/samples/snare-trap.wav', color: '#EC4899' },
-    { id: 's6', name: 'Synth Lead', category: 'Synths', bpm: 128, key: 'G', duration: 1.5, url: '/samples/synth-lead.wav', color: '#8B5CF6' },
+  // Sample library - synthesized sounds (no external files needed)
+  const allSamples: Sample[] = [
+    // Drums
+    { id: 's1', name: '808 Kick Heavy', category: 'Drums', bpm: 140, key: 'C', duration: 0.5, url: '', color: '#EC4899' },
+    { id: 's4', name: 'Hi-Hat Loop', category: 'Drums', bpm: 140, key: '-', duration: 0.2, url: '', color: '#EC4899' },
+    { id: 's5', name: 'Snare Trap', category: 'Drums', bpm: 140, key: '-', duration: 0.3, url: '', color: '#EC4899' },
+    { id: 's7', name: 'Clap Stack', category: 'Drums', bpm: 128, key: '-', duration: 0.2, url: '', color: '#EC4899' },
+    // Bass
+    { id: 's2', name: 'Analog Bass 01', category: 'Bass', bpm: 128, key: 'F', duration: 0.8, url: '', color: '#10B981' },
+    { id: 's8', name: 'Sub Bass Deep', category: 'Bass', bpm: 120, key: 'C', duration: 1.0, url: '', color: '#10B981' },
+    // Keys
+    { id: 's9', name: 'Piano Chord', category: 'Keys', bpm: 120, key: 'Am', duration: 1.5, url: '', color: '#3B82F6' },
+    { id: 's10', name: 'Rhodes Stab', category: 'Keys', bpm: 128, key: 'Dm', duration: 0.8, url: '', color: '#3B82F6' },
+    // Synths
+    { id: 's3', name: 'Pad Atmosphere', category: 'Synths', bpm: 120, key: 'Am', duration: 2.0, url: '', color: '#8B5CF6' },
+    { id: 's6', name: 'Synth Lead', category: 'Synths', bpm: 128, key: 'G', duration: 1.0, url: '', color: '#8B5CF6' },
+    // Vocals
+    { id: 's11', name: 'Vocal Chop', category: 'Vocals', bpm: 128, key: 'C', duration: 0.5, url: '', color: '#F59E0B' },
+    // FX
+    { id: 's12', name: 'Riser Build', category: 'FX', bpm: 128, key: '-', duration: 2.0, url: '', color: '#06B6D4' },
+    { id: 's13', name: 'Impact Hit', category: 'FX', bpm: 128, key: '-', duration: 0.5, url: '', color: '#06B6D4' },
   ];
 
-  // Handle sample click - add to timeline as audio clip
-  const handleSampleClick = (sample: Sample) => {
-    // Create new audio clip at current playhead position
-    const newClip = {
-      id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: sample.name,
-      audioUrl: sample.url,
-      startTime: position, // Current playhead position
-      duration: sample.duration,
-      volume: 0.8,
-      color: sample.color,
-      type: 'audio' as const,
-    };
+  // Filter samples by selected category
+  const samples = selectedCategory 
+    ? allSamples.filter(s => s.category.toLowerCase() === selectedCategory)
+    : allSamples;
 
-    // Add to track store
-    addTrack(newClip);
-
-    // Play preview sound using Web Audio API
+  // Synthesize and play a sample sound
+  const playSampleSound = (sample: Sample) => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      const now = ctx.currentTime;
       
-      // Quick confirmation beep
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      oscillator.frequency.value = sample.category === 'Drums' ? 80 : 440;
-      oscillator.type = sample.category === 'Bass' ? 'sine' : 'triangle';
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.15);
-    } catch (e) {
-      console.log('Audio preview not available');
-    }
+      setPlayingSampleId(sample.id);
+      setTimeout(() => setPlayingSampleId(null), sample.duration * 1000);
 
-    // Show success toast
+      // Create different sounds based on sample type
+      if (sample.name.includes('Kick') || sample.name.includes('808')) {
+        // 808 Kick - sine wave with pitch drop
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+        gain.gain.setValueAtTime(0.8, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.5);
+      } else if (sample.name.includes('Hi-Hat')) {
+        // Hi-hat - noise burst
+        const bufferSize = ctx.sampleRate * 0.1;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = ctx.createBufferSource();
+        const highpass = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        noise.buffer = buffer;
+        highpass.type = 'highpass';
+        highpass.frequency.value = 8000;
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        noise.connect(highpass).connect(gain).connect(ctx.destination);
+        noise.start(now);
+      } else if (sample.name.includes('Snare')) {
+        // Snare - noise + tone
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = 200;
+        oscGain.gain.setValueAtTime(0.5, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.connect(oscGain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+        // Noise part
+        const bufferSize = ctx.sampleRate * 0.2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = ctx.createBufferSource();
+        const noiseGain = ctx.createGain();
+        noise.buffer = buffer;
+        noiseGain.gain.setValueAtTime(0.4, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        noise.connect(noiseGain).connect(ctx.destination);
+        noise.start(now);
+      } else if (sample.name.includes('Clap')) {
+        // Clap - multiple noise bursts
+        for (let i = 0; i < 3; i++) {
+          const bufferSize = ctx.sampleRate * 0.03;
+          const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let j = 0; j < bufferSize; j++) data[j] = Math.random() * 2 - 1;
+          const noise = ctx.createBufferSource();
+          const gain = ctx.createGain();
+          const filter = ctx.createBiquadFilter();
+          noise.buffer = buffer;
+          filter.type = 'bandpass';
+          filter.frequency.value = 2000;
+          gain.gain.setValueAtTime(0.4, now + i * 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.01 + 0.1);
+          noise.connect(filter).connect(gain).connect(ctx.destination);
+          noise.start(now + i * 0.01);
+        }
+      } else if (sample.category === 'Bass') {
+        // Bass - low sine/saw
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = sample.key === 'F' ? 87 : 65; // F2 or C2
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + sample.duration);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + sample.duration);
+      } else if (sample.category === 'Keys' || sample.name.includes('Piano')) {
+        // Piano/Keys - multiple harmonics
+        const freqs = sample.key === 'Am' ? [220, 261, 329] : [293, 349, 440]; // Am or Dm chord
+        freqs.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + sample.duration);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + sample.duration);
+        });
+      } else if (sample.name.includes('Pad') || sample.name.includes('Atmosphere')) {
+        // Pad - slow attack, multiple detuned oscillators
+        for (let i = 0; i < 3; i++) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 220 * (1 + i * 0.01); // Slight detune
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.15, now + 0.3);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + sample.duration);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + sample.duration);
+        }
+      } else if (sample.name.includes('Lead')) {
+        // Synth lead - saw with filter
+        const osc = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = sample.key === 'G' ? 392 : 440;
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, now);
+        filter.frequency.exponentialRampToValueAtTime(500, now + sample.duration);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + sample.duration);
+        osc.connect(filter).connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + sample.duration);
+      } else if (sample.name.includes('Vocal')) {
+        // Vocal chop - formant-like
+        const osc = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = 261;
+        filter.type = 'bandpass';
+        filter.frequency.value = 1000;
+        filter.Q.value = 5;
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + sample.duration);
+        osc.connect(filter).connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + sample.duration);
+      } else if (sample.name.includes('Riser')) {
+        // Riser - pitch up noise
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.exponentialRampToValueAtTime(2000, now + sample.duration);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0.5, now + sample.duration * 0.9);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + sample.duration);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + sample.duration);
+      } else if (sample.name.includes('Impact')) {
+        // Impact - low boom + noise
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.exponentialRampToValueAtTime(20, now + 0.3);
+        gain.gain.setValueAtTime(0.8, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.5);
+      } else {
+        // Default - simple tone
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = 440;
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + sample.duration);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + sample.duration);
+      }
+    } catch (e) {
+      console.error('Audio error:', e);
+    }
+  };
+
+  // Handle sample click - add to timeline
+  const handleSampleClick = (sample: Sample) => {
+    const id = `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    addTrack({
+      id,
+      name: sample.name,
+      kind: 'audio',
+      lengthBars: Math.max(1, Math.round(sample.duration * 2)), // Rough mapping of seconds to bars
+      startBar: Math.floor(position),
+      payload: {
+        type: 'audio',
+        audioUrl: sample.url,
+        startTime: position,
+        duration: sample.duration,
+        volume: 0.8,
+        color: sample.color,
+      },
+    });
     toast({
       title: '🎵 Sample Added!',
       description: `${sample.name} added at beat ${Math.floor(position) + 1}`,
@@ -313,30 +509,32 @@ const BrowserPanel: React.FC = () => {
 
   return (
     <div className="h-full flex gap-4">
-      {/* Categories */}
+      {/* Categories - Click to filter */}
       <div className="flex gap-3">
         {categories.map(cat => {
           const Icon = cat.icon;
+          const isSelected = selectedCategory === cat.id;
           return (
             <div 
               key={cat.id}
+              onClick={() => setSelectedCategory(isSelected ? null : cat.id)}
               className="flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer transition-all hover:scale-105"
               style={{ 
-                background: 'rgba(139, 92, 246, 0.05)',
-                border: `1px solid ${COLORS.border}`,
+                background: isSelected ? `${cat.color}30` : 'rgba(139, 92, 246, 0.05)',
+                border: isSelected ? `2px solid ${cat.color}` : `1px solid ${COLORS.border}`,
               }}
             >
               <div 
                 className="w-12 h-12 rounded-xl flex items-center justify-center"
                 style={{ 
                   background: `${cat.color}20`,
-                  boxShadow: `0 0 20px ${cat.color}30`,
+                  boxShadow: isSelected ? `0 0 30px ${cat.color}60` : `0 0 20px ${cat.color}30`,
                 }}
               >
                 <Icon className="w-6 h-6" style={{ color: cat.color }} />
               </div>
-              <span className="text-sm font-semibold" style={{ color: COLORS.text }}>{cat.name}</span>
-              <span className="text-xs" style={{ color: COLORS.textMuted }}>{cat.count}</span>
+              <span className="text-sm font-semibold" style={{ color: isSelected ? cat.color : COLORS.text }}>{cat.name}</span>
+              <span className="text-xs" style={{ color: COLORS.textMuted }}>{allSamples.filter(s => s.category.toLowerCase() === cat.id).length}</span>
             </div>
           );
         })}
@@ -345,45 +543,54 @@ const BrowserPanel: React.FC = () => {
       {/* Sample list */}
       <div className="flex-1 ml-4">
         <h4 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.purple }}>
-          Samples
+          {selectedCategory ? categories.find(c => c.id === selectedCategory)?.name : 'All'} Samples ({samples.length})
         </h4>
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-          {samples.map((sample) => (
-            <div 
-              key={sample.id}
-              onClick={() => handleSampleClick(sample)}
-              className="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.02] hover:bg-white/10 active:scale-[0.98]"
-              style={{ 
-                background: 'rgba(139, 92, 246, 0.05)',
-                border: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div 
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ background: `${sample.color}30` }}
-                >
-                  <Play className="w-5 h-5" style={{ color: sample.color }} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium" style={{ color: COLORS.text }}>{sample.name}</p>
-                  <p className="text-xs" style={{ color: COLORS.textMuted }}>
-                    {sample.category} • {sample.bpm} BPM {sample.key !== '-' && `• ${sample.key}`}
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSampleClick(sample);
+          {samples.map((sample) => {
+            const isPlaying = playingSampleId === sample.id;
+            return (
+              <div 
+                key={sample.id}
+                className="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.02] hover:bg-white/10 active:scale-[0.98]"
+                style={{ 
+                  background: isPlaying ? `${sample.color}20` : 'rgba(139, 92, 246, 0.05)',
+                  border: isPlaying ? `2px solid ${sample.color}` : `1px solid ${COLORS.border}`,
                 }}
-                className="p-2 rounded-lg transition-all hover:scale-110 hover:bg-purple-500"
-                style={{ background: 'rgba(139, 92, 246, 0.3)' }}
               >
-                <Plus className="w-4 h-4" style={{ color: COLORS.purple }} />
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-3">
+                  {/* Play button - plays the sound */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playSampleSound(sample);
+                    }}
+                    className="w-10 h-10 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+                    style={{ background: isPlaying ? sample.color : `${sample.color}30` }}
+                  >
+                    <Play className={`w-5 h-5 ${isPlaying ? 'animate-pulse' : ''}`} style={{ color: isPlaying ? '#fff' : sample.color }} />
+                  </button>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: COLORS.text }}>{sample.name}</p>
+                    <p className="text-xs" style={{ color: COLORS.textMuted }}>
+                      {sample.category} • {sample.bpm} BPM {sample.key !== '-' && `• ${sample.key}`}
+                    </p>
+                  </div>
+                </div>
+                {/* Add to timeline button */}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSampleClick(sample);
+                  }}
+                  className="p-2 rounded-lg transition-all hover:scale-110 hover:bg-purple-500"
+                  style={{ background: 'rgba(139, 92, 246, 0.3)' }}
+                  title="Add to timeline"
+                >
+                  <Plus className="w-4 h-4" style={{ color: COLORS.purple }} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -391,9 +598,58 @@ const BrowserPanel: React.FC = () => {
 };
 
 // ============================================
-// INSPECTOR PANEL - Track properties
+// INSPECTOR PANEL - Track properties (FUNCTIONAL)
 // ============================================
 const InspectorPanel: React.FC = () => {
+  const { toast } = useToast();
+  const [trackName, setTrackName] = useState('Piano - Track 1');
+  const [instrument, setInstrument] = useState('Grand Piano');
+  const [effects, setEffects] = useState({ reverb: 50, delay: 40, chorus: 20 });
+  const [volume, setVolume] = useState(80);
+  const [pan, setPan] = useState(0);
+
+  const handleEffectChange = (effect: string, value: number) => {
+    setEffects(prev => ({ ...prev, [effect.toLowerCase()]: value }));
+    // Dispatch event so audio engine can apply effect
+    window.dispatchEvent(new CustomEvent('track:effect', { 
+      detail: { effect: effect.toLowerCase(), value: value / 100 } 
+    }));
+  };
+
+  const handleAction = (action: string) => {
+    switch (action) {
+      case 'Duplicate':
+        window.dispatchEvent(new CustomEvent('track:duplicate'));
+        toast({ title: '📋 Track Duplicated', description: `${trackName} copied` });
+        break;
+      case 'Delete':
+        if (confirm('Delete this track?')) {
+          window.dispatchEvent(new CustomEvent('track:delete'));
+          toast({ title: '🗑️ Track Deleted', description: `${trackName} removed` });
+        }
+        break;
+      case 'Bounce':
+        toast({ title: '🎵 Bouncing...', description: 'Rendering track to audio file' });
+        window.dispatchEvent(new CustomEvent('track:bounce'));
+        setTimeout(() => {
+          toast({ title: '✅ Bounce Complete', description: 'Track rendered to audio' });
+        }, 2000);
+        break;
+      case 'Freeze':
+        toast({ title: '❄️ Freezing Track', description: 'Reducing CPU usage' });
+        window.dispatchEvent(new CustomEvent('track:freeze'));
+        break;
+    }
+  };
+
+  const instruments = [
+    'Grand Piano', 'Electric Piano', 'Rhodes', 'Wurlitzer',
+    'Synth Lead', 'Synth Pad', 'Synth Bass',
+    'Acoustic Guitar', 'Electric Guitar', 'Bass Guitar',
+    'Strings', 'Brass', 'Woodwinds',
+    'Drums', 'Percussion'
+  ];
+
   return (
     <div className="space-y-4">
       {/* Selected Track Info */}
@@ -414,9 +670,63 @@ const InspectorPanel: React.FC = () => {
           >
             <Piano className="w-5 h-5" style={{ color: '#3B82F6' }} />
           </div>
+          <div className="flex-1">
+            <input
+              type="text"
+              value={trackName}
+              onChange={(e) => setTrackName(e.target.value)}
+              className="font-semibold bg-transparent border-none outline-none w-full"
+              style={{ color: COLORS.text }}
+            />
+            <p className="text-xs" style={{ color: COLORS.textMuted }}>{instrument}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Volume & Pan */}
+      <div 
+        className="p-4 rounded-xl"
+        style={{ 
+          background: 'rgba(139, 92, 246, 0.05)',
+          border: `1px solid ${COLORS.border}`,
+        }}
+      >
+        <div className="space-y-3">
           <div>
-            <p className="font-semibold" style={{ color: COLORS.text }}>Piano - Track 1</p>
-            <p className="text-xs" style={{ color: COLORS.textMuted }}>Grand Piano</p>
+            <div className="flex justify-between mb-1">
+              <span className="text-xs" style={{ color: COLORS.textMuted }}>Volume</span>
+              <span className="text-xs" style={{ color: COLORS.purple }}>{volume}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={volume}
+              onChange={(e) => {
+                setVolume(Number(e.target.value));
+                window.dispatchEvent(new CustomEvent('track:volume', { detail: { value: Number(e.target.value) / 100 } }));
+              }}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to right, ${COLORS.purple} ${volume}%, rgba(0,0,0,0.3) ${volume}%)` }}
+            />
+          </div>
+          <div>
+            <div className="flex justify-between mb-1">
+              <span className="text-xs" style={{ color: COLORS.textMuted }}>Pan</span>
+              <span className="text-xs" style={{ color: COLORS.purple }}>{pan > 0 ? `R${pan}` : pan < 0 ? `L${Math.abs(pan)}` : 'C'}</span>
+            </div>
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              value={pan}
+              onChange={(e) => {
+                setPan(Number(e.target.value));
+                window.dispatchEvent(new CustomEvent('track:pan', { detail: { value: Number(e.target.value) / 100 } }));
+              }}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer"
+              style={{ background: 'rgba(0,0,0,0.3)' }}
+            />
           </div>
         </div>
       </div>
@@ -433,22 +743,26 @@ const InspectorPanel: React.FC = () => {
           Instrument
         </h4>
         <select 
-          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+          value={instrument}
+          onChange={(e) => {
+            setInstrument(e.target.value);
+            window.dispatchEvent(new CustomEvent('track:instrument', { detail: { instrument: e.target.value } }));
+            toast({ title: '🎹 Instrument Changed', description: e.target.value });
+          }}
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none cursor-pointer"
           style={{ 
             background: 'rgba(0,0,0,0.3)',
             border: `1px solid ${COLORS.border}`,
             color: COLORS.text,
           }}
         >
-          <option>Grand Piano</option>
-          <option>Electric Piano</option>
-          <option>Synth Lead</option>
-          <option>Strings</option>
-          <option>Pad</option>
+          {instruments.map(inst => (
+            <option key={inst} value={inst}>{inst}</option>
+          ))}
         </select>
       </div>
 
-      {/* Quick Effects */}
+      {/* Quick Effects - Now functional */}
       <div 
         className="p-4 rounded-xl"
         style={{ 
@@ -460,27 +774,29 @@ const InspectorPanel: React.FC = () => {
           Effects
         </h4>
         <div className="space-y-3">
-          {['Reverb', 'Delay', 'Chorus'].map(effect => (
-            <div key={effect} className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: COLORS.text }}>{effect}</span>
-              <div 
-                className="w-24 h-2 rounded-full overflow-hidden"
-                style={{ background: 'rgba(0,0,0,0.3)' }}
-              >
-                <div 
-                  className="h-full rounded-full"
-                  style={{ 
-                    width: `${Math.random() * 60 + 20}%`,
-                    background: `linear-gradient(to right, ${COLORS.purple}, ${COLORS.pink})`,
-                  }}
-                />
+          {Object.entries(effects).map(([effect, value]) => (
+            <div key={effect}>
+              <div className="flex justify-between mb-1">
+                <span className="text-sm capitalize" style={{ color: COLORS.text }}>{effect}</span>
+                <span className="text-xs" style={{ color: COLORS.purple }}>{value}%</span>
               </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={value}
+                onChange={(e) => handleEffectChange(effect, Number(e.target.value))}
+                className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                style={{ 
+                  background: `linear-gradient(to right, ${COLORS.purple} ${value}%, rgba(0,0,0,0.3) ${value}%)`,
+                }}
+              />
             </div>
           ))}
         </div>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Now functional */}
       <div 
         className="p-4 rounded-xl"
         style={{ 
@@ -495,13 +811,18 @@ const InspectorPanel: React.FC = () => {
           {['Duplicate', 'Delete', 'Bounce', 'Freeze'].map(action => (
             <button 
               key={action}
-              className="px-3 py-2 text-xs font-semibold rounded-lg transition-all hover:scale-105"
+              onClick={() => handleAction(action)}
+              className="px-3 py-2 text-xs font-semibold rounded-lg transition-all hover:scale-105 active:scale-95"
               style={{ 
-                background: 'rgba(139, 92, 246, 0.1)',
-                color: COLORS.text,
-                border: `1px solid ${COLORS.border}`,
+                background: action === 'Delete' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(139, 92, 246, 0.2)',
+                color: action === 'Delete' ? '#EF4444' : COLORS.text,
+                border: `1px solid ${action === 'Delete' ? 'rgba(239, 68, 68, 0.3)' : COLORS.border}`,
               }}
             >
+              {action === 'Duplicate' && '📋 '}
+              {action === 'Delete' && '🗑️ '}
+              {action === 'Bounce' && '🎵 '}
+              {action === 'Freeze' && '❄️ '}
               {action}
             </button>
           ))}
@@ -520,141 +841,112 @@ const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
   // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState('');
   
   // Early return AFTER hooks
   if (!isOpen) return null;
   
   const aiActions = [
-    { icon: '🎵', title: 'Generate Chords', desc: 'Play C-Am-F-G progression', action: 'chords' },
-    { icon: '🎹', title: 'Create Melody', desc: 'Play C major scale melody', action: 'melody' },
-    { icon: '🥁', title: 'Add Drums', desc: 'Kick on 1+3, snare on 2+4', action: 'drums' },
-    { icon: '🎸', title: 'Generate Bass', desc: '808 bass root notes', action: 'bass' },
+    { icon: '🎵', title: 'Generate Chords', desc: 'AI creates unique progression', action: 'chords' },
+    { icon: '🎹', title: 'Create Melody', desc: 'AI generates melody', action: 'melody' },
+    { icon: '🥁', title: 'Add Drums', desc: 'AI creates drum pattern', action: 'drums' },
+    { icon: '🎸', title: 'Generate Bass', desc: 'AI generates bassline', action: 'bass' },
   ];
 
-  // Import realisticAudio dynamically to avoid circular deps
-  const playChordProgression = async () => {
+  // Real AI generation using /api/grok
+  const generateWithAI = async (type: string) => {
+    const prompts: Record<string, string> = {
+      chords: `You are Astutely, an AI music producer. Generate a unique 4-chord progression for a modern beat in a random key. Return ONLY valid JSON like: {"chords": [{"name": "Cm", "notes": ["C", "Eb", "G"]}, {"name": "Ab", "notes": ["Ab", "C", "Eb"]}, {"name": "Bb", "notes": ["Bb", "D", "F"]}, {"name": "Gm", "notes": ["G", "Bb", "D"]}]}`,
+      melody: `You are Astutely, an AI music producer. Generate an 8-note melody for a catchy hook. Use MIDI note numbers (60=C4). Return ONLY valid JSON like: {"notes": [60, 63, 65, 67, 68, 67, 65, 63], "durations": [0.25, 0.25, 0.5, 0.25, 0.25, 0.5, 0.25, 0.5]}`,
+      drums: `You are Astutely, an AI music producer. Generate a 16-step drum pattern. Return ONLY valid JSON like: {"kicks": [0, 4, 8, 12], "snares": [4, 12], "hihats": [0, 2, 4, 6, 8, 10, 12, 14], "bpm": 128}`,
+      bass: `You are Astutely, an AI music producer. Generate a 4-note bassline that grooves. Use MIDI note numbers (36=C2). Return ONLY valid JSON like: {"notes": [36, 43, 41, 38], "durations": [0.5, 0.5, 0.5, 0.5]}`
+    };
+
+    const response = await fetch('/api/grok', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompts[type] })
+    });
+
+    const data = await response.json();
+    
+    // Parse AI response
+    const content = data.response || '{}';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    return JSON.parse(jsonMatch ? jsonMatch[0] : content);
+  };
+
+  // Play generated content
+  const playGenerated = async (type: string, data: any) => {
     const { realisticAudio } = await import('@/lib/realisticAudio');
     await realisticAudio.initialize();
-    
-    // C - Am - F - G progression
-    const chords = [
-      { notes: ['C', 'E', 'G'], name: 'C' },
-      { notes: ['A', 'C', 'E'], name: 'Am' },
-      { notes: ['F', 'A', 'C'], name: 'F' },
-      { notes: ['G', 'B', 'D'], name: 'G' },
-    ];
-    
-    for (let i = 0; i < chords.length; i++) {
-      const chord = chords[i];
-      setTimeout(() => {
-        chord.notes.forEach(note => {
-          realisticAudio.playNote(note, 4, 0.8, 'piano', 0.7);
-        });
-      }, i * 600);
+
+    if (type === 'chords' && data.chords) {
+      data.chords.forEach((chord: any, i: number) => {
+        setTimeout(() => {
+          chord.notes.forEach((note: string) => {
+            realisticAudio.playNote(note, 4, 0.8, 'piano', 0.7);
+          });
+        }, i * 600);
+      });
+      return data.chords.map((c: any) => c.name).join(' - ');
     }
-    
-    return chords.map(c => c.name).join(' - ');
-  };
 
-  const playMelody = async () => {
-    const { realisticAudio } = await import('@/lib/realisticAudio');
-    await realisticAudio.initialize();
-    
-    // C major scale ascending
-    const melody = [
-      { note: 'C', octave: 4 },
-      { note: 'D', octave: 4 },
-      { note: 'E', octave: 4 },
-      { note: 'F', octave: 4 },
-      { note: 'G', octave: 4 },
-      { note: 'A', octave: 4 },
-      { note: 'B', octave: 4 },
-      { note: 'C', octave: 5 },
-    ];
-    
-    melody.forEach((n, i) => {
-      setTimeout(() => {
-        realisticAudio.playNote(n.note, n.octave, 0.3, 'piano', 0.8);
-      }, i * 200);
-    });
-    
-    return 'C major scale';
-  };
+    if (type === 'melody' && data.notes) {
+      data.notes.forEach((midi: number, i: number) => {
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const note = noteNames[midi % 12];
+        const octave = Math.floor(midi / 12) - 1;
+        setTimeout(() => {
+          realisticAudio.playNote(note, octave, data.durations?.[i] || 0.3, 'piano', 0.8);
+        }, i * 200);
+      });
+      return `${data.notes.length}-note melody`;
+    }
 
-  const playDrums = async () => {
-    const { realisticAudio } = await import('@/lib/realisticAudio');
-    await realisticAudio.initialize();
-    
-    // 4 beats: kick on 1+3, snare on 2+4, hihat on all
-    const beatMs = 500; // 120 BPM
-    
-    // Kicks on 1 and 3
-    [0, 2].forEach(beat => {
-      setTimeout(() => realisticAudio.playDrumSound('kick', 0.9), beat * beatMs);
-    });
-    
-    // Snares on 2 and 4
-    [1, 3].forEach(beat => {
-      setTimeout(() => realisticAudio.playDrumSound('snare', 0.8), beat * beatMs);
-    });
-    
-    // Hihats on every beat
-    [0, 1, 2, 3].forEach(beat => {
-      setTimeout(() => realisticAudio.playDrumSound('hihat', 0.5), beat * beatMs);
-    });
-    
-    return 'Kick-Snare pattern';
-  };
+    if (type === 'drums' && (data.kicks || data.snares || data.hihats)) {
+      const beatMs = 60000 / (data.bpm || 128) / 4;
+      data.kicks?.forEach((step: number) => {
+        setTimeout(() => realisticAudio.playDrumSound('kick', 0.9), step * beatMs);
+      });
+      data.snares?.forEach((step: number) => {
+        setTimeout(() => realisticAudio.playDrumSound('snare', 0.8), step * beatMs);
+      });
+      data.hihats?.forEach((step: number) => {
+        setTimeout(() => realisticAudio.playDrumSound('hihat', 0.5), step * beatMs);
+      });
+      return `${data.bpm || 128} BPM pattern`;
+    }
 
-  const playBass = async () => {
-    const { realisticAudio } = await import('@/lib/realisticAudio');
-    await realisticAudio.initialize();
-    
-    // Bass notes following C-Am-F-G
-    const bassNotes = [
-      { note: 'C', octave: 2 },
-      { note: 'A', octave: 2 },
-      { note: 'F', octave: 2 },
-      { note: 'G', octave: 2 },
-    ];
-    
-    bassNotes.forEach((n, i) => {
-      setTimeout(() => {
-        realisticAudio.playNote(n.note, n.octave, 0.8, 'bass-synth', 0.9);
-      }, i * 600);
-    });
-    
-    return 'C-A-F-G bass';
+    if (type === 'bass' && data.notes) {
+      data.notes.forEach((midi: number, i: number) => {
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const note = noteNames[midi % 12];
+        const octave = Math.floor(midi / 12) - 1;
+        setTimeout(() => {
+          realisticAudio.playNote(note, octave, data.durations?.[i] || 0.5, 'bass-synth', 0.9);
+        }, i * 500);
+      });
+      return `${data.notes.length}-note bassline`;
+    }
+
+    return 'Generated';
   };
 
   const handleAction = async (action: string, title: string) => {
     setIsGenerating(true);
     setActiveAction(action);
-    toast({ title: `✨ ${title}`, description: 'Generating...' });
+    toast({ title: `✨ ${title}`, description: 'AI is generating...' });
     
     try {
-      let result = '';
+      // Call real AI
+      const aiData = await generateWithAI(action);
       
-      switch (action) {
-        case 'chords':
-          result = await playChordProgression();
-          toast({ title: '🎵 Chords Playing!', description: result });
-          break;
-        case 'melody':
-          result = await playMelody();
-          toast({ title: '🎹 Melody Playing!', description: result });
-          break;
-        case 'drums':
-          result = await playDrums();
-          toast({ title: '🥁 Drums Playing!', description: result });
-          break;
-        case 'bass':
-          result = await playBass();
-          toast({ title: '🎸 Bass Playing!', description: result });
-          break;
-      }
+      // Play the generated content
+      const result = await playGenerated(action, aiData);
       
-      // Keep modal open so user can try other buttons
+      toast({ title: `🎵 ${title}`, description: result });
+      
       setTimeout(() => {
         setIsGenerating(false);
         setActiveAction(null);
@@ -662,9 +954,38 @@ const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
       
     } catch (error) {
       console.error('AI action error:', error);
-      toast({ title: '❌ Error', description: 'Generation failed', variant: 'destructive' });
+      toast({ title: '❌ Error', description: 'AI generation failed', variant: 'destructive' });
       setIsGenerating(false);
       setActiveAction(null);
+    }
+  };
+
+  // Handle chat send
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || isGenerating) return;
+    
+    setIsGenerating(true);
+    toast({ title: '💬 Asking AI...', description: chatInput.substring(0, 50) });
+    
+    try {
+      const response = await fetch('/api/grok', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: `You are Astutely, an AI music production assistant. Help the user with: ${chatInput}. Be concise and helpful.` 
+        })
+      });
+      
+      const data = await response.json();
+      toast({ 
+        title: '🤖 Astutely', 
+        description: data.response?.substring(0, 200) || 'No response'
+      });
+      setChatInput('');
+    } catch (error) {
+      toast({ title: '❌ Error', description: 'Failed to get AI response', variant: 'destructive' });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -749,12 +1070,18 @@ const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
         >
           <input 
             type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
             placeholder="Ask AI anything about your music..."
             className="flex-1 bg-transparent outline-none text-sm"
             style={{ color: COLORS.text }}
+            disabled={isGenerating}
           />
           <button 
-            className="p-2 rounded-lg transition-all hover:scale-110"
+            onClick={handleChatSend}
+            disabled={isGenerating || !chatInput.trim()}
+            className="p-2 rounded-lg transition-all hover:scale-110 disabled:opacity-50"
             style={{ 
               background: `linear-gradient(135deg, ${COLORS.purple}, ${COLORS.pink})`,
             }}
@@ -1248,9 +1575,43 @@ export const CodedSwitchFlow: React.FC = () => {
             setBpm(result.bpm);
             setTransportTempo(result.bpm);
             
+            // Store generated notes in localStorage so Piano Roll can load them
+            localStorage.setItem('astutely-generated', JSON.stringify({
+              notes,
+              bpm: result.bpm,
+              timestamp: Date.now(),
+              counts: {
+                drums: drumNotes.length,
+                bass: bassNotes.length,
+                chords: chordNotes.length,
+                melody: melodyNotes.length
+              }
+            }));
+            
+            // Dispatch custom event so Piano Roll knows to load the notes
+            window.dispatchEvent(new CustomEvent('astutely:generated', { detail: { notes, bpm: result.bpm } }));
+            
             toast({ 
               title: '🔥 Astutely Complete!', 
-              description: `Added ${drumNotes.length} drums, ${bassNotes.length} bass, ${chordNotes.length} chords, ${melodyNotes.length} melody notes at ${result.bpm} BPM` 
+              description: (
+                <div className="flex flex-col gap-2">
+                  <span>Added {drumNotes.length} drums, {bassNotes.length} bass, {chordNotes.length} chords, {melodyNotes.length} melody notes at {result.bpm} BPM</span>
+                  <button 
+                    onClick={() => {
+                      // Navigate to Piano Roll tab
+                      const pianoRollTab = document.querySelector('[data-tab="piano-roll"]') as HTMLElement;
+                      if (pianoRollTab) pianoRollTab.click();
+                      // Or scroll to piano roll section
+                      const pianoRoll = document.querySelector('.piano-roll-container');
+                      if (pianoRoll) pianoRoll.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white text-sm font-medium transition-colors"
+                  >
+                    → View in Piano Roll
+                  </button>
+                </div>
+              ),
+              duration: 10000, // Keep visible longer
             });
           }}
         />

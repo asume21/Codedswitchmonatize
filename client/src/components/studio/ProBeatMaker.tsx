@@ -299,6 +299,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   // AI Generation state
   const [aiProvider, setAiProvider] = useState('grok');
   const [selectedGenre, setSelectedGenre] = useState('Hip-Hop');
+  const [aiMelodySummary, setAiMelodySummary] = useState<string | null>(null);
+  const [aiBassSummary, setAiBassSummary] = useState<string | null>(null);
   
   // AI Beat generation mutation
   const generateBeatMutation = useMutation({
@@ -346,7 +348,177 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       });
     },
   });
-  
+
+  // Phase 3: AI Drum Grid (MIDI pattern engine) using /api/ai/music/drums
+  const generatePhase3DrumsMutation = useMutation({
+    mutationFn: async () => {
+      const bars = Math.max(1, Math.round(patternLength / 16) || 1);
+      const payload = {
+        songPlanId: undefined,
+        sectionId: 'pro-beat-section',
+        bpm,
+        bars,
+        style: selectedGenre.toLowerCase(),
+        gridResolution: '1/16' as const,
+      };
+
+      const response = await apiRequest('POST', '/api/ai/music/drums', payload);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error((error as any).error || 'Failed to generate AI drum grid');
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const grid = data?.data?.grid || data?.grid;
+      if (!grid) {
+        toast({
+          title: 'AI Drum Grid',
+          description: 'Response received, but no grid was returned.',
+        });
+        return;
+      }
+
+      saveHistory();
+      setTracks(prev => prev.map(track => {
+        const row = (grid as any)[track.id] as Array<number | boolean> | undefined;
+        if (!Array.isArray(row) || row.length === 0) {
+          return track;
+        }
+        const normalized = row.map(v => Boolean(v));
+        return {
+          ...track,
+          pattern: track.pattern.map((step, i) => ({
+            ...step,
+            active: normalized[i % normalized.length],
+          })),
+        };
+      }));
+
+      toast({
+        title: '🥁 Phase 3 Drum Grid',
+        description: `${selectedGenre} groove at ${bpm} BPM loaded from /api/ai/music/drums`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Phase 3 Drum Grid Failed',
+        description: error.message || 'Failed to generate AI drum grid',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Phase 3: AI Melody (MIDI pattern engine) using /api/ai/music/melody
+  const generatePhase3MelodyMutation = useMutation({
+    mutationFn: async () => {
+      const bars = Math.max(1, Math.round(patternLength / 16) || 1);
+      const payload = {
+        songPlanId: undefined,
+        sectionId: 'pro-beat-melody-section',
+        key: 'C minor',
+        bpm,
+        lengthBars: bars,
+      };
+
+      const response = await apiRequest('POST', '/api/ai/music/melody', payload);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error((error as any).error || 'Failed to generate AI melody');
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const track = data?.data || data?.track;
+      const notes = track?.notes;
+
+      if (Array.isArray(notes) && notes.length > 0) {
+        const pitches = notes
+          .map((n: any) => (typeof n?.pitch === 'string' ? n.pitch : null))
+          .filter((p: string | null) => !!p) as string[];
+        const uniquePitches = Array.from(new Set(pitches));
+
+        setAiMelodySummary(
+          `${notes.length} notes • ${uniquePitches.slice(0, 8).join(', ')}${
+            uniquePitches.length > 8 ? '…' : ''
+          }`,
+        );
+
+        toast({
+          title: 'AI Melody Ready',
+          description: `Generated ${notes.length} melody notes`,
+        });
+      } else {
+        toast({
+          title: 'AI Melody',
+          description: 'Response received, but no melody notes were returned.',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'AI Melody Failed',
+        description: error.message || 'Failed to generate AI melody',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Phase 3: AI Bassline (MIDI pattern engine) using /api/ai/music/bass
+  const generatePhase3BassMutation = useMutation({
+    mutationFn: async () => {
+      const bars = Math.max(1, Math.round(patternLength / 16) || 1);
+      const payload = {
+        songPlanId: undefined,
+        sectionId: 'pro-beat-bass-section',
+        key: 'C minor',
+        bpm,
+        bars,
+      };
+
+      const response = await apiRequest('POST', '/api/ai/music/bass', payload);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error((error as any).error || 'Failed to generate AI bassline');
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const track = data?.data || data?.track;
+      const notes = track?.notes;
+
+      if (Array.isArray(notes) && notes.length > 0) {
+        const pitches = notes
+          .map((n: any) => (typeof n?.pitch === 'string' ? n.pitch : null))
+          .filter((p: string | null) => !!p) as string[];
+        const uniquePitches = Array.from(new Set(pitches));
+
+        setAiBassSummary(
+          `${notes.length} notes • ${uniquePitches.slice(0, 6).join(', ')}${
+            uniquePitches.length > 6 ? '…' : ''
+          }`,
+        );
+
+        toast({
+          title: 'AI Bassline Ready',
+          description: `Generated ${notes.length} bass notes`,
+        });
+      } else {
+        toast({
+          title: 'AI Bassline',
+          description: 'Response received, but no bass notes were returned.',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'AI Bassline Failed',
+        description: error.message || 'Failed to generate AI bassline',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const audioCtx = useRef<AudioContext | null>(null);
   const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -760,14 +932,40 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
               )}
             </SelectContent>
           </Select>
-          <Button 
-            onClick={() => generateBeatMutation.mutate()}
-            disabled={generateBeatMutation.isPending}
-            className="bg-purple-600 hover:bg-purple-500"
-          >
-            <Wand2 className="w-4 h-4 mr-1" />
-            {generateBeatMutation.isPending ? 'Generating...' : 'AI Generate'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => generateBeatMutation.mutate()}
+              disabled={generateBeatMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-500"
+            >
+              <Wand2 className="w-4 h-4 mr-1" />
+              {generateBeatMutation.isPending ? 'Generating...' : 'AI Generate (Legacy)'}
+            </Button>
+            <Button
+              onClick={() => generatePhase3DrumsMutation.mutate()}
+              disabled={generatePhase3DrumsMutation.isPending}
+              variant="outline"
+              className="border-blue-500 text-blue-300 hover:bg-blue-500/10"
+            >
+              {generatePhase3DrumsMutation.isPending ? 'Phase 3 Drums…' : 'Phase 3 Drum Grid'}
+            </Button>
+            <Button
+              onClick={() => generatePhase3MelodyMutation.mutate()}
+              disabled={generatePhase3MelodyMutation.isPending}
+              variant="outline"
+              className="border-emerald-500 text-emerald-300 hover:bg-emerald-500/10"
+            >
+              {generatePhase3MelodyMutation.isPending ? 'AI Melody…' : 'AI Melody'}
+            </Button>
+            <Button
+              onClick={() => generatePhase3BassMutation.mutate()}
+              disabled={generatePhase3BassMutation.isPending}
+              variant="outline"
+              className="border-amber-500 text-amber-300 hover:bg-amber-500/10"
+            >
+              {generatePhase3BassMutation.isPending ? 'AI Bassline…' : 'AI Bassline'}
+            </Button>
+          </div>
         </div>
       </div>
       

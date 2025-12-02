@@ -1,12 +1,14 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { setupSnakeWS } from "./services/snake-ws";
 import { currentUser } from "./middleware/auth";
 import { runMigrations } from "./migrations/runMigrations";
+import { ensureDataRoots } from "./services/localStorageService";
 
 // Load environment variables from .env file
 import { config } from 'dotenv';
@@ -15,6 +17,10 @@ config();
 // Force rebuild - PostgreSQL sessions v2
 
 const app = express();
+
+const dataRoot = path.resolve("data");
+ensureDataRoots(dataRoot);
+app.use("/data", express.static(dataRoot));
 
 // Trust Railway proxy for secure cookies
 app.set('trust proxy', 1);

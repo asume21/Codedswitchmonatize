@@ -16,6 +16,7 @@ import ProfessionalStudio from './ProfessionalStudio';
 import { Resizable } from 'react-resizable';
 import LyricLab from './LyricLab';
 import CodeToMusicStudioV2 from './CodeToMusicStudioV2';
+import CodeTranslator from './CodeTranslator';
 import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
@@ -242,6 +243,45 @@ export default function UnifiedStudioWorkspace() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toast]);
+
+  // Handle navigation requests from child components (e.g. LyricLab, BeatLab)
+  useEffect(() => {
+    const handleNavigateToTab = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      const detail = customEvent.detail;
+
+      switch (detail) {
+        case 'beat-lab':
+        case 'beatmaker':
+          setActiveView('beat-lab');
+          toast({ title: '🥁 Beat Lab', description: 'Opening Beat Lab for generated patterns.' });
+          break;
+        case 'piano-roll':
+        case 'melody':
+          setActiveView('piano-roll');
+          setPianoRollExpanded(true);
+          toast({ title: '🎹 Piano Roll', description: 'Opening Piano Roll for generated melodies.' });
+          break;
+        case 'lyrics':
+          setActiveView('lyrics');
+          break;
+        case 'mixer':
+          setActiveView('mixer');
+          break;
+        case 'audio-tools':
+          setActiveView('audio-tools');
+          break;
+        case 'uploader':
+          setActiveView('song-uploader');
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('navigateToTab', handleNavigateToTab as EventListener);
+    return () => window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener);
   }, [toast]);
 
   // Workflow Selector State
@@ -2440,10 +2480,39 @@ Your lyrics will sync with the timeline
             </div>
           )}
 
-          {/* CODE TO MUSIC VIEW */}
+          {/* CODE TOOLS VIEW: Translator + Code to Music */}
           {activeView === 'code-to-music' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
-              <CodeToMusicStudioV2 />
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 px-4 pb-4">
+              <Card className="border border-gray-700 bg-gray-850">
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <Wand2 className="w-4 h-4 text-purple-400" />
+                    Code Tools
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="translator" className="w-full">
+                    <TabsList className="bg-gray-800 mb-4 flex flex-wrap gap-2">
+                      <TabsTrigger value="translator" className="flex items-center gap-1">
+                        <FileText className="w-4 h-4" />
+                        Translator
+                      </TabsTrigger>
+                      <TabsTrigger value="code-music" className="flex items-center gap-1">
+                        <Music className="w-4 h-4" />
+                        Code to Music
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="translator" className="mt-2">
+                      <CodeTranslator />
+                    </TabsContent>
+
+                    <TabsContent value="code-music" className="mt-2">
+                      <CodeToMusicStudioV2 />
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
             </div>
           )}
 

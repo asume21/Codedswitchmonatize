@@ -97,13 +97,14 @@ export async function handleStripeWebhook(
         userId = user?.id;
       }
 
-      const subscription =
+      const subscriptionResponse =
         subscriptionId && subscriptionId.length > 0
           ? await stripe.subscriptions.retrieve(subscriptionId)
           : undefined;
+      const subscription = subscriptionResponse as Stripe.Subscription | undefined;
       const status = subscription?.status || "active";
-      const currentPeriodEnd = subscription?.current_period_end
-        ? new Date(subscription.current_period_end * 1000)
+      const currentPeriodEnd = (subscription as any)?.current_period_end
+        ? new Date((subscription as any).current_period_end * 1000)
         : null;
 
       // Handle credit purchases (one-time payments)
@@ -158,14 +159,18 @@ export async function handleStripeWebhook(
     case "invoice.paid":
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
-      const subscriptionId = (invoice.subscription as string) || undefined;
+      const subscriptionId =
+        typeof (invoice as any).subscription === "string"
+          ? ((invoice as any).subscription as string)
+          : ((invoice as any).subscription?.id as string | undefined);
       const customerId = (invoice.customer as string) || undefined;
 
       if (subscriptionId) {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = subscriptionResponse as Stripe.Subscription;
         const status = subscription.status || (event.type === "invoice.paid" ? "active" : "past_due");
-        const currentPeriodEnd = subscription.current_period_end
-          ? new Date(subscription.current_period_end * 1000)
+        const currentPeriodEnd = (subscription as any).current_period_end
+          ? new Date((subscription as any).current_period_end * 1000)
           : null;
 
         const updatedRecord = await storage.updateSubscriptionStatusByStripeId(
@@ -208,14 +213,15 @@ export async function handleStripeWebhook(
       if (!user) break;
       const status = sub.status;
       const tier = deriveTier(status);
+      const currentPeriodEnd = (sub as any).current_period_end
+        ? new Date((sub as any).current_period_end * 1000)
+        : null;
       await storage.upsertUserSubscription({
         userId: user.id,
         stripeCustomerId: customerId,
         stripeSubscriptionId: subscriptionId,
         status,
-        currentPeriodEnd: sub.current_period_end
-          ? new Date(sub.current_period_end * 1000)
-          : null,
+        currentPeriodEnd,
       });
       await storage.updateUserStripeInfo(user.id, {
         customerId,

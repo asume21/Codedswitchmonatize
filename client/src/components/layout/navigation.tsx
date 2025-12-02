@@ -9,18 +9,15 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { 
-  Settings, CreditCard, LogIn, ChevronDown, Home, 
-  LayoutDashboard, Music, Piano, Wand2, Mic2, Drum, 
+  Settings, CreditCard, LogIn, ChevronDown,
+  Piano, Wand2, Mic2, Drum,
   Code, Shield, MessageSquare, Headphones, Zap 
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const NAV_ITEMS = [
-  { icon: Home, label: 'Home', path: '/', color: 'bg-gray-600' },
-  { icon: LayoutDashboard, label: 'Studio', path: '/studio', color: 'bg-purple-600' },
+  { icon: Piano, label: 'DAW', path: '/', color: 'bg-indigo-600' },
   { icon: Zap, label: 'Flow', path: '/flow', color: 'bg-orange-500' },
-  { icon: Music, label: 'Unified', path: '/unified-studio', color: 'bg-blue-600' },
-  { icon: Piano, label: 'DAW', path: '/daw-layout', color: 'bg-indigo-600' },
   { icon: Wand2, label: 'Melody', path: '/melody-composer', color: 'bg-pink-600' },
   { icon: Mic2, label: 'Lyrics', path: '/lyric-lab', color: 'bg-rose-600' },
   { icon: Drum, label: 'Beats', path: '/codebeat-studio', color: 'bg-amber-600' },
