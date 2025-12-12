@@ -4,10 +4,12 @@ import { useLocation } from 'wouter';
 import { 
   Home, LayoutDashboard, Music, Piano, Wand2, Mic2, 
   Drum, Code, Shield, MessageSquare, Headphones, 
-  ChevronDown, Zap, Menu, X, LogIn
+  ChevronDown, Zap, Menu, X, LogIn, Coins
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 const NAV_ITEMS = [
   { icon: Home, label: 'Home', path: '/' },
@@ -34,6 +36,16 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
   const [location, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
 
+  const { data: creditData } = useQuery({
+    queryKey: ['/api/credits/balance'],
+    queryFn: () => apiRequest('GET', '/api/credits/balance').then((res) => res.json()),
+    enabled: isAuthenticated,
+    refetchInterval: isAuthenticated ? 15000 : false,
+    refetchOnWindowFocus: true,
+  });
+
+  const currentCredits = creditData?.balance ?? null;
+
   const currentPage = NAV_ITEMS.find(item => item.path === location)?.label || 'CodedSwitch';
 
   if (variant === 'topbar') {
@@ -53,6 +65,20 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
             <span className="hidden md:inline">{item.label}</span>
           </button>
         ))}
+
+        {isAuthenticated && (
+          <button
+            onClick={() => navigate('/buy-credits')}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-all text-gray-300 hover:text-white hover:bg-white/10"
+            title="View credits"
+          >
+            <Coins className="w-4 h-4 text-yellow-400" />
+            <span className="hidden md:inline">
+              {currentCredits === null ? 'Credits' : `${currentCredits} Credits`}
+            </span>
+          </button>
+        )}
+
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/10"
@@ -95,6 +121,18 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
         <span className="text-white font-semibold">{currentPage}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
+
+      {isAuthenticated && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 border-purple-500/40 text-gray-100 hover:bg-purple-600/30 hover:text-white"
+          onClick={() => navigate('/buy-credits')}
+        >
+          <Coins className="w-4 h-4 text-yellow-400" />
+          {currentCredits === null ? 'Credits' : currentCredits}
+        </Button>
+      )}
 
       {isAuthenticated ? (
         <Button
