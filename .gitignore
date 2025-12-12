@@ -37,3 +37,12 @@ lerna-debug.log*
 # Context folder for AI assistance (contains reference code)
 Other_half/
 .handoff/
+
+test-results/
+playwright-report/
+objects/
+coverage/
+
+.vite/
+.eslintcache
+*.tsbuildinfo
