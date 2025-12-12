@@ -26,6 +26,15 @@ function deriveTier(status?: string | null) {
   return status === "active" || status === "trialing" ? "pro" : "free";
 }
 
+function normalizeTier(raw?: unknown): string | undefined {
+  if (!raw) return undefined;
+  const value = String(raw).toLowerCase();
+  if (value === 'creator' || value === 'pro' || value === 'studio' || value === 'free') {
+    return value;
+  }
+  return undefined;
+}
+
 function getStripe(): Stripe {
   if (!STRIPE_SECRET_KEY) {
     throw new Error("STRIPE_SECRET_KEY is not set");
@@ -107,6 +116,10 @@ export async function handleStripeWebhook(
         ? new Date((subscription as any).current_period_end * 1000)
         : null;
 
+      const metadataTier =
+        normalizeTier((session.metadata as any)?.tier) ||
+        normalizeTier((subscription as any)?.metadata?.tier);
+
       // Handle credit purchases (one-time payments)
       if (session.mode === "payment" && userId) {
         const packageKey = session.metadata?.packageKey as keyof typeof CREDIT_PACKAGES;
@@ -137,7 +150,7 @@ export async function handleStripeWebhook(
           currentPeriodEnd,
         });
 
-        const tier = deriveTier(status);
+        const tier = metadataTier || deriveTier(status);
 
         // Generate activation key for new pro subscribers
         const activationKey = generateActivationKey();
@@ -173,6 +186,8 @@ export async function handleStripeWebhook(
           ? new Date((subscription as any).current_period_end * 1000)
           : null;
 
+        const metadataTier = normalizeTier((subscription as any)?.metadata?.tier);
+
         const updatedRecord = await storage.updateSubscriptionStatusByStripeId(
           subscriptionId,
           status,
@@ -195,7 +210,7 @@ export async function handleStripeWebhook(
             customerId: customerId || undefined,
             subscriptionId,
             status,
-            tier: deriveTier(status),
+            tier: metadataTier || deriveTier(status),
           });
         }
       }

@@ -143,6 +143,7 @@ export default function BuyCreditsPage() {
       if (data.url) {
         window.location.href = data.url;
       }
+      setPurchasingPackage(null);
     },
     onError: (error: any) => {
       toast({
@@ -154,9 +155,37 @@ export default function BuyCreditsPage() {
     },
   });
 
-  const handlePurchase = (packageKey: string) => {
+  const membershipMutation = useMutation({
+    mutationFn: async (tierKey: string) => {
+      const response = await apiRequest("POST", "/api/credits/membership-checkout", {
+        tierKey,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+      setPurchasingPackage(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Purchase Failed",
+        description: error.message || "Failed to create checkout session",
+        variant: "destructive",
+      });
+      setPurchasingPackage(null);
+    },
+  });
+
+  const handleCreditPurchase = (packageKey: string) => {
     setPurchasingPackage(packageKey);
     purchaseMutation.mutate(packageKey);
+  };
+
+  const handleMembershipPurchase = (tierKey: string) => {
+    setPurchasingPackage(tierKey);
+    membershipMutation.mutate(tierKey);
   };
 
   const currentCredits = creditData?.balance || 0;
@@ -254,7 +283,7 @@ export default function BuyCreditsPage() {
 
                   <CardFooter>
                     <Button
-                      onClick={() => handlePurchase(pkg.key)}
+                      onClick={() => handleCreditPurchase(pkg.key)}
                       disabled={purchasingPackage === pkg.key}
                       className={`w-full ${
                         pkg.popular
@@ -341,7 +370,7 @@ export default function BuyCreditsPage() {
 
                   <CardFooter>
                     <Button
-                      onClick={() => handlePurchase(tier.key)}
+                      onClick={() => handleMembershipPurchase(tier.key)}
                       disabled={purchasingPackage === tier.key}
                       className={`w-full ${
                         tier.popular

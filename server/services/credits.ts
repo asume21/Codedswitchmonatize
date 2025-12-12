@@ -72,7 +72,7 @@ export const MEMBERSHIP_TIERS = {
     tier: 'pro',
     name: 'Pro',
     price: 2999, // $29.99/month
-    priceId: process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || '',
+    priceId: process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || process.env.STRIPE_PRICE_ID_PRO || '',
     monthlyCredits: 750,
     rolloverMax: 1500,
     features: [
@@ -138,20 +138,6 @@ export const CREDIT_PACKAGES = {
     priceId: process.env.STRIPE_PRICE_ID_5000_CREDITS || '',
     name: 'Enterprise Pack',
     description: '5000 credits - Save 40%',
-  },
-  CREATOR: {
-    credits: 200,
-    price: 999, // $9.99 monthly subscription
-    priceId: process.env.STRIPE_PRICE_ID_CREATOR || '',
-    name: 'Creator Membership',
-    description: '200 monthly credits with rollover',
-  },
-  STUDIO: {
-    credits: 2500,
-    price: 7999, // $79.99 monthly subscription
-    priceId: process.env.STRIPE_PRICE_ID_STUDIO || '',
-    name: 'Studio Membership',
-    description: '2500 monthly credits with rollover',
   },
 } as const;
 

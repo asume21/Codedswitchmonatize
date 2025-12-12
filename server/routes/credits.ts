@@ -7,7 +7,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import type { IStorage } from '../storage';
-import { getCreditService, CREDIT_COSTS, CREDIT_PACKAGES } from '../services/credits';
+import { getCreditService, CREDIT_COSTS, CREDIT_PACKAGES, MEMBERSHIP_TIERS } from '../services/credits';
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const APP_URL = process.env.APP_URL || 'http://localhost:5000';
@@ -230,7 +230,7 @@ export function createCreditRoutes(storage: IStorage) {
       }
 
       const schema = z.object({
-        packageKey: z.enum(['STARTER', 'POPULAR', 'PRO', 'ENTERPRISE', 'CREATOR', 'STUDIO'])
+        packageKey: z.enum(['STARTER', 'POPULAR', 'PRO', 'ENTERPRISE'])
       });
 
       const parsed = schema.safeParse(req.body);
@@ -259,6 +259,20 @@ export function createCreditRoutes(storage: IStorage) {
       }
 
       const stripe = getStripe();
+
+      const stripePrice = await stripe.prices.retrieve(creditPackage.priceId);
+      const stripeUnitAmount = (stripePrice as any)?.unit_amount as number | null | undefined;
+      const isRecurring = Boolean((stripePrice as any)?.recurring);
+      if (isRecurring) {
+        return res.status(500).json({
+          error: `Stripe price for ${packageKey} is recurring but credit purchases require a one-time price. Check STRIPE_PRICE_ID_*_CREDITS env vars.`,
+        });
+      }
+      if (typeof stripeUnitAmount === 'number' && stripeUnitAmount !== creditPackage.price) {
+        return res.status(500).json({
+          error: `Stripe price amount mismatch for ${packageKey}. Expected ${creditPackage.price} cents but Stripe price is ${stripeUnitAmount} cents. Check STRIPE_PRICE_ID_*_CREDITS env vars.`,
+        });
+      }
 
       // Ensure user has a Stripe customer ID
       let customerId = user.stripeCustomerId || undefined;
@@ -298,6 +312,93 @@ export function createCreditRoutes(storage: IStorage) {
     } catch (error: any) {
       console.error('Checkout creation error:', error);
       res.status(500).json({ error: error.message || 'Failed to create checkout session' });
+    }
+  });
+
+  router.post('/membership-checkout', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const schema = z.object({
+        tierKey: z.enum(['CREATOR', 'PRO', 'STUDIO']),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'Invalid tier key',
+          details: parsed.error.errors,
+        });
+      }
+
+      const { tierKey } = parsed.data;
+      const membership = MEMBERSHIP_TIERS[tierKey];
+
+      console.log(`[MEMBERSHIP] Tier: ${tierKey}, Price ID: ${membership.priceId || 'MISSING'}`);
+
+      if (!membership.priceId) {
+        return res.status(500).json({
+          error: `Stripe price ID not configured for membership tier ${tierKey}`,
+        });
+      }
+
+      const user = await storage.getUser(req.userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const stripe = getStripe();
+
+      let customerId = user.stripeCustomerId || undefined;
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          metadata: { userId: req.userId },
+        });
+        customerId = customer.id;
+        await storage.updateUserStripeInfo(req.userId, { customerId });
+      }
+
+      const stripePrice = await stripe.prices.retrieve(membership.priceId);
+      const isRecurring = Boolean((stripePrice as any)?.recurring);
+      if (!isRecurring) {
+        return res.status(500).json({
+          error: `Stripe price for ${tierKey} is one-time but membership requires a recurring price. Check STRIPE_PRICE_ID_* membership env vars.`,
+        });
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer: customerId,
+        line_items: [{
+          price: membership.priceId,
+          quantity: 1,
+        }],
+        success_url: `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${APP_URL}/buy-credits`,
+        metadata: {
+          userId: req.userId,
+          tierKey,
+          tier: membership.tier,
+        },
+        subscription_data: {
+          metadata: {
+            userId: req.userId,
+            tierKey,
+            tier: membership.tier,
+          },
+        },
+      });
+
+      res.json({
+        url: session.url,
+        sessionId: session.id,
+      });
+    } catch (error: any) {
+      console.error('Membership checkout creation error:', error);
+      res.status(500).json({ error: error.message || 'Failed to create membership checkout session' });
     }
   });
 
