@@ -1,4 +1,5 @@
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useCallback, useMemo, useRef } from "react";
+
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,10 +28,24 @@ import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useLocation } from "wouter";
 import { Music2, FileMusic, AlertCircle } from "lucide-react";
 import { SongUploadPanel } from "./SongUploadPanel";
+import type { Song } from "../../../../shared/schema";
 
 interface RhymeSuggestion {
   word: string;
   type: "perfect" | "near";
+}
+
+function estimateSyllables(word: string): number {
+  const cleaned = word.toLowerCase().replace(/[^a-z]/g, "");
+  if (!cleaned) return 0;
+  if (cleaned.length <= 3) return 1;
+  const matches = cleaned.match(/[aeiouy]+/g);
+  if (!matches) return 1;
+  let count = matches.length;
+  if (cleaned.endsWith("e")) {
+    count -= 1;
+  }
+  return count > 0 ? count : 1;
 }
 
 function autoStructureLyrics(raw: string): string {
@@ -61,9 +76,75 @@ function autoStructureLyrics(raw: string): string {
 
 export default function LyricLab() {
   const studioContext = useContext(StudioAudioContext);
-  const { currentSession, setCurrentSessionId } = useSongWorkSession();
+  const { currentSession, setCurrentSessionId, createSession } = useSongWorkSession();
   const [location] = useLocation();
   const { toast } = useToast();
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const selectionTimeout = useRef<number | undefined>(undefined);
+
+  const [lastSelection, setLastSelection] = useState<{ start: number; end: number } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (selectionTimeout.current) {
+        window.clearTimeout(selectionTimeout.current);
+      }
+    };
+  }, []);
+
+  const focusTextarea = () => {
+    textareaRef.current?.focus();
+  };
+
+  const insertAtSelection = (textToInsert: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? start;
+    const before = textarea.value.slice(0, start);
+    const after = textarea.value.slice(end);
+    const nextValue = before + textToInsert + after;
+
+    setContent(nextValue);
+
+    const newPos = start + textToInsert.length;
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  const replaceCurrentWord = (replacement: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      insertAtSelection(replacement);
+      return;
+    }
+
+    const caret = textarea.selectionStart ?? textarea.value.length;
+    const before = textarea.value.slice(0, caret);
+    const match = before.match(/([\w']+)$/);
+
+    if (!match) {
+      insertAtSelection(replacement);
+      return;
+    }
+
+    const word = match[0];
+    const wordStart = caret - word.length;
+    const after = textarea.value.slice(textarea.selectionEnd ?? caret);
+    const nextValue = textarea.value.slice(0, wordStart) + replacement + after;
+
+    setContent(nextValue);
+
+    const newPos = wordStart + replacement.length;
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
 
   const [title, setTitle] = useState("My Awesome Track");
   const [content, setContent] = useState(`[Verse 1]
@@ -84,6 +165,39 @@ In this digital symphony we're designing.
 
 [Verse 2]
 Type here or use AI generation...`);
+
+  // Undo/Redo history
+  const [undoStack, setUndoStack] = useState<string[]>([]);
+  const [redoStack, setRedoStack] = useState<string[]>([]);
+  const lastContentRef = useRef(content);
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const prev = undoStack[undoStack.length - 1];
+    setRedoStack((r) => [...r, content]);
+    setUndoStack((u) => u.slice(0, -1));
+    setContent(prev);
+  }, [undoStack, content]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setUndoStack((u) => [...u, content]);
+    setRedoStack((r) => r.slice(0, -1));
+    setContent(next);
+  }, [redoStack, content]);
+
+  // Track content changes for undo
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      if (lastContentRef.current !== content && lastContentRef.current) {
+        setUndoStack((u) => [...u.slice(-19), lastContentRef.current]);
+        setRedoStack([]);
+      }
+      lastContentRef.current = content;
+    }, 500);
+    return () => clearTimeout(debounce);
+  }, [content]);
 
   // Update studio context and localStorage whenever lyrics content changes
   React.useEffect(() => {
@@ -194,19 +308,10 @@ Type here or use AI generation...`);
 
   const generateLyricsMutation = useMutation({
     mutationFn: async (data: { theme: string; genre: string; mood: string; complexity?: number; aiProvider: string }) => {
-      // Add randomization to prevent repetitive results
-      const genres = ["hip-hop", "pop", "rock", "country", "R&B", "folk", "reggae", "electronic", "jazz", "blues"];
-      const moods = ["upbeat", "melancholic", "energetic", "romantic", "rebellious", "peaceful", "intense", "nostalgic"];
-      const themes = ["love", "freedom", "success", "struggle", "dreams", "technology", "nature", "friendship"];
-
-      const randomGenre = genres[Math.floor(Math.random() * genres.length)];
-      const randomMood = moods[Math.floor(Math.random() * moods.length)];
-      const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-
       const response = await apiRequest("POST", "/api/lyrics/generate", {
-        theme: `${data.theme}, ${randomTheme}`,
-        genre: randomGenre,
-        mood: randomMood,
+        theme: data.theme,
+        genre: data.genre,
+        mood: data.mood,
         complexity: data.complexity,
         aiProvider: data.aiProvider
       });
@@ -324,7 +429,13 @@ Type here or use AI generation...`);
       return response.json();
     },
     onSuccess: (data) => {
-      setRhymeSuggestions(data.rhymes.slice(0, 8));
+      // API returns string[], convert to RhymeSuggestion[]
+      const rhymeWords: string[] = data.rhymes || [];
+      const suggestions: RhymeSuggestion[] = rhymeWords.slice(0, 8).map((word: string, idx: number) => ({
+        word: word,
+        type: idx < 4 ? "perfect" : "near",
+      }));
+      setRhymeSuggestions(suggestions);
     },
     onError: (error: Error) => {
       toast({
@@ -432,35 +543,22 @@ Type here or use AI generation...`);
   };
 
   const handleFindRhymes = () => {
-    if (!currentWord.trim()) return;
-    rhymeMutation.mutate({ word: currentWord.trim() });
+    const target = currentWord.trim();
+    if (!target) return;
+    rhymeMutation.mutate({ word: target });
   };
 
   const insertRhyme = (rhyme: string) => {
-    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newContent = content.substring(0, start) + rhyme + content.substring(end);
-      setContent(newContent);
-
-      // Restore cursor position
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + rhyme.length, start + rhyme.length);
-      }, 0);
-    }
+    insertAtSelection(rhyme);
   };
 
   const goToSection = (section: string) => {
-    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
-    if (textarea) {
-      const sectionIndex = content.indexOf(`[${section.charAt(0).toUpperCase() + section.slice(1)}]`);
-      if (sectionIndex !== -1) {
-        textarea.focus();
-        textarea.setSelectionRange(sectionIndex, sectionIndex);
-        textarea.scrollTop = (sectionIndex / content.length) * textarea.scrollHeight;
-      }
+    if (!textareaRef.current) return;
+    const sectionIndex = content.indexOf(`[${section.charAt(0).toUpperCase() + section.slice(1)}]`);
+    if (sectionIndex !== -1) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(sectionIndex, sectionIndex);
+      textareaRef.current.scrollTop = (sectionIndex / content.length) * textareaRef.current.scrollHeight;
     }
   };
 
@@ -483,6 +581,95 @@ Type here or use AI generation...`);
 
   const wordCount = content.split(/\s+/).filter(word => word.length > 0).length;
   const lineCount = content.split('\n').length;
+
+  const lyricStats = useMemo(() => {
+    const lines = content.split('\n').filter(Boolean);
+    const syllableMap = lines.map((line) => line.split(/\s+/).reduce((sum, word) => sum + estimateSyllables(word), 0));
+    const avgSyllables = syllableMap.length ? syllableMap.reduce((a, b) => a + b, 0) / syllableMap.length : 0;
+    const longLines = syllableMap.filter((count) => count >= 16).length;
+    const shortLines = syllableMap.filter((count) => count <= 7).length;
+    return {
+      syllableMap,
+      avgSyllables: Math.round(avgSyllables * 10) / 10,
+      longLines,
+      shortLines,
+    };
+  }, [content]);
+
+  const derivedWordBank = useMemo(() => {
+    const base = ["algorithm", "digital", "syntax", "binary", "electric", "function", "variable", "execute"];
+    const fromTheme = theme
+      .split(/[, ]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const moodWords: Record<string, string[]> = {
+      upbeat: ["vibrant", "radiate", "spark", "lift", "celebrate"],
+      melancholic: ["echo", "hollow", "flicker", "solace", "wistful"],
+      energetic: ["ignite", "charge", "rush", "surge", "frenzy"],
+      romantic: ["velvet", "sway", "embrace", "serenade", "glow"],
+      introspective: ["ponder", "mirror", "soul", "rewind", "solitude"],
+    };
+    const genreAccents: Record<string, string[]> = {
+      "hip-hop": ["cipher", "flow", "barz", "loopback"],
+      pop: ["chorus", "sparkle", "glimmer", "hookline"],
+      rock: ["ember", "distort", "anthem", "howl"],
+      "r&b": ["velvet", "harmony", "pulse", "silhouette"],
+      electronic: ["neon", "modulate", "glitch", "uplink"],
+      country: ["trail", "dust", "meadow", "twang"],
+    };
+    return Array.from(
+      new Set([
+        ...base,
+        ...fromTheme,
+        ...(moodWords[mood] ?? []),
+        ...(genreAccents[genre] ?? []),
+      ]),
+    ).filter(Boolean);
+  }, [theme, mood, genre]);
+
+  const selectionDetails = useMemo(() => {
+    if (!lastSelection || lastSelection.start === lastSelection.end) {
+      return null;
+    }
+    const slice = content.slice(lastSelection.start, lastSelection.end);
+    return {
+      text: slice.trim(),
+      characters: lastSelection.end - lastSelection.start,
+      lines: slice.split("\n").length,
+    };
+  }, [lastSelection, content]);
+
+  const handleWordBankInsert = (word: string) => {
+    insertAtSelection(word);
+    toast({
+      title: "Word inserted",
+      description: `"${word}" dropped into your lyrics.`,
+      duration: 2000,
+    });
+  };
+
+  const handleTextareaSelect = () => {
+    if (!textareaRef.current) return;
+    const textarea = textareaRef.current;
+    setLastSelection({
+      start: textarea.selectionStart,
+      end: textarea.selectionEnd,
+    });
+
+    const before = textarea.value.slice(0, textarea.selectionStart);
+    const wordMatch = before.match(/([\w']+)$/);
+    const selectedWord = wordMatch ? wordMatch[1] : "";
+    setCurrentWord(selectedWord);
+
+    if (selectionTimeout.current) {
+      window.clearTimeout(selectionTimeout.current);
+    }
+    if (selectedWord.length >= 3) {
+      selectionTimeout.current = window.setTimeout(() => {
+        rhymeMutation.mutate({ word: selectedWord });
+      }, 350);
+    }
+  };
 
   const genres = [
     { value: "hip-hop", label: "Hip-Hop" },
@@ -508,6 +695,21 @@ Type here or use AI generation...`);
     { value: "FREE", label: "Free Verse" },
   ];
 
+  const handleSongUploaded = useCallback((song: Song) => {
+    const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+    const sessionId = createSession({
+      name: song.name || "Uploaded Song",
+      audioUrl,
+    });
+
+    toast({
+      title: "Reference Track Ready",
+      description: `${song.name ?? "Song"} added to this lyric session.`,
+    });
+
+    setCurrentSessionId(sessionId);
+  }, [createSession, setCurrentSessionId, toast]);
+
   return (
     <div className="h-full flex flex-col">
       <div className="p-6 border-b border-gray-600">
@@ -530,6 +732,7 @@ Type here or use AI generation...`);
       </div>
 
       <SongUploadPanel
+        onSongUploaded={handleSongUploaded}
         onTranscriptionComplete={({ songName, lyrics }) => {
           if (songName && songName.trim().length > 0) {
             setTitle(songName);
@@ -588,10 +791,24 @@ Type here or use AI generation...`);
                   <span>Lines: {lineCount}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 hover:text-white disabled:opacity-30"
+                    onClick={handleUndo}
+                    disabled={undoStack.length === 0}
+                    title="Undo (Ctrl+Z)"
+                  >
                     <i className="fas fa-undo"></i>
                   </Button>
-                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 hover:text-white disabled:opacity-30"
+                    onClick={handleRedo}
+                    disabled={redoStack.length === 0}
+                    title="Redo (Ctrl+Y)"
+                  >
                     <i className="fas fa-redo"></i>
                   </Button>
                   <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
@@ -610,14 +827,34 @@ Type here or use AI generation...`);
               />
 
               <Textarea
+                ref={textareaRef}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
+                onSelect={handleTextareaSelect}
+                onKeyUp={handleTextareaSelect}
+                onClick={handleTextareaSelect}
                 className="h-96 bg-transparent border-none resize-none font-mono text-sm leading-relaxed focus:outline-none"
                 placeholder="Start writing your lyrics here..."
+                aria-label="Lyric editor"
               />
-              <p className="mt-2 text-xs text-gray-400">
-                These lyrics can come from your uploaded song or your own writing. Tweak anything here before running analysis.
-              </p>
+              <div className="mt-3 flex items-start justify-between text-xs text-gray-400">
+                <p>
+                  These lyrics can come from your uploaded song or your own writing. Tweak anything here before running analysis.
+                </p>
+                {selectionDetails ? (
+                  <div className="text-right text-[11px] text-gray-300">
+                    <div className="font-semibold text-white">Active Selection</div>
+                    <div>{selectionDetails.characters} chars • {selectionDetails.lines} line{selectionDetails.lines > 1 ? "s" : ""}</div>
+                    {selectionDetails.text && (
+                      <div className="italic text-gray-400 truncate max-w-[14rem]">&ldquo;{selectionDetails.text}&rdquo;</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-right text-[11px] text-gray-500">
+                    Highlight a word to auto-pull rhymes & word bank inserts.
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Rhyme Suggestions */}
@@ -951,12 +1188,13 @@ Type here or use AI generation...`);
             {/* Word Bank */}
             <div className="bg-studio-panel border border-gray-600 rounded-lg p-4">
               <h3 className="font-medium mb-3">Word Bank</h3>
+              <p className="text-[11px] text-gray-400 mb-2">Click a word to insert it at your cursor.</p>
               <div className="space-y-2 text-xs max-h-32 overflow-y-auto">
                 <div className="flex flex-wrap gap-1">
-                  {["algorithm", "digital", "syntax", "binary", "electric", "function", "variable", "execute"].map((word) => (
+                  {derivedWordBank.map((word) => (
                     <button
                       key={word}
-                      onClick={() => { insertRhyme(word); }}
+                      onClick={() => handleWordBankInsert(word)}
                       className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600 cursor-pointer transition-colors"
                     >
                       {word}
@@ -965,6 +1203,28 @@ Type here or use AI generation...`);
                 </div>
               </div>
             </div>
+
+            {/* Save Lyrics */}
+            <div className="bg-studio-panel border border-gray-600 rounded-lg p-4">
+              <Button
+                onClick={handleSave}
+                disabled={saveLyricsMutation.isPending || !content.trim()}
+                className="w-full bg-studio-accent hover:bg-blue-500"
+              >
+                {saveLyricsMutation.isPending ? (
+                  <>
+                    <i className="fas fa-spinner animate-spin mr-2"></i>
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-save mr-2"></i>
+                    Save Lyrics
+                  </>
+                )}
+              </Button>
+            </div>
+
           </div>
         </div>
       </ScrollArea>

@@ -21,6 +21,7 @@ interface SongUploadPanelProps {
     songName: string;
     lyrics: string;
   }) => void;
+  onSongUploaded?: (song: Song) => void;
 }
 
 interface UploadContext {
@@ -30,7 +31,7 @@ interface UploadContext {
   mimeType?: string;
 }
 
-export function SongUploadPanel({ onTranscriptionComplete }: SongUploadPanelProps) {
+export function SongUploadPanel({ onTranscriptionComplete, onSongUploaded }: SongUploadPanelProps) {
   const { toast } = useToast();
   const { addTrack } = useTracks();
   const [uploadContext, setUploadContext] = useState<UploadContext | null>(null);
@@ -225,6 +226,7 @@ export function SongUploadPanel({ onTranscriptionComplete }: SongUploadPanelProp
 
       try {
         const newSong = await uploadSongMutation.mutateAsync(songData);
+        onSongUploaded?.(newSong);
 
         // Register uploaded song as an audio track in the shared track store
         const audioUrl = newSong.accessibleUrl || newSong.originalUrl || (newSong as any).songURL;

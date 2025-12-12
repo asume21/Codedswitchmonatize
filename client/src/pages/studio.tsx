@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // PlaylistManager integrated into TransportControls
 import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
+import { StudioSessionProvider } from "@/contexts/StudioSessionContext";
 import {
   DEFAULT_STUDIO_TAB,
   getStudioTabById,
@@ -241,9 +242,10 @@ export default function Studio() {
   };
 
   return (
-    <AIMessageProvider>
-      <StudioAudioContext.Provider value={studioAudioValue}>
-        <div className="h-screen flex bg-studio-bg text-white">
+    <StudioSessionProvider>
+      <AIMessageProvider>
+        <StudioAudioContext.Provider value={studioAudioValue}>
+          <div className="h-screen flex bg-studio-bg text-white">
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header />
             
@@ -270,8 +272,9 @@ export default function Studio() {
           
           {/* iOS Audio Enable Button */}
           <IOSAudioEnable />
-        </div>
-      </StudioAudioContext.Provider>
-    </AIMessageProvider>
+          </div>
+        </StudioAudioContext.Provider>
+      </AIMessageProvider>
+    </StudioSessionProvider>
   );
 }

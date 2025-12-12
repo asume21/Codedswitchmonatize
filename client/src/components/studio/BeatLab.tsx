@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
 import { useTransport } from "@/contexts/TransportContext";
 import { StudioAudioContext } from "@/pages/studio";
+import { useStudioSession } from "@/contexts/StudioSessionContext";
 import ProBeatMaker from "./ProBeatMaker";
 import BassStudio from "./BassStudio";
 import LoopLibrary from "./LoopLibrary";
@@ -25,6 +26,7 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
   const { tempo } = useTransport();
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
+  const session = useStudioSession();
   const [latestPattern, setLatestPattern] = useState<any | null>(null);
   const [latestMelody, setLatestMelody] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<BeatLabTab>(initialTab);
@@ -34,7 +36,7 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
   }, [initialTab]);
 
   const sendPatternToTracks = (pattern?: any, meta?: { bpm?: number; name?: string }) => {
-    const payloadPattern = pattern ?? latestPattern ?? studioContext.currentPattern;
+    const payloadPattern = pattern ?? latestPattern ?? studioContext.currentPattern ?? session.pattern;
     if (!payloadPattern) {
       toast({
         title: "No pattern available",
@@ -45,6 +47,7 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
     }
 
     setLatestPattern(payloadPattern);
+    session.setPattern(payloadPattern);
     addTrack({
       name: meta?.name ?? "Beat Pattern",
       type: "beat",
@@ -64,7 +67,7 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
   };
 
   const sendMelodyToTracks = (melody?: any[]) => {
-    const payloadMelody = melody ?? latestMelody ?? studioContext.currentMelody;
+    const payloadMelody = melody ?? latestMelody ?? studioContext.currentMelody ?? session.melody;
     if (!payloadMelody || payloadMelody.length === 0) {
       toast({
         title: "No melody captured",
@@ -75,6 +78,7 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
     }
 
     setLatestMelody(payloadMelody);
+    session.setMelody(payloadMelody);
     addTrack({
       name: "Beat Lab Melody",
       type: "midi",
@@ -181,6 +185,7 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
                     pattern[t.id] = t.pattern.map(s => s.active);
                   });
                   setLatestPattern(pattern);
+                  session.setPattern(pattern);
                   toast({
                     title: "🎵 Pattern Ready",
                     description: `Beat at ${bpm} BPM captured`,

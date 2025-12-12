@@ -192,7 +192,7 @@ export default function UnifiedStudioWorkspace() {
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showLyricsFocus, setShowLyricsFocus] = useState(false);
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
-  const [beatLabTab, setBeatLabTab] = useState<'pro' | 'pack-generator' | 'codebeat'>('pro');
+  const [beatLabTab, setBeatLabTab] = useState<'pro' | 'bass-studio' | 'loop-library' | 'pack-generator'>('pro');
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
   const undoManagerRef = useRef<UndoManager<StudioTrack[]> | null>(null);
   const isRestoringTracksRef = useRef(false);
@@ -2307,49 +2307,37 @@ export default function UnifiedStudioWorkspace() {
             >
               <span>
                 {lyricsExpanded ? <ChevronDown className="inline w-4 h-4 mr-2" /> : <ChevronRight className="inline w-4 h-4 mr-2" />}
-                LYRICS EDITOR
+                LYRICS
               </span>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowLyricsFocus(true);
+                  window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'lyrics' }));
                 }}
               >
                 <Maximize2 className="w-4 h-4 mr-1" />
-                Focus Mode
+                Open Lyric Lab
               </Button>
             </button>
-            
+
             {lyricsExpanded && (
-            <div className="bg-gray-900 p-4">
-              <div className="border border-gray-700 rounded p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium">Song Lyrics</h3>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">
-                        <i className="fas fa-magic mr-1"></i>
-                        AI Suggest (Grok)
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        Rhyme Help
-                      </Button>
-                    </div>
+              <div className="bg-gray-900 p-4">
+                <div className="border border-gray-700 rounded p-4 flex flex-col gap-3">
+                  <h3 className="font-medium">Lyrics are edited in Song Doctor · Lyric Lab</h3>
+                  <p className="text-sm text-gray-300">
+                    Use the main <span className="font-semibold">Lyrics</span> tab to work on your song text. This DAW section is now a shortcut so
+                    there is only one Lyric Lab for the entire studio.
+                  </p>
+                  <div>
+                    <Button
+                      size="sm"
+                      className="bg-studio-accent hover:bg-blue-500"
+                      onClick={() => window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'lyrics' }))}                      >
+                      Go to Lyric Lab
+                    </Button>
                   </div>
-                  
-                  <textarea
-                    className="w-full h-48 bg-gray-800 border border-gray-700 rounded p-3 text-sm resize-none"
-                    value={studioContext.currentLyrics || ''}
-                    onChange={(e) => studioContext.setCurrentLyrics(e.target.value)}
-                    placeholder={`Write your lyrics here...
-
-[Verse 1]
-Your lyrics will sync with the timeline
-
-[Chorus]
-...`}
-                  />
                 </div>
               </div>
             )}

@@ -7,6 +7,7 @@ import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { useToast } from '@/hooks/use-toast';
 import { StudioAudioContext } from '@/pages/studio';
+import { useStudioSession } from '@/contexts/StudioSessionContext';
 import type { Note } from './types/pianoRollTypes';
 import { AudioPlayer } from '@/components/ui/audio-player';
 
@@ -25,9 +26,10 @@ interface Track {
 function MelodyComposerV2() {
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
+  const session = useStudioSession();
   
-  // Core state
-  const [notes, setNotes] = useState<Note[]>([]);
+  // Core state (notes mirror the currently selected track and are also stored in the shared session)
+  const [notes, setNotes] = useState<Note[]>(session.melody as Note[] || []);
   const [selectedTrack, setSelectedTrack] = useState('track1');
   const [tempo, setTempo] = useState(studioContext.bpm);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
@@ -156,6 +158,8 @@ function MelodyComposerV2() {
 
     if (trackId === selectedTrack) {
       setNotes(updatedNotes);
+      // Persist melody notes into the shared studio session so other views can access them
+      session.setMelody(updatedNotes);
     }
   };
 
@@ -163,7 +167,9 @@ function MelodyComposerV2() {
 
   useEffect(() => {
     const activeTrack = tracks.find(track => track.id === selectedTrack);
-    setNotes(activeTrack?.notes ?? []);
+    const nextNotes = activeTrack?.notes ?? [];
+    setNotes(nextNotes);
+    session.setMelody(nextNotes);
   }, [selectedTrack, tracks]);
 
   // AI Melody Generation
@@ -254,9 +260,11 @@ function MelodyComposerV2() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">
             🎵 MelodyComposer V2
-            <span className="ml-3 text-lg bg-green-600 px-3 py-1 rounded-full">PLUGIN SYSTEM</span>
+            <span className="ml-3 text-lg bg-green-600 px-3 py-1 rounded-full">MELODY LAB</span>
           </h1>
-          <p className="text-gray-400">Professional Multi-Track Music Production with Modular Plugins</p>
+          <p className="text-gray-400">
+            Main melody lab for composing song ideas. Use this view to create melodies; use the DAW Piano Roll to arrange them on the timeline.
+          </p>
         </div>
 
         {/* Main Controls */}
