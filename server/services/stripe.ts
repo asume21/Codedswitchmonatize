@@ -126,17 +126,26 @@ export async function handleStripeWebhook(
         const credits = parseInt(session.metadata?.credits || "0");
         const paymentIntentId = session.payment_intent as string;
 
-        if (packageKey && credits && paymentIntentId) {
-          const creditService = getCreditService(storage);
+        if (!packageKey || !credits || !paymentIntentId) {
+          throw new Error(
+            `Invalid credit purchase metadata (packageKey=${String(
+              packageKey,
+            )}, credits=${String(credits)}, paymentIntentId=${String(paymentIntentId)})`,
+          );
+        }
 
-          try {
-            await creditService.purchaseCredits(userId, packageKey, paymentIntentId);
-            console.log(
-              `?? Credits purchased via webhook: User ${userId}, +${credits} credits (${packageKey})`,
-            );
-          } catch (error) {
-            console.error(`? Failed to add credits for user ${userId}:`, error);
-          }
+        const recent = await storage.getCreditTransactions(userId, 200, 0);
+        const alreadyProcessed = recent.some((t: any) => {
+          const meta = (t as any)?.metadata;
+          return meta && meta.paymentIntentId === paymentIntentId;
+        });
+
+        if (!alreadyProcessed) {
+          const creditService = getCreditService(storage);
+          await creditService.purchaseCredits(userId, packageKey, paymentIntentId);
+          console.log(
+            `?? Credits purchased via webhook: User ${userId}, +${credits} credits (${packageKey})`,
+          );
         }
       }
 
