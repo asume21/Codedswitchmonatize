@@ -648,32 +648,14 @@ export class MemStorage implements IStorage {
     userId: string,
     analysis: InsertLyricsAnalysis,
   ): Promise<LyricsAnalysis> {
-    const [record] = await db
-      .insert(lyricsAnalyses)
-      .values({
-        ...analysis,
-        userId,
-      })
-      .returning();
-    return record;
-  }
-
-  async getLyricsAnalysesBySong(songId: string): Promise<LyricsAnalysis[]> {
-    return await db
-      .select()
-      .from(lyricsAnalyses)
-      .where(eq(lyricsAnalyses.songId, songId));
-  }
-
-  async saveLyricsAnalysis(
-    userId: string,
-    analysis: InsertLyricsAnalysis,
-  ): Promise<LyricsAnalysis> {
-    const id = analysis.id || randomUUID();
+    const id = (analysis as any).id || randomUUID();
     const record: LyricsAnalysis = {
-      ...analysis,
       id,
+      content: analysis.content,
       userId,
+      songId: analysis.songId ?? null,
+      lyricsId: analysis.lyricsId ?? null,
+      analysis: analysis.analysis ?? null,
       createdAt: new Date(),
     };
     this.lyricsAnalyses.set(id, record);
@@ -1187,6 +1169,27 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return lyric;
+  }
+
+  async saveLyricsAnalysis(
+    userId: string,
+    analysis: InsertLyricsAnalysis,
+  ): Promise<LyricsAnalysis> {
+    const [record] = await db
+      .insert(lyricsAnalyses)
+      .values({
+        ...analysis,
+        userId,
+      })
+      .returning();
+    return record;
+  }
+
+  async getLyricsAnalysesBySong(songId: string): Promise<LyricsAnalysis[]> {
+    return await db
+      .select()
+      .from(lyricsAnalyses)
+      .where(eq(lyricsAnalyses.songId, songId));
   }
 
   // Songs

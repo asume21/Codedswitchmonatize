@@ -177,7 +177,7 @@ Requirements:
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error("AI generation timed out")), AI_RESPONSE_DEADLINE_MS)
       )
-    ]);
+    ]) as any;
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
 

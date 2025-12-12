@@ -272,8 +272,11 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         return sendError(res, 400, "Missing loop filename");
       }
 
-      const safeName = sanitizePath(raw);
-      const filePath = path.resolve(LOOPS_DIR, safeName);
+      const safeName = sanitizePath(raw, LOOPS_DIR);
+      if (!safeName) {
+        return sendError(res, 400, "Invalid loop filename");
+      }
+      const filePath = safeName;
 
       if (!filePath.startsWith(LOOPS_DIR)) {
         return sendError(res, 400, "Invalid loop path");
@@ -2044,71 +2047,99 @@ ${code}
     requireAuth(),
     requireCredits(CREDIT_COSTS.RHYME_SUGGESTIONS, storage),
     async (req: Request, res: Response) => {
+      const fetchDatamuseRhymes = async (target: string) => {
+        const endpoints = [
+          `https://api.datamuse.com/words?rel_rhy=${encodeURIComponent(target)}&max=20`,
+          `https://api.datamuse.com/words?rel_nry=${encodeURIComponent(target)}&max=20`,
+        ];
+        const results: string[] = [];
+
+        for (const url of endpoints) {
+          const response = await fetch(url, { headers: { "User-Agent": "Codedswitch/1.0" } });
+          if (!response.ok) continue;
+          const data = (await response.json()) as { word: string }[];
+          data.forEach((entry) => {
+            if (entry.word) {
+              results.push(entry.word);
+            }
+          });
+        }
+
+        return Array.from(new Set(results)).slice(0, 20);
+      };
+
       try {
         const { word } = req.body;
-        
+
         if (!word) {
           return sendError(res, 400, "Missing required field: word");
         }
 
-      // Use AI to generate rhyming words
-      const XAI_API_KEY = process.env.XAI_API_KEY;
-      
-      if (!XAI_API_KEY) {
-        return res.json({
-          rhymes: ['cat', 'bat', 'hat', 'mat', 'sat', 'fat', 'rat', 'pat']
+        // Prefer AI for creative variety
+        const XAI_API_KEY = process.env.XAI_API_KEY;
+        let rhymes: string[] | null = null;
+
+        if (XAI_API_KEY) {
+          try {
+            const response = await fetch("https://api.x.ai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${XAI_API_KEY}`,
+              },
+              body: JSON.stringify({
+                model: "grok-beta",
+                messages: [
+                  {
+                    role: "system",
+                    content: "You are a rap/songwriting assistant. Generate rhyming words for songwriting.",
+                  },
+                  {
+                    role: "user",
+                    content: `Give me 12 words that rhyme with "${word}". Include perfect rhymes, near rhymes, and slant rhymes. Respond ONLY with a JSON array of words, no explanation: ["word1", "word2", ...]`,
+                  },
+                ],
+                temperature: 0.7,
+              }),
+            });
+
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content ?? "";
+            const jsonMatch = content.match(/\[[\s\S]*?\]/);
+            rhymes = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+          } catch (error) {
+            console.warn("⚠️ Grok rhyme lookup failed, falling back to Datamuse:", (error as Error).message);
+            rhymes = null;
+          }
+        }
+
+        if (!rhymes || rhymes.length === 0) {
+          try {
+            rhymes = await fetchDatamuseRhymes(word);
+          } catch (datamuseError) {
+            console.warn("⚠️ Datamuse fallback failed:", (datamuseError as Error).message);
+          }
+        }
+
+        if (!rhymes || rhymes.length === 0) {
+          rhymes = ["way", "day", "say", "play", "stay", "lay", "pay", "may"];
+        }
+
+        // Deduct credits after successful generation
+        if (req.creditService && req.creditCost) {
+          await req.creditService.deductCredits(req.userId!, req.creditCost, "Rhyme suggestions", { word });
+        }
+
+        console.log("✅ Rhymes generated for:", word);
+        res.json({ rhymes });
+      } catch (error) {
+        console.error("❌ Rhyme generation error:", error);
+        res.json({
+          rhymes: ["way", "day", "say", "play", "stay", "lay", "pay", "may"],
         });
       }
-
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'grok-beta',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a rap/songwriting assistant. Generate rhyming words for songwriting.'
-            },
-            {
-              role: 'user',
-              content: `Give me 12 words that rhyme with "${word}". Include perfect rhymes, near rhymes, and slant rhymes. Respond ONLY with a JSON array of words, no explanation: ["word1", "word2", ...]`
-            }
-          ],
-          temperature: 0.7
-        })
-      });
-
-      const data = await response.json();
-      const content = data.choices[0].message.content;
-      
-      // Parse the rhymes from AI response
-      const jsonMatch = content.match(/\[[\s\S]*?\]/);
-      const rhymes = jsonMatch ? JSON.parse(jsonMatch[0]) : ['cat', 'bat', 'hat', 'mat', 'sat'];
-
-      // Deduct credits after successful generation
-      if (req.creditService && req.creditCost) {
-        await req.creditService.deductCredits(
-          req.userId!,
-          req.creditCost,
-          'Rhyme suggestions',
-          { word }
-        );
-      }
-
-      console.log('✅ Rhymes generated for:', word);
-      res.json({ rhymes });
-    } catch (error) {
-      console.error('❌ Rhyme generation error:', error);
-      // Fallback rhymes
-      res.json({
-        rhymes: ['way', 'day', 'say', 'play', 'stay', 'lay', 'pay', 'may']
-      });
-    }
-  });
+    },
+  );
 
   // Professional song generation endpoint (Suno via Replicate)
   app.post("/api/songs/generate-professional", async (req: Request, res: Response) => {
