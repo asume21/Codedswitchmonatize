@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { 
   Settings, CreditCard, LogIn, ChevronDown,
+  Coins,
   Piano, Wand2, Mic2, Drum,
   Code, Shield, MessageSquare, Headphones, Zap 
 } from "lucide-react";
@@ -34,8 +35,8 @@ export function Navigation() {
   const [location] = useLocation();
 
   // Show first 5 items in nav bar, rest in "More" dropdown
-  const visibleItems = NAV_ITEMS.slice(0, 5);
-  const moreItems = NAV_ITEMS.slice(5);
+  const visibleItems = NAV_ITEMS.slice(0, 2);
+  const moreItems = NAV_ITEMS.slice(2);
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -96,6 +97,18 @@ export function Navigation() {
                       </span>
                     </Link>
                   ))}
+
+                  <div className="mx-4 my-2 h-px bg-purple-500/20" />
+
+                  <Link href="/buy-credits">
+                    <span
+                      onClick={() => setMoreOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-all text-gray-300 hover:bg-white/5 hover:text-white"
+                    >
+                      <Coins className="w-4 h-4 text-purple-400" />
+                      Get Credits
+                    </span>
+                  </Link>
                 </div>
               </>
             )}
@@ -103,7 +116,13 @@ export function Navigation() {
         </div>
 
         {/* Right: User Menu */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 flex-shrink-0">
+          <Link href="/buy-credits">
+            <Button variant="secondary" size="sm" className="gap-2">
+              <Coins className="h-4 w-4" />
+              <span className="hidden sm:inline">Get Credits</span>
+            </Button>
+          </Link>
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
