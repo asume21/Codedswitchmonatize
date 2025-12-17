@@ -507,27 +507,74 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
         const steps = 16;
 
-        // Fallback drum pattern generator
+        // Fallback drum pattern generator with more variety
         const generateFallbackPattern = (styleHint: string): DrumGrid => {
           const kick: number[] = [];
           const snare: number[] = [];
           const hihat: number[] = [];
           const percussion: number[] = [];
 
-          const isHipHop = styleHint.toLowerCase().includes('hip') || styleHint.toLowerCase().includes('trap');
-          const isElectronic = styleHint.toLowerCase().includes('electro') || styleHint.toLowerCase().includes('house');
+          const style = styleHint.toLowerCase();
+          const isHipHop = style.includes('hip') || style.includes('trap');
+          const isHouse = style.includes('house') || style.includes('techno');
+          const isDnB = style.includes('dnb') || style.includes('drum');
+          const isAmbient = style.includes('ambient') || style.includes('chill');
+          
+          // Use random seed for variety
+          const seed = Math.random();
+          const variation = Math.floor(seed * 4); // 4 variations per genre
 
           for (let i = 0; i < steps; i++) {
             if (isHipHop) {
-              kick.push((i === 0 || i === 6 || i === 10) ? 1 : (Math.random() < 0.1 ? 1 : 0));
-            } else if (isElectronic) {
-              kick.push((i % 4 === 0) ? 1 : 0);
+              // Hip-hop/Trap patterns - 4 variations
+              const hipHopKicks = [
+                [0, 3, 6, 10],      // Variation 0: Boom bap
+                [0, 5, 8, 13],      // Variation 1: Trap bounce
+                [0, 2, 7, 10, 14],  // Variation 2: Heavy trap
+                [0, 4, 8, 11]       // Variation 3: Classic
+              ];
+              kick.push(hipHopKicks[variation].includes(i) ? 1 : (Math.random() < 0.08 ? 1 : 0));
+              snare.push((i === 4 || i === 12) ? 1 : (i === 8 && Math.random() < 0.3 ? 1 : 0));
+              hihat.push(Math.random() < 0.7 ? 1 : 0); // Busy hi-hats for trap
+              percussion.push((i % 4 === 2 && Math.random() < 0.4) ? 1 : 0);
+            } else if (isHouse) {
+              // House/Techno - 4-on-the-floor with variations
+              kick.push((i % 4 === 0) ? 1 : (variation > 1 && i % 4 === 2 && Math.random() < 0.3 ? 1 : 0));
+              snare.push((i === 4 || i === 12) ? 1 : 0);
+              // Offbeat hi-hats for house
+              hihat.push((i % 2 === 1) ? 1 : (Math.random() < 0.3 ? 1 : 0));
+              percussion.push((i === 2 || i === 10) && Math.random() < 0.5 ? 1 : 0);
+            } else if (isDnB) {
+              // Drum & Bass - fast breakbeats
+              const dnbKicks = [
+                [0, 10],
+                [0, 6, 10],
+                [0, 3, 10, 13],
+                [0, 7, 10]
+              ];
+              kick.push(dnbKicks[variation].includes(i) ? 1 : 0);
+              snare.push((i === 4 || i === 12) ? 1 : (i === 8 || i === 14) && Math.random() < 0.4 ? 1 : 0);
+              hihat.push(Math.random() < 0.8 ? 1 : 0); // Very busy hi-hats
+              percussion.push(Math.random() < 0.2 ? 1 : 0);
+            } else if (isAmbient) {
+              // Ambient - sparse
+              kick.push((i === 0 || i === 8) && Math.random() < 0.7 ? 1 : 0);
+              snare.push(i === 8 && Math.random() < 0.5 ? 1 : 0);
+              hihat.push(Math.random() < 0.2 ? 1 : 0);
+              percussion.push(Math.random() < 0.1 ? 1 : 0);
             } else {
-              kick.push((i === 0 || i === 8) ? 1 : (Math.random() < 0.15 ? 1 : 0));
+              // Generic rock/pop patterns
+              const rockKicks = [
+                [0, 8],
+                [0, 6, 8],
+                [0, 3, 8, 11],
+                [0, 4, 8, 12]
+              ];
+              kick.push(rockKicks[variation].includes(i) ? 1 : (Math.random() < 0.1 ? 1 : 0));
+              snare.push((i === 4 || i === 12) ? 1 : (Math.random() < 0.05 ? 1 : 0));
+              hihat.push((i % 2 === 0) ? 1 : (Math.random() < 0.5 ? 1 : 0));
+              percussion.push(Math.random() < 0.15 ? 1 : 0);
             }
-            snare.push((i === 4 || i === 12) ? 1 : (Math.random() < 0.08 ? 1 : 0));
-            hihat.push((i % 2 === 0) ? 1 : (Math.random() < 0.4 ? 1 : 0));
-            percussion.push(Math.random() < 0.12 ? 1 : 0);
           }
           return { kick, snare, hihat, percussion };
         };
@@ -3287,27 +3334,50 @@ Create complete lyrics with verses, chorus, and bridge.`;
   // Generate bass line
   app.post("/api/music/generate-bass", async (req: Request, res: Response) => {
     try {
-      const { chordProgression, key, bpm, style, duration } = req.body;
+      const { 
+        chordProgression, 
+        style = 'fingerstyle', 
+        pattern = 'root-fifth',
+        octave = 2,
+        groove = 0.5,
+        noteLength = 0.75,
+        velocity = 0.7,
+        glide = 0
+      } = req.body;
       
-      console.log('🎸 Generating bass line...');
+      console.log('🎸 Generating bass line with params:', { style, pattern, octave, groove, noteLength, velocity, glide });
       
       const { generateBassLine } = await import('./services/bassGenerator');
       
-      // Convert chord array to ChordInfo format
-      const chords = (chordProgression || ['C', 'G', 'Am', 'F']).map((chord: string) => ({
-        chord,
-        duration: 4 // 4 beats per chord
-      }));
+      // Convert chord array to ChordInfo format - handle both string arrays and object arrays
+      let chords: Array<{ chord: string; duration: number }>;
+      if (Array.isArray(chordProgression) && chordProgression.length > 0) {
+        if (typeof chordProgression[0] === 'string') {
+          chords = chordProgression.map((chord: string) => ({
+            chord,
+            duration: 4 // 4 beats per chord
+          }));
+        } else {
+          // Already in object format
+          chords = chordProgression.map((c: any) => ({
+            chord: c.chord || c.name || 'C',
+            duration: c.duration || 4
+          }));
+        }
+      } else {
+        // Default progression if none provided
+        chords = ['C', 'G', 'Am', 'F'].map(chord => ({ chord, duration: 4 }));
+      }
       
       const bassNotes = generateBassLine(
         chords,
-        style || 'fingerstyle',
-        'root-fifth', // default pattern
-        2, // octave
-        0.5, // groove
-        0.5, // noteLength
-        0.8, // velocity
-        0 // glide
+        style,
+        pattern,
+        octave,
+        groove,
+        noteLength,
+        velocity,
+        glide
       );
 
       console.log('✅ Bass line generated');

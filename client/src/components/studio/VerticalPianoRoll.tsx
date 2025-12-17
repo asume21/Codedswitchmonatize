@@ -1757,8 +1757,9 @@ export const VerticalPianoRoll: React.FC = () => {
       currentKey={currentKey}
       currentChordIndex={currentChordIndex}
       onChordClick={handleChordClick}
+      chordInversion={chordInversion}
     />
-  ), [selectedProgression, currentKey, currentChordIndex, handleChordClick]);
+  ), [selectedProgression, currentKey, currentChordIndex, handleChordClick, chordInversion]);
 
   return (
     <div className="h-full w-full bg-gray-900 text-white">

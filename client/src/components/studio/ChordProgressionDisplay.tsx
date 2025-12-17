@@ -12,13 +12,26 @@ interface ChordProgressionDisplayProps {
   currentKey: string;
   currentChordIndex: number;
   onChordClick: (chordSymbol: string, chordNotes: string[]) => void;
+  chordInversion?: number; // 0 = root, 1 = 1st inversion, 2 = 2nd inversion
 }
+
+// Helper function to invert chord notes
+const invertChordNotes = (notes: string[], inversion: number): string[] => {
+  if (inversion === 0 || notes.length === 0) return notes;
+  const inverted = [...notes];
+  for (let i = 0; i < inversion; i++) {
+    const first = inverted.shift();
+    if (first) inverted.push(first);
+  }
+  return inverted;
+};
 
 export const ChordProgressionDisplay: React.FC<ChordProgressionDisplayProps> = ({
   progression,
   currentKey,
   currentChordIndex,
-  onChordClick
+  onChordClick,
+  chordInversion = 0
 }) => {
   const { toast } = useToast();
 
@@ -58,6 +71,10 @@ export const ChordProgressionDisplay: React.FC<ChordProgressionDisplayProps> = (
           const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
           const chordNotes = keyData?.chords?.[chord];
           
+          // Show inverted notes in the display
+          const displayNotes = chordNotes ? invertChordNotes(chordNotes, chordInversion) : null;
+          const inversionLabel = chordInversion === 0 ? '' : chordInversion === 1 ? '¹' : '²';
+          
           return (
             <button
               key={`${chord}-${index}`}
@@ -67,13 +84,13 @@ export const ChordProgressionDisplay: React.FC<ChordProgressionDisplayProps> = (
                   ? 'bg-purple-600 text-white' 
                   : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
               }`}
-              aria-label={`Play ${chord} chord`}
+              aria-label={`Play ${chord} chord${inversionLabel ? ` (${chordInversion === 1 ? '1st' : '2nd'} inversion)` : ''}`}
               aria-pressed={isCurrent}
             >
-              <span className="font-medium">{chord}</span>
-              {chordNotes && (
+              <span className="font-medium">{chord}{inversionLabel}</span>
+              {displayNotes && (
                 <span className="text-xs opacity-75">
-                  {chordNotes.join('-')}
+                  {displayNotes.join('-')}
                 </span>
               )}
             </button>
