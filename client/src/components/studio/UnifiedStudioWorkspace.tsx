@@ -5,18 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen } from 'lucide-react';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import AIAssistant from './AIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
 import LyricsFocusMode from './LyricsFocusMode';
-import ProfessionalStudio from './ProfessionalStudio';
 import { Resizable } from 'react-resizable';
 import LyricLab from './LyricLab';
 import CodeToMusicStudioV2 from './CodeToMusicStudioV2';
-import CodeTranslator from './CodeTranslator';
 import VerticalPianoRoll from './VerticalPianoRoll';
 import ProfessionalMixer from './ProfessionalMixer';
 import SongUploader from './SongUploader';
@@ -26,11 +24,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
+import { duplicateTrackData } from '@/lib/trackClone';
 import AudioAnalysisPanel from './AudioAnalysisPanel';
 import AudioToolsPage from './AudioToolsPage';
+import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin, NoiseGatePlugin, type ToolType } from './effects';
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
 import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
@@ -44,6 +45,7 @@ interface WorkflowConfig {
   activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack';
   showAIAssistant: boolean;
   showMusicGen: boolean;
+  showLyricsFocus?: boolean;
   expandedSections?: {
     arrangementControls?: boolean;
     instrumentsPanel?: boolean;
@@ -116,6 +118,14 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
     guidedMode: true,
     description: 'Guided experience with helpful tips and simplified controls for newcomers',
   },
+  'lyrics-focus': {
+    activeView: 'lyrics',
+    showAIAssistant: true,
+    showMusicGen: false,
+    expandedSections: {},
+    description: 'Lyrics-first layout with Lyric Lab front and center',
+    showLyricsFocus: true,
+  },
 };
 
 export default function UnifiedStudioWorkspace() {
@@ -186,18 +196,26 @@ export default function UnifiedStudioWorkspace() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const waveformCacheRef = useRef<Map<string, Float32Array>>(new Map());
   const [waveformData, setWaveformData] = useState<Record<string, Float32Array>>({});
+  const [showWaveformEditor, setShowWaveformEditor] = useState(false);
+  const [waveformTrimStart, setWaveformTrimStart] = useState(0);
+  const [waveformTrimEnd, setWaveformTrimEnd] = useState(100);
   
   // UI State
   const [showAIAssistant, setShowAIAssistant] = useState(true);
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showLyricsFocus, setShowLyricsFocus] = useState(false);
+  const [effectsDialogOpen, setEffectsDialogOpen] = useState(false);
+  const [activeEffectTool, setActiveEffectTool] = useState<ToolType | null>(null);
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
   const [beatLabTab, setBeatLabTab] = useState<'pro' | 'bass-studio' | 'loop-library' | 'pack-generator'>('pro');
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
+  const [snapToGridEnabled, setSnapToGridEnabled] = useState(true);
   const undoManagerRef = useRef<UndoManager<StudioTrack[]> | null>(null);
   const isRestoringTracksRef = useRef(false);
   const [trackHistory, setTrackHistory] = useState<StudioTrack[][]>([]);
   const [trackFuture, setTrackFuture] = useState<StudioTrack[][]>([]);
+  const trackClipboardRef = useRef<StudioTrack | null>(null);
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
@@ -284,6 +302,37 @@ export default function UnifiedStudioWorkspace() {
     return () => window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener);
   }, [toast]);
 
+  useEffect(() => {
+    const handleFocusTrack = (event: Event) => {
+      const customEvent = event as CustomEvent<{ trackId?: string; view?: string } | undefined>;
+      const trackId = customEvent.detail?.trackId;
+      const view = customEvent.detail?.view;
+
+      if (!trackId) return;
+
+      setSelectedTrack(trackId);
+
+      if (view === 'piano-roll' || view === 'melody') {
+        setActiveView('piano-roll');
+        setPianoRollExpanded(true);
+        return;
+      }
+
+      if (view === 'mixer') {
+        setActiveView('mixer');
+        return;
+      }
+
+      if (view === 'arrangement') {
+        setActiveView('arrangement');
+        return;
+      }
+    };
+
+    window.addEventListener('studio:focusTrack', handleFocusTrack as EventListener);
+    return () => window.removeEventListener('studio:focusTrack', handleFocusTrack as EventListener);
+  }, []);
+
   // Workflow Selector State
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
@@ -358,6 +407,77 @@ export default function UnifiedStudioWorkspace() {
       }
     });
   }, [tracks, addTrackToStore, updateTrackInStore, removeTrackFromStore]);
+
+  // Handle audio import events from other tools (e.g., Audio Tools router)
+  useEffect(() => {
+    const handleImportAudio = (event: Event) => {
+      const customEvent = event as CustomEvent<{ sessionId?: string; name?: string; audioUrl?: string }>;
+      const detail = customEvent.detail;
+      if (!detail?.audioUrl) return;
+
+      const newTrack: StudioTrack = {
+        id: `track-${Date.now()}`,
+        name: detail.name || 'Imported Audio',
+        kind: 'audio',
+        type: 'audio',
+        instrument: 'audio',
+        notes: [],
+        volume: 0.8,
+        pan: 0,
+        muted: false,
+        solo: false,
+        lengthBars: 8,
+        startBar: 0,
+        payload: { audioUrl: detail.audioUrl },
+        audioUrl: detail.audioUrl,
+        data: {},
+      };
+
+      setTracks([...tracks, newTrack]);
+      setSelectedTrack(newTrack.id);
+      setActiveView('piano-roll');
+      setPianoRollExpanded(true);
+
+      toast({
+        title: "Imported Audio",
+        description: `Added ${newTrack.name} and opened Piano Roll.`,
+      });
+    };
+
+    window.addEventListener('studio:importAudioTrack', handleImportAudio as EventListener);
+    return () => window.removeEventListener('studio:importAudioTrack', handleImportAudio as EventListener);
+  }, [setTracks, tracks, toast]);
+
+  const getTrackEffectsChain = useCallback((trackId: string | null) => {
+    if (!trackId) return [] as ToolType[];
+    const track = tracks.find((t) => t.id === trackId);
+    const chain = (track?.data as any)?.effectsChain;
+    if (!Array.isArray(chain)) return [] as ToolType[];
+    return chain as ToolType[];
+  }, [tracks]);
+
+  const setTrackEffectsChain = useCallback((trackId: string, chain: ToolType[]) => {
+    setTracks(tracks.map((t) => (
+      t.id === trackId
+        ? { ...t, data: { ...(t.data ?? {}), effectsChain: chain } }
+        : t
+    )));
+  }, [setTracks, tracks]);
+
+  const openEffectEditor = useCallback((tool: ToolType) => {
+    if (!selectedTrack) {
+      toast({ title: 'Select a track', description: 'Choose a track before editing effects.' });
+      return;
+    }
+
+    const existingChain = getTrackEffectsChain(selectedTrack);
+    if (!existingChain.includes(tool)) {
+      setTrackEffectsChain(selectedTrack, [...existingChain, tool]);
+    }
+
+    setActiveEffectTool(tool);
+    setEffectsDialogOpen(true);
+  }, [getTrackEffectsChain, selectedTrack, setTrackEffectsChain, toast]);
 
   // Global undo/redo keyboard shortcuts (Ctrl+Z / Ctrl+Y)
   useEffect(() => {
@@ -529,6 +649,62 @@ export default function UnifiedStudioWorkspace() {
     return <canvas ref={canvasRef} width={600} height={height} className="w-full h-full" />;
   };
 
+  const renderWaveformEditor = () => {
+    const track = tracks.find((t) => t.id === selectedTrack);
+    if (!track || track.type !== 'audio') return null;
+    const data = waveformData[track.id];
+
+    return (
+      <Dialog open={showWaveformEditor} onOpenChange={setShowWaveformEditor}>
+        <DialogContent className="max-w-3xl bg-gray-900 border-gray-700">
+          <DialogTitle className="text-lg font-semibold">Waveform Editor · {track.name}</DialogTitle>
+          <div className="space-y-4">
+            <div className="bg-gray-800 rounded p-3 border border-gray-700">
+              {data ? (
+                <div className="h-40">
+                  <TimelineWaveformCanvas data={data} height={160} />
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400">Waveform is decoding... try again in a moment.</div>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="text-xs text-gray-400 mb-1">Start (%)</div>
+                <Slider value={[waveformTrimStart]} onValueChange={([v]) => setWaveformTrimStart(v)} min={0} max={95} step={1} />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs text-gray-400 mb-1">End (%)</div>
+                <Slider value={[waveformTrimEnd]} onValueChange={([v]) => setWaveformTrimEnd(v)} min={5} max={100} step={1} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowWaveformEditor(false)}>Close</Button>
+              <Button
+                onClick={() => {
+                  const clampedStart = Math.min(waveformTrimStart, waveformTrimEnd - 5);
+                  const clampedEnd = Math.max(waveformTrimEnd, clampedStart + 5);
+                  setTracks(tracks.map((t) =>
+                    t.id === track.id
+                      ? { ...t, payload: { ...(t.payload || {}), trimStartPct: clampedStart, trimEndPct: clampedEnd } }
+                      : t
+                  ));
+                  toast({
+                    title: "Waveform trimmed",
+                    description: `Applied ${clampedStart}% - ${clampedEnd}% to ${track.name}`,
+                  });
+                  setShowWaveformEditor(false);
+                }}
+              >
+                Apply Trim
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   // Check if this is the first time visiting the studio and load persisted workflow
   useEffect(() => {
     const hasSeenWorkflowSelector = localStorage.getItem('hasSeenWorkflowSelector');
@@ -554,6 +730,7 @@ export default function UnifiedStudioWorkspace() {
         setActiveView(config.activeView);
         setShowAIAssistant(config.showAIAssistant);
         setShowMusicGen(config.showMusicGen);
+        setShowLyricsFocus(!!config.showLyricsFocus);
       }
     }
   }, []);
@@ -572,6 +749,7 @@ export default function UnifiedStudioWorkspace() {
     setActiveView(config.activeView);
     setShowAIAssistant(config.showAIAssistant);
     setShowMusicGen(config.showMusicGen);
+    setShowLyricsFocus(!!config.showLyricsFocus);
     
     // Persist selections
     localStorage.setItem('hasSeenWorkflowSelector', 'true');
@@ -771,13 +949,15 @@ export default function UnifiedStudioWorkspace() {
     // Don't replace # with Sharp - keep note name as-is
     const noteStr = note;
     
+    const snappedStep = snapToGridEnabled ? Math.round(barPosition / 4) * 4 : barPosition;
+
     if (pianoRollTool === 'erase') {
       // Erase mode - remove notes at this position
       setTracks(tracks.map(t => {
         if (t.id === selectedTrack) {
           const existingNotes = t.notes || [];
           const filtered = existingNotes.filter(n => 
-            !(n.note === noteStr && n.octave === octave && n.step === barPosition)
+            !(n.note === noteStr && n.octave === octave && n.step === snappedStep)
           );
           return { ...t, notes: filtered };
         }
@@ -797,7 +977,7 @@ export default function UnifiedStudioWorkspace() {
         id: `note-${Date.now()}`,
         note: noteStr,
         octave,
-        step: barPosition,  // Position in steps
+        step: snappedStep,  // Position in steps
         velocity: 100,      // Default velocity
         length: 4,          // Default length (4 steps = 1 beat)
       };
@@ -896,58 +1076,114 @@ export default function UnifiedStudioWorkspace() {
 
   // Edit menu actions
   const handleUndo = () => {
-    if (trackHistory.length === 0) {
-      toast({ title: "Nothing to undo" });
+    if (!undoManagerRef.current) {
+      toast({ title: 'Nothing to undo' });
       return;
     }
-    const previous = trackHistory[trackHistory.length - 1];
-    setTrackHistory((prev) => prev.slice(0, -1));
-    setTrackFuture((prev) => [tracks, ...prev]);
+
+    const next = undoManagerRef.current.undo((tracks as StudioTrack[]).map((t) => ({ ...t })));
+    if (!next) {
+      toast({ title: 'Nothing to undo' });
+      return;
+    }
+
     isRestoringTracksRef.current = true;
-    setTracks(previous);
-    toast({ title: "Undo", description: "Reverted last track change" });
+    setTracks(next);
+    toast({ title: 'Undo', description: 'Reverted last change' });
   };
 
   const handleRedo = () => {
-    if (trackFuture.length === 0) {
-      toast({ title: "Nothing to redo" });
+    if (!undoManagerRef.current) {
+      toast({ title: 'Nothing to redo' });
       return;
     }
-    const next = trackFuture[0];
-    setTrackFuture((prev) => prev.slice(1));
-    setTrackHistory((prev) => [...prev, tracks]);
+
+    const next = undoManagerRef.current.redo((tracks as StudioTrack[]).map((t) => ({ ...t })));
+    if (!next) {
+      toast({ title: 'Nothing to redo' });
+      return;
+    }
+
     isRestoringTracksRef.current = true;
     setTracks(next);
-    toast({ title: "Redo", description: "Reapplied track change" });
+    toast({ title: 'Redo', description: 'Reapplied last change' });
   };
 
   const handleCut = () => {
-    toast({ title: "Cut", description: "Selection cut to clipboard" });
+    if (!selectedTrack) {
+      toast({ title: 'No Selection', description: 'Select a track to cut' });
+      return;
+    }
+
+    const track = tracks.find((t) => t.id === selectedTrack);
+    if (!track) {
+      toast({ title: 'No Selection', description: 'Select a track to cut' });
+      return;
+    }
+
+    trackClipboardRef.current = {
+      ...track,
+      notes: Array.isArray(track.notes) ? [...track.notes] : [],
+    };
+    const remaining = tracks.filter((t) => t.id !== selectedTrack);
+    setTracks(remaining);
+    setSelectedTrack(remaining[0]?.id ?? null);
+    toast({ title: 'Cut', description: `${track.name} cut` });
   };
 
   const handleCopy = () => {
-    toast({ title: "Copy", description: "Selection copied to clipboard" });
+    if (!selectedTrack) {
+      toast({ title: 'No Selection', description: 'Select a track to copy' });
+      return;
+    }
+
+    const track = tracks.find((t) => t.id === selectedTrack);
+    if (!track) {
+      toast({ title: 'No Selection', description: 'Select a track to copy' });
+      return;
+    }
+
+    trackClipboardRef.current = {
+      ...track,
+      notes: Array.isArray(track.notes) ? [...track.notes] : [],
+    };
+    toast({ title: 'Copy', description: `${track.name} copied` });
   };
 
   const handlePaste = () => {
-    toast({ title: "Paste", description: "Pasted from clipboard" });
+    const clip = trackClipboardRef.current;
+    if (!clip) {
+      toast({ title: 'Nothing to paste' });
+      return;
+    }
+
+    const id = `track-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
+    const pasted: StudioTrack = {
+      ...clip,
+      id,
+      name: `${clip.name} (Paste)`,
+      notes: Array.isArray(clip.notes) ? [...clip.notes] : [],
+    };
+    setTracks([...tracks, pasted]);
+    setSelectedTrack(pasted.id);
+    toast({ title: 'Paste', description: `${clip.name} pasted` });
   };
 
   const handleDuplicate = () => {
-    if (selectedTrack) {
-      const trackToDupe = tracks.find(t => t.id === selectedTrack);
-      if (trackToDupe) {
-        const newTrack: StudioTrack = {
-          ...trackToDupe,
-          id: `track-${Date.now()}`,
-          name: `${trackToDupe.name} (Copy)`,
-        };
-        setTracks([...tracks, newTrack]);
-        toast({ title: "Duplicated", description: `Created copy of ${trackToDupe.name}` });
-      }
-    } else {
+    if (!selectedTrack) {
       toast({ title: "No Selection", description: "Select a track to duplicate" });
+      return;
     }
+
+    const trackToDupe = tracks.find(t => t.id === selectedTrack);
+    if (!trackToDupe) {
+      toast({ title: "Missing Track", description: "Could not find track to duplicate" });
+      return;
+    }
+
+    const newTrack = duplicateTrackData(trackToDupe) as StudioTrack;
+    setTracks([...tracks, newTrack]);
+    toast({ title: "Duplicated", description: `Created copy of ${trackToDupe.name}` });
   };
 
   const handleDelete = () => {
@@ -1078,7 +1314,45 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleSnapToGrid = () => {
-    toast({ title: "Snap to Grid", description: "Grid snapping toggled" });
+    setSnapToGridEnabled((prev) => {
+      const next = !prev;
+      toast({ title: 'Snap to Grid', description: next ? 'Enabled' : 'Disabled' });
+      return next;
+    });
+  };
+
+  const handleToggleGrid = () => {
+    setShowGrid((prev) => {
+      const next = !prev;
+      toast({ title: 'Grid', description: next ? 'Shown' : 'Hidden' });
+      return next;
+    });
+  };
+
+  const handleZoomIn = () => {
+    setZoom(([z]) => [Math.min(100, z + 5)]);
+  };
+
+  const handleZoomOut = () => {
+    setZoom(([z]) => [Math.max(10, z - 5)]);
+  };
+
+  const handleZoomToFit = () => {
+    setZoom([50]);
+  };
+
+  const handleToggleFullScreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        toast({ title: 'Full Screen', description: 'Enabled' });
+      } else {
+        await document.exitFullscreen();
+        toast({ title: 'Full Screen', description: 'Disabled' });
+      }
+    } catch {
+      toast({ title: 'Full Screen', description: 'Not available in this browser', variant: 'destructive' });
+    }
   };
 
   // Window menu actions
@@ -1148,7 +1422,7 @@ export default function UnifiedStudioWorkspace() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900 text-white overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-gray-900 text-white overflow-hidden">
       {/* Top Bar */}
       <div className="h-12 bg-gray-800 border-b border-gray-700 flex items-center px-2 justify-between flex-shrink-0">
         <div className="flex items-center space-x-2">
@@ -1156,7 +1430,7 @@ export default function UnifiedStudioWorkspace() {
           <div className="flex space-x-0.5">
             <div className="relative group">
               <Button variant="ghost" size="sm">File ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
                 <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>New Project</span>
                   <span className="text-xs text-gray-500">Ctrl+N</span>
@@ -1184,7 +1458,7 @@ export default function UnifiedStudioWorkspace() {
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">Edit ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
                 <button onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Undo</span>
                   <span className="text-xs text-gray-500">Ctrl+Z</span>
@@ -1219,7 +1493,7 @@ export default function UnifiedStudioWorkspace() {
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm">View ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
                 <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
                   <span className="text-xs text-gray-500">F1</span>
@@ -1271,20 +1545,20 @@ export default function UnifiedStudioWorkspace() {
                   <span className="text-xs text-gray-500">Ctrl+3</span>
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Zoom In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleZoomIn} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Zoom In</span>
                   <span className="text-xs text-gray-500">Ctrl++</span>
                 </button>
-                <button onClick={() => toast({ title: "Zoom Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleZoomOut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Zoom Out</span>
                   <span className="text-xs text-gray-500">Ctrl+-</span>
                 </button>
-                <button onClick={() => toast({ title: "Zoom to Fit" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleZoomToFit} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Zoom to Fit</span>
                   <span className="text-xs text-gray-500">Ctrl+0</span>
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Full Screen</span>
                   <span className="text-xs text-gray-500">F11</span>
                 </button>
@@ -1298,7 +1572,7 @@ export default function UnifiedStudioWorkspace() {
             {/* CREATE Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm">Create ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
                 <button onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>New MIDI Track</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+T</span>
@@ -1344,7 +1618,7 @@ export default function UnifiedStudioWorkspace() {
             {/* ARRANGE Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm">Arrange ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
                 <button onClick={() => toast({ title: "Insert Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Insert Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+I</span>
@@ -1378,8 +1652,12 @@ export default function UnifiedStudioWorkspace() {
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
                 <button onClick={handleSnapToGrid} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Snap to Grid</span>
+                  <span>{snapToGridEnabled ? '✓' : '  '} Snap to Grid</span>
                   <span className="text-xs text-gray-500">Ctrl+G</span>
+                </button>
+                <button onClick={handleToggleGrid} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                  <span>{showGrid ? '✓' : '  '} Show Grid</span>
+                  <span className="text-xs text-gray-500">G</span>
                 </button>
                 <button onClick={() => toast({ title: "Grid Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Grid Settings...
@@ -1400,7 +1678,7 @@ export default function UnifiedStudioWorkspace() {
             {/* MIX Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm">Mix ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
                 <button onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Normalize</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+N</span>
@@ -1461,7 +1739,7 @@ export default function UnifiedStudioWorkspace() {
             {/* MORE Menu - Groups Tools, Window, Help */}
             <div className="relative group">
               <Button variant="ghost" size="sm">More ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
                 {/* Tools Submenu */}
                 <div className="relative group/tools">
                   <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
@@ -1507,7 +1785,7 @@ export default function UnifiedStudioWorkspace() {
                     <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
                     </button>
-                    <button onClick={() => toast({ title: "Full Screen" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                    <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                       <span>Full Screen</span>
                       <span className="text-xs text-gray-500">F11</span>
                     </button>
@@ -1945,6 +2223,9 @@ export default function UnifiedStudioWorkspace() {
 
         {/* Right Side - Compact Action Buttons & Volume */}
         <div className="flex flex-wrap items-center gap-2">
+          <div className="px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-200">
+            Snap: <span className={snapToGridEnabled ? 'text-green-400 font-semibold' : 'text-gray-400'}>{snapToGridEnabled ? 'On' : 'Off'}</span>
+          </div>
           <Button
             onClick={() => setShowMusicGen(!showMusicGen)}
             className="bg-purple-600 hover:bg-purple-500 h-8 px-3"
@@ -2013,8 +2294,16 @@ export default function UnifiedStudioWorkspace() {
           <>
           {/* Timeline Section */}
           <div className="border-b border-gray-700">
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => setTimelineExpanded(!timelineExpanded)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setTimelineExpanded((prev) => !prev);
+                }
+              }}
               className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-750 flex items-center justify-between"
             >
               <span className="font-medium">
@@ -2022,6 +2311,16 @@ export default function UnifiedStudioWorkspace() {
                 TIMELINE - ALL TRACKS ({tracks.length})
               </span>
               <div className="flex items-center space-x-2">
+                {selectedTrack && tracks.find(t => t.id === selectedTrack && t.type === 'audio') && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => { e.stopPropagation(); setShowWaveformEditor(true); }}
+                    className="text-xs"
+                  >
+                    Waveform Edit
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="default"
@@ -2063,7 +2362,7 @@ export default function UnifiedStudioWorkspace() {
                   <span>{zoom[0]}%</span>
                 </div>
               </div>
-            </button>
+            </div>
             
             {timelineExpanded && (
               <div ref={trackListRef} className="bg-gray-900 p-4 max-h-96 overflow-y-auto">
@@ -2301,8 +2600,16 @@ export default function UnifiedStudioWorkspace() {
 
           {/* Lyrics Section */}
           <div className="border-b border-gray-700">
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => setLyricsExpanded(!lyricsExpanded)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setLyricsExpanded((prev) => !prev);
+                }
+              }}
               className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-750 flex items-center justify-between"
             >
               <span>
@@ -2320,7 +2627,7 @@ export default function UnifiedStudioWorkspace() {
                 <Maximize2 className="w-4 h-4 mr-1" />
                 Open Lyric Lab
               </Button>
-            </button>
+            </div>
 
             {lyricsExpanded && (
               <div className="bg-gray-900 p-4">
@@ -2392,10 +2699,40 @@ export default function UnifiedStudioWorkspace() {
                     <div>
                       <label className="text-sm text-gray-400 mb-2 block">Effects Chain</label>
                       <div className="flex space-x-1">
-                        <Button size="sm" variant="outline">EQ</Button>
-                        <Button size="sm" variant="outline">Comp</Button>
-                        <Button size="sm" variant="outline">Reverb</Button>
-                        <Button size="sm" variant="outline">+ Add</Button>
+                        <Button
+                          size="sm"
+                          variant={getTrackEffectsChain(selectedTrack).includes('EQ') ? 'default' : 'outline'}
+                          onClick={() => openEffectEditor('EQ')}
+                        >
+                          EQ
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={getTrackEffectsChain(selectedTrack).includes('Compressor') ? 'default' : 'outline'}
+                          onClick={() => openEffectEditor('Compressor')}
+                        >
+                          Comp
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={getTrackEffectsChain(selectedTrack).includes('Reverb') ? 'default' : 'outline'}
+                          onClick={() => openEffectEditor('Reverb')}
+                        >
+                          Reverb
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="outline">+ Add</Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEffectEditor('EQ')}>EQ</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEffectEditor('Compressor')}>Compressor</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEffectEditor('Deesser')}>Deesser</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEffectEditor('Reverb')}>Reverb</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEffectEditor('Limiter')}>Limiter</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEffectEditor('NoiseGate')}>Noise Gate</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </div>
@@ -2457,7 +2794,21 @@ export default function UnifiedStudioWorkspace() {
           {/* LYRICS LAB VIEW */}
           {activeView === 'lyrics' && (
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
-              <LyricLab />
+              <div className="flex items-center justify-between px-4 pb-2">
+                <h2 className="text-lg font-semibold">Lyric Lab</h2>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowLyricsFocus(true)}
+                  className="gap-2"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  Focus Mode
+                </Button>
+              </div>
+              <ErrorBoundary>
+                <LyricLab />
+              </ErrorBoundary>
             </div>
           )}
 
@@ -2479,21 +2830,13 @@ export default function UnifiedStudioWorkspace() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Tabs defaultValue="translator" className="w-full">
+                  <Tabs defaultValue="code-music" className="w-full">
                     <TabsList className="bg-gray-800 mb-4 flex flex-wrap gap-2">
-                      <TabsTrigger value="translator" className="flex items-center gap-1">
-                        <FileText className="w-4 h-4" />
-                        Translator
-                      </TabsTrigger>
                       <TabsTrigger value="code-music" className="flex items-center gap-1">
                         <Music className="w-4 h-4" />
                         Code to Music
                       </TabsTrigger>
                     </TabsList>
-
-                    <TabsContent value="translator" className="mt-2">
-                      <CodeTranslator />
-                    </TabsContent>
 
                     <TabsContent value="code-music" className="mt-2">
                       <CodeToMusicStudioV2 />
@@ -2548,13 +2891,58 @@ export default function UnifiedStudioWorkspace() {
         />
       )}
 
+      {renderWaveformEditor()}
+
       {/* Workflow Selector Modal */}
       <Dialog open={showWorkflowSelector} onOpenChange={setShowWorkflowSelector}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 bg-background">
+          <DialogTitle className="sr-only">Select Workflow</DialogTitle>
           <WorkflowSelector
             onSelectWorkflow={handleSelectWorkflow}
             onSkip={handleSkipWorkflow}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={effectsDialogOpen} onOpenChange={setEffectsDialogOpen}>
+        <DialogContent className="max-w-4xl bg-gray-900 border border-gray-700">
+          <DialogTitle className="sr-only">Audio Effects</DialogTitle>
+          {activeEffectTool === 'EQ' && (
+            <EQPlugin
+              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
+              onClose={() => setEffectsDialogOpen(false)}
+            />
+          )}
+          {activeEffectTool === 'Compressor' && (
+            <CompressorPlugin
+              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
+              onClose={() => setEffectsDialogOpen(false)}
+            />
+          )}
+          {activeEffectTool === 'Deesser' && (
+            <DeesserPlugin
+              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
+              onClose={() => setEffectsDialogOpen(false)}
+            />
+          )}
+          {activeEffectTool === 'Reverb' && (
+            <ReverbPlugin
+              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
+              onClose={() => setEffectsDialogOpen(false)}
+            />
+          )}
+          {activeEffectTool === 'Limiter' && (
+            <LimiterPlugin
+              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
+              onClose={() => setEffectsDialogOpen(false)}
+            />
+          )}
+          {activeEffectTool === 'NoiseGate' && (
+            <NoiseGatePlugin
+              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
+              onClose={() => setEffectsDialogOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

@@ -16,6 +16,7 @@ import { TrackControls } from "./TrackControls";
 import { PlaybackControls } from "./PlaybackControls";
 import { KeyScaleSelector } from "./KeyScaleSelector";
 import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
+import { duplicateTrackData } from "@/lib/trackClone";
 import { 
   Note, 
   Track, 
@@ -1596,12 +1597,8 @@ export const VerticalPianoRoll: React.FC = () => {
 
   // DUPLICATE TRACK FUNCTION
   const duplicateTrack = useCallback(() => {
-    const newTrack: Track = {
-      ...selectedTrack,
-      id: `track-${Date.now()}`,
-      name: `${selectedTrack.name} (Copy)`,
-      notes: selectedTrack.notes.map(n => ({ ...n, id: `${Date.now()}-${Math.random()}` }))
-    };
+    if (!selectedTrack) return;
+    const newTrack: Track = duplicateTrackData(selectedTrack);
     setTracks(prev => [...prev, newTrack]);
     toast({ title: '📋 Track Duplicated', description: `${selectedTrack.name} copied` });
   }, [selectedTrack, toast]);

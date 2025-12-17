@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { ObjectStorageService } from '../objectStorage';
+import Replicate from 'replicate';
 
 export interface MusicGenFromStructureResult {
   audioUrl: string;
@@ -92,66 +93,97 @@ Professional ${metadata.genre} production with ${productionNotes.mixing}.`;
   }
 
   /**
-   * Call MusicGen API (or alternative music generation service)
+   * Call MusicGen API via Replicate
    */
   private async callMusicGenAPI(prompt: string, structureData: GeneratedSongData): Promise<{success: boolean, audioUrl: string, message: string}> {
-    // TODO: Replace this with actual MusicGen API calls
-    // For now, we'll simulate the process and create a placeholder result
+    console.log('🎵 Calling MusicGen API via Replicate with prompt:', prompt);
     
-    console.log('🎵 Calling MusicGen API with prompt:', prompt);
+    const replicateToken = process.env.REPLICATE_API_TOKEN;
+    
+    if (!replicateToken) {
+      console.warn('⚠️ REPLICATE_API_TOKEN not set, falling back to structure-only response');
+      return this.fallbackStructureResponse(prompt, structureData);
+    }
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const replicate = new Replicate({ auth: replicateToken });
       
-      // In a real implementation, this would be:
-      // 1. Call MusicGen API with the prompt
-      // 2. Wait for generation to complete
-      // 3. Download the generated audio file
-      // 4. Upload to object storage
-      // 5. Return the public URL
+      // Parse duration from metadata (e.g., "3:30" -> 210 seconds)
+      const durationParts = structureData.metadata.duration.split(':');
+      const durationSeconds = durationParts.length === 2 
+        ? parseInt(durationParts[0]) * 60 + parseInt(durationParts[1])
+        : 30; // Default to 30 seconds
       
-      // For now, create a result structure that shows what would happen
-      const audioId = randomUUID();
-      const filename = `musicgen_${audioId}.wav`;
+      // Use MusicGen model via Replicate
+      console.log('🎵 Running MusicGen via Replicate...');
+      const output = await replicate.run(
+        "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+        {
+          input: {
+            prompt: prompt,
+            duration: Math.min(durationSeconds, 30), // MusicGen max is ~30 seconds per generation
+            model_version: "stereo-melody-large",
+            output_format: "wav",
+            normalization_strategy: "peak"
+          }
+        }
+      );
       
-      // Create a result message showing the structure data was processed
-      const resultData = {
-        generated: true,
-        prompt: prompt,
-        structureUsed: {
-          sections: Object.keys(structureData.structure).length,
-          instruments: this.getUniqueInstruments(structureData.structure),
-          duration: structureData.metadata.duration,
-          bpm: structureData.metadata.bpm,
-          key: structureData.metadata.key
-        },
-        message: `MusicGen would generate audio based on: ${Object.keys(structureData.structure).length} sections, ${structureData.metadata.genre} style, ${structureData.metadata.bpm} BPM`
-      };
+      // Output is the audio URL from Replicate
+      const audioUrl = typeof output === 'string' ? output : (output as any)?.audio || '';
       
-      // Save the structure data as a JSON file for now
-      const structureFilename = `structure_${audioId}.json`;
-      const structurePath = path.join('/tmp', structureFilename);
-      fs.writeFileSync(structurePath, JSON.stringify(resultData, null, 2));
-      
-      // For now, just return a simulated URL since uploadFromBuffer doesn't exist
-      // In a real implementation, this would upload to object storage
-      const simulatedUrl = `https://storage.example.com/structure/${structureFilename}`;
-      
-      return {
-        success: true,
-        audioUrl: simulatedUrl,
-        message: `Structure data processed successfully. In production, this would generate actual audio using MusicGen.`
-      };
+      if (audioUrl) {
+        console.log('✅ MusicGen successfully generated audio:', audioUrl);
+        return {
+          success: true,
+          audioUrl: audioUrl,
+          message: `Successfully generated audio from structure using MusicGen`
+        };
+      } else {
+        throw new Error('No audio URL returned from MusicGen');
+      }
       
     } catch (error) {
       console.error('❌ MusicGen API error:', error);
-      return {
-        success: false,
-        audioUrl: '',
-        message: `MusicGen API error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
+      
+      // Fall back to structure-only response
+      return this.fallbackStructureResponse(prompt, structureData);
     }
+  }
+  
+  /**
+   * Fallback response when Replicate is unavailable
+   */
+  private fallbackStructureResponse(prompt: string, structureData: GeneratedSongData): {success: boolean, audioUrl: string, message: string} {
+    const audioId = randomUUID();
+    
+    const resultData = {
+      generated: false,
+      prompt: prompt,
+      structureUsed: {
+        sections: Object.keys(structureData.structure).length,
+        instruments: this.getUniqueInstruments(structureData.structure),
+        duration: structureData.metadata.duration,
+        bpm: structureData.metadata.bpm,
+        key: structureData.metadata.key
+      },
+      message: `Structure data ready for MusicGen. Configure REPLICATE_API_TOKEN to enable audio generation.`
+    };
+    
+    // Save structure data for debugging
+    try {
+      const structureFilename = `structure_${audioId}.json`;
+      const structurePath = path.join('/tmp', structureFilename);
+      fs.writeFileSync(structurePath, JSON.stringify(resultData, null, 2));
+    } catch (e) {
+      // Ignore file write errors
+    }
+    
+    return {
+      success: false,
+      audioUrl: '',
+      message: `Structure processed, but no audio generated. Set REPLICATE_API_TOKEN to enable real MusicGen output.`
+    };
   }
 
   /**

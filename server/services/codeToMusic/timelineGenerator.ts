@@ -34,6 +34,15 @@ export function generateTimeline(
   // Divide into 4 sections (one per chord)
   const elementsPerSection = Math.ceil(elements.length / 4);
   const secondsPerChord = totalDuration / 4;
+
+  // Progression variations to avoid same order every time
+  const progressions = [
+    [0, 1, 2, 3], // I-V-vi-IV
+    [0, 3, 1, 2], // I-IV-V-vi
+    [2, 0, 3, 1], // vi-I-IV-V
+    [3, 0, 1, 2], // IV-I-V-vi
+  ];
+  const progression = progressions[Math.abs(variation) % progressions.length];
   
   const timeline: TimelineEvent[] = [];
   const chords: ChordProgression[] = [];
@@ -42,13 +51,14 @@ export function generateTimeline(
   let currentTime = 0;
   
   // Generate chord progression (4 chords, repeating if needed)
-  for (let chordIndex = 0; chordIndex < 4; chordIndex++) {
+  for (let i = 0; i < 4; i++) {
+    const chordIndex = progression[i % progression.length];
     const chord = getChordByIndex(genre, chordIndex);
-    
+
     chords.push({
       chord: chord.name,
       notes: chord.notes,
-      start: chordIndex * secondsPerChord,
+      start: i * secondsPerChord,
       duration: secondsPerChord,
     });
   }
@@ -56,7 +66,8 @@ export function generateTimeline(
   // Generate melody from code elements
   elements.forEach((element, index) => {
     // Determine which chord we're in
-    const chordIndex = Math.floor(index / elementsPerSection) % 4;
+    const chordSlot = Math.floor(index / elementsPerSection) % 4;
+    const chordIndex = progression[chordSlot % progression.length];
     const chord = getChordByIndex(genre, chordIndex);
     
     // Map element to note
@@ -151,8 +162,9 @@ export function generateDrumPattern(
   
   // Hi-hats based on energy
   const hihatDensity = Math.min(16, 4 + loops * 2);
-  for (let i = 0; i < hihatDensity; i++) {
-    pattern.hihat[i] = true;
+  const spacing = Math.max(1, Math.floor(16 / hihatDensity));
+  for (let i = 0; i < 16; i++) {
+    pattern.hihat[i] = i % spacing === 0;
   }
   
   // Add variation based on conditionals

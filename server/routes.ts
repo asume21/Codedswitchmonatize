@@ -498,8 +498,6 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         }
 
         // Use Grok/OpenAI via callAI to generate the visible drum grid pattern.
-        // No helper fallback: if AI cannot provide a pattern, return an error so
-        // the user keeps full manual control of their existing grid.
         type DrumGrid = {
           kick?: Array<number | boolean>;
           snare?: Array<number | boolean>;
@@ -509,43 +507,78 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
         const steps = 16;
 
-        const aiResult = await callAI<{ pattern?: DrumGrid }>({
-          system:
-            "You are a drum pattern generator for a step sequencer. " +
-            "Always return a JSON object with a 'pattern' property describing 16-step drum grids.",
-          user: `Create a tight ${genre} drum beat at ${bpm} BPM for a 16-step grid. ` +
-            "Return JSON with 'pattern' = { kick: number[16], snare: number[16], hihat: number[16], percussion: number[16] }. " +
-            "Each array element must be 0 or 1. Do not include any extra properties.",
-          responseFormat: "json",
-          jsonSchema: {
-            type: "object",
-            properties: {
-              pattern: {
-                type: "object",
-                properties: {
-                  kick: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
-                  snare: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
-                  hihat: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
-                  percussion: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
-                },
-                required: ["kick", "snare", "hihat", "percussion"],
-              },
-            },
-            required: ["pattern"],
-          },
-          temperature: 0.7,
-          maxTokens: 800,
-        });
+        // Fallback drum pattern generator
+        const generateFallbackPattern = (styleHint: string): DrumGrid => {
+          const kick: number[] = [];
+          const snare: number[] = [];
+          const hihat: number[] = [];
+          const percussion: number[] = [];
 
-        const rawPattern = aiResult.content?.pattern as DrumGrid | undefined;
-        if (!rawPattern) {
-          return sendError(res, 500, "AI did not return a drum pattern");
-        }
+          const isHipHop = styleHint.toLowerCase().includes('hip') || styleHint.toLowerCase().includes('trap');
+          const isElectronic = styleHint.toLowerCase().includes('electro') || styleHint.toLowerCase().includes('house');
+
+          for (let i = 0; i < steps; i++) {
+            if (isHipHop) {
+              kick.push((i === 0 || i === 6 || i === 10) ? 1 : (Math.random() < 0.1 ? 1 : 0));
+            } else if (isElectronic) {
+              kick.push((i % 4 === 0) ? 1 : 0);
+            } else {
+              kick.push((i === 0 || i === 8) ? 1 : (Math.random() < 0.15 ? 1 : 0));
+            }
+            snare.push((i === 4 || i === 12) ? 1 : (Math.random() < 0.08 ? 1 : 0));
+            hihat.push((i % 2 === 0) ? 1 : (Math.random() < 0.4 ? 1 : 0));
+            percussion.push(Math.random() < 0.12 ? 1 : 0);
+          }
+          return { kick, snare, hihat, percussion };
+        };
 
         const normalizeRow = (row: Array<number | boolean> | undefined): number[] => {
           if (!row || !Array.isArray(row) || row.length === 0) return Array(steps).fill(0);
           return row.slice(0, steps).map((v) => (v ? 1 : 0));
         };
+
+        let rawPattern: DrumGrid | undefined;
+        let gridProvider = 'Grok/OpenAI grid';
+
+        try {
+          const aiResult = await callAI<{ pattern?: DrumGrid }>({
+            system:
+              "You are a drum pattern generator for a step sequencer. " +
+              "Always return a JSON object with a 'pattern' property describing 16-step drum grids.",
+            user: `Create a tight ${genre} drum beat at ${bpm} BPM for a 16-step grid. ` +
+              "Return JSON with 'pattern' = { kick: number[16], snare: number[16], hihat: number[16], percussion: number[16] }. " +
+              "Each array element must be 0 or 1. Do not include any extra properties.",
+            responseFormat: "json",
+            jsonSchema: {
+              type: "object",
+              properties: {
+                pattern: {
+                  type: "object",
+                  properties: {
+                    kick: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                    snare: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                    hihat: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                    percussion: { type: "array", items: { type: "number" }, minItems: steps, maxItems: steps },
+                  },
+                  required: ["kick", "snare", "hihat", "percussion"],
+                },
+              },
+              required: ["pattern"],
+            },
+            temperature: 0.7,
+            maxTokens: 800,
+          });
+          rawPattern = aiResult.content?.pattern as DrumGrid | undefined;
+        } catch (aiError: any) {
+          console.warn(`⚠️ AI grid generation failed, using fallback: ${aiError?.message}`);
+          rawPattern = generateFallbackPattern(String(genre));
+          gridProvider = 'Algorithmic Fallback';
+        }
+
+        if (!rawPattern || (!rawPattern.kick && !rawPattern.snare)) {
+          rawPattern = generateFallbackPattern(String(genre));
+          gridProvider = 'Algorithmic Fallback';
+        }
 
         const pattern = {
           kick: normalizeRow(rawPattern.kick),
@@ -563,7 +596,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
             bpm: Number(bpm),
             genre: String(genre),
             duration: Number(duration),
-            provider: 'MusicGen AI + Grok/OpenAI grid',
+            provider: `MusicGen AI + ${gridProvider}`,
             timestamp: new Date().toISOString(),
           },
           paymentMethod,
@@ -751,45 +784,93 @@ export async function registerRoutes(app: Express, storage: IStorage) {
         }>;
       };
 
-      const aiResult = await callAI<AIMelodyTrack>({
-        system:
-          "You are a professional melody writer and MIDI arranger. " +
-          "You must return a JSON object with a 'notes' array for a melody track.",
-        user:
-          `Create an expressive melody in ${safeKey} at ${safeBpm} BPM for ${safeBars} bars. ` +
-          "Return an array 'notes', where each note has { pitch: string (e.g. 'C4'), start: number (beats from 0), duration: number (beats), velocity: 0-1 }. " +
-          "Focus on a hooky, singable line that works over a modern beat. Do not include any extra top-level keys beyond 'notes'.",
-        responseFormat: "json",
-        jsonSchema: {
-          type: "object",
-          properties: {
-            notes: {
-              type: "array",
-              minItems: 1,
-              items: {
-                type: "object",
-                properties: {
-                  pitch: { type: "string" },
-                  start: { type: "number" },
-                  duration: { type: "number" },
-                  velocity: { type: "number" },
+      // Fallback melody generator when AI fails
+      const generateFallbackMelody = (keyStr: string, bars: number): AIMelodyTrack => {
+        const scaleNotes: Record<string, string[]> = {
+          'C major': ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
+          'C minor': ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'],
+          'G major': ['G3', 'A3', 'B3', 'C4', 'D4', 'E4', 'F#4', 'G4'],
+          'A minor': ['A3', 'B3', 'C4', 'D4', 'E4', 'F4', 'G4', 'A4'],
+          'D minor': ['D4', 'E4', 'F4', 'G4', 'A4', 'Bb4', 'C5', 'D5'],
+          'F major': ['F3', 'G3', 'A3', 'Bb3', 'C4', 'D4', 'E4', 'F4'],
+        };
+        
+        const scale = scaleNotes[keyStr] || scaleNotes['C minor'];
+        const notes: AIMelodyTrack['notes'] = [];
+        const beatsPerBar = 4;
+        const totalBeats = bars * beatsPerBar;
+        
+        let currentBeat = 0;
+        while (currentBeat < totalBeats) {
+          const noteIndex = Math.floor(Math.random() * scale.length);
+          const duration = [0.5, 1, 1.5, 2][Math.floor(Math.random() * 4)];
+          
+          notes.push({
+            pitch: scale[noteIndex],
+            start: currentBeat,
+            duration: Math.min(duration, totalBeats - currentBeat),
+            velocity: 0.6 + Math.random() * 0.3,
+          });
+          
+          currentBeat += duration;
+        }
+        
+        return { notes };
+      };
+
+      let notes: AIMelodyTrack['notes'] = [];
+      let provider = "Grok/OpenAI via callAI";
+
+      try {
+        const aiResult = await callAI<AIMelodyTrack>({
+          system:
+            "You are a professional melody writer and MIDI arranger. " +
+            "You must return a JSON object with a 'notes' array for a melody track.",
+          user:
+            `Create an expressive melody in ${safeKey} at ${safeBpm} BPM for ${safeBars} bars. ` +
+            "Return an array 'notes', where each note has { pitch: string (e.g. 'C4'), start: number (beats from 0), duration: number (beats), velocity: 0-1 }. " +
+            "Focus on a hooky, singable line that works over a modern beat. Do not include any extra top-level keys beyond 'notes'.",
+          responseFormat: "json",
+          jsonSchema: {
+            type: "object",
+            properties: {
+              notes: {
+                type: "array",
+                minItems: 1,
+                items: {
+                  type: "object",
+                  properties: {
+                    pitch: { type: "string" },
+                    start: { type: "number" },
+                    duration: { type: "number" },
+                    velocity: { type: "number" },
+                  },
+                  required: ["pitch", "start", "duration"],
                 },
-                required: ["pitch", "start", "duration"],
               },
             },
+            required: ["notes"],
           },
-          required: ["notes"],
-        },
-        temperature: 0.7,
-        maxTokens: 800,
-      });
+          temperature: 0.7,
+          maxTokens: 800,
+        });
 
-      const notes = Array.isArray((aiResult as any)?.content?.notes)
-        ? (aiResult as any).content.notes
-        : [];
+        notes = Array.isArray((aiResult as any)?.content?.notes)
+          ? (aiResult as any).content.notes
+          : [];
+      } catch (aiError: any) {
+        console.warn(`⚠️ AI melody generation failed, using fallback: ${aiError?.message}`);
+        const fallback = generateFallbackMelody(safeKey, safeBars);
+        notes = fallback.notes;
+        provider = "Algorithmic Fallback";
+      }
 
+      // If AI returned empty, use fallback
       if (!notes.length) {
-        return sendError(res, 500, "AI did not return any melody notes");
+        console.warn("⚠️ AI returned empty melody, using fallback");
+        const fallback = generateFallbackMelody(safeKey, safeBars);
+        notes = fallback.notes;
+        provider = "Algorithmic Fallback";
       }
 
       return res.json({
@@ -799,7 +880,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           key: safeKey,
           bpm: safeBpm,
           bars: safeBars,
-          provider: "Grok/OpenAI via callAI",
+          provider,
           songPlanId: songPlanId || null,
           sectionId: sectionId || "melody-section",
         },
@@ -3269,45 +3350,95 @@ Create complete lyrics with verses, chorus, and bridge.`;
         }>;
       };
 
-      const aiResult = await callAI<AIBassTrack>({
-        system:
-          "You are a professional bass player and MIDI arranger. " +
-          "You must return a JSON object with a 'notes' array for a bassline track.",
-        user:
-          `Create a groove-focused bassline in ${safeKey} at ${safeBpm} BPM for ${safeBars} bars. ` +
-          "Return an array 'notes', where each note has { pitch: string (e.g. 'C2'), start: number (beats from 0), duration: number (beats), velocity: 0-1 }. " +
-          "Emphasize root and fifth with tasteful passing tones. Do not include any extra top-level keys beyond 'notes'.",
-        responseFormat: "json",
-        jsonSchema: {
-          type: "object",
-          properties: {
-            notes: {
-              type: "array",
-              minItems: 1,
-              items: {
-                type: "object",
-                properties: {
-                  pitch: { type: "string" },
-                  start: { type: "number" },
-                  duration: { type: "number" },
-                  velocity: { type: "number" },
+      // Fallback bass generator when AI fails
+      const generateFallbackBass = (keyStr: string, numBars: number): AIBassTrack => {
+        const bassNotes: Record<string, string[]> = {
+          'C major': ['C2', 'E2', 'G2', 'C3'],
+          'C minor': ['C2', 'Eb2', 'G2', 'C3'],
+          'G major': ['G1', 'B1', 'D2', 'G2'],
+          'A minor': ['A1', 'C2', 'E2', 'A2'],
+          'D minor': ['D2', 'F2', 'A2', 'D3'],
+          'F major': ['F1', 'A1', 'C2', 'F2'],
+        };
+        
+        const scale = bassNotes[keyStr] || bassNotes['C minor'];
+        const notes: AIBassTrack['notes'] = [];
+        const beatsPerBar = 4;
+        const totalBeats = numBars * beatsPerBar;
+        
+        let currentBeat = 0;
+        while (currentBeat < totalBeats) {
+          // Bass typically plays on beats 1 and 3, with occasional fills
+          const beatInBar = currentBeat % 4;
+          const noteIndex = beatInBar === 0 ? 0 : (beatInBar === 2 ? 2 : Math.floor(Math.random() * scale.length));
+          const duration = beatInBar === 0 || beatInBar === 2 ? 1.5 : 0.5;
+          
+          notes.push({
+            pitch: scale[noteIndex],
+            start: currentBeat,
+            duration: Math.min(duration, totalBeats - currentBeat),
+            velocity: beatInBar === 0 ? 0.9 : 0.7,
+          });
+          
+          currentBeat += duration;
+        }
+        
+        return { notes };
+      };
+
+      let notes: AIBassTrack['notes'] = [];
+      let provider = "Grok/OpenAI via callAI";
+
+      try {
+        const aiResult = await callAI<AIBassTrack>({
+          system:
+            "You are a professional bass player and MIDI arranger. " +
+            "You must return a JSON object with a 'notes' array for a bassline track.",
+          user:
+            `Create a groove-focused bassline in ${safeKey} at ${safeBpm} BPM for ${safeBars} bars. ` +
+            "Return an array 'notes', where each note has { pitch: string (e.g. 'C2'), start: number (beats from 0), duration: number (beats), velocity: 0-1 }. " +
+            "Emphasize root and fifth with tasteful passing tones. Do not include any extra top-level keys beyond 'notes'.",
+          responseFormat: "json",
+          jsonSchema: {
+            type: "object",
+            properties: {
+              notes: {
+                type: "array",
+                minItems: 1,
+                items: {
+                  type: "object",
+                  properties: {
+                    pitch: { type: "string" },
+                    start: { type: "number" },
+                    duration: { type: "number" },
+                    velocity: { type: "number" },
+                  },
+                  required: ["pitch", "start", "duration"],
                 },
-                required: ["pitch", "start", "duration"],
               },
             },
+            required: ["notes"],
           },
-          required: ["notes"],
-        },
-        temperature: 0.7,
-        maxTokens: 800,
-      });
+          temperature: 0.7,
+          maxTokens: 800,
+        });
 
-      const notes = Array.isArray((aiResult as any)?.content?.notes)
-        ? (aiResult as any).content.notes
-        : [];
+        notes = Array.isArray((aiResult as any)?.content?.notes)
+          ? (aiResult as any).content.notes
+          : [];
+      } catch (aiError: any) {
+        console.warn(`⚠️ AI bassline generation failed, using fallback: ${aiError?.message}`);
+        const fallback = generateFallbackBass(safeKey, safeBars);
+        notes = fallback.notes;
+        provider = "Algorithmic Fallback";
+      }
 
+      // If AI returned empty, use fallback
       if (!notes.length) {
-        return sendError(res, 500, "AI did not return any bass notes");
+        console.warn("⚠️ AI returned empty bassline, using fallback");
+        const fallback = generateFallbackBass(safeKey, safeBars);
+        notes = fallback.notes;
+        provider = "Algorithmic Fallback";
       }
 
       return res.json({
@@ -3317,7 +3448,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
           key: safeKey,
           bpm: safeBpm,
           bars: safeBars,
-          provider: "Grok/OpenAI via callAI",
+          provider,
           songPlanId: songPlanId || null,
           sectionId: sectionId || "bass-section",
         },
@@ -3354,60 +3485,50 @@ Create complete lyrics with verses, chorus, and bridge.`;
         percussion?: Array<number | boolean>;
       };
 
-      const aiResult = await callAI<{ pattern?: DrumGrid}>({
-        system:
-          "You generate drum patterns for a step sequencer. " +
-          "Always return a JSON object with a 'pattern' property describing drum grids.",
-        user:
-          `Create a modern ${safeStyle} drum pattern at ${safeBpm} BPM for a ${safeBars}-bar loop on a 16-step-per-bar grid. ` +
-          `Return JSON with 'pattern' = { kick: number[${totalSteps}], snare: number[${totalSteps}], hihat: number[${totalSteps}], percussion: number[${totalSteps}] }. ` +
-          "Each array element must be 0 or 1. Do not include any extra properties.",
-        responseFormat: "json",
-        jsonSchema: {
-          type: "object",
-          properties: {
-            pattern: {
-              type: "object",
-              properties: {
-                kick: {
-                  type: "array",
-                  items: { type: "number" },
-                  minItems: totalSteps,
-                  maxItems: totalSteps,
-                },
-                snare: {
-                  type: "array",
-                  items: { type: "number" },
-                  minItems: totalSteps,
-                  maxItems: totalSteps,
-                },
-                hihat: {
-                  type: "array",
-                  items: { type: "number" },
-                  minItems: totalSteps,
-                  maxItems: totalSteps,
-                },
-                percussion: {
-                  type: "array",
-                  items: { type: "number" },
-                  minItems: totalSteps,
-                  maxItems: totalSteps,
-                },
-              },
-              required: ["kick", "snare", "hihat", "percussion"],
-            },
-          },
-          required: ["pattern"],
-        },
-        temperature: 0.7,
-        maxTokens: 800,
-      });
+      // Helper to generate fallback pattern when AI fails
+      const generateFallbackDrumPattern = (steps: number, styleHint: string): DrumGrid => {
+        const kick: number[] = [];
+        const snare: number[] = [];
+        const hihat: number[] = [];
+        const percussion: number[] = [];
 
-      const rawPattern = (aiResult as any)?.content?.pattern as DrumGrid | undefined;
+        // Style-based pattern generation
+        const isHipHop = styleHint.toLowerCase().includes('hip') || styleHint.toLowerCase().includes('trap');
+        const isRock = styleHint.toLowerCase().includes('rock');
+        const isElectronic = styleHint.toLowerCase().includes('electro') || styleHint.toLowerCase().includes('house') || styleHint.toLowerCase().includes('techno');
 
-      if (!rawPattern) {
-        return sendError(res, 500, "AI did not return a drum pattern");
-      }
+        for (let i = 0; i < steps; i++) {
+          const stepInBar = i % 16;
+          
+          // Kick pattern - varies by style
+          if (isHipHop) {
+            kick.push((stepInBar === 0 || stepInBar === 6 || stepInBar === 10) ? 1 : (Math.random() < 0.1 ? 1 : 0));
+          } else if (isElectronic) {
+            kick.push((stepInBar % 4 === 0) ? 1 : 0);
+          } else {
+            kick.push((stepInBar === 0 || stepInBar === 8) ? 1 : (Math.random() < 0.15 ? 1 : 0));
+          }
+
+          // Snare pattern
+          if (isHipHop) {
+            snare.push((stepInBar === 4 || stepInBar === 12) ? 1 : (Math.random() < 0.08 ? 1 : 0));
+          } else {
+            snare.push((stepInBar === 4 || stepInBar === 12) ? 1 : 0);
+          }
+
+          // Hi-hat pattern
+          if (isElectronic) {
+            hihat.push((stepInBar % 2 === 0) ? 1 : (Math.random() < 0.3 ? 1 : 0));
+          } else {
+            hihat.push((stepInBar % 2 === 0) ? 1 : (Math.random() < 0.4 ? 1 : 0));
+          }
+
+          // Percussion/extras
+          percussion.push(Math.random() < 0.12 ? 1 : 0);
+        }
+
+        return { kick, snare, hihat, percussion };
+      };
 
       const normalizeRow = (row: Array<number | boolean> | undefined): number[] => {
         if (!row || !Array.isArray(row) || row.length === 0) {
@@ -3415,6 +3536,73 @@ Create complete lyrics with verses, chorus, and bridge.`;
         }
         return row.slice(0, totalSteps).map((v) => (v ? 1 : 0));
       };
+
+      let rawPattern: DrumGrid | undefined;
+      let provider = "Grok/OpenAI via callAI";
+
+      try {
+        const aiResult = await callAI<{ pattern?: DrumGrid}>({
+          system:
+            "You generate drum patterns for a step sequencer. " +
+            "Always return a JSON object with a 'pattern' property describing drum grids.",
+          user:
+            `Create a modern ${safeStyle} drum pattern at ${safeBpm} BPM for a ${safeBars}-bar loop on a 16-step-per-bar grid. ` +
+            `Return JSON with 'pattern' = { kick: number[${totalSteps}], snare: number[${totalSteps}], hihat: number[${totalSteps}], percussion: number[${totalSteps}] }. ` +
+            "Each array element must be 0 or 1. Do not include any extra properties.",
+          responseFormat: "json",
+          jsonSchema: {
+            type: "object",
+            properties: {
+              pattern: {
+                type: "object",
+                properties: {
+                  kick: {
+                    type: "array",
+                    items: { type: "number" },
+                    minItems: totalSteps,
+                    maxItems: totalSteps,
+                  },
+                  snare: {
+                    type: "array",
+                    items: { type: "number" },
+                    minItems: totalSteps,
+                    maxItems: totalSteps,
+                  },
+                  hihat: {
+                    type: "array",
+                    items: { type: "number" },
+                    minItems: totalSteps,
+                    maxItems: totalSteps,
+                  },
+                  percussion: {
+                    type: "array",
+                    items: { type: "number" },
+                    minItems: totalSteps,
+                    maxItems: totalSteps,
+                  },
+                },
+                required: ["kick", "snare", "hihat", "percussion"],
+              },
+            },
+            required: ["pattern"],
+          },
+          temperature: 0.7,
+          maxTokens: 800,
+        });
+
+        rawPattern = (aiResult as any)?.content?.pattern as DrumGrid | undefined;
+      } catch (aiError: any) {
+        console.warn(`⚠️ AI drum generation failed, using fallback pattern: ${aiError?.message}`);
+        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle);
+        provider = "Algorithmic Fallback";
+      }
+
+      // If AI returned nothing, use fallback
+      if (!rawPattern || (!rawPattern.kick && !rawPattern.snare && !rawPattern.hihat)) {
+        console.warn("⚠️ AI returned empty pattern, using fallback");
+        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle);
+        provider = "Algorithmic Fallback";
+      }
 
       const grid = {
         kick: normalizeRow(rawPattern.kick),
@@ -3431,7 +3619,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
           bars: safeBars,
           style: safeStyle,
           resolution: gridResolution || "1/16",
-          provider: "Grok/OpenAI via callAI",
+          provider,
           songPlanId: songPlanId || null,
           sectionId: sectionId || "beat-section",
         },

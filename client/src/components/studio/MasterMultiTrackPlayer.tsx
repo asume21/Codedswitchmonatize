@@ -45,6 +45,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTracks } from '@/hooks/useTracks';
 import { Resizable } from 'react-resizable';
+import { RepeatIcon } from 'lucide-react';
+import WaveformVisualizer from './WaveformVisualizer';
 
 interface AudioTrack {
   id: string;
@@ -53,6 +55,9 @@ interface AudioTrack {
   audioUrl: string;
   volume: number;
   pan: number;
+  fadeInSeconds?: number;
+  fadeOutSeconds?: number;
+  volumePoints?: { time: number; volume: number }[];
   muted: boolean;
   solo: boolean;
   color: string;
@@ -178,10 +183,10 @@ function TrackWaveform({
     }
   }, [audioBuffer, color, currentTime, duration, trimStartSeconds, trimEndSeconds]);
 
-  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const seekFromClientX = (clientX: number) => {
     if (!canvasRef.current || !audioBuffer) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const x = clientX - rect.left;
     const fullDuration = audioBuffer.duration || duration || 0;
     const effectiveStart = Math.max(0, trimStartSeconds ?? 0);
     const effectiveEnd = Math.min(fullDuration, trimEndSeconds ?? fullDuration);
@@ -189,6 +194,18 @@ function TrackWaveform({
     const localTime = (x / rect.width) * clipDuration;
     const seekTime = effectiveStart + localTime;
     onSeek(Math.max(0, Math.min(fullDuration, seekTime)));
+  };
+
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    seekFromClientX(e.clientX);
+  };
+
+  const handleTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    e.preventDefault();
+    seekFromClientX(touch.clientX);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -271,6 +288,8 @@ function TrackWaveform({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
       />
+      onTouchStart={handleTouch}
+      onTouchMove={handleTouch}
       {/* Trim handles overlay */}
       {audioBuffer && (
         <>
@@ -313,6 +332,9 @@ export default function MasterMultiTrackPlayer() {
   const [showLibrary, setShowLibrary] = useState(false);
   const [showAddTrack, setShowAddTrack] = useState(false);
   const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'beatlab' | 'melody' | 'pianoroll'>('library');
+  const [punch, setPunch] = useState<{ enabled: boolean; in: number; out: number }>({ enabled: false, in: 0, out: 8 });
+  const [waveformEditorTrack, setWaveformEditorTrack] = useState<AudioTrack | null>(null);
+  const [waveformAudio, setWaveformAudio] = useState<HTMLAudioElement | null>(null);
   
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -378,6 +400,9 @@ export default function MasterMultiTrackPlayer() {
           audioUrl: url,
           volume: 80,
           pan: 0,
+          fadeInSeconds: 0.05,
+          fadeOutSeconds: 0.1,
+          volumePoints: [],
           muted: false,
           solo: false,
           color: trackColor,
@@ -602,6 +627,9 @@ export default function MasterMultiTrackPlayer() {
         audioUrl,
         volume: 80,
         pan: 0,
+        fadeInSeconds: 0.05,
+        fadeOutSeconds: 0.1,
+        volumePoints: [],
         muted: false,
         solo: false,
         color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
@@ -665,6 +693,9 @@ export default function MasterMultiTrackPlayer() {
         audioUrl,
         volume: 80,
         pan: 0,
+        fadeInSeconds: 0.05,
+        fadeOutSeconds: 0.1,
+        volumePoints: [],
         muted: false,
         solo: false,
         color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
@@ -716,18 +747,21 @@ export default function MasterMultiTrackPlayer() {
             const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
             const audioUrl = URL.createObjectURL(blob);
 
-            const newTrack: AudioTrack = {
-              id: `recording-${Date.now()}`,
-              name: `Recording ${tracks.length + 1}`,
-              audioBuffer,
-              audioUrl,
-              volume: 80,
-              pan: 0,
-              muted: false,
-              solo: false,
-              color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
-              origin: 'manual',
-              trimStartSeconds: 0,
+      const newTrack: AudioTrack = {
+        id: `recording-${Date.now()}`,
+        name: `Recording ${tracks.length + 1}`,
+        audioBuffer,
+        audioUrl,
+        volume: 80,
+        pan: 0,
+        fadeInSeconds: 0.05,
+        fadeOutSeconds: 0.1,
+        volumePoints: [],
+        muted: false,
+        solo: false,
+        color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+        origin: 'manual',
+        trimStartSeconds: 0,
               trimEndSeconds: audioBuffer.duration,
             };
 
@@ -790,6 +824,9 @@ export default function MasterMultiTrackPlayer() {
       audioUrl: '',
       volume: 80,
       pan: 0,
+      fadeInSeconds: 0.05,
+      fadeOutSeconds: 0.1,
+      volumePoints: [],
       muted: false,
       solo: false,
       color: type === 'beat' ? '#F59E0B' : type === 'melody' ? '#8B5CF6' : '#10B981',
@@ -818,7 +855,7 @@ export default function MasterMultiTrackPlayer() {
     // Stop any existing playback
     stopTracks();
 
-    const startOffset = pauseTimeRef.current;
+    const startOffset = punch.enabled ? Math.max(punch.in, pauseTimeRef.current) : pauseTimeRef.current;
     startTimeRef.current = ctx.currentTime - startOffset;
 
     tracks.forEach(track => {
@@ -837,13 +874,13 @@ export default function MasterMultiTrackPlayer() {
       const fullDur = track.audioBuffer.duration;
       const trimStart = Math.max(0, track.trimStartSeconds ?? 0);
       const trimEnd = Math.min(fullDur, track.trimEndSeconds ?? fullDur);
-      const clipDuration = Math.max(0, trimEnd - trimStart);
+      const globalEnd = punch.enabled ? Math.min(trimEnd, punch.out) : trimEnd;
+      const clipDuration = Math.max(0, globalEnd - trimStart);
 
       // Only loop untrimmed clips for now; trimmed clips play their region once
       source.loop = loop && clipDuration === fullDur;
 
-      // Set volume and pan
-      gainNode.gain.value = track.volume / 100;
+      // Set pan (volume handled with envelope below)
       panNode.pan.value = track.pan;
 
       // Connect: source -> gain -> pan -> master -> destination
@@ -867,7 +904,49 @@ export default function MasterMultiTrackPlayer() {
       }
 
       const bufferStart = trimStart + startOffset;
-      const playDuration = clipDuration - startOffset;
+      const stopAt = punch.enabled ? Math.min(globalEnd, punch.out) : globalEnd;
+      const allowedDuration = stopAt - bufferStart;
+      const playDuration = Math.max(0, Math.min(clipDuration - startOffset, allowedDuration));
+
+      const fadeIn = Math.min(track.fadeInSeconds ?? 0, playDuration / 2);
+      const fadeOut = loop ? 0 : Math.min(track.fadeOutSeconds ?? 0, Math.max(playDuration - fadeIn - 0.01, 0.01));
+
+      // Build combined gain envelope (volume slider * automation * fades)
+      const baseGain = track.volume / 100;
+      const points: number[] = [0, playDuration];
+      const autoPoints = (track.volumePoints || []).filter(
+        (p) => p.time >= bufferStart && p.time <= bufferStart + playDuration
+      );
+      autoPoints.forEach((p) => points.push(Math.max(0, p.time - bufferStart)));
+      if (fadeIn > 0) points.push(fadeIn);
+      if (fadeOut > 0) points.push(Math.max(playDuration - fadeOut, 0));
+      const uniquePoints = Array.from(new Set(points.filter((p) => p >= 0 && p <= playDuration))).sort((a, b) => a - b);
+
+      const calcFadeMultiplier = (t: number) => {
+        if (fadeIn > 0 && t <= fadeIn) return Math.max(0, t / fadeIn);
+        if (fadeOut > 0 && t >= playDuration - fadeOut) {
+          const rel = playDuration - t;
+          return Math.max(0, rel / fadeOut);
+        }
+        return 1;
+      };
+
+      const computeGain = (t: number) => {
+        const auto = getAutomationGainAt(track.volumePoints, bufferStart + t, clipDuration);
+        const fadeMul = calcFadeMultiplier(t);
+        return Math.max(0, baseGain * auto * fadeMul);
+      };
+
+      gainNode.gain.cancelScheduledValues(ctx.currentTime);
+      uniquePoints.forEach((t, idx) => {
+        const g = computeGain(t);
+        const at = ctx.currentTime + t;
+        if (idx === 0) {
+          gainNode.gain.setValueAtTime(g, at);
+        } else {
+          gainNode.gain.linearRampToValueAtTime(g, at);
+        }
+      });
       source.start(0, bufferStart, playDuration);
 
       // Handle end of playback
@@ -935,7 +1014,8 @@ export default function MasterMultiTrackPlayer() {
     const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
     setCurrentTime(elapsed);
 
-    if (elapsed < duration || loop) {
+    const punchEnd = punch.enabled ? punch.out : duration;
+    if (elapsed < punchEnd || loop) {
       animationFrameRef.current = requestAnimationFrame(updateCurrentTime);
     }
   };
@@ -968,6 +1048,36 @@ export default function MasterMultiTrackPlayer() {
         return t;
       })
     );
+  };
+
+  const updateTrackFade = (trackId: string, fadeInSeconds: number, fadeOutSeconds: number) => {
+    setTracks((prev) =>
+      prev.map((t) => (t.id === trackId ? { ...t, fadeInSeconds, fadeOutSeconds } : t))
+    );
+  };
+
+  const updateTrackVolumePoints = (trackId: string, points: { time: number; volume: number }[]) => {
+    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, volumePoints: points } : t)));
+  };
+
+  const getAutomationGainAt = (points: { time: number; volume: number }[] | undefined, time: number, clipDuration: number) => {
+    if (!points || points.length === 0) return 1;
+    const sorted = [...points].sort((a, b) => a.time - b.time);
+    if (time <= sorted[0].time) {
+      const first = sorted[0];
+      const denom = Math.max(first.time, 0.001);
+      return 1 + (first.volume - 1) * Math.min(1, Math.max(0, time / denom));
+    }
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const a = sorted[i];
+      const b = sorted[i + 1];
+      if (time >= a.time && time <= b.time) {
+        const span = Math.max(b.time - a.time, 0.001);
+        const ratio = (time - a.time) / span;
+        return a.volume + (b.volume - a.volume) * ratio;
+      }
+    }
+    return sorted[sorted.length - 1].volume;
   };
 
   // Toggle mute
@@ -1007,6 +1117,87 @@ export default function MasterMultiTrackPlayer() {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const applyTemplate = (template: 'band' | 'podcast') => {
+    const baseTracks =
+      template === 'band'
+        ? [
+            { name: 'Drums', type: 'beat' as const },
+            { name: 'Bass', type: 'bass' as any },
+            { name: 'Melody', type: 'melody' as const },
+            { name: 'Vocals', type: 'vocal' as const },
+          ]
+        : [
+            { name: 'Host Mic', type: 'vocal' as const },
+            { name: 'Guest Mic', type: 'vocal' as const },
+            { name: 'Music Bed', type: 'audio' as const },
+          ];
+
+    setTracks((prev) => {
+      const next = [...prev];
+      baseTracks.forEach((t, idx) => {
+        next.push({
+          id: `${t.name.toLowerCase().replace(/\\s+/g, '-')}-${Date.now()}-${idx}`,
+          name: t.name,
+          audioBuffer: null,
+          audioUrl: '',
+          volume: 80,
+          pan: 0,
+          volumePoints: [],
+          muted: false,
+          solo: false,
+          color: TRACK_COLORS[next.length % TRACK_COLORS.length],
+          trackType: t.type as any,
+          origin: 'manual',
+          height: DEFAULT_TRACK_HEIGHT,
+          trimStartSeconds: 0,
+          trimEndSeconds: 0,
+        });
+      });
+      return next;
+    });
+
+    toast({
+      title: template === 'band' ? 'Band template added' : 'Podcast template added',
+      description:
+        template === 'band'
+          ? 'Drums, bass, melody, and vocal tracks created'
+          : 'Host, guest, and music bed tracks created',
+    });
+  };
+
+  // Keyboard shortcuts: space play/pause, L loop, P punch toggle, arrows seek
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+      if (target && (target as HTMLElement).isContentEditable) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        isPlaying ? pausePlayback() : playTracks();
+      } else if (e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setLoop((v) => !v);
+      } else if (e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setPunch((p) => ({ ...p, enabled: !p.enabled }));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        stopPlayback();
+        pauseTimeRef.current = Math.max(0, pauseTimeRef.current - 1);
+        setCurrentTime(pauseTimeRef.current);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        stopPlayback();
+        pauseTimeRef.current = Math.min(duration, pauseTimeRef.current + 1);
+        setCurrentTime(pauseTimeRef.current);
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isPlaying, duration]);
 
   return (
     <div className="h-full flex flex-col bg-gray-900 text-white overflow-hidden">
@@ -1058,6 +1249,15 @@ export default function MasterMultiTrackPlayer() {
                     Add Track to Multi-Track Player
                   </DialogTitle>
                 </DialogHeader>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="justify-start" onClick={() => applyTemplate('band')}>
+                    Band Template (Drums, Bass, Melody, Vocal)
+                  </Button>
+                  <Button variant="outline" className="justify-start" onClick={() => applyTemplate('podcast')}>
+                    Podcast Template (Host, Guest, Bed)
+                  </Button>
+                </div>
                 
                 <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as any)} className="mt-4">
                   <TabsList className="grid grid-cols-4 bg-gray-800">
@@ -1379,6 +1579,46 @@ export default function MasterMultiTrackPlayer() {
             >
               <Repeat className="w-4 h-4" />
             </Button>
+            <Button
+              size="sm"
+              onClick={() => setPunch((p) => ({ ...p, enabled: !p.enabled }))}
+              variant={punch.enabled ? 'default' : 'outline'}
+              title="Punch in/out recording window"
+            >
+              <RepeatIcon className="w-4 h-4" />
+            </Button>
+            {punch.enabled && (
+              <div className="flex items-center gap-2 text-xs text-gray-300">
+                <span>In</span>
+                <Input
+                  type="number"
+                  value={punch.in}
+                  min={0}
+                  step={0.5}
+                  onChange={(e) =>
+                    setPunch((p) => ({
+                      ...p,
+                      in: Math.max(0, Math.min(Number(e.target.value) || 0, p.out - 0.1)),
+                    }))
+                  }
+                  className="w-16 h-8 bg-gray-800 text-white border-gray-700"
+                />
+                <span>Out</span>
+                <Input
+                  type="number"
+                  value={punch.out}
+                  min={punch.in + 0.1}
+                  step={0.5}
+                  onChange={(e) =>
+                    setPunch((p) => ({
+                      ...p,
+                      out: Math.max(p.in + 0.1, Number(e.target.value) || p.in + 0.1),
+                    }))
+                  }
+                  className="w-16 h-8 bg-gray-800 text-white border-gray-700"
+                />
+              </div>
+            )}
           </div>
 
           {/* Time Display */}
@@ -1641,6 +1881,52 @@ export default function MasterMultiTrackPlayer() {
                                 {track.pan > 0 ? 'R' : track.pan < 0 ? 'L' : 'C'}
                               </span>
                             </div>
+
+                            {/* Fade In/Out */}
+                            <div className="flex items-center gap-2 w-48">
+                              <span className="text-xs text-gray-400 whitespace-nowrap">Fade</span>
+                              <Slider
+                                value={[Math.round((track.fadeInSeconds ?? 0) * 100)]}
+                                onValueChange={(val) =>
+                                  updateTrackFade(track.id, val[0] / 100, track.fadeOutSeconds ?? 0.1)
+                                }
+                                max={200}
+                                min={0}
+                                step={5}
+                              />
+                              <Slider
+                                value={[Math.round((track.fadeOutSeconds ?? 0) * 100)]}
+                                onValueChange={(val) =>
+                                  updateTrackFade(track.id, track.fadeInSeconds ?? 0.05, val[0] / 100)
+                                }
+                                max={200}
+                                min={0}
+                                step={5}
+                              />
+                            </div>
+
+                            {/* Waveform edit */}
+                            <div className="flex items-center">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  if (!track.audioUrl) {
+                                    toast({
+                                      title: 'No audio URL',
+                                      description: 'Load or render this track to edit its waveform.',
+                                      variant: 'destructive',
+                                    });
+                                    return;
+                                  }
+                                  setWaveformEditorTrack(track);
+                                  const audio = new Audio(track.audioUrl);
+                                  setWaveformAudio(audio);
+                                }}
+                              >
+                                Waveform
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1670,6 +1956,40 @@ export default function MasterMultiTrackPlayer() {
           <span className="text-gray-400">Professional Multi-Track Mixing</span>
         </div>
       </div>
+
+      {/* Waveform editor dialog */}
+      <Dialog
+        open={!!waveformEditorTrack}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWaveformEditorTrack(null);
+            setWaveformAudio(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl bg-gray-900 border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              Waveform Editor {waveformEditorTrack ? `– ${waveformEditorTrack.name}` : ''}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            <WaveformVisualizer
+              audioElement={waveformAudio}
+              isPlaying={false}
+              showControls
+              height={220}
+              className="w-full"
+              initialVolumePoints={waveformEditorTrack?.volumePoints}
+              onVolumePointsChange={(pts) => {
+                if (waveformEditorTrack) {
+                  updateTrackVolumePoints(waveformEditorTrack.id, pts);
+                }
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

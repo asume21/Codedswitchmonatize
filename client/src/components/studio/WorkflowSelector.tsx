@@ -1,9 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sliders, Brain, Piano, Maximize2, GraduationCap, Upload } from 'lucide-react';
+import { Sliders, Brain, Piano, Maximize2, GraduationCap, Upload, BookOpen } from 'lucide-react';
 
 export interface WorkflowPreset {
-  id: 'song-analyzer' | 'beginner' | 'mixing' | 'ai' | 'composition' | 'immersive';
+  id: 'song-analyzer' | 'beginner' | 'mixing' | 'ai' | 'composition' | 'immersive' | 'lyrics-focus';
   name: string;
   description: string;
   icon: typeof Sliders;
@@ -59,6 +59,14 @@ const workflows: WorkflowPreset[] = [
     icon: Maximize2,
     color: 'text-red-500',
     preview: 'Timeline + Piano Roll (fullscreen)'
+  },
+  {
+    id: 'lyrics-focus',
+    name: 'Lyrics Focus',
+    description: 'Lyrics-first view with Lyric Lab front and center',
+    icon: BookOpen,
+    color: 'text-pink-500',
+    preview: 'Work the words first; music tools stay close by'
   }
 ];
 

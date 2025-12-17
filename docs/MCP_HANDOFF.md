@@ -51,3 +51,51 @@ Append an entry similar to the following inside
 
 After restarting Windsurf, both agents can call the new tools (e.g. `handoff.write`) to leave notes
 for each other, and `handoff.list` to pick up outstanding work.
+
+## Quick Setup
+
+1. Copy the contents of `docs/MCP_CONFIG_SNIPPET.json` into your Windsurf MCP config at:
+   - Windows: `C:\Users\<you>\.codeium\windsurf\mcp_config.json`
+   - Mac/Linux: `~/.codeium/windsurf/mcp_config.json`
+
+2. Restart Windsurf to load the new MCP server.
+
+3. Both Cascade and Codex can now use these tools:
+   - `handoff.write` - Create tasks for the other AI
+   - `handoff.list` - Check for assigned tasks
+   - `handoff.assign` - Reassign or update status
+   - `handoff.converge` - Merge proposals from both AIs
+
+## Example Workflow
+
+**Cascade creates a task for Codex:**
+```
+handoff.write({
+  title: "Implement audio waveform trimming",
+  summary: "Add trim controls to the waveform editor dialog",
+  assignee: "Codex",
+  files: ["client/src/components/studio/UnifiedStudioWorkspace.tsx"],
+  status: "open"
+})
+```
+
+**Codex checks for tasks:**
+```
+handoff.list({ assignee: "Codex", status: "open" })
+```
+
+**Codex marks task complete:**
+```
+handoff.assign({ id: "...", status: "done", author: "Codex" })
+```
+
+**Converge on a design decision:**
+```
+handoff.converge({
+  topic: "Audio engine architecture",
+  ideas: [
+    { author: "Cascade", proposal: "Use Web Audio API with worklets" },
+    { author: "Codex", proposal: "Use Tone.js wrapper for simplicity" }
+  ]
+})
+```

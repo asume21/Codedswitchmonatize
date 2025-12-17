@@ -27,6 +27,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useTransport } from '@/contexts/TransportContext';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { useTrackStore } from '@/contexts/TrackStoreContext';
+import { useSessionDestination } from '@/contexts/SessionDestinationContext';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { realisticAudio } from '@/lib/realisticAudio';
 import {
@@ -111,6 +113,40 @@ interface DrumTrack {
   decay: number;      // Envelope decay
   filterFreq: number; // Low-pass filter
   filterRes: number;  // Filter resonance
+}
+
+type AiNote = {
+  time?: number;
+  duration?: number;
+  pitch?: string | number;
+  velocity?: number;
+};
+
+function parsePitch(pitch: unknown): { note: string; octave: number } {
+  if (typeof pitch === 'number' && Number.isFinite(pitch)) {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(pitch / 12) - 1;
+    const noteIndex = ((pitch % 12) + 12) % 12;
+    return { note: noteNames[noteIndex] ?? 'C', octave };
+  }
+
+  if (typeof pitch === 'string') {
+    const match = pitch.trim().match(/^([A-G][#b]?)(-?\d)$/i);
+    if (match) {
+      const [, noteRaw, octaveRaw] = match;
+      const octave = parseInt(octaveRaw, 10);
+      return { note: noteRaw.toUpperCase(), octave: Number.isNaN(octave) ? 4 : octave };
+    }
+  }
+
+  return { note: 'C', octave: 4 };
+}
+
+function normalizeVelocity(raw: unknown): number {
+  const fallback = 96;
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return fallback;
+  if (raw <= 1) return Math.max(0, Math.min(127, Math.round(raw * 127)));
+  return Math.max(0, Math.min(127, Math.round(raw)));
 }
 
 // Drum Kit Definitions
@@ -258,6 +294,8 @@ interface Props {
 export default function ProBeatMaker({ onPatternChange }: Props) {
   const { toast } = useToast();
   const { tempo } = useTransport();
+  const { addTrack } = useTrackStore();
+  const { requestDestination } = useSessionDestination();
   
   // Core state
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
@@ -433,6 +471,12 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       const notes = track?.notes;
 
       if (Array.isArray(notes) && notes.length > 0) {
+        void (async () => {
+          const destination = await requestDestination({ suggestedName: 'ProBeat Session' });
+          if (!destination) {
+            return;
+          }
+
         const pitches = notes
           .map((n: any) => (typeof n?.pitch === 'string' ? n.pitch : null))
           .filter((p: string | null) => !!p) as string[];
@@ -448,6 +492,45 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
           title: 'AI Melody Ready',
           description: `Generated ${notes.length} melody notes`,
         });
+
+        const bars = Math.max(1, Math.round(patternLength / 16) || 1);
+        const melodyTrackId = `melody-${Date.now()}`;
+        const notesForTrack = (notes as AiNote[]).map((n, index) => {
+          const { note, octave } = parsePitch((n as any)?.pitch);
+          const step = Math.max(0, Math.round(((n as any)?.time ?? 0) * 4));
+          const length = Math.max(1, Math.round((((n as any)?.duration ?? 0.5) as number) * 4));
+          const velocity = normalizeVelocity((n as any)?.velocity);
+          return {
+            id: `melody-note-${index}-${Date.now()}`,
+            note,
+            octave,
+            step,
+            length,
+            velocity,
+          };
+        });
+
+        addTrack({
+          id: melodyTrackId,
+          kind: 'piano',
+          name: 'ProBeat AI Melody',
+          lengthBars: bars,
+          startBar: 0,
+          payload: {
+            type: 'midi',
+            instrument: 'Lead Synth',
+            notes: notesForTrack,
+            source: 'probeat-ai-melody',
+            bpm,
+          },
+        });
+
+        window.dispatchEvent(
+          new CustomEvent('studio:focusTrack', {
+            detail: { trackId: melodyTrackId, view: 'piano-roll' },
+          }),
+        );
+        })();
       } else {
         toast({
           title: 'AI Melody',
@@ -488,11 +571,16 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       const notes = track?.notes;
 
       if (Array.isArray(notes) && notes.length > 0) {
-        const pitches = notes
-          .map((n: any) => (typeof n?.pitch === 'string' ? n.pitch : null))
-          .filter((p: string | null) => !!p) as string[];
-        const uniquePitches = Array.from(new Set(pitches));
+        void (async () => {
+          const destination = await requestDestination({ suggestedName: 'ProBeat Session' });
+          if (!destination) {
+            return;
+          }
 
+          const pitches = notes
+            .map((n: any) => (typeof n?.pitch === 'string' ? n.pitch : null))
+            .filter((p: string | null) => !!p) as string[];
+          const uniquePitches = Array.from(new Set(pitches));
         setAiBassSummary(
           `${notes.length} notes • ${uniquePitches.slice(0, 6).join(', ')}${
             uniquePitches.length > 6 ? '…' : ''
@@ -503,6 +591,45 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
           title: 'AI Bassline Ready',
           description: `Generated ${notes.length} bass notes`,
         });
+
+        const bars = Math.max(1, Math.round(patternLength / 16) || 1);
+        const bassTrackId = `bass-${Date.now()}`;
+        const notesForTrack = (notes as AiNote[]).map((n, index) => {
+          const { note, octave } = parsePitch((n as any)?.pitch);
+          const step = Math.max(0, Math.round(((n as any)?.time ?? 0) * 4));
+          const length = Math.max(1, Math.round((((n as any)?.duration ?? 0.5) as number) * 4));
+          const velocity = normalizeVelocity((n as any)?.velocity);
+          return {
+            id: `bass-note-${index}-${Date.now()}`,
+            note,
+            octave,
+            step,
+            length,
+            velocity,
+          };
+        });
+
+        addTrack({
+          id: bassTrackId,
+          kind: 'piano',
+          name: 'ProBeat AI Bass',
+          lengthBars: bars,
+          startBar: 0,
+          payload: {
+            type: 'midi',
+            instrument: 'Bass Synth',
+            notes: notesForTrack,
+            source: 'probeat-ai-bass',
+            bpm,
+          },
+        });
+
+        window.dispatchEvent(
+          new CustomEvent('studio:focusTrack', {
+            detail: { trackId: bassTrackId, view: 'piano-roll' },
+          }),
+        );
+        })();
       } else {
         toast({
           title: 'AI Bassline',

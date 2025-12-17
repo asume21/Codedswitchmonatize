@@ -12,6 +12,9 @@ import type {
 import { getGenreConfig, DEFAULT_GENRE } from './codeToMusic/genreConfigs';
 import { parseCodeStructure, getCodeStatistics } from './codeToMusic/codeParser';
 import { generateTimeline, generateDrumPattern, calculateOptimalBPM } from './codeToMusic/timelineGenerator';
+import { generateAdvancedMelody } from './codeToMusic/melodyGenerator';
+import { generateAdvancedDrumPattern, drumPatternToNotes } from './codeToMusic/advancedDrums';
+import { getChordsForGenre } from './codeToMusic/chordDefinitions';
 
 /**
  * Main entry point: Convert code to music
@@ -85,7 +88,7 @@ export async function convertCodeToMusic(
       drums,
       metadata: {
         bpm,
-        key: 'C Major',
+        key: pickKeyForGenre(genreConfig.name, parsedCode.mood || 'neutral'),
         genre: genreConfig.name,
         variation: request.variation,
         duration,
@@ -125,6 +128,21 @@ function generateSeed(code: string, variation: number): number {
 }
 
 /**
+ * Pick a key based on genre/mood to avoid everything being C major.
+ */
+function pickKeyForGenre(genre: string, mood: string): string {
+  const keyMap: Record<string, string> = {
+    pop: mood === 'sad' ? 'A Minor' : 'C Major',
+    rock: 'G Major',
+    hiphop: 'A Minor',
+    edm: 'D Minor',
+    rnb: 'F Major',
+    country: 'D Major',
+  };
+  return keyMap[genre] || 'C Major';
+}
+
+/**
  * Seeded random number generator (for reproducibility)
  */
 export function seededRandom(seed: number): () => number {
@@ -160,6 +178,141 @@ export function convertToAudioEngineFormat(musicData: any) {
     bpm: musicData.metadata?.bpm || 120,
     key: musicData.metadata?.key || 'C Major',
   };
+}
+
+/**
+ * ENHANCED Code-to-Music conversion with advanced melody and drum generation
+ * This version produces more musical, expressive output
+ */
+export async function convertCodeToMusicEnhanced(
+  request: CodeToMusicRequest
+): Promise<CodeToMusicResponse> {
+  try {
+    console.log('🎵 Enhanced Code-to-Music: Starting conversion', {
+      language: request.language,
+      genre: request.genre,
+      variation: request.variation,
+      codeLength: request.code.length,
+    });
+
+    if (!request.code || request.code.trim().length === 0) {
+      return { success: false, error: 'Code cannot be empty' };
+    }
+
+    const genreConfig = getGenreConfig(request.genre || DEFAULT_GENRE);
+    const parsedCode = parseCodeStructure(request.code, request.language);
+    const stats = getCodeStatistics(parsedCode);
+    
+    console.log('📝 Parsed code:', {
+      elements: parsedCode.elements.length,
+      complexity: parsedCode.complexity,
+      mood: parsedCode.mood,
+      stats,
+    });
+
+    // Calculate optimal BPM based on code characteristics
+    const bpm = calculateOptimalBPM(parsedCode, genreConfig.bpm);
+    
+    // Generate chord progression first (foundation)
+    const { chords } = generateTimeline(parsedCode, genreConfig.name, bpm, request.variation || 0);
+    
+    // Use ADVANCED melody generator for richer output
+    const { melody, bass, pads } = generateAdvancedMelody(
+      parsedCode,
+      chords,
+      genreConfig.name,
+      bpm,
+      request.variation || 0
+    );
+    
+    // Combine all melodic elements
+    const allMelody = [...melody, ...bass, ...pads];
+    
+    // Calculate duration from all notes
+    const duration = allMelody.length > 0 
+      ? Math.max(...allMelody.map(n => n.start + n.duration))
+      : 16;
+    
+    // Use ADVANCED drum generator
+    const advancedDrums = generateAdvancedDrumPattern(
+      parsedCode,
+      genreConfig.name,
+      bpm,
+      duration
+    );
+    
+    // Convert drum hits to melody note format for unified playback
+    const drumNotes = drumPatternToNotes(advancedDrums);
+    
+    // Create timeline events from all elements
+    const timeline = allMelody.map((note, index) => ({
+      time: note.start,
+      type: 'note' as const,
+      data: {
+        note: note.note,
+        duration: note.duration,
+        velocity: note.velocity,
+        instrument: note.instrument,
+      },
+      source: note.source,
+    }));
+    
+    // Add drum events to timeline
+    drumNotes.forEach(drum => {
+      timeline.push({
+        time: drum.start,
+        type: 'note' as const,
+        data: {
+          note: drum.note,
+          duration: drum.duration,
+          velocity: drum.velocity,
+          instrument: drum.instrument,
+        },
+        source: drum.source,
+      });
+    });
+    
+    // Sort timeline by time
+    timeline.sort((a, b) => a.time - b.time);
+
+    console.log('🎼 Enhanced music generated:', {
+      melodyNotes: melody.length,
+      bassNotes: bass.length,
+      padNotes: pads.length,
+      drumHits: advancedDrums.hits.length,
+      fills: advancedDrums.fills.length,
+      duration: `${duration.toFixed(1)}s`,
+      bpm,
+    });
+
+    const music: MusicData = {
+      timeline,
+      chords,
+      melody: allMelody,
+      drums: advancedDrums.pattern,
+      metadata: {
+        bpm,
+        key: pickKeyForGenre(genreConfig.name, parsedCode.mood || 'neutral'),
+        genre: genreConfig.name,
+        variation: request.variation,
+        duration,
+        generatedAt: new Date().toISOString(),
+        seed: generateSeed(request.code, request.variation || 0),
+      },
+    };
+
+    return {
+      success: true,
+      music,
+      metadata: music.metadata,
+    };
+  } catch (error) {
+    console.error('❌ Enhanced Code-to-Music error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
 }
 
 /**

@@ -70,13 +70,32 @@ class LicenseGuard {
   }
 
   async startCheckout(): Promise<void> {
-    const res = await apiRequest("POST", "/api/create-checkout");
-    const data = await res.json();
-    if (data?.url) {
-      window.location.href = data.url;
-      return;
+    try {
+      console.log("🛒 Starting checkout...");
+      const res = await fetch("/api/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Checkout failed:", res.status, errorData);
+        throw new Error(errorData.error || `Checkout failed: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      console.log("🛒 Checkout response:", data);
+      
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      throw new Error("No checkout URL returned");
+    } catch (error) {
+      console.error("🛒 Checkout error:", error);
+      throw error;
     }
-    throw new Error("No checkout URL returned");
   }
 }
 
@@ -130,18 +149,21 @@ export function UpgradeModal({
   onUpgrade?: () => Promise<void>;
 }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!open) return null;
 
   const handleUpgrade = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       if (onUpgrade) {
         await onUpgrade();
       } else {
         await licenseGuard.startCheckout();
       }
-    } catch (error) {
-      console.error("Upgrade failed:", error);
+    } catch (err: any) {
+      console.error("Upgrade failed:", err);
+      setError(err?.message || "Failed to start checkout. Please try again.");
       setIsLoading(false);
     }
   };
@@ -154,6 +176,11 @@ export function UpgradeModal({
           This feature requires an active subscription. Unlock exports, project saves, AI
           generation, and unlimited tracks by upgrading your plan.
         </p>
+        {error && (
+          <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm">
+            {error}
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}

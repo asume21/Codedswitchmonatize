@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "handoff": {
+      "command": "npx",
+      "args": ["-y", "tsx", "D:/Codedswitchmonatize/scripts/mcp-handoff-server.ts"],
+      "env": {
+        "MCP_HANDOFF_PATH": "D:/Codedswitchmonatize/.handoff/messages.json"
+      }
+    }
+  }
+}

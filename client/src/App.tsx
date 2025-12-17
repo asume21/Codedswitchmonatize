@@ -13,6 +13,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SongWorkSessionProvider } from "@/contexts/SongWorkSessionContext";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { GlobalAudioProvider } from "@/contexts/GlobalAudioContext";
+import { StudioSessionProvider } from "@/contexts/StudioSessionContext";
+import { SessionDestinationProvider } from "@/contexts/SessionDestinationContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
 import { GlobalAudioPlayer } from "@/components/GlobalAudioPlayer";
@@ -22,19 +24,13 @@ import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
-import BeatStudio from "@/pages/beat-studio";
-import MelodyComposerV2Page from "@/pages/melody-composer-v2";
-import CodeTranslatorPage from "@/pages/code-translator";
-import SongUploaderPage from "@/pages/song-uploader";
 
 // Lazy loaded pages (large, less frequently accessed)
-const Studio = React.lazy(() => import("@/pages/studio"));
 const Dashboard = React.lazy(() => import("@/pages/dashboard"));
 const UnifiedStudioWorkspace = React.lazy(() => import("@/components/studio/UnifiedStudioWorkspace"));
 const Settings = React.lazy(() => import("@/pages/settings"));
 const Subscribe = React.lazy(() => import("@/pages/Subscribe"));
 const ProAudio = React.lazy(() => import("@/pages/pro-audio"));
-const CodeBeatStudio = React.lazy(() => import("@/pages/codebeat-studio"));
 const AIAssistantPage = React.lazy(() => import("@/pages/ai-assistant"));
 const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner"));
 const DesignPlayground = React.lazy(() => import("@/pages/design-playground"));
@@ -66,11 +62,22 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col">
         <Navigation />
         <main className="flex-1 overflow-x-auto overflow-y-auto">
-          <div className="min-w-[1400px] w-full h-full">{children}</div>
+          <div className="w-full h-full">{children}</div>
         </main>
       </div>
     </div>
   );
+}
+
+function LyricLabRoute() {
+  useEffect(() => {
+    const fire = () =>
+      window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'lyrics' }));
+    fire();
+    window.setTimeout(fire, 0);
+  }, []);
+
+  return <UnifiedStudioWorkspace />;
 }
 
 function App() {
@@ -100,15 +107,17 @@ function App() {
         <TransportProvider>
           <GlobalAudioProvider>
             <TrackStoreProvider>
-              <SongWorkSessionProvider>
-                <TooltipProvider>
-                <Toaster />
-                {/* GLOBAL NAVIGATION - Available on ALL pages */}
-                <GlobalNav className="fixed top-4 left-4 z-[9999]" />
-                {/* GLOBAL AUDIO PLAYER - Persists across all pages */}
-                <GlobalAudioPlayer />
-                <Suspense fallback={<LoadingFallback />}>
-                <Switch>
+              <StudioSessionProvider>
+                <SongWorkSessionProvider>
+                  <SessionDestinationProvider>
+                    <TooltipProvider>
+                    <Toaster />
+                    {/* GLOBAL NAVIGATION - Available on ALL pages */}
+                    <GlobalNav className="fixed top-4 left-4 z-[9999]" />
+                    {/* GLOBAL AUDIO PLAYER - Persists across all pages */}
+                    <GlobalAudioPlayer />
+                    <Suspense fallback={<LoadingFallback />}>
+                    <Switch>
                   <Route path="/">
                     <AIMessageProvider>
                       <AppLayout>
@@ -136,19 +145,25 @@ function App() {
                     </AIMessageProvider>
                   </Route>
                   <Route path="/song-uploader">
-                    <AppLayout>
-                      <SongUploaderPage />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/beat-studio">
-                    <AppLayout>
-                      <BeatStudio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/melody-composer">
-                    <AppLayout>
-                      <MelodyComposerV2Page />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/unified-studio">
                     <AIMessageProvider>
@@ -168,19 +183,25 @@ function App() {
                     <CodedSwitchFlow />
                   </Route>
                   <Route path="/code-translator">
-                    <AppLayout>
-                      <CodeTranslatorPage />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/codebeat-studio">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/lyric-lab">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <LyricLabRoute />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/vulnerability-scanner">
                     <AppLayout>
@@ -193,44 +214,60 @@ function App() {
                     </AppLayout>
                   </Route>
                   <Route path="/mix-studio">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/pro-console">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/midi-controller">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/advanced-sequencer">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/granular-engine">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/wavetable-oscillator">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/pack-generator">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/song-structure">
-                    <AppLayout>
-                      <Studio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/pro-audio">
                     <AppLayout>
@@ -238,11 +275,13 @@ function App() {
                     </AppLayout>
                   </Route>
                   <Route path="/codebeat-studio-direct">
-                    <AppLayout>
-                      <CodeBeatStudio />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
-                  <Route path="/billing" component={Subscribe} />
+                  <Route path="/billing" component={BuyCreditsPage} />
                   <Route path="/settings">
                     <AppLayout>
                       <Settings />
@@ -268,10 +307,12 @@ function App() {
                   <Route path="/credits" component={BuyCreditsPage} />
                   <Route path="/s/:id" component={PublicSongPage} />
                   <Route component={NotFound} />
-                </Switch>
-                </Suspense>
-                </TooltipProvider>
-              </SongWorkSessionProvider>
+                    </Switch>
+                    </Suspense>
+                    </TooltipProvider>
+                  </SessionDestinationProvider>
+                </SongWorkSessionProvider>
+              </StudioSessionProvider>
             </TrackStoreProvider>
           </GlobalAudioProvider>
         </TransportProvider>

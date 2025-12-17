@@ -32,6 +32,8 @@ interface SongWorkSessionContextType {
   updateSession: (sessionId: string, updates: Partial<SongWorkSession>) => void;
   getSession: (sessionId: string) => SongWorkSession | null;
   setCurrentSessionId: (sessionId: string) => void;
+  deleteSession: (sessionId: string) => void;
+  listSessions: () => SongWorkSession[];
   clearSession: () => void;
 }
 
@@ -108,6 +110,19 @@ export function SongWorkSessionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const deleteSession = (sessionId: string) => {
+    setSessions(prev => {
+      const next = new Map(prev);
+      next.delete(sessionId);
+      return next;
+    });
+    if (currentSession?.sessionId === sessionId) {
+      setCurrentSession(null);
+    }
+  };
+
+  const listSessions = () => Array.from(sessions.values()).sort((a, b) => b.createdAt - a.createdAt);
+
   const clearSession = () => {
     setCurrentSession(null);
   };
@@ -119,6 +134,8 @@ export function SongWorkSessionProvider({ children }: { children: ReactNode }) {
       updateSession,
       getSession,
       setCurrentSessionId,
+      deleteSession,
+      listSessions,
       clearSession
     }}>
       {children}

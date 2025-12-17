@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import type { IStorage } from "../storage";
-import crypto from "crypto";
 import { getCreditService, CREDIT_PACKAGES } from "./credits";
+import { generateActivationKey } from "./keyGenerator";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
@@ -10,17 +10,6 @@ const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO || "";
 const SUCCESS_URL =
   process.env.STRIPE_SUCCESS_URL || `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
 const CANCEL_URL = process.env.STRIPE_CANCEL_URL || `${APP_URL}/billing/cancel`;
-
-// Generate cryptographically secure activation key
-function generateActivationKey(): string {
-  const prefix = "CS"; // CodedSwitch
-  const randomPart = crypto.randomBytes(16).toString("hex").toUpperCase();
-  // Format: CS-XXXX-XXXX-XXXX-XXXX
-  return `${prefix}-${randomPart.slice(0, 4)}-${randomPart.slice(4, 8)}-${randomPart.slice(
-    8,
-    12,
-  )}-${randomPart.slice(12, 16)}`;
-}
 
 function deriveTier(status?: string | null) {
   return status === "active" || status === "trialing" ? "pro" : "free";
@@ -162,7 +151,7 @@ export async function handleStripeWebhook(
         const tier = metadataTier || deriveTier(status);
 
         // Generate activation key for new pro subscribers
-        const activationKey = generateActivationKey();
+        const activationKey = generateActivationKey("pro");
         console.log(`?? Generated activation key for user ${userId}: ${activationKey}`);
 
         // Update user with Stripe info AND activation key

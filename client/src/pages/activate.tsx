@@ -85,14 +85,14 @@ export default function ActivatePage() {
               <Input
                 id="activation-key"
                 type="text"
-                placeholder="CS-XXXX-XXXX-XXXX-XXXX"
+                placeholder="PRO-XXXXXXXX-XXXXXXXX-XXXXXXXX"
                 value={activationKey}
                 onChange={(e) => setActivationKey(e.target.value.toUpperCase())}
                 className="font-mono text-center tracking-wider"
                 disabled={isActivating}
               />
               <p className="text-xs text-gray-400">
-                Check your email for your activation key after payment
+                Keys start with your tier (e.g., PRO/BASIC/TRIAL). Check your email after payment.
               </p>
             </div>
 

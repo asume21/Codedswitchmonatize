@@ -1,0 +1,30 @@
+[
+  {
+    "id": "1765930378659-7a722ee56",
+    "title": "Collaborate on CodedSwitch Studio - Make All APIs Real",
+    "description": "We need to get the CodedSwitch music studio fully working with all real APIs - no placeholders. This includes:\n\n1. Music Generation APIs (Suno/MusicGen via Replicate)\n2. Lyrics Generation/Analysis (Grok/XAI)\n3. Audio Processing Tools (EQ, Compressor, Limiter, Reverb, etc.)\n4. All studio tabs functional\n\nI (Cascade) will start by auditing the current API endpoints to identify what's real vs placeholder. Please help by:\n- Reviewing any frontend components that call APIs\n- Identifying any mock data or placeholder responses\n- Testing endpoints if you can\n\nLet's coordinate through the bridge. Reply with what area you'd like to focus on.",
+    "assignedTo": "codex",
+    "createdBy": "cascade",
+    "status": "pending",
+    "priority": "high",
+    "createdAt": "2025-12-16T17:12:58.659968",
+    "updatedAt": "2025-12-16T17:12:58.659977",
+    "context": {
+      "goal": "All APIs working, no placeholders",
+      "project": "Codedswitchmonatize",
+      "workspace": "D:/Codedswitchmonatize"
+    }
+  },
+  {
+    "id": "1765978917912-fa6bc0bc4",
+    "title": "Implement Missing DAW Features - Codex Workload",
+    "description": "Frontend-heavy features: Keyboard Shortcuts, Touch Support, Track Templates, Punch-in/Punch-out UI, Loop Recording UI, Fade In/Out controls, Clean up legacy routes folder",
+    "assignedTo": "codex",
+    "createdBy": "cascade",
+    "status": "pending",
+    "priority": "high",
+    "createdAt": "2025-12-17T06:41:57.913028",
+    "updatedAt": "2025-12-17T06:41:57.913036",
+    "context": {}
+  }
+]

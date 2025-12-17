@@ -19,6 +19,7 @@ import { useLocation } from "wouter";
 import { Send, Layers, Music, FileMusic, AlertCircle, Sliders } from "lucide-react";
 import { useTransport } from "@/contexts/TransportContext";
 import { useTrackStore } from "@/contexts/TrackStoreContext";
+import { useSessionDestination } from "@/contexts/SessionDestinationContext";
 
 const GENRE_OPTIONS = [
   { value: "hip-hop", label: "Hip-Hop" },
@@ -36,6 +37,40 @@ interface BeatPattern {
   clap: boolean[];
   tom: boolean[];
   crash: boolean[];
+}
+
+type AiNote = {
+  time?: number;
+  duration?: number;
+  pitch?: string | number;
+  velocity?: number;
+};
+
+function parsePitch(pitch: unknown): { note: string; octave: number } {
+  if (typeof pitch === 'number' && Number.isFinite(pitch)) {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(pitch / 12) - 1;
+    const noteIndex = ((pitch % 12) + 12) % 12;
+    return { note: noteNames[noteIndex] ?? 'C', octave };
+  }
+
+  if (typeof pitch === 'string') {
+    const match = pitch.trim().match(/^([A-G][#b]?)(-?\d)$/i);
+    if (match) {
+      const [, noteRaw, octaveRaw] = match;
+      const octave = parseInt(octaveRaw, 10);
+      return { note: noteRaw.toUpperCase(), octave: Number.isNaN(octave) ? 4 : octave };
+    }
+  }
+
+  return { note: 'C', octave: 4 };
+}
+
+function normalizeVelocity(raw: unknown): number {
+  const fallback = 96;
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return fallback;
+  if (raw <= 1) return Math.max(0, Math.min(127, Math.round(raw * 127)));
+  return Math.max(0, Math.min(127, Math.round(raw)));
 }
 
 const drumKits = {
@@ -102,6 +137,7 @@ interface BeatMakerProps {
 export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {}) {
   const studioContext = useContext(StudioAudioContext);
   const { currentSession, setCurrentSessionId, updateSession } = useSongWorkSession();
+  const { requestDestination } = useSessionDestination();
   const [location] = useLocation();
   const { play: startTransport, stop: stopTransport } = useTransport();
   const { tracks: trackClips, addTrack, updateTrack, removeTrack } = useTrackStore();
@@ -365,11 +401,18 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
 
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       const track = data?.data || data?.track;
       const notes = track?.notes;
 
       if (Array.isArray(notes) && notes.length > 0) {
+        const destination = await requestDestination({
+          suggestedName: (currentSession as any)?.songName || 'BeatMaker Session',
+        });
+        if (!destination) {
+          return;
+        }
+
         const pitches = notes
           .map((n: any) => (typeof n?.pitch === "string" ? n.pitch : null))
           .filter((p: string | null) => !!p) as string[];
@@ -397,6 +440,45 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
             },
           } as any);
         }
+
+        const safeBars = Math.max(1, bars || 4);
+        const melodyTrackId = `melody-${Date.now()}`;
+        const notesForTrack = (notes as AiNote[]).map((n, index) => {
+          const { note, octave } = parsePitch((n as any)?.pitch);
+          const step = Math.max(0, Math.round(((n as any)?.time ?? 0) * 4));
+          const length = Math.max(1, Math.round((((n as any)?.duration ?? 0.5) as number) * 4));
+          const velocity = normalizeVelocity((n as any)?.velocity);
+          return {
+            id: `melody-note-${index}-${Date.now()}`,
+            note,
+            octave,
+            step,
+            length,
+            velocity,
+          };
+        });
+
+        addTrack({
+          id: melodyTrackId,
+          kind: 'piano',
+          name: `AI Melody - ${(currentSession as any)?.songKey || 'C minor'}`,
+          lengthBars: safeBars,
+          startBar: 0,
+          payload: {
+            type: 'midi',
+            instrument: 'Lead Synth',
+            notes: notesForTrack,
+            source: 'beatmaker-ai-melody',
+            bpm,
+            key: (currentSession as any)?.songKey,
+          },
+        });
+
+        window.dispatchEvent(
+          new CustomEvent('studio:focusTrack', {
+            detail: { trackId: melodyTrackId, view: 'piano-roll' },
+          }),
+        );
       } else {
         toast({
           title: "AI Melody",
@@ -438,11 +520,18 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
 
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       const track = data?.data || data?.track;
       const notes = track?.notes;
 
       if (Array.isArray(notes) && notes.length > 0) {
+        const destination = await requestDestination({
+          suggestedName: (currentSession as any)?.songName || 'BeatMaker Session',
+        });
+        if (!destination) {
+          return;
+        }
+
         const pitches = notes
           .map((n: any) => (typeof n?.pitch === "string" ? n.pitch : null))
           .filter((p: string | null) => !!p) as string[];
@@ -470,6 +559,45 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
             },
           } as any);
         }
+
+        const safeBars = Math.max(1, bars || 4);
+        const bassTrackId = `bass-${Date.now()}`;
+        const notesForTrack = (notes as AiNote[]).map((n, index) => {
+          const { note, octave } = parsePitch((n as any)?.pitch);
+          const step = Math.max(0, Math.round(((n as any)?.time ?? 0) * 4));
+          const length = Math.max(1, Math.round((((n as any)?.duration ?? 0.5) as number) * 4));
+          const velocity = normalizeVelocity((n as any)?.velocity);
+          return {
+            id: `bass-note-${index}-${Date.now()}`,
+            note,
+            octave,
+            step,
+            length,
+            velocity,
+          };
+        });
+
+        addTrack({
+          id: bassTrackId,
+          kind: 'piano',
+          name: `AI Bass - ${(currentSession as any)?.songKey || 'C minor'}`,
+          lengthBars: safeBars,
+          startBar: 0,
+          payload: {
+            type: 'midi',
+            instrument: 'Bass Synth',
+            notes: notesForTrack,
+            source: 'beatmaker-ai-bass',
+            bpm,
+            key: (currentSession as any)?.songKey,
+          },
+        });
+
+        window.dispatchEvent(
+          new CustomEvent('studio:focusTrack', {
+            detail: { trackId: bassTrackId, view: 'piano-roll' },
+          }),
+        );
       } else {
         toast({
           title: "AI Bassline",
@@ -538,7 +666,7 @@ export default function BeatMaker({ onPatternSend, onRoute }: BeatMakerProps = {
         }
 
         toast({
-          title: "AI Drum Grid Ready 3b5",
+          title: "AI Drum Grid Ready",
           description: `Loaded Phase 3 drum pattern (${selectedGenre}, ${bpm} BPM).`,
         });
       } else {

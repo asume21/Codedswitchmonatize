@@ -1,3 +1,9 @@
+/**
+ * LEGACY ROUTES (not mounted by server/index.ts)
+ * ------------------------------------------------
+ * The active API surface lives in server/routes.ts. This file remains only for
+ * historical reference and should not be used for new endpoints.
+ */
 import { Express } from "express";
 import { IStorage } from "../storage";
 import { billingRoutes } from "./billing";

@@ -9,6 +9,8 @@ interface WaveformVisualizerProps {
   className?: string;
   height?: number;
   showControls?: boolean;
+  initialVolumePoints?: { time: number; volume: number }[];
+  onVolumePointsChange?: (points: { time: number; volume: number }[]) => void;
 }
 
 export default function WaveformVisualizer({
@@ -17,6 +19,8 @@ export default function WaveformVisualizer({
   className = '',
   height = 120,
   showControls = true,
+  initialVolumePoints,
+  onVolumePointsChange,
 }: WaveformVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,6 +102,10 @@ export default function WaveformVisualizer({
         const buffer = await audioContext.decodeAudioData(arrayBuffer);
         setAudioBuffer(buffer);
         setDuration(buffer.duration);
+
+        if (initialVolumePoints && initialVolumePoints.length > 0) {
+          setVolumePoints(initialVolumePoints.map((p) => ({ ...p, id: makePointId() })));
+        }
         
         // Draw initial waveform
         drawWaveform(buffer, 0);
@@ -107,7 +115,13 @@ export default function WaveformVisualizer({
     };
 
     loadAudioData();
-  }, [audioElement, audioContext]);
+  }, [audioElement, audioContext, initialVolumePoints]);
+
+  useEffect(() => {
+    if (onVolumePointsChange) {
+      onVolumePointsChange(volumePoints.map(({ time, volume }) => ({ time, volume })));
+    }
+  }, [volumePoints, onVolumePointsChange]);
 
   // Draw waveform on canvas
   const drawWaveform = (buffer: AudioBuffer | null, playheadPosition: number) => {

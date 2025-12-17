@@ -19,7 +19,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
-  Music
+  Music,
+  Timer,
+  Waves,
+  Flame
 } from 'lucide-react';
 import {
   EQPlugin,
@@ -28,6 +31,9 @@ import {
   ReverbPlugin,
   LimiterPlugin,
   NoiseGatePlugin,
+  DelayPlugin,
+  ChorusPlugin,
+  SaturationPlugin,
   type ToolType,
   type ToolRecommendation
 } from './index';
@@ -128,12 +134,22 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [], onAud
       audioUrl: songUrl || ''
     });
     
+    // Broadcast to studio so it can import the audio as a track
+    window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
+      detail: {
+        sessionId,
+        name: songName || 'Imported Track',
+        audioUrl: songUrl || ''
+      }
+    }));
+
     toast({
       title: "Opening Piano Roll",
       description: `Routing ${songName || 'Unknown Track'} to Piano Roll for melody editing`,
     });
     
-    setLocation(`/melody-composer?session=${sessionId}`);
+    // Route to unified studio (piano roll will open on import handler)
+    setLocation(`/studio`);
   };
 
   const tools = [
@@ -184,6 +200,30 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [], onAud
       color: 'bg-orange-600',
       description: 'Remove background noise',
       component: NoiseGatePlugin
+    },
+    {
+      type: 'Delay' as ToolType,
+      name: 'Delay / Echo',
+      icon: Timer,
+      color: 'bg-cyan-600',
+      description: 'Add echo and delay effects',
+      component: DelayPlugin
+    },
+    {
+      type: 'Chorus' as ToolType,
+      name: 'Chorus / Flanger',
+      icon: Waves,
+      color: 'bg-violet-600',
+      description: 'Add width and modulation',
+      component: ChorusPlugin
+    },
+    {
+      type: 'Saturation' as ToolType,
+      name: 'Saturation / Distortion',
+      icon: Flame,
+      color: 'bg-amber-600',
+      description: 'Add warmth and grit',
+      component: SaturationPlugin
     }
   ];
 

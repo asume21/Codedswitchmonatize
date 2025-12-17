@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -11,6 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import {
   applyPerformanceSettings,
   DEFAULT_PERFORMANCE_PREFS,
@@ -77,12 +81,24 @@ const DEFAULT_SETTINGS = {
 
 export default function Settings() {
   const { toast } = useToast();
+  const auth = useAuth();
+  const [, setLocation] = useLocation();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [systemInfo, setSystemInfo] = useState<PerformanceEnvironment | null>(null);
   const [aiProviderSetting, setAiProviderSetting] = useState("replicate-musicgen");
+  const isAuthenticated = auth?.isAuthenticated ?? false;
+  const subscription = auth?.subscription;
   const gpuSupported =
     systemInfo?.gpuAvailable || systemInfo?.webglAvailable || systemInfo === null;
   const multiThreadSupported = (systemInfo?.cores ?? 2) > 1;
+
+  const { data: creditData } = useQuery({
+    queryKey: ["/api/credits/balance"],
+    queryFn: () => apiRequest("GET", "/api/credits/balance").then((res) => res.json()),
+    enabled: isAuthenticated,
+  });
+
+  const creditBalance = typeof creditData?.balance === 'number' ? creditData.balance : 0;
 
   const handleSave = () => {
     // Save settings to localStorage and backend
@@ -146,7 +162,7 @@ export default function Settings() {
             </div>
           </div>
           <Badge variant="secondary" className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
-            Pro Account Active
+            {isAuthenticated ? `${(subscription?.tier || 'free').toUpperCase()}${subscription?.hasActiveSubscription ? ' Active' : ''}` : 'Guest'}
           </Badge>
         </div>
 
@@ -596,35 +612,44 @@ export default function Settings() {
                 <div className="p-4 bg-gradient-to-r from-purple-900 to-blue-900 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h3 className="text-xl font-bold text-white">CodedSwitch Pro</h3>
-                      <p className="text-gray-300">Premium features unlocked</p>
+                      <h3 className="text-xl font-bold text-white">{(subscription?.tier || 'free').toUpperCase()}</h3>
+                      <p className="text-gray-300">{subscription?.hasActiveSubscription ? 'Subscription active' : 'No active subscription'}</p>
                     </div>
-                    <Badge className="bg-green-600 text-white">Active</Badge>
+                    <Badge className={subscription?.hasActiveSubscription ? "bg-green-600 text-white" : "bg-gray-600 text-white"}>
+                      {subscription?.hasActiveSubscription ? 'Active' : 'Inactive'}
+                    </Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-gray-400">Next billing date</p>
-                      <p className="text-white font-medium">January 15, 2025</p>
+                      <p className="text-gray-400">Credits balance</p>
+                      <p className="text-white font-medium">{isAuthenticated ? creditBalance : 'Sign in'}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Monthly cost</p>
-                      <p className="text-white font-medium">$29.99</p>
+                      <p className="text-gray-400">Last usage reset</p>
+                      <p className="text-white font-medium">{subscription?.lastUsageReset ? new Date(subscription.lastUsageReset).toLocaleDateString() : '—'}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <Button variant="outline" className="w-full justify-start">
-                    <CreditCard className="h-4 w-4 mr-2" /> Update Payment Method
+                  <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/billing')}>
+                    <CreditCard className="h-4 w-4 mr-2" /> Manage Billing (Stripe)
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Download className="h-4 w-4 mr-2" /> Download Invoices
+                  <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/buy-credits')}>
+                    <Upload className="h-4 w-4 mr-2" /> Buy Credits / Membership
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Upload className="h-4 w-4 mr-2" /> Upgrade Plan
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start text-yellow-500 hover:text-yellow-400">
-                    Cancel Subscription
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      toast({
+                        title: 'Invoices',
+                        description: 'Use Manage Billing to view invoices and update payment methods.',
+                      });
+                      setLocation('/billing');
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" /> Invoices & Payment Methods
                   </Button>
                 </div>
 
@@ -632,33 +657,14 @@ export default function Settings() {
 
                 <div className="space-y-2">
                   <h4 className="text-white font-medium">Usage This Month</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-400">Music Generations</span>
-                        <span className="text-white">450 / 1000</span>
-                      </div>
-                      <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div className="bg-blue-600 h-2 rounded-full" style={{width: '45%'}}></div>
-                      </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-700 rounded-lg">
+                      <p className="text-gray-400 text-sm">Music Generations</p>
+                      <p className="text-white font-bold text-xl">{subscription?.monthlyGenerations ?? 0}</p>
                     </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-400">Storage Used</span>
-                        <span className="text-white">2.3 GB / 10 GB</span>
-                      </div>
-                      <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div className="bg-green-600 h-2 rounded-full" style={{width: '23%'}}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-400">API Calls</span>
-                        <span className="text-white">12,450 / 50,000</span>
-                      </div>
-                      <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div className="bg-purple-600 h-2 rounded-full" style={{width: '25%'}}></div>
-                      </div>
+                    <div className="p-4 bg-gray-700 rounded-lg">
+                      <p className="text-gray-400 text-sm">Monthly Uploads</p>
+                      <p className="text-white font-bold text-xl">{subscription?.monthlyUploads ?? 0}</p>
                     </div>
                   </div>
                 </div>

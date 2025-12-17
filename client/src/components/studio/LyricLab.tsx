@@ -25,14 +25,21 @@ import { useAudio } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
-import { useLocation } from "wouter";
-import { Music2, FileMusic, AlertCircle } from "lucide-react";
+import { useStudioSession } from "@/contexts/StudioSessionContext";
+import { useSessionDestination } from "@/contexts/SessionDestinationContext";
+import { Music2, FileMusic, AlertCircle, BookOpen, Sparkles } from "lucide-react";
 import { SongUploadPanel } from "./SongUploadPanel";
 import type { Song } from "../../../../shared/schema";
+import { metaphors, type MetaphorEntry } from "@/data/metaphors";
 
 interface RhymeSuggestion {
   word: string;
   type: "perfect" | "near";
+}
+
+interface RhymeResponse {
+  rhymes: string[];
+  source?: "api" | "datamuse";
 }
 
 function estimateSyllables(word: string): number {
@@ -77,10 +84,12 @@ function autoStructureLyrics(raw: string): string {
 export default function LyricLab() {
   const studioContext = useContext(StudioAudioContext);
   const { currentSession, setCurrentSessionId, createSession } = useSongWorkSession();
-  const [location] = useLocation();
+  const studioSession = useStudioSession();
+  const { requestDestination } = useSessionDestination();
   const { toast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const selectionTimeout = useRef<number | undefined>(undefined);
 
   const [lastSelection, setLastSelection] = useState<{ start: number; end: number } | null>(null);
@@ -171,6 +180,12 @@ Type here or use AI generation...`);
   const [redoStack, setRedoStack] = useState<string[]>([]);
   const lastContentRef = useRef(content);
 
+  useEffect(() => {
+    if (studioSession.lyrics && studioSession.lyrics !== content) {
+      setContent(studioSession.lyrics);
+    }
+  }, [studioSession.lyrics]);
+
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
     const prev = undoStack[undoStack.length - 1];
@@ -204,12 +219,15 @@ Type here or use AI generation...`);
     if (studioContext.currentLyrics !== content) {
       studioContext.setCurrentLyrics(content);
     }
+    if (studioSession.lyrics !== content) {
+      studioSession.setLyrics(content);
+    }
     try {
       localStorage.setItem('lyricLabCurrentLyrics', content);
     } catch {
       // Ignore storage errors (e.g. private mode)
     }
-  }, [content, studioContext]);
+  }, [content, studioContext, studioSession]);
 
   // Load persisted lyrics on component mount (localStorage first, then studio context)
   React.useEffect(() => {
@@ -218,6 +236,7 @@ Type here or use AI generation...`);
       if (stored && stored !== content) {
         setContent(stored);
         studioContext.setCurrentLyrics(stored);
+        studioSession.setLyrics(stored);
         return;
       }
     } catch {
@@ -226,13 +245,15 @@ Type here or use AI generation...`);
 
     if (studioContext.currentLyrics && studioContext.currentLyrics !== content) {
       setContent(studioContext.currentLyrics);
+      studioSession.setLyrics(studioContext.currentLyrics);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
 
   // Load session from URL parameters
   useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1]);
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    const params = new URLSearchParams(search);
     const sessionId = params.get('session');
 
     if (sessionId) {
@@ -243,7 +264,7 @@ Type here or use AI generation...`);
         duration: 3000,
       });
     }
-  }, [location, setCurrentSessionId]);
+  }, [currentSession?.songName, setCurrentSessionId, toast]);
 
   // Load lyrics from session when session changes
   useEffect(() => {
@@ -268,6 +289,20 @@ Type here or use AI generation...`);
   const [mood, setMood] = useState("upbeat");
   const [currentWord, setCurrentWord] = useState("");
   const [rhymeSuggestions, setRhymeSuggestions] = useState<RhymeSuggestion[]>([]);
+  const [metaphorQuery, setMetaphorQuery] = useState("");
+  const [metaphorTag, setMetaphorTag] = useState<string | null>(null);
+  const filteredMetaphors = useMemo(() => {
+    const q = metaphorQuery.trim().toLowerCase();
+    return metaphors.filter((m) => {
+      const matchesQuery =
+        !q ||
+        m.term.toLowerCase().includes(q) ||
+        m.meaning.toLowerCase().includes(q) ||
+        m.tags.some((t) => t.toLowerCase().includes(q));
+      const matchesTag = !metaphorTag || m.tags.includes(metaphorTag);
+      return matchesQuery && matchesTag;
+    });
+  }, [metaphorQuery, metaphorTag]);
   const [hasGeneratedMusic, setHasGeneratedMusic] = useState(false);
   const [lyricComplexity, setLyricComplexity] = useState([5]);
   const [beatComplexity, setBeatComplexity] = useState([5]);
@@ -293,7 +328,7 @@ Type here or use AI generation...`);
         hasStoredData = parsed?.beatPattern && Object.values(parsed.beatPattern).some(arr =>
           Array.isArray(arr) && arr.some(val => val === true));
       }
-    } catch (error) {
+    } catch {
       // Ignore localStorage errors
     }
 
@@ -318,10 +353,15 @@ Type here or use AI generation...`);
       return response.json();
     },
     onSuccess: (data) => {
-      setContent(data.content || data);
+      const next = autoStructureLyrics(data.content || data);
+      studioSession.createLyricsVersion({
+        content: next,
+        source: "ai",
+      });
+      setContent(next);
       setTitle(`${genre} Song ${Date.now()}`);
       // Save lyrics to studio context for master playback
-      studioContext.setCurrentLyrics(data.content || data);
+      studioContext.setCurrentLyrics(next);
       toast({
         title: "Lyrics Generated",
         description: "AI has created unique lyrics for you.",
@@ -344,6 +384,10 @@ Type here or use AI generation...`);
     onSuccess: () => {
       // Save lyrics to studio context for master playback
       studioContext.setCurrentLyrics(content);
+      studioSession.createLyricsVersion({
+        content,
+        source: "manual",
+      });
       toast({
         title: "Lyrics Saved",
         description: "Your lyrics have been saved successfully.",
@@ -423,19 +467,51 @@ Type here or use AI generation...`);
     },
   });
 
+  const fetchRhymes = useCallback(async (word: string): Promise<RhymeResponse> => {
+    try {
+      const response = await apiRequest("POST", "/api/lyrics/rhymes", { word });
+      const data = await response.json();
+      if (Array.isArray(data?.rhymes) && data.rhymes.length > 0) {
+        return { rhymes: data.rhymes, source: "api" };
+      }
+    } catch (err) {
+      // fall through to datamuse
+      console.warn("Primary rhyme API failed, falling back to Datamuse", err);
+    }
+
+    try {
+      const resp = await fetch(`https://api.datamuse.com/words?rel_rhy=${encodeURIComponent(word)}&max=20`);
+      const json = await resp.json();
+      if (Array.isArray(json)) {
+        const rhymes = json.map((item: any) => item?.word).filter(Boolean);
+        return { rhymes, source: "datamuse" };
+      }
+    } catch (err) {
+      console.error("Datamuse rhyme fallback failed", err);
+      throw err;
+    }
+
+    return { rhymes: [], source: "api" };
+  }, []);
+
   const rhymeMutation = useMutation({
     mutationFn: async (data: { word: string }) => {
-      const response = await apiRequest("POST", "/api/lyrics/rhymes", data);
-      return response.json();
+      const result = await fetchRhymes(data.word);
+      return result;
     },
     onSuccess: (data) => {
-      // API returns string[], convert to RhymeSuggestion[]
       const rhymeWords: string[] = data.rhymes || [];
       const suggestions: RhymeSuggestion[] = rhymeWords.slice(0, 8).map((word: string, idx: number) => ({
         word: word,
         type: idx < 4 ? "perfect" : "near",
       }));
       setRhymeSuggestions(suggestions);
+      if (data.source === "datamuse") {
+        toast({
+          title: "Fallback used",
+          description: "Rhyme results from Datamuse (primary API unavailable).",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -484,13 +560,29 @@ Type here or use AI generation...`);
       const response = await apiRequest("POST", "/api/lyrics/generate-beat", data);
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({
         title: "Beat Pattern Generated",
         description: "AI has analyzed your lyrics and generated a matching beat pattern.",
       });
-      // You can store the beat pattern in state or send it to the BeatMaker component
-      console.log("Generated beat pattern:", data.beatPattern);
+      const beatPattern = (data as any)?.beatPattern ?? (data as any)?.pattern ?? (data as any)?.beat?.pattern;
+
+      if (beatPattern) {
+        const destination = await requestDestination({
+          suggestedName: title?.trim() || (currentSession as any)?.songName || "Lyrics Session",
+        });
+        if (!destination) {
+          return;
+        }
+
+        studioSession.setPattern(beatPattern);
+        (studioContext as any)?.setCurrentPattern?.(beatPattern);
+        window.dispatchEvent(
+          new CustomEvent("navigateToTab", {
+            detail: "beat-lab",
+          }),
+        );
+      }
     },
     onError: () => {
       toast({
@@ -551,6 +643,33 @@ Type here or use AI generation...`);
   const insertRhyme = (rhyme: string) => {
     insertAtSelection(rhyme);
   };
+
+  const insertMetaphor = (entry: MetaphorEntry) => {
+    insertAtSelection(entry.term);
+    toast({
+      title: "Metaphor inserted",
+      description: `Added "${entry.term}"`,
+    });
+  };
+
+  const highlightedContent = useMemo(() => {
+    if (!rhymeSuggestions.length) return content;
+    const escapeHtml = (str: string) =>
+      str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    let html = escapeHtml(content);
+    const words = rhymeSuggestions.map((r) => r.word).filter(Boolean);
+    if (!words.length) return content;
+
+    const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const regex = new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
+
+    html = html.replace(regex, (match) => `<mark class="bg-blue-900/50 text-white">${match}</mark>`);
+    return html;
+  }, [content, rhymeSuggestions]);
 
   const goToSection = (section: string) => {
     if (!textareaRef.current) return;
@@ -656,6 +775,11 @@ Type here or use AI generation...`);
       end: textarea.selectionEnd,
     });
 
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = textarea.scrollTop;
+      overlayRef.current.scrollLeft = textarea.scrollLeft;
+    }
+
     const before = textarea.value.slice(0, textarea.selectionStart);
     const wordMatch = before.match(/([\w']+)$/);
     const selectedWord = wordMatch ? wordMatch[1] : "";
@@ -733,11 +857,19 @@ Type here or use AI generation...`);
 
       <SongUploadPanel
         onSongUploaded={handleSongUploaded}
-        onTranscriptionComplete={({ songName, lyrics }) => {
+        onTranscriptionComplete={({ songId, songName, lyrics }) => {
+          if (songId) {
+            studioSession.setSong({ songId, songName });
+          }
           if (songName && songName.trim().length > 0) {
             setTitle(songName);
           }
           const structured = autoStructureLyrics(lyrics);
+          studioSession.createLyricsVersion({
+            content: structured,
+            source: "transcription",
+            label: "Transcription",
+          });
           setContent(structured);
           studioContext.setCurrentLyrics(structured);
         }}
@@ -786,6 +918,43 @@ Type here or use AI generation...`);
             <div className="bg-gray-700 px-4 py-2 border-b border-gray-600 flex items-center justify-between">
               <h3 className="font-medium">Lyric Editor</h3>
               <div className="flex items-center space-x-4">
+                {studioSession.lyricsVersions.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <Select
+                      value={studioSession.activeLyricsVersionId ?? studioSession.lyricsVersions[studioSession.lyricsVersions.length - 1]?.id}
+                      onValueChange={studioSession.setActiveLyricsVersionId}
+                    >
+                      <SelectTrigger className="h-8 w-[180px] bg-gray-800 border-gray-600">
+                        <SelectValue placeholder="Lyrics Version" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {studioSession.lyricsVersions
+                          .slice()
+                          .reverse()
+                          .map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.label}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-300 hover:text-white"
+                      onClick={() =>
+                        studioSession.createLyricsVersion({
+                          content,
+                          source: "manual",
+                          label: "Snapshot",
+                        })
+                      }
+                      title="Create a new version from the current lyrics"
+                    >
+                      <i className="fas fa-code-branch"></i>
+                    </Button>
+                  </div>
+                )}
                 <div className="flex items-center space-x-2 text-sm text-gray-400">
                   <span>Words: {wordCount}</span>
                   <span>Lines: {lineCount}</span>
@@ -826,17 +995,28 @@ Type here or use AI generation...`);
                 className="mb-4 bg-gray-700 border-gray-600 font-semibold text-lg"
               />
 
-              <Textarea
-                ref={textareaRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                onSelect={handleTextareaSelect}
-                onKeyUp={handleTextareaSelect}
-                onClick={handleTextareaSelect}
-                className="h-96 bg-transparent border-none resize-none font-mono text-sm leading-relaxed focus:outline-none"
-                placeholder="Start writing your lyrics here..."
-                aria-label="Lyric editor"
-              />
+              {/* Editor with highlight overlay */}
+              <div className="relative">
+                <div
+                  ref={overlayRef}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-white bg-transparent px-3 py-2 overflow-auto rounded-md"
+                  dangerouslySetInnerHTML={{ __html: highlightedContent }}
+                />
+                <Textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  onSelect={handleTextareaSelect}
+                  onKeyUp={handleTextareaSelect}
+                  onClick={handleTextareaSelect}
+                  onScroll={handleTextareaSelect}
+                  className="h-96 bg-transparent border border-gray-700 rounded-md resize-none font-mono text-sm leading-relaxed focus:outline-none text-transparent caret-white px-3 py-2"
+                  placeholder="Start writing your lyrics here..."
+                  aria-label="Lyric editor"
+                  spellCheck
+                />
+              </div>
               <div className="mt-3 flex items-start justify-between text-xs text-gray-400">
                 <p>
                   These lyrics can come from your uploaded song or your own writing. Tweak anything here before running analysis.
@@ -869,9 +1049,32 @@ Type here or use AI generation...`);
                     <button
                       key={index}
                       onClick={() => insertRhyme(suggestion.word)}
-                      className="px-2 py-1 bg-studio-accent bg-opacity-20 text-studio-accent rounded text-xs hover:bg-opacity-30 transition-colors"
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors shadow-sm"
+                      title={`Insert ${suggestion.word}`}
                     >
                       {suggestion.word}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {rhymeSuggestions.length === 0 && currentWord && (
+              <div className="p-4 bg-gray-800 border-t border-gray-600 text-xs text-gray-400">
+                No rhymes found yet. Try another word or adjust the selection.
+              </div>
+            )}
+            {rhymeSuggestions.length > 0 && (
+              <div className="mt-2 px-4">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-300">
+                  <span className="text-gray-400">Inline rhymes:</span>
+                  {rhymeSuggestions.slice(0, 6).map((r) => (
+                    <button
+                      key={r.word}
+                      onClick={() => insertRhyme(r.word)}
+                      className="px-2 py-1 rounded bg-blue-700 text-white hover:bg-blue-600 transition-colors"
+                      title={`Insert ${r.word}`}
+                    >
+                      {r.word}
                     </button>
                   ))}
                 </div>
@@ -1114,6 +1317,86 @@ Type here or use AI generation...`);
                   </Button>
                 </div>
               </div>
+            </div>
+
+            {/* Metaphor Dictionary */}
+            <div className="bg-studio-panel border border-gray-600 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-studio-accent" />
+                  <h3 className="font-medium">Metaphor Dictionary</h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => {
+                    setMetaphorQuery("");
+                    setMetaphorTag(null);
+                  }}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Clear
+                </Button>
+              </div>
+              <Input
+                value={metaphorQuery}
+                onChange={(e) => setMetaphorQuery(e.target.value)}
+                placeholder="Search metaphors (e.g., glass, storm, neon)..."
+                className="bg-gray-800 border-gray-700"
+              />
+              <div className="flex flex-wrap gap-2">
+                {Array.from(new Set(metaphors.flatMap((m) => m.tags))).map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant={metaphorTag === tag ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => setMetaphorTag(metaphorTag === tag ? null : tag)}
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+
+              <ScrollArea className="h-64">
+                <div className="space-y-3 pr-2">
+                  {filteredMetaphors.map((entry) => (
+                    <div key={entry.term} className="p-3 bg-gray-800 rounded border border-gray-700">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold">{entry.term}</div>
+                          <div className="text-sm text-gray-300">{entry.meaning}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {entry.tags.map((t) => (
+                              <Badge key={t} variant="secondary" className="text-[11px]">
+                                {t}
+                              </Badge>
+                            ))}
+                          </div>
+                          {entry.examples[0] && (
+                            <p className="text-xs text-gray-400 mt-2 italic">&ldquo;{entry.examples[0]}&rdquo;</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button size="sm" onClick={() => insertMetaphor(entry)}>
+                            Insert
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigator.clipboard?.writeText(entry.term)}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredMetaphors.length === 0 && (
+                    <div className="text-sm text-gray-400">No metaphors match that search.</div>
+                  )}
+                </div>
+              </ScrollArea>
             </div>
 
             {/* Rhyme Dictionary */}

@@ -193,14 +193,14 @@ export default function Signup() {
                 <Input
                   id="activationKey"
                   type="text"
-                  placeholder="CS-XXXX-XXXX-XXXX-XXXX"
+                  placeholder="PRO-XXXXXXXX-XXXXXXXX-XXXXXXXX"
                   value={formData.activationKey}
                   onChange={(e) => setFormData({ ...formData, activationKey: e.target.value.toUpperCase() })}
                   disabled={isLoading}
                   className="bg-gray-800 border-gray-700 text-white font-mono"
                 />
                 <p className="text-xs text-gray-500">
-                  Have a Pro activation key? Enter it now or upgrade later
+                  Keys start with your tier (PRO/BASIC/TRIAL). Enter it now or upgrade later.
                 </p>
               </div>
             </div>
