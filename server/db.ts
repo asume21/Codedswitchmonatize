@@ -1,18 +1,14 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-// Create a fresh database connection getter that reads DATABASE_URL at runtime
+// Create a fresh database connection getter - prefers public URL for external access
 function getDb() {
-  const url = process.env.DATABASE_URL;
+  const url = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
       "DATABASE_URL not set. DatabaseStorage cannot be used without a configured database.",
     );
   }
-  // Log the URL being used (without the password)
-  const urlObj = new URL(url);
-  const safeUrl = `${urlObj.protocol}//${urlObj.username}:***@${urlObj.hostname}:${urlObj.port}${urlObj.pathname}`;
-  console.log('🔗 Creating PostgreSQL connection with URL:', safeUrl);
   
   // Always create a fresh PostgreSQL connection with current DATABASE_URL
   const sql = postgres(url);

@@ -5,13 +5,14 @@ import postgres from "postgres";
  * This ensures the database schema is up to date
  */
 export async function runMigrations() {
-  const url = process.env.DATABASE_URL;
+  // Prefer public URL for external access (Replit), fallback to internal (Railway)
+  const url = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
   if (!url) {
-    console.log('?? No DATABASE_URL - skipping migrations');
+    console.log('No DATABASE_URL - skipping migrations');
     return;
   }
 
-  console.log('?? Running database migrations...');
+  console.log('Running database migrations...');
   
   const sql = postgres(url);
   

@@ -57,12 +57,14 @@ app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 const PgSession = connectPgSimple(session);
 
 let sessionStore;
-const hasDatabase = process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
+// Use public URL for external access (Replit), fallback to internal URL (Railway)
+const databaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+const hasDatabase = databaseUrl && databaseUrl.length > 0;
 
 if (hasDatabase) {
   try {
     sessionStore = new PgSession({
-      conString: process.env.DATABASE_URL,
+      conString: databaseUrl,
       tableName: 'session',
       createTableIfMissing: true,
       pruneSessionInterval: 60,
@@ -150,8 +152,9 @@ app.use((req, res, next) => {
   // Run database migrations first
   await runMigrations();
   
-  // Choose storage implementation
-  const storage: IStorage = process.env.DATABASE_URL
+  // Choose storage implementation - prefer public URL for external access
+  const hasDatabaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+  const storage: IStorage = hasDatabaseUrl
     ? new DatabaseStorage()
     : new MemStorage();
 
