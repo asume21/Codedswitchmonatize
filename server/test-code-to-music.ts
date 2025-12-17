@@ -196,9 +196,9 @@ async function runTests() {
       });
       
       // Drum pattern info
-      const kickCount = drums.kick.filter(Boolean).length;
-      const snareCount = drums.snare.filter(Boolean).length;
-      const hihatCount = drums.hihat.filter(Boolean).length;
+      const kickCount = drums?.kick?.filter(Boolean).length ?? 0;
+      const snareCount = drums?.snare?.filter(Boolean).length ?? 0;
+      const hihatCount = drums?.hihat?.filter(Boolean).length ?? 0;
       console.log(`   ✅ Drum Pattern: ${kickCount} kicks, ${snareCount} snares, ${hihatCount} hihats`);
     } else {
       console.log(`   ❌ Error: ${enhancedResult.error}`);
