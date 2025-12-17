@@ -8,18 +8,9 @@ export function currentUser(storage: IStorage) {
       const ownerKey = req.headers['x-owner-key'];
       const expectedOwnerKey = process.env.OWNER_KEY;
       
-      console.log('🔍 Auth check:', {
-        hasOwnerKeyHeader: !!ownerKey,
-        ownerKeyPreview: ownerKey ? String(ownerKey).substring(0, 8) + '...' : 'none',
-        hasExpectedKey: !!expectedOwnerKey,
-        expectedKeyPreview: expectedOwnerKey ? expectedOwnerKey.substring(0, 8) + '...' : 'none',
-        match: ownerKey === expectedOwnerKey
-      });
-      
       if (ownerKey && expectedOwnerKey && ownerKey === expectedOwnerKey) {
         req.userId = 'owner-user';
         req.isOwner = true;
-        console.log('✅ Owner key authenticated successfully');
         return next();
       }
 
