@@ -71,6 +71,14 @@ Optional payment integration:
 - Database sessions are stored in PostgreSQL for persistence
 - Object storage directory: `/objects`
 
+## Recent Changes (Dec 17, 2025)
+- **Security Audit & Fixes** - Addressed critical authentication and session vulnerabilities
+  - Session cookies now environment-aware: `secure=true` and `sameSite="none"` only in production
+  - `SESSION_SECRET` now required in production - app fails fast if not set
+  - Removed debug console logs from auth middleware (security/noise reduction)
+  - Added Replit to CORS allowed origins for development
+  - Backend runs on port 4000, frontend on port 5000 with Vite proxy
+
 ## Recent Changes (Nov 14, 2025)
 - ✅ **Mobile Navigation System** - Implemented responsive navigation with single data source
   - Created MOBILE_UX_DESIGN.md specification with comprehensive mobile UX patterns
