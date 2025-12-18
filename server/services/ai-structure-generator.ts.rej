@@ -1,4 +1,0 @@
-diff a/server/services/ai-structure-generator.ts b/server/services/ai-structure-generator.ts	(rejected hunks)
-@@ -359,1 +359,1 @@
--  async generateBeatStructure(style: string, bpm: number, complexity: number = 5): Promise<any> {
-+  async generateBeatStructure(style: string, bpm: number, complexity: number = 5): Promise<unknown> {
