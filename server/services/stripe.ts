@@ -162,7 +162,11 @@ export async function handleStripeWebhook(
           tier,
         });
         await storage.setUserActivationKey(userId, activationKey);
-        console.log(`?? TODO: Email activation key ${activationKey} to user`);
+        // NOTE: Email integration not configured. To enable activation key emails:
+        // 1. Set up Resend or SendGrid integration in Replit
+        // 2. Add RESEND_API_KEY secret
+        // 3. Implement sendActivationKeyEmail() function
+        console.log(`Activation key generated for user ${userId}: ${activationKey} (email not configured)`);
       }
       break;
     }
