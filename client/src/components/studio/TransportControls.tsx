@@ -47,7 +47,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     initialData: [],
   });
 
-  // Keep total duration in sync with uploaded song metadata
+  // Keep total duration and current time in sync with uploaded song
   useEffect(() => {
     const audioEl = studioContext.uploadedSongAudio;
     if (!audioEl) {
@@ -61,10 +61,26 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       }
     };
 
+    const updateTime = () => {
+      const time = audioEl.currentTime;
+      setPlaybackTimeSeconds(time);
+      const minutes = Math.floor(time / 60);
+      const seconds = Math.floor(time % 60);
+      setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+    };
+
     updateDuration();
     audioEl.addEventListener('loadedmetadata', updateDuration);
+    audioEl.addEventListener('timeupdate', updateTime);
+    audioEl.addEventListener('ended', handleEnded);
     return () => {
       audioEl.removeEventListener('loadedmetadata', updateDuration);
+      audioEl.removeEventListener('timeupdate', updateTime);
+      audioEl.removeEventListener('ended', handleEnded);
     };
   }, [studioContext.uploadedSongAudio]);
 

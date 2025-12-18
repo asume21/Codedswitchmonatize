@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import type { IStorage } from "../storage";
 import { getCreditService, CREDIT_PACKAGES } from "./credits";
 import { generateActivationKey } from "./keyGenerator";
+import { sendActivationKeyEmail } from "./email";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
@@ -152,7 +153,6 @@ export async function handleStripeWebhook(
 
         // Generate activation key for new pro subscribers
         const activationKey = generateActivationKey("pro");
-        console.log(`?? Generated activation key for user ${userId}: ${activationKey}`);
 
         // Update user with Stripe info AND activation key
         await storage.updateUserStripeInfo(userId, {
@@ -162,11 +162,19 @@ export async function handleStripeWebhook(
           tier,
         });
         await storage.setUserActivationKey(userId, activationKey);
-        // NOTE: Email integration not configured. To enable activation key emails:
-        // 1. Set up Resend or SendGrid integration in Replit
-        // 2. Add RESEND_API_KEY secret
-        // 3. Implement sendActivationKeyEmail() function
-        console.log(`Activation key generated for user ${userId}: ${activationKey} (email not configured)`);
+        
+        // Send activation key email to user
+        const user = await storage.getUser(userId);
+        if (user?.email) {
+          const emailSent = await sendActivationKeyEmail(user.email, activationKey, user.username || undefined);
+          if (emailSent) {
+            console.log(`Activation key email sent successfully to user ${userId}`);
+          } else {
+            console.log(`Activation key generated for user ${userId} but email delivery failed`);
+          }
+        } else {
+          console.log(`Activation key generated for user ${userId} (no email on file)`);
+        }
       }
       break;
     }
