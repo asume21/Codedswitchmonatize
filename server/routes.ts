@@ -247,43 +247,61 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     fs.mkdirSync(LOOPS_DIR, { recursive: true });
   } catch {}
 
-  // Loop Library endpoints - list and serve .wav files from Assests/loops
+  // Helper to recursively find wav files
+  async function findWavFiles(dir: string, baseDir: string): Promise<{relativePath: string, name: string, category: string}[]> {
+    const results: {relativePath: string, name: string, category: string}[] = [];
+    if (!fs.existsSync(dir)) return results;
+    
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        const subResults = await findWavFiles(fullPath, baseDir);
+        results.push(...subResults);
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.wav') && !entry.name.startsWith('silence')) {
+        const relativePath = path.relative(baseDir, fullPath);
+        const category = path.dirname(relativePath) === '.' ? 'general' : path.dirname(relativePath);
+        results.push({
+          relativePath,
+          name: path.parse(entry.name).name,
+          category
+        });
+      }
+    }
+    return results;
+  }
+
+  // Loop Library endpoints - list and serve .wav files from loops folder (including subfolders)
   app.get("/api/loops", async (_req: Request, res: Response) => {
     try {
-      if (!fs.existsSync(LOOPS_DIR)) {
-        return res.json({ loops: [] });
-      }
-
-      const files = await fs.promises.readdir(LOOPS_DIR);
-      const wavFiles = files.filter((f) => f.toLowerCase().endsWith(".wav"));
-
-      const loops = wavFiles.map((filename, index) => ({
+      const wavFiles = await findWavFiles(LOOPS_DIR, LOOPS_DIR);
+      
+      const loops = wavFiles.map((file, index) => ({
         id: index.toString(),
-        name: path.parse(filename).name,
-        filename,
-        audioUrl: `/api/loops/${encodeURIComponent(filename)}/audio`,
+        name: file.name,
+        filename: file.relativePath,
+        category: file.category,
+        audioUrl: `/api/loops/${encodeURIComponent(file.relativePath)}/audio`,
       }));
 
       res.json({ loops });
     } catch (error) {
-      console.error("Failed to list loops from Assests/loops:", error);
+      console.error("Failed to list loops:", error);
       res.status(500).json({ success: false, message: "Failed to list loops" });
     }
   });
 
-  app.get("/api/loops/:filename/audio", async (req: Request, res: Response) => {
+  app.get("/api/loops/:filename(*)/audio", async (req: Request, res: Response) => {
     try {
-      const raw = req.params.filename;
+      const raw = decodeURIComponent(req.params.filename);
       if (!raw) {
         return sendError(res, 400, "Missing loop filename");
       }
 
-      const safeName = sanitizePath(raw, LOOPS_DIR);
-      if (!safeName) {
-        return sendError(res, 400, "Invalid loop filename");
-      }
-      const filePath = safeName;
-
+      // Construct the full path and validate it's within LOOPS_DIR
+      const filePath = path.resolve(LOOPS_DIR, raw);
+      
+      // Security check: ensure the resolved path is within LOOPS_DIR
       if (!filePath.startsWith(LOOPS_DIR)) {
         return sendError(res, 400, "Invalid loop path");
       }
