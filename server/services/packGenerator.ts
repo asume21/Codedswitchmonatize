@@ -25,7 +25,40 @@ export function generatePackDescription(prompt: string, genre: string, mood: str
   return `Professional ${genre.toLowerCase()} sample pack with ${mood.toLowerCase()} vibes, inspired by: ${prompt}. Perfect for modern music production.`;
 }
 
-function generateSamples(genre: string, instruments: string[], packIndex: number) {
+// Available loop BPMs and their files
+const LOOP_LIBRARY: Record<number, { bd: string[], hats: string[], sd: string[], perc: string[], toms: string[] }> = {
+  85: {
+    bd: Array.from({ length: 8 }, (_, i) => `/assets/loops/85bpm/E808_Loop_BD_85-0${i + 1}.wav`),
+    hats: Array.from({ length: 8 }, (_, i) => `/assets/loops/85bpm/E808_Loop_Hats_85-0${i + 1}.wav`),
+    sd: Array.from({ length: 8 }, (_, i) => `/assets/loops/85bpm/E808_Loop_SD_85-0${i + 1}.wav`),
+    perc: Array.from({ length: 4 }, (_, i) => `/assets/loops/85bpm/E808_Loop_Perc_85-0${i + 1}.wav`),
+    toms: Array.from({ length: 4 }, (_, i) => `/assets/loops/85bpm/E808_Loop_Toms_85-0${i + 1}.wav`),
+  },
+  95: {
+    bd: Array.from({ length: 8 }, (_, i) => `/assets/loops/95bpm/E808_Loop_BD_95-0${i + 1}.wav`),
+    hats: Array.from({ length: 8 }, (_, i) => `/assets/loops/95bpm/E808_Loop_Hats_95-0${i + 1}.wav`),
+    sd: Array.from({ length: 8 }, (_, i) => `/assets/loops/95bpm/E808_Loop_SD_95-0${i + 1}.wav`),
+    perc: Array.from({ length: 4 }, (_, i) => `/assets/loops/95bpm/E808_Loop_Perc_95-0${i + 1}.wav`),
+    toms: Array.from({ length: 4 }, (_, i) => `/assets/loops/95bpm/E808_Loop_Toms_95-0${i + 1}.wav`),
+  },
+  132: {
+    bd: Array.from({ length: 8 }, (_, i) => `/assets/loops/132bpm/E808_Loop_BD_132-0${i + 1}.wav`),
+    hats: Array.from({ length: 8 }, (_, i) => `/assets/loops/132bpm/E808_Loop_Hats_132-0${i + 1}.wav`),
+    sd: Array.from({ length: 8 }, (_, i) => `/assets/loops/132bpm/E808_Loop_SD_132-0${i + 1}.wav`),
+    perc: Array.from({ length: 4 }, (_, i) => `/assets/loops/132bpm/E808_Loop_Perc_132-0${i + 1}.wav`),
+    toms: Array.from({ length: 3 }, (_, i) => `/assets/loops/132bpm/E808_Loop_Toms_132-0${i + 1}.wav`),
+  },
+};
+
+// Get closest available BPM from library
+function getClosestBpm(targetBpm: number): number {
+  const available = [85, 95, 132];
+  return available.reduce((prev, curr) => 
+    Math.abs(curr - targetBpm) < Math.abs(prev - targetBpm) ? curr : prev
+  );
+}
+
+function generateSamples(genre: string, instruments: string[], packIndex: number, bpm?: number) {
   const sampleTypes = ['loop', 'oneshot', 'midi'];
   const sampleNames: Record<string, string[]> = {
     'Hip Hop': ['Kick', 'Snare', 'Hi-Hat', 'Melody Loop', 'Bass Loop', 'Vocal Chop', 'Transition', 'Percussion'],
@@ -37,12 +70,68 @@ function generateSamples(genre: string, instruments: string[], packIndex: number
   
   const names = sampleNames[genre] || sampleNames['Electronic'];
   
-  return Array.from({ length: 8 + packIndex }, (_, i) => ({
-    id: `sample-${packIndex}-${i}`,
-    name: names[i % names.length] + ` ${Math.floor(i / names.length) + 1}`,
-    type: sampleTypes[i % sampleTypes.length],
-    duration: 1.5 + (secureRandom() * 3)
-  }));
+  // Use real audio files from the library
+  const closestBpm = getClosestBpm(bpm || 95);
+  const loops = LOOP_LIBRARY[closestBpm];
+  
+  const samples = [];
+  
+  // Add kick drum loop with real audio
+  samples.push({
+    id: `sample-${packIndex}-kick`,
+    name: 'Kick Loop',
+    type: 'loop' as const,
+    duration: 4,
+    audioUrl: loops.bd[packIndex % loops.bd.length],
+  });
+  
+  // Add hi-hat loop
+  samples.push({
+    id: `sample-${packIndex}-hats`,
+    name: 'Hi-Hat Loop',
+    type: 'loop' as const,
+    duration: 4,
+    audioUrl: loops.hats[packIndex % loops.hats.length],
+  });
+  
+  // Add snare loop
+  samples.push({
+    id: `sample-${packIndex}-snare`,
+    name: 'Snare Loop',
+    type: 'loop' as const,
+    duration: 4,
+    audioUrl: loops.sd[packIndex % loops.sd.length],
+  });
+  
+  // Add percussion loop
+  samples.push({
+    id: `sample-${packIndex}-perc`,
+    name: 'Percussion Loop',
+    type: 'loop' as const,
+    duration: 4,
+    audioUrl: loops.perc[packIndex % loops.perc.length],
+  });
+  
+  // Add toms loop
+  samples.push({
+    id: `sample-${packIndex}-toms`,
+    name: 'Toms Loop',
+    type: 'loop' as const,
+    duration: 4,
+    audioUrl: loops.toms[packIndex % loops.toms.length],
+  });
+  
+  // Add additional metadata samples without audio
+  for (let i = 5; i < 8 + packIndex; i++) {
+    samples.push({
+      id: `sample-${packIndex}-${i}`,
+      name: names[i % names.length] + ` ${Math.floor(i / names.length) + 1}`,
+      type: sampleTypes[i % sampleTypes.length] as 'loop' | 'oneshot' | 'midi',
+      duration: 1.5 + (secureRandom() * 3),
+    });
+  }
+  
+  return samples;
 }
 
 function generateTags(prompt: string, genre: string, mood: string) {
@@ -119,7 +208,7 @@ export function generateIntelligentPacks(prompt: string, count: number) {
       bpm,
       key,
       genre: selectedGenre.genre,
-      samples: generateSamples(selectedGenre.genre, selectedMood.instruments, i),
+      samples: generateSamples(selectedGenre.genre, selectedMood.instruments, i, bpm),
       metadata: {
         energy: Math.max(10, Math.min(100, selectedMood.energy + (secureRandom() * 20 - 10))),
         mood: selectedMood.mood,

@@ -29,6 +29,11 @@ const dataRoot = path.resolve("data");
 ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
 
+// Serve audio assets (loops, bass samples, etc.)
+// Use __dirname for correct path resolution in both dev and production
+const assetsRoot = path.resolve(__dirname, "Assests");
+app.use("/assets", express.static(assetsRoot));
+
 // Trust proxy for secure cookies (Railway, Replit, etc.)
 app.set('trust proxy', 1);
 

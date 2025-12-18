@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
+import { packSynthesizer } from "@/lib/packAudioSynthesizer";
 
 interface GeneratedPack {
   id: string;
@@ -95,12 +96,14 @@ export default function PackGenerator() {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    packSynthesizer.stop();
     setPlayingPack(null);
   };
 
   useEffect(() => {
     return () => {
       stopPreview();
+      packSynthesizer.dispose();
     };
   }, []);
 
@@ -213,41 +216,62 @@ export default function PackGenerator() {
     });
   };
 
-  const handlePlayPack = (pack: GeneratedPack) => {
+  const handlePlayPack = async (pack: GeneratedPack) => {
     const sampleWithAudio = pack.samples.find((sample) => sample.audioUrl);
-
-    if (!sampleWithAudio?.audioUrl) {
-      toast({
-        title: "Preview unavailable",
-        description: "This pack was generated without audio. Try MusicGen provider.",
-      });
-      return;
-    }
 
     if (playingPack === pack.id) {
       stopPreview();
+      packSynthesizer.stop();
       return;
     }
 
     stopPreview();
-    const audio = new Audio(sampleWithAudio.audioUrl);
-    audio.volume = (previewVolume[0] ?? 75) / 100;
-    audioRef.current = audio;
+    packSynthesizer.stop();
     setPlayingPack(pack.id);
 
-    audio.play().catch((err) => {
-      console.error("Audio preview failed:", err);
-      toast({
-        title: "Preview error",
-        description: "Unable to play audio preview.",
-        variant: "destructive",
-      });
-      stopPreview();
-    });
+    const playSynthFallback = async () => {
+      try {
+        await packSynthesizer.playPack(pack, (previewVolume[0] ?? 75) / 100);
+        const checkInterval = setInterval(() => {
+          if (!packSynthesizer.getIsPlaying()) {
+            clearInterval(checkInterval);
+            setPlayingPack(null);
+          }
+        }, 100);
+      } catch (err) {
+        console.error("Synth preview failed:", err);
+        toast({
+          title: "Preview error",
+          description: "Unable to synthesize audio preview.",
+          variant: "destructive",
+        });
+        setPlayingPack(null);
+      }
+    };
 
-    audio.addEventListener("ended", () => {
-      stopPreview();
-    });
+    if (sampleWithAudio?.audioUrl) {
+      const audio = new Audio(sampleWithAudio.audioUrl);
+      audio.volume = (previewVolume[0] ?? 75) / 100;
+      audioRef.current = audio;
+
+      audio.onerror = async () => {
+        console.warn("Audio file failed to load, falling back to synthesizer");
+        audioRef.current = null;
+        await playSynthFallback();
+      };
+
+      audio.play().catch(async (err) => {
+        console.warn("Audio preview failed, trying synthesizer:", err);
+        audioRef.current = null;
+        await playSynthFallback();
+      });
+
+      audio.addEventListener("ended", () => {
+        stopPreview();
+      });
+    } else {
+      await playSynthFallback();
+    }
   };
 
   const handleDownloadPack = (pack: GeneratedPack) => {
