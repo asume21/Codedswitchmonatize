@@ -72,6 +72,12 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Dec 18, 2025)
+- **AI-Enhanced Code-to-Music**
+  - New AI enhancer using OpenAI/Grok for smarter chord progressions and melodies
+  - Toggle switch in CodeToMusicStudioV2: "Algorithmic (Fast)" vs "AI-Enhanced (Better)"
+  - AI analyzes code complexity, programming language, and structure to generate musical output
+  - Automatic fallback to algorithmic mode if AI unavailable
+  - Fixed chord parsing for jazz extensions (maj7, m9, add9, add11, dim7, 9, 11, 13)
 - **Code-to-Music Algorithm Upgrade**
   - Enhanced genre configs with multiple chord progressions per genre (5+ variations each)
   - Added 3 new genres: Jazz, Lo-Fi, Classical
