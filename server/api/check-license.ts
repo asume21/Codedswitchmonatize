@@ -26,6 +26,26 @@ export function checkLicenseHandler(storage: IStorage) {
         });
       }
 
+      // Check for owner bypass (same logic as requireCredits middleware)
+      let isOwner = (req as any).isOwner || false;
+      if (userId === 'owner-user') {
+        isOwner = true;
+      } else if (process.env.OWNER_EMAIL) {
+        const ownerEmail = process.env.OWNER_EMAIL.toLowerCase();
+        if (user.email && user.email.toLowerCase() === ownerEmail) {
+          isOwner = true;
+        }
+      }
+
+      // Owner always has Pro access
+      if (isOwner) {
+        return res.json({
+          isPro: true,
+          status: "owner",
+          isOwner: true,
+        });
+      }
+
       const subscription = await storage.getUserSubscription(userId);
       const status = subscription?.status || user.subscriptionStatus || null;
       const isPro =
