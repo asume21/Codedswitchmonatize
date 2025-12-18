@@ -6,6 +6,7 @@
 import type { ParsedCode, CodeElement, TimelineEvent, ChordProgression, MelodyNote } from '../../../shared/types/codeToMusic';
 import { getChordsForGenre, getChordByIndex } from './chordDefinitions';
 import { mapElementToNoteIntelligent, calculateNoteDuration, calculateNoteVelocity, selectInstrument } from './noteMapping';
+import { getProgressionForMood, getGenreConfig } from './genreConfigs';
 
 /**
  * Generate timeline from parsed code

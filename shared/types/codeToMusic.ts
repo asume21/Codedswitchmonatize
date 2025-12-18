@@ -94,6 +94,13 @@ export interface GenreConfig {
   style: string;
   drumPattern?: string;
   special?: Record<string, any>;
+  progressions?: string[][];
+  scales?: string[];
+  moodMap?: Record<string, string[]>;
+  rhythmicFeel?: 'straight' | 'swung' | 'syncopated' | 'driving';
+  harmonicDensity?: 'sparse' | 'moderate' | 'rich';
+  melodicRange?: 'narrow' | 'medium' | 'wide';
+  tension?: number;
 }
 
 export interface CodeElement {

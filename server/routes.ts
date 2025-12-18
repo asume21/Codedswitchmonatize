@@ -21,7 +21,7 @@ import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
-import { convertCodeToMusic } from "./services/codeToMusic";
+import { convertCodeToMusic, convertCodeToMusicEnhanced } from "./services/codeToMusic";
 import { transcribeAudio } from "./services/transcriptionService";
 import fs from "fs";
 import path from "path";
@@ -1332,8 +1332,8 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
 
       console.log(`🎵 Code-to-Music: Converting ${language} code (genre: ${genre}, variation: ${variation})`);
 
-      // Use new algorithm
-      const result = await convertCodeToMusic({
+      // Use ENHANCED algorithm for richer, more musical output
+      const result = await convertCodeToMusicEnhanced({
         code,
         language,
         variation,

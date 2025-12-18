@@ -42,8 +42,11 @@ const GENRES = [
   { value: 'rock', label: 'Rock', description: '140 BPM, powerful and energetic' },
   { value: 'hiphop', label: 'Hip-Hop', description: '90 BPM, rhythmic and groovy' },
   { value: 'edm', label: 'EDM', description: '128 BPM, electronic and danceable' },
-  { value: 'rnb', label: 'R&B', description: '80 BPM, smooth and soulful' },
-  { value: 'country', label: 'Country', description: '100 BPM, melodic and storytelling' },
+  { value: 'rnb', label: 'R&B', description: '85 BPM, smooth and soulful' },
+  { value: 'country', label: 'Country', description: '110 BPM, melodic and storytelling' },
+  { value: 'jazz', label: 'Jazz', description: '120 BPM, sophisticated and swinging' },
+  { value: 'lofi', label: 'Lo-Fi', description: '75 BPM, chill study beats' },
+  { value: 'classical', label: 'Classical', description: '90 BPM, orchestral elegance' },
 ];
 
 const LANGUAGES = [
@@ -52,6 +55,11 @@ const LANGUAGES = [
   { value: 'python', label: 'Python' },
   { value: 'java', label: 'Java' },
   { value: 'cpp', label: 'C++' },
+  { value: 'csharp', label: 'C#' },
+  { value: 'go', label: 'Go' },
+  { value: 'rust', label: 'Rust' },
+  { value: 'ruby', label: 'Ruby' },
+  { value: 'php', label: 'PHP' },
 ];
 
 export default function CodeToMusicStudioV2() {

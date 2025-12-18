@@ -72,13 +72,23 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Dec 18, 2025)
+- **Code-to-Music Algorithm Upgrade**
+  - Enhanced genre configs with multiple chord progressions per genre (5+ variations each)
+  - Added 3 new genres: Jazz, Lo-Fi, Classical
+  - Mood-based chord selection (happy/sad/energetic/calm affect progression)
+  - Rich metadata: scales, rhythmic feel, harmonic density, melodic range, tension
+  - Using enhanced algorithm with bass lines, pad layers, and advanced drums
+  - Added 5 more programming languages: C#, Go, Rust, Ruby, PHP
+- **Owner Pro Access**
+  - OWNER_EMAIL now grants automatic Pro access with unlimited features
+  - License check recognizes owner status for full Pro functionality
 - **Audio Transport Seeking**
   - Rewind/fast-forward buttons now actually seek the audio playback
   - Time display syncs with audio.currentTime via timeupdate listener
   - Previous button seeks to start, Next skips to end
 - **Email Integration (Resend)**
   - Activation keys now emailed to users when they subscribe via Stripe
-  - Uses Resend API with onboarding@resend.dev fallback sender
+  - Uses Resend API with servicehelp@codedswitch.com as sender
   - Activation keys no longer logged to console (security fix)
 - **Codebase Cleanup & Consolidation**
   - Removed 8 backup/reject files (.bak, .rej)
