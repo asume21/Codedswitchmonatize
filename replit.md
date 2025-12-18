@@ -71,6 +71,19 @@ Optional payment integration:
 - Database sessions are stored in PostgreSQL for persistence
 - Object storage directory: `/objects`
 
+## Recent Changes (Dec 18, 2025)
+- **Codebase Cleanup & Consolidation**
+  - Removed 8 backup/reject files (.bak, .rej)
+  - Deleted 14 unused test scripts from root directory
+  - Moved 26 documentation files to docs/ folder for organization
+  - Consolidated duplicate components (removed unused BeatMaker variants, empty MelodyComposer files)
+  - Deleted unused standalone pages that were never imported
+- **Enabled Hidden Features**
+  - Added /social-hub route - Social sharing hub for Twitter/Instagram/YouTube
+  - Added /profile route - User profile page with song management
+- **TypeScript Fix**
+  - Created vite-env.d.ts to fix import.meta.env type errors
+
 ## Recent Changes (Dec 17, 2025)
 - **Security Audit & Fixes** - Addressed critical authentication and session vulnerabilities
   - Session cookies now environment-aware: `secure=true` and `sameSite="none"` only in production
