@@ -30,8 +30,8 @@ ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
 
 // Serve audio assets (loops, bass samples, etc.)
-// Use __dirname for correct path resolution in both dev and production
-const assetsRoot = path.resolve(__dirname, "Assests");
+// Use import.meta.dirname for ESM compatibility (Node 20+)
+const assetsRoot = path.resolve(import.meta.dirname, "Assests");
 app.use("/assets", express.static(assetsRoot));
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)
