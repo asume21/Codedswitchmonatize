@@ -239,7 +239,13 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Local loop/asset directories (for Neumann Pack & Loop Library)
   const LOCAL_ASSETS_DIR = path.resolve(process.cwd(), "server", "Assests");
-  const LOOPS_DIR = path.resolve(LOCAL_ASSETS_DIR, "loops");
+  // Loop library uses objects/loops folder
+  const LOOPS_DIR = path.resolve(LOCAL_OBJECTS_DIR, "loops");
+  
+  // Ensure loops directory exists
+  try {
+    fs.mkdirSync(LOOPS_DIR, { recursive: true });
+  } catch {}
 
   // Loop Library endpoints - list and serve .wav files from Assests/loops
   app.get("/api/loops", async (_req: Request, res: Response) => {
