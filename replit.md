@@ -72,6 +72,14 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Dec 18, 2025)
+- **Audio Transport Seeking**
+  - Rewind/fast-forward buttons now actually seek the audio playback
+  - Time display syncs with audio.currentTime via timeupdate listener
+  - Previous button seeks to start, Next skips to end
+- **Email Integration (Resend)**
+  - Activation keys now emailed to users when they subscribe via Stripe
+  - Uses Resend API with onboarding@resend.dev fallback sender
+  - Activation keys no longer logged to console (security fix)
 - **Codebase Cleanup & Consolidation**
   - Removed 8 backup/reject files (.bak, .rej)
   - Deleted 14 unused test scripts from root directory
