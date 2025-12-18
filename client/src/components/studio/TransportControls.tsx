@@ -136,43 +136,45 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     }
   };
 
+  const seekAudioTo = (time: number) => {
+    const audioEl = studioContext.uploadedSongAudio;
+    if (audioEl) {
+      audioEl.currentTime = time;
+    }
+  };
+
   const handleRewind = () => {
     const newTime = Math.max(0, playbackTimeSeconds - 10);
     setPlaybackTimeSeconds(newTime);
     const minutes = Math.floor(newTime / 60);
     const seconds = Math.floor(newTime % 60);
     setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-    // TODO: Seek audio playback to new time
-    console.log('⏪ Rewind to:', newTime);
+    seekAudioTo(newTime);
   };
 
   const handleFastForward = () => {
-    const totalSeconds = totalDuration ?? FALLBACK_DURATION_SECONDS; // fallback to 02:45
+    const totalSeconds = totalDuration ?? FALLBACK_DURATION_SECONDS;
     const newTime = Math.min(totalSeconds, playbackTimeSeconds + 10);
     setPlaybackTimeSeconds(newTime);
     const minutes = Math.floor(newTime / 60);
     const seconds = Math.floor(newTime % 60);
     setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-    // TODO: Seek audio playback to new time
-    console.log('⏩ Fast forward to:', newTime);
+    seekAudioTo(newTime);
   };
 
   const handlePrevious = () => {
-    // Skip to start if past 3 seconds, otherwise go to actual previous track
-    if (playbackTimeSeconds > 3) {
-      setPlaybackTimeSeconds(0);
-      setCurrentTime("00:00");
-    } else {
-      // TODO: Load previous track from playlist
-      console.log('⏮ Skip to previous track');
-    }
+    setPlaybackTimeSeconds(0);
+    setCurrentTime("00:00");
+    seekAudioTo(0);
   };
 
   const handleNext = () => {
-    // TODO: Load next track from playlist
-    console.log('⏭ Skip to next track');
-    setPlaybackTimeSeconds(0);
-    setCurrentTime("00:00");
+    const totalSeconds = totalDuration ?? FALLBACK_DURATION_SECONDS;
+    setPlaybackTimeSeconds(totalSeconds);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    setCurrentTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    seekAudioTo(totalSeconds);
   };
 
   const formatTime = (seconds: number) => {

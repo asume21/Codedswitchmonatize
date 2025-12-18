@@ -49,7 +49,7 @@ export default function Landing() {
                 </div>
               </div>
               <p className="text-gray-400">
-                Expected launch: <span className="text-purple-400 font-semibold">Coming Soon</span>
+                <span className="text-purple-400 font-semibold">Now Available</span> - Start creating music today
               </p>
             </div>
             
