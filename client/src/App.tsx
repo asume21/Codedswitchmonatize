@@ -42,6 +42,8 @@ const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success"));
 const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel"));
 const ActivatePage = React.lazy(() => import("@/pages/activate"));
 const PublicSongPage = React.lazy(() => import("@/pages/public-song"));
+const SocialHub = React.lazy(() => import("@/pages/social-hub"));
+const UserProfilePage = React.lazy(() => import("@/pages/user-profile"));
 
 // Loading fallback component
 function LoadingFallback() {
@@ -306,6 +308,16 @@ function App() {
                   <Route path="/credits/cancel" component={CreditsCancelPage} />
                   <Route path="/credits" component={BuyCreditsPage} />
                   <Route path="/s/:id" component={PublicSongPage} />
+                  <Route path="/social-hub">
+                    <AppLayout>
+                      <SocialHub />
+                    </AppLayout>
+                  </Route>
+                  <Route path="/profile">
+                    <AppLayout>
+                      <UserProfilePage />
+                    </AppLayout>
+                  </Route>
                   <Route component={NotFound} />
                     </Switch>
                     </Suspense>
