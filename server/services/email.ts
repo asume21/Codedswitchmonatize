@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'CodedSwitch Studio <onboarding@resend.dev>';
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'CodedSwitch Studio <servicehelp@codedswitch.com>';
 
 export async function sendActivationKeyEmail(
   email: string,
