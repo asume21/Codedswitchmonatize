@@ -1,0 +1,159 @@
+/**
+ * AI-Enhanced Code-to-Music Generator
+ * Uses OpenAI/Grok to generate better chord progressions, melodies, and musical elements
+ */
+
+import OpenAI from 'openai';
+import type { ParsedCode } from '../../../shared/types/codeToMusic';
+
+const openaiApiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+const xaiApiKey = process.env.XAI_API_KEY;
+
+let openaiClient: OpenAI | null = null;
+let grokClient: OpenAI | null = null;
+
+if (openaiApiKey && openaiApiKey.startsWith('sk-')) {
+  openaiClient = new OpenAI({ apiKey: openaiApiKey, timeout: 30000 });
+}
+
+if (xaiApiKey) {
+  grokClient = new OpenAI({
+    apiKey: xaiApiKey,
+    baseURL: "https://api.x.ai/v1",
+    timeout: 30000
+  });
+}
+
+export interface AIEnhancedMusic {
+  chords: Array<{
+    chord: string;
+    duration: number;
+    start: number;
+  }>;
+  melody: Array<{
+    note: string;
+    octave: number;
+    start: number;
+    duration: number;
+    velocity: number;
+  }>;
+  bassline: Array<{
+    note: string;
+    octave: number;
+    start: number;
+    duration: number;
+  }>;
+  suggestions: {
+    mood: string;
+    energy: string;
+    musicalStyle: string;
+  };
+}
+
+function getClient() {
+  if (grokClient) return { client: grokClient, model: "grok-2-1212" };
+  if (openaiClient) return { client: openaiClient, model: "gpt-4o-mini" };
+  return null;
+}
+
+export function isAIAvailable(): boolean {
+  return getClient() !== null;
+}
+
+export async function enhanceCodeToMusic(
+  parsedCode: ParsedCode,
+  genre: string,
+  bpm: number,
+  variation: number = 1
+): Promise<AIEnhancedMusic | null> {
+  const clientInfo = getClient();
+  if (!clientInfo) {
+    console.log('⚠️ No AI client available for code-to-music enhancement');
+    return null;
+  }
+
+  const { client, model } = clientInfo;
+  
+  const codeAnalysis = {
+    complexity: parsedCode.complexity,
+    mood: parsedCode.mood || 'neutral',
+    elementCount: parsedCode.elements.length,
+    hasLoops: parsedCode.elements.some(e => e.type === 'loop'),
+    hasFunctions: parsedCode.elements.some(e => e.type === 'function'),
+    hasConditionals: parsedCode.elements.some(e => e.type === 'conditional'),
+    hasClasses: parsedCode.elements.some(e => e.type === 'class'),
+    nestingDepth: Math.max(...parsedCode.elements.map(e => e.nestingLevel), 0),
+  };
+
+  const prompt = `You are a professional music composer. Analyze this code structure and generate musical elements that reflect its patterns.
+
+CODE ANALYSIS:
+- Complexity: ${codeAnalysis.complexity}/10
+- Mood: ${codeAnalysis.mood}
+- Elements: ${codeAnalysis.elementCount}
+- Has loops: ${codeAnalysis.hasLoops} (suggests repetitive musical patterns)
+- Has functions: ${codeAnalysis.hasFunctions} (suggests distinct musical sections)
+- Has conditionals: ${codeAnalysis.hasConditionals} (suggests tension/resolution)
+- Has classes: ${codeAnalysis.hasClasses} (suggests layered orchestration)
+- Nesting depth: ${codeAnalysis.nestingDepth} (deeper = more complex harmonies)
+
+MUSICAL PARAMETERS:
+- Genre: ${genre}
+- BPM: ${bpm}
+- Variation: ${variation}
+- Duration: 16 beats (4 bars)
+
+Generate a JSON response with:
+1. "chords": Array of 4-8 chords with { "chord": "Am7", "duration": 4, "start": 0 }
+   - Use jazz extensions for complex code (7ths, 9ths, 11ths)
+   - Use simple triads for simple code
+   - Match mood: sad=minor progressions, happy=major progressions
+   
+2. "melody": Array of 8-16 notes with { "note": "C", "octave": 4, "start": 0, "duration": 0.5, "velocity": 0.8 }
+   - Higher complexity = more notes and variations
+   - Loops in code = melodic repetition
+   - Match the chord tones
+   
+3. "bassline": Array of 8-16 bass notes with { "note": "C", "octave": 2, "start": 0, "duration": 1 }
+   - Follow chord roots
+   - More active for high-energy code
+   
+4. "suggestions": { "mood": "description", "energy": "low/medium/high", "musicalStyle": "description" }
+
+Return ONLY valid JSON, no markdown or explanation.`;
+
+  try {
+    console.log(`🎵 AI enhancing code-to-music: ${genre} at ${bpm} BPM`);
+    
+    const response = await client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: "You are a music theory expert. Return only valid JSON." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7 + (variation * 0.1),
+      max_tokens: 2000,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.error('❌ Empty AI response');
+      return null;
+    }
+
+    const result = JSON.parse(content) as AIEnhancedMusic;
+    
+    if (!result.chords || !result.melody) {
+      console.error('❌ Invalid AI response structure');
+      return null;
+    }
+
+    console.log(`✅ AI generated: ${result.chords.length} chords, ${result.melody.length} melody notes, ${result.bassline?.length || 0} bass notes`);
+    
+    return result;
+  } catch (error) {
+    console.error('❌ AI enhancement failed:', error);
+    return null;
+  }
+}

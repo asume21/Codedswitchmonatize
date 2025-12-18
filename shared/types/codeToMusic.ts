@@ -8,6 +8,7 @@ export interface CodeToMusicRequest {
   language: string;
   variation: number; // 0-9
   genre: string;     // pop, rock, hiphop, edm, rnb, country
+  useAI?: boolean;   // Use AI for enhanced music generation (optional, defaults to false)
 }
 
 export interface CodeToMusicResponse {

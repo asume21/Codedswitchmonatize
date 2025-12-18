@@ -15,6 +15,7 @@ import { generateTimeline, generateDrumPattern, calculateOptimalBPM } from './co
 import { generateAdvancedMelody } from './codeToMusic/melodyGenerator';
 import { generateAdvancedDrumPattern, drumPatternToNotes } from './codeToMusic/advancedDrums';
 import { getChordsForGenre } from './codeToMusic/chordDefinitions';
+import { enhanceCodeToMusic, isAIAvailable } from './codeToMusic/aiEnhancer';
 
 /**
  * Main entry point: Convert code to music
@@ -23,11 +24,14 @@ export async function convertCodeToMusic(
   request: CodeToMusicRequest
 ): Promise<CodeToMusicResponse> {
   try {
+    const useAI = request.useAI && isAIAvailable();
+    
     console.log('🎵 Code-to-Music: Starting conversion', {
       language: request.language,
       genre: request.genre,
       variation: request.variation,
       codeLength: request.code.length,
+      useAI,
     });
 
     // Validate inputs
@@ -56,20 +60,69 @@ export async function convertCodeToMusic(
     // Calculate optimal BPM
     const bpm = calculateOptimalBPM(parsedCode, genreConfig.bpm);
     
-    // Generate timeline (Step 4 - COMPLETE)
-    const { timeline, chords, melody } = generateTimeline(
-      parsedCode,
-      genreConfig.name,
-      bpm,
-      request.variation
-    );
+    let timeline: any[] = [];
+    let chords: any[] = [];
+    let melody: any[] = [];
+    let drums: any = null;
+    let aiEnhanced = false;
     
-    // Generate drum pattern
-    const drums = generateDrumPattern(parsedCode, bpm);
+    // Try AI-enhanced generation if requested
+    if (useAI) {
+      console.log('🤖 Attempting AI-enhanced music generation...');
+      const aiResult = await enhanceCodeToMusic(parsedCode, genreConfig.name, bpm, request.variation);
+      
+      if (aiResult) {
+        aiEnhanced = true;
+        console.log('✅ AI enhancement successful!');
+        
+        // Convert AI chords to our format
+        chords = aiResult.chords.map(c => ({
+          chord: c.chord,
+          notes: chordToNotes(c.chord),
+          start: c.start,
+          duration: c.duration,
+        }));
+        
+        // Convert AI melody to our format
+        melody = aiResult.melody.map(m => ({
+          note: `${m.note}${m.octave}`,
+          start: m.start,
+          duration: m.duration,
+          velocity: Math.round((m.velocity || 0.8) * 127),
+          instrument: 'synth',
+          source: 'ai-generated',
+        }));
+        
+        // Build timeline from AI-generated elements
+        timeline = [
+          ...chords.map(c => ({ time: c.start, type: 'chord', data: c })),
+          ...melody.map(m => ({ time: m.start, type: 'note', data: m })),
+        ].sort((a, b) => a.time - b.time);
+        
+        // Use algorithmic drums (AI focus is on harmony/melody)
+        drums = generateDrumPattern(parsedCode, bpm);
+      } else {
+        console.log('⚠️ AI enhancement failed, falling back to algorithmic');
+      }
+    }
+    
+    // Fallback to algorithmic generation
+    if (!aiEnhanced) {
+      const generated = generateTimeline(
+        parsedCode,
+        genreConfig.name,
+        bpm,
+        request.variation
+      );
+      timeline = generated.timeline;
+      chords = generated.chords;
+      melody = generated.melody;
+      drums = generateDrumPattern(parsedCode, bpm);
+    }
     
     // Calculate total duration
     const duration = melody.length > 0 
-      ? Math.max(...melody.map(n => n.start + n.duration))
+      ? Math.max(...melody.map((n: any) => n.start + n.duration))
       : 16;
     
     console.log('🎼 Generated music:', {
@@ -78,6 +131,7 @@ export async function convertCodeToMusic(
       melodyNotes: melody.length,
       duration: `${duration.toFixed(1)}s`,
       bpm,
+      aiEnhanced,
     });
 
     // Complete music data (Step 5 - COMPLETE)
@@ -94,7 +148,8 @@ export async function convertCodeToMusic(
         duration,
         generatedAt: new Date().toISOString(),
         seed: generateSeed(request.code, request.variation),
-      },
+        aiEnhanced,
+      } as any,
     };
 
     return {
@@ -140,6 +195,101 @@ function pickKeyForGenre(genre: string, mood: string): string {
     country: 'D Major',
   };
   return keyMap[genre] || 'C Major';
+}
+
+/**
+ * Convert chord symbol to array of note names (e.g., "Cmaj7" -> ["C4", "E4", "G4", "B4"])
+ */
+function chordToNotes(chordSymbol: string): string[] {
+  const noteMap: Record<string, number> = {
+    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
+    'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+  };
+  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  
+  // Parse root note (preserve original casing for root)
+  const rootMatch = chordSymbol.match(/^([A-G][#b]?)/i);
+  if (!rootMatch) return ['C4', 'E4', 'G4'];
+  
+  const root = rootMatch[1].charAt(0).toUpperCase() + rootMatch[1].slice(1);
+  const rootMidi = noteMap[root] ?? 0;
+  const quality = chordSymbol.slice(root.length); // Keep original casing for quality parsing
+  const qualityLower = quality.toLowerCase();
+  
+  // Determine intervals based on chord quality
+  let intervals = [0, 4, 7]; // Major triad default
+  
+  // Check for minor (but not maj7/maj9 etc)
+  const isMinor = (qualityLower.includes('m') || qualityLower.includes('min')) && 
+                  !qualityLower.includes('maj') && !qualityLower.includes('dim');
+  
+  if (isMinor) {
+    intervals = [0, 3, 7]; // Minor
+  }
+  if (qualityLower.includes('dim')) {
+    intervals = [0, 3, 6]; // Diminished
+  }
+  if (qualityLower.includes('aug') || quality.includes('+')) {
+    intervals = [0, 4, 8]; // Augmented
+  }
+  
+  // Handle sus chords (must check before 7ths)
+  if (qualityLower.includes('sus4')) {
+    intervals = [0, 5, 7]; // Sus4
+  } else if (qualityLower.includes('sus2')) {
+    intervals = [0, 2, 7]; // Sus2
+  }
+  
+  // Handle 7th chords (skip add-chords which don't include 7th)
+  const isAddChord = qualityLower.includes('add');
+  const has7thExtension = qualityLower.includes('7') || 
+                          (qualityLower.includes('9') && !isAddChord) || 
+                          (qualityLower.includes('11') && !isAddChord) || 
+                          (qualityLower.includes('13') && !isAddChord);
+  
+  if (has7thExtension) {
+    if (qualityLower.includes('maj7') || qualityLower.includes('maj9') || qualityLower.includes('maj11') || qualityLower.includes('maj13')) {
+      // Major 7th
+      if (!intervals.includes(11)) intervals.push(11);
+    } else if (isMinor) {
+      // Minor 7th
+      if (!intervals.includes(10)) intervals.push(10);
+    } else if (qualityLower.includes('dim7')) {
+      // Diminished 7th
+      if (!intervals.includes(9)) intervals.push(9);
+    } else {
+      // Dominant 7th
+      if (!intervals.includes(10)) intervals.push(10);
+    }
+  }
+  
+  // Handle extensions
+  if (qualityLower.includes('9')) {
+    if (!intervals.includes(14)) intervals.push(14); // Add 9th
+  }
+  if (qualityLower.includes('11')) {
+    if (!intervals.includes(14)) intervals.push(14); // 9th implied
+    if (!intervals.includes(17)) intervals.push(17); // Add 11th
+  }
+  if (qualityLower.includes('13')) {
+    if (!intervals.includes(14)) intervals.push(14); // 9th implied
+    if (!intervals.includes(21)) intervals.push(21); // Add 13th
+  }
+  
+  // Handle add chords
+  if (qualityLower.includes('add9') && !intervals.includes(14)) {
+    intervals.push(14);
+  }
+  if (qualityLower.includes('add11') && !intervals.includes(17)) {
+    intervals.push(17);
+  }
+  
+  // Convert to note names in octave 4
+  return intervals.map(interval => {
+    const noteIndex = (rootMidi + interval) % 12;
+    const octave = 4 + Math.floor((rootMidi + interval) / 12);
+    return `${noteNames[noteIndex]}${octave}`;
+  });
 }
 
 /**

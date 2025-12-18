@@ -10,8 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Music, Code, Wand2, Play, Download, RefreshCw, Info } from 'lucide-react';
+import { Music, Code, Wand2, Play, Download, RefreshCw, Info, Sparkles } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useAudio } from '@/hooks/use-audio';
 import type { MusicData as CodeToMusicData } from '../../../../shared/types/codeToMusic';
@@ -70,6 +71,7 @@ export default function CodeToMusicStudioV2() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [musicData, setMusicData] = useState<CodeToMusicData | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [useAI, setUseAI] = useState(false);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const { toast } = useToast();
   const { playNote, initialize, isInitialized } = useAudio();
@@ -91,6 +93,7 @@ export default function CodeToMusicStudioV2() {
         language,
         genre,
         variation: variation[0],
+        useAI,
       });
 
       if (!response.ok) {
@@ -302,6 +305,22 @@ export default function CodeToMusicStudioV2() {
               <p className="text-xs text-gray-500">
                 Change to generate different music from the same code
               </p>
+            </div>
+
+            {/* AI Enhancement Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-purple-500/20">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                <div>
+                  <label className="text-sm font-medium text-gray-200">AI-Enhanced</label>
+                  <p className="text-xs text-gray-500">Better chord progressions and melodies</p>
+                </div>
+              </div>
+              <Switch
+                checked={useAI}
+                onCheckedChange={setUseAI}
+                data-testid="toggle-ai-enhancement"
+              />
             </div>
 
             {/* Code Editor */}
