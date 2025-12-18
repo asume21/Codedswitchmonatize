@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,7 +13,8 @@ import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useSessionDestination } from "@/contexts/SessionDestinationContext";
 import { useTracks } from "@/hooks/useTracks";
 import { StudioAudioContext } from "@/pages/studio";
-import { Music, Waves, Send } from "lucide-react";
+import { Music, Waves, Send, Play, Square } from "lucide-react";
+import * as Tone from "tone";
 
 interface AiNote {
   time: number;
@@ -48,6 +49,99 @@ export default function BassStudio() {
   const [generatedNotes, setGeneratedNotes] = useState<AiNote[]>([]);
   const [summary, setSummary] = useState<string>("");
   const [lastTrackId, setLastTrackId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const synthRef = useRef<Tone.MonoSynth | null>(null);
+  const scheduledEventsRef = useRef<number[]>([]);
+
+  // Convert pitch string like "C2" to frequency
+  const pitchToFrequency = (pitch: string): number => {
+    const match = pitch.match(/^([A-G][#b]?)(-?\d)$/i);
+    if (!match) return 65.41; // Default to C2
+    const [, noteName, octaveStr] = match;
+    const octave = parseInt(octaveStr, 10);
+    const noteMap: Record<string, number> = {
+      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+      'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+      'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+    };
+    const semitone = noteMap[noteName.charAt(0).toUpperCase() + (noteName.length > 1 ? noteName.charAt(1) : '')] || 0;
+    const midi = (octave + 1) * 12 + semitone;
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  };
+
+  const stopPlayback = () => {
+    // Clear all scheduled events
+    scheduledEventsRef.current.forEach(id => Tone.Transport.clear(id));
+    scheduledEventsRef.current = [];
+    
+    // Stop transport
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
+    
+    // Dispose synth
+    if (synthRef.current) {
+      synthRef.current.dispose();
+      synthRef.current = null;
+    }
+    
+    setIsPlaying(false);
+  };
+
+  const playPreview = async () => {
+    if (generatedNotes.length === 0) {
+      toast({
+        title: "No bassline",
+        description: "Generate a bassline first to preview it.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If already playing, stop
+    if (isPlaying) {
+      stopPlayback();
+      return;
+    }
+
+    await Tone.start();
+    setIsPlaying(true);
+
+    // Create a bass synth
+    synthRef.current = new Tone.MonoSynth({
+      oscillator: { type: "sawtooth" },
+      envelope: { attack: 0.02, decay: 0.2, sustain: 0.4, release: 0.3 },
+      filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.3, release: 0.5, baseFrequency: 100, octaves: 2.5 }
+    }).toDestination();
+    synthRef.current.volume.value = -6;
+
+    const bpm = tempo || 120;
+    Tone.Transport.bpm.value = bpm;
+
+    // Schedule all notes
+    generatedNotes.forEach((note) => {
+      const freq = pitchToFrequency(note.pitch);
+      const startTime = `${note.time * (60 / bpm)}`;
+      const duration = note.duration * (60 / bpm);
+      
+      const eventId = Tone.Transport.schedule((time) => {
+        if (synthRef.current) {
+          synthRef.current.triggerAttackRelease(freq, duration, time, note.velocity || 0.8);
+        }
+      }, startTime);
+      scheduledEventsRef.current.push(eventId);
+    });
+
+    // Schedule stop at end
+    const lastNote = generatedNotes.reduce((max, n) => n.time + n.duration > max ? n.time + n.duration : max, 0);
+    const endTimeSeconds = (lastNote + 0.5) * (60 / bpm);
+    
+    const stopEventId = Tone.Transport.schedule(() => {
+      stopPlayback();
+    }, endTimeSeconds);
+    scheduledEventsRef.current.push(stopEventId);
+
+    Tone.Transport.start();
+  };
 
   const generateBassMutation = useMutation({
     mutationFn: async () => {
@@ -307,6 +401,7 @@ export default function BassStudio() {
             onClick={() => generateBassMutation.mutate()}
             disabled={generateBassMutation.isPending}
             className="bg-blue-600 hover:bg-blue-500"
+            data-testid="button-generate-bassline"
           >
             {generateBassMutation.isPending ? (
               <>
@@ -322,9 +417,29 @@ export default function BassStudio() {
           </Button>
 
           <Button
+            onClick={playPreview}
+            disabled={!generatedNotes.length}
+            variant={isPlaying ? "destructive" : "default"}
+            data-testid="button-play-preview-bass"
+          >
+            {isPlaying ? (
+              <>
+                <Square className="w-4 h-4 mr-2" />
+                Stop
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 mr-2" />
+                Play Preview
+              </>
+            )}
+          </Button>
+
+          <Button
             onClick={sendToTracks}
             disabled={!generatedNotes.length}
             variant="secondary"
+            data-testid="button-send-to-tracks"
           >
             <Send className="w-4 h-4 mr-2" />
             Send to Multi-Track
@@ -334,6 +449,7 @@ export default function BassStudio() {
             onClick={goToPianoRoll}
             disabled={!lastTrackId}
             variant="outline"
+            data-testid="button-edit-piano-roll"
           >
             <Waves className="w-4 h-4 mr-2" />
             Edit in Piano Roll
