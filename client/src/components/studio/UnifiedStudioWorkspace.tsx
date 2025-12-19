@@ -214,6 +214,9 @@ export default function UnifiedStudioWorkspace() {
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
+  const [showSampleBrowser, setShowSampleBrowser] = useState(false);
+  const [showInspector, setShowInspector] = useState(false);
+  const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const undoManagerRef = useRef<UndoManager<StudioTrack[]> | null>(null);
   const isRestoringTracksRef = useRef(false);
   const [trackHistory, setTrackHistory] = useState<StudioTrack[][]>([]);
@@ -1553,12 +1556,12 @@ export default function UnifiedStudioWorkspace() {
                   <span>{instrumentsExpanded ? '✓' : '  '} Instrument Library</span>
                   <span className="text-xs text-gray-500">Ctrl+1</span>
                 </button>
-                <button onClick={() => toast({ title: "Browser toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Sample Browser</span>
+                <button onClick={() => { setShowSampleBrowser(!showSampleBrowser); toast({ title: showSampleBrowser ? "Sample Browser Hidden" : "Sample Browser Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                  <span>{showSampleBrowser ? '✓' : '  '} Sample Browser</span>
                   <span className="text-xs text-gray-500">Ctrl+2</span>
                 </button>
-                <button onClick={() => toast({ title: "Inspector toggled" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Inspector</span>
+                <button onClick={() => { setShowInspector(!showInspector); toast({ title: showInspector ? "Inspector Hidden" : "Inspector Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                  <span>{showInspector ? '✓' : '  '} Inspector</span>
                   <span className="text-xs text-gray-500">Ctrl+3</span>
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
@@ -1579,8 +1582,8 @@ export default function UnifiedStudioWorkspace() {
                   <span>Full Screen</span>
                   <span className="text-xs text-gray-500">F11</span>
                 </button>
-                <button onClick={() => toast({ title: "Focus Mode" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                  <span>Focus Mode</span>
+                <button onClick={() => { setFocusModeEnabled(!focusModeEnabled); toast({ title: focusModeEnabled ? "Focus Mode Off" : "Focus Mode On", description: focusModeEnabled ? "UI elements restored" : "Distraction-free mode enabled" }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                  <span>{focusModeEnabled ? '✓' : '  '} Focus Mode</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+F</span>
                 </button>
               </div>
