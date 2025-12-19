@@ -1,4 +1,4 @@
-import { useState, useContext, useRef } from "react";
+import { useState, useContext, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,8 +13,11 @@ import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useSessionDestination } from "@/contexts/SessionDestinationContext";
 import { useTracks } from "@/hooks/useTracks";
 import { StudioAudioContext } from "@/pages/studio";
-import { Music, Waves, Send, Play, Square } from "lucide-react";
+import { Music, Waves, Send, Play, Square, Piano } from "lucide-react";
 import * as Tone from "tone";
+
+// Bass notes for interactive keyboard
+const BASS_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 interface AiNote {
   time: number;
@@ -50,8 +53,27 @@ export default function BassStudio() {
   const [summary, setSummary] = useState<string>("");
   const [lastTrackId, setLastTrackId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [bassOctave, setBassOctave] = useState<number>(2);
+  const [activeNote, setActiveNote] = useState<string | null>(null);
   const synthRef = useRef<Tone.MonoSynth | null>(null);
+  const keyboardSynthRef = useRef<Tone.MonoSynth | null>(null);
   const scheduledEventsRef = useRef<number[]>([]);
+
+  // Cleanup synths on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (synthRef.current) {
+        synthRef.current.dispose();
+        synthRef.current = null;
+      }
+      if (keyboardSynthRef.current) {
+        keyboardSynthRef.current.dispose();
+        keyboardSynthRef.current = null;
+      }
+      scheduledEventsRef.current.forEach(id => Tone.Transport.clear(id));
+      scheduledEventsRef.current = [];
+    };
+  }, []);
 
   // Convert pitch string like "C2" to frequency
   const pitchToFrequency = (pitch: string): number => {
@@ -85,6 +107,33 @@ export default function BassStudio() {
     }
     
     setIsPlaying(false);
+  };
+
+  // Play a single bass note from the interactive keyboard
+  const playBassNote = async (note: string) => {
+    const pitch = `${note}${bassOctave}`;
+    setActiveNote(pitch);
+    
+    try {
+      await Tone.start();
+      
+      // Create or reuse keyboard synth
+      if (!keyboardSynthRef.current) {
+        keyboardSynthRef.current = new Tone.MonoSynth({
+          oscillator: { type: "sawtooth" },
+          envelope: { attack: 0.01, decay: 0.15, sustain: 0.5, release: 0.4 },
+          filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.5, baseFrequency: 80, octaves: 2 }
+        }).toDestination();
+        keyboardSynthRef.current.volume.value = -6;
+      }
+      
+      const freq = pitchToFrequency(pitch);
+      keyboardSynthRef.current.triggerAttackRelease(freq, 0.3);
+    } catch (error) {
+      console.error('Bass note playback error:', error);
+    }
+    
+    setTimeout(() => setActiveNote(null), 200);
   };
 
   const playPreview = async () => {
@@ -169,15 +218,23 @@ export default function BassStudio() {
     },
     onSuccess: (data: any) => {
       const track = data?.data || data?.track;
-      const notes: AiNote[] = track?.notes || [];
+      const rawNotes = track?.notes || [];
 
-      if (!Array.isArray(notes) || notes.length === 0) {
+      if (!Array.isArray(rawNotes) || rawNotes.length === 0) {
         toast({
           title: "Bassline",
           description: "Response received, but no bass notes were returned.",
         });
         return;
       }
+
+      // Map API response fields to expected format (start -> time)
+      const notes: AiNote[] = rawNotes.map((n: any) => ({
+        time: n.time ?? n.start ?? 0,
+        duration: n.duration ?? 0.5,
+        pitch: n.pitch ?? "C2",
+        velocity: n.velocity ?? 0.8,
+      }));
 
       setGeneratedNotes(notes);
 
@@ -394,6 +451,57 @@ export default function BassStudio() {
             />
             <span className="text-[11px] text-gray-500">Busy</span>
           </div>
+        </div>
+
+        {/* Interactive Bass Keyboard */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Piano className="w-4 h-4 text-blue-400" />
+              <span className="text-xs uppercase tracking-wide text-gray-400">Play Bass</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Octave:</span>
+              <div className="flex gap-1">
+                {[1, 2, 3].map((oct) => (
+                  <Button
+                    key={oct}
+                    size="sm"
+                    variant={bassOctave === oct ? "default" : "outline"}
+                    className="text-xs px-2"
+                    onClick={() => setBassOctave(oct)}
+                    data-testid={`button-octave-${oct}`}
+                  >
+                    {oct}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {BASS_NOTES.map((note) => {
+              const isSharp = note.includes('#');
+              const pitch = `${note}${bassOctave}`;
+              const isActive = activeNote === pitch;
+              return (
+                <Button
+                  key={note}
+                  size="sm"
+                  variant={isActive ? "default" : "outline"}
+                  className={`min-w-[40px] text-xs font-mono transition-all ${
+                    isSharp 
+                      ? 'bg-gray-800 border-gray-600 text-gray-300' 
+                      : 'bg-gray-700 border-gray-500 text-white'
+                  } ${isActive ? 'scale-95 bg-blue-600 border-blue-500' : ''}`}
+                  onClick={() => playBassNote(note)}
+                  data-testid={`button-bass-note-${note.replace('#', 'sharp')}`}
+                >
+                  {note}
+                </Button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-500">Click notes to play bass sounds. Change octave for different pitch ranges.</p>
         </div>
 
         <div className="flex flex-wrap gap-3">
