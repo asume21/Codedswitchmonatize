@@ -71,6 +71,14 @@ Optional payment integration:
 - Database sessions are stored in PostgreSQL for persistence
 - Object storage directory: `/objects`
 
+## Recent Changes (Dec 19, 2025)
+- **Bass Studio Fixes**
+  - Fixed bass line generator - API returns `start` field, client now correctly maps it to `time`
+  - Added interactive bass keyboard UI with 12 playable notes (C through B including sharps)
+  - Octave selector (1, 2, 3) for different pitch ranges
+  - Visual feedback when notes are played
+  - Added cleanup effect to dispose Tone.js synths on unmount (memory leak prevention)
+
 ## Recent Changes (Dec 18, 2025)
 - **AI-Enhanced Code-to-Music**
   - New AI enhancer using OpenAI/Grok for smarter chord progressions and melodies
