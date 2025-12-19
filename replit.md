@@ -72,6 +72,12 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Dec 19, 2025)
+- **Track System Refactoring**
+  - Created canonical TrackPayload interface in `studioTracks.ts` with required fields: type, source, volume, pan, bpm
+  - Added DEFAULT_TRACK_PAYLOAD constant and createTrackPayload helper function
+  - Updated useTracks hook to enforce required fields with defaults when adding/normalizing tracks
+  - Updated MasterMultiTrackPlayer syncFromStore to use normalized track fields with consistent defaults
+  - Fixed pre-existing JSX syntax error (orphan touch event handlers moved into canvas element)
 - **Bass Studio Audio Fix**
   - Fixed bass line audio rendering - notes are now explicitly included in payload when tracks are added
   - BassStudio and BeatLab both include `notes`, `type`, and `instrument` in payload for MasterMultiTrackPlayer to render audio
