@@ -72,7 +72,11 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Dec 19, 2025)
-- **Bass Studio Fixes**
+- **Bass Studio Audio Fix**
+  - Fixed bass line audio rendering - notes are now explicitly included in payload when tracks are added
+  - BassStudio and BeatLab both include `notes`, `type`, and `instrument` in payload for MasterMultiTrackPlayer to render audio
+  - Cleaned up debug console.log statements from syncFromStore
+- **Previous Bass Studio Fixes**
   - Fixed bass line generator - API returns `start` field, client now correctly maps it to `time`
   - Added interactive bass keyboard UI with 12 playable notes (C through B including sharps)
   - Octave selector (1, 2, 3) for different pitch ranges
