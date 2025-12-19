@@ -29,6 +29,7 @@ import {
   STEP_WIDTH,
   AVAILABLE_INSTRUMENTS
 } from "./types/pianoRollTypes";
+import { createTrackPayload } from "@/types/studioTracks";
 
 // Initialize piano keys
 const PIANO_KEYS: PianoKey[] = [];
@@ -430,12 +431,17 @@ export const VerticalPianoRoll: React.FC = () => {
 
   useEffect(() => {
     const clipLengthBars = Math.max(1, Math.ceil(patternLengthSteps / 16));
-    const clipPayload = {
-      tracks,
+    const clipPayload = createTrackPayload({
+      type: 'midi',
+      source: 'piano-roll',
       bpm,
-      key: currentKey,
-      progression: selectedProgression,
-    };
+      notes: tracks.flatMap(t => t.notes),
+      data: {
+        tracks,
+        key: currentKey,
+        progression: selectedProgression,
+      },
+    });
 
     const clip = {
       id: pianoTrackIdRef.current,
@@ -1571,13 +1577,14 @@ export const VerticalPianoRoll: React.FC = () => {
       const url = URL.createObjectURL(new Blob([wavBuffer], { type: 'audio/wav' }));
       wavCacheRef.current = url;
 
+      const existingPayload = registeredClips.find(c => c.id === pianoTrackIdRef.current)?.payload;
       updateTrack(pianoTrackIdRef.current, {
-        payload: {
-          ...(registeredClips.find(c => c.id === pianoTrackIdRef.current)?.payload ?? {}),
+        payload: createTrackPayload({
+          ...existingPayload,
           notes: notePool,
           bpm,
           audioUrl: url,
-        }
+        })
       });
 
       window.dispatchEvent(new CustomEvent('importToMultiTrack', {
