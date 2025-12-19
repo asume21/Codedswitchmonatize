@@ -339,6 +339,9 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [selectedGenre, setSelectedGenre] = useState('Hip-Hop');
   const [aiMelodySummary, setAiMelodySummary] = useState<string | null>(null);
   const [aiBassSummary, setAiBassSummary] = useState<string | null>(null);
+  const [lastDrumsGenMethod, setLastDrumsGenMethod] = useState<'ai' | 'algorithmic' | null>(null);
+  const [lastMelodyGenMethod, setLastMelodyGenMethod] = useState<'ai' | 'algorithmic' | null>(null);
+  const [lastBassGenMethod, setLastBassGenMethod] = useState<'ai' | 'algorithmic' | null>(null);
   
   // AI Beat generation mutation
   const generateBeatMutation = useMutation({
@@ -409,6 +412,9 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     },
     onSuccess: (data: any) => {
       const grid = data?.data?.grid || data?.grid;
+      const genMethod = data?.data?.generationMethod || (data?.data?.provider?.includes('Fallback') ? 'algorithmic' : 'ai');
+      setLastDrumsGenMethod(genMethod);
+      
       if (!grid) {
         toast({
           title: 'AI Drum Grid',
@@ -433,9 +439,10 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         };
       }));
 
+      const sourceLabel = genMethod === 'ai' ? 'AI-Generated' : 'Algorithmic';
       toast({
-        title: '🥁 Phase 3 Drum Grid',
-        description: `${selectedGenre} groove at ${bpm} BPM loaded from /api/ai/music/drums`
+        title: '🥁 Drum Grid Ready',
+        description: `${selectedGenre} groove at ${bpm} BPM (${sourceLabel})`
       });
     },
     onError: (error: Error) => {
@@ -469,6 +476,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     onSuccess: (data: any) => {
       const track = data?.data || data?.track;
       const notes = track?.notes;
+      const genMethod = data?.data?.generationMethod || (data?.data?.provider?.includes('Fallback') ? 'algorithmic' : 'ai');
+      setLastMelodyGenMethod(genMethod);
 
       if (Array.isArray(notes) && notes.length > 0) {
         void (async () => {
@@ -488,9 +497,10 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
           }`,
         );
 
+        const sourceLabel = genMethod === 'ai' ? 'AI-Generated' : 'Algorithmic';
         toast({
           title: 'AI Melody Ready',
-          description: `Generated ${notes.length} melody notes`,
+          description: `Generated ${notes.length} melody notes (${sourceLabel})`,
         });
 
         const bars = Math.max(1, Math.round(patternLength / 16) || 1);
@@ -569,6 +579,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     onSuccess: (data: any) => {
       const track = data?.data || data?.track;
       const notes = track?.notes;
+      const genMethod = data?.data?.generationMethod || (data?.data?.provider?.includes('Fallback') ? 'algorithmic' : 'ai');
+      setLastBassGenMethod(genMethod);
 
       if (Array.isArray(notes) && notes.length > 0) {
         void (async () => {
@@ -587,9 +599,10 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
           }`,
         );
 
+        const sourceLabel = genMethod === 'ai' ? 'AI-Generated' : 'Algorithmic';
         toast({
           title: 'AI Bassline Ready',
-          description: `Generated ${notes.length} bass notes`,
+          description: `Generated ${notes.length} bass notes (${sourceLabel})`,
         });
 
         const bars = Math.max(1, Math.round(patternLength / 16) || 1);
@@ -1093,6 +1106,25 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
               {generatePhase3BassMutation.isPending ? 'AI Bassline…' : 'AI Bassline'}
             </Button>
           </div>
+          {(lastDrumsGenMethod || lastMelodyGenMethod || lastBassGenMethod) && (
+            <div className="flex items-center gap-1 ml-2">
+              {lastDrumsGenMethod && (
+                <Badge variant={lastDrumsGenMethod === 'ai' ? 'default' : 'secondary'} className="text-xs">
+                  Drums: {lastDrumsGenMethod === 'ai' ? 'AI' : 'Algo'}
+                </Badge>
+              )}
+              {lastMelodyGenMethod && (
+                <Badge variant={lastMelodyGenMethod === 'ai' ? 'default' : 'secondary'} className="text-xs">
+                  Melody: {lastMelodyGenMethod === 'ai' ? 'AI' : 'Algo'}
+                </Badge>
+              )}
+              {lastBassGenMethod && (
+                <Badge variant={lastBassGenMethod === 'ai' ? 'default' : 'secondary'} className="text-xs">
+                  Bass: {lastBassGenMethod === 'ai' ? 'AI' : 'Algo'}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
       </div>
       

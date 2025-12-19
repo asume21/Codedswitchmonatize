@@ -52,6 +52,7 @@ export default function BassStudio() {
   const [generatedNotes, setGeneratedNotes] = useState<AiNote[]>([]);
   const [summary, setSummary] = useState<string>("");
   const [lastTrackId, setLastTrackId] = useState<string | null>(null);
+  const [lastGenMethod, setLastGenMethod] = useState<'ai' | 'algorithmic' | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [bassOctave, setBassOctave] = useState<number>(2);
   const [activeNote, setActiveNote] = useState<string | null>(null);
@@ -219,6 +220,8 @@ export default function BassStudio() {
     onSuccess: (data: any) => {
       const track = data?.data || data?.track;
       const rawNotes = track?.notes || [];
+      const genMethod = data?.data?.generationMethod || (data?.data?.provider?.includes('Fallback') ? 'algorithmic' : 'ai');
+      setLastGenMethod(genMethod);
 
       if (!Array.isArray(rawNotes) || rawNotes.length === 0) {
         toast({
@@ -249,9 +252,10 @@ export default function BassStudio() {
         }`,
       );
 
+      const sourceLabel = genMethod === 'ai' ? 'AI-Generated' : 'Algorithmic';
       toast({
-        title: "AI Bassline Ready",
-        description: `Generated ${notes.length} bass notes in ${key}`,
+        title: "Bassline Ready",
+        description: `Generated ${notes.length} bass notes in ${key} (${sourceLabel})`,
       });
 
       // Stash in studio context for other tools if needed
@@ -570,8 +574,13 @@ export default function BassStudio() {
 
         {generatedNotes.length > 0 && (
           <div className="mt-2 text-xs text-gray-400">
-            <div>
+            <div className="flex items-center gap-2">
               <span className="font-semibold text-gray-300">Preview:</span> {summary || `${generatedNotes.length} notes generated`}
+              {lastGenMethod && (
+                <Badge variant={lastGenMethod === 'ai' ? 'default' : 'secondary'} className="text-xs">
+                  {lastGenMethod === 'ai' ? 'AI-Generated' : 'Algorithmic'}
+                </Badge>
+              )}
             </div>
             <div className="mt-1">
               This bassline uses low register notes designed to lock in with your kick. Fine-tune it in the Piano Roll after sending to Multi-Track.
