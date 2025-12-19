@@ -1,18 +1,20 @@
 import { useCallback, useMemo } from 'react';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
-import type { TrackClip } from '@/types/studioTracks';
+import type { TrackClip, TrackPayload, TrackType } from '@/types/studioTracks';
+import { DEFAULT_TRACK_PAYLOAD } from '@/types/studioTracks';
 
-export type StudioTrackType = 'audio' | 'midi' | 'beat' | 'aux' | 'lyrics';
+export type StudioTrackType = TrackType;
 
 export interface StudioTrack extends TrackClip {
   type: StudioTrackType;
   instrument?: string;
   notes: any[];
   audioUrl?: string;
-  source?: string;
+  source: string;
   color?: string;
   volume: number;
   pan: number;
+  bpm: number;
   data: any;
 }
 
@@ -28,12 +30,13 @@ export interface StudioTrackInput {
   color?: string;
   volume?: number;
   pan?: number;
+  bpm?: number;
   data?: any;
   lengthBars?: number;
   startBar?: number;
   muted?: boolean;
   solo?: boolean;
-  payload?: Record<string, unknown>;
+  payload?: Partial<TrackPayload>;
 }
 
 const EXTRA_PAYLOAD_KEYS = [
@@ -45,12 +48,14 @@ const EXTRA_PAYLOAD_KEYS = [
   'color',
   'volume',
   'pan',
+  'bpm',
   'data',
   'pattern',
 ] as const;
 
-function buildPayload(existing: TrackClip | undefined, updates: Partial<StudioTrack>) {
-  const payload = { ...(existing?.payload ?? {}) };
+function buildPayload(existing: TrackClip | undefined, updates: Partial<StudioTrack>, isNew: boolean = false): TrackPayload {
+  const base = isNew ? { ...DEFAULT_TRACK_PAYLOAD } : { ...(existing?.payload ?? DEFAULT_TRACK_PAYLOAD) };
+  const payload = { ...base } as TrackPayload;
 
   EXTRA_PAYLOAD_KEYS.forEach((key) => {
     const value = (updates as any)[key];
@@ -70,31 +75,55 @@ export function useTracks() {
   const { tracks, addTrack, updateTrack, removeTrack, clearTracks } = useTrackStore();
 
   const normalized = useMemo<StudioTrack[]>(() => (
-    tracks.map((track) => ({
-      ...track,
-      id: track.id,
-      name: track.name,
-      kind: track.kind,
-      lengthBars: track.lengthBars,
-      startBar: track.startBar,
-      muted: track.muted ?? false,
-      solo: track.solo ?? false,
-      payload: track.payload,
-      type: (track.payload?.type as StudioTrackType) ?? (track.kind === 'audio' ? 'audio' : track.kind === 'beat' ? 'beat' : 'midi'),
-      instrument: track.payload?.instrument as string | undefined,
-      notes: (track.payload?.notes as any[]) ?? [],
-      audioUrl: track.payload?.audioUrl as string | undefined,
-      source: track.payload?.source as string | undefined,
-      color: track.payload?.color as string | undefined,
-      volume: typeof track.payload?.volume === 'number' ? track.payload.volume : 0.8,
-      pan: typeof track.payload?.pan === 'number' ? track.payload.pan : 0,
-      data: track.payload?.data ?? track.payload ?? {},
-    }))
+    tracks.map((track) => {
+      const p = track.payload ?? {};
+      return {
+        ...track,
+        id: track.id,
+        name: track.name,
+        kind: track.kind,
+        lengthBars: track.lengthBars,
+        startBar: track.startBar,
+        muted: track.muted ?? false,
+        solo: track.solo ?? false,
+        payload: track.payload,
+        type: (p.type as StudioTrackType) ?? (track.kind === 'audio' ? 'audio' : track.kind === 'beat' ? 'beat' : 'midi'),
+        instrument: p.instrument as string | undefined,
+        notes: (p.notes as any[]) ?? [],
+        audioUrl: p.audioUrl as string | undefined,
+        source: (p.source as string) ?? 'unknown',
+        color: p.color as string | undefined,
+        volume: typeof p.volume === 'number' ? p.volume : 0.8,
+        pan: typeof p.pan === 'number' ? p.pan : 0,
+        bpm: typeof p.bpm === 'number' ? p.bpm : 120,
+        data: p.data ?? p ?? {},
+      };
+    })
   ), [tracks]);
 
   const addStudioTrack = useCallback((track: StudioTrackInput) => {
     const id = track.id ?? (crypto.randomUUID ? crypto.randomUUID() : `track-${Date.now()}`);
-    const payload = buildPayload(undefined, track);
+    
+    const inferredType: StudioTrackType = track.type ?? (track.kind === 'audio' ? 'audio' : track.kind === 'beat' ? 'beat' : 'midi');
+    
+    const trackWithDefaults: Partial<StudioTrack> = {
+      type: inferredType,
+      instrument: track.instrument,
+      notes: track.notes ?? [],
+      audioUrl: track.audioUrl,
+      source: track.source ?? 'unknown',
+      color: track.color,
+      volume: track.volume ?? 0.8,
+      pan: track.pan ?? 0,
+      bpm: track.bpm ?? 120,
+      data: track.data,
+    };
+    
+    if (track.payload) {
+      Object.assign(trackWithDefaults, track.payload);
+    }
+    
+    const payload = buildPayload(undefined, trackWithDefaults, true);
 
     addTrack({
       id,
@@ -112,7 +141,7 @@ export function useTracks() {
 
   const updateStudioTrack = useCallback((id: string, updates: Partial<StudioTrack>) => {
     const existing = tracks.find((track) => track.id === id);
-    const payload = buildPayload(existing, updates);
+    const payload = buildPayload(existing, updates, false);
 
     updateTrack(id, {
       name: updates.name,

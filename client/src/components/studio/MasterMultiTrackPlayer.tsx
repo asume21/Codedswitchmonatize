@@ -298,9 +298,9 @@ function TrackWaveform({
         onClick={handleClick}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
+        onTouchStart={handleTouch}
+        onTouchMove={handleTouch}
       />
-      onTouchStart={handleTouch}
-      onTouchMove={handleTouch}
       {/* Trim handles overlay */}
       {audioBuffer && (
         <>
@@ -477,9 +477,9 @@ export default function MasterMultiTrackPlayer() {
     const cache = audioBufferCacheRef.current;
 
     const renderPatternToBuffer = async (track: any): Promise<AudioBuffer | null> => {
-      const bpm = track.payload?.bpm || 120;
+      const bpm = track.bpm ?? track.payload?.bpm ?? 120;
       const pattern = track.payload?.pattern || track.pattern;
-      const notes = track.payload?.notes || track.notes;
+      const notes = track.notes ?? track.payload?.notes ?? [];
 
       if (pattern && typeof pattern === 'object') {
         const stepArrays = Object.values(pattern) as any[];
@@ -572,9 +572,9 @@ export default function MasterMultiTrackPlayer() {
       const synced: AudioTrack[] = [];
 
       for (const storeTrack of storeTracks) {
-        const audioUrl = storeTrack.audioUrl || (storeTrack.payload as any)?.audioUrl;
+        const audioUrl = storeTrack.audioUrl;
 
-        let audioBuffer: AudioBuffer | null | undefined = cache.get(storeTrack.id);
+        let audioBuffer: AudioBuffer | null = cache.get(storeTrack.id) ?? null;
         if (!audioBuffer) {
           try {
             if (audioUrl) {
@@ -600,25 +600,33 @@ export default function MasterMultiTrackPlayer() {
           }
         }
 
-        const midiNotes = storeTrack.notes || (storeTrack.payload as any)?.notes || [];
+        const midiNotes = storeTrack.notes ?? [];
         const isMidiTrack = storeTrack.type === 'midi' || storeTrack.kind === 'midi' || storeTrack.kind === 'piano';
-        const instrumentName = storeTrack.instrument || (storeTrack.payload as any)?.instrument;
+        const instrumentName = storeTrack.instrument;
 
         if (!audioBuffer && (!isMidiTrack || midiNotes.length === 0)) {
           continue;
         }
 
+        const trackVolume = typeof storeTrack.volume === 'number' ? storeTrack.volume : 0.8;
+        const volumePercent = trackVolume > 1 ? trackVolume : Math.round(trackVolume * 100);
+
+        const mappedTrackType = isMidiTrack ? 'midi' : 
+          (storeTrack.type === 'beat' || storeTrack.type === 'audio' || storeTrack.type === 'midi') 
+            ? storeTrack.type 
+            : 'audio';
+
         const mapped: AudioTrack = {
           id: storeTrack.id,
           name: storeTrack.name,
           audioBuffer,
-          audioUrl,
-          volume: storeTrack.volume > 1 ? storeTrack.volume : Math.round((storeTrack.volume ?? 0.8) * 100),
+          audioUrl: audioUrl ?? '',
+          volume: volumePercent,
           pan: storeTrack.pan ?? 0,
           muted: storeTrack.muted ?? false,
           solo: storeTrack.solo ?? false,
           color: storeTrack.color || TRACK_COLORS[synced.length % TRACK_COLORS.length],
-          trackType: isMidiTrack ? 'midi' : ((storeTrack as any).type ?? 'audio'),
+          trackType: mappedTrackType,
           origin: 'store',
           height: DEFAULT_TRACK_HEIGHT,
           trimStartSeconds: 0,
