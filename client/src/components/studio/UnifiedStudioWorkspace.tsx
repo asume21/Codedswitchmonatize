@@ -211,6 +211,9 @@ export default function UnifiedStudioWorkspace() {
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGridEnabled, setSnapToGridEnabled] = useState(true);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showAboutDialog, setShowAboutDialog] = useState(false);
   const undoManagerRef = useRef<UndoManager<StudioTrack[]> | null>(null);
   const isRestoringTracksRef = useRef(false);
   const [trackHistory, setTrackHistory] = useState<StudioTrack[][]>([]);
@@ -1363,11 +1366,25 @@ export default function UnifiedStudioWorkspace() {
 
   // Tools menu actions
   const handleTuner = () => {
-    toast({ title: "Tuner", description: "Tuner opened" });
+    setActiveView('audio-tools');
+    toast({ title: "Tuner", description: "Opening Audio Tools with tuner" });
   };
 
   const handleMetronome = () => {
-    toast({ title: "Metronome", description: "Metronome toggled" });
+    const newState = !metronomeEnabled;
+    setMetronomeEnabled(newState);
+    toast({ 
+      title: newState ? "Metronome On" : "Metronome Off", 
+      description: newState ? "Click track will play during playback" : "Click track disabled" 
+    });
+  };
+
+  const handleShowKeyboardShortcuts = () => {
+    setShowKeyboardShortcuts(true);
+  };
+
+  const handleShowAbout = () => {
+    setShowAboutDialog(true);
   };
 
   const handleMusicGenerated = (audioUrl: string, metadata: any) => {
@@ -1752,7 +1769,7 @@ export default function UnifiedStudioWorkspace() {
                       <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
                     </button>
                     <button onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
-                      <span>Metronome</span>
+                      <span>{metronomeEnabled ? '✓' : '  '} Metronome</span>
                       <span className="text-xs text-gray-500">C</span>
                     </button>
                     <button onClick={() => toast({ title: "Click Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
@@ -1799,15 +1816,15 @@ export default function UnifiedStudioWorkspace() {
                     <span>▶</span>
                   </div>
                   <div className="hidden group-hover/help:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
-                    <button onClick={() => toast({ title: "Keyboard Shortcuts" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                    <button onClick={handleShowKeyboardShortcuts} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                       <span>Keyboard Shortcuts</span>
-                      <span className="text-xs text-gray-500">Ctrl+/</span>
+                      <span className="text-xs text-gray-500">?</span>
                     </button>
-                    <button onClick={() => toast({ title: "Documentation" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => window.open('/docs', '_blank')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Documentation
                     </button>
                     <div className="border-t border-gray-700 my-1"></div>
-                    <button onClick={() => toast({ title: "About CodedSwitch", description: "Professional AI Music Production Studio" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={handleShowAbout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       About CodedSwitch
                     </button>
                   </div>
@@ -2943,6 +2960,75 @@ export default function UnifiedStudioWorkspace() {
               onClose={() => setEffectsDialogOpen(false)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Keyboard Shortcuts Dialog */}
+      <Dialog open={showKeyboardShortcuts} onOpenChange={setShowKeyboardShortcuts}>
+        <DialogContent className="max-w-2xl bg-gray-900 border-gray-700" data-testid="dialog-keyboard-shortcuts">
+          <DialogTitle className="text-xl font-bold text-white mb-4" data-testid="title-keyboard-shortcuts">Keyboard Shortcuts</DialogTitle>
+          <div className="grid grid-cols-2 gap-6 text-sm">
+            <div>
+              <h3 className="font-semibold text-white mb-2">Transport</h3>
+              <div className="space-y-1 text-gray-300">
+                <div className="flex justify-between"><span>Play/Pause</span><span className="text-gray-500">Space</span></div>
+                <div className="flex justify-between"><span>Stop</span><span className="text-gray-500">Enter</span></div>
+                <div className="flex justify-between"><span>Record</span><span className="text-gray-500">R</span></div>
+                <div className="flex justify-between"><span>Loop Toggle</span><span className="text-gray-500">L</span></div>
+              </div>
+              <h3 className="font-semibold text-white mb-2 mt-4">Views</h3>
+              <div className="space-y-1 text-gray-300">
+                <div className="flex justify-between"><span>Beat Lab</span><span className="text-gray-500">1</span></div>
+                <div className="flex justify-between"><span>Piano Roll</span><span className="text-gray-500">2</span></div>
+                <div className="flex justify-between"><span>Mixer</span><span className="text-gray-500">3</span></div>
+                <div className="flex justify-between"><span>Arrangement</span><span className="text-gray-500">4</span></div>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold text-white mb-2">Editing</h3>
+              <div className="space-y-1 text-gray-300">
+                <div className="flex justify-between"><span>Undo</span><span className="text-gray-500">Ctrl+Z</span></div>
+                <div className="flex justify-between"><span>Redo</span><span className="text-gray-500">Ctrl+Y</span></div>
+                <div className="flex justify-between"><span>Cut</span><span className="text-gray-500">Ctrl+X</span></div>
+                <div className="flex justify-between"><span>Copy</span><span className="text-gray-500">Ctrl+C</span></div>
+                <div className="flex justify-between"><span>Paste</span><span className="text-gray-500">Ctrl+V</span></div>
+                <div className="flex justify-between"><span>Delete</span><span className="text-gray-500">Del</span></div>
+                <div className="flex justify-between"><span>Select All</span><span className="text-gray-500">Ctrl+A</span></div>
+              </div>
+              <h3 className="font-semibold text-white mb-2 mt-4">Tools</h3>
+              <div className="space-y-1 text-gray-300">
+                <div className="flex justify-between"><span>Metronome</span><span className="text-gray-500">C</span></div>
+                <div className="flex justify-between"><span>Snap to Grid</span><span className="text-gray-500">Ctrl+G</span></div>
+                <div className="flex justify-between"><span>Show Grid</span><span className="text-gray-500">G</span></div>
+                <div className="flex justify-between"><span>Zoom In</span><span className="text-gray-500">Ctrl++</span></div>
+                <div className="flex justify-between"><span>Zoom Out</span><span className="text-gray-500">Ctrl+-</span></div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* About Dialog */}
+      <Dialog open={showAboutDialog} onOpenChange={setShowAboutDialog}>
+        <DialogContent className="max-w-md bg-gray-900 border-gray-700 text-center" data-testid="dialog-about">
+          <DialogTitle className="text-2xl font-bold text-white mb-2" data-testid="title-about">CodedSwitch Studio</DialogTitle>
+          <div className="space-y-4">
+            <p className="text-gray-400">Professional AI-Powered Music Production</p>
+            <div className="py-4 border-y border-gray-700">
+              <div className="text-4xl mb-2">🎵</div>
+              <p className="text-lg font-semibold text-white">Version 1.0</p>
+              <p className="text-sm text-gray-500">Build 2024.12.19</p>
+            </div>
+            <div className="text-sm text-gray-400 space-y-1">
+              <p>AI-powered beat creation, melody composition, and mixing</p>
+              <p>MIDI controller support for hands-on production</p>
+              <p>Code-to-music transformation technology</p>
+            </div>
+            <div className="pt-4 text-xs text-gray-500">
+              <p>Made with passion for music creators</p>
+              <p>codedswitch.com</p>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
