@@ -303,6 +303,7 @@ export default function BassStudio() {
     });
 
     const trackId = `bass-${Date.now()}`;
+    
     addTrack({
       id: trackId,
       name: `Bass - ${key}`,
@@ -322,6 +323,9 @@ export default function BassStudio() {
         bpm,
         style,
         complexity: complexity[0],
+        notes: notesForTrack,
+        type: "midi",
+        instrument: "Bass Synth",
       },
     } as any);
 

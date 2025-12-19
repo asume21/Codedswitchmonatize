@@ -48,6 +48,15 @@ import { Resizable } from 'react-resizable';
 import { RepeatIcon } from 'lucide-react';
 import WaveformVisualizer from './WaveformVisualizer';
 
+interface MidiNote {
+  id: string;
+  note: string;
+  octave: number;
+  step: number;
+  length: number;
+  velocity: number;
+}
+
 interface AudioTrack {
   id: string;
   name: string;
@@ -61,7 +70,7 @@ interface AudioTrack {
   muted: boolean;
   solo: boolean;
   color: string;
-  trackType?: 'beat' | 'melody' | 'vocal' | 'audio'; // Track type for tool integration
+  trackType?: 'beat' | 'melody' | 'vocal' | 'audio' | 'midi'; // Track type for tool integration
   gainNode?: GainNode;
   panNode?: StereoPannerNode;
   sourceNode?: AudioBufferSourceNode;
@@ -69,6 +78,8 @@ interface AudioTrack {
   height?: number; // per-track visual height for arranger-style view
   trimStartSeconds?: number; // per-track trim start (seconds, within audioBuffer)
   trimEndSeconds?: number; // per-track trim end (seconds, within audioBuffer)
+  midiNotes?: MidiNote[]; // MIDI note data for MIDI tracks
+  instrument?: string; // Instrument name for MIDI tracks
 }
 
 const TRACK_COLORS = [
@@ -500,27 +511,57 @@ export default function MasterMultiTrackPlayer() {
 
       if (Array.isArray(notes) && notes.length > 0) {
         const secondsPerBeat = 60 / bpm;
-        const duration = Math.max(notes.reduce((m, n) => Math.max(m, (n.time || 0) + (n.duration || 0.5)), 1) * secondsPerBeat, 1);
+        
+        // Normalize notes to handle both formats: {time, duration} or {step, length, note, octave}
+        const noteMap: Record<string, number> = { 'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11 };
+        
+        const normalizedNotes = notes.map((n: any) => {
+          // Handle time: use 'time' field, or convert 'step' (4 steps per beat)
+          const time = n.time ?? (n.step !== undefined ? n.step / 4 : 0);
+          // Handle duration: use 'duration' field, or convert 'length' (4 steps per beat)
+          const dur = n.duration ?? (n.length !== undefined ? n.length / 4 : 0.5);
+          
+          // Calculate frequency from note+octave or midi number
+          let freq: number;
+          if (n.note && typeof n.note === 'string' && n.octave !== undefined) {
+            const semitone = noteMap[n.note] ?? 0;
+            const midi = (n.octave + 1) * 12 + semitone;
+            freq = 440 * Math.pow(2, (midi - 69) / 12);
+          } else if (typeof n.midi === 'number') {
+            freq = 440 * Math.pow(2, (n.midi - 69) / 12);
+          } else if (typeof n.note === 'number') {
+            freq = 440 * Math.pow(2, (n.note - 69) / 12);
+          } else {
+            freq = 220; // Default to A3
+          }
+          
+          const velocity = (n.velocity ?? 100) / 127;
+          return { time, dur, freq, velocity };
+        });
+        
+        const duration = Math.max(normalizedNotes.reduce((m, n) => Math.max(m, n.time + n.dur), 1) * secondsPerBeat, 1);
         const sampleRate = 44100;
         const offline = new OfflineAudioContext(1, Math.ceil(duration * sampleRate), sampleRate);
 
-        notes.forEach((n: any) => {
-          const start = (n.time || 0) * secondsPerBeat;
-          const len = (n.duration || 0.5) * secondsPerBeat;
-          const freq = 220 * Math.pow(2, ((n.midi || n.note || 60) - 60) / 12);
+        normalizedNotes.forEach((n) => {
+          const start = n.time * secondsPerBeat;
+          const len = n.dur * secondsPerBeat;
           const osc = offline.createOscillator();
           const gain = offline.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = freq;
+          // Use sawtooth for bass-like sound, or triangle for softer tones
+          osc.type = n.freq < 200 ? 'sawtooth' : 'triangle';
+          osc.frequency.value = n.freq;
           gain.gain.setValueAtTime(0, start);
-          gain.gain.linearRampToValueAtTime(0.3, start + 0.01);
+          gain.gain.linearRampToValueAtTime(0.4 * n.velocity, start + 0.02);
+          gain.gain.setValueAtTime(0.3 * n.velocity, start + len * 0.7);
           gain.gain.exponentialRampToValueAtTime(0.0001, start + len);
           osc.connect(gain).connect(offline.destination);
           osc.start(start);
           osc.stop(start + len + 0.05);
         });
 
-        return offline.startRendering();
+        const buffer = await offline.startRendering();
+        return buffer;
       }
 
       return null;
@@ -559,7 +600,13 @@ export default function MasterMultiTrackPlayer() {
           }
         }
 
-        if (!audioBuffer) continue;
+        const midiNotes = storeTrack.notes || (storeTrack.payload as any)?.notes || [];
+        const isMidiTrack = storeTrack.type === 'midi' || storeTrack.kind === 'midi' || storeTrack.kind === 'piano';
+        const instrumentName = storeTrack.instrument || (storeTrack.payload as any)?.instrument;
+
+        if (!audioBuffer && (!isMidiTrack || midiNotes.length === 0)) {
+          continue;
+        }
 
         const mapped: AudioTrack = {
           id: storeTrack.id,
@@ -571,11 +618,13 @@ export default function MasterMultiTrackPlayer() {
           muted: storeTrack.muted ?? false,
           solo: storeTrack.solo ?? false,
           color: storeTrack.color || TRACK_COLORS[synced.length % TRACK_COLORS.length],
-          trackType: (storeTrack as any).type ?? 'audio',
+          trackType: isMidiTrack ? 'midi' : ((storeTrack as any).type ?? 'audio'),
           origin: 'store',
           height: DEFAULT_TRACK_HEIGHT,
           trimStartSeconds: 0,
-          trimEndSeconds: audioBuffer.duration,
+          trimEndSeconds: audioBuffer ? audioBuffer.duration : 16,
+          midiNotes: isMidiTrack ? midiNotes : undefined,
+          instrument: instrumentName,
         };
 
         synced.push(mapped);
@@ -1738,7 +1787,7 @@ export default function MasterMultiTrackPlayer() {
                             </Button>
                           </div>
 
-                          {/* Waveform or empty state */}
+                          {/* Waveform, MIDI notes, or empty state */}
                           {track.audioBuffer ? (
                             <TrackWaveform
                               audioBuffer={track.audioBuffer}
@@ -1756,6 +1805,31 @@ export default function MasterMultiTrackPlayer() {
                                 }
                               }}
                             />
+                          ) : track.midiNotes && track.midiNotes.length > 0 ? (
+                            <div
+                              className="relative bg-gray-900 rounded overflow-x-auto"
+                              style={{ height: track.height ?? DEFAULT_TRACK_HEIGHT }}
+                            >
+                              <div className="relative h-full min-w-[600px]">
+                                {track.midiNotes.map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className="absolute bg-green-600/80 border border-green-400 rounded text-xs flex items-center justify-center text-white font-medium"
+                                    style={{
+                                      left: `${note.step * 12}px`,
+                                      width: `${Math.max((note.length || 4) * 12 - 2, 20)}px`,
+                                      height: '24px',
+                                      top: '8px',
+                                    }}
+                                  >
+                                    {note.note}{note.octave}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="absolute bottom-1 left-2 text-xs text-green-400 bg-gray-900/80 px-1 rounded">
+                                MIDI: {track.instrument || 'Synth'} ({track.midiNotes.length} notes)
+                              </div>
+                            </div>
                           ) : (
                             <div
                               className="bg-gray-900 rounded flex items-center justify-center gap-3 border-2 border-dashed border-gray-600"

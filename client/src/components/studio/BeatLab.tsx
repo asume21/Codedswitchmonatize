@@ -82,9 +82,12 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
     addTrack({
       name: "Beat Lab Melody",
       type: "midi",
+      kind: "midi",
       notes: payloadMelody,
       payload: {
         source: "beat-lab",
+        type: "midi",
+        notes: payloadMelody,
       },
       lengthBars: 4,
       startBar: 0,
