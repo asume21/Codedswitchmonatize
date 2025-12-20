@@ -19,6 +19,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,8 @@ import { useSessionDestination } from '@/contexts/SessionDestinationContext';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { useMIDI } from '@/hooks/use-midi';
+
+const BEAT_STORAGE_KEY = 'probeat-pattern-state';
 
 // Default MIDI note number to drum type mapping (General MIDI standard + extended)
 const DEFAULT_MIDI_NOTE_TO_DRUM: Record<number, DrumEngineType> = {
@@ -340,6 +343,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const { tempo } = useTransport();
   const { addTrack } = useTrackStore();
   const { requestDestination } = useSessionDestination();
+  const [, setLocation] = useLocation();
   
   // MIDI keyboard support for drum triggering
   const { lastNote, activeNotes, isConnected: midiConnected, setDrumMode } = useMIDI();
@@ -350,9 +354,21 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     return () => setDrumMode(false);
   }, [setDrumMode]);
   
-  // Core state
+  // Restore saved state from localStorage
+  const savedState = typeof window !== 'undefined' ? (() => {
+    try {
+      const saved = localStorage.getItem(BEAT_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return null;
+  })() : null;
+
+  // Core state - restore from localStorage if available
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
-    // Initialize with Hip-Hop preset so it sounds good on first load
+    if (savedState?.tracks && Array.isArray(savedState.tracks)) {
+      return savedState.tracks;
+    }
+    // Default: Initialize with Hip-Hop preset so it sounds good on first load
     const initial = initTracks(16);
     const preset = PRESETS['Hip-Hop'];
     return initial.map(t => ({
@@ -363,8 +379,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       })),
     }));
   });
-  const [bpm, setBpm] = useState(90);
-  const [patternLength, setPatternLength] = useState(16);
+  const [bpm, setBpm] = useState(savedState?.bpm ?? 90);
+  const [patternLength, setPatternLength] = useState(savedState?.patternLength ?? 16);
   const [swing, setSwing] = useState(0);
   const [groove, setGroove] = useState(0);
   const [humanize, setHumanize] = useState(0); // Timing/velocity variation
@@ -746,6 +762,15 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   }, []);
 
   useEffect(() => { if (tempo) setBpm(Math.round(tempo)); }, [tempo]);
+
+  // Persist beat pattern to localStorage so it survives navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(BEAT_STORAGE_KEY, JSON.stringify({ tracks, bpm, patternLength }));
+      } catch { /* ignore storage errors */ }
+    }
+  }, [tracks, bpm, patternLength]);
 
   const saveHistory = useCallback(() => {
     const copy = JSON.parse(JSON.stringify(tracks));
@@ -1577,40 +1602,66 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
 
       {/* Export */}
       <div className="mt-4 flex gap-2">
-        <Button className="bg-green-600 hover:bg-green-500" onClick={() => {
-          // Convert tracks to pattern format
-          const pattern: Record<string, boolean[]> = {};
-          tracks.forEach(t => {
-            pattern[t.id] = t.pattern.map(s => s.active);
+        <Button className="bg-green-600 hover:bg-green-500" onClick={async () => {
+          // Request a session destination first
+          const destination = await requestDestination({ suggestedName: 'ProBeat Session' });
+          if (!destination) return;
+
+          // Convert drum pattern to notes format for the track store
+          // Calculate time in beats: each step is a 16th note = 0.25 beats
+          const stepDuration = 0.25; // 16th note in beats
+          const drumNotes: Array<{ id: string; note: string; octave: number; time: number; duration: number; velocity: number; drumType: string }> = [];
+          tracks.forEach(track => {
+            track.pattern.forEach((step, stepIndex) => {
+              if (step.active) {
+                drumNotes.push({
+                  id: `drum-${track.id}-${stepIndex}-${Date.now()}`,
+                  note: 'C',
+                  octave: 2,
+                  time: stepIndex * stepDuration,
+                  duration: stepDuration,
+                  velocity: step.velocity,
+                  drumType: track.id,
+                });
+              }
+            });
           });
+
+          const drumTrackId = `beat-${Date.now()}`;
+          const bars = Math.max(1, Math.ceil(patternLength / 16));
           
+          // Add track to global store with proper format
+          addTrack({
+            id: drumTrackId,
+            kind: 'beat',
+            name: 'ProBeat Drums',
+            lengthBars: bars,
+            startBar: 0,
+            payload: {
+              type: 'beat',
+              instrument: 'drums',
+              notes: drumNotes,
+              source: 'probeat-drums',
+              bpm,
+              volume: masterVol,
+              pan: 0,
+            },
+          });
+
           // Send to parent component
           onPatternChange?.(tracks, bpm);
           
-          // Central communication - dispatch event for Multi-Track Player
-          const event = new CustomEvent('openStudioTool', {
-            detail: { tool: 'multitrack', data: { pattern, bpm, type: 'beat' } }
-          });
-          window.dispatchEvent(event);
+          toast({ title: 'Pattern Sent', description: 'Beat added to timeline' });
           
-          // Also send to timeline directly
-          const timelineEvent = new CustomEvent('addBeatToTimeline', {
-            detail: { pattern, bpm, tracks }
-          });
-          window.dispatchEvent(timelineEvent);
-          
-          toast({ title: '✅ Pattern Sent', description: 'Beat sent to timeline & Multi-Track' });
+          // Navigate to the multi-track view
+          setLocation('/studio');
         }}>
           <Send className="w-4 h-4 mr-1" />Send to Timeline
         </Button>
         
         <Button className="bg-blue-600 hover:bg-blue-500" onClick={() => {
-          // Route to Mixer
-          const event = new CustomEvent('openStudioTool', {
-            detail: { tool: 'mixer', data: { tracks, bpm, type: 'beat' } }
-          });
-          window.dispatchEvent(event);
-          toast({ title: '🎛️ Routed to Mixer', description: 'Beat sent to Mix Studio' });
+          toast({ title: 'Routed to Mixer', description: 'Beat sent to Mix Studio' });
+          setLocation('/mixer');
         }}>
           <RotateCcw className="w-4 h-4 mr-1" />Route to Mixer
         </Button>
