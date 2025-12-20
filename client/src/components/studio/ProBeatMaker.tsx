@@ -33,8 +33,8 @@ import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { useMIDI } from '@/hooks/use-midi';
 
-// MIDI note number to drum type mapping (General MIDI standard + extended)
-const MIDI_NOTE_TO_DRUM: Record<number, DrumEngineType> = {
+// Default MIDI note number to drum type mapping (General MIDI standard + extended)
+const DEFAULT_MIDI_NOTE_TO_DRUM: Record<number, DrumEngineType> = {
   36: 'kick',      // C1 - Bass Drum 1
   35: 'kick',      // B0 - Acoustic Bass Drum
   38: 'snare',     // D1 - Acoustic Snare
@@ -60,9 +60,18 @@ const MIDI_NOTE_TO_DRUM: Record<number, DrumEngineType> = {
   63: 'conga',     // D#3 - Open Hi Conga
   64: 'conga',     // E3 - Low Conga
 };
+
+// MIDI note names for display
+const MIDI_NOTE_NAMES: Record<number, string> = {};
+const NOTE_LETTERS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+for (let i = 0; i <= 127; i++) {
+  const octave = Math.floor(i / 12) - 1;
+  const note = NOTE_LETTERS[i % 12];
+  MIDI_NOTE_NAMES[i] = `${note}${octave}`;
+}
 import {
   Play, Square, RotateCcw, Undo2, Redo2, Shuffle, Send, ChevronDown, Wand2,
-  Copy, Clipboard, Volume2, Disc, Zap, Timer,
+  Copy, Clipboard, Volume2, Disc, Zap, Timer, Settings, X, Music,
 } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -377,6 +386,27 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [tapCount, setTapCount] = useState(0); // For UI feedback
   const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // MIDI Learn state - customizable drum pad mapping
+  const [midiDrumMapping, setMidiDrumMapping] = useState<Record<number, string>>(() => {
+    // Convert default mapping to track IDs as fallback
+    const defaultMapping: Record<number, string> = {};
+    Object.entries(DEFAULT_MIDI_NOTE_TO_DRUM).forEach(([noteStr, drumType]) => {
+      defaultMapping[Number(noteStr)] = drumType;
+    });
+    
+    // Load from localStorage (guarded for SSR/test environments)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('midiDrumMapping');
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return defaultMapping; }
+      }
+    }
+    return defaultMapping;
+  });
+  const [midiLearnMode, setMidiLearnMode] = useState(false);
+  const [midiLearnTarget, setMidiLearnTarget] = useState<string | null>(null); // track id to learn
+  const [showMidiMappingPanel, setShowMidiMappingPanel] = useState(false);
   
   // AI Generation state
   const [aiProvider, setAiProvider] = useState('grok');
@@ -838,17 +868,44 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     }
   }, [masterVol, useRealisticDrums]);
 
-  // MIDI keyboard drum triggering - play drums from MIDI controller
+  // MIDI Learn - capture incoming MIDI note when in learn mode
+  useEffect(() => {
+    if (!lastNote || !midiLearnMode || !midiLearnTarget) return;
+    
+    // Map the incoming MIDI note to the target drum
+    setMidiDrumMapping(prev => {
+      const updated = { ...prev, [lastNote.note]: midiLearnTarget };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('midiDrumMapping', JSON.stringify(updated));
+      }
+      return updated;
+    });
+    
+    toast({
+      title: 'MIDI Mapped!',
+      description: `${MIDI_NOTE_NAMES[lastNote.note]} (note ${lastNote.note}) → ${midiLearnTarget}`,
+    });
+    
+    // Exit learn mode after mapping
+    setMidiLearnTarget(null);
+    setMidiLearnMode(false);
+  }, [lastNote, midiLearnMode, midiLearnTarget, toast]);
+
+  // MIDI keyboard drum triggering - play drums from MIDI controller using custom mapping
   useEffect(() => {
     if (!lastNote) return;
-    const drumType = MIDI_NOTE_TO_DRUM[lastNote.note];
-    if (drumType) {
+    if (midiLearnMode) return; // Don't play sounds when learning
+    
+    const drumId = midiDrumMapping[lastNote.note];
+    if (drumId) {
+      // Get drum type from mapping (drumId could be track id or drum type)
+      const drumType = DRUM_ID_TO_TYPE[drumId.toLowerCase()] || drumId as DrumEngineType;
       // Find the track with this drum type and use its volume
-      const matchingTrack = tracks.find(t => DRUM_ID_TO_TYPE[t.id.toLowerCase()] === drumType);
+      const matchingTrack = tracks.find(t => DRUM_ID_TO_TYPE[t.id.toLowerCase()] === drumType || t.id.toLowerCase() === drumId.toLowerCase());
       const trackVolume = matchingTrack?.volume ?? 80;
       playSound(drumType, lastNote.velocity, trackVolume);
     }
-  }, [lastNote, playSound, tracks]);
+  }, [lastNote, playSound, tracks, midiDrumMapping, midiLearnMode]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -1258,7 +1315,126 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
           <input type="number" value={bpm} onChange={e => setBpm(Number(e.target.value))}
             className="w-16 bg-gray-700 rounded px-2 py-1 text-sm" min={40} max={240} />
         </div>
+        {/* MIDI Mapping Button */}
+        <div className="flex items-center gap-2 border-l border-gray-600 pl-2">
+          <Button
+            variant={showMidiMappingPanel ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowMidiMappingPanel(prev => !prev)}
+            data-testid="button-midi-mapping"
+          >
+            <Music className="w-4 h-4 mr-1" />
+            MIDI Map
+            {midiConnected && <Badge variant="secondary" className="ml-1 text-xs">Connected</Badge>}
+          </Button>
+        </div>
       </div>
+
+      {/* MIDI Mapping Panel */}
+      {showMidiMappingPanel && (
+        <div className="mb-4 p-4 bg-gray-800 rounded border border-gray-600">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-white flex items-center gap-2">
+              <Music className="w-4 h-4" />
+              MIDI Pad Mapping
+              {midiLearnMode && (
+                <Badge variant="destructive" className="animate-pulse">
+                  Learning: {midiLearnTarget} - Press a pad!
+                </Badge>
+              )}
+            </h3>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Reset to defaults instead of empty
+                  const defaultMapping: Record<number, string> = {};
+                  Object.entries(DEFAULT_MIDI_NOTE_TO_DRUM).forEach(([noteStr, drumType]) => {
+                    defaultMapping[Number(noteStr)] = drumType;
+                  });
+                  setMidiDrumMapping(defaultMapping);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('midiDrumMapping', JSON.stringify(defaultMapping));
+                  }
+                  toast({ title: 'MIDI mappings reset to defaults' });
+                }}
+                data-testid="button-clear-midi-mappings"
+              >
+                Reset to Defaults
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  setShowMidiMappingPanel(false);
+                  setMidiLearnMode(false);
+                  setMidiLearnTarget(null);
+                }}
+                data-testid="button-close-midi-panel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          
+          <p className="text-xs text-gray-400 mb-3">
+            Click "Learn" next to a drum, then press a pad on your MIDI controller to map it.
+          </p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {tracks.map(track => {
+              const trackType = DRUM_ID_TO_TYPE[track.id.toLowerCase()];
+              const mappedNotes = Object.entries(midiDrumMapping)
+                .filter(([_, drumId]) => 
+                  drumId === track.id || 
+                  drumId === trackType ||
+                  DRUM_ID_TO_TYPE[drumId.toLowerCase()] === trackType
+                )
+                .map(([noteStr]) => Number(noteStr));
+              
+              return (
+                <div 
+                  key={track.id}
+                  className={`p-2 rounded border ${
+                    midiLearnTarget === track.id 
+                      ? 'border-yellow-500 bg-yellow-500/10' 
+                      : 'border-gray-600 bg-gray-700/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-white">{track.name}</span>
+                    <Button
+                      size="sm"
+                      variant={midiLearnTarget === track.id ? 'default' : 'outline'}
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        if (midiLearnTarget === track.id) {
+                          setMidiLearnMode(false);
+                          setMidiLearnTarget(null);
+                        } else {
+                          setMidiLearnMode(true);
+                          setMidiLearnTarget(track.id);
+                        }
+                      }}
+                      data-testid={`button-learn-${track.id}`}
+                    >
+                      {midiLearnTarget === track.id ? 'Cancel' : 'Learn'}
+                    </Button>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {mappedNotes.length > 0 ? (
+                      mappedNotes.map(n => MIDI_NOTE_NAMES[n]).join(', ')
+                    ) : (
+                      <span className="italic">No mapping</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Selected Step Editor */}
       {selectedStep && (
