@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap } from "lucide-react";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser } from "lucide-react";
 import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
@@ -1843,6 +1843,210 @@ export const VerticalPianoRoll: React.FC = () => {
                 <Send className="w-4 h-4" />
                 Send to Master
               </Button>
+            </div>
+            
+            {/* Professional Editing Toolbar */}
+            <div className="flex items-center gap-1 flex-wrap p-2 bg-gray-800/50 rounded-lg border border-gray-700">
+              {/* Tool Selection */}
+              <div className="flex items-center gap-1 pr-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant={pianoRollTool === 'draw' ? 'default' : 'ghost'}
+                  onClick={() => setPianoRollTool('draw')}
+                  title="Draw notes"
+                  data-testid="button-tool-draw"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={pianoRollTool === 'select' ? 'default' : 'ghost'}
+                  onClick={() => setPianoRollTool('select')}
+                  title="Select notes (drag to box select)"
+                  data-testid="button-tool-select"
+                >
+                  <MousePointer2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={pianoRollTool === 'erase' ? 'default' : 'ghost'}
+                  onClick={() => setPianoRollTool('erase')}
+                  title="Erase notes"
+                  data-testid="button-tool-erase"
+                >
+                  <Eraser className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Undo/Redo */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button size="sm" variant="ghost" onClick={undo} disabled={historyIndex <= 0} title="Undo (Ctrl+Z)" data-testid="button-undo">
+                  <Undo2 className="w-4 h-4" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Y)" data-testid="button-redo">
+                  <Redo2 className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Copy/Paste */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    const selected = selectedTrack.notes.filter(n => selectedNoteIds.has(n.id));
+                    if (selected.length > 0) {
+                      setClipboard(selected);
+                      toast({ title: 'Copied', description: `${selected.length} note(s)` });
+                    }
+                  }}
+                  disabled={selectedNoteIds.size === 0}
+                  title="Copy (Ctrl+C)"
+                  data-testid="button-copy"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    if (clipboard.length > 0) {
+                      const minStep = Math.min(...clipboard.map(n => n.step));
+                      const pastedNotes = clipboard.map(n => ({
+                        ...n,
+                        id: `pasted-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        step: n.step - minStep + currentStep
+                      }));
+                      addToHistory(selectedTrack.notes);
+                      setTracks(prev => prev.map((t, i) => 
+                        i === selectedTrackIndex ? { ...t, notes: [...t.notes, ...pastedNotes] } : t
+                      ));
+                      toast({ title: 'Pasted', description: `${pastedNotes.length} note(s)` });
+                    }
+                  }}
+                  disabled={clipboard.length === 0}
+                  title="Paste (Ctrl+V)"
+                  data-testid="button-paste"
+                >
+                  <Clipboard className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    if (selectedNoteIds.size > 0) {
+                      addToHistory(selectedTrack.notes);
+                      setTracks(prev => prev.map((t, i) => 
+                        i === selectedTrackIndex ? { ...t, notes: t.notes.filter(n => !selectedNoteIds.has(n.id)) } : t
+                      ));
+                      setSelectedNoteIds(new Set());
+                      toast({ title: 'Deleted', description: 'Selected notes removed' });
+                    }
+                  }}
+                  disabled={selectedNoteIds.size === 0}
+                  title="Delete selected"
+                  data-testid="button-delete-selected"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Transpose */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setTransposeAmount(12); applyTranspose(); }}
+                  disabled={selectedNoteIds.size === 0}
+                  title="Transpose up octave"
+                  data-testid="button-transpose-up-octave"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                  <span className="text-xs ml-1">Oct</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setTransposeAmount(-12); applyTranspose(); }}
+                  disabled={selectedNoteIds.size === 0}
+                  title="Transpose down octave"
+                  data-testid="button-transpose-down-octave"
+                >
+                  <ArrowDown className="w-4 h-4" />
+                  <span className="text-xs ml-1">Oct</span>
+                </Button>
+              </div>
+              
+              {/* Scale Lock & Quantize */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant={scaleSnapEnabled ? 'default' : 'ghost'}
+                  onClick={() => setScaleSnapEnabled(!scaleSnapEnabled)}
+                  title="Scale Lock - snap to scale notes only"
+                  data-testid="button-scale-lock"
+                >
+                  <Magnet className="w-4 h-4" />
+                  <span className="text-xs ml-1">Scale</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={snapEnabled ? 'default' : 'ghost'}
+                  onClick={() => setSnapEnabled(!snapEnabled)}
+                  title="Grid Snap"
+                  data-testid="button-grid-snap"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* View Options */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant={showGhostNotes ? 'default' : 'ghost'}
+                  onClick={() => setShowGhostNotes(!showGhostNotes)}
+                  title="Ghost Notes - show other tracks"
+                  data-testid="button-ghost-notes"
+                >
+                  {showGhostNotes ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  <span className="text-xs ml-1">Ghost</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={showVelocityEditor ? 'default' : 'ghost'}
+                  onClick={() => setShowVelocityEditor(!showVelocityEditor)}
+                  title="Velocity Editor"
+                  data-testid="button-velocity-editor"
+                >
+                  <span className="text-xs font-bold">V</span>
+                </Button>
+              </div>
+              
+              {/* Humanize */}
+              <div className="flex items-center gap-1 px-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={applyHumanize}
+                  disabled={selectedNoteIds.size === 0}
+                  title="Humanize - add natural variation"
+                  data-testid="button-humanize"
+                >
+                  <Shuffle className="w-4 h-4" />
+                  <span className="text-xs ml-1">Humanize</span>
+                </Button>
+                <Slider
+                  value={[humanizeAmount]}
+                  onValueChange={(v) => setHumanizeAmount(v[0])}
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="w-16"
+                  data-testid="slider-humanize"
+                />
+                <span className="text-xs text-gray-400">{humanizeAmount}%</span>
+              </div>
             </div>
             
             {/* New Features: Recording, Loop, AI Suggest */}
