@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useTransport } from "@/contexts/TransportContext";
 import { useTrackStore } from "@/contexts/TrackStoreContext";
+import { useInstrumentOptional } from "@/contexts/InstrumentContext";
 import { PianoKeys } from "./PianoKeys";
 import { StepGrid } from "./StepGrid";
 import { TrackControls } from "./TrackControls";
@@ -122,6 +123,9 @@ const DEFAULT_TRACKS: Track[] = [
 export const VerticalPianoRoll: React.FC = () => {
   // Get transport state from context for sync with floating transport
   const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx } = useTransport();
+  
+  // Get global instrument context for unified MIDI/piano roll sync
+  const globalInstrument = useInstrumentOptional();
   
   // State - sync with transport context
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1074,6 +1078,11 @@ export const VerticalPianoRoll: React.FC = () => {
       track.id === trackId ? { ...track, instrument } : track
     ));
     
+    // Update global instrument context for MIDI sync
+    if (globalInstrument?.setCurrentInstrument) {
+      globalInstrument.setCurrentInstrument(instrument);
+    }
+    
     // Pre-load the instrument
     realisticAudio.loadAdditionalInstrument(instrument).then(() => {
       toast({
@@ -1081,7 +1090,7 @@ export const VerticalPianoRoll: React.FC = () => {
         description: `Changed track instrument to ${AVAILABLE_INSTRUMENTS.find(i => i.value === instrument)?.label}`,
       });
     });
-  }, [toast]);
+  }, [toast, globalInstrument]);
 
   const handleKeyChange = useCallback((key: string) => {
     // Save current scale state before switching
@@ -1797,6 +1806,7 @@ export const VerticalPianoRoll: React.FC = () => {
       onToggleMetronome={setMetronomeEnabled}
       onToggleCountIn={setCountInEnabled}
       chordMode={chordMode}
+      draggable={true}
     />
   ), [isPlaying, bpm, metronomeEnabled, countInEnabled, handlePlay, handleStop, clearAll, goToBeginning, chordMode]);
 

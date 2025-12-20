@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAudio } from "./use-audio";
 import { AudioEngine } from "@/lib/audio";
+import { useInstrumentOptional } from "@/contexts/InstrumentContext";
 
 interface MIDIDevice {
   id: string;
@@ -37,12 +38,12 @@ export function useMIDI() {
   const [isConnected, setIsConnected] = useState(false);
   const [lastNote, setLastNote] = useState<MIDINote | null>(null);
   const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
-  const [currentPitchBend, setCurrentPitchBend] = useState<number>(0); // -2 to +2 semitones
-  const [currentModulation, setCurrentModulation] = useState<number>(0); // 0 to 1
+  const [currentPitchBend, setCurrentPitchBend] = useState<number>(0);
+  const [currentModulation, setCurrentModulation] = useState<number>(0);
   const [activeOscillators, setActiveOscillators] = useState<Map<number, any>>(
     new Map(),
-  ); // Track active oscillators for pitch bend
-  const [sliderDuration, setSliderDuration] = useState<number>(2.0); // Note duration from sliders
+  );
+  const [sliderDuration, setSliderDuration] = useState<number>(2.0);
   const [knobSettings, setKnobSettings] = useState({
     reverb: 0,
     filter: 0.5,
@@ -50,10 +51,10 @@ export function useMIDI() {
     release: 0.5,
   });
   
-  // Use the REAL AudioEngine (the one that already works!)
   const audioEngineRef = useRef<AudioEngine | null>(null);
   
-  // Settings ref to always have current value (prevents stale closure in MIDI listeners)
+  const globalInstrument = useInstrumentOptional();
+  
   const settingsRef = useRef<MIDISettings>({
     inputDevice: "all",
     velocitySensitivity: [100],
@@ -79,13 +80,18 @@ export function useMIDI() {
     modulation: true,
     autoConnect: true,
     currentInstrument: "piano",
-    midiVolume: 0.3, // Default to 30% volume
+    midiVolume: 0.3,
   });
   const [autoConnectionEnabled, setAutoConnectionEnabled] = useState(true);
 
   const { playNote, playDrum } = useAudio();
 
-  // Keep settingsRef in sync with settings state (prevents stale closures)
+  useEffect(() => {
+    if (globalInstrument?.currentInstrument) {
+      setSettings(prev => ({ ...prev, currentInstrument: globalInstrument.currentInstrument }));
+    }
+  }, [globalInstrument?.currentInstrument]);
+
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);

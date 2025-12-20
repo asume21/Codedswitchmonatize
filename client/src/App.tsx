@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/layout/navigation";
 import { TransportProvider } from "@/contexts/TransportContext";
 import { TrackStoreProvider } from "@/contexts/TrackStoreContext";
+import { InstrumentProvider } from "@/contexts/InstrumentContext";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -108,11 +109,12 @@ function App() {
       <AuthProvider>
         <TransportProvider>
           <GlobalAudioProvider>
-            <TrackStoreProvider>
-              <StudioSessionProvider>
-                <SongWorkSessionProvider>
-                  <SessionDestinationProvider>
-                    <TooltipProvider>
+            <InstrumentProvider>
+              <TrackStoreProvider>
+                <StudioSessionProvider>
+                  <SongWorkSessionProvider>
+                    <SessionDestinationProvider>
+                      <TooltipProvider>
                     <Toaster />
                     {/* GLOBAL NAVIGATION - Available on ALL pages */}
                     <GlobalNav className="fixed top-4 left-4 z-[9999]" />
@@ -321,11 +323,12 @@ function App() {
                   <Route component={NotFound} />
                     </Switch>
                     </Suspense>
-                    </TooltipProvider>
-                  </SessionDestinationProvider>
-                </SongWorkSessionProvider>
-              </StudioSessionProvider>
-            </TrackStoreProvider>
+                      </TooltipProvider>
+                    </SessionDestinationProvider>
+                  </SongWorkSessionProvider>
+                </StudioSessionProvider>
+              </TrackStoreProvider>
+            </InstrumentProvider>
           </GlobalAudioProvider>
         </TransportProvider>
       </AuthProvider>
