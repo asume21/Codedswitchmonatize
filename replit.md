@@ -72,6 +72,12 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Dec 20, 2025)
+- **ProBeatMaker Persistence & Export Fixes**
+  - Beat patterns now persist to localStorage - survive navigation (tracks, bpm, patternLength)
+  - "Send to Timeline" properly exports drum notes with time/duration format
+  - Notes include drumType for correct sound playback
+  - Navigation to /studio after sending, /mixer after routing
+  
 - **MIDI Drum Mapping UI** (ProBeatMaker)
   - Fixed mapping panel comparison logic to properly match stored drum types with track IDs
   - Uses DRUM_ID_TO_TYPE normalization for correct display after "Reset to Defaults"
