@@ -3,6 +3,10 @@ import { useAudio } from "./use-audio";
 import { AudioEngine } from "@/lib/audio";
 import { useInstrumentOptional } from "@/contexts/InstrumentContext";
 
+// Global drum mode flag - shared across all useMIDI instances
+// When true, MIDI notes only trigger drums (no instrument sounds)
+let globalDrumMode = false;
+
 interface MIDIDevice {
   id: string;
   name: string;
@@ -53,15 +57,13 @@ export function useMIDI() {
   
   const audioEngineRef = useRef<AudioEngine | null>(null);
   
-  // Drum mode: when active, MIDI notes only trigger drums (no instrument sounds)
-  // This prevents double-triggering when using MIDI with beat maker
-  const drumModeRef = useRef<boolean>(false);
-  const [drumMode, setDrumModeState] = useState(false);
+  // Drum mode state (local for React reactivity, but uses global flag for actual checks)
+  const [drumMode, setDrumModeState] = useState(globalDrumMode);
   
   const setDrumMode = useCallback((enabled: boolean) => {
-    drumModeRef.current = enabled;
-    setDrumModeState(enabled);
-    console.log(`🥁 MIDI Drum Mode: ${enabled ? 'ON' : 'OFF'}`);
+    globalDrumMode = enabled; // Update global flag (shared across all useMIDI instances)
+    setDrumModeState(enabled); // Update local state for React
+    console.log(`🥁 MIDI Drum Mode (GLOBAL): ${enabled ? 'ON' : 'OFF'}`);
   }, []);
   
   const globalInstrument = useInstrumentOptional();
@@ -177,7 +179,7 @@ export function useMIDI() {
       setLastNote({ note: midiNote, velocity, channel });
 
       // If in drum mode, skip instrument sounds (let beat maker handle it)
-      if (drumModeRef.current) {
+      if (globalDrumMode) {
         console.log(`🥁 Drum mode active - skipping instrument sound for MIDI ${midiNote}`);
         return;
       }
