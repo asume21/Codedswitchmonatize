@@ -26,11 +26,7 @@ class LicenseGuard {
   async refresh(): Promise<boolean> {
     this.setStatus(this.isPro, "checking");
     try {
-      const res = await fetch("/api/check-license", { credentials: "include" });
-      if (!res.ok) {
-        this.setStatus(false, "inactive");
-        return false;
-      }
+      const res = await apiRequest("GET", "/api/check-license");
       const data = (await res.json()) as LicenseCheckResponse;
       const nextStatus: LicenseStatus = data.isPro
         ? "active"
