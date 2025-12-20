@@ -1,8 +1,16 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-// Create a fresh database connection getter - prefers public URL for external access
+// Singleton connection pool - reuse connections instead of creating new ones
+let dbInstance: ReturnType<typeof drizzle> | null = null;
+let sqlInstance: ReturnType<typeof postgres> | null = null;
+
 function getDb() {
+  // Return existing instance if available
+  if (dbInstance) {
+    return dbInstance;
+  }
+
   const url = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
@@ -10,17 +18,22 @@ function getDb() {
     );
   }
   
-  // Always create a fresh PostgreSQL connection with current DATABASE_URL
-  const sql = postgres(url);
-  return drizzle(sql);
+  // Create a single pooled connection with limits
+  sqlInstance = postgres(url, {
+    max: 10,              // Maximum 10 connections in pool
+    idle_timeout: 20,     // Close idle connections after 20 seconds
+    connect_timeout: 10,  // Connection timeout 10 seconds
+  });
+  
+  dbInstance = drizzle(sqlInstance);
+  return dbInstance;
 }
 
-// Export a getter that always uses the current DATABASE_URL
+// Export the singleton database instance
 export const db = new Proxy(
   {},
   {
     get(_target, prop) {
-      // Get fresh db instance on each access to ensure latest DATABASE_URL
       return (getDb() as any)[prop];
     },
   },
