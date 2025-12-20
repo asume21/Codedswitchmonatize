@@ -87,6 +87,7 @@ type DrumEngineType =
   | 'perc'
   | 'rim'
   | 'crash'
+  | 'cowbell'
   | 'fx';
 
 // Normalize drum ids to sound engine types
@@ -106,7 +107,7 @@ const DRUM_ID_TO_TYPE: Record<string, DrumEngineType> = {
   'open hh': 'openhat',
   ride: 'crash',
   crash: 'crash',
-  cowbell: 'fx',
+  cowbell: 'cowbell',
   fx: 'fx',
   foley: 'fx',
   bell: 'fx',
@@ -332,7 +333,13 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const { requestDestination } = useSessionDestination();
   
   // MIDI keyboard support for drum triggering
-  const { lastNote, activeNotes, isConnected: midiConnected } = useMIDI();
+  const { lastNote, activeNotes, isConnected: midiConnected, setDrumMode } = useMIDI();
+  
+  // Enable drum mode when beat maker is active (suppresses instrument sounds from MIDI)
+  useEffect(() => {
+    setDrumMode(true);
+    return () => setDrumMode(false);
+  }, [setDrumMode]);
   
   // Core state
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
@@ -569,6 +576,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
             notes: notesForTrack,
             source: 'probeat-ai-melody',
             bpm,
+            volume: 80,
+            pan: 0,
           },
         });
 
@@ -671,6 +680,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
             notes: notesForTrack,
             source: 'probeat-ai-bass',
             bpm,
+            volume: 80,
+            pan: 0,
           },
         });
 

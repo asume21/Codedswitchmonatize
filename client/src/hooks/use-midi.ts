@@ -53,6 +53,17 @@ export function useMIDI() {
   
   const audioEngineRef = useRef<AudioEngine | null>(null);
   
+  // Drum mode: when active, MIDI notes only trigger drums (no instrument sounds)
+  // This prevents double-triggering when using MIDI with beat maker
+  const drumModeRef = useRef<boolean>(false);
+  const [drumMode, setDrumModeState] = useState(false);
+  
+  const setDrumMode = useCallback((enabled: boolean) => {
+    drumModeRef.current = enabled;
+    setDrumModeState(enabled);
+    console.log(`🥁 MIDI Drum Mode: ${enabled ? 'ON' : 'OFF'}`);
+  }, []);
+  
   const globalInstrument = useInstrumentOptional();
   
   const settingsRef = useRef<MIDISettings>({
@@ -164,6 +175,12 @@ export function useMIDI() {
 
       setActiveNotes((prev) => new Set(Array.from(prev).concat(midiNote)));
       setLastNote({ note: midiNote, velocity, channel });
+
+      // If in drum mode, skip instrument sounds (let beat maker handle it)
+      if (drumModeRef.current) {
+        console.log(`🥁 Drum mode active - skipping instrument sound for MIDI ${midiNote}`);
+        return;
+      }
 
       // Use the REAL AudioEngine - the one that already works perfectly!
       try {
@@ -686,5 +703,7 @@ export function useMIDI() {
     currentModulation,
     knobSettings,
     sliderDuration,
+    drumMode,
+    setDrumMode,
   };
 }
