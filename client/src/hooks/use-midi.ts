@@ -52,6 +52,22 @@ export function useMIDI() {
   
   // Use the REAL AudioEngine (the one that already works!)
   const audioEngineRef = useRef<AudioEngine | null>(null);
+  
+  // Settings ref to always have current value (prevents stale closure in MIDI listeners)
+  const settingsRef = useRef<MIDISettings>({
+    inputDevice: "all",
+    velocitySensitivity: [100],
+    channelMode: "multi",
+    activeChannel: 1,
+    noteRange: { min: 21, max: 108 },
+    sustainPedal: true,
+    pitchBend: true,
+    modulation: true,
+    autoConnect: true,
+    currentInstrument: "piano",
+    midiVolume: 0.3,
+  });
+  
   const [settings, setSettings] = useState<MIDISettings>({
     inputDevice: "all",
     velocitySensitivity: [100],
@@ -68,6 +84,11 @@ export function useMIDI() {
   const [autoConnectionEnabled, setAutoConnectionEnabled] = useState(true);
 
   const { playNote, playDrum } = useAudio();
+
+  // Keep settingsRef in sync with settings state (prevents stale closures)
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   // Update settings
   const updateSettings = useCallback((newSettings: Partial<MIDISettings>) => {
@@ -125,6 +146,7 @@ export function useMIDI() {
   );
 
   // DIRECT AUDIO NOTE HANDLER - Immediate sound playback
+  // Uses settingsRef to always get current settings (prevents stale closure issues)
   const handleNoteOn = useCallback(
     async (midiNote: number, velocity: number, channel: number) => {
       const { note, octave } = noteNumberToName(midiNote);
@@ -149,11 +171,12 @@ export function useMIDI() {
         // Calculate frequency from MIDI note
         const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
         
-        // Get instrument name from settings
-        const instrument = settings.currentInstrument || 'piano';
+        // Get instrument name from settingsRef (always current, no stale closure)
+        const currentSettings = settingsRef.current;
+        const instrument = currentSettings.currentInstrument || 'piano';
         
         // Apply MIDI volume (multiply with velocity)
-        const midiVolume = settings.midiVolume ?? 0.3;
+        const midiVolume = currentSettings.midiVolume ?? 0.3;
         const adjustedVelocity = normalizedVelocity * midiVolume;
         
         // Play note using the REAL AudioEngine with all the synthesis magic!
@@ -172,7 +195,7 @@ export function useMIDI() {
         console.error(`❌ AudioEngine playNote failed for ${note}${octave}:`, error);
       }
     },
-    [noteNumberToName, playNote, settings.midiVolume, settings.currentInstrument],
+    [noteNumberToName, playNote],
   );
 
   // Handle note off events
