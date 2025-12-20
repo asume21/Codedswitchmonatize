@@ -62,8 +62,8 @@ app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 const PgSession = connectPgSimple(session);
 
 let sessionStore;
-// Use public URL for external access (Replit), fallback to internal URL (Railway)
-const databaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+// Prefer internal DATABASE_URL (free on Railway) over public URL (costs money)
+const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
 const hasDatabase = databaseUrl && databaseUrl.length > 0;
 
 if (hasDatabase) {
@@ -157,8 +157,8 @@ app.use((req, res, next) => {
   // Run database migrations first
   await runMigrations();
   
-  // Choose storage implementation - prefer public URL for external access
-  const hasDatabaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+  // Choose storage implementation - prefer internal URL (free on Railway)
+  const hasDatabaseUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
   const storage: IStorage = hasDatabaseUrl
     ? new DatabaseStorage()
     : new MemStorage();

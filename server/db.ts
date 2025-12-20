@@ -11,7 +11,8 @@ function getDb() {
     return dbInstance;
   }
 
-  const url = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+  // Prefer internal DATABASE_URL (free on Railway) over public URL (costs money)
+  const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
   if (!url) {
     throw new Error(
       "DATABASE_URL not set. DatabaseStorage cannot be used without a configured database.",
