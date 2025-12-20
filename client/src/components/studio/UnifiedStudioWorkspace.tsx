@@ -2777,27 +2777,53 @@ export default function UnifiedStudioWorkspace() {
           {/* PIANO ROLL VIEW */}
           {activeView === 'piano-roll' && (
             <div className="flex-1 overflow-auto bg-gray-900 pt-14">
-              {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
-              <VerticalPianoRoll 
-                {...({ tracks: tracks as any } as any)}
-                selectedTrack={selectedTrack || undefined}
-                isPlaying={transportPlaying}
-                currentTime={playheadPosition}
-                onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
-                  // Play note with current track's instrument
-                  playNote(note, octave, instrument);
-                }}
-                onNotesChange={(updatedNotes: any[]) => {
-                  // Update the notes for the selected track
-                  if (selectedTrack) {
-                    setTracks(tracks.map(t => 
-                      t.id === selectedTrack 
-                        ? { ...t, notes: updatedNotes }
-                        : t
-                    ));
-                  }
-                }}
-              />
+              {(() => {
+                const selectedTrackData = tracks.find(t => t.id === selectedTrack);
+                const isAudioTrack = selectedTrackData?.type === 'audio';
+                
+                if (isAudioTrack) {
+                  return (
+                    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                      <div className="bg-gray-800 rounded-lg p-8 max-w-md">
+                        <Music className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+                        <h3 className="text-lg font-semibold mb-2">Audio Track Selected</h3>
+                        <p className="text-gray-400 mb-4">
+                          "{selectedTrackData?.name}" is an audio file. Piano Roll editing is only available for MIDI/instrument tracks.
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Use the Arrangement view to see the waveform, or select a MIDI track to edit notes.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <>
+                    {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
+                    <VerticalPianoRoll 
+                      {...({ tracks: tracks as any } as any)}
+                      selectedTrack={selectedTrack || undefined}
+                      isPlaying={transportPlaying}
+                      currentTime={playheadPosition}
+                      onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
+                        // Play note with current track's instrument
+                        playNote(note, octave, instrument);
+                      }}
+                      onNotesChange={(updatedNotes: any[]) => {
+                        // Update the notes for the selected track
+                        if (selectedTrack) {
+                          setTracks(tracks.map(t => 
+                            t.id === selectedTrack 
+                              ? { ...t, notes: updatedNotes }
+                              : t
+                          ));
+                        }
+                      }}
+                    />
+                  </>
+                );
+              })()}
             </div>
           )}
 
