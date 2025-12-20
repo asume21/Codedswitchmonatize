@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -13,7 +13,11 @@ import {
   ChevronDown,
   ChevronUp,
   Keyboard,
-  SkipBack
+  SkipBack,
+  GripVertical,
+  X,
+  Minimize2,
+  Maximize2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -33,6 +37,7 @@ interface PlaybackControlsProps {
   onToggleMetronome: (enabled: boolean) => void;
   onToggleCountIn: (enabled: boolean) => void;
   className?: string;
+  draggable?: boolean;
 }
 
 const BPM_MIN = 40;
@@ -53,8 +58,16 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   onBpmChange,
   onToggleMetronome,
   onToggleCountIn,
-  className
+  className,
+  draggable = true
 }) => {
+  const [isFloating, setIsFloating] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [position, setPosition] = useState({ x: 100, y: 100 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const handleBpmChange = (value: number) => {
     const newBpm = Math.max(BPM_MIN, Math.min(BPM_MAX, value));
     onBpmChange(newBpm);
@@ -62,6 +75,54 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
 
   const incrementBpm = () => handleBpmChange(bpm + BPM_STEP);
   const decrementBpm = () => handleBpmChange(bpm - BPM_STEP);
+
+  const handleDragStart = (e: React.MouseEvent) => {
+    if (!isFloating) return;
+    e.preventDefault();
+    setIsDragging(true);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setPosition({
+        x: Math.max(0, e.clientX - dragOffset.x),
+        y: Math.max(0, e.clientY - dragOffset.y)
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset]);
+
+  const popOut = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setPosition({ x: rect.left, y: rect.top });
+    }
+    setIsFloating(true);
+  };
+
+  const dockBack = () => {
+    setIsFloating(false);
+    setIsMinimized(false);
+  };
 
   // Keyboard shortcuts
   useHotkeys('space', (e) => {
@@ -78,8 +139,119 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   useHotkeys('up', incrementBpm, [bpm, onBpmChange]);
   useHotkeys('down', decrementBpm, [bpm, onBpmChange]);
   useHotkeys('home', () => onGoToBeginning?.(), [onGoToBeginning]);
+
+  const containerClasses = isFloating
+    ? cn(
+        "fixed z-50 bg-card rounded-lg border shadow-2xl",
+        isDragging ? "cursor-grabbing" : "",
+        isMinimized ? "p-2" : "p-4"
+      )
+    : cn("flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border", className);
+
+  const containerStyle = isFloating
+    ? { left: `${position.x}px`, top: `${position.y}px` }
+    : undefined;
+
+  if (isFloating && isMinimized) {
+    return (
+      <div
+        ref={containerRef}
+        className={containerClasses}
+        style={containerStyle}
+        data-testid="playback-controls-minimized"
+      >
+        <div className="flex items-center gap-2">
+          <div
+            className="cursor-grab p-1 hover:bg-muted rounded"
+            onMouseDown={handleDragStart}
+            data-testid="drag-handle-minimized"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <Button
+            onClick={onPlay}
+            size="icon"
+            className={cn(
+              isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'
+            )}
+            data-testid="button-play-minimized"
+          >
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </Button>
+          <span className="text-sm font-mono">{bpm} BPM</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsMinimized(false)}
+            data-testid="button-expand"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={dockBack}
+            data-testid="button-dock"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border", className)}>
+    <div
+      ref={containerRef}
+      className={containerClasses}
+      style={containerStyle}
+      data-testid="playback-controls"
+    >
+      {isFloating && (
+        <div className="flex items-center gap-1 mr-2 border-r pr-2">
+          <div
+            className="cursor-grab p-1 hover:bg-muted rounded"
+            onMouseDown={handleDragStart}
+            title="Drag to move"
+            data-testid="drag-handle"
+          >
+            <GripVertical className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsMinimized(true)}
+            title="Minimize"
+            data-testid="button-minimize"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={dockBack}
+            title="Dock back"
+            data-testid="button-close-floating"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      
+      {draggable && !isFloating && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={popOut}
+          title="Pop out (make draggable)"
+          className="mr-2"
+          data-testid="button-popout"
+        >
+          <GripVertical className="h-5 w-5" />
+        </Button>
+      )}
+      
+      <div className="flex flex-wrap items-center gap-4">
       {/* Transport Controls */}
       <div className="flex items-center gap-2">
         {/* Go to Beginning Button */}
@@ -246,6 +418,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <kbd className="px-1.5 py-0.5 border rounded bg-muted">M</kbd> Metronome • 
           <kbd className="px-1.5 py-0.5 border rounded bg-muted">H</kbd> Chords
         </span>
+      </div>
       </div>
     </div>
   );
