@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser } from "lucide-react";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1 } from "lucide-react";
 import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
@@ -186,6 +186,16 @@ export const VerticalPianoRoll: React.FC = () => {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
+  
+  // ADDITIONAL PRO FEATURES
+  const [foldViewEnabled, setFoldViewEnabled] = useState(false); // Hide unused keys
+  const [horizontalZoom, setHorizontalZoom] = useState(1); // H zoom factor
+  const [verticalZoom, setVerticalZoom] = useState(1); // V zoom factor
+  const [noteProbability, setNoteProbability] = useState<Record<string, number>>({}); // Per-note probability
+  const [legatoMode, setLegatoMode] = useState(false); // Legato/connected notes
+  const [portamentoEnabled, setPortamentoEnabled] = useState(false); // Slide between notes
+  const [noteRepeatEnabled, setNoteRepeatEnabled] = useState(false); // Note roll/repeat
+  const [noteRepeatRate, setNoteRepeatRate] = useState(4); // Repeat divisions (4=16th notes)
   
   const { toast } = useToast();
   const { currentSession, updateSession } = useSongWorkSession();
@@ -2024,7 +2034,7 @@ export const VerticalPianoRoll: React.FC = () => {
               </div>
               
               {/* Humanize */}
-              <div className="flex items-center gap-1 px-2">
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -2047,6 +2057,140 @@ export const VerticalPianoRoll: React.FC = () => {
                 />
                 <span className="text-xs text-gray-400">{humanizeAmount}%</span>
               </div>
+              
+              {/* Zoom Controls */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setHorizontalZoom(prev => Math.min(3, prev + 0.25))}
+                  title="Zoom In Horizontal"
+                  data-testid="button-zoom-h-in"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+                <span className="text-xs text-gray-400">{Math.round(horizontalZoom * 100)}%</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setHorizontalZoom(prev => Math.max(0.25, prev - 0.25))}
+                  title="Zoom Out Horizontal"
+                  data-testid="button-zoom-h-out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Advanced Features */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant={foldViewEnabled ? 'default' : 'ghost'}
+                  onClick={() => setFoldViewEnabled(!foldViewEnabled)}
+                  title="Fold View - hide unused keys"
+                  data-testid="button-fold-view"
+                >
+                  <Layers className="w-4 h-4" />
+                  <span className="text-xs ml-1">Fold</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={strumMode ? 'default' : 'ghost'}
+                  onClick={() => setStrumMode(!strumMode)}
+                  title="Strum Tool - guitar-style delay"
+                  data-testid="button-strum"
+                >
+                  <Guitar className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={legatoMode ? 'default' : 'ghost'}
+                  onClick={() => setLegatoMode(!legatoMode)}
+                  title="Legato Mode - connected notes"
+                  data-testid="button-legato"
+                >
+                  <Link className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* More Pro Features */}
+              <div className="flex items-center gap-1 px-2">
+                <Button
+                  size="sm"
+                  variant={portamentoEnabled ? 'default' : 'ghost'}
+                  onClick={() => setPortamentoEnabled(!portamentoEnabled)}
+                  title="Portamento - slide between notes"
+                  data-testid="button-portamento"
+                >
+                  <SplitSquareVertical className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={noteRepeatEnabled ? 'default' : 'ghost'}
+                  onClick={() => setNoteRepeatEnabled(!noteRepeatEnabled)}
+                  title="Note Repeat/Roll (hi-hat rolls)"
+                  data-testid="button-note-repeat"
+                >
+                  <Repeat1 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Chord Stamps - Quick Chord Insertion */}
+            <div className="flex items-center gap-2 flex-wrap p-2 bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-md border border-amber-500/30">
+              <span className="text-xs font-medium text-amber-300">Chord Stamps:</span>
+              {['Maj', 'Min', '7th', 'Maj7', 'Min7', 'Dim', 'Aug', 'Sus4'].map((chordType) => (
+                <Button
+                  key={chordType}
+                  size="sm"
+                  variant="outline"
+                  className="text-xs px-2"
+                  onClick={() => {
+                    const rootNote = currentKey;
+                    const octave = 4;
+                    let intervals: number[] = [];
+                    
+                    switch (chordType) {
+                      case 'Maj': intervals = [0, 4, 7]; break;
+                      case 'Min': intervals = [0, 3, 7]; break;
+                      case '7th': intervals = [0, 4, 7, 10]; break;
+                      case 'Maj7': intervals = [0, 4, 7, 11]; break;
+                      case 'Min7': intervals = [0, 3, 7, 10]; break;
+                      case 'Dim': intervals = [0, 3, 6]; break;
+                      case 'Aug': intervals = [0, 4, 8]; break;
+                      case 'Sus4': intervals = [0, 5, 7]; break;
+                    }
+                    
+                    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                    const rootIndex = notes.indexOf(rootNote);
+                    const strumDelay = strumMode ? 1 : 0;
+                    
+                    const newNotes: Note[] = intervals.map((interval, idx) => {
+                      const noteIndex = (rootIndex + interval) % 12;
+                      const noteOctave = octave + Math.floor((rootIndex + interval) / 12);
+                      return {
+                        id: crypto.randomUUID(),
+                        note: notes[noteIndex],
+                        octave: noteOctave,
+                        step: currentStep + (strumDelay * idx),
+                        velocity: 100 - (strumMode ? idx * 5 : 0),
+                        length: 4
+                      };
+                    });
+                    
+                    addToHistory(selectedTrack.notes);
+                    setTracks(prev => prev.map((t, i) => 
+                      i === selectedTrackIndex 
+                        ? { ...t, notes: [...t.notes, ...newNotes] }
+                        : t
+                    ));
+                    toast({ title: `${rootNote} ${chordType}`, description: 'Chord inserted at playhead' });
+                  }}
+                  data-testid={`button-chord-stamp-${chordType.toLowerCase()}`}
+                >
+                  {currentKey} {chordType}
+                </Button>
+              ))}
             </div>
             
             {/* New Features: Recording, Loop, AI Suggest */}
@@ -2277,16 +2421,16 @@ export const VerticalPianoRoll: React.FC = () => {
           </div>
         </CardHeader>
 
-        <CardContent className="h-[calc(100%-250px)] overflow-hidden">
-          <div className="flex h-full relative overflow-auto" ref={gridRef} onScroll={handleGridScroll}>
+        <CardContent className="h-[calc(100%-250px)] overflow-hidden flex flex-col">
+          <div className={`flex relative overflow-auto ${showVelocityEditor ? 'flex-1' : 'h-full'}`} ref={gridRef} onScroll={handleGridScroll}>
             {/* Piano Keys - fixed on left, scrolls with content */}
             <div className="sticky left-0 z-10">
               <PianoKeys
                 ref={pianoKeysRef}
-                pianoKeys={PIANO_KEYS}
+                pianoKeys={foldViewEnabled && selectedTrack.notes.length > 0 ? PIANO_KEYS.filter(k => selectedTrack.notes.some(n => n.note === k.note && n.octave === k.octave)) : PIANO_KEYS}
                 selectedTrack={selectedTrack}
                 onKeyClick={addNote}
-                keyHeight={KEY_HEIGHT}
+                keyHeight={KEY_HEIGHT * verticalZoom}
                 currentStep={currentStep}
                 isPlaying={isPlaying}
                 chordMode={chordMode || liveArpEnabled}
@@ -2300,11 +2444,11 @@ export const VerticalPianoRoll: React.FC = () => {
             {/* Grid on right */}
             <StepGrid
               steps={STEPS}
-              pianoKeys={PIANO_KEYS}
+              pianoKeys={foldViewEnabled && selectedTrack.notes.length > 0 ? PIANO_KEYS.filter(k => selectedTrack.notes.some(n => n.note === k.note && n.octave === k.octave)) : PIANO_KEYS}
               selectedTrack={selectedTrack}
               currentStep={currentStep}
-              stepWidth={STEP_WIDTH}
-              keyHeight={KEY_HEIGHT}
+              stepWidth={STEP_WIDTH * horizontalZoom}
+              keyHeight={KEY_HEIGHT * verticalZoom}
               zoom={zoom}
               onStepClick={addNote}
               onChordAdd={addChordToGrid}
@@ -2325,6 +2469,118 @@ export const VerticalPianoRoll: React.FC = () => {
               selectionEnd={selectionEnd}
             />
           </div>
+          
+          {/* Velocity Editor Lane */}
+          {showVelocityEditor && (
+            <div className="h-24 border-t border-gray-700 bg-gray-900/50 flex" data-testid="velocity-editor-lane">
+              {/* Left label area matching piano keys width */}
+              <div className="w-20 flex-shrink-0 flex items-center justify-center border-r border-gray-700 bg-gray-800/50">
+                <span className="text-xs text-gray-400 font-medium">Velocity</span>
+              </div>
+              
+              {/* Velocity bars container - synced with main grid scroll */}
+              <div 
+                className="flex-1 overflow-auto relative"
+                onScroll={(e) => {
+                  if (gridRef.current && !isSyncingRef.current) {
+                    isSyncingRef.current = true;
+                    gridRef.current.scrollLeft = e.currentTarget.scrollLeft;
+                    isSyncingRef.current = false;
+                  }
+                }}
+                ref={(el) => {
+                  if (el && gridRef.current) {
+                    el.scrollLeft = gridRef.current.scrollLeft;
+                  }
+                }}
+              >
+                <svg 
+                  className="w-full h-full"
+                  style={{ 
+                    width: STEPS * STEP_WIDTH * horizontalZoom,
+                    minWidth: '100%'
+                  }}
+                >
+                  {/* Background grid lines */}
+                  {Array.from({ length: STEPS }, (_, step) => (
+                    <line
+                      key={`vgrid-${step}`}
+                      x1={step * STEP_WIDTH * horizontalZoom}
+                      y1={0}
+                      x2={step * STEP_WIDTH * horizontalZoom}
+                      y2="100%"
+                      stroke={step % 4 === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'}
+                      strokeWidth={1}
+                    />
+                  ))}
+                  
+                  {/* Velocity reference lines */}
+                  <line x1={0} y1="25%" x2="100%" y2="25%" stroke="rgba(255,255,255,0.1)" strokeDasharray="4,4" />
+                  <line x1={0} y1="50%" x2="100%" y2="50%" stroke="rgba(255,255,255,0.15)" strokeDasharray="4,4" />
+                  <line x1={0} y1="75%" x2="100%" y2="75%" stroke="rgba(255,255,255,0.1)" strokeDasharray="4,4" />
+                  
+                  {/* Velocity bars for each note */}
+                  {selectedTrack.notes.map((note) => {
+                    const barHeight = (note.velocity / 127) * 80;
+                    const barX = note.step * STEP_WIDTH * horizontalZoom + 2;
+                    const barWidth = Math.max(STEP_WIDTH * horizontalZoom * note.length - 4, 4);
+                    const isSelected = selectedNoteIds.has(note.id);
+                    
+                    return (
+                      <g key={`vel-${note.id}`}>
+                        <rect
+                          x={barX}
+                          y={`${96 - barHeight}%`}
+                          width={barWidth}
+                          height={`${barHeight}%`}
+                          fill={isSelected ? 'rgb(59, 130, 246)' : 'rgb(34, 197, 94)'}
+                          opacity={0.8}
+                          rx={2}
+                          className="cursor-ns-resize transition-colors"
+                          data-testid={`velocity-bar-${note.id}`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            const startY = e.clientY;
+                            const startVelocity = note.velocity;
+                            
+                            const handleDrag = (moveEvent: MouseEvent) => {
+                              const deltaY = startY - moveEvent.clientY;
+                              const newVelocity = Math.min(127, Math.max(1, startVelocity + deltaY));
+                              
+                              setTracks(prev => prev.map((t, i) => 
+                                i === selectedTrackIndex 
+                                  ? { ...t, notes: t.notes.map(n => n.id === note.id ? { ...n, velocity: newVelocity } : n) }
+                                  : t
+                              ));
+                            };
+                            
+                            const handleUp = () => {
+                              document.removeEventListener('mousemove', handleDrag);
+                              document.removeEventListener('mouseup', handleUp);
+                            };
+                            
+                            document.addEventListener('mousemove', handleDrag);
+                            document.addEventListener('mouseup', handleUp);
+                          }}
+                        />
+                        {/* Velocity value label */}
+                        <text
+                          x={barX + barWidth / 2}
+                          y={`${92 - barHeight}%`}
+                          textAnchor="middle"
+                          fill="white"
+                          fontSize="9"
+                          className="pointer-events-none"
+                        >
+                          {note.velocity}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
+          )}
         </CardContent>
 
         <div className="px-6 pb-6">
