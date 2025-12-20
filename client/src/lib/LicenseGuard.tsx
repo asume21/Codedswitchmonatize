@@ -72,11 +72,7 @@ class LicenseGuard {
   async startCheckout(): Promise<void> {
     try {
       console.log("🛒 Starting checkout...");
-      const res = await fetch("/api/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
+      const res = await apiRequest("POST", "/api/create-checkout");
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
