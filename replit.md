@@ -72,6 +72,18 @@ Optional payment integration:
 - Object storage directory: `/objects`
 
 ## Recent Changes (Dec 20, 2025)
+- **MIDI Drum Mapping UI** (ProBeatMaker)
+  - Fixed mapping panel comparison logic to properly match stored drum types with track IDs
+  - Uses DRUM_ID_TO_TYPE normalization for correct display after "Reset to Defaults"
+  - MIDI Learn mode, localStorage persistence, and GM default mappings all working
+  
+- **Computer Keyboard Piano Hook** (`client/src/hooks/use-computer-keyboard.ts`)
+  - New reusable hook for mapping QWERTY keys to piano notes
+  - Layout: A=C, W=C#, S=D, E=D#, D=E, F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B, K=C+1
+  - Z/X keys for octave down/up
+  - Provides noteOn/noteOff callbacks and active key tracking for visual feedback
+  - Can be integrated into VerticalPianoRoll, BassStudio, MelodyComposer
+
 - **Master Implementation Priority Guide Created** (`IMPLEMENTATION_PRIORITY_GUIDE.md`)
   - All documentation organized by strategic importance
   - Clear implementation sequence (5 guides in priority order)
