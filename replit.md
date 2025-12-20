@@ -71,7 +71,16 @@ Optional payment integration:
 - Database sessions are stored in PostgreSQL for persistence
 - Object storage directory: `/objects`
 
-## Recent Changes (Dec 19, 2025)
+## Recent Changes (Dec 20, 2025)
+- **AI Provider Mapping Guide Created** (`AI_PROVIDER_MAPPING.md`)
+  - 22 music production tasks mapped to optimal AI providers
+  - Detailed reasoning for each provider selection
+  - Cost analysis and fallback strategies
+  - Implementation priority matrix
+  - Quick reference tables and decision trees
+  - Coverage: Grok, OpenAI, Gemini, Replicate, Web Audio, Tone.js, Spleeter, Datamuse
+
+## Previous Changes (Dec 19, 2025)
 - **Track System Refactoring**
   - Created canonical TrackPayload interface in `studioTracks.ts` with required fields: type, source, volume, pan, bpm
   - Added DEFAULT_TRACK_PAYLOAD constant and createTrackPayload helper function
