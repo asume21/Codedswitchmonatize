@@ -1,4 +1,4 @@
-import { useState, useContext, useRef, useEffect } from "react";
+import { useState, useContext, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,6 +15,7 @@ import { useTracks } from "@/hooks/useTracks";
 import { StudioAudioContext } from "@/pages/studio";
 import { Music, Waves, Send, Play, Square, Piano } from "lucide-react";
 import * as Tone from "tone";
+import { useMIDI } from "@/hooks/use-midi";
 
 // Bass notes for interactive keyboard
 const BASS_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -44,6 +45,9 @@ export default function BassStudio() {
   const { addTrack } = useTracks();
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
+  
+  // MIDI keyboard support for bass notes
+  const { lastNote, isConnected: midiConnected } = useMIDI();
 
   const [key, setKey] = useState<string>((currentSession as any)?.songKey || "C minor");
   const [bars, setBars] = useState<number>(4);
@@ -75,6 +79,47 @@ export default function BassStudio() {
       scheduledEventsRef.current = [];
     };
   }, []);
+
+  // Convert MIDI note number to note name and octave
+  const midiToNoteName = useCallback((midiNote: number): { note: string; octave: number } => {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(midiNote / 12) - 1;
+    const note = noteNames[midiNote % 12];
+    return { note, octave };
+  }, []);
+
+  // MIDI keyboard bass triggering - play bass notes from MIDI controller
+  // Only triggers for lower octave notes (MIDI 24-60, C1 to C4 - typical bass range)
+  useEffect(() => {
+    if (!lastNote) return;
+    // Filter to bass range (C1 to C4)
+    if (lastNote.note < 24 || lastNote.note > 60) return;
+    
+    const { note, octave } = midiToNoteName(lastNote.note);
+    const pitch = `${note}${octave}`;
+    
+    // Play the bass note
+    (async () => {
+      try {
+        await Tone.start();
+        if (!keyboardSynthRef.current) {
+          keyboardSynthRef.current = new Tone.MonoSynth({
+            oscillator: { type: "sawtooth" },
+            envelope: { attack: 0.01, decay: 0.15, sustain: 0.5, release: 0.4 },
+            filter: { Q: 2, type: "lowpass", rolloff: -12 },
+            filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.3, baseFrequency: 150, octaves: 2 },
+          }).toDestination();
+        }
+        
+        const velocity = lastNote.velocity / 127;
+        keyboardSynthRef.current.triggerAttackRelease(pitch, "8n", undefined, velocity);
+        setActiveNote(pitch);
+        setTimeout(() => setActiveNote(null), 200);
+      } catch (error) {
+        console.error("MIDI bass playback error:", error);
+      }
+    })();
+  }, [lastNote, midiToNoteName]);
 
   // Convert pitch string like "C2" to frequency
   const pitchToFrequency = (pitch: string): number => {

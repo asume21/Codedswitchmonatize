@@ -31,6 +31,35 @@ import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useSessionDestination } from '@/contexts/SessionDestinationContext';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { realisticAudio } from '@/lib/realisticAudio';
+import { useMIDI } from '@/hooks/use-midi';
+
+// MIDI note number to drum type mapping (General MIDI standard + extended)
+const MIDI_NOTE_TO_DRUM: Record<number, DrumEngineType> = {
+  36: 'kick',      // C1 - Bass Drum 1
+  35: 'kick',      // B0 - Acoustic Bass Drum
+  38: 'snare',     // D1 - Acoustic Snare
+  40: 'snare',     // E1 - Electric Snare
+  37: 'rim',       // C#1 - Side Stick
+  39: 'clap',      // D#1 - Hand Clap
+  42: 'hihat',     // F#1 - Closed Hi-Hat
+  44: 'hihat',     // G#1 - Pedal Hi-Hat
+  46: 'openhat',   // A#1 - Open Hi-Hat
+  45: 'tom',       // A1 - Low Tom
+  47: 'tom',       // B1 - Low-Mid Tom
+  48: 'tom_hi',    // C2 - Hi-Mid Tom
+  50: 'tom_hi',    // D2 - High Tom
+  49: 'crash',     // C#2 - Crash Cymbal 1
+  51: 'crash',     // D#2 - Ride Cymbal 1
+  52: 'crash',     // E2 - Chinese Cymbal
+  53: 'crash',     // F2 - Ride Bell
+  54: 'perc',      // F#2 - Tambourine
+  56: 'cowbell',   // G#2 - Cowbell
+  60: 'conga',     // C3 - Hi Bongo
+  61: 'conga',     // C#3 - Low Bongo
+  62: 'conga',     // D3 - Mute Hi Conga
+  63: 'conga',     // D#3 - Open Hi Conga
+  64: 'conga',     // E3 - Low Conga
+};
 import {
   Play, Square, RotateCcw, Undo2, Redo2, Shuffle, Send, ChevronDown, Wand2,
   Copy, Clipboard, Volume2, Disc, Zap, Timer,
@@ -61,6 +90,7 @@ type DrumEngineType =
   | 'fx';
 
 // Normalize drum ids to sound engine types
+// Includes both track IDs and engine type names so MIDI can pass either
 const DRUM_ID_TO_TYPE: Record<string, DrumEngineType> = {
   kick: 'kick',
   '808 kick': 'kick',
@@ -87,6 +117,10 @@ const DRUM_ID_TO_TYPE: Record<string, DrumEngineType> = {
   tom2: 'tom_mid',
   tom3: 'tom_lo',
   conga: 'conga',
+  // Engine type names (for MIDI drum triggering)
+  tom_hi: 'tom_hi',
+  tom_mid: 'tom_mid',
+  tom_lo: 'tom_lo',
 };
 
 // Types
@@ -296,6 +330,9 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const { tempo } = useTransport();
   const { addTrack } = useTrackStore();
   const { requestDestination } = useSessionDestination();
+  
+  // MIDI keyboard support for drum triggering
+  const { lastNote, activeNotes, isConnected: midiConnected } = useMIDI();
   
   // Core state
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
@@ -789,6 +826,18 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       }
     }
   }, [masterVol, useRealisticDrums]);
+
+  // MIDI keyboard drum triggering - play drums from MIDI controller
+  useEffect(() => {
+    if (!lastNote) return;
+    const drumType = MIDI_NOTE_TO_DRUM[lastNote.note];
+    if (drumType) {
+      // Find the track with this drum type and use its volume
+      const matchingTrack = tracks.find(t => DRUM_ID_TO_TYPE[t.id.toLowerCase()] === drumType);
+      const trackVolume = matchingTrack?.volume ?? 80;
+      playSound(drumType, lastNote.velocity, trackVolume);
+    }
+  }, [lastNote, playSound, tracks]);
 
   useEffect(() => {
     if (!isPlaying) return;
