@@ -155,7 +155,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const [snapValue, setSnapValue] = useState(1); // 1 = 1/4 note, 0.5 = 1/8, 0.25 = 1/16
   const [showVelocityEditor, setShowVelocityEditor] = useState(true);
   const [clipboard, setClipboard] = useState<Note[]>([]);
-  const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase'>('draw');
+  const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase' | 'slice'>('draw');
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<Note[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -1381,6 +1381,48 @@ export const VerticalPianoRoll: React.FC = () => {
     toast({ title: '🎵 Octave Shifted', description: `${direction > 0 ? 'Up' : 'Down'} one octave` });
   }, [selectedNoteIds, selectedTrack, selectedTrackIndex, addToHistory, toast]);
 
+  // SLICE NOTES AT PLAYHEAD
+  const sliceNotesAtPlayhead = useCallback(() => {
+    const sliceStep = currentStep;
+    const notesToSlice = selectedTrack.notes.filter(note => 
+      note.step < sliceStep && (note.step + note.length) > sliceStep
+    );
+    
+    if (notesToSlice.length === 0) {
+      toast({ title: 'No notes to slice', description: 'Move playhead over notes to slice them' });
+      return;
+    }
+    
+    let sliceCounter = 0;
+    const slicedNotes: Note[] = [];
+    const updatedNotes = selectedTrack.notes.filter(note => {
+      if (note.step < sliceStep && (note.step + note.length) > sliceStep) {
+        const leftPart: Note = {
+          ...note,
+          length: sliceStep - note.step
+        };
+        const rightPart: Note = {
+          ...note,
+          id: crypto.randomUUID ? crypto.randomUUID() : `slice-${Date.now()}-${++sliceCounter}-${note.id}`,
+          step: sliceStep,
+          length: note.step + note.length - sliceStep
+        };
+        slicedNotes.push(leftPart, rightPart);
+        return false;
+      }
+      return true;
+    });
+    
+    const newNotes = [...updatedNotes, ...slicedNotes];
+    addToHistory(newNotes);
+    
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex ? { ...track, notes: newNotes } : track
+    ));
+    
+    toast({ title: 'Notes Sliced', description: `Split ${notesToSlice.length} note(s) at step ${sliceStep}` });
+  }, [currentStep, selectedTrack, selectedTrackIndex, addToHistory, toast]);
+
   // RECORDING MODE FUNCTION
   const toggleRecording = useCallback(() => {
     if (isRecording) {
@@ -1886,6 +1928,29 @@ export const VerticalPianoRoll: React.FC = () => {
                 >
                   <Eraser className="w-4 h-4" />
                 </Button>
+                <Button
+                  size="sm"
+                  variant={pianoRollTool === 'slice' ? 'default' : 'ghost'}
+                  onClick={() => setPianoRollTool('slice')}
+                  title="Slice notes at playhead"
+                  data-testid="button-tool-slice"
+                >
+                  <Scissors className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Slice Action */}
+              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={sliceNotesAtPlayhead}
+                  title="Slice all notes at playhead"
+                  data-testid="button-slice-at-playhead"
+                >
+                  <SplitSquareVertical className="w-4 h-4" />
+                  <span className="text-xs ml-1">Slice</span>
+                </Button>
               </div>
               
               {/* Undo/Redo */}
@@ -2030,6 +2095,15 @@ export const VerticalPianoRoll: React.FC = () => {
                   data-testid="button-velocity-editor"
                 >
                   <span className="text-xs font-bold">V</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant={automationLane !== 'off' ? 'default' : 'ghost'}
+                  onClick={() => setAutomationLane(automationLane === 'off' ? 'volume' : 'off')}
+                  title="MIDI CC Automation Lane"
+                  data-testid="button-automation-lane"
+                >
+                  <span className="text-xs font-bold">CC</span>
                 </Button>
               </div>
               
@@ -2574,9 +2648,152 @@ export const VerticalPianoRoll: React.FC = () => {
                         >
                           {note.velocity}
                         </text>
+                        {/* Note Probability indicator (diamond) */}
+                        {noteProbability[note.id] !== undefined && noteProbability[note.id] < 100 && (
+                          <polygon
+                            points={`${barX + barWidth / 2},${8} ${barX + barWidth / 2 + 5},${13} ${barX + barWidth / 2},${18} ${barX + barWidth / 2 - 5},${13}`}
+                            fill={`rgba(251, 191, 36, ${noteProbability[note.id] / 100})`}
+                            stroke="rgb(251, 191, 36)"
+                            strokeWidth={1}
+                            className="cursor-pointer"
+                            data-testid={`probability-indicator-${note.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newProb = prompt(`Set probability for this note (0-100%):`, String(noteProbability[note.id] ?? 100));
+                              if (newProb !== null) {
+                                const prob = Math.max(0, Math.min(100, parseInt(newProb) || 100));
+                                setNoteProbability(prev => ({ ...prev, [note.id]: prob }));
+                              }
+                            }}
+                          />
+                        )}
                       </g>
                     );
                   })}
+                </svg>
+              </div>
+              {/* Note Probability Toggle */}
+              <div className="absolute top-1 right-1 flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs px-2"
+                  onClick={() => {
+                    if (selectedNoteIds.size > 0) {
+                      const prob = prompt('Set probability for selected notes (0-100%):', '100');
+                      if (prob !== null) {
+                        const probValue = Math.max(0, Math.min(100, parseInt(prob) || 100));
+                        const newProbs = { ...noteProbability };
+                        selectedNoteIds.forEach(id => { newProbs[id] = probValue; });
+                        setNoteProbability(newProbs);
+                        toast({ title: 'Probability Set', description: `${selectedNoteIds.size} note(s) set to ${probValue}%` });
+                      }
+                    } else {
+                      toast({ title: 'Select Notes', description: 'Select notes first to set probability' });
+                    }
+                  }}
+                  title="Set note probability (chance each note plays)"
+                  data-testid="button-set-probability"
+                >
+                  <Shuffle className="w-3 h-3 mr-1" />
+                  Prob
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* MIDI CC Automation Lane */}
+          {automationLane !== 'off' && (
+            <div className="h-20 border-t border-gray-700 bg-gray-900/50 flex" data-testid="automation-lane">
+              {/* Left label area */}
+              <div className="w-20 flex-shrink-0 flex flex-col items-center justify-center border-r border-gray-700 bg-gray-800/50 gap-1">
+                <span className="text-xs text-gray-400 font-medium capitalize">{automationLane}</span>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant={automationLane === 'volume' ? 'default' : 'ghost'}
+                    className="h-5 w-5 p-0"
+                    onClick={() => setAutomationLane('volume')}
+                    title="Volume automation"
+                    data-testid="button-automation-volume"
+                  >
+                    V
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={automationLane === 'pan' ? 'default' : 'ghost'}
+                    className="h-5 w-5 p-0"
+                    onClick={() => setAutomationLane('pan')}
+                    title="Pan automation"
+                    data-testid="button-automation-pan"
+                  >
+                    P
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Automation curve area */}
+              <div 
+                className="flex-1 overflow-auto relative"
+                onScroll={(e) => {
+                  if (gridRef.current && !isSyncingRef.current) {
+                    isSyncingRef.current = true;
+                    gridRef.current.scrollLeft = e.currentTarget.scrollLeft;
+                    isSyncingRef.current = false;
+                  }
+                }}
+                ref={(el) => {
+                  if (el && gridRef.current) {
+                    el.scrollLeft = gridRef.current.scrollLeft;
+                  }
+                }}
+              >
+                <svg 
+                  className="w-full h-full cursor-crosshair"
+                  style={{ 
+                    width: STEPS * STEP_WIDTH * horizontalZoom,
+                    minWidth: '100%'
+                  }}
+                  data-testid="automation-curve-svg"
+                >
+                  {/* Background grid */}
+                  {Array.from({ length: STEPS }, (_, step) => (
+                    <line
+                      key={`agrid-${step}`}
+                      x1={step * STEP_WIDTH * horizontalZoom}
+                      y1={0}
+                      x2={step * STEP_WIDTH * horizontalZoom}
+                      y2="100%"
+                      stroke={step % 4 === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'}
+                      strokeWidth={1}
+                    />
+                  ))}
+                  
+                  {/* Center line for pan / 50% line for volume */}
+                  <line x1={0} y1="50%" x2="100%" y2="50%" stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
+                  <line x1={0} y1="25%" x2="100%" y2="25%" stroke="rgba(255,255,255,0.08)" strokeDasharray="4,4" />
+                  <line x1={0} y1="75%" x2="100%" y2="75%" stroke="rgba(255,255,255,0.08)" strokeDasharray="4,4" />
+                  
+                  {/* Automation curve - currently shows static center/max value */}
+                  <line 
+                    x1={0} 
+                    y1={automationLane === 'volume' ? '10%' : '50%'} 
+                    x2="100%" 
+                    y2={automationLane === 'volume' ? '10%' : '50%'} 
+                    stroke={automationLane === 'volume' ? 'rgb(34, 197, 94)' : 'rgb(59, 130, 246)'}
+                    strokeWidth={2}
+                  />
+                  
+                  {/* Labels */}
+                  <text x={5} y={15} fill="rgba(255,255,255,0.5)" fontSize="9">
+                    {automationLane === 'volume' ? '100%' : 'R'}
+                  </text>
+                  <text x={5} y="52%" fill="rgba(255,255,255,0.5)" fontSize="9">
+                    {automationLane === 'volume' ? '50%' : 'C'}
+                  </text>
+                  <text x={5} y="95%" fill="rgba(255,255,255,0.5)" fontSize="9">
+                    {automationLane === 'volume' ? '0%' : 'L'}
+                  </text>
                 </svg>
               </div>
             </div>
