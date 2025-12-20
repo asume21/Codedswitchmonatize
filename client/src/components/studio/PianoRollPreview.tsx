@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import * as Tone from 'tone';
 
 type PianoRollNote = {
   id: string;
@@ -11,9 +12,11 @@ type PianoRollNote = {
   velocity?: number;
 };
 
-const NOTE_HEIGHT = 10;
+const NOTE_HEIGHT = 12;
 const NOTE_SPACING = 1;
 const PIXELS_PER_SECOND = 60;
+const RESIZE_HANDLE_WIDTH = 8;
+const MIN_NOTE_DURATION = 0.1;
 
 const DEFAULT_NOTES: PianoRollNote[] = [
   { id: 'c4', pitch: 60, start: 0, duration: 0.75, velocity: 96 },
@@ -56,6 +59,10 @@ const midiToNoteName = (pitch: number) => {
   const octave = Math.floor(pitch / 12) - 1;
   const noteName = MIDI_NOTE_NAMES[((pitch % 12) + 12) % 12];
   return `${noteName}${octave}`;
+};
+
+const midiToFrequency = (midi: number) => {
+  return 440 * Math.pow(2, (midi - 69) / 12);
 };
 
 const formatSeconds = (seconds: number) => {
@@ -155,16 +162,47 @@ const materializeNotes = (rawNotes: any[] | null): PianoRollNote[] => {
 interface PianoRollPreviewProps {
   generatedSong: any;
   className?: string;
+  editable?: boolean;
+  onNotesChange?: (notes: PianoRollNote[]) => void;
 }
 
-const PianoRollPreview: React.FC<PianoRollPreviewProps> = ({ generatedSong, className }) => {
+const PianoRollPreview = ({ 
+  generatedSong, 
+  className, 
+  editable = false,
+  onNotesChange 
+}: PianoRollPreviewProps) => {
   const [hoveredNote, setHoveredNote] = useState<PianoRollNote | null>(null);
+  const [resizing, setResizing] = useState<{ noteId: string; startX: number; originalDuration: number } | null>(null);
+  const [internalNotes, setInternalNotes] = useState<PianoRollNote[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const synthRef = useRef<Tone.Synth | null>(null);
+
+  useEffect(() => {
+    synthRef.current = new Tone.Synth({
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.01, decay: 0.1, sustain: 0.3, release: 0.3 }
+    }).toDestination();
+    
+    return () => {
+      synthRef.current?.dispose();
+    };
+  }, []);
 
   const notes = useMemo(() => {
+    if (editable && internalNotes.length > 0) {
+      return internalNotes;
+    }
     const extracted = materializeNotes(pickFirstNotesArray(generatedSong));
     return extracted.length ? extracted : DEFAULT_NOTES;
-  }, [generatedSong]);
+  }, [generatedSong, editable, internalNotes]);
+
+  useEffect(() => {
+    if (editable) {
+      const extracted = materializeNotes(pickFirstNotesArray(generatedSong));
+      setInternalNotes(extracted.length ? extracted : DEFAULT_NOTES);
+    }
+  }, [generatedSong, editable]);
 
   const metrics = useMemo(() => {
     if (!notes.length) {
@@ -210,18 +248,122 @@ const PianoRollPreview: React.FC<PianoRollPreviewProps> = ({ generatedSong, clas
     [metrics.pitchSpan, metrics.renderMaxPitch],
   );
 
+  const playNote = useCallback(async (note: PianoRollNote) => {
+    try {
+      await Tone.start();
+      const freq = midiToFrequency(note.pitch);
+      synthRef.current?.triggerAttackRelease(freq, note.duration);
+    } catch (e) {
+      console.warn('Audio playback failed:', e);
+    }
+  }, []);
+
+  const deleteNote = useCallback((noteId: string) => {
+    if (!editable) return;
+    const newNotes = internalNotes.filter(n => n.id !== noteId);
+    setInternalNotes(newNotes);
+    onNotesChange?.(newNotes);
+  }, [editable, internalNotes, onNotesChange]);
+
+  const handleNoteClick = useCallback((e: React.MouseEvent, note: PianoRollNote) => {
+    e.stopPropagation();
+    playNote(note);
+  }, [playNote]);
+
+  const handleNoteDoubleClick = useCallback((e: React.MouseEvent, note: PianoRollNote) => {
+    e.stopPropagation();
+    e.preventDefault();
+    deleteNote(note.id);
+  }, [deleteNote]);
+
+  const isNearRightEdge = useCallback((e: React.MouseEvent<SVGRectElement>, note: PianoRollNote) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const noteWidth = note.duration * PIXELS_PER_SECOND;
+    return mouseX >= noteWidth - RESIZE_HANDLE_WIDTH;
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<SVGRectElement>, note: PianoRollNote) => {
+    if (!editable) return;
+    
+    if (isNearRightEdge(e, note)) {
+      e.preventDefault();
+      e.stopPropagation();
+      setResizing({
+        noteId: note.id,
+        startX: e.clientX,
+        originalDuration: note.duration
+      });
+    }
+  }, [editable, isNearRightEdge]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!resizing || !editable) return;
+    
+    const deltaX = e.clientX - resizing.startX;
+    const deltaDuration = deltaX / PIXELS_PER_SECOND;
+    const newDuration = Math.max(MIN_NOTE_DURATION, resizing.originalDuration + deltaDuration);
+    
+    const newNotes = internalNotes.map(n => 
+      n.id === resizing.noteId ? { ...n, duration: newDuration } : n
+    );
+    setInternalNotes(newNotes);
+  }, [resizing, editable, internalNotes]);
+
+  const handleMouseUp = useCallback(() => {
+    if (resizing && editable) {
+      onNotesChange?.(internalNotes);
+    }
+    setResizing(null);
+  }, [resizing, editable, internalNotes, onNotesChange]);
+
+  const getCursor = useCallback((e: React.MouseEvent<SVGRectElement>, note: PianoRollNote) => {
+    if (!editable) return 'pointer';
+    if (isNearRightEdge(e, note)) return 'ew-resize';
+    return 'pointer';
+  }, [editable, isNearRightEdge]);
+
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollLeft = 0;
     }
   }, [notes]);
 
+  useEffect(() => {
+    if (resizing) {
+      const handleGlobalMouseMove = (e: MouseEvent) => {
+        const deltaX = e.clientX - resizing.startX;
+        const deltaDuration = deltaX / PIXELS_PER_SECOND;
+        const newDuration = Math.max(MIN_NOTE_DURATION, resizing.originalDuration + deltaDuration);
+        
+        setInternalNotes(prev => prev.map(n => 
+          n.id === resizing.noteId ? { ...n, duration: newDuration } : n
+        ));
+      };
+      
+      const handleGlobalMouseUp = () => {
+        onNotesChange?.(internalNotes);
+        setResizing(null);
+      };
+      
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [resizing, editable, internalNotes, onNotesChange]);
+
   return (
-    <Card className={cn('bg-slate-900/30 border-slate-700/40', className)}>
+    <Card className={cn('bg-slate-900/30 border-slate-700/40', className)} data-testid="card-piano-roll-preview">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Layers className="w-4 h-4 text-cyan-400" />
           Piano Roll Preview
+          {editable && (
+            <span className="text-xs text-muted-foreground ml-2">(Click to play, double-click to delete, drag right edge to resize)</span>
+          )}
         </CardTitle>
         <p className="text-xs text-slate-400">
           Velocity-tinted notes with auto-scaling inspired by Magenta&apos;s PianoRoll visualizer.
@@ -232,7 +374,15 @@ const PianoRollPreview: React.FC<PianoRollPreviewProps> = ({ generatedSong, clas
           ref={containerRef}
           className="overflow-x-auto overflow-y-hidden rounded-md border border-slate-800/70 bg-slate-950/60"
         >
-          <svg width={svgWidth} height={svgHeight} className="block min-h-[180px]">
+          <svg 
+            width={svgWidth} 
+            height={svgHeight} 
+            className="block min-h-[180px]"
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            data-testid="svg-piano-roll"
+          >
             {pitchRows.map((pitch, rowIndex) => {
               const y = rowIndex * NOTE_HEIGHT;
               const isOctave = pitch % 12 === 0;
@@ -287,6 +437,7 @@ const PianoRollPreview: React.FC<PianoRollPreviewProps> = ({ generatedSong, clas
               const height = NOTE_HEIGHT - NOTE_SPACING;
               const opacity = mapVelocityToOpacity(note.velocity);
               const isHovered = hoveredNote?.id === note.id;
+              const isBeingResized = resizing?.noteId === note.id;
 
               return (
                 <rect
@@ -297,13 +448,19 @@ const PianoRollPreview: React.FC<PianoRollPreviewProps> = ({ generatedSong, clas
                   height={height}
                   rx={2}
                   fill={`rgba(56, 189, 248, ${opacity.toFixed(3)})`}
-                  stroke={`rgba(14, 165, 233, ${isHovered ? 0.9 : 0.45})`}
-                  strokeWidth={isHovered ? 1.4 : 0.8}
+                  stroke={`rgba(14, 165, 233, ${isHovered || isBeingResized ? 0.9 : 0.45})`}
+                  strokeWidth={isHovered || isBeingResized ? 1.4 : 0.8}
+                  className={editable ? 'transition-colors' : ''}
+                  style={{ cursor: editable ? 'pointer' : 'default' }}
                   onMouseEnter={() => setHoveredNote(note)}
-                  onMouseLeave={() => setHoveredNote(null)}
+                  onMouseLeave={() => !resizing && setHoveredNote(null)}
+                  onClick={(e) => handleNoteClick(e, note)}
+                  onDoubleClick={(e) => handleNoteDoubleClick(e, note)}
+                  onMouseDown={(e) => handleMouseDown(e, note)}
+                  data-testid={`note-${note.id}`}
                 >
                   <title>
-                    {`${midiToNoteName(note.pitch)} · start ${formatSeconds(note.start)} · duration ${formatSeconds(note.duration)}`}
+                    {`${midiToNoteName(note.pitch)} · start ${formatSeconds(note.start)} · duration ${formatSeconds(note.duration)}${editable ? ' · Click to play, double-click to delete' : ''}`}
                   </title>
                 </rect>
               );

@@ -31,6 +31,9 @@ import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin,
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
 import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
+import AIMasteringCard from './AIMasteringCard';
+import AIArrangementBuilder from './AIArrangementBuilder';
+import AIVocalMelody from './AIVocalMelody';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Package } from 'lucide-react';
@@ -2806,7 +2809,12 @@ export default function UnifiedStudioWorkspace() {
 
           {/* AI STUDIO VIEW */}
           {activeView === 'ai-studio' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
+            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+                <AIMasteringCard />
+                <AIArrangementBuilder currentBpm={tempo} currentKey="C" />
+                <AIVocalMelody currentKey="C" currentBpm={tempo} />
+              </div>
               <AIAssistant />
             </div>
           )}

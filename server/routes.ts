@@ -1195,6 +1195,484 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
     }
   });
 
+  // ============================================
+  // AI MASTERING SUGGESTIONS ENDPOINT
+  // Analyzes mix and provides professional mastering guidance
+  // ============================================
+  app.post("/api/ai/mastering", async (req: Request, res: Response) => {
+    try {
+      const { 
+        frequencyData, 
+        peakLevel, 
+        rmsLevel, 
+        genre = "pop",
+        targetLoudness = -14 
+      } = req.body;
+
+      const prompt = `You are a professional mastering engineer. Analyze this mix data and provide specific mastering recommendations.
+
+Mix Analysis:
+- Peak Level: ${peakLevel || -3}dB
+- RMS Level: ${rmsLevel || -12}dB  
+- Genre: ${genre}
+- Target Loudness: ${targetLoudness} LUFS (streaming standard)
+${frequencyData ? `- Frequency Balance: Bass ${frequencyData.bass}dB, Mids ${frequencyData.mids}dB, Highs ${frequencyData.highs}dB` : ''}
+
+Provide mastering recommendations in this exact JSON format:
+{
+  "loudnessAnalysis": {
+    "currentLUFS": -8,
+    "targetLUFS": -14,
+    "recommendation": "Reduce overall level by 6dB to prevent clipping on streaming platforms"
+  },
+  "eq": {
+    "lowCut": 30,
+    "bassBoost": { "freq": 80, "gain": 1.5 },
+    "midPresence": { "freq": 2500, "gain": 2 },
+    "airBoost": { "freq": 12000, "gain": 1 },
+    "recommendations": ["Apply gentle high-pass at 30Hz", "Boost 2.5kHz for vocal presence"]
+  },
+  "compression": {
+    "ratio": "4:1",
+    "attack": "10ms",
+    "release": "100ms",
+    "threshold": -12,
+    "recommendation": "Use gentle multiband compression for glue"
+  },
+  "limiter": {
+    "ceiling": -1,
+    "release": "50ms",
+    "recommendation": "Set ceiling at -1dB for headroom"
+  },
+  "stereoWidth": {
+    "current": "narrow",
+    "recommendation": "Add subtle stereo widening above 2kHz"
+  },
+  "overallScore": 7,
+  "topIssues": ["Levels too hot", "Bass muddy below 60Hz", "Lacking air frequencies"],
+  "quickFixes": ["Reduce master by 3dB", "High-pass at 40Hz", "Add 1dB shelf at 10kHz"]
+}`;
+
+      const aiClient = getAIClient();
+      let masteringData: any = null;
+
+      if (aiClient) {
+        try {
+          const completion = await aiClient.chat.completions.create({
+            model: "grok-beta",
+            messages: [
+              { role: "system", content: "You are a Grammy-winning mastering engineer. Provide professional, specific mastering advice in JSON format." },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.6,
+            max_tokens: 1500,
+          });
+
+          const response = completion.choices[0]?.message?.content;
+          if (response) {
+            const jsonMatch = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              masteringData = JSON.parse(jsonMatch[0]);
+            }
+          }
+        } catch (aiError: any) {
+          console.warn("AI mastering analysis failed, using fallback:", aiError.message);
+        }
+      }
+
+      if (!masteringData) {
+        masteringData = {
+          loudnessAnalysis: {
+            currentLUFS: peakLevel || -8,
+            targetLUFS: targetLoudness,
+            recommendation: "Aim for -14 LUFS for streaming platforms"
+          },
+          eq: {
+            lowCut: 35,
+            bassBoost: { freq: 80, gain: 1 },
+            midPresence: { freq: 2500, gain: 1.5 },
+            airBoost: { freq: 12000, gain: 1 },
+            recommendations: ["Apply high-pass filter at 35Hz", "Add subtle presence boost at 2-3kHz"]
+          },
+          compression: {
+            ratio: "3:1",
+            attack: "15ms",
+            release: "150ms",
+            threshold: -10,
+            recommendation: "Use gentle bus compression for cohesion"
+          },
+          limiter: {
+            ceiling: -1,
+            release: "50ms",
+            recommendation: "Limit peaks to -1dB for streaming headroom"
+          },
+          stereoWidth: {
+            current: "normal",
+            recommendation: "Check mono compatibility before widening"
+          },
+          overallScore: 6,
+          topIssues: ["Check loudness levels", "Verify frequency balance", "Test on multiple speakers"],
+          quickFixes: ["Compare with reference track", "Check in mono", "A/B test your changes"]
+        };
+      }
+
+      res.json({
+        success: true,
+        analysis: masteringData,
+        provider: aiClient ? "AI" : "Fallback",
+        generatedAt: new Date().toISOString()
+      });
+
+    } catch (error: any) {
+      console.error("Mastering analysis error:", error);
+      sendError(res, 500, error.message || "Failed to analyze mix for mastering");
+    }
+  });
+
+  // ============================================
+  // AI ARRANGEMENT BUILDER ENDPOINT  
+  // Generates full song structure from existing elements
+  // ============================================
+  app.post("/api/ai/arrangement", async (req: Request, res: Response) => {
+    try {
+      const { 
+        bpm = 120,
+        key = "C",
+        genre = "pop",
+        mood = "uplifting",
+        durationMinutes = 3,
+        existingSections = []
+      } = req.body;
+
+      const prompt = `You are a professional music producer and songwriter. Create a complete song arrangement.
+
+Song Parameters:
+- BPM: ${bpm}
+- Key: ${key}
+- Genre: ${genre}
+- Mood: ${mood}
+- Target Duration: ${durationMinutes} minutes
+${existingSections.length ? `- Existing sections to incorporate: ${existingSections.join(', ')}` : ''}
+
+Generate a professional song arrangement in this exact JSON format:
+{
+  "totalBars": 128,
+  "totalDuration": "${durationMinutes}:00",
+  "sections": [
+    {
+      "name": "Intro",
+      "startBar": 1,
+      "endBar": 8,
+      "bars": 8,
+      "duration": "16s",
+      "description": "Atmospheric synth pad with filtered drums",
+      "instruments": ["pad", "filtered-drums"],
+      "energy": 3,
+      "tips": "Keep it minimal, build anticipation"
+    },
+    {
+      "name": "Verse 1",
+      "startBar": 9,
+      "endBar": 24,
+      "bars": 16,
+      "duration": "32s",
+      "description": "Full drums enter, bass establishes groove",
+      "instruments": ["drums", "bass", "pad", "lead"],
+      "energy": 5,
+      "tips": "Introduce main melody, establish rhythm"
+    }
+  ],
+  "transitions": [
+    { "from": "Intro", "to": "Verse 1", "type": "build", "tip": "Add drum fill in last 2 bars" }
+  ],
+  "recommendations": [
+    "Add a pre-chorus before the first chorus for maximum impact",
+    "Consider a breakdown after the second chorus",
+    "End with a variation of the intro for cohesion"
+  ]
+}`;
+
+      const aiClient = getAIClient();
+      let arrangementData: any = null;
+
+      if (aiClient) {
+        try {
+          const completion = await aiClient.chat.completions.create({
+            model: "grok-beta",
+            messages: [
+              { role: "system", content: "You are a hit songwriter and producer with expertise in song structure. Create radio-ready arrangements." },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 2000,
+          });
+
+          const response = completion.choices[0]?.message?.content;
+          if (response) {
+            const jsonMatch = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              arrangementData = JSON.parse(jsonMatch[0]);
+            }
+          }
+        } catch (aiError: any) {
+          console.warn("AI arrangement generation failed:", aiError.message);
+        }
+      }
+
+      if (!arrangementData) {
+        const barsPerMinute = bpm / 4;
+        const totalBars = Math.round(durationMinutes * barsPerMinute);
+        
+        arrangementData = {
+          totalBars,
+          totalDuration: `${durationMinutes}:00`,
+          sections: [
+            { name: "Intro", startBar: 1, endBar: 8, bars: 8, energy: 3, instruments: ["pad", "drums-filtered"], description: "Build anticipation" },
+            { name: "Verse 1", startBar: 9, endBar: 24, bars: 16, energy: 5, instruments: ["drums", "bass", "melody"], description: "Establish groove and melody" },
+            { name: "Pre-Chorus", startBar: 25, endBar: 32, bars: 8, energy: 6, instruments: ["drums", "bass", "melody", "pad"], description: "Build tension" },
+            { name: "Chorus", startBar: 33, endBar: 48, bars: 16, energy: 8, instruments: ["drums", "bass", "melody", "harmony", "pad"], description: "Maximum energy, hook" },
+            { name: "Verse 2", startBar: 49, endBar: 64, bars: 16, energy: 5, instruments: ["drums", "bass", "melody"], description: "Variation of verse 1" },
+            { name: "Pre-Chorus", startBar: 65, endBar: 72, bars: 8, energy: 6, instruments: ["drums", "bass", "melody", "pad"], description: "Build to final chorus" },
+            { name: "Chorus", startBar: 73, endBar: 88, bars: 16, energy: 9, instruments: ["drums", "bass", "melody", "harmony", "pad", "fx"], description: "Biggest section" },
+            { name: "Bridge", startBar: 89, endBar: 96, bars: 8, energy: 4, instruments: ["pad", "melody-variation"], description: "Contrast and reflection" },
+            { name: "Final Chorus", startBar: 97, endBar: 112, bars: 16, energy: 10, instruments: ["drums", "bass", "melody", "harmony", "pad", "fx"], description: "Peak energy" },
+            { name: "Outro", startBar: 113, endBar: totalBars, bars: totalBars - 112, energy: 3, instruments: ["pad", "drums-filtered"], description: "Wind down" }
+          ],
+          transitions: [
+            { from: "Intro", to: "Verse 1", type: "drum-fill" },
+            { from: "Pre-Chorus", to: "Chorus", type: "build-drop" },
+            { from: "Bridge", to: "Final Chorus", type: "big-build" }
+          ],
+          recommendations: [
+            "Use automation to build energy into choruses",
+            "Add variations to keep verses interesting",
+            "Consider a breakdown for contrast"
+          ]
+        };
+      }
+
+      res.json({
+        success: true,
+        arrangement: arrangementData,
+        bpm,
+        key,
+        genre,
+        provider: aiClient ? "AI" : "Fallback"
+      });
+
+    } catch (error: any) {
+      console.error("Arrangement generation error:", error);
+      sendError(res, 500, error.message || "Failed to generate arrangement");
+    }
+  });
+
+  // ============================================
+  // AI VOCAL MELODY FROM LYRICS ENDPOINT
+  // Generates singable melody matching lyric rhythm
+  // ============================================
+  app.post("/api/ai/vocal-melody", async (req: Request, res: Response) => {
+    try {
+      const {
+        lyrics,
+        key = "C",
+        bpm = 120,
+        mood = "uplifting",
+        vocalRange = "tenor"
+      } = req.body;
+
+      if (!lyrics || typeof lyrics !== 'string' || lyrics.trim().length < 3) {
+        return sendError(res, 400, "Lyrics are required (at least 3 characters)");
+      }
+
+      const prompt = `You are a professional topline writer. Generate a singable melody for these lyrics.
+
+Lyrics: "${lyrics}"
+Key: ${key}
+BPM: ${bpm}
+Mood: ${mood}
+Vocal Range: ${vocalRange}
+
+Analyze the syllables and create a melody that:
+1. Matches the natural speech rhythm of the words
+2. Has memorable hooks on key phrases
+3. Stays within a comfortable vocal range
+4. Uses appropriate note durations for each syllable
+
+Return in this exact JSON format:
+{
+  "syllables": [
+    { "text": "I'm", "syllableCount": 1 },
+    { "text": "walk-ing", "syllableCount": 2 }
+  ],
+  "notes": [
+    { "pitch": "C4", "duration": 0.5, "time": 0, "syllable": "I'm", "velocity": 0.8 },
+    { "pitch": "D4", "duration": 0.25, "time": 0.5, "syllable": "walk", "velocity": 0.9 },
+    { "pitch": "E4", "duration": 0.25, "time": 0.75, "syllable": "ing", "velocity": 0.7 }
+  ],
+  "vocalRange": { "low": "A3", "high": "E5" },
+  "keySignature": "${key}",
+  "contour": "ascending",
+  "singabilityScore": 8,
+  "tips": ["Breathe after 'walking'", "Emphasis on 'I'm'"]
+}`;
+
+      const aiClient = getAIClient();
+      let melodyData: any = null;
+
+      if (aiClient) {
+        try {
+          const completion = await aiClient.chat.completions.create({
+            model: "grok-beta",
+            messages: [
+              { role: "system", content: "You are a Grammy-winning songwriter who creates memorable vocal melodies. Match melodies perfectly to lyric rhythm." },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 2000,
+          });
+
+          const response = completion.choices[0]?.message?.content;
+          if (response) {
+            const jsonMatch = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              melodyData = JSON.parse(jsonMatch[0]);
+            }
+          }
+        } catch (aiError: any) {
+          console.warn("AI vocal melody failed:", aiError.message);
+        }
+      }
+
+      if (!melodyData) {
+        const words = lyrics.split(/\s+/).filter((w: string) => w.length > 0);
+        const scale = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+        let time = 0;
+        const notes = words.map((word: string, i: number) => {
+          const pitch = scale[i % scale.length];
+          const duration = 0.5;
+          const note = { pitch, duration, time, syllable: word, velocity: 0.8 };
+          time += duration;
+          return note;
+        });
+
+        melodyData = {
+          syllables: words.map((w: string) => ({ text: w, syllableCount: 1 })),
+          notes,
+          vocalRange: { low: "C4", high: "C5" },
+          keySignature: key,
+          contour: "varied",
+          singabilityScore: 6,
+          tips: ["This is a basic algorithmic melody - AI enhancement recommended"]
+        };
+      }
+
+      res.json({
+        success: true,
+        melody: melodyData,
+        lyrics,
+        key,
+        bpm,
+        provider: aiClient ? "AI" : "Algorithmic Fallback"
+      });
+
+    } catch (error: any) {
+      console.error("Vocal melody generation error:", error);
+      sendError(res, 500, error.message || "Failed to generate vocal melody");
+    }
+  });
+
+  // ============================================
+  // AI CHORD PROGRESSION BY MOOD ENDPOINT
+  // ============================================
+  app.post("/api/ai/chord-progression", async (req: Request, res: Response) => {
+    try {
+      const {
+        key = "C",
+        mood = "happy",
+        genre = "pop",
+        bars = 8
+      } = req.body;
+
+      const prompt = `Generate a ${bars}-bar chord progression in ${key} with a ${mood} feel for ${genre} music.
+
+Return ONLY valid JSON:
+{
+  "chords": ["C", "Am", "F", "G"],
+  "progression": "I-vi-IV-V",
+  "bars": ${bars},
+  "emotionalImpact": 8,
+  "variations": [
+    { "name": "Jazz", "chords": ["Cmaj7", "Am9", "Fmaj7", "G7"] },
+    { "name": "Minimal", "chords": ["C", "F", "G", "C"] }
+  ],
+  "bassNotes": ["C", "A", "F", "G"],
+  "tips": ["Add 7ths for sophistication", "Try inversions for smoother bass line"]
+}`;
+
+      const aiClient = getAIClient();
+      let chordData: any = null;
+
+      if (aiClient) {
+        try {
+          const completion = await aiClient.chat.completions.create({
+            model: "grok-beta",
+            messages: [
+              { role: "system", content: "You are a music theory expert and composer. Create emotionally impactful chord progressions." },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 1000,
+          });
+
+          const response = completion.choices[0]?.message?.content;
+          if (response) {
+            const jsonMatch = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              chordData = JSON.parse(jsonMatch[0]);
+            }
+          }
+        } catch (aiError: any) {
+          console.warn("AI chord progression failed:", aiError.message);
+        }
+      }
+
+      if (!chordData) {
+        const moodProgressions: Record<string, string[]> = {
+          happy: ["C", "G", "Am", "F"],
+          sad: ["Am", "F", "C", "G"],
+          energetic: ["C", "F", "Am", "G"],
+          calm: ["C", "Am", "F", "G"],
+          dark: ["Am", "Dm", "E", "Am"],
+          uplifting: ["C", "G", "Am", "Em", "F", "C", "F", "G"]
+        };
+        
+        const chords = moodProgressions[mood.toLowerCase()] || moodProgressions.happy;
+        chordData = {
+          chords: chords.slice(0, bars),
+          progression: "I-V-vi-IV",
+          bars,
+          emotionalImpact: 7,
+          variations: [],
+          bassNotes: chords.slice(0, bars).map((c: string) => c.charAt(0)),
+          tips: ["Experiment with inversions", "Add sus4 for tension"]
+        };
+      }
+
+      res.json({
+        success: true,
+        chords: chordData,
+        key,
+        mood,
+        genre,
+        provider: aiClient ? "AI" : "Fallback"
+      });
+
+    } catch (error: any) {
+      console.error("Chord progression error:", error);
+      sendError(res, 500, error.message || "Failed to generate chord progression");
+    }
+  });
+
   // Helper function to generate drum patterns
   function generatePattern(instrument: string, genre: string, bpm: number) {
     // Base patterns per genre (8 steps) – used as a starting groove
