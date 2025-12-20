@@ -34,6 +34,7 @@ import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
 import AIMasteringCard from './AIMasteringCard';
 import AIArrangementBuilder from './AIArrangementBuilder';
 import AIVocalMelody from './AIVocalMelody';
+import AIStemSeparation from './AIStemSeparation';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Package } from 'lucide-react';
@@ -2814,6 +2815,7 @@ export default function UnifiedStudioWorkspace() {
                 <AIMasteringCard />
                 <AIArrangementBuilder currentBpm={tempo} currentKey="C" />
                 <AIVocalMelody currentKey="C" currentBpm={tempo} />
+                <AIStemSeparation />
               </div>
               <AIAssistant />
             </div>

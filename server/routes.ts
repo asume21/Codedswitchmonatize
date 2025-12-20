@@ -23,6 +23,7 @@ import { generateChatMusicianMelody } from "./services/chatMusician";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import { convertCodeToMusic, convertCodeToMusicEnhanced } from "./services/codeToMusic";
 import { transcribeAudio } from "./services/transcriptionService";
+import { aiCache, withCache } from "./services/aiCache";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -1330,6 +1331,22 @@ Provide mastering recommendations in this exact JSON format:
   });
 
   // ============================================
+  // AI CACHE STATS ENDPOINT
+  // Returns cache performance metrics
+  // ============================================
+  app.get("/api/ai/cache-stats", async (_req: Request, res: Response) => {
+    try {
+      const stats = aiCache.getStats();
+      res.json({
+        success: true,
+        cache: stats
+      });
+    } catch (error: any) {
+      sendError(res, 500, "Failed to get cache stats");
+    }
+  });
+
+  // ============================================
   // AI ARRANGEMENT BUILDER ENDPOINT  
   // Generates full song structure from existing elements
   // ============================================
@@ -1578,6 +1595,121 @@ Return in this exact JSON format:
     } catch (error: any) {
       console.error("Vocal melody generation error:", error);
       sendError(res, 500, error.message || "Failed to generate vocal melody");
+    }
+  });
+
+  // ============================================
+  // AI STEM SEPARATION ENDPOINT
+  // Uses Replicate's Spleeter model to separate audio stems
+  // ============================================
+  app.post("/api/ai/stem-separation", async (req: Request, res: Response) => {
+    try {
+      const { audioUrl, stemCount = 2 } = req.body;
+
+      if (!audioUrl || typeof audioUrl !== 'string') {
+        return sendError(res, 400, "Audio URL is required");
+      }
+
+      const validStemCounts = [2, 4, 5];
+      const stems = validStemCounts.includes(stemCount) ? stemCount : 2;
+
+      const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+      if (!REPLICATE_API_TOKEN) {
+        return res.json({
+          success: false,
+          message: "Stem separation service not configured",
+          configured: false
+        });
+      }
+
+      console.log(`Starting stem separation: ${stems} stems from ${audioUrl}`);
+
+      const predictionResponse = await fetch('https://api.replicate.com/v1/models/soykertje/spleeter/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          input: {
+            audio: audioUrl,
+            stems: stems,
+          },
+        }),
+      });
+
+      if (!predictionResponse.ok) {
+        const error = await predictionResponse.text();
+        console.error('Replicate API error:', error);
+        return sendError(res, 500, "Failed to start stem separation");
+      }
+
+      const prediction = await predictionResponse.json() as any;
+      const predictionId = prediction.id;
+
+      res.json({
+        success: true,
+        predictionId,
+        status: 'processing',
+        message: `Separating audio into ${stems} stems. This may take 1-3 minutes.`,
+        checkStatusUrl: `/api/ai/stem-separation/status/${predictionId}`
+      });
+
+    } catch (error: any) {
+      console.error("Stem separation error:", error);
+      sendError(res, 500, error.message || "Failed to start stem separation");
+    }
+  });
+
+  // Check stem separation status
+  app.get("/api/ai/stem-separation/status/:predictionId", async (req: Request, res: Response) => {
+    try {
+      const { predictionId } = req.params;
+
+      if (!predictionId) {
+        return sendError(res, 400, "Prediction ID required");
+      }
+
+      const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+      if (!REPLICATE_API_TOKEN) {
+        return sendError(res, 503, "Stem separation service not configured");
+      }
+
+      const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+        headers: {
+          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
+        },
+      });
+
+      if (!statusResponse.ok) {
+        return sendError(res, 500, "Failed to check status");
+      }
+
+      const status = await statusResponse.json() as any;
+
+      if (status.status === 'succeeded') {
+        res.json({
+          success: true,
+          status: 'completed',
+          stems: status.output
+        });
+      } else if (status.status === 'failed') {
+        res.json({
+          success: false,
+          status: 'failed',
+          error: status.error || 'Separation failed'
+        });
+      } else {
+        res.json({
+          success: true,
+          status: 'processing',
+          message: 'Still processing...'
+        });
+      }
+
+    } catch (error: any) {
+      console.error("Status check error:", error);
+      sendError(res, 500, error.message || "Failed to check status");
     }
   });
 
