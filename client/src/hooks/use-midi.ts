@@ -173,23 +173,40 @@ export function useMIDI() {
         
         // Get instrument name from settingsRef (always current, no stale closure)
         const currentSettings = settingsRef.current;
-        const instrument = currentSettings.currentInstrument || 'piano';
+        const instrumentSetting = currentSettings.currentInstrument || 'piano';
+        
+        // Map simple instrument names to AudioEngine-compatible names
+        // AudioEngine checks for substrings like "piano", "guitar", "violin", etc.
+        const instrumentForEngine: { [key: string]: string } = {
+          piano: "piano",
+          guitar: "guitar", 
+          bass: "bass-electric",
+          violin: "violin",
+          flute: "flute",
+          trumpet: "trumpet",
+          organ: "organ",
+          synth: "synth",
+          strings: "violin",
+          brass: "trumpet",
+        };
+        const instrument = instrumentForEngine[instrumentSetting] || instrumentSetting;
         
         // Apply MIDI volume (multiply with velocity)
-        const midiVolume = currentSettings.midiVolume ?? 0.3;
+        const midiVolume = currentSettings.midiVolume ?? 0.5;
         const adjustedVelocity = normalizedVelocity * midiVolume;
         
-        // Play note using the REAL AudioEngine with all the synthesis magic!
+        // Play note with SHORT duration and NO sustain for responsive MIDI feel
+        // Notes will decay naturally instead of droning on
         await audioEngineRef.current.playNote(
           frequency,
-          1.0, // duration
+          0.5, // shorter duration for snappier MIDI response
           adjustedVelocity,
           instrument,
-          true // sustain
+          false // NO sustain - notes decay naturally when key released
         );
 
         console.log(
-          `✅ MIDI ${instrument.toUpperCase()}: ${note}${octave} (${frequency.toFixed(1)}Hz) vel=${adjustedVelocity.toFixed(2)}`,
+          `✅ MIDI [${instrumentSetting}→${instrument}]: ${note}${octave} (${frequency.toFixed(1)}Hz) vel=${adjustedVelocity.toFixed(2)}`,
         );
       } catch (error) {
         console.error(`❌ AudioEngine playNote failed for ${note}${octave}:`, error);
