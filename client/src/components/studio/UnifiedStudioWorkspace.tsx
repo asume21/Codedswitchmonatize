@@ -40,6 +40,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
+import { createTrackPayload } from '@/types/studioTracks';
 import { UndoManager } from '@/lib/UndoManager';
 import 'react-resizable/css/styles.css';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
@@ -438,7 +439,9 @@ export default function UnifiedStudioWorkspace() {
         solo: false,
         lengthBars: 8,
         startBar: 0,
-        payload: { audioUrl: detail.audioUrl },
+        source: 'imported',
+        bpm: 120,
+        payload: createTrackPayload({ type: 'audio', audioUrl: detail.audioUrl }),
         audioUrl: detail.audioUrl,
         data: {},
       };
@@ -529,7 +532,9 @@ export default function UnifiedStudioWorkspace() {
         solo: false,
         lengthBars: 4,
         startBar: 0,
-        payload: {},
+        source: 'default',
+        bpm: 120,
+        payload: createTrackPayload({ type: 'midi' }),
       };
       setTracks([defaultTrack]);
       setSelectedTrack(defaultTrack.id);
@@ -814,7 +819,9 @@ export default function UnifiedStudioWorkspace() {
       solo: false,
       lengthBars: 4,
       startBar: 0,
-      payload: {},
+      source: 'user-created',
+      bpm: 120,
+      payload: createTrackPayload({ type: 'midi' }),
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -1223,7 +1230,9 @@ export default function UnifiedStudioWorkspace() {
       solo: false,
       lengthBars: 4,
       startBar: 0,
-      payload: {},
+      source: 'user-created',
+      bpm: 120,
+      payload: createTrackPayload({ type: 'midi' }),
       data: {},
     };
     setTracks([...tracks, newTrack]);
@@ -1245,7 +1254,9 @@ export default function UnifiedStudioWorkspace() {
       solo: false,
       lengthBars: 4,
       startBar: 0,
-      payload: {},
+      source: 'user-created',
+      bpm: 120,
+      payload: createTrackPayload({ type: 'audio' }),
       data: {},
     };
     setTracks([...tracks, newTrack]);
@@ -1410,7 +1421,9 @@ export default function UnifiedStudioWorkspace() {
       solo: false,
       lengthBars: 8,
       startBar: 0,
-      payload: {},
+      source: 'ai-generated',
+      bpm: metadata.bpm || 120,
+      payload: createTrackPayload({ type: 'audio' }),
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -1438,7 +1451,9 @@ export default function UnifiedStudioWorkspace() {
         solo: false,
         lengthBars: 8,
         startBar: 0,
-        payload: {},
+        source: 'lyrics',
+        bpm: 120,
+        payload: createTrackPayload({ type: 'lyrics' }),
       };
       setTracks([...tracks, newTrack]);
     }

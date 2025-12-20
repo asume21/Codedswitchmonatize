@@ -532,6 +532,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
             notes: notesForTrack,
             source: 'probeat-ai-melody',
             bpm,
+            volume: 0.8,
+            pan: 0,
           },
         });
 
@@ -634,6 +636,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
             notes: notesForTrack,
             source: 'probeat-ai-bass',
             bpm,
+            volume: 0.8,
+            pan: 0,
           },
         });
 
