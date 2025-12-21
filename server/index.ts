@@ -29,8 +29,8 @@ ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
 
 // Serve audio assets (loops, bass samples, etc.)
-// Use import.meta.dirname for ESM compatibility (Node 20+)
-const assetsRoot = path.resolve(import.meta.dirname, "Assests");
+// Resolve from repo root so packaged assets are available in prod.
+const assetsRoot = path.resolve(process.cwd(), "server", "Assests");
 app.use("/assets", express.static(assetsRoot));
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)

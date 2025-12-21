@@ -46,3 +46,6 @@ coverage/
 .vite/
 .eslintcache
 *.tsbuildinfo
+
+# Local patch snapshots
+local-changes-*.patch
