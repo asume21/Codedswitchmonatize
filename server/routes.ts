@@ -16,6 +16,7 @@ import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
 import { musicGenService } from "./services/musicgen";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
+import crypto from "crypto";
 import { callAI } from "./services/aiGateway";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { generateMusicFromLyrics } from "./services/lyricsToMusic";
@@ -2360,6 +2361,48 @@ ${code}
 
   // Stripe Webhook - raw body is provided by express.raw mounted in index.ts
   app.post("/api/webhooks/stripe", stripeWebhookHandler(storage));
+
+  // Replicate webhook with signature verification
+  app.post("/api/webhooks/replicate", (req: Request, res: Response) => {
+    try {
+      const secret = process.env.REPLICATE_WEBHOOK_SECRET;
+      if (!secret) {
+        return res.status(500).json({ error: "REPLICATE_WEBHOOK_SECRET not configured" });
+      }
+
+      const signatureHeader = req.header("Replicate-Signature") || "";
+      const expectedPrefix = "sha256=";
+      if (!signatureHeader.startsWith(expectedPrefix)) {
+        return res.status(401).json({ error: "Invalid signature format" });
+      }
+
+      const provided = signatureHeader.slice(expectedPrefix.length);
+      const rawBody = req.body as Buffer;
+      const computed = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+
+      const providedBuf = Buffer.from(provided, "hex");
+      const computedBuf = Buffer.from(computed, "hex");
+      if (
+        providedBuf.length !== computedBuf.length ||
+        !crypto.timingSafeEqual(providedBuf, computedBuf)
+      ) {
+        return res.status(401).json({ error: "Signature verification failed" });
+      }
+
+      let parsed: any = undefined;
+      try {
+        parsed = JSON.parse(rawBody.toString("utf8"));
+      } catch {
+        // keep parsed undefined if not JSON
+      }
+
+      console.log("✅ Replicate webhook verified", parsed?.id || "");
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("❌ Replicate webhook error", err);
+      return res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
 
   // Music generation endpoint (temporarily free)
   app.post(
