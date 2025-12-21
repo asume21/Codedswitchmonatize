@@ -29,8 +29,8 @@ ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
 
 // Serve audio assets (loops, bass samples, etc.)
-// Resolve from repo root so assets packaged outside dist are available in production.
-const assetsRoot = path.resolve(process.cwd(), "server", "Assests");
+// Use import.meta.dirname for ESM compatibility (Node 20+)
+const assetsRoot = path.resolve(import.meta.dirname, "Assests");
 app.use("/assets", express.static(assetsRoot));
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)
@@ -56,8 +56,6 @@ app.use((req, res, next) => {
 // Stripe webhook must receive the raw body for signature verification.
 // Mount this BEFORE json/urlencoded parsers.
 app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
-// Replicate webhook must also receive raw body for signature verification.
-app.use("/api/webhooks/replicate", express.raw({ type: "application/json" }));
 
 // Sessions with PostgreSQL - properly configured
 const PgSession = connectPgSimple(session);
