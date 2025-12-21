@@ -1,0 +1,53 @@
+{
+  "$schema": "https://adp-protocol.dev/schemas/context.v1.json",
+  "version": "1.0.0",
+  "project": {
+    "name": "CodedSwitch Studio",
+    "description": "AI-powered music creation platform bridging coding and music composition",
+    "stack": ["React", "TypeScript", "Vite", "Express", "PostgreSQL", "Tone.js"]
+  },
+  "lastUpdated": {
+    "timestamp": "2025-12-21T12:00:00Z",
+    "agent": "Replit Agent",
+    "summary": "Initialized ADP protocol structure"
+  },
+  "currentTask": {
+    "id": "adp-init",
+    "description": "Creating Agent Dialogue Protocol v0.1 specification",
+    "status": "in_progress",
+    "assignee": "Replit Agent"
+  },
+  "recentChanges": [
+    {
+      "timestamp": "2025-12-21T12:00:00Z",
+      "agent": "Replit Agent",
+      "description": "Created .ai/ directory with ADP protocol files",
+      "files": [".ai/context.json", ".ai/dialogue.json", ".ai/protocol.md", ".ai/README.md"]
+    },
+    {
+      "timestamp": "2025-12-20T00:00:00Z",
+      "agent": "Replit Agent",
+      "description": "Fixed ProBeatMaker persistence, audio export, and navigation",
+      "files": ["client/src/components/studio/ProBeatMaker.tsx"]
+    }
+  ],
+  "nextSteps": [
+    "Test protocol with Cascade/Windsurf",
+    "Iterate on schema based on multi-agent feedback",
+    "Document adoption guide for other projects"
+  ],
+  "keyFiles": {
+    "documentation": ["replit.md", ".ai/README.md", "docs/IMPLEMENTATION_PRIORITY_GUIDE.md"],
+    "recentlyModified": ["client/src/components/studio/ProBeatMaker.tsx", "client/src/hooks/use-computer-keyboard.ts"]
+  },
+  "decisions": [
+    {
+      "id": "dec-001",
+      "timestamp": "2025-12-21T12:00:00Z",
+      "decision": "Use filesystem as universal protocol layer",
+      "reasoning": "All AI coding tools can read/write files - zero integration cost",
+      "agents": ["Replit Agent", "Human"]
+    }
+  ],
+  "notes": "This is v0.1 of ADP - Agent Dialogue Protocol. A file-based standard for AI coding assistants to share context and have conversations."
+}
