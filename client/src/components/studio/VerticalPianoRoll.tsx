@@ -7,6 +7,7 @@ import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus
 import { Arpeggiator } from "./Arpeggiator";
 import { useAudio } from "@/hooks/use-audio";
 import { audioEngine } from "@/lib/audioEngine";
+import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useTransport } from "@/contexts/TransportContext";

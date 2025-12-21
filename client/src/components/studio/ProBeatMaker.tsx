@@ -778,6 +778,32 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     return () => { audioCtx.current?.close(); };
   }, []);
 
+  const toUnifiedDrumType = useCallback((drum: DrumEngineType): DrumType => {
+    switch (drum) {
+      case 'kick':
+        return 'kick';
+      case 'snare':
+        return 'snare';
+      case 'clap':
+        return 'clap';
+      case 'hihat':
+      case 'openhat':
+        return 'hihat';
+      case 'tom':
+      case 'tom_hi':
+      case 'tom_mid':
+      case 'tom_lo':
+      case 'conga':
+      case 'perc':
+      case 'rim':
+        return 'tom';
+      case 'crash':
+      case 'fx':
+      default:
+        return 'crash';
+    }
+  }, []);
+
   const triggerDrumAudition = useCallback((trackId: string, velocity0to127: number) => {
     const drumType = (DRUM_ID_TO_TYPE[trackId] || 'kick') as DrumEngineType;
     const vol = Math.max(0, Math.min(1, velocity0to127 / 127));
@@ -874,32 +900,6 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       setHistoryIdx(i => i + 1);
     }
   };
-
-  const toUnifiedDrumType = useCallback((drum: DrumEngineType): DrumType => {
-    switch (drum) {
-      case 'kick':
-        return 'kick';
-      case 'snare':
-        return 'snare';
-      case 'clap':
-        return 'clap';
-      case 'hihat':
-      case 'openhat':
-        return 'hihat';
-      case 'tom':
-      case 'tom_hi':
-      case 'tom_mid':
-      case 'tom_lo':
-      case 'conga':
-      case 'perc':
-      case 'rim':
-        return 'tom';
-      case 'crash':
-      case 'fx':
-      default:
-        return 'crash';
-    }
-  }, []);
 
   const playSound = useCallback(async (id: string, vel: number, vol: number) => {
     const normalizedId = id.toLowerCase();

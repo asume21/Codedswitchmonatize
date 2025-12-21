@@ -980,6 +980,7 @@ export default function MasterMultiTrackPlayer() {
         return;
       }
 
+      if (!track.audioBuffer) return;
       // Create nodes
       const source = ctx.createBufferSource();
       const gainNode = ctx.createGain();
