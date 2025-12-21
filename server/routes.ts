@@ -240,8 +240,12 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Local loop/asset directories (for Neumann Pack & Loop Library)
   const LOCAL_ASSETS_DIR = path.resolve(process.cwd(), "server", "Assests");
-  // Loop library uses objects/loops folder
-  const LOOPS_DIR = path.resolve(LOCAL_OBJECTS_DIR, "loops");
+  const ASSET_LOOPS_DIR = path.join(LOCAL_ASSETS_DIR, "loops");
+
+  // Loop library: prefer packaged assets (/server/Assests/loops) if present, otherwise fall back to objects/loops
+  const LOOPS_DIR = fs.existsSync(ASSET_LOOPS_DIR)
+    ? ASSET_LOOPS_DIR
+    : path.resolve(LOCAL_OBJECTS_DIR, "loops");
   
   // Ensure loops directory exists
   try {

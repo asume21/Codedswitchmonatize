@@ -208,14 +208,18 @@ function App() {
                     </AIMessageProvider>
                   </Route>
                   <Route path="/vulnerability-scanner">
-                    <AppLayout>
-                      <VulnerabilityScannerPage />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <VulnerabilityScannerPage />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/ai-assistant">
-                    <AppLayout>
-                      <AIAssistantPage />
-                    </AppLayout>
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <AIAssistantPage />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/mix-studio">
                     <AIMessageProvider>
