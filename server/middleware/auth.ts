@@ -31,6 +31,14 @@ export function currentUser(storage: IStorage) {
       }
 
       // No auto-login - users must activate with a key
+      // Dev-only convenience: allow local testing without a full auth flow.
+      // Enabled by default in non-production; set DISABLE_DEV_AUTO_LOGIN=true to turn off.
+      // Optionally set DEV_USER_ID to control which userId is used.
+      const devAutoLoginEnabled =
+        process.env.NODE_ENV !== 'production' && process.env.DISABLE_DEV_AUTO_LOGIN !== 'true';
+      if (devAutoLoginEnabled) {
+        req.userId = process.env.DEV_USER_ID?.trim() || 'dev-user';
+      }
       next();
     } catch (err) {
       next(err);

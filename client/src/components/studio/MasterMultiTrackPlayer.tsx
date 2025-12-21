@@ -4,7 +4,7 @@
  * Integrates with: Uploaded Songs, Beat Lab, Melody Composer, Piano Roll
  */
 
-import { useState, useRef, useEffect, useContext } from 'react';
+import { useState, useRef, useEffect, useContext, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { StudioAudioContext } from '@/pages/studio';
+import { useAudio } from '@/hooks/use-audio';
 import {
   Play,
   Pause,
@@ -332,6 +333,7 @@ export default function MasterMultiTrackPlayer() {
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
   const { tracks: storeTracks } = useTracks();
+  const { playNote, initialize } = useAudio();
   
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -362,13 +364,64 @@ export default function MasterMultiTrackPlayer() {
   const pauseTimeRef = useRef<number>(0);
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
   const manualTracksRef = useRef<AudioTrack[]>([]);
+  const midiTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   const getTrackEffectiveDuration = (track: AudioTrack): number => {
     const full = track.audioBuffer?.duration || 0;
     const start = Math.max(0, track.trimStartSeconds ?? 0);
     const end = Math.min(full, track.trimEndSeconds ?? full);
-    return Math.max(0, end - start);
+    const audioDuration = Math.max(0, end - start);
+
+    if (audioDuration > 0) {
+      return audioDuration;
+    }
+
+    if (Array.isArray(track.midiNotes) && track.midiNotes.length > 0) {
+      const bpm = track.trackType === 'midi' ? (track as any).bpm ?? tempo : tempo;
+      const secondsPerBeat = 60 / Math.max(40, Math.min(240, bpm || 120));
+      const maxBeats = track.midiNotes.reduce((m, n) => {
+        const startBeat = (n.step ?? 0) / 4;
+        const durBeat = (n.length ?? 1) / 4;
+        return Math.max(m, startBeat + durBeat);
+      }, 0);
+      return Math.max(0, maxBeats * secondsPerBeat);
+    }
+
+    return 0;
   };
+
+  const scheduleMidiTrack = useCallback(async (track: AudioTrack, startOffsetSeconds: number) => {
+    if (!Array.isArray(track.midiNotes) || track.midiNotes.length === 0) return;
+
+    try {
+      await initialize();
+    } catch {
+      return;
+    }
+
+    const bpm = (track as any).bpm ?? tempo;
+    const secondsPerBeat = 60 / Math.max(40, Math.min(240, bpm || 120));
+    const instrument = (track.instrument || 'piano').toLowerCase().includes('bass') ? 'bass' : (track.instrument || 'piano');
+    const volume = Math.max(0, Math.min(1, (track.volume ?? 80) / 100));
+
+    track.midiNotes.forEach((n) => {
+      const startBeat = (n.step ?? 0) / 4;
+      const durBeat = (n.length ?? 1) / 4;
+      const startSeconds = startBeat * secondsPerBeat;
+      const durationSeconds = Math.max(0.02, durBeat * secondsPerBeat);
+
+      const whenMs = (startSeconds - startOffsetSeconds) * 1000;
+      if (whenMs < 0) {
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        if (!isPlayingRef.current) return;
+        void playNote(n.note, n.octave, durationSeconds, instrument, volume);
+      }, whenMs);
+      midiTimeoutsRef.current.push(timeout);
+    });
+  }, [initialize, isPlayingRef, playNote, tempo]);
 
   // Fetch uploaded songs from library
   const { data: librarySongs = [] } = useQuery<any[]>({
@@ -916,10 +969,16 @@ export default function MasterMultiTrackPlayer() {
     startTimeRef.current = ctx.currentTime - startOffset;
 
     tracks.forEach(track => {
-      if (!track.audioBuffer) return;
+      const isMidi = track.trackType === 'midi' && Array.isArray(track.midiNotes) && track.midiNotes.length > 0;
+      if (!track.audioBuffer && !isMidi) return;
 
       // Skip if muted or if solo mode and this track isn't soloed
       if (track.muted || (hasSolo && !track.solo)) return;
+
+      if (isMidi) {
+        void scheduleMidiTrack(track, startOffset);
+        return;
+      }
 
       // Create nodes
       const source = ctx.createBufferSource();
@@ -1026,6 +1085,8 @@ export default function MasterMultiTrackPlayer() {
 
   // Stop all tracks
   const stopTracks = () => {
+    midiTimeoutsRef.current.forEach((t) => clearTimeout(t));
+    midiTimeoutsRef.current = [];
     tracks.forEach(track => {
       if (track.sourceNode) {
         try {

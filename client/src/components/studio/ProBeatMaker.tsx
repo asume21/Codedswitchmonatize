@@ -30,7 +30,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useSessionDestination } from '@/contexts/SessionDestinationContext';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
-import { realisticAudio } from '@/lib/realisticAudio';
+import { DrumType, useAudio } from '@/hooks/use-audio';
+import { audioEngine } from '@/lib/audioEngine';
 import {
   Play, Square, RotateCcw, Undo2, Redo2, Shuffle, Send, ChevronDown, Wand2,
   Copy, Clipboard, Volume2, Disc, Zap, Timer,
@@ -120,6 +121,31 @@ type AiNote = {
   duration?: number;
   pitch?: string | number;
   velocity?: number;
+};
+
+type PadBinding = {
+  note: number;
+  trackId: string;
+};
+
+type MidiMessageDetail =
+  | { kind: 'noteon'; note: number; velocity: number; channel: number; raw: number[] }
+  | { kind: 'noteoff'; note: number; channel: number; raw: number[] }
+  | { kind: 'cc'; cc: number; value: number; channel: number; raw: number[] }
+  | { kind: 'pitchbend'; value14bit: number; semitones: number; channel: number; raw: number[] };
+
+type SliderTarget = 'master' | 'swing' | 'groove' | 'humanize';
+
+type CCBinding = {
+  cc: number;
+  channel: number | null;
+};
+
+type CCBindings = {
+  master: CCBinding | null;
+  swing: CCBinding | null;
+  groove: CCBinding | null;
+  humanize: CCBinding | null;
 };
 
 function parsePitch(pitch: unknown): { note: string; octave: number } {
@@ -296,6 +322,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const { tempo } = useTransport();
   const { addTrack } = useTrackStore();
   const { requestDestination } = useSessionDestination();
+  const { playDrum, initialize } = useAudio();
   
   // Core state
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
@@ -318,6 +345,8 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [masterVol, setMasterVol] = useState(80);
   const [useRealisticDrums, setUseRealisticDrums] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(true);
+  const [isRecordingArmed, setIsRecordingArmed] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedStep, setSelectedStep] = useState<{t: number, s: number} | null>(null);
   const [history, setHistory] = useState<DrumTrack[][]>([]);
@@ -328,6 +357,69 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [metronomeOn, setMetronomeOn] = useState(false);
   const [metronomeVol, setMetronomeVol] = useState(30); // 0-100
   const [copiedTrack, setCopiedTrack] = useState<DrumStep[] | null>(null);
+
+  const [padBindings, setPadBindings] = useState<PadBinding[]>(() => {
+    try {
+      const raw = localStorage.getItem('proBeatMaker.padBindings.v1');
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed
+            .filter((v: any) => v && typeof v.note === 'number' && typeof v.trackId === 'string')
+            .slice(0, 8) as PadBinding[];
+          if (cleaned.length === 8) return cleaned;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    const defaultNotes = [36, 37, 38, 39, 40, 41, 42, 43];
+    const kit = DRUM_KITS[DEFAULT_KIT] || DRUM_KITS['808'];
+    const ids = kit.tracks.map(t => t.id);
+    return defaultNotes.map((note, i) => ({ note, trackId: ids[i] || 'kick' }));
+  });
+  const [padLearnIndex, setPadLearnIndex] = useState<number | null>(null);
+
+  const [ccBindings, setCcBindings] = useState<CCBindings>(() => {
+    try {
+      const raw = localStorage.getItem('proBeatMaker.ccBindings.v1');
+      if (raw) {
+        const parsed = JSON.parse(raw) as any;
+
+        const normalize = (value: any, fallback: CCBinding | null): CCBinding | null => {
+          if (value && typeof value.cc === 'number') {
+            return {
+              cc: value.cc,
+              channel: typeof value.channel === 'number' ? value.channel : null,
+            };
+          }
+          if (typeof value === 'number') {
+            return { cc: value, channel: null };
+          }
+          return fallback;
+        };
+
+        return {
+          master: normalize(parsed.master, { cc: 7, channel: 0 }),
+          swing: normalize(parsed.swing, { cc: 7, channel: 1 }),
+          groove: normalize(parsed.groove, { cc: 7, channel: 2 }),
+          humanize: normalize(parsed.humanize, { cc: 7, channel: 3 }),
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      master: { cc: 7, channel: 0 },
+      swing: { cc: 7, channel: 1 },
+      groove: { cc: 7, channel: 2 },
+      humanize: { cc: 7, channel: 3 },
+    };
+  });
+  const [ccLearnTarget, setCcLearnTarget] = useState<SliderTarget | null>(null);
+  const [midiMappingOpen, setMidiMappingOpen] = useState(false);
   
   // Tap tempo state
   const [tapTimes, setTapTimes] = useState<number[]>([]);
@@ -342,6 +434,22 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [lastDrumsGenMethod, setLastDrumsGenMethod] = useState<'ai' | 'algorithmic' | null>(null);
   const [lastMelodyGenMethod, setLastMelodyGenMethod] = useState<'ai' | 'algorithmic' | null>(null);
   const [lastBassGenMethod, setLastBassGenMethod] = useState<'ai' | 'algorithmic' | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('proBeatMaker.padBindings.v1', JSON.stringify(padBindings));
+    } catch {
+      // ignore
+    }
+  }, [padBindings]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('proBeatMaker.ccBindings.v1', JSON.stringify(ccBindings));
+    } catch {
+      // ignore
+    }
+  }, [ccBindings]);
   
   // AI Beat generation mutation
   const generateBeatMutation = useMutation({
@@ -667,8 +775,82 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    audioCtx.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     return () => { audioCtx.current?.close(); };
+  }, []);
+
+  const triggerDrumAudition = useCallback((trackId: string, velocity0to127: number) => {
+    const drumType = (DRUM_ID_TO_TYPE[trackId] || 'kick') as DrumEngineType;
+    const vol = Math.max(0, Math.min(1, velocity0to127 / 127));
+    playDrum(toUnifiedDrumType(drumType), vol);
+  }, [playDrum, toUnifiedDrumType]);
+
+  const stepBackward = useCallback(() => {
+    setCurrentStep(prev => {
+      const len = Math.max(1, patternLength);
+      return (prev - 1 + len) % len;
+    });
+  }, [patternLength]);
+
+  const stepForward = useCallback(() => {
+    setCurrentStep(prev => {
+      const len = Math.max(1, patternLength);
+      return (prev + 1) % len;
+    });
+  }, [patternLength]);
+
+  const stopTransport = useCallback(() => {
+    setIsPlaying(false);
+    setIsRecordingArmed(false);
+    setCurrentStep(0);
+  }, []);
+
+  const playTransport = useCallback(() => {
+    setIsPlaying(true);
+  }, []);
+
+  const togglePlayStop = useCallback(() => {
+    setIsPlaying(prev => {
+      if (prev) {
+        setIsRecordingArmed(false);
+        setCurrentStep(0);
+        return false;
+      }
+      return true;
+    });
+  }, []);
+
+  const toggleRecord = useCallback(() => {
+    setIsRecordingArmed(prev => {
+      const next = !prev;
+      if (next) {
+        setIsPlaying(true);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleLoop = useCallback(() => {
+    setLoopEnabled(v => !v);
+  }, []);
+
+  const writeHitToGrid = useCallback((trackId: string, stepIndex: number, velocity0to127: number) => {
+    setTracks(prev => {
+      const trackIdx = prev.findIndex(t => t.id === trackId);
+      if (trackIdx < 0) return prev;
+      const next = [...prev];
+      const t = next[trackIdx];
+      const step = t.pattern[stepIndex];
+      if (!step) return prev;
+      const vel = Math.max(1, Math.min(127, Math.round(velocity0to127)));
+      const updatedStep: DrumStep = {
+        ...step,
+        active: true,
+        velocity: vel,
+      };
+      const updatedPattern = t.pattern.map((s, i) => (i === stepIndex ? updatedStep : s));
+      next[trackIdx] = { ...t, pattern: updatedPattern };
+      return next;
+    });
   }, []);
 
   useEffect(() => { if (tempo) setBpm(Math.round(tempo)); }, [tempo]);
@@ -693,6 +875,32 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     }
   };
 
+  const toUnifiedDrumType = useCallback((drum: DrumEngineType): DrumType => {
+    switch (drum) {
+      case 'kick':
+        return 'kick';
+      case 'snare':
+        return 'snare';
+      case 'clap':
+        return 'clap';
+      case 'hihat':
+      case 'openhat':
+        return 'hihat';
+      case 'tom':
+      case 'tom_hi':
+      case 'tom_mid':
+      case 'tom_lo':
+      case 'conga':
+      case 'perc':
+      case 'rim':
+        return 'tom';
+      case 'crash':
+      case 'fx':
+      default:
+        return 'crash';
+    }
+  }, []);
+
   const playSound = useCallback(async (id: string, vel: number, vol: number) => {
     const normalizedId = id.toLowerCase();
     const drumType = DRUM_ID_TO_TYPE[normalizedId] || 'snare';
@@ -702,12 +910,15 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       const baseVelocity = (vel / 127) * (vol / 100) * (masterVol / 100);
       const normalizedVelocity = Math.max(0, Math.min(1, baseVelocity));
 
-      await realisticAudio.playDrumSound(drumType, normalizedVelocity);
+      await initialize();
+      playDrum(toUnifiedDrumType(drumType), normalizedVelocity);
       return;
     }
 
     // Classic internal synth path
-    if (!audioCtx.current) return;
+    if (!audioCtx.current) {
+      audioCtx.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    }
     const ctx = audioCtx.current;
     if (ctx.state === 'suspended') await ctx.resume();
     const gain = ctx.createGain();
@@ -792,7 +1003,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         s.connect(gain); s.start(); s.stop(ctx.currentTime + 0.08);
       }
     }
-  }, [masterVol, useRealisticDrums]);
+  }, [initialize, masterVol, playDrum, toUnifiedDrumType, useRealisticDrums]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -833,11 +1044,150 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
           }
         }
       });
-      setCurrentStep(s => (s + 1) % patternLength);
+
+      const next = currentStep + 1;
+      const len = Math.max(1, patternLength);
+      if (!loopEnabled && next >= len) {
+        stopTransport();
+        return;
+      }
+      setCurrentStep(next % len);
     }, ms);
     
     return () => { if (intervalRef.current) clearTimeout(intervalRef.current); };
-  }, [isPlaying, currentStep, tracks, bpm, swing, groove, patternLength, playSound]);
+  }, [isPlaying, currentStep, tracks, bpm, swing, groove, patternLength, playSound, loopEnabled, stopTransport]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<MidiMessageDetail>;
+      const detail = ev.detail;
+      if (!detail) return;
+
+      const handleTransportCommand = (code: number) => {
+        switch (code) {
+          case 14:
+            stepBackward();
+            return true;
+          case 15:
+            stepForward();
+            return true;
+          case 16:
+            stopTransport();
+            return true;
+          case 17:
+            playTransport();
+            return true;
+          case 18:
+            toggleRecord();
+            return true;
+          case 19:
+            toggleLoop();
+            return true;
+          default:
+            return false;
+        }
+      };
+
+      if (detail.kind === 'noteon') {
+        if (handleTransportCommand(detail.note)) {
+          ev.preventDefault();
+          return;
+        }
+
+        if (padLearnIndex !== null) {
+          ev.preventDefault();
+          const nextNote = detail.note;
+          setPadBindings(prev => prev.map((b, i) => (i === padLearnIndex ? { ...b, note: nextNote } : b)));
+          setPadLearnIndex(null);
+          toast({ title: '✅ Pad Learned', description: `Pad ${padLearnIndex + 1} mapped to MIDI note ${nextNote}` });
+          return;
+        }
+
+        const binding = padBindings.find(b => b.note === detail.note);
+        if (!binding) return;
+
+        ev.preventDefault();
+
+        if (isPlaying) {
+          const stepIndex = currentStep % patternLength;
+          writeHitToGrid(binding.trackId, stepIndex, detail.velocity);
+        } else {
+          triggerDrumAudition(binding.trackId, detail.velocity);
+        }
+      }
+
+      if (detail.kind === 'cc') {
+        if (detail.value > 0 && handleTransportCommand(detail.cc)) {
+          ev.preventDefault();
+          return;
+        }
+
+        if (ccLearnTarget) {
+          const learned = detail.cc;
+          setCcBindings(prev => ({
+            ...prev,
+            [ccLearnTarget]: { cc: learned, channel: detail.channel },
+          }));
+          const label = ccLearnTarget === 'master'
+            ? 'Master'
+            : ccLearnTarget === 'swing'
+              ? 'Swing'
+              : ccLearnTarget === 'groove'
+                ? 'Groove'
+                : 'Humanize';
+          setCcLearnTarget(null);
+          toast({ title: '✅ Slider Learned', description: `${label} mapped to CC${learned}` });
+          return;
+        }
+
+        const pct0to100 = Math.max(0, Math.min(100, Math.round((detail.value / 127) * 100)));
+
+        const matches = (binding: CCBinding | null) => {
+          if (!binding) return false;
+          if (binding.cc !== detail.cc) return false;
+          if (binding.channel === null) return true;
+          return binding.channel === detail.channel;
+        };
+
+        if (matches(ccBindings.master)) {
+          setMasterVol(pct0to100);
+          return;
+        }
+        if (matches(ccBindings.swing)) {
+          setSwing(pct0to100);
+          return;
+        }
+        if (matches(ccBindings.groove)) {
+          setGroove(pct0to100);
+          return;
+        }
+        if (matches(ccBindings.humanize)) {
+          setHumanize(pct0to100);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('midi-message', handler as EventListener);
+    return () => window.removeEventListener('midi-message', handler as EventListener);
+  }, [
+    ccBindings,
+    ccLearnTarget,
+    currentStep,
+    isPlaying,
+    padBindings,
+    padLearnIndex,
+    patternLength,
+    playTransport,
+    stepBackward,
+    stepForward,
+    stopTransport,
+    toast,
+    toggleLoop,
+    toggleRecord,
+    triggerDrumAudition,
+    writeHitToGrid,
+  ]);
 
   const toggleStep = (ti: number, si: number) => {
     saveHistory();
@@ -975,26 +1325,17 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   };
 
   // Play metronome click
-  const playClick = useCallback(() => {
-    if (!audioCtx.current || !metronomeOn) return;
-    const ctx = audioCtx.current;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.value = currentStep % 4 === 0 ? 1000 : 800;
-    // Use metronomeVol to control click volume (0-100 → 0-0.3)
+  const playClick = useCallback(async () => {
+    if (!metronomeOn) return;
+    await initialize();
     const vol = (metronomeVol / 100) * 0.3;
-    gain.gain.setValueAtTime(vol, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.05);
-  }, [metronomeOn, currentStep, metronomeVol]);
+    audioEngine.playMetronomeClick(currentStep % 4 === 0, vol);
+  }, [currentStep, initialize, metronomeOn, metronomeVol]);
 
   // Play metronome on each step
   useEffect(() => {
     if (isPlaying && metronomeOn) {
-      playClick();
+      void playClick();
     }
   }, [currentStep, isPlaying, metronomeOn, playClick]);
 
@@ -1013,10 +1354,26 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
 
       {/* Transport & Controls - Row 1 */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        <Button onClick={() => { setIsPlaying(!isPlaying); if (isPlaying) setCurrentStep(0); }}
+        <Button onClick={togglePlayStop}
           className={isPlaying ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}>
           {isPlaying ? <Square className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
           {isPlaying ? 'Stop' : 'Play'}
+        </Button>
+
+        <Button
+          variant={isRecordingArmed ? 'default' : 'outline'}
+          onClick={toggleRecord}
+          className={isRecordingArmed ? 'bg-red-700 hover:bg-red-600' : ''}
+        >
+          Rec
+        </Button>
+
+        <Button
+          variant={loopEnabled ? 'default' : 'outline'}
+          onClick={toggleLoop}
+          className={loopEnabled ? 'bg-blue-700 hover:bg-blue-600' : ''}
+        >
+          Loop
         </Button>
         
         {/* Metronome with volume */}
@@ -1130,7 +1487,148 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
             </div>
           )}
         </div>
+
+        <div className="flex items-center gap-2 border-l border-gray-600 pl-2">
+          <Button
+            size="sm"
+            variant={midiMappingOpen ? 'default' : 'outline'}
+            className="text-xs"
+            onClick={() => setMidiMappingOpen(v => !v)}
+          >
+            MIDI Learn
+          </Button>
+          {(padLearnIndex !== null || ccLearnTarget !== null) && (
+            <Badge variant="secondary" className="text-xs">
+              Listening…
+            </Badge>
+          )}
+        </div>
       </div>
+
+      {midiMappingOpen && (
+        <div className="mb-4 p-3 bg-gray-900/60 rounded border border-gray-700">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm text-gray-200">MIDI Mapping</div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => {
+                  setPadLearnIndex(null);
+                  setCcLearnTarget(null);
+                }}
+              >
+                Cancel Learn
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('proBeatMaker.padBindings.v1');
+                    localStorage.removeItem('proBeatMaker.ccBindings.v1');
+                  } catch {
+                    // ignore
+                  }
+                  const defaultNotes = [36, 37, 38, 39, 40, 41, 42, 43];
+                  const ids = tracks.map(t => t.id);
+                  setPadBindings(defaultNotes.map((note, i) => ({ note, trackId: ids[i] || 'kick' })));
+                  setCcBindings({
+                    master: { cc: 7, channel: 0 },
+                    swing: { cc: 7, channel: 1 },
+                    groove: { cc: 7, channel: 2 },
+                    humanize: { cc: 7, channel: 3 },
+                  });
+                  setPadLearnIndex(null);
+                  setCcLearnTarget(null);
+                  toast({ title: 'Reset MIDI Mappings', description: 'Restored defaults.' });
+                }}
+              >
+                Reset
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="text-xs text-gray-400">Pads (Note On)</div>
+              {padBindings.map((b, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={padLearnIndex === idx ? 'default' : 'outline'}
+                    className="text-xs w-24"
+                    onClick={() => {
+                      setCcLearnTarget(null);
+                      setPadLearnIndex(idx);
+                    }}
+                  >
+                    Learn Pad {idx + 1}
+                  </Button>
+                  <div className="text-xs text-gray-300 w-16">Note {b.note}</div>
+                  <Select
+                    value={b.trackId}
+                    onValueChange={(v) => setPadBindings(prev => prev.map((p, i) => (i === idx ? { ...p, trackId: v } : p)))}
+                  >
+                    <SelectTrigger className="h-8 w-40 bg-gray-800 border-gray-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-700">
+                      {tracks.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+              <div className="text-[11px] text-gray-500">Stopped = audition. Playing = write to grid at current step.</div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-xs text-gray-400">Sliders / Rollers (CC)</div>
+              <div className="space-y-2">
+                {([
+                  { key: 'master' as const, label: 'Master' },
+                  { key: 'swing' as const, label: 'Swing' },
+                  { key: 'groove' as const, label: 'Groove' },
+                  { key: 'humanize' as const, label: 'Humanize' },
+                ]).map(({ key, label }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={ccLearnTarget === key ? 'default' : 'outline'}
+                      className="text-xs w-24"
+                      onClick={() => {
+                        setPadLearnIndex(null);
+                        setCcLearnTarget(key);
+                      }}
+                    >
+                      Learn {label}
+                    </Button>
+                    <div className="text-xs text-gray-300 w-20">
+                      {ccBindings[key] === null
+                        ? 'Unmapped'
+                        : `CC${ccBindings[key]!.cc} Ch${(ccBindings[key]!.channel ?? 0) + 1}`}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs"
+                      onClick={() => setCcBindings(prev => ({ ...prev, [key]: null }))}
+                      disabled={ccBindings[key] === null}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-gray-500">Tip: click Learn, then move the slider/roller on your DMK 25 Pro.</div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Controls - Row 2 */}
       <div className="flex flex-wrap items-center gap-2 mb-4">

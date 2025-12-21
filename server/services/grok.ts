@@ -36,7 +36,7 @@ if (!grokClient && !openaiClient) {
 function getPreferredClient() {
   // Prefer Grok if available, fallback to OpenAI
   if (grokClient) return { client: grokClient, model: "grok-2-1212", provider: "grok" };
-  if (openaiClient) return { client: openaiClient, model: "gpt-4", provider: "openai" };
+  if (openaiClient) return { client: openaiClient, model: "gpt-4o-mini", provider: "openai" };
   return null;
 }
 
@@ -72,7 +72,7 @@ export async function makeAICall(messages: any[], options: any = {}) {
       console.log("🔄 Falling back to OpenAI...");
       try {
         const fallbackResponse = await openaiClient.chat.completions.create({
-          model: "gpt-4",
+          model: "gpt-4o-mini",
           messages: messages,
           temperature: options.temperature || 0.6,
           max_tokens: options.max_tokens || 3000,

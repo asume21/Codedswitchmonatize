@@ -5,7 +5,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1 } from "lucide-react";
 import { Arpeggiator } from "./Arpeggiator";
-import { realisticAudio } from "@/lib/realisticAudio";
+import { useAudio } from "@/hooks/use-audio";
+import { audioEngine } from "@/lib/audioEngine";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useTransport } from "@/contexts/TransportContext";
@@ -122,6 +123,7 @@ const DEFAULT_TRACKS: Track[] = [
 export const VerticalPianoRoll: React.FC = () => {
   // Get transport state from context for sync with floating transport
   const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx } = useTransport();
+  const { playNote, initialize } = useAudio();
   
   // State - sync with transport context
   const [isPlaying, setIsPlaying] = useState(false);
@@ -512,7 +514,7 @@ export const VerticalPianoRoll: React.FC = () => {
               notesAtStep.forEach(note => {
                 const noteDuration = (note.length * stepDuration) / 1000;
                 
-                realisticAudio.playNote(
+                playNote(
                   note.note,
                   note.octave,
                   noteDuration,
@@ -650,7 +652,7 @@ export const VerticalPianoRoll: React.FC = () => {
             // Play chord
             chordNotes.forEach((note, index) => {
               setTimeout(() => {
-                realisticAudio.playNote(note, 4, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
+                playNote(note, 4, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
               }, index * 50);
             });
             
@@ -726,13 +728,7 @@ export const VerticalPianoRoll: React.FC = () => {
         if (keyIndex !== -1) {
           // Play the note
           const pianoKey = PIANO_KEYS[keyIndex];
-          realisticAudio.playNote(
-            pianoKey.note,
-            pianoKey.octave,
-            0.8,
-            selectedTrack.instrument,
-            selectedTrack.volume / 100
-          );
+          playNote(pianoKey.note, pianoKey.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
 
           // RECORDING MODE - Capture timing!
           if (isRecording) {
@@ -820,7 +816,7 @@ export const VerticalPianoRoll: React.FC = () => {
               next.add(keyIndex);
               return next;
             });
-            realisticAudio.playNote(pianoKey.note, pianoKey.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
+            playNote(pianoKey.note, pianoKey.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
           } 
           // Normal mode (allow multiple simultaneous keys)
           else {
@@ -887,15 +883,9 @@ export const VerticalPianoRoll: React.FC = () => {
     ));
 
     if (playAudio) {
-      realisticAudio.playNote(
-        key.note, 
-        key.octave, 
-        0.8, 
-        selectedTrack.instrument, 
-        selectedTrack.volume / 100
-      );
+      playNote(key.note, key.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
     }
-  }, [selectedTrackIndex, selectedTrack, currentStep]);
+  }, [currentStep, playNote, selectedTrack, selectedTrackIndex]);
 
   const removeNote = useCallback((noteId: string) => {
     setTracks(prev => prev.map((track, index) =>
@@ -1075,13 +1065,14 @@ export const VerticalPianoRoll: React.FC = () => {
     ));
     
     // Pre-load the instrument
-    realisticAudio.loadAdditionalInstrument(instrument).then(() => {
+    initialize().then(async () => {
+      await audioEngine.preloadInstrument(instrument);
       toast({
         title: "Instrument Loaded",
         description: `Changed track instrument to ${AVAILABLE_INSTRUMENTS.find(i => i.value === instrument)?.label}`,
       });
     });
-  }, [toast]);
+  }, [initialize, toast]);
 
   const handleKeyChange = useCallback((key: string) => {
     // Save current scale state before switching
@@ -1126,13 +1117,7 @@ export const VerticalPianoRoll: React.FC = () => {
     // Play the chord with inversion
     invertedNotes.forEach((note, index) => {
       setTimeout(() => {
-        realisticAudio.playNote(
-          note, 
-          4, // Middle octave
-          0.8, 
-          selectedTrack.instrument, 
-          selectedTrack.volume / 100
-        );
+        playNote(note, 4, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
       }, index * 50); // Slight delay between notes for arpeggio effect
     });
     
@@ -1142,7 +1127,7 @@ export const VerticalPianoRoll: React.FC = () => {
       description: `Inversion: ${chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st' : '2nd'} • Notes: ${invertedNotes.join('-')}`,
       duration: 2000
     });
-  }, [selectedTrack, chordInversion, invertChord, toast]);
+  }, [chordInversion, invertChord, playNote, selectedTrack, toast]);
 
   // Original audio playback handlers
   const handleOriginalAudioPlayPause = useCallback(async () => {

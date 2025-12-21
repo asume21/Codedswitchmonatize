@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Wand2, Music, DollarSign, Piano, Play, Pause, Square } from 'lucide-react';
-import { RealisticAudioEngine } from '@/lib/realisticAudio';
+import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 
 interface MusicGenerationPanelProps {
@@ -30,18 +30,10 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [showUpgrade, setShowUpgrade] = useState(false);
   const { requirePro, startUpgrade } = useLicenseGate();
   
-  const audioEngineRef = useRef<RealisticAudioEngine | null>(null);
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentPatternRef = useRef<any>(null);
   const _audioElementRef = useRef<HTMLAudioElement | null>(null); // For playing raw audio files
   
-  // Initialize audio engine
-  useEffect(() => {
-    if (useRealisticInstruments && !audioEngineRef.current) {
-      audioEngineRef.current = new RealisticAudioEngine();
-    }
-  }, [useRealisticInstruments]);
-
   const providers = {
     musicgen: {
       name: 'MusicGen',
@@ -71,16 +63,11 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
 
   // Play generated pattern through RealisticAudioEngine
   const playPattern = async (pattern: any) => {
-    if (!audioEngineRef.current) {
-      audioEngineRef.current = new RealisticAudioEngine();
-    }
-    
-    const engine = audioEngineRef.current;
-    await engine.initialize();
+    await realisticAudio.initialize();
     
     // Load all instruments needed for the pattern
     const instrumentPromises = pattern.patterns.map((p: any) => 
-      p.instrument !== 'drums' ? engine.loadAdditionalInstrument(p.instrument) : null
+      p.instrument !== 'drums' ? realisticAudio.loadAdditionalInstrument(p.instrument) : null
     ).filter(Boolean);
     
     await Promise.all(instrumentPromises);
@@ -107,7 +94,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
         notesToPlay.forEach((note: any) => {
           if (instrumentPattern.instrument === 'drums') {
             // Play drum sounds
-            engine.playDrumSound(note.pitch, note.velocity / 127);
+            realisticAudio.playDrumSound(note.pitch, note.velocity / 127);
           } else {
             // Parse pitch string (e.g., "C4" -> note: "C", octave: 4)
             const match = note.pitch.match(/([A-G]#?)(\d+)/);
@@ -116,7 +103,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
               const octave = parseInt(match[2]);
               
               // Play instrument note
-              engine.playNote(
+              realisticAudio.playNote(
                 noteName,
                 octave,
                 note.duration * msPerBeat / 1000,
@@ -138,10 +125,8 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
       playbackIntervalRef.current = null;
     }
     setIsPlaying(false);
-    
-    if (audioEngineRef.current) {
-      audioEngineRef.current.stopAllSounds();
-    }
+
+    realisticAudio.stopAllSounds();
   };
 
   const handleGenerate = async () => {

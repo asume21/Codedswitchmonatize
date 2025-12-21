@@ -1,6 +1,47 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAudio } from "./use-audio";
-import { AudioEngine } from "@/lib/audio";
+
+type MIDIBroadcastEventDetail =
+  | {
+      kind: "noteon";
+      note: number;
+      velocity: number;
+      channel: number;
+      raw: number[];
+    }
+  | {
+      kind: "noteoff";
+      note: number;
+      channel: number;
+      raw: number[];
+    }
+  | {
+      kind: "cc";
+      cc: number;
+      value: number;
+      channel: number;
+      raw: number[];
+    }
+  | {
+      kind: "pitchbend";
+      value14bit: number;
+      semitones: number;
+      channel: number;
+      raw: number[];
+    };
+
+function broadcastMIDI(detail: MIDIBroadcastEventDetail) {
+  try {
+    if (typeof window === "undefined" || !window.dispatchEvent) return;
+    return window.dispatchEvent(
+      new CustomEvent("midi-message", { detail, cancelable: true }),
+    );
+  } catch {
+    // Ignore broadcast failures (e.g., during SSR)
+  }
+
+  return true;
+}
 
 interface MIDIDevice {
   id: string;
@@ -50,8 +91,6 @@ export function useMIDI() {
     release: 0.5,
   });
   
-  // Use the REAL AudioEngine (the one that already works!)
-  const audioEngineRef = useRef<AudioEngine | null>(null);
   const [settings, setSettings] = useState<MIDISettings>({
     inputDevice: "all",
     velocitySensitivity: [100],
@@ -76,10 +115,7 @@ export function useMIDI() {
 
   // Update master volume
   const setMasterVolume = useCallback((volume: number) => {
-    if (audioEngineRef.current?.masterGain) {
-      audioEngineRef.current.masterGain.gain.value = volume;
-      console.log(`🔊 Master volume set to ${Math.round(volume * 100)}%`);
-    }
+    void volume;
   }, []);
 
   // MIDI note number to note name conversion
@@ -137,42 +173,37 @@ export function useMIDI() {
       setActiveNotes((prev) => new Set(Array.from(prev).concat(midiNote)));
       setLastNote({ note: midiNote, velocity, channel });
 
-      // Use the REAL AudioEngine - the one that already works perfectly!
-      try {
-        // Initialize AudioEngine if needed
-        if (!audioEngineRef.current) {
-          audioEngineRef.current = new AudioEngine();
-          await audioEngineRef.current.initialize();
-          console.log('🎵 MIDI using real AudioEngine with all instruments!');
-        }
+      const allowDefault = broadcastMIDI({
+        kind: "noteon",
+        note: midiNote,
+        velocity,
+        channel,
+        raw: [0x90 | (channel & 0x0f), midiNote, velocity],
+      });
 
-        // Calculate frequency from MIDI note
-        const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
-        
+      if (allowDefault === false) {
+        return;
+      }
+
+      try {
         // Get instrument name from settings
         const instrument = settings.currentInstrument || 'piano';
         
         // Apply MIDI volume (multiply with velocity)
         const midiVolume = settings.midiVolume ?? 0.3;
         const adjustedVelocity = normalizedVelocity * midiVolume;
-        
-        // Play note using the REAL AudioEngine with all the synthesis magic!
-        await audioEngineRef.current.playNote(
-          frequency,
-          1.0, // duration
-          adjustedVelocity,
-          instrument,
-          true // sustain
-        );
+
+        // Use unified audio facade so MIDI matches the rest of the app.
+        playNote(note, octave, sliderDuration, instrument, adjustedVelocity);
 
         console.log(
-          `✅ MIDI ${instrument.toUpperCase()}: ${note}${octave} (${frequency.toFixed(1)}Hz) vel=${adjustedVelocity.toFixed(2)}`,
+          `✅ MIDI ${instrument.toUpperCase()}: ${note}${octave} vel=${adjustedVelocity.toFixed(2)}`,
         );
       } catch (error) {
-        console.error(`❌ AudioEngine playNote failed for ${note}${octave}:`, error);
+        console.error(`❌ MIDI playNote failed for ${note}${octave}:`, error);
       }
     },
-    [noteNumberToName, playNote, settings.midiVolume, settings.currentInstrument],
+    [noteNumberToName, playNote, settings.currentInstrument, settings.midiVolume, sliderDuration],
   );
 
   // Handle note off events
@@ -181,6 +212,13 @@ export function useMIDI() {
       const newSet = new Set(Array.from(prev));
       newSet.delete(midiNote);
       return newSet;
+    });
+
+    broadcastMIDI({
+      kind: "noteoff",
+      note: midiNote,
+      channel,
+      raw: [0x80 | (channel & 0x0f), midiNote, 0],
     });
   }, []);
 
@@ -205,6 +243,14 @@ export function useMIDI() {
       else if (messageType === 0xb0) {
         const controlNumber = data1;
         const controlValue = data2;
+
+        broadcastMIDI({
+          kind: "cc",
+          cc: controlNumber,
+          value: controlValue,
+          channel,
+          raw: [status, data1, data2],
+        });
 
         console.log(
           `🎛️ MIDI Control Change: CC${controlNumber} = ${controlValue} (Channel ${channel + 1})`,
@@ -318,6 +364,14 @@ export function useMIDI() {
         const pitchValue = (data2 << 7) | data1; // Combine 14-bit pitch bend value
         const pitchBendSemitones = ((pitchValue - 8192) / 8192) * 2; // ±2 semitones typical range
         setCurrentPitchBend(pitchBendSemitones);
+
+        broadcastMIDI({
+          kind: "pitchbend",
+          value14bit: pitchValue,
+          semitones: pitchBendSemitones,
+          channel,
+          raw: [status, data1, data2],
+        });
         console.log(
           `🎵 Pitch Bend: ${pitchBendSemitones.toFixed(2)} semitones`,
         );
@@ -353,24 +407,12 @@ export function useMIDI() {
 
       for (const input of access.inputs.values()) {
         if (input.state === "connected") {
-          input.onmidimessage = (msg: any) => {
-            const [status, note, velocity] = msg.data;
-            if ((status & 0xf0) === 0x90 && velocity > 0) {
-              console.log(`🎵 NOTE ON: ${note}`);
-              handleNoteOn(note, velocity, status & 0x0f);
-            } else if (
-              (status & 0xf0) === 0x80 ||
-              ((status & 0xf0) === 0x90 && velocity === 0)
-            ) {
-              console.log(`🎵 NOTE OFF: ${note}`);
-              handleNoteOff(note, status & 0x0f);
-            }
-          };
+          input.onmidimessage = handleMIDIMessage;
           console.log(`✅ Setup: ${input.name}`);
         }
       }
     },
-    [handleNoteOn, handleNoteOff],
+    [handleMIDIMessage],
   );
 
   // Update connected devices list
@@ -475,24 +517,7 @@ export function useMIDI() {
       console.log("🔌 Setting up direct MIDI listeners...");
       for (const input of access.inputs.values()) {
         if (input.state === "connected") {
-          input.onmidimessage = (msg: any) => {
-            console.log(`✨ MIDI from ${input.name}:`, msg.data);
-            const [status, note, velocity] = msg.data;
-
-            // SIMPLE NOTE ON (144 + channel, or 0x90)
-            if ((status & 0xf0) === 0x90 && velocity > 0) {
-              console.log(`🎵 NOTE ON: ${note} velocity ${velocity}`);
-              handleNoteOn(note, velocity, status & 0x0f);
-            }
-            // SIMPLE NOTE OFF (128 + channel, or 0x80, or note on with velocity 0)
-            else if (
-              (status & 0xf0) === 0x80 ||
-              ((status & 0xf0) === 0x90 && velocity === 0)
-            ) {
-              console.log(`🎵 NOTE OFF: ${note}`);
-              handleNoteOff(note, status & 0x0f);
-            }
-          };
+          input.onmidimessage = handleMIDIMessage;
           console.log(`✅ Connected to: ${input.name}`);
         }
       }
@@ -515,18 +540,7 @@ export function useMIDI() {
         console.log(`🔄 MIDI device ${e.port.state}: ${e.port.name}`);
         if (e.port.state === "connected") {
           console.log("✨ New device connected - setting up listener...");
-          e.port.onmidimessage = (msg: any) => {
-            console.log(`✨ MIDI from ${e.port.name}:`, msg.data);
-            const [status, note, velocity] = msg.data;
-            if ((status & 0xf0) === 0x90 && velocity > 0) {
-              handleNoteOn(note, velocity, status & 0x0f);
-            } else if (
-              (status & 0xf0) === 0x80 ||
-              ((status & 0xf0) === 0x90 && velocity === 0)
-            ) {
-              handleNoteOff(note, status & 0x0f);
-            }
-          };
+          e.port.onmidimessage = handleMIDIMessage;
         }
         updateDeviceList(access);
         setIsConnected(access.inputs.size > 0);
@@ -536,7 +550,7 @@ export function useMIDI() {
       setIsSupported(false);
       setIsConnected(false);
     }
-  }, [updateDeviceList, handleNoteOn, handleNoteOff]);
+  }, [updateDeviceList, handleMIDIMessage]);
 
   // Enhanced device refresh with forced reconnection
   const refreshDevices = useCallback(() => {

@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -14,7 +15,8 @@ import { useSessionDestination } from "@/contexts/SessionDestinationContext";
 import { useTracks } from "@/hooks/useTracks";
 import { StudioAudioContext } from "@/pages/studio";
 import { Music, Waves, Send, Play, Square, Piano } from "lucide-react";
-import * as Tone from "tone";
+import { useAudio } from "@/hooks/use-audio";
+import { BasslineGenerator } from "@/components/producer/BasslineGenerator";
 
 // Bass notes for interactive keyboard
 const BASS_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -49,6 +51,7 @@ export default function BassStudio() {
   const [bars, setBars] = useState<number>(4);
   const [style, setStyle] = useState<string>("hip-hop");
   const [complexity, setComplexity] = useState<number[]>([5]);
+  const [mode, setMode] = useState<"ai" | "step">("ai");
   const [generatedNotes, setGeneratedNotes] = useState<AiNote[]>([]);
   const [summary, setSummary] = useState<string>("");
   const [lastTrackId, setLastTrackId] = useState<string | null>(null);
@@ -56,57 +59,20 @@ export default function BassStudio() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [bassOctave, setBassOctave] = useState<number>(2);
   const [activeNote, setActiveNote] = useState<string | null>(null);
-  const synthRef = useRef<Tone.MonoSynth | null>(null);
-  const keyboardSynthRef = useRef<Tone.MonoSynth | null>(null);
-  const scheduledEventsRef = useRef<number[]>([]);
+  const playbackTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const { playNote, initialize } = useAudio();
 
   // Cleanup synths on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
-      if (synthRef.current) {
-        synthRef.current.dispose();
-        synthRef.current = null;
-      }
-      if (keyboardSynthRef.current) {
-        keyboardSynthRef.current.dispose();
-        keyboardSynthRef.current = null;
-      }
-      scheduledEventsRef.current.forEach(id => Tone.Transport.clear(id));
-      scheduledEventsRef.current = [];
+      playbackTimeoutsRef.current.forEach(clearTimeout);
+      playbackTimeoutsRef.current = [];
     };
   }, []);
 
-  // Convert pitch string like "C2" to frequency
-  const pitchToFrequency = (pitch: string): number => {
-    const match = pitch.match(/^([A-G][#b]?)(-?\d)$/i);
-    if (!match) return 65.41; // Default to C2
-    const [, noteName, octaveStr] = match;
-    const octave = parseInt(octaveStr, 10);
-    const noteMap: Record<string, number> = {
-      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
-      'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
-      'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
-    };
-    const semitone = noteMap[noteName.charAt(0).toUpperCase() + (noteName.length > 1 ? noteName.charAt(1) : '')] || 0;
-    const midi = (octave + 1) * 12 + semitone;
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  };
-
   const stopPlayback = () => {
-    // Clear all scheduled events
-    scheduledEventsRef.current.forEach(id => Tone.Transport.clear(id));
-    scheduledEventsRef.current = [];
-    
-    // Stop transport
-    Tone.Transport.stop();
-    Tone.Transport.cancel();
-    
-    // Dispose synth
-    if (synthRef.current) {
-      synthRef.current.dispose();
-      synthRef.current = null;
-    }
-    
+    playbackTimeoutsRef.current.forEach(clearTimeout);
+    playbackTimeoutsRef.current = [];
     setIsPlaying(false);
   };
 
@@ -116,20 +82,8 @@ export default function BassStudio() {
     setActiveNote(pitch);
     
     try {
-      await Tone.start();
-      
-      // Create or reuse keyboard synth
-      if (!keyboardSynthRef.current) {
-        keyboardSynthRef.current = new Tone.MonoSynth({
-          oscillator: { type: "sawtooth" },
-          envelope: { attack: 0.01, decay: 0.15, sustain: 0.5, release: 0.4 },
-          filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.5, baseFrequency: 80, octaves: 2 }
-        }).toDestination();
-        keyboardSynthRef.current.volume.value = -6;
-      }
-      
-      const freq = pitchToFrequency(pitch);
-      keyboardSynthRef.current.triggerAttackRelease(freq, 0.3);
+      await initialize();
+      playNote(note, bassOctave, 0.3, 'bass', 0.8);
     } catch (error) {
       console.error('Bass note playback error:', error);
     }
@@ -153,44 +107,30 @@ export default function BassStudio() {
       return;
     }
 
-    await Tone.start();
     setIsPlaying(true);
 
-    // Create a bass synth
-    synthRef.current = new Tone.MonoSynth({
-      oscillator: { type: "sawtooth" },
-      envelope: { attack: 0.02, decay: 0.2, sustain: 0.4, release: 0.3 },
-      filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.3, release: 0.5, baseFrequency: 100, octaves: 2.5 }
-    }).toDestination();
-    synthRef.current.volume.value = -6;
+    await initialize();
 
     const bpm = tempo || 120;
-    Tone.Transport.bpm.value = bpm;
-
-    // Schedule all notes
     generatedNotes.forEach((note) => {
-      const freq = pitchToFrequency(note.pitch);
-      const startTime = `${note.time * (60 / bpm)}`;
-      const duration = note.duration * (60 / bpm);
-      
-      const eventId = Tone.Transport.schedule((time) => {
-        if (synthRef.current) {
-          synthRef.current.triggerAttackRelease(freq, duration, time, note.velocity || 0.8);
-        }
-      }, startTime);
-      scheduledEventsRef.current.push(eventId);
+      const { note: noteName, octave } = parsePitch(note.pitch);
+      const startMs = (note.time * (60 / bpm)) * 1000;
+      const durationSec = note.duration * (60 / bpm);
+      const timeout = setTimeout(() => {
+        playNote(noteName, octave, durationSec, 'bass', note.velocity ?? 0.8);
+      }, Math.max(0, startMs));
+      playbackTimeoutsRef.current.push(timeout);
     });
 
-    // Schedule stop at end
-    const lastNote = generatedNotes.reduce((max, n) => n.time + n.duration > max ? n.time + n.duration : max, 0);
-    const endTimeSeconds = (lastNote + 0.5) * (60 / bpm);
-    
-    const stopEventId = Tone.Transport.schedule(() => {
+    const lastNote = generatedNotes.reduce(
+      (max, n) => (n.time + n.duration > max ? n.time + n.duration : max),
+      0,
+    );
+    const endMs = (lastNote + 0.5) * (60 / bpm) * 1000;
+    const endTimeout = setTimeout(() => {
       stopPlayback();
-    }, endTimeSeconds);
-    scheduledEventsRef.current.push(stopEventId);
-
-    Tone.Transport.start();
+    }, Math.max(0, endMs));
+    playbackTimeoutsRef.current.push(endTimeout);
   };
 
   const generateBassMutation = useMutation({
@@ -313,7 +253,7 @@ export default function BassStudio() {
       name: `Bass - ${key}`,
       kind: "midi",
       type: "midi",
-      instrument: "Bass Synth",
+      instrument: "bass",
       notes: notesForTrack as any,
       volume: 0.8,
       pan: 0,
@@ -329,7 +269,7 @@ export default function BassStudio() {
         complexity: complexity[0],
         notes: notesForTrack,
         type: "midi",
-        instrument: "Bass Synth",
+        instrument: "bass",
       },
     } as any);
 
@@ -396,6 +336,19 @@ export default function BassStudio() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        <Tabs value={mode} onValueChange={(value) => setMode(value as typeof mode)} className="w-full">
+          <TabsList className="flex flex-wrap gap-2 bg-gray-800">
+            <TabsTrigger value="ai" className="flex items-center gap-1">
+              <Waves className="w-4 h-4" />
+              AI Bassline
+            </TabsTrigger>
+            <TabsTrigger value="step" className="flex items-center gap-1">
+              <Music className="w-4 h-4" />
+              Step Sequencer
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="ai" className="mt-4 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-3">
             <label className="text-xs uppercase tracking-wide text-gray-400">Key</label>
@@ -587,6 +540,39 @@ export default function BassStudio() {
             </div>
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="step" className="mt-4 space-y-4">
+            <BasslineGenerator
+              bpm={Math.round(tempo || 120)}
+              kickPattern={(studioContext as any)?.currentPattern?.kick ?? undefined}
+              onBasslineChange={(bassline) => {
+                const bpm = Math.max(40, Math.min(240, tempo || 120));
+                const pattern: string[] = Array.isArray(bassline?.pattern) ? bassline.pattern : [];
+                const lengths: number[] = Array.isArray(bassline?.lengths) ? bassline.lengths : [];
+                const octave = typeof bassline?.octave === 'number' ? bassline.octave : 2;
+
+                const notes: AiNote[] = pattern
+                  .map((note, step) => {
+                    if (!note) return null;
+                    const durationSec = typeof lengths[step] === 'number' ? lengths[step] : 0.5;
+                    const durationBeats = durationSec / (60 / bpm);
+                    return {
+                      time: step / 4,
+                      duration: durationBeats,
+                      pitch: `${note}${octave}`,
+                      velocity: 0.8,
+                    };
+                  })
+                  .filter((n): n is AiNote => !!n);
+
+                setGeneratedNotes(notes);
+                setLastGenMethod('algorithmic');
+                setSummary(`${notes.length} steps • Step Sequencer`);
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

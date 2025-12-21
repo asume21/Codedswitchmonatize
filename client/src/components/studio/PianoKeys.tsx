@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, forwardRef, CSSProperties } from 'react';
 import { PianoKey, Note, Track, STEPS } from './types/pianoRollTypes';
-import { realisticAudio } from '@/lib/realisticAudio';
+import { useAudio } from '@/hooks/use-audio';
 
 interface PianoKeysProps {
   pianoKeys: PianoKey[];
@@ -31,6 +31,7 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
   arpEnabled = false
 }, ref) => {
   const sustainedNotesRef = useRef<Map<number, any>>(new Map());
+  const { playNote } = useAudio();
 
   // Handle mouse/touch DOWN - activate key
   const handleKeyDown = useCallback((keyIndex: number) => {
@@ -42,13 +43,7 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
       if (!newSet.has(keyIndex)) {
         newSet.add(keyIndex);
         // Play initial note
-        realisticAudio.playNote(
-          key.note,
-          key.octave,
-          0.3,
-          selectedTrack?.instrument || 'piano',
-          0.8
-        );
+        playNote(key.note, key.octave, 0.3, selectedTrack?.instrument || 'piano', 0.8);
         onActiveKeysChange(newSet);
       }
     } else if (chordMode) {
@@ -61,14 +56,14 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
         sustainedNotesRef.current.delete(keyIndex);
       } else {
         newSet.add(keyIndex);
-        realisticAudio.playNote(key.note, key.octave, 1.5, selectedTrack?.instrument || 'piano', 0.8);
+        playNote(key.note, key.octave, 1.5, selectedTrack?.instrument || 'piano', 0.8);
       }
       onActiveKeysChange(newSet);
     } else {
       // NORMAL MODE: Single note for grid placement
       onKeyClick(keyIndex);
     }
-  }, [arpEnabled, chordMode, onKeyClick, pianoKeys, selectedTrack?.instrument, activeKeys, onActiveKeysChange]);
+  }, [activeKeys, arpEnabled, chordMode, onActiveKeysChange, onKeyClick, pianoKeys, playNote, selectedTrack?.instrument]);
 
   // Handle mouse/touch UP - deactivate key (only in arp mode)
   const handleKeyUp = useCallback((keyIndex: number) => {
@@ -89,15 +84,9 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
   const playKeyPreview = useCallback((key: PianoKey) => {
     // Only preview on hover if not in chord mode
     if (!chordMode) {
-      realisticAudio.playNote(
-        key.note,
-        key.octave,
-        0.5,
-        selectedTrack?.instrument || 'piano',
-        0.6
-      );
+      playNote(key.note, key.octave, 0.5, selectedTrack?.instrument || 'piano', 0.6);
     }
-  }, [selectedTrack?.instrument, chordMode]);
+  }, [chordMode, playNote, selectedTrack?.instrument]);
 
   return (
     <div 

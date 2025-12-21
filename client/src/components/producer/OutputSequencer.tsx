@@ -9,8 +9,8 @@ import {
   Play, Pause, Square, Settings, Shuffle, RotateCcw, Volume2, 
   Filter, Zap, Layers, Activity, Sliders 
 } from "lucide-react";
-import { audioManager } from "@/lib/audio";
 import { useToast } from "@/hooks/use-toast";
+import { DrumType, useAudio } from "@/hooks/use-audio";
 
 interface PatternStep {
   active: boolean;
@@ -76,43 +76,100 @@ export default function OutputSequencer() {
     limiter: { threshold: -1, release: 50 }
   });
   
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
   const { toast } = useToast();
+  const { playDrum, initialize } = useAudio();
+
+  const mapTrackIdToDrumType = (trackId: string): DrumType | null => {
+    switch (trackId) {
+      case "kick":
+        return "kick";
+      case "snare":
+        return "snare";
+      case "hhc":
+        return "hihat";
+      case "hho":
+        return "openhat";
+      case "clap":
+        return "clap";
+      case "crash":
+        return "crash";
+      case "tom":
+        return "tom";
+      case "perc":
+        return "perc";
+      default:
+        return null;
+    }
+  };
+
+  const clearScheduled = () => {
+    timeoutRefs.current.forEach(clearTimeout);
+    timeoutRefs.current = [];
+  };
 
   // Centralized stop logic to ensure timers and audio are cleaned up
   const stopPlayback = () => {
-    audioManager.stop();
     setIsPlaying(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    clearScheduled();
     setCurrentStep(0);
   };
 
   const handlePlay = async () => {
     try {
-      await audioManager.initialize();
       if (isPlaying) {
         // Toggle off
         stopPlayback();
       } else {
-        // Convert to simple pattern format for playback
-        const simplePattern = {
-          kick: tracks[0].pattern.map(step => step.active),
-          snare: tracks[1].pattern.map(step => step.active),
-          hihat: tracks[2].pattern.map(step => step.active),
-          openhat: tracks[3].pattern.map(step => step.active),
-          clap: tracks[4].pattern.map(step => step.active),
-          crash: tracks[5].pattern.map(step => step.active),
-          tom: tracks[6].pattern.map(step => step.active),
-          perc: tracks[7].pattern.map(step => step.active),
-        };
-        
-        await audioManager.playBeat(simplePattern, [], bpm);
+        await initialize();
+        stopPlayback();
         setIsPlaying(true);
-        // Reset visual step indicator to start
-        setCurrentStep(0);
+
+        const stepMs = (60 / Math.max(1, bpm) / 4) * 1000;
+        const stepsTotal = Math.max(1, patternLength);
+
+        let stepIndex = 0;
+        intervalRef.current = setInterval(() => {
+          const current = stepIndex;
+          stepIndex = (stepIndex + 1) % stepsTotal;
+          setCurrentStep(current);
+
+          const hasSolo = tracks.some((t) => t.solo);
+
+          tracks.forEach((track) => {
+            if (hasSolo && !track.solo) return;
+            if (track.muted) return;
+            const drumType = mapTrackIdToDrumType(track.id);
+            if (!drumType) return;
+
+            const step = track.pattern[current];
+            if (!step?.active) return;
+
+            const probability = Math.max(0, Math.min(100, step.probability ?? 100));
+            if (Math.random() * 100 > probability) return;
+
+            const velocityNorm = Math.max(0, Math.min(1, (step.velocity ?? 100) / 127));
+            const volume = Math.max(0, Math.min(1, velocityNorm * (track.volume ?? 1)));
+
+            const swingAmount = Math.max(0, Math.min(50, swing + (step.swing ?? 0))) / 100;
+            const swingDelayMs = current % 2 === 1 ? stepMs * swingAmount * 0.5 : 0;
+
+            const retriggerCount = Math.max(1, Math.min(8, step.retrigger ?? 1));
+            const retriggerGap = stepMs / retriggerCount;
+
+            for (let r = 0; r < retriggerCount; r++) {
+              const timeout = setTimeout(() => {
+                playDrum(drumType, volume);
+              }, swingDelayMs + r * retriggerGap);
+              timeoutRefs.current.push(timeout);
+            }
+          });
+        }, stepMs);
       }
     } catch (error) {
       toast({
@@ -168,40 +225,13 @@ export default function OutputSequencer() {
     ));
   };
 
-  // Manage the visual step indicator interval based on playback state and tempo
-  useEffect(() => {
-    if (!isPlaying) {
-      // Ensure no stray intervals when not playing
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      return;
-    }
-
-    // Recreate interval when bpm or pattern length changes
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    const stepMs = (60 / bpm / 4) * 1000;
-    intervalRef.current = setInterval(() => {
-      setCurrentStep(prev => (prev + 1) % patternLength);
-    }, stepMs);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [isPlaying, bpm, patternLength]);
-
   // On unmount, clear any existing interval
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      clearScheduled();
     };
   }, []);
 

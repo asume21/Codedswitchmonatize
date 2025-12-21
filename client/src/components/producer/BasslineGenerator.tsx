@@ -5,6 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Play, Square, Zap, Music2, Volume2 } from 'lucide-react';
+import { useAudio } from '@/hooks/use-audio';
 
 interface BasslineGeneratorProps {
   kickPattern?: boolean[];
@@ -36,8 +37,8 @@ export function BasslineGenerator({
   const [syncToKick, setSyncToKick] = useState(true);
   const [defaultDuration, setDefaultDuration] = useState([0.5]); // Default note length
   
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { playNote, initialize } = useAudio();
 
   // Generate scale notes based on root and scale type
   const getScaleNotes = () => {
@@ -112,102 +113,11 @@ export function BasslineGenerator({
 
   // Play bass sound with custom duration
   const playBassNote = async (note: string, duration: number = 0.5) => {
-    if (!audioContextRef.current || !note) return;
-    
-    // Resume audio context if suspended (required by browsers)
-    if (audioContextRef.current.state === 'suspended') {
-      await audioContextRef.current.resume();
-    }
-    
-    const ctx = audioContextRef.current;
-    const frequency = getFrequency(note, octave[0]);
-    
-    // Classic analog bass sound
-    const oscillator1 = ctx.createOscillator();
-    const oscillator2 = ctx.createOscillator();
-    const subOsc = ctx.createOscillator();
-    
-    // Main oscillators
-    oscillator1.frequency.value = frequency;
-    oscillator1.type = 'sawtooth';
-    
-    oscillator2.frequency.value = frequency * 1.005; // Slight detune
-    oscillator2.type = 'square';
-    
-    // Sub oscillator (octave down)
-    subOsc.frequency.value = frequency / 2;
-    subOsc.type = 'sine';
-    
-    // Filter for analog character
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 800;
-    filter.Q.value = 2;
-    
-    // Envelope
-    const gainNode = ctx.createGain();
-    const filterGain = ctx.createGain();
-    const subGain = ctx.createGain();
-    
-    // Mix levels
-    gainNode.gain.value = (volume[0] / 100) * 0.3;
-    filterGain.gain.value = 0.6;
-    subGain.gain.value = 0.8;
-    
-    // Envelope shape based on duration
-    const attackTime = 0.01;
-    const decayTime = Math.min(duration * 0.3, 0.2); // Scale decay with duration
-    const sustainLevel = duration > 0.5 ? 0.6 : 0.3; // Longer notes sustain more
-    const releaseTime = Math.max(duration * 0.7, 0.1);
-    
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(gainNode.gain.value, ctx.currentTime + attackTime);
-    gainNode.gain.linearRampToValueAtTime(gainNode.gain.value * sustainLevel, ctx.currentTime + attackTime + decayTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-    
-    // Filter envelope for punch - shorter notes get more punch
-    const filterPeak = duration < 0.25 ? 1500 : 1200;
-    filter.frequency.setValueAtTime(800, ctx.currentTime);
-    filter.frequency.linearRampToValueAtTime(filterPeak, ctx.currentTime + 0.05);
-    filter.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + Math.min(duration * 0.5, 0.3));
-    
-    // Connect audio graph
-    oscillator1.connect(filterGain);
-    oscillator2.connect(filterGain);
-    filterGain.connect(filter);
-    filter.connect(gainNode);
-    
-    subOsc.connect(subGain);
-    subGain.connect(gainNode);
-    
-    gainNode.connect(ctx.destination);
-    
-    // Start and stop based on duration
-    const now = ctx.currentTime;
-    const stopTime = now + Math.max(duration, 0.1);
-    
-    oscillator1.start(now);
-    oscillator2.start(now);
-    subOsc.start(now);
-    
-    oscillator1.stop(stopTime);
-    oscillator2.stop(stopTime);
-    subOsc.stop(stopTime);
+    if (!note) return;
+    await initialize();
+    const vel = Math.max(0, Math.min(1, volume[0] / 100));
+    playNote(note, octave[0], duration, 'bass', vel);
   };
-
-  // Get frequency from note and octave
-  const getFrequency = (note: string, oct: number) => {
-    const noteIndex = BASS_NOTES.indexOf(note);
-    return 440 * Math.pow(2, (noteIndex - 9 + (oct - 4) * 12) / 12);
-  };
-
-  // Initialize audio context
-  useEffect(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    
-  }, []);
 
   // Playback loop
   useEffect(() => {
@@ -218,7 +128,7 @@ export function BasslineGenerator({
         const note = bassPattern[currentStep];
         if (note) {
           const duration = bassLengths[currentStep];
-          playBassNote(note, duration);
+          void playBassNote(note, duration);
         }
         
         setCurrentStep((prev) => (prev + 1) % 16);
@@ -274,10 +184,21 @@ export function BasslineGenerator({
       setBassLengths(newLengths);
     }
     
+    const nextLengths = note && note !== '-' && !bassPattern[stepIndex]
+      ? (() => {
+          const newLengths = [...bassLengths];
+          newLengths[stepIndex] = defaultDuration[0];
+          return newLengths;
+        })()
+      : bassLengths;
+
     setBassPattern(newPattern);
+    if (nextLengths !== bassLengths) {
+      setBassLengths(nextLengths);
+    }
     onBasslineChange?.({
       pattern: newPattern,
-      lengths: bassLengths,
+      lengths: nextLengths,
       rootNote,
       scale,
       octave: octave[0],
@@ -286,7 +207,7 @@ export function BasslineGenerator({
     
     // Live playback - play the bass note immediately when selected
     if (note && note !== '-') {
-      playBassNote(note, bassLengths[stepIndex]);
+      void playBassNote(note, nextLengths[stepIndex]);
     }
   };
 
