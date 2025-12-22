@@ -1,12 +1,12 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Square, Zap } from "lucide-react";
-import { audioManager } from "@/lib/audio";
 import { beatAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { DrumType, useAudio } from "@/hooks/use-audio";
 import {
   SequencerState,
   Track,
@@ -31,7 +31,9 @@ export default function Sequencer({ initial }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedLength, setSelectedLength] = useState<number>(8); // 4/8/16
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
+  const { playDrum, initialize } = useAudio();
 
   const totalSteps = state.bars * state.stepsPerBar;
 
@@ -41,15 +43,73 @@ export default function Sequencer({ initial }: Props) {
     [totalSteps]
   );
 
+  const mapTrackIdToDrumType = (trackId: TrackId): DrumType | null => {
+    switch (trackId) {
+      case "kick":
+        return "kick";
+      case "snare":
+        return "snare";
+      case "hhc":
+        return "hihat";
+      case "hho":
+        return "openhat";
+      case "crash":
+        return "crash";
+      case "clap":
+        return "clap";
+      case "tom":
+        return "tom";
+      case "perc":
+        return "perc";
+      default:
+        return null;
+    }
+  };
+
+  const stopPlayback = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsPlaying(false);
+  };
+
+  const startPlayback = async () => {
+    await initialize();
+    stopPlayback();
+    setIsPlaying(true);
+
+    const stepsPerBar = Math.max(1, state.stepsPerBar);
+    const stepMs = (60000 / Math.max(1, state.bpm)) * (4 / stepsPerBar);
+    const total = state.bars * stepsPerBar;
+
+    let stepIndex = 0;
+    intervalRef.current = setInterval(() => {
+      const current = stepIndex;
+      stepIndex = (stepIndex + 1) % total;
+
+      state.tracks.forEach((track) => {
+        if ((track as any).muted) return;
+        const drumType = mapTrackIdToDrumType(track.id);
+        if (!drumType) return;
+
+        track.clips.forEach((clip) => {
+          const localStep = current - clip.start;
+          if (localStep < 0 || localStep >= clip.length) return;
+          const stepData = clip.steps[localStep];
+          if (!stepData?.active) return;
+          playDrum(drumType, stepData.velocity ?? 1);
+        });
+      });
+    }, stepMs);
+  };
+
   const handlePlay = async () => {
     try {
-      await audioManager.initialize();
       if (isPlaying) {
-        audioManager.stop();
-        setIsPlaying(false);
+        stopPlayback();
       } else {
-        await audioManager.playSequencer(state);
-        setIsPlaying(true);
+        await startPlayback();
       }
     } catch (error) {
       console.error("Audio error:", error);
@@ -62,9 +122,14 @@ export default function Sequencer({ initial }: Props) {
   };
 
   const handleStop = () => {
-    audioManager.stop();
-    setIsPlaying(false);
+    stopPlayback();
   };
+
+  useEffect(() => {
+    return () => {
+      stopPlayback();
+    };
+  }, []);
 
   // Apply a simple AI-generated pattern to the sequencer tracks
   function applyAIPatternToSequencer(pattern: any) {
@@ -176,7 +241,6 @@ export default function Sequencer({ initial }: Props) {
 
   const setBpm = (v: number) => {
     setState((s) => ({ ...s, bpm: v }));
-    audioManager.setBpm?.(v);
   };
 
   const gridWidth = totalSteps * CELL_PX;
@@ -351,8 +415,9 @@ function ClipView({
                 : "border-l border-border/30"
             } ${clip.steps[i]?.active ? "bg-cyan-400" : "bg-transparent"}`}
             title={`Step ${i + 1}`}
-          />)
-        )}
+          >
+          </button>
+        ))}
       </div>
     </div>
   );

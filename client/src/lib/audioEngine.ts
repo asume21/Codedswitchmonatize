@@ -11,7 +11,7 @@ export interface NoteEvent {
   instrument?: InstrumentName;
 }
 
-type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
+type DrumType = 'kick' | 'snare' | 'hihat' | 'openhat' | 'clap' | 'tom' | 'crash' | 'perc';
 
 // Singleton pattern to ensure only one AudioEngine instance
 let audioEngineInstance: AudioEngine | null = null;
@@ -28,6 +28,7 @@ class AudioEngine {
   private volume: Tone.Volume;
   private drumVoices: Partial<Record<DrumType, Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth>> = {};
   private drumBus: Tone.Volume | null = null;
+  private metronomeSynth: Tone.Synth | null = null;
 
   constructor() {
     this.volume = new Tone.Volume(0);
@@ -45,7 +46,32 @@ class AudioEngine {
     }
     this.setupDrumVoices();
     this.setupInstrumentSynths(); // Initialize melodic instruments!
+    this.setupMetronome();
     this.isInitialized = true;
+  }
+
+  private setupMetronome() {
+    if (this.metronomeSynth) return;
+    this.metronomeSynth = new Tone.Synth({
+      oscillator: { type: 'square' },
+      envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 },
+    });
+    this.metronomeSynth.connect(this.volume);
+  }
+
+  playMetronomeClick(strong: boolean, volume: number) {
+    if (!this.isInitialized) {
+      console.warn('AudioEngine not initialized');
+      return;
+    }
+
+    if (!this.metronomeSynth) {
+      this.setupMetronome();
+    }
+
+    const vel = Math.max(0, Math.min(1, volume));
+    const note = strong ? 'C6' : 'G5';
+    this.metronomeSynth?.triggerAttackRelease(note, 0.05, Tone.now(), vel);
   }
 
   // Start Tone.js when needed (called from user interaction)
@@ -73,7 +99,7 @@ class AudioEngine {
   }
 
   // Note playback - ALWAYS use RealisticAudioEngine when available
-  playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: InstrumentName = 'piano') {
+  playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: string = 'piano') {
     if (!this.isInitialized) {
       console.warn('AudioEngine not initialized');
       return;
@@ -84,7 +110,7 @@ class AudioEngine {
     if (noteMatch && realisticAudio.isReady()) {
       const noteName = noteMatch[1];
       const octave = parseInt(noteMatch[2]);
-      const durationSec = typeof duration === 'number' ? duration : 0.5; // Convert to seconds
+      const durationSec = typeof duration === 'number' ? duration : Tone.Time(duration).toSeconds();
       
       // Map instrument names to RealisticAudioEngine instrument names
       const instrumentMap: Record<string, string> = {
@@ -95,7 +121,9 @@ class AudioEngine {
         'custom': 'acoustic_grand_piano'
       };
       
-      const realInstrument = instrumentMap[instrument] || 'acoustic_grand_piano';
+      // If callers pass a full soundfont instrument name (e.g. "electric_guitar_jazz"),
+      // pass it through unchanged instead of collapsing to piano.
+      const realInstrument = instrumentMap[instrument] ?? instrument;
       
       // Use RealisticAudioEngine for high-quality playback
       realisticAudio.playNote(noteName, octave, durationSec, realInstrument, velocity);
@@ -114,6 +142,21 @@ class AudioEngine {
     // Last resort: use piano synth
     console.warn(`No instrument found for "${instrument}", using piano fallback`);
     this.synths.piano?.triggerAttackRelease(note, duration, undefined, velocity);
+  }
+
+  async preloadInstrument(instrument: string) {
+    if (!this.isInitialized) {
+      console.warn('AudioEngine not initialized');
+      return;
+    }
+
+    if (!realisticAudio.isReady()) return;
+
+    try {
+      await realisticAudio.loadAdditionalInstrument(instrument);
+    } catch (error) {
+      console.warn(`Failed to preload instrument "${instrument}"`, error);
+    }
   }
 
   playDrum(drum: DrumType, velocity = 0.8) {
@@ -262,12 +305,28 @@ class AudioEngine {
     hihat.modulationIndex = 32;
     this.drumVoices.hihat = hihat;
 
+    const openhat = connect(new Tone.MetalSynth());
+    openhat.frequency.setValueAtTime(220, Tone.now());
+    openhat.envelope.attack = 0.001;
+    openhat.envelope.decay = 0.35;
+    openhat.envelope.release = 0.12;
+    openhat.harmonicity = 6.1;
+    openhat.modulationIndex = 36;
+    this.drumVoices.openhat = openhat;
+
     const clap = connect(new Tone.NoiseSynth());
     clap.noise.type = 'pink';
     clap.envelope.attack = 0.001;
     clap.envelope.decay = 0.25;
     clap.envelope.sustain = 0;
     this.drumVoices.clap = clap;
+
+    const perc = connect(new Tone.NoiseSynth());
+    perc.noise.type = 'white';
+    perc.envelope.attack = 0.001;
+    perc.envelope.decay = 0.08;
+    perc.envelope.sustain = 0;
+    this.drumVoices.perc = perc;
 
     const tom = connect(new Tone.MembraneSynth());
     tom.pitchDecay = 0.008;

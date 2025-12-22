@@ -494,10 +494,13 @@ const BrowserPanel: React.FC = () => {
       startBar: Math.floor(position),
       payload: {
         type: 'audio',
+        source: 'sample-drop',
         audioUrl: sample.url,
         startTime: position,
         duration: sample.duration,
         volume: 0.8,
+        pan: 0,
+        bpm: 120,
         color: sample.color,
       },
     });

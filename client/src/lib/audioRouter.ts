@@ -4,8 +4,6 @@
  * Allows sharing of beats, melodies, and tracks between editors
  */
 
-import { RealisticAudioEngine } from './realisticAudio';
-
 export interface AudioRoute {
   id: string;
   source: string; // Component that created the audio
@@ -57,7 +55,6 @@ class AudioRouter {
   private routes: Map<string, AudioRoute> = new Map();
   private buses: Map<string, AudioBus> = new Map();
   private tracks: Map<string, TrackData> = new Map();
-  private audioEngine: RealisticAudioEngine;
   private subscribers: Map<string, Set<(data: any) => void>> = new Map();
   
   // Master bus
@@ -79,9 +76,7 @@ class AudioRouter {
   };
 
   constructor() {
-    this.audioEngine = new RealisticAudioEngine();
     this.buses.set('master', this.masterBus);
-    
     // Create default buses
     this.createDefaultBuses();
   }

@@ -26,11 +26,7 @@ class LicenseGuard {
   async refresh(): Promise<boolean> {
     this.setStatus(this.isPro, "checking");
     try {
-      const res = await fetch("/api/check-license", { credentials: "include" });
-      if (!res.ok) {
-        this.setStatus(false, "inactive");
-        return false;
-      }
+      const res = await apiRequest("GET", "/api/check-license");
       const data = (await res.json()) as LicenseCheckResponse;
       const nextStatus: LicenseStatus = data.isPro
         ? "active"
@@ -72,11 +68,7 @@ class LicenseGuard {
   async startCheckout(): Promise<void> {
     try {
       console.log("🛒 Starting checkout...");
-      const res = await fetch("/api/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
+      const res = await apiRequest("POST", "/api/create-checkout");
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));

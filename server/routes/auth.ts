@@ -61,7 +61,9 @@ export function createAuthRoutes(storage: IStorage) {
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json({ 
         message: "Account created successfully",
-        user: userWithoutPassword 
+        user: userWithoutPassword,
+        userId: user.id,
+        token: `Bearer ${user.id}`
       });
     } catch (error) {
       console.error("Registration error:", error);

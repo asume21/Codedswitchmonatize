@@ -5,7 +5,6 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
-import { setupSnakeWS } from "./services/snake-ws";
 import { currentUser } from "./middleware/auth";
 import { runMigrations } from "./migrations/runMigrations";
 import { ensureDataRoots } from "./services/localStorageService";
@@ -30,8 +29,8 @@ ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
 
 // Serve audio assets (loops, bass samples, etc.)
-// Use import.meta.dirname for ESM compatibility (Node 20+)
-const assetsRoot = path.resolve(import.meta.dirname, "Assests");
+// Resolve from repo root so packaged assets are available in prod.
+const assetsRoot = path.resolve(process.cwd(), "server", "Assests");
 app.use("/assets", express.static(assetsRoot));
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)
@@ -62,8 +61,8 @@ app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 const PgSession = connectPgSimple(session);
 
 let sessionStore;
-// Use public URL for external access (Replit), fallback to internal URL (Railway)
-const databaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+// Prefer internal DATABASE_URL (free on Railway) over public URL (costs money)
+const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
 const hasDatabase = databaseUrl && databaseUrl.length > 0;
 
 if (hasDatabase) {
@@ -108,21 +107,6 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Domain-based landing redirect: make snake.codedswitch.com land on /snake-io
-app.use((req, res, next) => {
-  try {
-    const host = (req.headers.host || '').toLowerCase();
-    if (
-      req.method === 'GET' &&
-      (req.path === '/' || req.path === '') &&
-      (host.startsWith('snake.') || host === 'snake.localhost')
-    ) {
-      return res.redirect(302, '/snake-io');
-    }
-  } catch {}
-  next();
-});
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -157,8 +141,8 @@ app.use((req, res, next) => {
   // Run database migrations first
   await runMigrations();
   
-  // Choose storage implementation - prefer public URL for external access
-  const hasDatabaseUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+  // Choose storage implementation - prefer internal URL (free on Railway)
+  const hasDatabaseUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
   const storage: IStorage = hasDatabaseUrl
     ? new DatabaseStorage()
     : new MemStorage();
@@ -167,8 +151,6 @@ app.use((req, res, next) => {
   app.use(currentUser(storage));
 
   const server = await registerRoutes(app, storage);
-  // Attach multiplayer WebSocket server (Snake IO)
-  setupSnakeWS(server);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

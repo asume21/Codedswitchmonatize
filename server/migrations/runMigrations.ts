@@ -5,8 +5,8 @@ import postgres from "postgres";
  * This ensures the database schema is up to date
  */
 export async function runMigrations() {
-  // Prefer public URL for external access (Replit), fallback to internal (Railway)
-  const url = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+  // Prefer internal DATABASE_URL (free on Railway) over public URL (costs money)
+  const url = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
   if (!url) {
     console.log('No DATABASE_URL - skipping migrations');
     return;

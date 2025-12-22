@@ -14,6 +14,14 @@ export interface TrackPayload {
   color?: string;
   pattern?: any;
   data?: any;
+  // Extended properties for various track types
+  startTime?: number;
+  duration?: number;
+  packId?: string;
+  samples?: any[];
+  key?: string;
+  genre?: string;
+  [key: string]: any; // Allow additional properties
 }
 
 export interface TrackClip {

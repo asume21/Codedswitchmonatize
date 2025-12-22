@@ -3,7 +3,7 @@ import * as Tone from "tone";
 import { audioEngine, InstrumentName } from "../lib/audioEngine";
 import { useToast } from "@/hooks/use-toast";
 
-export type DrumType = 'kick' | 'snare' | 'hihat' | 'clap' | 'tom' | 'crash';
+export type DrumType = 'kick' | 'snare' | 'hihat' | 'openhat' | 'clap' | 'tom' | 'crash' | 'perc';
 
 // Global audio state
 let globalAudioInitialized = false;
@@ -248,8 +248,7 @@ export function useAudio(): UseAudioReturn {
       }
 
       const fullNote = `${noteString}${octave}`;
-      const durationStr = typeof duration === 'number' ? getDurationNotation(duration) : duration;
-      audioEngine.playNote(fullNote, durationStr, velocity, instrument as any);
+      audioEngine.playNote(fullNote, duration, velocity, instrument as any);
     } catch (error) {
       console.error('Error playing note:', error);
     }
@@ -265,20 +264,6 @@ export function useAudio(): UseAudioReturn {
     Tone.Destination.volume.value = db;
   }, []);
 
-
-  // Helper function to convert duration in seconds to musical notation
-  const getDurationNotation = (seconds: number): string => {
-    // This is a simplified conversion - adjust based on your BPM
-    // Assuming 120 BPM (0.5s per beat)
-    const beatValue = seconds / 0.5;
-    
-    if (beatValue >= 4) return '1n';     // Whole note
-    if (beatValue >= 2) return '2n';     // Half note
-    if (beatValue >= 1) return '4n';     // Quarter note
-    if (beatValue >= 0.5) return '8n';   // 8th note
-    if (beatValue >= 0.25) return '16n'; // 16th note
-    return '8n'; // Default to 8th note
-  };
 
   // Initialize audio on component mount
   useEffect(() => {

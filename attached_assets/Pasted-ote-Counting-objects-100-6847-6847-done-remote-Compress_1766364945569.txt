@@ -1,0 +1,45 @@
+ote: Counting objects: 100% (6847/6847), done.
+remote: Compressing objects: 100% (1900/1900), done.
+remote: Total 6598 (delta 4950), reused 6173 (delta 4561), pack-reused 0 (from 0)
+Receiving objects: 100% (6598/6598), 359.11 MiB | 43.70 MiB/s, done.
+Resolving deltas: 100% (4950/4950), completed with 208 local objects.
+From https://github.com/asume21/Codedswitchmonatize
+   21b65c1..984efd5  main                                             -> origin/main
+ * [new branch]      audio                                            -> origin/audio
+ * [new branch]      codacy-fixes-patch                               -> origin/codacy-fixes-patch
+ * [new branch]      coded-update                                     -> origin/coded-update
+ * [new branch]      codex/update-api-calls-to-match-server-routes    -> origin/codex/update-api-calls-to-match-server-routes
+ * [new branch]      copilot/fix-2f5fa980-7da0-432f-b90a-75b6c1c2a4f2 -> origin/copilot/fix-2f5fa980-7da0-432f-b90a-75b6c1c2a4f2
+ * [new branch]      copilot/fix-9e1bcd8e-4a1f-4539-bda6-43cc0eeb579a -> origin/copilot/fix-9e1bcd8e-4a1f-4539-bda6-43cc0eeb579a
+ * [new branch]      feature/ai-chord-daw                             -> origin/feature/ai-chord-daw
+ * [new branch]      feature/auth-payments-credits                    -> origin/feature/auth-payments-credits
+ * [new branch]      feature/code-to-music-v1                         -> origin/feature/code-to-music-v1
+ * [new branch]      feature/vocal-recording-track                    -> origin/feature/vocal-recording-track
+ * [new branch]      features-interoperability                        -> origin/features-interoperability
+ * [new branch]      fix                                              -> origin/fix
+ * [new branch]      master                                           -> origin/master
+ * [new branch]      redesign                                         -> origin/redesign
+ * [new branch]      redesign-v2                                      -> origin/redesign-v2
+ * [new branch]      snyk-upgrade-818effcb1932eeab5b611b68c9373068    -> origin/snyk-upgrade-818effcb1932eeab5b611b68c9373068
+ * [new branch]      snyk-upgrade-85d55c9fd9848ccdf07a2fcee3b06065    -> origin/snyk-upgrade-85d55c9fd9848ccdf07a2fcee3b06065
+ * [new branch]      snyk-upgrade-87e72e8d6f1a684a87ff57bebc7e771f    -> origin/snyk-upgrade-87e72e8d6f1a684a87ff57bebc7e771f
+ * [new branch]      snyk-upgrade-c3c22a7d2abdd03eaa264979d0944419    -> origin/snyk-upgrade-c3c22a7d2abdd03eaa264979d0944419
+ * [new branch]      snyk-upgrade-eb7fffeb81c967418b536d334abe21d0    -> origin/snyk-upgrade-eb7fffeb81c967418b536d334abe21d0
+ * [new branch]      social_friends                                   -> origin/social_friends
+ * [new branch]      transcribing                                     -> origin/transcribing
+ * [new branch]      wip/studio-updates                               -> origin/wip/studio-updates
+hint: You have divergent branches and need to specify how to reconcile them.
+hint: You can do so by running one of the following commands sometime before
+hint: your next pull:
+hint:
+hint:   git config pull.rebase false  # merge
+hint:   git config pull.rebase true   # rebase
+hint:   git config pull.ff only       # fast-forward only
+hint:
+hint: You can replace "git config" with "git config --global" to set a default
+hint: preference for all repositories. You can also pass --rebase, --no-rebase,
+hint: or --ff-only on the command line to override the configured default per
+hint: invocation.
+fatal: Need to specify how to reconcile divergent branches.
+~/workspace$ ^C
+~/workspace$ 
