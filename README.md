@@ -198,12 +198,6 @@ CodedSwitch integrates with xAI Grok for advanced AI capabilities:
 ### Replit (Recommended)
 The project is optimized for Replit deployment with automatic environment setup.
 
-### Agent Relay Notifier
-- Watcher script: `npm run relay:watch` (runs `scripts/local-relay/watcher.js`)
-- Flags: `.handoff/notify-cascade` and `.handoff/notify-replit` trigger desktop toast + auto-copy message
-- Requirements: install deps (`npm install`), optional `xclip` on Linux for clipboard fallback
-- Behavior: debounced (~750ms) with 5s poll safety; picks up existing flags on start
-
 ### Manual Deployment
 1. Build the project: `npm run build`
 2. Deploy to your preferred hosting platform

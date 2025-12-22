@@ -92,10 +92,3 @@ To adopt ADP in your project:
 3. Instruct your AI tools: "Follow the protocol in .ai/protocol.md"
 
 That's it. No integrations, no APIs, no setup.
-
----
-
-## Optional Notifier Layer (Filesystem Flags)
-- Agents may drop flag files in `.handoff/` (e.g., `notify-cascade`, `notify-replit`) to signal new messages.
-- A local watcher (desktop) can listen for these flags and surface alerts (toast + clipboard copy).
-- Keep the base ADP semantics append-only in `dialogue.json`; flags are auxiliary hints for humans/agents.
