@@ -240,12 +240,16 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Local loop/asset directories (for Neumann Pack & Loop Library)
   const LOCAL_ASSETS_DIR = path.resolve(process.cwd(), "server", "Assests");
-  const ASSET_LOOPS_DIR = path.join(LOCAL_ASSETS_DIR, "loops");
 
-  // Loop library: prefer packaged assets (/server/Assests/loops) if present, otherwise fall back to objects/loops
-  const LOOPS_DIR = fs.existsSync(ASSET_LOOPS_DIR)
-    ? ASSET_LOOPS_DIR
-    : path.resolve(LOCAL_OBJECTS_DIR, "loops");
+  // Robust loop path resolution: try common install/build locations, prefer packaged assets
+  const loopCandidates = [
+    path.resolve(__dirname, "../Assests/loops"),                // compiled build (dist/server -> dist/Assests)
+    path.join(LOCAL_ASSETS_DIR, "loops"),                        // ts-node from repo root
+    path.resolve(process.cwd(), "Assests", "loops"),             // fallback if cwd is project root
+    path.resolve(LOCAL_OBJECTS_DIR, "loops"),                    // legacy objects/loops fallback
+  ];
+
+  const LOOPS_DIR = loopCandidates.find((p) => fs.existsSync(p)) || loopCandidates[loopCandidates.length - 1];
   
   // Ensure loops directory exists
   try {
@@ -280,6 +284,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   app.get("/api/loops", async (_req: Request, res: Response) => {
     try {
       const wavFiles = await findWavFiles(LOOPS_DIR, LOOPS_DIR);
+      console.log(`🎵 Loops scan: base=${LOOPS_DIR} found=${wavFiles.length}`);
       
       const loops = wavFiles.map((file, index) => ({
         id: index.toString(),
@@ -291,7 +296,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
       res.json({ loops });
     } catch (error) {
-      console.error("Failed to list loops:", error);
+      console.error(`Failed to list loops from ${LOOPS_DIR}:`, error);
       res.status(500).json({ success: false, message: "Failed to list loops" });
     }
   });
