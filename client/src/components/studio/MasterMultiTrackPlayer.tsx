@@ -106,7 +106,7 @@ const TRACK_COLORS = [
   '#F97316', // orange
 ];
 
-const DEFAULT_TRACK_HEIGHT = 80; // px
+const DEFAULT_TRACK_HEIGHT = 140; // px - enough for controls row
 
 // Inline waveform component for each track
 interface TrackWaveformProps {
@@ -2227,9 +2227,7 @@ export default function MasterMultiTrackPlayer() {
                                   size="sm"
                                   className="bg-amber-600 hover:bg-amber-500"
                                   onClick={() => {
-                                    window.dispatchEvent(new CustomEvent('openStudioTool', {
-                                      detail: { tool: 'beat-lab', trackId: track.id },
-                                    }));
+                                    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'beatmaker' }));
                                     toast({
                                       title: '🥁 Opening Beat Lab',
                                       description: 'Create your beat, then export to load it here',
@@ -2245,9 +2243,7 @@ export default function MasterMultiTrackPlayer() {
                                   size="sm"
                                   className="bg-purple-600 hover:bg-purple-500"
                                   onClick={() => {
-                                    window.dispatchEvent(new CustomEvent('openStudioTool', {
-                                      detail: { tool: 'melody', trackId: track.id },
-                                    }));
+                                    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'melody' }));
                                     toast({
                                       title: '🎹 Opening Melody Composer',
                                       description: 'Create your melody, then export to load it here',
