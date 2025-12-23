@@ -26,15 +26,22 @@ import { transcribeAudio } from "./services/transcriptionService";
 import { aiCache, withCache } from "./services/aiCache";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID } from "./utils/security";
 import { insertPlaylistSchema } from "@shared/schema";
 import { z } from "zod";
+import { generateSpeechPreview, createVoiceIdForFile, storePreview, getPreview, applyVoiceConversion } from "./services/speechCorrection";
+import { mixPreviewService, MixPreviewRequest } from "./services/mixPreview";
+import { jobManager } from "./services/jobManager";
 
 // Standardized error response helper
 const sendError = (res: Response, statusCode: number, message: string) => {
   res.status(statusCode).json({ success: false, message });
 };
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function registerRoutes(app: Express, storage: IStorage) {
   // Mount auth routes
@@ -2467,6 +2474,179 @@ ${code}
     }
   );
 
+  // Speech correction: transcribe with timestamps (reuse existing transcribe)
+  app.post(
+    "/api/speech-correction/transcribe",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.TRANSCRIPTION, storage),
+    async (req: Request, res: Response) => {
+      // Delegate to existing /api/transcribe logic but return direct result
+      try {
+        const { objectKey, fileUrl, songId } = req.body;
+        if (!objectKey && !fileUrl) return sendError(res, 400, "Missing objectKey or fileUrl");
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
+          const fileId = fileUrl.split("/api/songs/converted/")[1];
+          const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
+          targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+        } else {
+          return sendError(res, 400, "External URLs not supported for speech-correction transcription");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found on server");
+        }
+
+        const result = await transcribeAudio(targetPath);
+        const transcriptText = typeof result === "string" ? result : result?.text || "";
+        const wordSegments =
+          Array.isArray((result as any)?.segments) && (result as any).segments.length
+            ? (result as any).segments.map((s: any) => ({
+                start: s.start,
+                end: s.end,
+                text: s.text,
+              }))
+            : [];
+        if (songId && req.userId) {
+          try {
+            await storage.updateSongTranscription(songId, req.userId, {
+              transcription: transcriptText,
+              transcriptionStatus: "completed",
+              transcribedAt: new Date(),
+            });
+          } catch (dbError) {
+            console.warn("⚠️ Could not save transcription to database:", dbError);
+          }
+        }
+        res.json({
+          success: true,
+          transcript: transcriptText,
+          words: wordSegments,
+          raw: result,
+        });
+      } catch (error: any) {
+        console.error("Speech-correction transcription error:", error);
+        sendError(res, 500, error.message || "Transcription failed");
+      }
+    }
+  );
+
+  // Persistent preview storage (JSON-backed via speechCorrection service)
+
+  app.post(
+    "/api/speech-correction/preview",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const transcript = (req.body.transcriptEdits || req.body.transcript || "").trim();
+        const { duration, stylePrompt, wordTiming, voiceId } = req.body;
+        if (!transcript) return sendError(res, 400, "Missing transcript");
+
+        let url = await generateSpeechPreview({
+          transcript,
+          duration: duration ?? 15,
+          stylePrompt,
+        });
+
+        // Apply voice conversion if voiceId provided
+        if (voiceId) {
+          url = await applyVoiceConversion(url, voiceId);
+        }
+
+        const previewId = crypto.randomUUID();
+        storePreview({
+          previewId,
+          url,
+          transcript,
+          duration: duration ?? 15,
+          createdAt: new Date().toISOString(),
+          voiceId,
+        });
+
+        res.json({
+          success: true,
+          previewId,
+          previewUrl: url,
+          alignedWords: Array.isArray(wordTiming) ? wordTiming : [],
+        });
+      } catch (error: any) {
+        console.error("Speech-correction preview error:", error);
+        sendError(res, 500, error.message || "Preview generation failed");
+      }
+    }
+  );
+
+  app.post(
+    "/api/speech-correction/commit",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { previewId } = req.body;
+        if (!previewId) return sendError(res, 400, "Missing previewId");
+        const preview = getPreview(previewId);
+        if (!preview) return sendError(res, 404, "Preview not found");
+
+        const versionId = crypto.randomUUID();
+        res.json({
+          success: true,
+          versionId,
+          finalStemUrl: preview.url,
+          transcript: preview.transcript,
+        });
+      } catch (error: any) {
+        console.error("Speech-correction commit error:", error);
+        sendError(res, 500, error.message || "Commit failed");
+      }
+    }
+  );
+
+  app.post(
+    "/api/speech-correction/voiceprint",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl } = req.body;
+        if (!objectKey && !fileUrl) return sendError(res, 400, "Missing objectKey or fileUrl");
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "Unsupported fileUrl for voiceprint");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found on server");
+        }
+
+        const voice = createVoiceIdForFile(targetPath);
+        res.json({ success: true, ...voice });
+      } catch (error: any) {
+        console.error("Speech-correction voiceprint error:", error);
+        sendError(res, 500, error.message || "Voiceprint failed");
+      }
+    }
+  );
+
   // Get user melodies
   app.get("/api/melodies", requireAuth(), async (req: Request, res: Response) => {
     try {
@@ -4343,6 +4523,158 @@ Create complete lyrics with verses, chorus, and bridge.`;
     } catch (error: any) {
       console.error("❌ Phase 3 AI drum grid error:", error);
       sendError(res, 500, error?.message || "Failed to generate AI drum grid");
+    }
+  });
+
+  // ============================================
+  // MIX PREVIEW ENDPOINTS - Timeline + Mixer DAW Core
+  // ============================================
+
+  /**
+   * POST /api/mix/preview
+   * Start a mix preview render job
+   * Accepts full track graph with regions, inserts, sends, and master bus
+   * Returns jobId for polling status
+   */
+  app.post("/api/mix/preview", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { session, renderQuality = 'fast', startTime, endTime, format = 'wav' } = req.body;
+
+      if (!session) {
+        return sendError(res, 400, "Session data is required");
+      }
+
+      if (!session.tracks || !Array.isArray(session.tracks)) {
+        return sendError(res, 400, "Session must contain tracks array");
+      }
+
+      const request: MixPreviewRequest = {
+        session,
+        renderQuality: renderQuality === 'high' ? 'high' : 'fast',
+        startTime,
+        endTime,
+        format: format === 'mp3' ? 'mp3' : 'wav',
+      };
+
+      const { jobId, estimatedTime } = await mixPreviewService.startPreview(request);
+
+      // Emit event for real-time clients
+      jobManager.emit('session:updated', { 
+        type: 'mix-preview-started', 
+        sessionId: session.id, 
+        jobId 
+      });
+
+      return res.json({
+        success: true,
+        jobId,
+        estimatedTime,
+        message: `Mix preview job started. Poll /api/jobs/${jobId} for status.`,
+      });
+    } catch (error: any) {
+      console.error("❌ Mix preview error:", error);
+      sendError(res, 500, error?.message || "Failed to start mix preview");
+    }
+  });
+
+  /**
+   * GET /api/jobs/:id
+   * Poll job status for async operations (mix preview, renders, etc.)
+   */
+  app.get("/api/jobs/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        return sendError(res, 400, "Job ID is required");
+      }
+
+      const job = jobManager.getJob(id);
+
+      if (!job) {
+        return sendError(res, 404, "Job not found");
+      }
+
+      return res.json({
+        success: true,
+        job: {
+          id: job.id,
+          type: job.type,
+          status: job.status,
+          progress: job.progress,
+          result: job.result,
+          error: job.error,
+          createdAt: job.createdAt,
+          updatedAt: job.updatedAt,
+        },
+      });
+    } catch (error: any) {
+      console.error("❌ Job status error:", error);
+      sendError(res, 500, error?.message || "Failed to get job status");
+    }
+  });
+
+  /**
+   * GET /api/mix/preview/:jobId/audio.:format
+   * Serve the rendered audio file (placeholder - would serve actual file in production)
+   */
+  app.get("/api/mix/preview/:jobId/audio.:format", async (req: Request, res: Response) => {
+    try {
+      const { jobId, format } = req.params;
+
+      const job = jobManager.getJob(jobId);
+
+      if (!job) {
+        return sendError(res, 404, "Preview job not found");
+      }
+
+      if (job.status !== 'completed') {
+        return sendError(res, 400, `Preview not ready. Status: ${job.status}, Progress: ${job.progress}%`);
+      }
+
+      // In production, this would serve the actual rendered file
+      // For now, return a placeholder response
+      res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : 'audio/wav');
+      res.setHeader('Content-Disposition', `attachment; filename="mix-preview-${jobId}.${format}"`);
+      
+      // Placeholder: In production, stream the actual file
+      return res.status(200).json({
+        message: "Audio file would be streamed here in production",
+        jobId,
+        format,
+        result: job.result,
+      });
+    } catch (error: any) {
+      console.error("❌ Preview audio error:", error);
+      sendError(res, 500, error?.message || "Failed to serve preview audio");
+    }
+  });
+
+  /**
+   * DELETE /api/jobs/:id
+   * Cancel/delete a job
+   */
+  app.delete("/api/jobs/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        return sendError(res, 400, "Job ID is required");
+      }
+
+      const deleted = jobManager.deleteJob(id);
+
+      if (!deleted) {
+        return sendError(res, 404, "Job not found");
+      }
+
+      return res.json({
+        success: true,
+        message: "Job deleted",
+      });
+    } catch (error: any) {
+      console.error("❌ Job delete error:", error);
+      sendError(res, 500, error?.message || "Failed to delete job");
     }
   });
 

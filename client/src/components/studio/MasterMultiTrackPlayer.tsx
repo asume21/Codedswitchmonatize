@@ -10,9 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useQuery } from '@tanstack/react-query';
 import { StudioAudioContext } from '@/pages/studio';
 import { useAudio } from '@/hooks/use-audio';
+import { apiRequest } from '@/lib/queryClient';
 import {
   Play,
   Pause,
@@ -65,6 +73,7 @@ interface AudioTrack {
   audioUrl: string;
   volume: number;
   pan: number;
+   kind?: string; // track kind for defaults (vocal, drums, etc.)
   fadeInSeconds?: number;
   fadeOutSeconds?: number;
   volumePoints?: { time: number; volume: number }[];
@@ -72,6 +81,9 @@ interface AudioTrack {
   solo: boolean;
   color: string;
   trackType?: 'beat' | 'melody' | 'vocal' | 'audio' | 'midi'; // Track type for tool integration
+   sendA?: number;
+   sendB?: number;
+   regionGain?: number;
   gainNode?: GainNode;
   panNode?: StereoPannerNode;
   sourceNode?: AudioBufferSourceNode;
@@ -340,6 +352,11 @@ export default function MasterMultiTrackPlayer() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [masterVolume, setMasterVolume] = useState(80);
+  const [masterLimiter, setMasterLimiter] = useState<{ threshold: number; release: number; ceiling: number }>({
+    threshold: -1,
+    release: 100,
+    ceiling: -0.3,
+  });
   const [loop, setLoop] = useState(false);
   const [tempo, setTempo] = useState(120);
   const [showLibrary, setShowLibrary] = useState(false);
@@ -348,6 +365,12 @@ export default function MasterMultiTrackPlayer() {
   const [punch, setPunch] = useState<{ enabled: boolean; in: number; out: number }>({ enabled: false, in: 0, out: 8 });
   const [waveformEditorTrack, setWaveformEditorTrack] = useState<AudioTrack | null>(null);
   const [waveformAudio, setWaveformAudio] = useState<HTMLAudioElement | null>(null);
+  const [renderQuality, setRenderQuality] = useState<'fast' | 'high'>('fast');
+  const [previewJobId, setPreviewJobId] = useState<string | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
+  const [previewProgress, setPreviewProgress] = useState<number>(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -365,6 +388,7 @@ export default function MasterMultiTrackPlayer() {
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
   const manualTracksRef = useRef<AudioTrack[]>([]);
   const midiTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const trackKindDefaultsRef = useRef<Record<string, string>>({});
 
   const getTrackEffectiveDuration = (track: AudioTrack): number => {
     const full = track.audioBuffer?.duration || 0;
@@ -456,6 +480,14 @@ export default function MasterMultiTrackPlayer() {
                           type === 'melody' ? '#8B5CF6' : 
                           type === 'pianoroll' ? '#3B82F6' : 
                           TRACK_COLORS[tracks.length % TRACK_COLORS.length];
+        const mappedKind =
+          type === 'beat'
+            ? 'drums'
+            : type === 'vocal'
+            ? 'vocal'
+            : type === 'melody'
+            ? 'synth'
+            : 'other';
         
         const newTrack: AudioTrack = {
           id: `${type}-${Date.now()}`,
@@ -467,10 +499,14 @@ export default function MasterMultiTrackPlayer() {
           fadeInSeconds: 0.05,
           fadeOutSeconds: 0.1,
           volumePoints: [],
+          sendA: -60,
+          sendB: -60,
+          regionGain: 0,
           muted: false,
           solo: false,
           color: trackColor,
           trackType: type as 'beat' | 'melody' | 'vocal' | 'audio',
+          kind: mappedKind,
           origin: 'manual',
           height: DEFAULT_TRACK_HEIGHT,
         };
@@ -680,12 +716,16 @@ export default function MasterMultiTrackPlayer() {
           solo: storeTrack.solo ?? false,
           color: storeTrack.color || TRACK_COLORS[synced.length % TRACK_COLORS.length],
           trackType: mappedTrackType,
+          kind: storeTrack.kind,
           origin: 'store',
           height: DEFAULT_TRACK_HEIGHT,
           trimStartSeconds: 0,
           trimEndSeconds: audioBuffer ? audioBuffer.duration : 16,
           midiNotes: isMidiTrack ? midiNotes : undefined,
           instrument: instrumentName,
+          sendA: typeof (storeTrack as any).sendA === 'number' ? (storeTrack as any).sendA : -60,
+          sendB: typeof (storeTrack as any).sendB === 'number' ? (storeTrack as any).sendB : -60,
+          regionGain: typeof (storeTrack as any).regionGain === 'number' ? (storeTrack as any).regionGain : 0,
         };
 
         synced.push(mapped);
@@ -856,22 +896,27 @@ export default function MasterMultiTrackPlayer() {
           try {
             const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
             const audioUrl = URL.createObjectURL(blob);
-
-      const newTrack: AudioTrack = {
-        id: `recording-${Date.now()}`,
-        name: `Recording ${tracks.length + 1}`,
-        audioBuffer,
-        audioUrl,
-        volume: 80,
-        pan: 0,
-        fadeInSeconds: 0.05,
-        fadeOutSeconds: 0.1,
-        volumePoints: [],
-        muted: false,
-        solo: false,
-        color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
-        origin: 'manual',
-        trimStartSeconds: 0,
+	
+            const newTrack: AudioTrack = {
+              id: `recording-${Date.now()}`,
+              name: `Recording ${tracks.length + 1}`,
+              audioBuffer,
+              audioUrl,
+              volume: 80,
+              pan: 0,
+              fadeInSeconds: 0.05,
+              fadeOutSeconds: 0.1,
+              volumePoints: [],
+              sendA: -60,
+              sendB: -60,
+              regionGain: 0,
+              muted: false,
+              solo: false,
+              color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+              trackType: 'vocal',
+              kind: 'vocal',
+              origin: 'manual',
+              trimStartSeconds: 0,
               trimEndSeconds: audioBuffer.duration,
             };
 
@@ -937,10 +982,14 @@ export default function MasterMultiTrackPlayer() {
       fadeInSeconds: 0.05,
       fadeOutSeconds: 0.1,
       volumePoints: [],
+      sendA: -60,
+      sendB: -60,
+      regionGain: 0,
       muted: false,
       solo: false,
       color: type === 'beat' ? '#F59E0B' : type === 'melody' ? '#8B5CF6' : '#10B981',
       trackType: type,
+      kind: type === 'beat' ? 'drums' : type === 'vocal' ? 'vocal' : type === 'melody' ? 'synth' : 'other',
       height: DEFAULT_TRACK_HEIGHT,
       trimStartSeconds: 0,
       trimEndSeconds: 0,
@@ -1175,6 +1224,42 @@ export default function MasterMultiTrackPlayer() {
     );
   };
 
+  const updateTrackKind = (trackId: string, kind: string) => {
+    const defaults = getKindSendDefaults(kind);
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (t.id !== trackId) return t;
+        const sendA = t.sendA ?? -60;
+        const sendB = t.sendB ?? -60;
+        const shouldApplyDefaults = sendA === -60 && sendB === -60;
+        return {
+          ...t,
+          kind,
+          sendA: shouldApplyDefaults ? defaults.sendA : sendA,
+          sendB: shouldApplyDefaults ? defaults.sendB : sendB,
+        };
+      })
+    );
+  };
+
+  const updateTrackSends = (trackId: string, sendA?: number, sendB?: number) => {
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? {
+              ...t,
+              sendA: typeof sendA === 'number' ? sendA : t.sendA ?? -60,
+              sendB: typeof sendB === 'number' ? sendB : t.sendB ?? -60,
+            }
+          : t
+      )
+    );
+  };
+
+  const updateRegionGain = (trackId: string, gain: number) => {
+    setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, regionGain: gain } : t)));
+  };
+
   const updateTrackVolumePoints = (trackId: string, points: { time: number; volume: number }[]) => {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, volumePoints: points } : t)));
   };
@@ -1237,6 +1322,160 @@ export default function MasterMultiTrackPlayer() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const dbToLinear = (db: number) => Math.pow(10, db / 20);
+
+  const getKindSendDefaults = (kind?: string) => {
+    switch ((kind || '').toLowerCase()) {
+      case 'vocal':
+        return { sendA: -14, sendB: -12 };
+      case 'drums':
+        return { sendA: -18, sendB: -24 };
+      case 'bass':
+        return { sendA: -24, sendB: -40 };
+      case 'synth':
+      case 'keys':
+        return { sendA: -16, sendB: -18 };
+      case 'guitar':
+        return { sendA: -18, sendB: -16 };
+      case 'fx':
+        return { sendA: -12, sendB: -10 };
+      default:
+        return { sendA: -60, sendB: -60 };
+    }
+  };
+
+  const buildSessionPayload = () => {
+    const sessionTracks = tracks.map((t) => {
+      const trackDuration = getTrackEffectiveDuration(t);
+      const regionStart = 0;
+      const regionEnd = Math.max(trackDuration, (t.trimEndSeconds ?? trackDuration) || 0);
+      const regionDuration = Math.max(regionEnd - regionStart, 0);
+      const offset = Math.max(0, t.trimStartSeconds ?? 0);
+      return {
+        id: t.id,
+        type: t.trackType === 'midi' ? 'midi' : t.trackType === 'beat' ? 'drums' : 'audio',
+        kind: t.kind,
+        name: t.name,
+        color: t.color,
+        regions: [
+          {
+            id: `${t.id}-region-0`,
+            start: regionStart,
+            end: regionEnd,
+            src: t.audioUrl,
+            type: 'audio',
+            offset,
+            duration: regionDuration,
+            stretch: t.trimEndSeconds ? regionDuration / Math.max(regionEnd - regionStart, 0.001) : undefined,
+            gain: t.regionGain ?? 0,
+          },
+        ],
+        volume: (t.volume ?? 80) / 100,
+        pan: t.pan ?? 0,
+        muted: !!t.muted,
+        solo: !!t.solo,
+        inserts: [
+          { type: 'eq', enabled: true, params: {} },
+          { type: 'compressor', enabled: true, params: {} },
+        ],
+        sends: [
+          { target: 'reverb', level: dbToLinear(t.sendA ?? -60), preFader: false },
+          { target: 'delay', level: dbToLinear(t.sendB ?? -60), preFader: false },
+        ],
+      };
+    });
+
+    return {
+      id: 'timeline-session',
+      name: 'Timeline Mix',
+      bpm: tempo,
+      key: 'C',
+      timeSignature: '4/4',
+      loopStart: loop ? 0 : undefined,
+      loopEnd: loop ? duration : undefined,
+      tracks: sessionTracks,
+      masterBus: {
+        volume: masterVolume / 100,
+        limiter: masterLimiter,
+      },
+      buses: {
+        reverb: { level: 1 },
+        delay: { level: 1 },
+      },
+    };
+  };
+
+  const stopPreviewPolling = () => {
+    if (jobPollRef.current) {
+      clearInterval(jobPollRef.current);
+      jobPollRef.current = null;
+    }
+  };
+
+  const pollJob = (jobId: string, format: string) => {
+    stopPreviewPolling();
+    jobPollRef.current = setInterval(async () => {
+      try {
+        const res = await apiRequest('GET', `/api/jobs/${jobId}`);
+        const data = await res.json();
+        const job = data.job || data?.data || data;
+        if (job?.progress !== undefined) setPreviewProgress(job.progress);
+        if (job?.status === 'completed') {
+          stopPreviewPolling();
+          setPreviewStatus('completed');
+          setPreviewUrl(`/api/mix/preview/${jobId}/audio.${format}`);
+        } else if (job?.status === 'failed') {
+          stopPreviewPolling();
+          setPreviewStatus('failed');
+          toast({
+            title: 'Mix preview failed',
+            description: job?.error || 'Unknown error',
+            variant: 'destructive',
+          });
+        } else {
+          setPreviewStatus(job?.status || 'running');
+        }
+      } catch (error) {
+        console.error('Job polling error', error);
+      }
+    }, 1500);
+  };
+
+  const handleMixPreview = async () => {
+    try {
+      setPreviewStatus('starting');
+      setPreviewProgress(0);
+      setPreviewUrl(null);
+      const payload = {
+        session: buildSessionPayload(),
+        renderQuality,
+        format: 'mp3',
+      };
+      const res = await apiRequest('POST', '/api/mix/preview', payload);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || 'Preview start failed');
+      }
+      const jobId = data.jobId || data.id;
+      if (!jobId) {
+        throw new Error('No job id returned');
+      }
+      setPreviewJobId(jobId);
+      setPreviewStatus('queued');
+      pollJob(jobId, 'mp3');
+      toast({ title: 'Mix preview started', description: `Job ${jobId}` });
+    } catch (error: any) {
+      console.error('Mix preview error', error);
+      toast({
+        title: 'Mix preview failed to start',
+        description: error?.message || 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  useEffect(() => () => stopPreviewPolling(), []);
+
   const applyTemplate = (template: 'band' | 'podcast') => {
     const baseTracks =
       template === 'band'
@@ -1267,6 +1506,10 @@ export default function MasterMultiTrackPlayer() {
           solo: false,
           color: TRACK_COLORS[next.length % TRACK_COLORS.length],
           trackType: t.type as any,
+          kind: t.type === 'vocal' ? 'vocal' : t.type === 'beat' ? 'drums' : t.type === 'bass' ? 'bass' : 'other',
+          sendA: -60,
+          sendB: -60,
+          regionGain: 0,
           origin: 'manual',
           height: DEFAULT_TRACK_HEIGHT,
           trimStartSeconds: 0,
@@ -1786,6 +2029,65 @@ export default function MasterMultiTrackPlayer() {
         </div>
       </div>
 
+      {/* Mix Preview & Master */}
+      <div className="px-4 py-3 bg-gray-900 border-t border-b border-gray-800 flex flex-wrap items-center gap-4">
+        <Button className="bg-blue-600 hover:bg-blue-500" onClick={handleMixPreview}>
+          <Wand2 className="w-4 h-4 mr-2" />
+          Mix Preview
+        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Quality</span>
+          <Select value={renderQuality} onValueChange={(v: any) => setRenderQuality(v)}>
+            <SelectTrigger className="w-28 bg-gray-800 border-gray-700 h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fast">Fast</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-gray-300">
+          <span>Status:</span>
+          <span className={previewStatus === 'failed' ? 'text-red-400' : 'text-blue-300'}>
+            {previewStatus || 'idle'}
+          </span>
+          {previewProgress > 0 && previewProgress < 100 && (
+            <span className="text-gray-400">{Math.round(previewProgress)}%</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs text-gray-300">
+          <span>Limiter</span>
+          <span>Thresh</span>
+          <Input
+            type="number"
+            className="w-16 h-8 bg-gray-800 border-gray-700 text-xs"
+            value={masterLimiter.threshold}
+            onChange={(e) => setMasterLimiter((p) => ({ ...p, threshold: Number(e.target.value) }))}
+          />
+          <span>Release</span>
+          <Input
+            type="number"
+            className="w-16 h-8 bg-gray-800 border-gray-700 text-xs"
+            value={masterLimiter.release}
+            onChange={(e) => setMasterLimiter((p) => ({ ...p, release: Number(e.target.value) }))}
+          />
+          <span>Ceiling</span>
+          <Input
+            type="number"
+            className="w-16 h-8 bg-gray-800 border-gray-700 text-xs"
+            value={masterLimiter.ceiling}
+            onChange={(e) => setMasterLimiter((p) => ({ ...p, ceiling: Number(e.target.value) }))}
+          />
+        </div>
+        {previewUrl && (
+          <div className="flex items-center gap-2 text-xs text-gray-300">
+            <span>Preview:</span>
+            <audio controls src={previewUrl} className="w-64" />
+          </div>
+        )}
+      </div>
+
       {/* Tracks List */}
       <div className="flex-1 overflow-y-auto p-4">
         {tracks.length === 0 ? (
@@ -1847,7 +2149,22 @@ export default function MasterMultiTrackPlayer() {
                         <div className="flex-1 flex flex-col gap-2">
                           {/* Header with name + delete */}
                           <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold">{track.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold">{track.name}</h4>
+                              <Select
+                                value={track.kind || ''}
+                                onValueChange={(v) => updateTrackKind(track.id, v)}
+                              >
+                                <SelectTrigger className="w-32 h-8 bg-gray-800 border-gray-700 text-xs">
+                                  <SelectValue placeholder="Kind" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {['vocal','drums','bass','synth','guitar','keys','fx','other'].map((k) => (
+                                    <SelectItem key={k} value={k}>{k}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1996,6 +2313,29 @@ export default function MasterMultiTrackPlayer() {
                               </Button>
                             </div>
 
+                            {/* Track Kind */}
+                            <Select
+                              value={track.kind || ''}
+                              onValueChange={(v) => {
+                                updateTrackKind(track.id, v);
+                                const defaults = getKindSendDefaults(v);
+                                updateTrackSends(track.id, defaults.sendA, defaults.sendB);
+                              }}
+                            >
+                              <SelectTrigger className="w-24 h-8 bg-gray-800 border-gray-700 text-xs">
+                                <SelectValue placeholder="Kind" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="vocal">Vocal</SelectItem>
+                                <SelectItem value="drums">Drums</SelectItem>
+                                <SelectItem value="bass">Bass</SelectItem>
+                                <SelectItem value="synth">Synth</SelectItem>
+                                <SelectItem value="keys">Keys</SelectItem>
+                                <SelectItem value="guitar">Guitar</SelectItem>
+                                <SelectItem value="fx">FX</SelectItem>
+                              </SelectContent>
+                            </Select>
+
                             {/* Volume */}
                             <div className="flex items-center gap-2 flex-1">
                               <Volume2 className="w-3 h-3 text-gray-400" />
@@ -2024,6 +2364,37 @@ export default function MasterMultiTrackPlayer() {
                               <span className="text-xs w-8">
                                 {track.pan > 0 ? 'R' : track.pan < 0 ? 'L' : 'C'}
                               </span>
+                            </div>
+
+                            {/* Sends */}
+                            <div className="flex items-center gap-2 w-56">
+                              <span className="text-xs text-gray-400 whitespace-nowrap">Sends (dB)</span>
+                              <div className="flex flex-col gap-1 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-gray-400">A</span>
+                                  <Slider
+                                    value={[track.sendA ?? -60]}
+                                    onValueChange={(val) => updateTrackSends(track.id, val[0], track.sendB)}
+                                    max={12}
+                                    min={-60}
+                                    step={1}
+                                    className="flex-1"
+                                  />
+                                  <span className="text-[11px] text-gray-300 w-10 text-right">{Math.round(track.sendA ?? -60)} dB</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-gray-400">B</span>
+                                  <Slider
+                                    value={[track.sendB ?? -60]}
+                                    onValueChange={(val) => updateTrackSends(track.id, track.sendA, val[0])}
+                                    max={12}
+                                    min={-60}
+                                    step={1}
+                                    className="flex-1"
+                                  />
+                                  <span className="text-[11px] text-gray-300 w-10 text-right">{Math.round(track.sendB ?? -60)} dB</span>
+                                </div>
+                              </div>
                             </div>
 
                             {/* Fade In/Out */}
