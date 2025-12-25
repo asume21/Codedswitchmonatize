@@ -37,7 +37,7 @@ const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-
 const DesignPlayground = React.lazy(() => import("@/pages/design-playground"));
 const TestPianoRoll = React.lazy(() => import("@/pages/test-piano-roll"));
 const TestCircular = React.lazy(() => import("@/pages/TestCircular"));
-const CodedSwitchFlow = React.lazy(() => import("@/components/layout/CodedSwitchFlow"));
+// CodedSwitchFlow merged into VerticalPianoRoll - no longer needed as separate route
 const BuyCreditsPage = React.lazy(() => import("@/pages/buy-credits"));
 const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success"));
 const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel"));
@@ -184,7 +184,12 @@ function App() {
                     </AIMessageProvider>
                   </Route>
                   <Route path="/flow">
-                    <CodedSwitchFlow />
+                    {/* Flow view merged into Piano Roll - redirect to studio */}
+                    <AIMessageProvider>
+                      <AppLayout>
+                        <UnifiedStudioWorkspace />
+                      </AppLayout>
+                    </AIMessageProvider>
                   </Route>
                   <Route path="/code-translator">
                     <AIMessageProvider>

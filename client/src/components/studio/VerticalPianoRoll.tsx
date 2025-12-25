@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1 } from "lucide-react";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1, X, Volume2, FolderOpen, Sliders, Drum, Piano, Waves, Mic2, Sparkles } from "lucide-react";
 import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
@@ -201,6 +201,11 @@ export const VerticalPianoRoll: React.FC = () => {
   const [noteRepeatEnabled, setNoteRepeatEnabled] = useState(false); // Note roll/repeat
   const [noteRepeatRate, setNoteRepeatRate] = useState(4); // Repeat divisions (4=16th notes)
   
+  // FLOATING PANELS STATE (merged from CodedSwitchFlow)
+  const [mixerPanelOpen, setMixerPanelOpen] = useState(false);
+  const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
+  const [inspectorPanelOpen, setInspectorPanelOpen] = useState(false);
+  
   const { toast } = useToast();
   const { currentSession, updateSession } = useSongWorkSession();
   // Note: useTransport is already called at the top for transport sync
@@ -282,45 +287,101 @@ export const VerticalPianoRoll: React.FC = () => {
         };
         
         // Convert Astutely notes to Piano Roll format
-        const convertNote = (n: any, trackIndex: number) => ({
-          id: `astutely-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          note: n.note || 'C',
-          octave: n.octave || 4,
-          step: Math.floor(n.start * 4), // Convert beats to steps (4 steps per beat)
-          length: Math.max(1, Math.floor(n.duration * 4)),
-          velocity: Math.floor((n.velocity || 0.8) * 127)
-        });
+        // Astutely notes have: pitch (MIDI), startStep, duration, velocity, trackType
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const convertNote = (n: any, trackIndex: number) => {
+          const midiPitch = n.pitch || 60;
+          const octave = Math.floor(midiPitch / 12) - 1;
+          const noteIndex = midiPitch % 12;
+          const noteName = noteNames[noteIndex];
+          
+          return {
+            id: `astutely-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            note: noteName,
+            octave: octave,
+            step: n.startStep || 0,
+            length: Math.max(1, n.duration || 1),
+            velocity: n.velocity || 100
+          };
+        };
+        
+        // Add all track types and track which one to focus on
+        let bestTrackName = '';
         
         // Add drum notes
         if (drumNotes.length > 0) {
           const drumTrack = findOrCreateTrack('drums', 'drums', 'bg-pink-500');
           drumTrack.notes = drumNotes.map((n: any, i: number) => convertNote(n, i));
+          if (!bestTrackName) bestTrackName = 'Drums';
         }
         
         // Add bass notes
         if (bassNotes.length > 0) {
           const bassTrack = findOrCreateTrack('bass', 'bass-electric', 'bg-green-500');
           bassTrack.notes = bassNotes.map((n: any, i: number) => convertNote(n, i));
-        }
-        
-        // Add melody notes
-        if (melodyNotes.length > 0) {
-          const melodyTrack = findOrCreateTrack('melody', 'piano', 'bg-blue-500');
-          melodyTrack.notes = melodyNotes.map((n: any, i: number) => convertNote(n, i));
+          bestTrackName = 'Bass'; // Bass > Drums
         }
         
         // Add chord notes
         if (chordNotes.length > 0) {
           const chordTrack = findOrCreateTrack('chords', 'piano', 'bg-purple-500');
           chordTrack.notes = chordNotes.map((n: any, i: number) => convertNote(n, i));
+          bestTrackName = 'Chords'; // Chords > Bass
+        }
+        
+        // Add melody notes (highest priority for display)
+        if (melodyNotes.length > 0) {
+          const melodyTrack = findOrCreateTrack('melody', 'piano', 'bg-blue-500');
+          melodyTrack.notes = melodyNotes.map((n: any, i: number) => convertNote(n, i));
+          bestTrackName = 'Melody'; // Melody > Chords
         }
         
         return newTracks;
       });
       
+      // After state update, find and select the best track, then scroll to notes
+      setTimeout(() => {
+        setTracks(currentTracks => {
+          // Determine which track to focus (Melody > Chords > Bass > Drums)
+          const priorities = ['Melody', 'Chords', 'Bass', 'Drums'];
+          let targetIndex = -1;
+          
+          for (const name of priorities) {
+            const idx = currentTracks.findIndex(t => t.name.toLowerCase() === name.toLowerCase() && t.notes.length > 0);
+            if (idx !== -1) {
+              targetIndex = idx;
+              break;
+            }
+          }
+          
+          if (targetIndex !== -1) {
+            setSelectedTrackIndex(targetIndex);
+            console.log(`👁️ Auto-selected track: ${currentTracks[targetIndex].name}`);
+            
+            // Auto-scroll to show the notes
+            setTimeout(() => {
+              if (gridRef.current && currentTracks[targetIndex].notes.length > 0) {
+                const trackNotes = currentTracks[targetIndex].notes;
+                const avgOctave = trackNotes.reduce((sum: number, n: any) => sum + n.octave, 0) / trackNotes.length;
+                const centerKeyIndex = (8 - avgOctave) * 12;
+                const scrollPos = centerKeyIndex * KEY_HEIGHT * verticalZoom - (gridRef.current.clientHeight / 2);
+                
+                gridRef.current.scrollTo({
+                  top: Math.max(0, scrollPos),
+                  behavior: 'smooth'
+                });
+                console.log(`📜 Auto-scrolled to octave ${Math.round(avgOctave)}`);
+              }
+            }, 50);
+          }
+          
+          return currentTracks; // No change, just reading
+        });
+      }, 100);
+      
       toast({
         title: '🎹 Notes Loaded!',
-        description: `${notes.length} notes added to Piano Roll tracks`,
+        description: `${notes.length} notes added to Piano Roll`,
       });
     };
     
@@ -344,7 +405,7 @@ export const VerticalPianoRoll: React.FC = () => {
     return () => {
       window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
     };
-  }, [toast]);
+  }, [tracks, toast]); // Added tracks dependency to access current state correctly
 
   // Scroll synchronization - keep piano keys and grid in sync
   const handlePianoScroll = useCallback(() => {
@@ -714,6 +775,33 @@ export const VerticalPianoRoll: React.FC = () => {
       if ((key === 'delete' || key === 'backspace') && selectedNoteIds.size > 0) {
         e.preventDefault();
         deleteSelected();
+        return;
+      }
+
+      // FLOATING PANEL SHORTCUTS (merged from CodedSwitchFlow)
+      // M - Toggle Mixer Panel
+      if (key === 'm' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setMixerPanelOpen(prev => !prev);
+        return;
+      }
+      // B - Toggle Browser Panel
+      if (key === 'b' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setBrowserPanelOpen(prev => !prev);
+        return;
+      }
+      // I - Toggle Inspector Panel (only without Ctrl)
+      if (key === 'i' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setInspectorPanelOpen(prev => !prev);
+        return;
+      }
+      // Escape - Close all panels
+      if (key === 'escape') {
+        setMixerPanelOpen(false);
+        setBrowserPanelOpen(false);
+        setInspectorPanelOpen(false);
         return;
       }
 
@@ -2419,6 +2507,29 @@ export const VerticalPianoRoll: React.FC = () => {
             {/* Chord Mode Toggle, Arpeggiator & Sync Scroll */}
             <div className="flex items-center justify-between gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
               <div className="flex items-center gap-3">
+                {/* Track Selector */}
+                <div className="flex items-center gap-2 mr-4 bg-black/40 rounded-lg p-1 pr-3 border border-purple-500/30">
+                  <div className={`w-3 h-8 rounded-l ${selectedTrack.color || 'bg-blue-500'}`}></div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Track</span>
+                    <select
+                      value={selectedTrackIndex}
+                      onChange={(e) => {
+                        const idx = parseInt(e.target.value);
+                        setSelectedTrackIndex(idx);
+                        toast({ title: `Switched to ${tracks[idx].name}` });
+                      }}
+                      className="bg-transparent text-sm font-bold text-white outline-none cursor-pointer hover:text-purple-300 transition-colors"
+                    >
+                      {tracks.map((t, i) => (
+                        <option key={t.id} value={i} className="bg-gray-900 text-white">
+                          {i + 1}. {t.name} ({t.notes.length} notes)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 {/* Compact Arpeggiator */}
                 <Arpeggiator
                   enabled={liveArpEnabled}
@@ -2821,6 +2932,160 @@ export const VerticalPianoRoll: React.FC = () => {
           />
         </div>
       </Card>
+
+      {/* FLOATING PANELS (merged from CodedSwitchFlow) */}
+      
+      {/* Mixer Panel - Right Side */}
+      <div 
+        className={`fixed right-0 top-0 bottom-0 w-96 z-50 border-l transition-transform duration-300 ${mixerPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        style={{ 
+          background: 'rgba(15, 10, 26, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderColor: 'rgba(139, 92, 246, 0.2)',
+          boxShadow: mixerPanelOpen ? '0 0 80px rgba(139, 92, 246, 0.4)' : 'none',
+        }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.05)' }}>
+          <div className="flex items-center gap-3">
+            <Volume2 className="w-4 h-4 text-purple-400" />
+            <h3 className="text-sm font-bold uppercase tracking-widest text-purple-400">Mixer</h3>
+            <kbd className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-gray-400">M</kbd>
+          </div>
+          <button onClick={() => setMixerPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 h-[calc(100%-52px)] overflow-auto">
+          <div className="flex gap-2 h-full overflow-x-auto pb-2">
+            {tracks.map((track, idx) => (
+              <div key={track.id} className="flex flex-col items-center gap-2 p-3 rounded-xl min-w-[72px] flex-shrink-0 bg-purple-500/5 border border-purple-500/20">
+                <div className="h-36 w-3 rounded-full relative overflow-hidden bg-black/40">
+                  <div 
+                    className="absolute bottom-0 w-full rounded-full transition-all duration-150"
+                    style={{ height: `${track.muted ? 0 : track.volume}%`, background: `linear-gradient(to top, ${track.color.replace('bg-', '#').replace('-500', '')}, ${track.color.replace('bg-', '#').replace('-500', '')}88)` }}
+                  />
+                </div>
+                <span className="text-xs font-mono text-gray-400">{track.muted ? '---' : track.volume}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => handleMuteToggle(track.id)} className={`text-xs px-2 py-1 rounded font-bold transition-all ${track.muted ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-400'}`}>M</button>
+                </div>
+                <span className="text-xs font-semibold truncate w-full text-center text-gray-300">{track.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Browser Panel - Bottom */}
+      <div 
+        className={`fixed left-0 right-0 bottom-0 h-72 z-50 border-t transition-transform duration-300 ${browserPanelOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{ 
+          background: 'rgba(15, 10, 26, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderColor: 'rgba(139, 92, 246, 0.2)',
+          boxShadow: browserPanelOpen ? '0 0 80px rgba(139, 92, 246, 0.4)' : 'none',
+        }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.05)' }}>
+          <div className="flex items-center gap-3">
+            <FolderOpen className="w-4 h-4 text-purple-400" />
+            <h3 className="text-sm font-bold uppercase tracking-widest text-purple-400">Browser</h3>
+            <kbd className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-gray-400">B</kbd>
+          </div>
+          <button onClick={() => setBrowserPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 h-[calc(100%-52px)] overflow-auto">
+          <div className="grid grid-cols-6 gap-2 mb-4">
+            {[
+              { name: 'Drums', icon: Drum, color: '#EC4899' },
+              { name: 'Bass', icon: Guitar, color: '#10B981' },
+              { name: 'Keys', icon: Piano, color: '#3B82F6' },
+              { name: 'Synths', icon: Waves, color: '#8B5CF6' },
+              { name: 'Vocals', icon: Mic2, color: '#F59E0B' },
+              { name: 'FX', icon: Sparkles, color: '#06B6D4' },
+            ].map(cat => (
+              <button key={cat.name} className="p-3 rounded-lg transition-all hover:scale-105 bg-purple-500/5 border border-purple-500/20">
+                <cat.icon className="w-5 h-5 mx-auto mb-1" style={{ color: cat.color }} />
+                <span className="text-xs font-semibold block text-gray-200">{cat.name}</span>
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {['808 Kick', 'Hi-Hat Loop', 'Snare Trap', 'Sub Bass', 'Piano Chord', 'Synth Lead', 'Vocal Chop', 'Riser FX'].map(sample => (
+              <button key={sample} className="p-2 rounded-lg text-left text-sm text-gray-300 bg-purple-500/5 border border-purple-500/20 hover:bg-purple-500/10 transition-all">
+                {sample}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Inspector Panel - Left Side */}
+      <div 
+        className={`fixed left-0 top-0 bottom-0 w-80 z-50 border-r transition-transform duration-300 ${inspectorPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ 
+          background: 'rgba(15, 10, 26, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderColor: 'rgba(139, 92, 246, 0.2)',
+          boxShadow: inspectorPanelOpen ? '0 0 80px rgba(139, 92, 246, 0.4)' : 'none',
+        }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.05)' }}>
+          <div className="flex items-center gap-3">
+            <Sliders className="w-4 h-4 text-purple-400" />
+            <h3 className="text-sm font-bold uppercase tracking-widest text-purple-400">Inspector</h3>
+            <kbd className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-gray-400">I</kbd>
+          </div>
+          <button onClick={() => setInspectorPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 h-[calc(100%-52px)] overflow-auto space-y-4">
+          <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+            <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-purple-400">Note Properties</h4>
+            <div className="space-y-2 text-sm text-gray-400">
+              <div className="flex justify-between"><span>Selected</span><span className="text-gray-200">{selectedNoteIds.size} notes</span></div>
+              <div className="flex justify-between"><span>Track</span><span className="text-gray-200">{selectedTrack?.name || 'None'}</span></div>
+              <div className="flex justify-between"><span>Instrument</span><span className="text-gray-200">{selectedTrack?.instrument || 'None'}</span></div>
+            </div>
+          </div>
+          <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+            <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-purple-400">Actions</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {['Duplicate', 'Delete', 'Quantize', 'Humanize'].map(action => (
+                <button key={action} onClick={() => toast({ title: action })} className="px-3 py-2 text-xs font-semibold rounded-lg transition-all hover:scale-105 bg-purple-500/20 text-gray-200 border border-purple-500/20">
+                  {action}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Keyboard Hints Bar */}
+      <div 
+        className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 px-5 py-2.5 rounded-full opacity-40 hover:opacity-100 transition-opacity z-40"
+        style={{ 
+          background: 'rgba(15, 10, 26, 0.9)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(139, 92, 246, 0.2)',
+        }}
+      >
+        {[
+          { key: 'Space', action: 'Play' },
+          { key: 'M', action: 'Mixer' },
+          { key: 'B', action: 'Browser' },
+          { key: 'I', action: 'Inspector' },
+          { key: 'Esc', action: 'Close' },
+        ].map(({ key, action }) => (
+          <span key={key} className="flex items-center gap-1.5 text-xs text-gray-400">
+            <kbd className="px-1.5 py-0.5 rounded text-xs font-mono bg-purple-500/20 text-purple-400">{key}</kbd>
+            {action}
+          </span>
+        ))}
+      </div>
     </div>
   );
 };
