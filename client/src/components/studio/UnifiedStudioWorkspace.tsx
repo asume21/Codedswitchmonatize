@@ -33,6 +33,7 @@ import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin,
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
 import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
+import VoiceConversion from './VoiceConversion';
 import AIMasteringCard from './AIMasteringCard';
 import AIArrangementBuilder from './AIArrangementBuilder';
 import AIVocalMelody from './AIVocalMelody';
@@ -241,7 +242,7 @@ export default function UnifiedStudioWorkspace() {
     return 'code-to-music' as WorkflowConfig['activeView'];
   };
 
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack'>(resolveInitialActiveView);
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'voice-conversion'>(resolveInitialActiveView);
   
   // Section expansion states
   const [timelineExpanded, setTimelineExpanded] = useState(true);
@@ -2361,6 +2362,10 @@ export default function UnifiedStudioWorkspace() {
                     <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       BPM Detector
                     </button>
+                    <div className="border-t border-gray-700 my-1"></div>
+                    <button onClick={() => { setActiveView('voice-conversion'); toast({ title: "🎤 Voice Conversion", description: "Opening RVC voice cloning..." }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                      🎤 Voice Conversion (RVC)
+                    </button>
                   </div>
                 </div>
 
@@ -3496,6 +3501,13 @@ export default function UnifiedStudioWorkspace() {
           {activeView === 'multitrack' && (
             <div className="flex-1 overflow-hidden bg-gray-900 h-full">
               <MasterMultiTrackPlayer />
+            </div>
+          )}
+
+          {/* VOICE CONVERSION (RVC) */}
+          {activeView === 'voice-conversion' && (
+            <div className="flex-1 overflow-y-auto bg-gray-900 p-4">
+              <VoiceConversion />
             </div>
           )}
         </div>
