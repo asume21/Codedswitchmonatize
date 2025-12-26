@@ -1674,14 +1674,14 @@ Return in this exact JSON format:
 
       console.log(`Starting stem separation: ${stems} stems`);
 
-      const predictionResponse = await fetch('https://api.replicate.com/v1/predictions', {
+      const predictionResponse = await fetch('https://api.replicate.com/v1/models/cjwbw/demucs/predictions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
           'Content-Type': 'application/json',
+          'Prefer': 'wait'
         },
         body: JSON.stringify({
-          version: "25a173108cff36ef9f80f854c162d01df9e6528be175794b81b7a0f3b7c82d3a",
           input: {
             audio: finalAudioUrl,
           },
