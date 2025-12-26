@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2 } from 'lucide-react';
+import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload, Link } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -29,8 +29,60 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const [predictionId, setPredictionId] = useState<string | null>(null);
   const [stems, setStems] = useState<StemResult | null>(null);
   const [playingStem, setPlayingStem] = useState<string | null>(null);
+  const [inputMode, setInputMode] = useState<'file' | 'url'>('file');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('audio/')) {
+        toast({
+          title: "Invalid File",
+          description: "Please select an audio file (MP3, WAV, etc.)",
+          variant: "destructive"
+        });
+        return;
+      }
+      setUploadedFile(file);
+      setAudioUrl(''); // Clear URL when file is selected
+    }
+  };
+
+  const uploadFileAndGetUrl = async (): Promise<string | null> => {
+    if (!uploadedFile) return null;
+    
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+      
+      const response = await fetch('/api/upload/audio', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      const data = await response.json();
+      return data.url || data.audioUrl;
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: "Could not upload file. Please try again.",
+        variant: "destructive"
+      });
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -71,10 +123,21 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   }, [predictionId, isProcessing, onStemsReady, toast]);
 
   const startSeparation = async () => {
-    if (!audioUrl) {
+    let finalUrl = audioUrl;
+    
+    // If file mode and file selected, upload first
+    if (inputMode === 'file' && uploadedFile) {
+      const uploadedUrl = await uploadFileAndGetUrl();
+      if (!uploadedUrl) {
+        return; // Upload failed, error already shown
+      }
+      finalUrl = uploadedUrl;
+    }
+    
+    if (!finalUrl) {
       toast({
-        title: "URL Required",
-        description: "Please enter an audio URL",
+        title: inputMode === 'file' ? "File Required" : "URL Required",
+        description: inputMode === 'file' ? "Please select an audio file" : "Please enter an audio URL",
         variant: "destructive"
       });
       return;
@@ -85,7 +148,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
 
     try {
       const response = await apiRequest('POST', '/api/ai/stem-separation', {
-        audioUrl,
+        audioUrl: finalUrl,
         stemCount: parseInt(stemCount)
       });
 
@@ -159,16 +222,77 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         </p>
 
         <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Audio URL</label>
-            <Input
-              data-testid="input-stem-audio-url"
-              placeholder="https://example.com/song.mp3"
-              value={audioUrl}
-              onChange={(e) => setAudioUrl(e.target.value)}
+          {/* Input Mode Toggle */}
+          <div className="flex gap-2">
+            <Button
+              variant={inputMode === 'file' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setInputMode('file')}
               disabled={isProcessing}
-            />
+            >
+              <Upload className="w-4 h-4 mr-1" />
+              Upload File
+            </Button>
+            <Button
+              variant={inputMode === 'url' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setInputMode('url')}
+              disabled={isProcessing}
+            >
+              <Link className="w-4 h-4 mr-1" />
+              From URL
+            </Button>
           </div>
+
+          {/* File Upload */}
+          {inputMode === 'file' && (
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">Select Audio File</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleFileSelect}
+                disabled={isProcessing}
+                className="hidden"
+              />
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-gray-500 transition-colors"
+              >
+                {uploadedFile ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Music className="w-5 h-5 text-green-500" />
+                    <span className="text-sm">{uploadedFile.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      ({(uploadedFile.size / 1024 / 1024).toFixed(1)} MB)
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Click to select an audio file (MP3, WAV, etc.)
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* URL Input */}
+          {inputMode === 'url' && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Audio URL</label>
+              <Input
+                data-testid="input-stem-audio-url"
+                placeholder="https://example.com/song.mp3"
+                value={audioUrl}
+                onChange={(e) => setAudioUrl(e.target.value)}
+                disabled={isProcessing}
+              />
+            </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Stem Count</label>
@@ -192,10 +316,15 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
           <Button
             data-testid="button-start-separation"
             onClick={startSeparation}
-            disabled={isProcessing || !audioUrl}
+            disabled={isProcessing || isUploading || (inputMode === 'file' ? !uploadedFile : !audioUrl)}
             className="w-full"
           >
-            {isProcessing ? (
+            {isUploading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Uploading file...
+              </>
+            ) : isProcessing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Separating... (1-3 min)
@@ -203,7 +332,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
             ) : (
               <>
                 <Scissors className="w-4 h-4 mr-2" />
-                Separate Stems
+                Extract Vocals & Stems
               </>
             )}
           </Button>
