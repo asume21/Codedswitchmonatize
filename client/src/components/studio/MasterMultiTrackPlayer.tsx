@@ -3184,7 +3184,7 @@ export default function MasterMultiTrackPlayer() {
       />
 
       {/* Transport Controls */}
-      <div className="bg-gray-850 border-b border-gray-700 p-4">
+      <div className="bg-gray-850 border-b border-gray-700 px-4 py-2">
         <div className="flex items-center justify-between gap-4">
           {/* Playback Controls */}
           <div className="flex items-center gap-2">
@@ -3316,8 +3316,8 @@ export default function MasterMultiTrackPlayer() {
         </div>
       </div>
 
-      {/* Mix Preview & Master */}
-      <div className="px-4 py-3 bg-gray-900 border-t border-b border-gray-800 flex flex-wrap items-center gap-4">
+      {/* Mix Preview & Master - Compact bar */}
+      <div className="px-4 py-2 bg-gray-900 border-t border-b border-gray-800 flex flex-wrap items-center gap-3">
         <Button className="bg-blue-600 hover:bg-blue-500" onClick={handleMixPreview}>
           <Wand2 className="w-4 h-4 mr-2" />
           Mix Preview
@@ -3380,7 +3380,7 @@ export default function MasterMultiTrackPlayer() {
       </div>
 
       {/* Tracks List */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto min-h-[200px]">
         <div className="relative px-4" style={{ minWidth: `${timelineWidth}px` }}>
           <GridOverlay duration={duration || baseDurationSeconds} zoom={zoomLevel} showGrid={showGrid} timelineWidth={timelineWidth} />
           {tracks.length === 0 ? (

@@ -3494,14 +3494,14 @@ export default function UnifiedStudioWorkspace() {
 
           {/* MULTI-TRACK PLAYER */}
           {activeView === 'multitrack' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
+            <div className="flex-1 overflow-hidden bg-gray-900 h-full">
               <MasterMultiTrackPlayer />
             </div>
           )}
         </div>
 
       {/* Floating/Overlay Components */}
-      {/* TEMPORARILY DISABLED - React hooks error on mobile */}
+      {/* */ TEMPORARILY DISABLED - React hooks error on mobile */}
       {/* {showAIAssistant && (
         <FloatingAIAssistant onClose={() => setShowAIAssistant(false)} />
       )} */}
