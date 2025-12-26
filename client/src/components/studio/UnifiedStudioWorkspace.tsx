@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
 import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-media-query';
+import MobileStudioLayout from './MobileStudioLayout';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import AIAssistant from './AIAssistant';
 import MusicGenerationPanel from './MusicGenerationPanel';
@@ -165,6 +167,7 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
 };
 
 export default function UnifiedStudioWorkspace() {
+  const isMobile = useIsMobile();
   const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
   const {
@@ -1931,6 +1934,89 @@ export default function UnifiedStudioWorkspace() {
     setShowLyricsFocus(false);
   };
 
+  // Mobile Layout - Simplified UI for touch devices
+  if (isMobile) {
+    const mobileTabMap: Record<string, typeof activeView> = {
+      'home': 'arrangement',
+      'piano': 'piano-roll',
+      'beats': 'beat-lab',
+      'lyrics': 'lyrics',
+      'ai': 'ai-studio',
+      'upload': 'song-uploader',
+      'more': 'mixer',
+    };
+    
+    const handleMobileTabChange = (tab: string) => {
+      const view = mobileTabMap[tab];
+      if (view) setActiveView(view);
+    };
+    
+    const getMobileTab = (): 'home' | 'piano' | 'beats' | 'lyrics' | 'ai' | 'upload' | 'more' => {
+      switch (activeView) {
+        case 'piano-roll': return 'piano';
+        case 'beat-lab': return 'beats';
+        case 'lyrics': return 'lyrics';
+        case 'ai-studio': return 'ai';
+        case 'song-uploader': return 'upload';
+        case 'mixer': return 'more';
+        default: return 'home';
+      }
+    };
+    
+    return (
+      <MobileStudioLayout
+        activeTab={getMobileTab()}
+        onTabChange={handleMobileTabChange}
+        isPlaying={transportPlaying}
+        onPlay={() => transportPlaying ? pauseTransport() : startTransport()}
+        onStop={stopTransport}
+        bpm={tempo}
+        currentKey={studioContext.currentKey}
+      >
+        {/* Mobile Content Views */}
+        <div className="h-full overflow-auto">
+          {activeView === 'piano-roll' && (
+            <VerticalPianoRoll />
+          )}
+          {activeView === 'beat-lab' && <BeatLab />}
+          {activeView === 'lyrics' && <LyricLab />}
+          {activeView === 'ai-studio' && (
+            <div className="p-4">
+              <AIAssistant />
+            </div>
+          )}
+          {activeView === 'song-uploader' && <SongUploader />}
+          {activeView === 'mixer' && <ProfessionalMixer />}
+          {activeView === 'arrangement' && (
+            <div className="p-4 space-y-4">
+              <h2 className="text-xl font-bold">Welcome to Studio</h2>
+              <p className="text-gray-400 text-sm">Select a tab below to get started</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setActiveView('piano-roll')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                  <Piano className="w-8 h-8 text-purple-400" />
+                  <span className="text-sm font-medium">Piano Roll</span>
+                </button>
+                <button onClick={() => setActiveView('beat-lab')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                  <Layers className="w-8 h-8 text-blue-400" />
+                  <span className="text-sm font-medium">Beat Lab</span>
+                </button>
+                <button onClick={() => setActiveView('lyrics')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                  <FileText className="w-8 h-8 text-green-400" />
+                  <span className="text-sm font-medium">Lyrics</span>
+                </button>
+                <button onClick={() => setActiveView('ai-studio')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                  <Wand2 className="w-8 h-8 text-yellow-400" />
+                  <span className="text-sm font-medium">AI Studio</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </MobileStudioLayout>
+    );
+  }
+
+  // Desktop Layout - Full featured UI
   return (
     <div className="h-full w-full flex flex-col bg-gray-900 text-white overflow-hidden">
       {/* Top Bar */}

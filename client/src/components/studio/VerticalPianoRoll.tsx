@@ -2186,9 +2186,9 @@ export const VerticalPianoRoll: React.FC = () => {
             {/* ═══════════════════════════════════════════════════════════════════════════ */}
             {/* UNIFIED COMPACT TOOLBAR - Everything in one slim bar                        */}
             {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/80 border-b border-gray-700/50">
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/80 border-b border-gray-700/50 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600">
               {/* Track Info */}
-              <div className="flex items-center gap-2 pr-2 border-r border-gray-600/50">
+              <div className="flex items-center gap-2 pr-2 border-r border-gray-600/50 flex-shrink-0">
                 <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">TRACK</span>
                 <select
                   value={selectedTrackIndex}
@@ -2207,7 +2207,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="w-px h-5 bg-gray-600/50" />
               
               {/* Tools */}
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 flex-shrink-0">
                 <Button size="sm" variant={pianoRollTool === 'draw' ? 'default' : 'ghost'} onClick={() => setPianoRollTool('draw')} title="Draw" className="h-7 w-7 p-0">
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
@@ -2222,7 +2222,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="w-px h-5 bg-gray-600/50" />
               
               {/* Edit */}
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 flex-shrink-0">
                 <Button size="sm" variant="ghost" onClick={undo} disabled={historyIndex <= 0} title="Undo" className="h-7 w-7 p-0">
                   <Undo2 className="w-3.5 h-3.5" />
                 </Button>
@@ -2234,7 +2234,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="w-px h-5 bg-gray-600/50" />
               
               {/* Snap */}
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 flex-shrink-0">
                 <Button size="sm" variant={snapEnabled ? 'default' : 'ghost'} onClick={() => setSnapEnabled(!snapEnabled)} title="Snap" className="h-7 w-7 p-0">
                   <Grid3X3 className="w-3.5 h-3.5" />
                 </Button>
@@ -2246,7 +2246,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="w-px h-5 bg-gray-600/50" />
               
               {/* Zoom */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 <Button size="sm" variant="ghost" onClick={() => setHorizontalZoom(prev => Math.max(0.25, prev - 0.25))} className="h-7 w-7 p-0">
                   <ZoomOut className="w-3.5 h-3.5" />
                 </Button>
@@ -2259,7 +2259,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="flex-1" />
               
               {/* Key */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 <span className="text-xs text-gray-400">Key:</span>
                 <select value={currentKey} onChange={(e) => setCurrentKey(e.target.value)} className="h-6 px-1 text-xs bg-gray-700 border border-gray-600 rounded">
                   {CIRCLE_OF_FIFTHS.map(k => <option key={k} value={k}>{k}</option>)}
@@ -2269,7 +2269,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="w-px h-5 bg-gray-600/50" />
               
               {/* Quick Actions */}
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 flex-shrink-0">
                 <Button size="sm" variant={isRecording ? 'destructive' : 'ghost'} onClick={toggleRecording} title="Record" className="h-7 w-7 p-0">
                   <Circle className={`w-3.5 h-3.5 ${isRecording ? 'animate-pulse fill-red-500' : ''}`} />
                 </Button>
@@ -2284,7 +2284,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <div className="w-px h-5 bg-gray-600/50" />
               
               {/* Export */}
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 flex-shrink-0">
                 <Button size="sm" variant="ghost" onClick={handleSendToMaster} title="Send to Master" className="h-7 w-7 p-0">
                   <Send className="w-3.5 h-3.5" />
                 </Button>
@@ -2304,7 +2304,7 @@ export const VerticalPianoRoll: React.FC = () => {
               <summary className="flex items-center gap-2 px-2 py-1 bg-gray-800/40 cursor-pointer hover:bg-gray-800/60 text-xs text-gray-400">
                 <span>▸ Chords & Tools</span>
               </summary>
-              <div className="flex items-center gap-2 px-2 py-1 bg-gray-800/30">
+              <div className="flex items-center gap-2 px-2 py-1 bg-gray-800/30 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600">
                 {/* Chord Stamps */}
                 <div className="flex items-center gap-0.5">
                   {['Maj', 'Min', '7th', 'Dim'].map((chordType) => (

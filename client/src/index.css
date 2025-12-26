@@ -138,10 +138,26 @@
       font-size: 16px !important;
     }
     
-    /* Improve touch targets */
-    button, .clickable, .touch-target {
+    /* Improve touch targets - Apple recommends 44x44px minimum */
+    button:not(.no-touch-expand), 
+    .clickable, 
+    .touch-target,
+    [role="button"] {
       min-height: 44px;
       min-width: 44px;
+    }
+    
+    /* Smaller buttons in toolbars get touch padding */
+    .h-6, .h-7, .w-6, .w-7 {
+      min-height: 40px !important;
+      min-width: 40px !important;
+    }
+    
+    /* Piano roll buttons need touch-friendly sizing */
+    .piano-roll-toolbar button {
+      min-height: 44px;
+      min-width: 44px;
+      padding: 8px;
     }
     
     /* Better scrolling */
@@ -233,6 +249,40 @@
   
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(0, 0%, 45%);
+  }
+  
+  /* Thin scrollbar utility for toolbars */
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 4px;
+    width: 4px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(100, 100, 100, 0.5);
+    border-radius: 2px;
+  }
+  
+  .scrollbar-thumb-gray-600::-webkit-scrollbar-thumb {
+    background: rgb(75, 85, 99);
+  }
+  
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Safe area for iPhone notch/home indicator */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0);
   }
 
   body {
