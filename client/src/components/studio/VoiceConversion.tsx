@@ -108,28 +108,53 @@ export default function VoiceConversion() {
   };
 
   const handleFileUpload = async (file: File, purpose: "voice" | "source") => {
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await fetch("/api/internal/upload", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
+      // Step 1: Get upload URL from backend
+      const paramResponse = await fetch('/api/objects/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name }),
+        credentials: 'include'
       });
-      const data = await res.json();
-      if (data.success && data.objectKey) {
-        if (purpose === "voice") {
-          setUploadedFile(file);
-          setUploadedObjectKey(data.objectKey);
-        } else {
-          setSourceFile(file);
-          setSourceObjectKey(data.objectKey);
-        }
-        return data.objectKey;
+      
+      if (!paramResponse.ok) {
+        throw new Error('Failed to get upload URL');
       }
-      throw new Error(data.message || "Upload failed");
+      
+      const { uploadURL, objectKey } = await paramResponse.json();
+      
+      // Step 2: Upload the file to the generated URL
+      const arrayBuffer = await file.arrayBuffer();
+      const uploadResponse = await fetch(uploadURL, {
+        method: 'PUT',
+        body: arrayBuffer,
+        headers: {
+          'Content-Type': file.type || 'audio/mpeg'
+        },
+        credentials: 'include'
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('File upload failed');
+      }
+
+      // Update state based on purpose
+      if (purpose === "voice") {
+        setUploadedFile(file);
+        setUploadedObjectKey(objectKey);
+      } else {
+        setSourceFile(file);
+        setSourceObjectKey(objectKey);
+      }
+      
+      toast({
+        title: "Upload Complete",
+        description: `${file.name} uploaded successfully`,
+      });
+      
+      return objectKey;
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
         title: "Upload Failed",
         description: error instanceof Error ? error.message : "Could not upload file",
