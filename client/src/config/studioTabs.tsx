@@ -29,6 +29,7 @@ const SongStructureManager = lazy(() => import("@/components/studio/SongStructur
 // Deprecated: CodeBeat page is routed separately; keep lazy import commented to avoid unused warning
 // const CodeBeatStudio = lazy(() => import("@/pages/codebeat-studio"));
 const MasterMultiTrackPlayer = lazy(() => import("@/components/studio/MasterMultiTrackPlayer"));
+const VoiceConversion = lazy(() => import("@/components/studio/VoiceConversion"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -73,7 +74,8 @@ export type StudioTabId =
   | "wavetable-oscillator"
   | "pack-generator"
   | "song-structure"
-  | "bass-generator";
+  | "bass-generator"
+  | "voice-conversion";
 
 export interface StudioTabConfig {
   id: StudioTabId;
@@ -325,6 +327,16 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     routes: ["/song-structure"],
     requirePro: true,
     component: withSuspense(SongStructureManager),
+  },
+  {
+    id: "voice-conversion",
+    label: "🎤 Voice Conversion",
+    shortName: "Voice RVC",
+    icon: "fas fa-microphone-alt",
+    description: "AI voice cloning and conversion using RVC",
+    routes: ["/voice-conversion", "/rvc", "/voice-clone"],
+    requireAuth: true,
+    component: withSuspense(VoiceConversion),
   },
 ];
 

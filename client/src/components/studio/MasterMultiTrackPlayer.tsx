@@ -505,6 +505,8 @@ export default function MasterMultiTrackPlayer() {
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
   const manualTracksRef = useRef<AudioTrack[]>([]);
   const midiTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  // Store active audio source nodes separately to prevent them from being lost during state updates
+  const activeSourcesRef = useRef<Map<string, { source: AudioBufferSourceNode; gain: GainNode; pan: StereoPannerNode }>>(new Map());
   const trackKindDefaultsRef = useRef<Record<string, string>>({});
   const clipboardTracksRef = useRef<AudioTrack[]>([]);
   const undoStackRef = useRef<AudioTrack[][]>([]);
@@ -1204,10 +1206,11 @@ export default function MasterMultiTrackPlayer() {
       gainNode.connect(panNode);
       panNode.connect(masterGainRef.current!);
 
-      // Store references
+      // Store references in both track and ref (ref is the reliable source for cleanup)
       track.sourceNode = source;
       track.gainNode = gainNode;
       track.panNode = panNode;
+      activeSourcesRef.current.set(track.id, { source, gain: gainNode, pan: panNode });
 
       // Start playback within trimmed region
       if (clipDuration <= 0) {
@@ -1304,10 +1307,25 @@ export default function MasterMultiTrackPlayer() {
     updateCurrentTime();
   };
 
-  // Stop all tracks
+  // Stop all tracks - use activeSourcesRef to ensure we stop all sources
   const stopTracks = () => {
     midiTimeoutsRef.current.forEach((t) => clearTimeout(t));
     midiTimeoutsRef.current = [];
+    
+    // Stop all active sources from the ref (this is the reliable source of truth)
+    activeSourcesRef.current.forEach(({ source, gain, pan }, trackId) => {
+      try {
+        source.stop();
+        source.disconnect();
+        gain.disconnect();
+        pan.disconnect();
+      } catch (e) {
+        // Already stopped
+      }
+    });
+    activeSourcesRef.current.clear();
+    
+    // Also clean up any sourceNode references on tracks (legacy cleanup)
     tracks.forEach(track => {
       if (track.sourceNode) {
         try {
