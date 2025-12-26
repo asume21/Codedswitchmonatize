@@ -5,6 +5,8 @@ import {
   Volume2, 
   Smartphone
 } from "lucide-react";
+import { realisticAudio } from "@/lib/realisticAudio";
+import * as Tone from "tone";
 
 interface AudioContextWithWebkit extends Window {
   webkitAudioContext?: typeof AudioContext;
@@ -37,6 +39,8 @@ export function IOSAudioEnable() {
           } else {
             setAudioEnabled(true);
           }
+          // Close this test context
+          audioContext.close();
         } catch {
           console.warn('AudioContext not supported');
         }
@@ -48,34 +52,53 @@ export function IOSAudioEnable() {
 
   const enableAudio = async () => {
     try {
+      console.log('🔊 iOS Audio Enable: Starting audio unlock...');
+      
+      // 1. Start Tone.js (used by many components)
+      await Tone.start();
+      console.log('🔊 Tone.js started');
+      
+      // 2. Initialize and resume the realistic audio engine
+      await realisticAudio.initialize();
+      await realisticAudio.resume();
+      console.log('🔊 RealisticAudio resumed');
+      
+      // 3. Create a brief silent audio to fully unlock iOS audio
       const AudioContextCtor = getAudioContextCtor();
-      if (!AudioContextCtor) {
-        console.warn('AudioContext not supported');
-        return;
+      if (AudioContextCtor) {
+        const audioContext = new AudioContextCtor();
+        
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Silent oscillator
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+        
+        console.log('🔊 Silent oscillator played to unlock audio');
       }
-      const audioContext = new AudioContextCtor();
       
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-      
-      // Create a brief silent audio to unlock iOS audio
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
+      // 4. Dispatch a custom event so other components can react
+      window.dispatchEvent(new CustomEvent('ios-audio-enabled'));
       
       setAudioEnabled(true);
       setShowPrompt(false);
+      console.log('🔊 iOS Audio Enable: Complete!');
     } catch (error) {
       console.error('Failed to enable audio:', error);
+      // Still hide the prompt even if there's an error
+      setAudioEnabled(true);
+      setShowPrompt(false);
     }
   };
 
