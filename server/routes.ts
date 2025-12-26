@@ -29,7 +29,6 @@ import { transcribeAudio } from "./services/transcriptionService";
 import { aiCache, withCache } from "./services/aiCache";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID } from "./utils/security";
 import { insertPlaylistSchema } from "@shared/schema";
@@ -45,8 +44,8 @@ const sendError = (res: Response, statusCode: number, message: string) => {
   res.status(statusCode).json({ success: false, message });
 };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Use process.cwd() for __dirname equivalent in bundled CJS
+const __dirname = process.cwd();
 
 export async function registerRoutes(app: Express, storage: IStorage) {
   // Mount auth routes
