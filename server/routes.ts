@@ -1648,7 +1648,31 @@ Return in this exact JSON format:
         });
       }
 
-      console.log(`Starting stem separation: ${stems} stems from ${audioUrl}`);
+      // Handle local file URLs - convert to base64 data URI for Replicate
+      let finalAudioUrl = audioUrl;
+      if (audioUrl.includes('/api/internal/uploads/')) {
+        try {
+          // Extract the object key from the URL
+          const objectKey = decodeURIComponent(audioUrl.split('/api/internal/uploads/')[1]);
+          const filePath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+          
+          if (fs.existsSync(filePath)) {
+            const fileBuffer = fs.readFileSync(filePath);
+            const base64 = fileBuffer.toString('base64');
+            const ext = path.extname(filePath).toLowerCase().replace('.', '');
+            const mimeType = ext === 'mp3' ? 'audio/mpeg' : ext === 'wav' ? 'audio/wav' : ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
+            finalAudioUrl = `data:${mimeType};base64,${base64}`;
+            console.log(`Converted local file to base64 data URI (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+          } else {
+            return sendError(res, 404, "Audio file not found on server");
+          }
+        } catch (fileError) {
+          console.error('Error reading local file:', fileError);
+          return sendError(res, 500, "Failed to read local audio file");
+        }
+      }
+
+      console.log(`Starting stem separation: ${stems} stems`);
 
       const predictionResponse = await fetch('https://api.replicate.com/v1/models/soykertje/spleeter/predictions', {
         method: 'POST',
@@ -1658,7 +1682,7 @@ Return in this exact JSON format:
         },
         body: JSON.stringify({
           input: {
-            audio: audioUrl,
+            audio: finalAudioUrl,
             stems: stems,
           },
         }),
