@@ -52,7 +52,69 @@ export class UnifiedMusicService {
   }
 
   /**
-   * Generate studio-quality full song (Suno/Bark)
+   * Build professional music production prompt with genre-specific terminology
+   */
+  private buildProfessionalPrompt(basePrompt: string, options: {
+    genre?: string;
+    mood?: string;
+    style?: string;
+    bpm?: number;
+    key?: string;
+    energy?: string;
+    vocals?: boolean;
+    instrument?: string;
+  }): string {
+    const { genre = "pop", mood = "uplifting", style = "modern", bpm, key, energy, vocals, instrument } = options;
+    
+    // Genre-specific production terminology
+    const genreTerms: Record<string, string> = {
+      'hip-hop': 'hard-hitting 808 bass, crisp hi-hats, punchy kicks, trap-style percussion',
+      'trap': 'rolling hi-hats, deep 808 sub-bass, snappy snares, dark atmospheric pads',
+      'pop': 'catchy hooks, polished production, radio-ready mix, bright synths',
+      'edm': 'powerful drops, sidechained bass, euphoric buildups, festival-ready energy',
+      'house': 'four-on-the-floor kick, groovy bassline, shuffled hi-hats, warm chords',
+      'techno': 'driving kick drum, hypnotic synth patterns, industrial textures, minimal arrangement',
+      'r&b': 'smooth vocals, lush harmonies, warm bass, neo-soul chord progressions',
+      'jazz': 'complex harmonies, swing rhythm, improvisational feel, acoustic instruments',
+      'rock': 'distorted guitars, powerful drums, dynamic arrangement, raw energy',
+      'classical': 'orchestral arrangement, dynamic expression, rich harmonics, acoustic ensemble',
+      'lo-fi': 'vinyl crackle, mellow beats, jazzy chords, nostalgic warmth, tape saturation',
+      'ambient': 'atmospheric textures, evolving pads, spacious reverb, ethereal soundscape',
+      'drill': 'sliding 808s, aggressive hi-hats, dark melodies, UK drill percussion',
+      'reggaeton': 'dembow rhythm, latin percussion, tropical vibes, dancehall influence'
+    };
+    
+    // Mood descriptors
+    const moodTerms: Record<string, string> = {
+      'uplifting': 'major key, bright tones, positive energy, inspiring progression',
+      'dark': 'minor key, ominous tones, tension, dramatic atmosphere',
+      'chill': 'relaxed tempo, soft dynamics, smooth textures, laid-back groove',
+      'energetic': 'high energy, driving rhythm, powerful dynamics, intense build',
+      'melancholic': 'emotional depth, bittersweet harmonies, expressive melody',
+      'aggressive': 'hard-hitting, intense, powerful, raw energy',
+      'romantic': 'warm tones, gentle progression, intimate feel, emotional depth',
+      'mysterious': 'suspenseful, enigmatic, atmospheric, tension-building'
+    };
+    
+    const genreDesc = genreTerms[genre.toLowerCase()] || `${genre} style production`;
+    const moodDesc = moodTerms[mood.toLowerCase()] || `${mood} atmosphere`;
+    
+    let prompt = `Professional ${genre} music production. ${basePrompt}. `;
+    prompt += `Style: ${genreDesc}. `;
+    prompt += `Mood: ${moodDesc}. `;
+    if (bpm) prompt += `Tempo: ${bpm} BPM. `;
+    if (key) prompt += `Key: ${key}. `;
+    if (energy) prompt += `Energy level: ${energy}. `;
+    if (style) prompt += `Production style: ${style}, studio-quality, professionally mixed. `;
+    if (vocals === false) prompt += `Instrumental only, no vocals. `;
+    if (instrument) prompt += `Featured instrument: ${instrument}. `;
+    
+    return prompt.trim();
+  }
+
+  /**
+   * Generate studio-quality full song using MusicGen Large (stereo)
+   * Note: Using MusicGen instead of Bark since Bark is text-to-speech, not music generation
    */
   async generateFullSong(prompt: string, options: {
     genre?: string;
@@ -74,20 +136,30 @@ export class UnifiedMusicService {
         key
       } = options;
 
-      console.log('🎵 UnifiedMusic: Generating full song...');
+      console.log('🎵 UnifiedMusic: Generating full song with optimized MusicGen...');
 
-      const musicPrompt = vocals 
-        ? `♪ ${prompt}. ${genre} ${style} song, ${mood} mood${key ? ` in ${key}` : ''}${bpm ? ` at ${bpm} BPM` : ''} ♪`
-        : `♪ ${prompt}. ${genre} ${style} instrumental, ${mood} mood${key ? ` in ${key}` : ''}${bpm ? ` at ${bpm} BPM` : ''} ♪`;
+      // Build professional prompt with genre-specific terminology
+      const musicPrompt = this.buildProfessionalPrompt(prompt, {
+        genre, mood, style, bpm, key, vocals
+      });
 
+      console.log('📝 Professional prompt:', musicPrompt);
+
+      // Use MusicGen stereo-melody-large for best quality instrumentals
+      // Note: MusicGen doesn't generate vocals, so we generate high-quality instrumentals
       const output = await replicate.run(
-        "suno-ai/bark:b76242b40d67c76ab6742e987628a2a9ac019e11d56ab96c4e91ce03b79b2787",
+        "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
         {
           input: {
             prompt: musicPrompt,
-            text_temp: 0.7,
-            waveform_temp: 0.7,
-            history_prompt: "announcer"
+            duration: Math.min(duration, 30),
+            model_version: "stereo-melody-large",
+            output_format: "wav",
+            normalization_strategy: "loudness",
+            top_k: 250,
+            top_p: 0.0,
+            temperature: 0.8,        // Lowered for more coherent output
+            classifier_free_guidance: 5.0  // Increased for better prompt adherence
           }
         }
       );
@@ -97,8 +169,9 @@ export class UnifiedMusicService {
         audio_url: output,
         metadata: {
           duration,
-          quality: "24kHz",
-          generator: "suno-bark"
+          quality: "48kHz stereo",
+          generator: "musicgen-stereo-melody-large",
+          prompt: musicPrompt
         }
       };
     } catch (error) {
@@ -108,7 +181,7 @@ export class UnifiedMusicService {
   }
 
   /**
-   * Generate Beat, Melody, or Instrumental (MusicGen)
+   * Generate Beat, Melody, or Instrumental (MusicGen) with optimized parameters
    */
   async generateTrack(prompt: string, options: {
     type: 'beat' | 'melody' | 'instrumental' | 'drum_pattern';
@@ -122,32 +195,61 @@ export class UnifiedMusicService {
   }): Promise<any> {
     try {
       const { type, genre = "pop", duration = 30, instrument, energy, style, key, bpm } = options;
-      console.log(`🎼 UnifiedMusic: Generating ${type}...`);
+      console.log(`🎼 UnifiedMusic: Generating ${type} with optimized settings...`);
 
-      let fullPrompt = prompt;
+      // Use professional prompt builder for all track types
+      let fullPrompt: string;
       
-      // Construct rich prompt based on type
       if (type === 'melody') {
-        fullPrompt = `${instrument || 'piano'} melody in ${key || 'C Major'} for ${genre} music. ${prompt}`;
+        fullPrompt = this.buildProfessionalPrompt(prompt, {
+          genre,
+          instrument: instrument || 'piano',
+          key: key || 'C Major',
+          mood: 'melodic',
+          energy
+        });
+        fullPrompt += ` Clear melodic line, memorable hook, professional arrangement.`;
       } else if (type === 'drum_pattern') {
-        fullPrompt = `${genre} drum pattern at ${bpm || 120} BPM. Percussion and drums only. ${prompt}`;
+        fullPrompt = this.buildProfessionalPrompt(`Drum pattern and percussion`, {
+          genre,
+          bpm: bpm || 120,
+          energy: energy || 'medium'
+        });
+        fullPrompt += ` Drums and percussion only, no melodic instruments. Tight timing, punchy transients.`;
       } else if (type === 'instrumental') {
-        fullPrompt = `Instrumental ${genre} track with ${instrument || 'instruments'}. Energy: ${energy || 'medium'}. No vocals. ${prompt}`;
+        fullPrompt = this.buildProfessionalPrompt(prompt, {
+          genre,
+          instrument,
+          energy: energy || 'medium',
+          vocals: false,
+          style
+        });
       } else {
         // Generic beat/track
-        fullPrompt = `${prompt}. Genre: ${genre}, Energy: ${energy || 'medium'}, Style: ${style || 'modern'}.`;
+        fullPrompt = this.buildProfessionalPrompt(prompt, {
+          genre,
+          energy: energy || 'medium',
+          style: style || 'modern',
+          bpm,
+          key
+        });
       }
 
+      console.log('📝 Track prompt:', fullPrompt);
+
       const output = await replicate.run(
-        "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",
+        "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
         {
           input: {
             prompt: fullPrompt,
             duration: Math.min(duration, 30),
-            temperature: 1.0,
+            model_version: "stereo-melody-large",
+            output_format: "wav",
+            normalization_strategy: "loudness",
             top_k: 250,
             top_p: 0.0,
-            cfg_coef: 3.0
+            temperature: 0.75,              // Lower for more coherent output
+            classifier_free_guidance: 6.0   // Higher for better prompt adherence
           }
         }
       );
@@ -158,10 +260,11 @@ export class UnifiedMusicService {
         metadata: {
           type,
           duration,
-          generator: "musicgen",
+          generator: "musicgen-stereo-melody-large",
           genre,
           key,
-          bpm
+          bpm,
+          prompt: fullPrompt
         }
       };
     } catch (error) {
@@ -171,24 +274,40 @@ export class UnifiedMusicService {
   }
 
   /**
-   * Blend Genres (MusicGen)
+   * Blend Genres (MusicGen) with optimized fusion prompts
    */
   async blendGenres(primaryGenre: string, secondaryGenres: string[], prompt: string): Promise<any> {
     try {
-      console.log('🎭 UnifiedMusic: Blending genres...');
+      console.log('🎭 UnifiedMusic: Blending genres with optimized settings...');
       const genreList = [primaryGenre, ...secondaryGenres].join(" and ");
-      const fullPrompt = `Innovative fusion of ${genreList}. ${prompt}`;
+      
+      // Build a professional fusion prompt
+      const fullPrompt = this.buildProfessionalPrompt(
+        `Innovative fusion of ${genreList}. ${prompt}`,
+        {
+          genre: primaryGenre,
+          style: `fusion with ${secondaryGenres.join(', ')}`,
+          mood: 'creative',
+          energy: 'dynamic'
+        }
+      );
+      fullPrompt + ` Seamless genre blending, creative transitions, unique sound design.`;
+
+      console.log('📝 Fusion prompt:', fullPrompt);
 
       const output = await replicate.run(
-        "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",
+        "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
         {
           input: {
             prompt: fullPrompt,
             duration: 30,
-            temperature: 1.2,
+            model_version: "stereo-melody-large",
+            output_format: "wav",
+            normalization_strategy: "loudness",
             top_k: 250,
             top_p: 0.0,
-            cfg_coef: 3.0
+            temperature: 0.9,               // Slightly higher for creative fusion
+            classifier_free_guidance: 5.0   // Balanced for creativity + coherence
           }
         }
       );
@@ -199,8 +318,10 @@ export class UnifiedMusicService {
         metadata: {
           type: 'genre_blend',
           duration: 30,
-          generator: "musicgen",
-          fusion_type: "genre_blend"
+          generator: "musicgen-stereo-melody-large",
+          fusion_type: "genre_blend",
+          genres: [primaryGenre, ...secondaryGenres],
+          prompt: fullPrompt
         }
       };
     } catch (error) {

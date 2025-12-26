@@ -3338,7 +3338,24 @@ ${code}
         }
 
         try {
-          // Use Suno AI model on Replicate (bark or similar)
+          // Build professional prompt with genre-specific terminology
+          const genreTerms: Record<string, string> = {
+            'hip-hop': 'hard-hitting 808 bass, crisp hi-hats, punchy kicks',
+            'trap': 'rolling hi-hats, deep 808 sub-bass, dark atmospheric pads',
+            'pop': 'catchy hooks, polished production, radio-ready mix',
+            'edm': 'powerful drops, sidechained bass, euphoric buildups',
+            'house': 'four-on-the-floor kick, groovy bassline, warm chords',
+            'r&b': 'smooth harmonies, warm bass, neo-soul progressions',
+            'rock': 'distorted guitars, powerful drums, raw energy',
+            'lo-fi': 'vinyl crackle, mellow beats, jazzy chords, tape saturation'
+          };
+          
+          const genreDesc = genreTerms[(genre || 'pop').toLowerCase()] || 'professional production';
+          const professionalPrompt = `Professional ${genre || 'pop'} music. ${prompt}. Style: ${genreDesc}. Studio-quality, professionally mixed and mastered.`;
+          
+          console.log('📝 Professional prompt:', professionalPrompt);
+
+          // Use MusicGen stereo-melody-large instead of Bark (which is text-to-speech, not music)
           const response = await fetch("https://api.replicate.com/v1/predictions", {
             method: "POST",
             headers: {
@@ -3346,11 +3363,17 @@ ${code}
               "Authorization": `Token ${replicateToken}`,
             },
             body: JSON.stringify({
-              version: "b76242b40d67c76ab6742e987628a2a9ac019e11d56ab96c4e91ce03b79b2787", // Bark text-to-audio
+              version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb", // MusicGen stereo-melody-large
               input: {
-                prompt: prompt,
-                text_temp: 0.7,
-                waveform_temp: 0.7,
+                prompt: professionalPrompt,
+                duration: Math.min(duration || 30, 30),
+                model_version: "stereo-melody-large",
+                output_format: "wav",
+                normalization_strategy: "loudness",
+                top_k: 250,
+                top_p: 0.0,
+                temperature: 0.8,
+                classifier_free_guidance: 5.0
               },
             }),
           });
@@ -3393,17 +3416,21 @@ ${code}
               );
             }
 
+            // MusicGen returns the audio URL directly as output
+            const audioUrl = typeof result.output === 'string' ? result.output : (result.output?.audio_out || result.output);
+            
             const data = {
               success: true,
-              audioUrl: result.output.audio_out || result.output,
+              audioUrl,
               title: `${genre || 'AI'} Song`,
               description: songDescription,
               genre: genre || 'AI Generated',
-              prompt,
-              provider: 'Suno AI (Replicate)'
+              prompt: professionalPrompt,
+              provider: 'MusicGen Stereo (Replicate)',
+              quality: '48kHz stereo WAV'
             };
 
-            console.log(`✅ Suno AI generated complete song`);
+            console.log(`✅ MusicGen generated complete song:`, audioUrl);
             return res.json(data);
           } else {
             console.error('[Suno] Generation failed:', result);
