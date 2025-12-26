@@ -3501,8 +3501,8 @@ export default function UnifiedStudioWorkspace() {
         </div>
 
       {/* Floating/Overlay Components */}
-      {/* */ TEMPORARILY DISABLED - React hooks error on mobile */}
-      {/* {showAIAssistant && (
+      {/* TEMPORARILY DISABLED - React hooks error on mobile
+      {showAIAssistant && (
         <FloatingAIAssistant onClose={() => setShowAIAssistant(false)} />
       )} */}
 
