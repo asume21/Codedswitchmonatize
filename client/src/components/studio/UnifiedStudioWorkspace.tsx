@@ -242,7 +242,7 @@ export default function UnifiedStudioWorkspace() {
     return 'code-to-music' as WorkflowConfig['activeView'];
   };
 
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'voice-conversion' | 'stem-separation'>(resolveInitialActiveView);
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'voice-conversion'>(resolveInitialActiveView);
   
   // Section expansion states
   const [timelineExpanded, setTimelineExpanded] = useState(true);
@@ -2826,15 +2826,6 @@ export default function UnifiedStudioWorkspace() {
             <Mic2 className="w-3 h-3 mr-1" />
             Voice RVC
           </Button>
-          <Button
-            variant={activeView === 'stem-separation' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('stem-separation')}
-            className="h-8 px-3 text-xs"
-          >
-            <Scissors className="w-3 h-3 mr-1" />
-            Vocal Extract
-          </Button>
         </div>
 
         {/* Right Side - Compact Action Buttons & Volume */}
@@ -3529,21 +3520,6 @@ export default function UnifiedStudioWorkspace() {
             </div>
           )}
 
-          {/* STEM SEPARATION / VOCAL EXTRACTOR */}
-          {activeView === 'stem-separation' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900 p-4">
-              <div className="max-w-2xl mx-auto">
-                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                  <Scissors className="w-6 h-6" />
-                  Vocal Extractor / Stem Separation
-                </h2>
-                <p className="text-gray-400 mb-6">
-                  Extract vocals from any song to use with Voice RVC. You can also separate drums, bass, and other instruments.
-                </p>
-                <AIStemSeparation />
-              </div>
-            </div>
-          )}
         </div>
 
       {/* Floating/Overlay Components */}

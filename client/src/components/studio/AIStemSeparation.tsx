@@ -57,22 +57,41 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
     
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', uploadedFile);
-      
-      const response = await fetch('/api/upload/audio', {
+      // Step 1: Get upload URL from backend
+      const paramResponse = await fetch('/api/objects/upload', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: uploadedFile.name }),
         credentials: 'include'
       });
       
-      if (!response.ok) {
-        throw new Error('Upload failed');
+      if (!paramResponse.ok) {
+        throw new Error('Failed to get upload URL');
       }
       
-      const data = await response.json();
-      return data.url || data.audioUrl;
+      const { uploadURL, objectKey } = await paramResponse.json();
+      
+      // Step 2: Upload the file to the generated URL
+      const arrayBuffer = await uploadedFile.arrayBuffer();
+      const uploadResponse = await fetch(uploadURL, {
+        method: 'PUT',
+        body: arrayBuffer,
+        headers: {
+          'Content-Type': uploadedFile.type || 'audio/mpeg'
+        },
+        credentials: 'include'
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('File upload failed');
+      }
+      
+      // Return the URL to access the uploaded file
+      // For stem separation API, we need the full accessible URL
+      const baseUrl = window.location.origin;
+      return `${baseUrl}/api/internal/uploads/${objectKey}`;
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
         title: "Upload Failed",
         description: "Could not upload file. Please try again.",
