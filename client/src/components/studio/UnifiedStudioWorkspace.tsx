@@ -2817,6 +2817,15 @@ export default function UnifiedStudioWorkspace() {
             <Upload className="w-3 h-3 mr-1" />
             Upload
           </Button>
+          <Button
+            variant={activeView === 'voice-conversion' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('voice-conversion')}
+            className="h-8 px-3 text-xs"
+          >
+            <Mic2 className="w-3 h-3 mr-1" />
+            Voice RVC
+          </Button>
         </div>
 
         {/* Right Side - Compact Action Buttons & Volume */}
