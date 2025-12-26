@@ -273,135 +273,113 @@ export const VerticalPianoRoll: React.FC = () => {
   }, [transportTempo]);
 
   // Listen for Astutely-generated notes and load them into tracks
+  // Use ref to avoid stale closure issues
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  
   useEffect(() => {
     const handleAstutelyGenerated = (e: CustomEvent<{ notes: any[]; bpm: number }>) => {
       const { notes, bpm: newBpm } = e.detail;
-      if (!notes || notes.length === 0) return;
+      if (!notes || notes.length === 0) {
+        console.warn('🎵 No notes received from AI Loop Generator');
+        return;
+      }
       
-      console.log('🎵 Loading Astutely-generated notes:', notes.length);
+      console.log('🎵 Loading Astutely-generated notes:', notes.length, notes);
       setBpm(newBpm);
       
-      // Group notes by track type and add to appropriate tracks
+      // Group notes by track type
       const drumNotes = notes.filter((n: any) => n.trackType === 'drums');
       const bassNotes = notes.filter((n: any) => n.trackType === 'bass');
       const melodyNotes = notes.filter((n: any) => n.trackType === 'melody');
       const chordNotes = notes.filter((n: any) => n.trackType === 'chords');
       
+      // Convert Astutely notes to Piano Roll format
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const convertNote = (n: any) => {
+        const midiPitch = n.pitch || 60;
+        const octave = Math.floor(midiPitch / 12) - 1;
+        const noteIndex = midiPitch % 12;
+        const noteName = noteNames[noteIndex];
+        
+        return {
+          id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          note: noteName,
+          octave: octave,
+          step: n.startStep || 0,
+          length: Math.max(1, n.duration || 1),
+          velocity: n.velocity || 100
+        };
+      };
+      
+      // Track which index to select after update
+      let bestTrackIndex = 0;
+      
       setTracks(prev => {
-        const newTracks = [...prev];
+        const newTracks = prev.map(t => ({ ...t })); // Deep copy
         
         // Find or create tracks for each type
         const findOrCreateTrack = (name: string, instrument: string, color: string) => {
-          let track = newTracks.find(t => t.name.toLowerCase().includes(name.toLowerCase()));
-          if (!track) {
-            track = {
+          let trackIndex = newTracks.findIndex(t => t.name.toLowerCase().includes(name.toLowerCase()));
+          if (trackIndex === -1) {
+            const newTrack = {
               id: `track-${Date.now()}-${name}`,
               name: name.charAt(0).toUpperCase() + name.slice(1),
               color,
-              notes: [],
+              notes: [] as Note[],
               muted: false,
               volume: 80,
               instrument
             };
-            newTracks.push(track);
+            newTracks.push(newTrack);
+            trackIndex = newTracks.length - 1;
           }
-          return track;
+          return { track: newTracks[trackIndex], index: trackIndex };
         };
-        
-        // Convert Astutely notes to Piano Roll format
-        // Astutely notes have: pitch (MIDI), startStep, duration, velocity, trackType
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const convertNote = (n: any, trackIndex: number) => {
-          const midiPitch = n.pitch || 60;
-          const octave = Math.floor(midiPitch / 12) - 1;
-          const noteIndex = midiPitch % 12;
-          const noteName = noteNames[noteIndex];
-          
-          return {
-            id: `astutely-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            note: noteName,
-            octave: octave,
-            step: n.startStep || 0,
-            length: Math.max(1, n.duration || 1),
-            velocity: n.velocity || 100
-          };
-        };
-        
-        // Add all track types and track which one to focus on
-        let bestTrackName = '';
         
         // Add drum notes
         if (drumNotes.length > 0) {
-          const drumTrack = findOrCreateTrack('drums', 'drums', 'bg-pink-500');
-          drumTrack.notes = drumNotes.map((n: any, i: number) => convertNote(n, i));
-          if (!bestTrackName) bestTrackName = 'Drums';
+          const { track, index } = findOrCreateTrack('drums', 'drums', 'bg-pink-500');
+          track.notes = drumNotes.map(convertNote);
+          bestTrackIndex = index;
+          console.log(`🥁 Added ${drumNotes.length} drum notes to track ${index}`);
         }
         
         // Add bass notes
         if (bassNotes.length > 0) {
-          const bassTrack = findOrCreateTrack('bass', 'bass-electric', 'bg-green-500');
-          bassTrack.notes = bassNotes.map((n: any, i: number) => convertNote(n, i));
-          bestTrackName = 'Bass'; // Bass > Drums
+          const { track, index } = findOrCreateTrack('bass', 'bass-electric', 'bg-green-500');
+          track.notes = bassNotes.map(convertNote);
+          bestTrackIndex = index;
+          console.log(`🎸 Added ${bassNotes.length} bass notes to track ${index}`);
         }
         
         // Add chord notes
         if (chordNotes.length > 0) {
-          const chordTrack = findOrCreateTrack('chords', 'piano', 'bg-purple-500');
-          chordTrack.notes = chordNotes.map((n: any, i: number) => convertNote(n, i));
-          bestTrackName = 'Chords'; // Chords > Bass
+          const { track, index } = findOrCreateTrack('chords', 'piano', 'bg-purple-500');
+          track.notes = chordNotes.map(convertNote);
+          bestTrackIndex = index;
+          console.log(`🎹 Added ${chordNotes.length} chord notes to track ${index}`);
         }
         
         // Add melody notes (highest priority for display)
         if (melodyNotes.length > 0) {
-          const melodyTrack = findOrCreateTrack('melody', 'piano', 'bg-blue-500');
-          melodyTrack.notes = melodyNotes.map((n: any, i: number) => convertNote(n, i));
-          bestTrackName = 'Melody'; // Melody > Chords
+          const { track, index } = findOrCreateTrack('melody', 'piano', 'bg-blue-500');
+          track.notes = melodyNotes.map(convertNote);
+          bestTrackIndex = index;
+          console.log(`🎵 Added ${melodyNotes.length} melody notes to track ${index}`);
         }
         
+        console.log('🎵 Updated tracks:', newTracks.map(t => `${t.name}: ${t.notes.length} notes`));
         return newTracks;
       });
       
-      // After state update, find and select the best track, then scroll to notes
+      // Select the best track after state update
       setTimeout(() => {
-        setTracks(currentTracks => {
-          // Determine which track to focus (Melody > Chords > Bass > Drums)
-          const priorities = ['Melody', 'Chords', 'Bass', 'Drums'];
-          let targetIndex = -1;
-          
-          for (const name of priorities) {
-            const idx = currentTracks.findIndex(t => t.name.toLowerCase() === name.toLowerCase() && t.notes.length > 0);
-            if (idx !== -1) {
-              targetIndex = idx;
-              break;
-            }
-          }
-          
-          if (targetIndex !== -1) {
-            setSelectedTrackIndex(targetIndex);
-            console.log(`👁️ Auto-selected track: ${currentTracks[targetIndex].name}`);
-            
-            // Auto-scroll to show the notes
-            setTimeout(() => {
-              if (gridRef.current && currentTracks[targetIndex].notes.length > 0) {
-                const trackNotes = currentTracks[targetIndex].notes;
-                const avgOctave = trackNotes.reduce((sum: number, n: any) => sum + n.octave, 0) / trackNotes.length;
-                const centerKeyIndex = (8 - avgOctave) * 12;
-                const scrollPos = centerKeyIndex * KEY_HEIGHT * verticalZoom - (gridRef.current.clientHeight / 2);
-                
-                gridRef.current.scrollTo({
-                  top: Math.max(0, scrollPos),
-                  behavior: 'smooth'
-                });
-                console.log(`📜 Auto-scrolled to octave ${Math.round(avgOctave)}`);
-              }
-            }, 50);
-          }
-          
-          return currentTracks; // No change, just reading
-        });
-      }, 100);
+        setSelectedTrackIndex(bestTrackIndex);
+        console.log(`👁️ Auto-selected track index: ${bestTrackIndex}`);
+      }, 50);
       
-      toast({
+      toastRef.current({
         title: '🎹 Notes Loaded!',
         description: `${notes.length} notes added to Piano Roll`,
       });
@@ -409,13 +387,13 @@ export const VerticalPianoRoll: React.FC = () => {
     
     window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
     
-    // Also check localStorage on mount for any pending notes
+    // Check localStorage on mount for any pending notes
     const stored = localStorage.getItem('astutely-generated');
     if (stored) {
       try {
         const data = JSON.parse(stored);
-        // Only load if generated in last 5 minutes
         if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+          console.log('🎵 Loading stored notes from localStorage');
           handleAstutelyGenerated(new CustomEvent('astutely:generated', { detail: data }));
         }
         localStorage.removeItem('astutely-generated');
@@ -427,7 +405,7 @@ export const VerticalPianoRoll: React.FC = () => {
     return () => {
       window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
     };
-  }, [tracks, toast]); // Added tracks dependency to access current state correctly
+  }, []); // Empty deps - only run once on mount
 
   // Scroll synchronization - keep piano keys and grid in sync
   const handlePianoScroll = useCallback(() => {
