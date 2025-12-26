@@ -8,6 +8,73 @@ export class RealisticAudioEngine {
   private initPromise: Promise<void> | null = null; // Track initialization promise
   public bassDrumDuration = 0.8; // Configurable bass drum duration
 
+  // Drum kit voicing profiles to give each kit a distinct sound
+  private drumKitAliases: Record<string, string> = {
+    trap: '808',
+  };
+
+  private drumKitProfiles: Record<string, {
+    kick: {
+      pitchStart: number;
+      pitchEnd: number;
+      pitchSweep: number;
+      bodyDecay: number;
+      filterHz: number;
+      filterQ: number;
+      bodyGain: number;
+      clickVol: number;
+    };
+    snare: {
+      toneStart: number;
+      toneEnd: number;
+      toneDecay: number;
+      bandHz: number;
+      bandQ: number;
+      noiseDecay: number;
+      noiseVol: number;
+      toneVol: number;
+    };
+    hihat: { decay: number; hpHz: number; vol: number };
+    openhat: { decay: number; hpHz: number; vol: number };
+    tom: { startFreq: number; endFreq: number; filterHz: number; vol: number; decay: number };
+  }> = {
+    default: {
+      kick: { pitchStart: 65, pitchEnd: 35, pitchSweep: 0.15, bodyDecay: 0.4, filterHz: 120, filterQ: 8, bodyGain: 1.8, clickVol: 0.15 },
+      snare: { toneStart: 240, toneEnd: 180, toneDecay: 0.08, bandHz: 2500, bandQ: 2.5, noiseDecay: 0.12, noiseVol: 1.4, toneVol: 0.6 },
+      hihat: { decay: 0.05, hpHz: 10000, vol: 1.2 },
+      openhat: { decay: 0.25, hpHz: 8000, vol: 1.2 },
+      tom: { startFreq: 120, endFreq: 80, filterHz: 600, vol: 1.4, decay: 0.4 },
+    },
+    '808': {
+      kick: { pitchStart: 55, pitchEnd: 32, pitchSweep: 0.18, bodyDecay: 0.55, filterHz: 130, filterQ: 7, bodyGain: 1.9, clickVol: 0.1 },
+      snare: { toneStart: 190, toneEnd: 140, toneDecay: 0.1, bandHz: 2000, bandQ: 2.2, noiseDecay: 0.14, noiseVol: 1.3, toneVol: 0.6 },
+      hihat: { decay: 0.06, hpHz: 9500, vol: 1.15 },
+      openhat: { decay: 0.32, hpHz: 8500, vol: 1.1 },
+      tom: { startFreq: 110, endFreq: 70, filterHz: 520, vol: 1.35, decay: 0.42 },
+    },
+    '909': {
+      kick: { pitchStart: 70, pitchEnd: 48, pitchSweep: 0.13, bodyDecay: 0.32, filterHz: 180, filterQ: 9, bodyGain: 1.6, clickVol: 0.24 },
+      snare: { toneStart: 220, toneEnd: 170, toneDecay: 0.07, bandHz: 3200, bandQ: 2.8, noiseDecay: 0.12, noiseVol: 1.45, toneVol: 0.7 },
+      hihat: { decay: 0.07, hpHz: 11000, vol: 1.2 },
+      openhat: { decay: 0.3, hpHz: 9000, vol: 1.15 },
+      tom: { startFreq: 130, endFreq: 90, filterHz: 650, vol: 1.45, decay: 0.36 },
+    },
+    acoustic: {
+      kick: { pitchStart: 78, pitchEnd: 55, pitchSweep: 0.1, bodyDecay: 0.28, filterHz: 240, filterQ: 6, bodyGain: 1.4, clickVol: 0.32 },
+      snare: { toneStart: 200, toneEnd: 160, toneDecay: 0.08, bandHz: 3500, bandQ: 1.8, noiseDecay: 0.1, noiseVol: 1.35, toneVol: 0.55 },
+      hihat: { decay: 0.06, hpHz: 10500, vol: 1.1 },
+      openhat: { decay: 0.26, hpHz: 9500, vol: 1.05 },
+      tom: { startFreq: 140, endFreq: 95, filterHz: 700, vol: 1.3, decay: 0.32 },
+    },
+    lofi: {
+      kick: { pitchStart: 60, pitchEnd: 38, pitchSweep: 0.16, bodyDecay: 0.45, filterHz: 140, filterQ: 5, bodyGain: 1.2, clickVol: 0.08 },
+      snare: { toneStart: 170, toneEnd: 130, toneDecay: 0.07, bandHz: 1800, bandQ: 1.8, noiseDecay: 0.14, noiseVol: 1.1, toneVol: 0.45 },
+      hihat: { decay: 0.08, hpHz: 7000, vol: 1.0 },
+      openhat: { decay: 0.28, hpHz: 7500, vol: 0.95 },
+      tom: { startFreq: 115, endFreq: 75, filterHz: 520, vol: 1.15, decay: 0.38 },
+    },
+  };
+
   // Map our instrument names to General MIDI soundfont names
   private instrumentLibrary: { [key: string]: string } = {
     // Direct General MIDI mappings (self-referencing for direct use)
@@ -293,36 +360,35 @@ export class RealisticAudioEngine {
     // Use the instrument key directly, or fallback to legacy mapping
     let realInstrument = instrument;
     
-    // If instrument not in library, try fallback mapping
-    if (!(realInstrument in this.instrumentLibrary)) {
-      console.log(`🎵 DEBUG: Instrument ${realInstrument} not in library, trying fallback mapping`);
+    // If instrument not loaded, try fallback mapping to available instruments
+    if (!this.instruments[realInstrument]) {
       // Ensure instrument is a string before using .includes()
       const instrumentStr = String(instrument || 'piano').toLowerCase();
       
-      if (instrumentStr.includes('piano') || instrumentStr.includes('keyboard')) {
+      // Map to instruments that are actually loaded (from essentialInstruments list)
+      if (instrumentStr.includes('piano') || instrumentStr.includes('keyboard') || instrumentStr.includes('grand')) {
         realInstrument = 'piano';
       } else if (instrumentStr.includes('guitar') || instrumentStr.includes('string')) {
         realInstrument = 'guitar';
       } else if (instrumentStr.includes('violin')) {
-        realInstrument = 'strings-violin';
+        realInstrument = 'violin';
       } else if (instrumentStr.includes('flute')) {
-        realInstrument = 'flute-concert';
+        realInstrument = 'flute';
       } else if (instrumentStr.includes('trumpet') || instrumentStr.includes('horn')) {
-        realInstrument = 'horns-trumpet';
-      } else if (instrumentStr.includes('bass')) {
+        realInstrument = 'trumpet';
+      } else if (instrumentStr.includes('bass') || instrumentStr.includes('synth_bass')) {
         realInstrument = 'bass-electric';
       } else if (instrumentStr.includes('organ')) {
         realInstrument = 'piano-organ';
-      } else if (instrumentStr.includes('synth')) {
+      } else if (instrumentStr.includes('synth') || instrumentStr.includes('analog')) {
         realInstrument = 'synth-analog';
-      } else if (instrumentStr.includes('lead')) {
+      } else if (instrumentStr.includes('lead') || instrumentStr.includes('sawtooth') || instrumentStr.includes('square')) {
         realInstrument = 'leads-square';
-      } else if (instrumentStr.includes('pad')) {
-        realInstrument = 'pads-warm';
+      } else if (instrumentStr.includes('pad') || instrumentStr.includes('warm')) {
+        realInstrument = 'strings'; // Use strings as fallback for pads
       } else {
         realInstrument = 'piano'; // Ultimate fallback
       }
-      console.log(`🎵 DEBUG: Mapped ${instrument} to ${realInstrument}`);
     }
     
     const instrumentSampler = this.instruments[realInstrument];
@@ -366,10 +432,15 @@ export class RealisticAudioEngine {
     }
   }
 
-  async playDrumSound(drumType: string, velocity: number = 0.7): Promise<void> {
+  async playDrumSound(drumType: string, velocity: number = 0.7, kit: string = 'default'): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
+
+    // Choose a kit profile to give each kit a distinct flavor
+    const kitKey = (kit || 'default').toLowerCase();
+    const mappedKey = this.drumKitAliases[kitKey] || kitKey;
+    const kitProfile = this.drumKitProfiles[mappedKey] || this.drumKitProfiles.default;
 
     // Use synthetic drum engine for "realistic" mode since soundfonts are broken
     console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
@@ -385,37 +456,37 @@ export class RealisticAudioEngine {
       // Recreate the professional drum synthesis here
       switch (drumType) {
         case 'kick':
-          this.playSyntheticKick(currentTime, velocity);
+          this.playSyntheticKick(currentTime, velocity, kitProfile.kick);
           break;
         case 'bass': // Deeper, sub-bass drum
           this.playSyntheticBassDrum(currentTime, velocity);
           break;
         case 'snare':
-          this.playSyntheticSnare(currentTime, velocity);
+          this.playSyntheticSnare(currentTime, velocity, kitProfile.snare);
           break;
         case 'hihat':
-          this.playSyntheticHihat(currentTime, velocity);
+          this.playSyntheticHihat(currentTime, velocity, kitProfile.hihat);
           break;
         case 'openhat':
-          this.playSyntheticOpenHat(currentTime, velocity);
+          this.playSyntheticOpenHat(currentTime, velocity, kitProfile.openhat);
           break;
         case 'tom':
-          this.playSyntheticTom(currentTime, velocity);
+          this.playSyntheticTom(currentTime, velocity, kitProfile.tom);
           break;
         case 'tom_hi':
           // Slightly higher tom
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.95));
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.95), kitProfile.tom);
           break;
         case 'tom_mid':
-          this.playSyntheticTom(currentTime, velocity);
+          this.playSyntheticTom(currentTime, velocity, kitProfile.tom);
           break;
         case 'tom_lo':
           // Slightly deeper, heavier tom
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 1.05));
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 1.05), kitProfile.tom);
           break;
         case 'conga':
           // Conga-style: reuse tom but a bit brighter
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.9));
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.9), kitProfile.tom);
           break;
         case 'clap':
           this.playSyntheticClap(currentTime, velocity);
@@ -514,10 +585,20 @@ export class RealisticAudioEngine {
   }
 
   // Professional synthetic drum implementations (to avoid circular imports)
-  private playSyntheticKick(currentTime: number, velocity: number): void {
+  private playSyntheticKick(currentTime: number, velocity: number, profile?: {
+    pitchStart: number;
+    pitchEnd: number;
+    pitchSweep: number;
+    bodyDecay: number;
+    filterHz: number;
+    filterQ: number;
+    bodyGain: number;
+    clickVol: number;
+  }): void {
     if (!this.audioContext) return;
 
     try {
+      const k = profile || this.drumKitProfiles.default.kick;
       const kickOsc = this.audioContext.createOscillator();
       const kickClickOsc = this.audioContext.createOscillator();
       const kickGain = this.audioContext.createGain();
@@ -526,8 +607,8 @@ export class RealisticAudioEngine {
 
       // Main kick - deep sine wave
       kickOsc.type = 'sine';
-      kickOsc.frequency.setValueAtTime(65, currentTime);
-      kickOsc.frequency.exponentialRampToValueAtTime(35, currentTime + 0.15);
+      kickOsc.frequency.setValueAtTime(k.pitchStart, currentTime);
+      kickOsc.frequency.exponentialRampToValueAtTime(k.pitchEnd, currentTime + k.pitchSweep);
 
       // Click/beater attack
       kickClickOsc.type = 'triangle';
@@ -536,17 +617,17 @@ export class RealisticAudioEngine {
 
       // Tight filter for definition
       kickFilter.type = 'lowpass';
-      kickFilter.frequency.setValueAtTime(120, currentTime);
-      kickFilter.Q.setValueAtTime(8, currentTime);
+      kickFilter.frequency.setValueAtTime(k.filterHz, currentTime);
+      kickFilter.Q.setValueAtTime(k.filterQ, currentTime);
 
       // Main kick envelope - punchy decay - BOOSTED VOLUME
-      const kickVol = Math.max(0.001, velocity * 1.8);
+      const kickVol = Math.max(0.001, velocity * k.bodyGain);
       kickGain.gain.setValueAtTime(kickVol, currentTime);
-      kickGain.gain.exponentialRampToValueAtTime(kickVol * 0.6, currentTime + 0.08);
-      kickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.4);
+      kickGain.gain.exponentialRampToValueAtTime(kickVol * 0.6, currentTime + Math.min(0.08, k.bodyDecay * 0.35));
+      kickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + k.bodyDecay);
 
       // Softer click envelope - reduced volume and smoother attack to eliminate harsh clicking
-      const clickVol = Math.max(0.001, velocity * 0.15); // Much quieter click
+      const clickVol = Math.max(0.001, velocity * k.clickVol); // Kit-shaped click
       kickClickGain.gain.setValueAtTime(0.001, currentTime); // Start from zero to smooth attack
       kickClickGain.gain.exponentialRampToValueAtTime(clickVol, currentTime + 0.003); // Gentle rise
       kickClickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.02); // Slightly longer decay
@@ -561,17 +642,31 @@ export class RealisticAudioEngine {
 
       kickOsc.start(currentTime);
       kickClickOsc.start(currentTime);
-      kickOsc.stop(currentTime + 0.4);
+      kickOsc.stop(currentTime + k.bodyDecay);
       kickClickOsc.stop(currentTime + 0.015);
     } catch (error) {
       console.error('🎵 Kick drum error:', error);
     }
   }
 
-  private playSyntheticSnare(currentTime: number, velocity: number): void {
+  private playSyntheticSnare(
+    currentTime: number,
+    velocity: number,
+    profile?: {
+      toneStart: number;
+      toneEnd: number;
+      toneDecay: number;
+      bandHz: number;
+      bandQ: number;
+      noiseDecay: number;
+      noiseVol: number;
+      toneVol: number;
+    }
+  ): void {
     if (!this.audioContext) return;
 
     try {
+      const s = profile || this.drumKitProfiles.default.snare;
       const snareNoise = this.audioContext.createBufferSource();
       const snareTone = this.audioContext.createOscillator();
       const snareGain = this.audioContext.createGain();
@@ -579,7 +674,7 @@ export class RealisticAudioEngine {
       const snareFilter = this.audioContext.createBiquadFilter();
 
       // Generate proper snare noise
-      const bufferSize = this.audioContext.sampleRate * 0.12;
+      const bufferSize = this.audioContext.sampleRate * s.noiseDecay;
       const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
       const data = buffer.getChannelData(0);
 
@@ -592,22 +687,22 @@ export class RealisticAudioEngine {
 
       // Snare fundamental
       snareTone.type = 'triangle';
-      snareTone.frequency.setValueAtTime(240, currentTime);
-      snareTone.frequency.exponentialRampToValueAtTime(180, currentTime + 0.08);
+      snareTone.frequency.setValueAtTime(s.toneStart, currentTime);
+      snareTone.frequency.exponentialRampToValueAtTime(s.toneEnd, currentTime + s.toneDecay);
 
       // Bandpass for snare character
       snareFilter.type = 'bandpass';
-      snareFilter.frequency.setValueAtTime(2500, currentTime);
-      snareFilter.Q.setValueAtTime(2.5, currentTime);
+      snareFilter.frequency.setValueAtTime(s.bandHz, currentTime);
+      snareFilter.Q.setValueAtTime(s.bandQ, currentTime);
 
       // Snare crack envelope - BOOSTED VOLUME
-      const snareVol = Math.max(0.001, velocity * 1.4);
+      const snareVol = Math.max(0.001, velocity * s.noiseVol);
       snareGain.gain.setValueAtTime(snareVol, currentTime);
-      snareGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.12);
+      snareGain.gain.exponentialRampToValueAtTime(0.001, currentTime + s.noiseDecay);
 
-      const toneVol = Math.max(0.001, velocity * 0.6);
+      const toneVol = Math.max(0.001, velocity * s.toneVol);
       snareToneGain.gain.setValueAtTime(toneVol, currentTime);
-      snareToneGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.08);
+      snareToneGain.gain.exponentialRampToValueAtTime(0.001, currentTime + s.toneDecay);
 
       // Connect
       snareNoise.connect(snareFilter);
@@ -619,21 +714,26 @@ export class RealisticAudioEngine {
 
       snareNoise.start(currentTime);
       snareTone.start(currentTime);
-      snareTone.stop(currentTime + 0.08);
+      snareTone.stop(currentTime + s.toneDecay);
     } catch (error) {
       console.error('🎵 Snare drum error:', error);
     }
   }
 
-  private playSyntheticHihat(currentTime: number, velocity: number): void {
+  private playSyntheticHihat(
+    currentTime: number,
+    velocity: number,
+    profile?: { decay: number; hpHz: number; vol: number }
+  ): void {
     if (!this.audioContext) return;
 
     try {
+      const h = profile || this.drumKitProfiles.default.hihat;
       const hihatNoise = this.audioContext.createBufferSource();
       const hihatGain = this.audioContext.createGain();
       const hihatFilter = this.audioContext.createBiquadFilter();
 
-      const duration = 0.05;
+      const duration = h.decay;
       const bufferSize = this.audioContext.sampleRate * duration;
       const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
       const data = buffer.getChannelData(0);
@@ -648,10 +748,10 @@ export class RealisticAudioEngine {
 
       // High-pass for metallic character
       hihatFilter.type = 'highpass';
-      hihatFilter.frequency.setValueAtTime(10000, currentTime);
+      hihatFilter.frequency.setValueAtTime(h.hpHz, currentTime);
       hihatFilter.Q.setValueAtTime(1, currentTime);
 
-      const hihatVol = Math.max(0.001, velocity * 1.2); // BOOSTED VOLUME
+      const hihatVol = Math.max(0.001, velocity * h.vol); // BOOSTED VOLUME
       hihatGain.gain.setValueAtTime(hihatVol, currentTime);
       hihatGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 
@@ -666,29 +766,34 @@ export class RealisticAudioEngine {
     }
   }
 
-  private playSyntheticTom(currentTime: number, velocity: number): void {
+  private playSyntheticTom(
+    currentTime: number,
+    velocity: number,
+    profile?: { startFreq: number; endFreq: number; filterHz: number; vol: number; decay: number }
+  ): void {
     if (!this.audioContext) return;
 
     try {
+      const t = profile || this.drumKitProfiles.default.tom;
       const tomOsc = this.audioContext.createOscillator();
       const tomGain = this.audioContext.createGain();
       const tomFilter = this.audioContext.createBiquadFilter();
 
       // Tom fundamental frequency
       tomOsc.type = 'sine';
-      tomOsc.frequency.setValueAtTime(120, currentTime);
-      tomOsc.frequency.exponentialRampToValueAtTime(80, currentTime + 0.3);
+      tomOsc.frequency.setValueAtTime(t.startFreq, currentTime);
+      tomOsc.frequency.exponentialRampToValueAtTime(t.endFreq, currentTime + Math.min(0.3, t.decay * 0.7));
 
       // Mid-focused filter
       tomFilter.type = 'lowpass';
-      tomFilter.frequency.setValueAtTime(600, currentTime);
+      tomFilter.frequency.setValueAtTime(t.filterHz, currentTime);
       tomFilter.Q.setValueAtTime(3, currentTime);
 
       // Punchy envelope - BOOSTED VOLUME
-      const tomVol = Math.max(0.001, velocity * 1.4);
+      const tomVol = Math.max(0.001, velocity * t.vol);
       tomGain.gain.setValueAtTime(tomVol, currentTime);
       tomGain.gain.exponentialRampToValueAtTime(tomVol * 0.5, currentTime + 0.1);
-      tomGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.4);
+      tomGain.gain.exponentialRampToValueAtTime(0.001, currentTime + t.decay);
 
       // Connect
       tomOsc.connect(tomFilter);
@@ -696,21 +801,26 @@ export class RealisticAudioEngine {
       tomGain.connect(this.audioContext.destination);
 
       tomOsc.start(currentTime);
-      tomOsc.stop(currentTime + 0.4);
+      tomOsc.stop(currentTime + t.decay);
     } catch (error) {
       console.error('🎵 Tom drum error:', error);
     }
   }
 
-  private playSyntheticOpenHat(currentTime: number, velocity: number): void {
+  private playSyntheticOpenHat(
+    currentTime: number,
+    velocity: number,
+    profile?: { decay: number; hpHz: number; vol: number }
+  ): void {
     if (!this.audioContext) return;
 
     try {
+      const h = profile || this.drumKitProfiles.default.openhat;
       const openhatNoise = this.audioContext.createBufferSource();
       const openhatGain = this.audioContext.createGain();
       const openhatFilter = this.audioContext.createBiquadFilter();
 
-      const duration = 0.25; // Longer than closed hi-hat
+      const duration = h.decay; // Longer than closed hi-hat
       const bufferSize = this.audioContext.sampleRate * duration;
       const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
       const data = buffer.getChannelData(0);
@@ -725,10 +835,10 @@ export class RealisticAudioEngine {
 
       // High-pass for metallic character
       openhatFilter.type = 'highpass';
-      openhatFilter.frequency.setValueAtTime(8000, currentTime);
+      openhatFilter.frequency.setValueAtTime(h.hpHz, currentTime);
       openhatFilter.Q.setValueAtTime(1, currentTime);
 
-      const openhatVol = Math.max(0.001, velocity * 1.2); // BOOSTED VOLUME
+      const openhatVol = Math.max(0.001, velocity * h.vol); // BOOSTED VOLUME
       openhatGain.gain.setValueAtTime(openhatVol, currentTime);
       openhatGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
 

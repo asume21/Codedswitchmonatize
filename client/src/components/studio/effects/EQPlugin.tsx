@@ -120,6 +120,32 @@ export function EQPlugin({ audioUrl, onClose }: EQPluginProps) {
     });
   };
 
+  // ISSUE #1: Load preset functionality
+  const loadPreset = () => {
+    try {
+      const saved = localStorage.getItem('eq-preset-last');
+      if (saved) {
+        const preset = JSON.parse(saved);
+        if (preset.bands) {
+          setBands(preset.bands);
+          // Apply to actual filters
+          preset.bands.forEach((band: EQBand, index: number) => {
+            if (filtersRef.current[index]) {
+              filtersRef.current[index].frequency.value = band.frequency;
+              filtersRef.current[index].gain.value = band.gain;
+              filtersRef.current[index].Q.value = band.q;
+            }
+          });
+          toast({ title: 'Preset Loaded', description: `Loaded: ${preset.name}` });
+        }
+      } else {
+        toast({ title: 'No Preset', description: 'No saved preset found', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Load Failed', description: 'Could not load preset', variant: 'destructive' });
+    }
+  };
+
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
@@ -166,6 +192,10 @@ export function EQPlugin({ audioUrl, onClose }: EQPluginProps) {
             <Button onClick={savePreset} variant="outline">
               <Save className="h-4 w-4 mr-2" />
               Save
+            </Button>
+            <Button onClick={loadPreset} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Load
             </Button>
           </div>
         )}

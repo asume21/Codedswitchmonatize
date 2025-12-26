@@ -29,6 +29,7 @@ interface StepGridProps {
   isSelecting?: boolean;
   selectionStart?: { x: number; y: number } | null;
   selectionEnd?: { x: number; y: number } | null;
+  onPlayheadClick?: (step: number) => void;
 }
 
 export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
@@ -56,6 +57,7 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
   isSelecting,
   selectionStart,
   selectionEnd,
+  onPlayheadClick,
 }, ref) => {
   const handleCellClick = useCallback((keyIndex: number, step: number) => {
     const note = selectedTrack.notes.find(
@@ -77,9 +79,9 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
     return Array.from({ length: steps }, (_, step) => (
       <div
         key={`header-${step}`}
-        className={`flex items-center justify-center text-xs font-mono border-r border-gray-600
-          ${currentStep === step ? 'bg-red-600 text-white' : 'text-gray-400'}
-          ${step % 4 === 0 ? 'bg-gray-700' : ''}
+        className={`flex items-center justify-center text-xs font-mono border-r border-gray-600 cursor-pointer
+          ${currentStep === step ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-600'}
+          ${step % 4 === 0 && currentStep !== step ? 'bg-gray-700' : ''}
         `}
         style={{
           width: `${stepWidth * zoom}px`,
@@ -90,11 +92,13 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
           padding: 0,
           margin: 0
         }}
+        onClick={() => onPlayheadClick?.(step)}
+        title={`Click to move playhead to step ${step + 1}`}
       >
         {step + 1}
       </div>
     ));
-  }, [steps, currentStep, stepWidth, zoom]);
+  }, [steps, currentStep, stepWidth, zoom, onPlayheadClick]);
 
   const gridBackdropStyle = {
     backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.95), rgba(15,23,42,0.75)), linear-gradient(180deg, rgba(59,130,246,0.08) 1px, transparent 1px)`,

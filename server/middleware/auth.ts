@@ -4,6 +4,7 @@ import type { IStorage } from "../storage";
 export function currentUser(storage: IStorage) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
+      const isPlaywright = process.env.PLAYWRIGHT === 'true' || process.env.NODE_ENV === 'test';
       // Check for owner key (x-owner-key header)
       const ownerKey = req.headers['x-owner-key'];
       const expectedOwnerKey = process.env.OWNER_KEY;
@@ -35,7 +36,8 @@ export function currentUser(storage: IStorage) {
       // Enabled by default in non-production; set DISABLE_DEV_AUTO_LOGIN=true to turn off.
       // Optionally set DEV_USER_ID to control which userId is used.
       const devAutoLoginEnabled =
-        process.env.NODE_ENV !== 'production' && process.env.DISABLE_DEV_AUTO_LOGIN !== 'true';
+        !isPlaywright &&
+        process.env.ENABLE_DEV_AUTO_LOGIN === 'true';
       if (devAutoLoginEnabled) {
         req.userId = process.env.DEV_USER_ID?.trim() || 'dev-user';
       }

@@ -1,11 +1,10 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGlobalAudio } from '@/contexts/GlobalAudioContext';
-import { Play, Pause, Square, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, Square, Volume2, VolumeX, SkipForward, SkipBack, Minus, Grip } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 
-/**
- * Global Audio Player - Shows at bottom of screen when audio is loaded
- * Persists across all page navigation so music never stops
- */
+type Position = { x: number; y: number };
+
 export function GlobalAudioPlayer() {
   const {
     isPlaying,
@@ -13,17 +12,33 @@ export function GlobalAudioPlayer() {
     duration,
     volume,
     currentSource,
+    playlist,
+    currentIndex,
     play,
     pause,
     stop,
     seek,
     setVolume,
+    next,
+    previous,
   } = useGlobalAudio();
 
-  // Don't show if no audio loaded
-  if (!currentSource) return null;
+  const [minimized, setMinimized] = useState(false);
+  const [position, setPosition] = useState<Position>(() => {
+    const stored = localStorage.getItem('globalTransportPosition');
+    return stored ? JSON.parse(stored) : { x: 24, y: 24 };
+  });
+  const positionRef = useRef<Position>(position);
+  const draggingRef = useRef<boolean>(false);
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Hide if nothing loaded
+  const hasContent = currentSource || playlist.length > 0;
+  const activeSource = useMemo(() => currentSource ?? playlist[currentIndex] ?? null, [currentIndex, currentSource, playlist]);
+  if (!hasContent || !activeSource) return null;
 
   const formatTime = (seconds: number) => {
+    if (!Number.isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -31,89 +46,132 @@ export function GlobalAudioPlayer() {
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!draggingRef.current) return;
+      const nextPos = { x: e.clientX - dragOffsetRef.current.x, y: e.clientY - dragOffsetRef.current.y };
+      setPosition(nextPos);
+    };
+    const handleUp = () => {
+      draggingRef.current = false;
+      localStorage.setItem('globalTransportPosition', JSON.stringify(positionRef.current));
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, []);
+
+  const startDrag = (e: React.MouseEvent) => {
+    draggingRef.current = true;
+    dragOffsetRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+  };
+
+  const containerStyle: React.CSSProperties = {
+    position: 'fixed',
+    left: position.x,
+    top: position.y,
+    zIndex: 9999,
+    minWidth: minimized ? 220 : 420,
+    maxWidth: 520,
+  };
+
+  const playlistLabel = playlist.length ? `${currentIndex + 1}/${playlist.length}` : '1/1';
+
   return (
-    <div 
-      className="fixed bottom-0 left-0 right-0 z-[9998] bg-gradient-to-r from-purple-900/95 to-pink-900/95 backdrop-blur-lg border-t border-white/10"
-      style={{ height: '72px' }}
+    <div
+      className="rounded-2xl bg-gray-900/95 border border-white/10 shadow-2xl backdrop-blur-lg text-white"
+      style={containerStyle}
     >
-      <div className="h-full max-w-7xl mx-auto px-4 flex items-center gap-4">
-        {/* Song Info */}
-        <div className="flex-shrink-0 w-48 truncate">
-          <p className="text-sm font-medium text-white truncate">{currentSource.name}</p>
-          <p className="text-xs text-white/60">{formatTime(currentTime)} / {formatTime(duration)}</p>
-        </div>
-
-        {/* Controls */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 cursor-grab active:cursor-grabbing" onMouseDown={startDrag}>
         <div className="flex items-center gap-2">
-          <button
-            onClick={stop}
-            className="p-2 rounded-full hover:bg-white/10 transition-colors"
-            title="Stop"
-          >
-            <Square className="w-5 h-5 text-white" />
-          </button>
-          
-          <button
-            onClick={isPlaying ? pause : play}
-            className="p-3 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-            title={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? (
-              <Pause className="w-6 h-6 text-white" />
-            ) : (
-              <Play className="w-6 h-6 text-white ml-0.5" />
-            )}
-          </button>
+          <Grip className="w-4 h-4 text-white/50" />
+          <span className="text-sm font-semibold truncate max-w-[200px]" title={activeSource.name}>{activeSource.name || 'Transport'}</span>
         </div>
-
-        {/* Progress Bar */}
-        <div className="flex-1 mx-4">
-          <div 
-            className="h-2 bg-white/20 rounded-full cursor-pointer relative overflow-hidden"
-            onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const percent = (e.clientX - rect.left) / rect.width;
-              seek(percent * duration);
-            }}
-          >
-            <div 
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Volume */}
-        <div className="flex items-center gap-2 w-32">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-white/60">{playlistLabel}</span>
           <button
-            onClick={() => setVolume(volume > 0 ? 0 : 1)}
-            className="p-1 hover:bg-white/10 rounded"
+            onClick={() => setMinimized((m) => !m)}
+            className="p-1 rounded hover:bg-white/10"
+            title="Minimize"
           >
-            {volume > 0 ? (
-              <Volume2 className="w-5 h-5 text-white" />
-            ) : (
-              <VolumeX className="w-5 h-5 text-white/60" />
-            )}
+            <Minus className="w-4 h-4" />
           </button>
-          <Slider
-            value={[volume * 100]}
-            onValueChange={([val]) => setVolume(val / 100)}
-            max={100}
-            step={1}
-            className="w-20"
-          />
-        </div>
-
-        {/* Status indicator */}
-        <div className="flex-shrink-0">
-          {isPlaying && (
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              <span className="text-xs text-green-400">Playing</span>
-            </div>
-          )}
         </div>
       </div>
+
+      {!minimized && (
+        <div className="px-4 py-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <button onClick={previous} className="p-2 rounded-full hover:bg-white/10" title="Previous">
+              <SkipBack className="w-5 h-5" />
+            </button>
+            <button
+              onClick={isPlaying ? pause : play}
+              className={`p-3 rounded-full ${isPlaying ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+            </button>
+            <button onClick={stop} className="p-2 rounded-full hover:bg-white/10" title="Stop">
+              <Square className="w-5 h-5" />
+            </button>
+            <button onClick={next} className="p-2 rounded-full hover:bg-white/10" title="Next">
+              <SkipForward className="w-5 h-5" />
+            </button>
+            <div className="ml-3 text-sm font-mono text-white/80">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </div>
+          </div>
+
+          <div className="w-full">
+            <div
+              className="h-2 bg-white/15 rounded-full cursor-pointer relative overflow-hidden"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                seek(percent * duration);
+              }}
+            >
+              <div
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 w-32">
+              <button
+                onClick={() => setVolume(volume > 0 ? 0 : 1)}
+                className="p-1 hover:bg-white/10 rounded"
+              >
+                {volume > 0 ? (
+                  <Volume2 className="w-5 h-5 text-white" />
+                ) : (
+                  <VolumeX className="w-5 h-5 text-white/60" />
+                )}
+              </button>
+              <Slider
+                value={[volume * 100]}
+                onValueChange={([val]) => setVolume(val / 100)}
+                max={100}
+                step={1}
+                className="w-20"
+              />
+            </div>
+            <div className="flex-1 text-xs text-white/60 truncate">
+              {activeSource.name}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

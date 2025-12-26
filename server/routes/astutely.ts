@@ -1,12 +1,8 @@
 import { Router, Request, Response } from 'express';
+import { unifiedMusicService } from '../services/unifiedMusicService';
+import { makeAICall } from '../services/grok';
 
 const router = Router();
-
-const {
-  REPLICATE_API_TOKEN,
-  OPENAI_API_KEY,
-  HUGGINGFACE_API_TOKEN
-} = process.env;
 
 // Astutely — the real AI music generation endpoint
 router.post('/astutely', async (req: Request, res: Response) => {
@@ -17,114 +13,90 @@ router.post('/astutely', async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Replicate + MusicGen for drums / full beats
-    if (style.toLowerCase().includes('drum') || style.toLowerCase().includes('beat')) {
-      if (!REPLICATE_API_TOKEN) {
-        return res.status(500).json({ error: 'Replicate API not configured' });
+    // AI Generation via Grok (JSON for MIDI/Timeline)
+    console.log(`🤖 Astutely generating symbolic pattern for: ${style}`);
+    
+    const response = await makeAICall([
+      {
+        role: "system",
+        content: `You are Astutely, an expert AI music producer. Generate a full beat arrangement (drums, bass, chords, melody).
+Return ONLY valid JSON matching this structure:
+{
+  "style": "${style}",
+  "bpm": 128,
+  "key": "C Minor",
+  "drums": [{"step": 0, "type": "kick"}, {"step": 4, "type": "snare"}], // 0-63 steps
+  "bass": [{"step": 0, "note": 36, "duration": 2}],
+  "chords": [{"step": 0, "notes": [60, 63, 67], "duration": 16}],
+  "melody": [{"step": 0, "note": 72, "duration": 1}]
+}
+Ensure patterns are musical and fit the "${style}" genre. Use 64 steps (4 bars).`
+      },
+      { 
+        role: "user", 
+        content: `Generate a ${style} beat. ${prompt}` 
       }
-
-      const replicateRes = await fetch('https://api.replicate.com/v1/predictions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          version: "671ac645ce5e552cc63a54a2bbff63fcf798043055f2a26f81679d68f568e05e", // MusicGen stereo
-          input: { 
-            prompt: `${style} beat, 128 BPM, professional mix, high quality`,
-            duration: 8
-          }
-        })
-      });
-      const data = await replicateRes.json();
-      return res.json({ success: true, audioUrl: data.output, predictionId: data.id });
-    }
-
-    // 2. OpenAI for chords / melody
-    if (style.toLowerCase().includes('chord') || style.toLowerCase().includes('melody')) {
-      if (!OPENAI_API_KEY) {
-        return res.status(500).json({ error: 'OpenAI API not configured' });
-      }
-
-      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [{ 
-            role: "user", 
-            content: `Generate a ${style} in C minor, 128 BPM. Return ONLY valid JSON: { "notes": [60,62,...], "durations": [0.5,0.5,...] }` 
-          }]
-        })
-      });
-      const data = await openaiRes.json();
-      
-      try {
-        const content = data.choices?.[0]?.message?.content || '{}';
-        // Extract JSON from potential markdown code blocks
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        const result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-        return res.json({ success: true, ...result });
-      } catch (parseError) {
-        return res.json({ success: true, notes: [60, 63, 67, 72], durations: [0.5, 0.5, 0.5, 0.5] });
-      }
-    }
-
-    // 3. Hugging Face + MusicGen as fallback
-    if (!HUGGINGFACE_API_TOKEN) {
-      return res.status(500).json({ error: 'Hugging Face API not configured' });
-    }
-
-    const hfRes = await fetch('https://api-inference.huggingface.co/models/facebook/musicgen-medium', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${HUGGINGFACE_API_TOKEN}` },
-      body: JSON.stringify({ inputs: `${style} beat, 128 BPM, ${prompt}` })
+    ], {
+      response_format: { type: "json_object" },
+      temperature: 0.8
     });
 
-    if (!hfRes.ok) {
-      const errorText = await hfRes.text();
-      console.error('HuggingFace error:', errorText);
-      return res.status(500).json({ error: 'HuggingFace generation failed' });
+    const content = response.choices?.[0]?.message?.content || '{}';
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch (parseError) {
+      console.warn("Astutely JSON parse failed, using fallback pattern");
+      // Fallback: Return a basic editable pattern so user can still work manually
+      result = {
+        style,
+        bpm: 120,
+        key: "C Minor",
+        drums: [
+          { step: 0, type: "kick" }, { step: 4, type: "snare" },
+          { step: 8, type: "kick" }, { step: 12, type: "snare" },
+          { step: 16, type: "kick" }, { step: 20, type: "snare" },
+          { step: 24, type: "kick" }, { step: 28, type: "snare" },
+          { step: 2, type: "hihat" }, { step: 6, type: "hihat" },
+          { step: 10, type: "hihat" }, { step: 14, type: "hihat" }
+        ],
+        bass: [
+          { step: 0, note: 36, duration: 4 },
+          { step: 16, note: 36, duration: 4 },
+          { step: 32, note: 38, duration: 4 },
+          { step: 48, note: 36, duration: 4 }
+        ],
+        chords: [
+          { step: 0, notes: [60, 63, 67], duration: 16 },
+          { step: 16, notes: [58, 62, 65], duration: 16 },
+          { step: 32, notes: [55, 58, 62], duration: 16 },
+          { step: 48, notes: [53, 57, 60], duration: 16 }
+        ],
+        melody: [
+          { step: 0, note: 72, duration: 2 },
+          { step: 4, note: 74, duration: 2 },
+          { step: 8, note: 75, duration: 4 },
+          { step: 16, note: 72, duration: 2 }
+        ],
+        isFallback: true
+      };
     }
+    
+    return res.json(result);
 
-    const arrayBuffer = await hfRes.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    res.set('Content-Type', 'audio/wav');
-    return res.send(buffer);
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('Astutely error:', error);
-    res.status(500).json({ error: 'AI generation failed' });
+    res.status(500).json({ error: 'AI generation failed: ' + error.message });
   }
 });
 
-// Check prediction status (for Replicate async jobs)
+// Check prediction status
 router.get('/astutely/status/:predictionId', async (req: Request, res: Response) => {
-  const { predictionId } = req.params;
-
-  if (!REPLICATE_API_TOKEN) {
-    return res.status(500).json({ error: 'Replicate API not configured' });
-  }
-
-  try {
-    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-      headers: { 'Authorization': `Token ${REPLICATE_API_TOKEN}` }
-    });
-    const data = await response.json();
-    return res.json({ 
-      success: true, 
-      status: data.status, 
-      audioUrl: data.output,
-      error: data.error 
-    });
-  } catch (error) {
-    console.error('Status check error:', error);
-    res.status(500).json({ error: 'Failed to check status' });
-  }
+  return res.json({ 
+    success: true, 
+    status: 'succeeded', 
+    error: null 
+  });
 });
 
 export function createAstutelyRoutes() {

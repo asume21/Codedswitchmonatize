@@ -4,7 +4,7 @@
  * Integrates with: Uploaded Songs, Beat Lab, Melody Composer, Piano Roll
  */
 
-import { useState, useRef, useEffect, useContext, useCallback } from 'react';
+import { useState, useRef, useEffect, useContext, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -35,27 +35,26 @@ import {
   Repeat,
   SkipBack,
   SkipForward,
-  Library,
-  FolderOpen,
   Mic,
   Drum,
   Piano,
-  StopCircle,
-  Layers,
   Wand2,
+  GripVertical,
+  Scissors,
+  Flag,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTracks } from '@/hooks/useTracks';
 import { Resizable } from 'react-resizable';
 import { RepeatIcon } from 'lucide-react';
 import WaveformVisualizer from './WaveformVisualizer';
+import { Dialog as BaseDialog, DialogContent as BaseDialogContent, DialogHeader as BaseDialogHeader, DialogTitle as BaseDialogTitle } from '@/components/ui/dialog';
+import ProfessionalMixer from './ProfessionalMixer';
+import { GridOverlay } from './GridOverlay';
+import { TunerModal } from './TunerModal';
+import { MTPHeaderContainer } from './MTPHeaderContainer';
 
 interface MidiNote {
   id: string;
@@ -64,6 +63,21 @@ interface MidiNote {
   step: number;
   length: number;
   velocity: number;
+}
+
+// ISSUE #3: Region interface for multi-region support
+interface AudioRegion {
+  id: string;
+  audioBuffer: AudioBuffer | null;
+  audioUrl: string;
+  startTimeSeconds: number; // Position on timeline
+  trimStartSeconds: number; // Trim start within buffer
+  trimEndSeconds: number; // Trim end within buffer
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
+  regionGain: number; // dB gain for this region
+  midiNotes?: MidiNote[]; // For MIDI regions
+  color?: string; // Optional override color
 }
 
 interface AudioTrack {
@@ -93,6 +107,8 @@ interface AudioTrack {
   trimEndSeconds?: number; // per-track trim end (seconds, within audioBuffer)
   midiNotes?: MidiNote[]; // MIDI note data for MIDI tracks
   instrument?: string; // Instrument name for MIDI tracks
+  startTimeSeconds?: number; // ISSUE #2: Position on timeline (seconds from start)
+  regions?: AudioRegion[]; // ISSUE #3: Multiple regions per track
 }
 
 const TRACK_COLORS = [
@@ -108,6 +124,62 @@ const TRACK_COLORS = [
 
 const DEFAULT_TRACK_HEIGHT = 140; // px - enough for controls row
 
+// Helper function to convert AudioBuffer to WAV Blob
+const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  
+  const samples = buffer.length;
+  const dataSize = samples * blockAlign;
+  const bufferSize = 44 + dataSize;
+  
+  const arrayBuffer = new ArrayBuffer(bufferSize);
+  const view = new DataView(arrayBuffer);
+  
+  // WAV header
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, bufferSize - 8, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true); // fmt chunk size
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataSize, true);
+  
+  // Interleave channels and write samples
+  const channels: Float32Array[] = [];
+  for (let c = 0; c < numChannels; c++) {
+    channels.push(buffer.getChannelData(c));
+  }
+  
+  let offset = 44;
+  for (let i = 0; i < samples; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      const sample = Math.max(-1, Math.min(1, channels[c][i]));
+      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, intSample, true);
+      offset += 2;
+    }
+  }
+  
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+};
+
 // Inline waveform component for each track
 interface TrackWaveformProps {
   audioBuffer: AudioBuffer | null;
@@ -117,9 +189,12 @@ interface TrackWaveformProps {
   isPlaying: boolean;
   onSeek: (time: number) => void;
   height?: number;
+  width?: number;
   trimStartSeconds?: number;
   trimEndSeconds?: number;
   onTrimChange?: (startSeconds: number, endSeconds: number) => void;
+  selected?: boolean;
+  onSelect?: () => void;
 }
 
 function TrackWaveform({
@@ -130,25 +205,32 @@ function TrackWaveform({
   isPlaying,
   onSeek,
   height,
+  width,
   trimStartSeconds,
   trimEndSeconds,
   onTrimChange,
+  selected,
+  onSelect,
 }: TrackWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [draggingHandle, setDraggingHandle] = useState<'start' | 'end' | null>(null);
+  const renderWidth = Math.max(width ?? 600, 240);
+  const renderHeight = Math.max(height ?? 64, 48);
 
   // Draw waveform
   useEffect(() => {
     if (!canvasRef.current || !audioBuffer) return;
     
     const canvas = canvasRef.current;
+    canvas.width = Math.round(renderWidth);
+    canvas.height = Math.round(renderHeight);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
     const data = audioBuffer.getChannelData(0);
 
     const fullDuration = audioBuffer.duration || duration || 0;
@@ -156,22 +238,22 @@ function TrackWaveform({
     const effectiveEnd = Math.min(fullDuration, trimEndSeconds ?? fullDuration);
     const clipDuration = Math.max(0.01, effectiveEnd - effectiveStart);
 
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     
     // Draw waveform background
     ctx.fillStyle = '#1f2937';
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     // Draw waveform
     ctx.beginPath();
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
 
-    for (let i = 0; i < width; i++) {
+    for (let i = 0; i < canvasWidth; i++) {
       // Map canvas X to time within trimmed region, then to sample index
-      const relTime = effectiveStart + (i / width) * clipDuration;
+      const relTime = effectiveStart + (i / canvasWidth) * clipDuration;
       const sampleIndex = Math.floor((relTime / fullDuration) * data.length);
-      const step = Math.max(1, Math.floor(data.length / width));
+      const step = Math.max(1, Math.floor(data.length / canvasWidth));
       const sliceStart = sampleIndex;
       const sliceEnd = sliceStart + step;
       let min = 1.0;
@@ -183,8 +265,8 @@ function TrackWaveform({
         if (value > max) max = value;
       }
 
-      const yMin = ((1 + min) / 2) * height;
-      const yMax = ((1 + max) / 2) * height;
+      const yMin = ((1 + min) / 2) * canvasHeight;
+      const yMax = ((1 + max) / 2) * canvasHeight;
 
       ctx.moveTo(i, yMin);
       ctx.lineTo(i, yMax);
@@ -197,15 +279,15 @@ function TrackWaveform({
         Math.max(currentTime - effectiveStart, 0),
         clipDuration
       );
-      const playheadX = (localTime / clipDuration) * width;
+      const playheadX = (localTime / clipDuration) * canvasWidth;
       ctx.beginPath();
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.moveTo(playheadX, 0);
-      ctx.lineTo(playheadX, height);
+      ctx.lineTo(playheadX, canvasHeight);
       ctx.stroke();
     }
-  }, [audioBuffer, color, currentTime, duration, trimStartSeconds, trimEndSeconds]);
+  }, [audioBuffer, color, currentTime, duration, renderHeight, renderWidth, trimEndSeconds, trimStartSeconds]);
 
   const seekFromClientX = (clientX: number) => {
     if (!canvasRef.current || !audioBuffer) return;
@@ -221,6 +303,7 @@ function TrackWaveform({
   };
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    onSelect?.();
     seekFromClientX(e.clientX);
   };
 
@@ -229,6 +312,7 @@ function TrackWaveform({
     const touch = e.touches[0];
     if (!touch) return;
     e.preventDefault();
+    onSelect?.();
     seekFromClientX(touch.clientX);
   };
 
@@ -286,8 +370,9 @@ function TrackWaveform({
     return (
       <div
         ref={containerRef}
-        className="bg-gray-900 rounded mb-2 flex items-center justify-center"
-        style={{ height: height ?? 64 }}
+        className={`bg-gray-900 rounded mb-2 flex items-center justify-center ${selected ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-900' : ''}`}
+        style={{ height: renderHeight, width: renderWidth }}
+        onClick={() => onSelect?.()}
       >
         <span className="text-xs text-gray-500">No audio data</span>
       </div>
@@ -297,16 +382,16 @@ function TrackWaveform({
   return (
     <div 
       ref={containerRef}
-      className="bg-gray-900 rounded mb-2 cursor-pointer relative overflow-hidden"
-      style={{ height: height ?? 64 }}
+      className={`bg-gray-900 rounded mb-2 cursor-pointer relative overflow-hidden ${selected ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-900' : ''}`}
+      style={{ height: renderHeight, width: renderWidth }}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onMouseMove={handleContainerMouseMove}
     >
       <canvas
         ref={canvasRef}
-        width={600}
-        height={64}
+        width={renderWidth}
+        height={renderHeight}
         className="w-full h-full"
         onClick={handleClick}
         onMouseDown={handleMouseDown}
@@ -359,6 +444,8 @@ export default function MasterMultiTrackPlayer() {
   });
   const [loop, setLoop] = useState(false);
   const [tempo, setTempo] = useState(120);
+  const [timeSignature, setTimeSignature] = useState('4/4');
+  const [projectKey, setProjectKey] = useState('C');
   const [showLibrary, setShowLibrary] = useState(false);
   const [showAddTrack, setShowAddTrack] = useState(false);
   const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'beatlab' | 'melody' | 'pianoroll'>('library');
@@ -370,8 +457,36 @@ export default function MasterMultiTrackPlayer() {
   const [previewStatus, setPreviewStatus] = useState<string | null>(null);
   const [previewProgress, setPreviewProgress] = useState<number>(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [showGrid, setShowGrid] = useState(true);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [projectName, setProjectName] = useState('Untitled Project');
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([]);
+  const [showTuner, setShowTuner] = useState(false);
+  const [showProjectSettingsModal, setShowProjectSettingsModal] = useState(false);
+  const [showMixer, setShowMixer] = useState(false);
+  const [tunerFreq, setTunerFreq] = useState(440);
   const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
+
+  // ISSUE #1: Drag-and-drop track reordering state
+  const [draggedTrackId, setDraggedTrackId] = useState<string | null>(null);
+  const [dragOverTrackId, setDragOverTrackId] = useState<string | null>(null);
+
+  // ISSUE #2: Horizontal region dragging state
+  const [regionDragTrackId, setRegionDragTrackId] = useState<string | null>(null);
+  const [regionDragStartX, setRegionDragStartX] = useState<number>(0);
+  const [regionDragOriginalStart, setRegionDragOriginalStart] = useState<number>(0);
+
+  // ISSUE #7: Markers/Locators system
+  const [markers, setMarkers] = useState<{ id: string; time: number; label: string; color: string }[]>([]);
+
+  // ISSUE #6: Automation lanes state
+  const [showAutomation, setShowAutomation] = useState<Record<string, boolean>>({});
+  const [automationType, setAutomationType] = useState<'volume' | 'pan'>('volume');
+
+  // ISSUE #12: Track grouping/folders state
+  const [trackGroups, setTrackGroups] = useState<{ id: string; name: string; trackIds: string[]; collapsed: boolean; color: string }[]>([]);
+
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -385,10 +500,18 @@ export default function MasterMultiTrackPlayer() {
   const isPlayingRef = useRef(false);
   const startTimeRef = useRef<number>(0);
   const pauseTimeRef = useRef<number>(0);
+  const metronomeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [metronomeOn, setMetronomeOn] = useState(false);
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
   const manualTracksRef = useRef<AudioTrack[]>([]);
   const midiTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const trackKindDefaultsRef = useRef<Record<string, string>>({});
+  const clipboardTracksRef = useRef<AudioTrack[]>([]);
+  const undoStackRef = useRef<AudioTrack[][]>([]);
+  const redoStackRef = useRef<AudioTrack[][]>([]);
+  const regionIdForTrack = (trackId: string, regionIndex = 0) => `${trackId}-region-${regionIndex}`;
+  const regionIdToTrackId = (regionId: string) => regionId.split('-region-')[0];
+  const selectedTrackIdSet = useMemo(() => new Set(selectedRegionIds.map(regionIdToTrackId)), [selectedRegionIds]);
 
   const getTrackEffectiveDuration = (track: AudioTrack): number => {
     const full = track.audioBuffer?.duration || 0;
@@ -754,8 +877,9 @@ export default function MasterMultiTrackPlayer() {
       return;
     }
 
+    // ISSUE #2: Account for startTimeSeconds when calculating total duration
     const maxDuration = Math.max(
-      ...tracks.map(t => getTrackEffectiveDuration(t)),
+      ...tracks.map(t => (t.startTimeSeconds ?? 0) + getTrackEffectiveDuration(t)),
       0
     );
     setDuration(maxDuration);
@@ -1004,6 +1128,24 @@ export default function MasterMultiTrackPlayer() {
     });
   };
 
+  const handleOpenBeatLab = () => {
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'beatmaker' }));
+    setShowAddTrack(false);
+    toast({ title: '?? Opening Beat Lab', description: 'Create your beat, then export to Multi-Track' });
+  };
+
+  const handleOpenMelody = () => {
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'melody' }));
+    setShowAddTrack(false);
+    toast({ title: '?? Opening Melody Composer', description: 'Create your melody, then export to Multi-Track' });
+  };
+
+  const handleOpenPianoRoll = () => {
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'unified-studio' }));
+    setShowAddTrack(false);
+    toast({ title: '?? Opening Piano Roll', description: 'Create your sequence, then export to Multi-Track' });
+  };
+
   // Play all tracks
   const playTracks = () => {
     if (!audioContextRef.current || !masterGainRef.current) return;
@@ -1014,8 +1156,9 @@ export default function MasterMultiTrackPlayer() {
     // Stop any existing playback
     stopTracks();
 
-    const startOffset = punch.enabled ? Math.max(punch.in, pauseTimeRef.current) : pauseTimeRef.current;
-    startTimeRef.current = ctx.currentTime - startOffset;
+    const startOffset = snapEnabled ? snapTime(pauseTimeRef.current) : pauseTimeRef.current;
+    const punchStart = punch.enabled ? Math.max(punch.in, startOffset) : startOffset;
+    startTimeRef.current = ctx.currentTime - punchStart;
 
     tracks.forEach(track => {
       const isMidi = track.trackType === 'midi' && Array.isArray(track.midiNotes) && track.midiNotes.length > 0;
@@ -1024,8 +1167,12 @@ export default function MasterMultiTrackPlayer() {
       // Skip if muted or if solo mode and this track isn't soloed
       if (track.muted || (hasSolo && !track.solo)) return;
 
+      // ISSUE #2: Account for track's position on timeline
+      const trackStartTime = track.startTimeSeconds ?? 0;
+
       if (isMidi) {
-        void scheduleMidiTrack(track, startOffset);
+        // Adjust MIDI scheduling for track start time
+        void scheduleMidiTrack(track, punchStart - trackStartTime);
         return;
       }
 
@@ -1042,6 +1189,9 @@ export default function MasterMultiTrackPlayer() {
       const trimEnd = Math.min(fullDur, track.trimEndSeconds ?? fullDur);
       const globalEnd = punch.enabled ? Math.min(trimEnd, punch.out) : trimEnd;
       const clipDuration = Math.max(0, globalEnd - trimStart);
+      
+      // ISSUE #2: Calculate when this track should start relative to playhead
+      const trackEndTime = trackStartTime + clipDuration;
 
       // Only loop untrimmed clips for now; trimmed clips play their region once
       source.loop = loop && clipDuration === fullDur;
@@ -1064,15 +1214,36 @@ export default function MasterMultiTrackPlayer() {
         return;
       }
 
-      if (startOffset >= clipDuration) {
+      // ISSUE #2: Calculate offset relative to track's start position
+      const relativeOffset = startOffset - trackStartTime;
+      
+      // If playhead is before this track starts, schedule it to start later
+      if (relativeOffset < 0) {
+        // Track starts in the future - schedule it
+        const delaySeconds = -relativeOffset;
+        const bufferStart = trimStart;
+        const playDuration = Math.min(clipDuration, punch.enabled ? punch.out - trackStartTime : clipDuration);
+        
+        if (playDuration <= 0) return;
+        
+        const fadeIn = Math.min(track.fadeInSeconds ?? 0, playDuration / 2);
+        const fadeOut = loop ? 0 : Math.min(track.fadeOutSeconds ?? 0, Math.max(playDuration - fadeIn - 0.01, 0.01));
+        const baseGain = track.volume / 100;
+        
+        gainNode.gain.setValueAtTime(baseGain, ctx.currentTime + delaySeconds);
+        source.start(ctx.currentTime + delaySeconds, bufferStart, playDuration);
+        return;
+      }
+
+      if (relativeOffset >= clipDuration) {
         // Playback position is past the trimmed region; this track stays silent
         return;
       }
 
-      const bufferStart = trimStart + startOffset;
-      const stopAt = punch.enabled ? Math.min(globalEnd, punch.out) : globalEnd;
+      const bufferStart = trimStart + relativeOffset;
+      const stopAt = punch.enabled ? Math.min(globalEnd, punch.out - trackStartTime) : globalEnd;
       const allowedDuration = stopAt - bufferStart;
-      const playDuration = Math.max(0, Math.min(clipDuration - startOffset, allowedDuration));
+      const playDuration = Math.max(0, Math.min(clipDuration - relativeOffset, allowedDuration));
 
       const fadeIn = Math.min(track.fadeInSeconds ?? 0, playDuration / 2);
       const fadeOut = loop ? 0 : Math.min(track.fadeOutSeconds ?? 0, Math.max(playDuration - fadeIn - 0.01, 0.01));
@@ -1309,10 +1480,182 @@ export default function MasterMultiTrackPlayer() {
   // Delete track
   const deleteTrack = (trackId: string) => {
     setTracks(prev => prev.filter(t => t.id !== trackId));
+    setSelectedRegionIds((prev) => prev.filter((id) => regionIdToTrackId(id) !== trackId));
     toast({
       title: '🗑️ Track Removed',
       description: 'Track deleted from project',
     });
+  };
+
+  // ISSUE #4: Duplicate track
+  const duplicateTrack = (trackId: string) => {
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+    
+    const newTrack: AudioTrack = {
+      ...JSON.parse(JSON.stringify(track)),
+      id: `${track.id}-copy-${Date.now()}`,
+      name: `${track.name} (Copy)`,
+      sourceNode: undefined,
+      gainNode: undefined,
+      panNode: undefined,
+    };
+    
+    setTracks(prev => [...prev, newTrack]);
+    toast({
+      title: '📋 Track Duplicated',
+      description: `Created copy of "${track.name}"`,
+    });
+  };
+
+  // ISSUE #3: Rename track inline
+  const renameTrack = (trackId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setTracks(prev => prev.map(t => 
+      t.id === trackId ? { ...t, name: newName.trim() } : t
+    ));
+  };
+
+  // ISSUE #2: Update track color
+  const updateTrackColor = (trackId: string, color: string) => {
+    setTracks(prev => prev.map(t => 
+      t.id === trackId ? { ...t, color } : t
+    ));
+  };
+
+  // ISSUE #1: Export project to WAV
+  const exportProjectToWav = async () => {
+    if (tracks.length === 0 || duration <= 0) {
+      toast({ title: 'Nothing to export', description: 'Add tracks first', variant: 'destructive' });
+      return;
+    }
+    
+    toast({ title: '🎵 Exporting...', description: 'Rendering project to WAV' });
+    
+    try {
+      const sampleRate = 44100;
+      const offlineCtx = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
+      const masterGain = offlineCtx.createGain();
+      masterGain.gain.value = masterVolume / 100;
+      masterGain.connect(offlineCtx.destination);
+      
+      // Render each track
+      for (const track of tracks) {
+        if (track.muted) continue;
+        if (!track.audioBuffer) continue;
+        
+        const source = offlineCtx.createBufferSource();
+        source.buffer = track.audioBuffer;
+        
+        const gainNode = offlineCtx.createGain();
+        gainNode.gain.value = track.volume / 100;
+        
+        const panNode = offlineCtx.createStereoPanner();
+        panNode.pan.value = track.pan;
+        
+        source.connect(gainNode);
+        gainNode.connect(panNode);
+        panNode.connect(masterGain);
+        
+        const trimStart = track.trimStartSeconds ?? 0;
+        const trimEnd = track.trimEndSeconds ?? track.audioBuffer.duration;
+        const trackStart = track.startTimeSeconds ?? 0;
+        
+        source.start(trackStart, trimStart, trimEnd - trimStart);
+      }
+      
+      const renderedBuffer = await offlineCtx.startRendering();
+      const wavBlob = audioBufferToWav(renderedBuffer);
+      
+      const url = URL.createObjectURL(wavBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${projectName.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.wav`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: '✅ Export Complete', description: 'WAV file downloaded' });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({ title: 'Export Failed', description: 'Could not render project', variant: 'destructive' });
+    }
+  };
+
+  // ISSUE #5: Bounce/Freeze MIDI track to audio
+  const bounceTrackToAudio = async (trackId: string) => {
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+    
+    if (track.trackType !== 'midi' || !track.midiNotes?.length) {
+      toast({ title: 'Cannot bounce', description: 'Only MIDI tracks can be bounced', variant: 'destructive' });
+      return;
+    }
+    
+    toast({ title: '🎹 Bouncing...', description: 'Rendering MIDI to audio' });
+    
+    try {
+      const trackDuration = getTrackEffectiveDuration(track);
+      const sampleRate = 44100;
+      const offlineCtx = new OfflineAudioContext(1, Math.ceil(trackDuration * sampleRate), sampleRate);
+      
+      const bpm = tempo;
+      const secondsPerBeat = 60 / bpm;
+      
+      // Simple synth rendering for MIDI notes
+      for (const note of track.midiNotes) {
+        const noteMap: Record<string, number> = { 'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11 };
+        const semitone = noteMap[note.note] ?? 0;
+        const midi = (note.octave + 1) * 12 + semitone;
+        const freq = 440 * Math.pow(2, (midi - 69) / 12);
+        
+        const startTime = (note.step / 4) * secondsPerBeat;
+        const duration = Math.max(0.05, (note.length / 4) * secondsPerBeat);
+        
+        const osc = offlineCtx.createOscillator();
+        const gain = offlineCtx.createGain();
+        
+        osc.frequency.value = freq;
+        osc.type = 'triangle';
+        
+        gain.gain.setValueAtTime(0.3, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(offlineCtx.destination);
+        
+        osc.start(startTime);
+        osc.stop(startTime + duration + 0.1);
+      }
+      
+      const renderedBuffer = await offlineCtx.startRendering();
+      const wavBlob = audioBufferToWav(renderedBuffer);
+      const audioUrl = URL.createObjectURL(wavBlob);
+      
+      // Decode the rendered audio
+      const arrayBuffer = await wavBlob.arrayBuffer();
+      const audioBuffer = await audioContextRef.current?.decodeAudioData(arrayBuffer);
+      
+      // Update track to audio type
+      setTracks(prev => prev.map(t => {
+        if (t.id !== trackId) return t;
+        const updated: AudioTrack = {
+          ...t,
+          trackType: 'audio',
+          audioBuffer: audioBuffer ?? null,
+          audioUrl,
+          midiNotes: undefined,
+          name: `${t.name} (Bounced)`,
+        };
+        return updated;
+      }));
+      
+      toast({ title: '✅ Bounce Complete', description: 'MIDI track converted to audio' });
+    } catch (error) {
+      console.error('Bounce error:', error);
+      toast({ title: 'Bounce Failed', description: 'Could not render MIDI', variant: 'destructive' });
+    }
   };
 
   // Format time
@@ -1389,8 +1732,8 @@ export default function MasterMultiTrackPlayer() {
       id: 'timeline-session',
       name: 'Timeline Mix',
       bpm: tempo,
-      key: 'C',
-      timeSignature: '4/4',
+      key: projectKey,
+      timeSignature,
       loopStart: loop ? 0 : undefined,
       loopEnd: loop ? duration : undefined,
       tracks: sessionTracks,
@@ -1528,6 +1871,48 @@ export default function MasterMultiTrackPlayer() {
     });
   };
 
+  const snapTime = (time: number) => {
+    if (!snapEnabled) return time;
+    const beat = 60 / Math.max(40, Math.min(240, tempo || 120));
+    return Math.round(time / beat) * beat;
+  };
+
+  const pushUndo = (nextTracks: AudioTrack[]) => {
+    undoStackRef.current = [...undoStackRef.current, JSON.parse(JSON.stringify(tracks))].slice(-20);
+    redoStackRef.current = [];
+    setTracks(nextTracks);
+  };
+
+  // Simple metronome tick using current audio context
+  useEffect(() => {
+    if (!metronomeOn || !isPlaying || !audioContextRef.current) {
+      if (metronomeIntervalRef.current) {
+        clearInterval(metronomeIntervalRef.current);
+        metronomeIntervalRef.current = null;
+      }
+      return;
+    }
+    const beatMs = (60 / Math.max(40, Math.min(240, tempo || 120))) * 1000;
+    metronomeIntervalRef.current = setInterval(() => {
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    }, beatMs);
+    return () => {
+      if (metronomeIntervalRef.current) clearInterval(metronomeIntervalRef.current);
+      metronomeIntervalRef.current = null;
+    };
+  }, [metronomeOn, isPlaying, tempo]);
+
   // Keyboard shortcuts: space play/pause, L loop, P punch toggle, arrows seek
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1561,340 +1946,1242 @@ export default function MasterMultiTrackPlayer() {
     return () => window.removeEventListener('keydown', handler);
   }, [isPlaying, duration]);
 
+  // Menu handlers
+  const handleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      (document.documentElement as any).requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  };
+
+  const handleNewProject = () => {
+    setTracks([]);
+    setProjectName('Untitled Project');
+    setSelectedRegionIds([]);
+    setPreviewUrl(null);
+    toast({ title: 'New project created' });
+  };
+
+  const handleSaveSession = (asTemplate?: boolean) => {
+    const session = buildSessionPayload();
+    const payload = { ...session, template: !!asTemplate };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const name = asTemplate ? `${projectName || 'Session'}-template.cws.json` : `${projectName || 'Session'}.cws.json`;
+    link.download = name;
+    link.click();
+    URL.revokeObjectURL(url);
+    try {
+      const recentRaw = localStorage.getItem('recentProjects');
+      const recent = recentRaw ? JSON.parse(recentRaw) : [];
+      const entry = { name, timestamp: Date.now() };
+      const next = [entry, ...recent].slice(0, 5);
+      localStorage.setItem('recentProjects', JSON.stringify(next));
+    } catch { /* ignore */ }
+    toast({ title: asTemplate ? 'Template saved' : 'Project saved', description: name });
+  };
+
+  const handleLoadSession = async (file?: File) => {
+    const inputFile = file;
+    if (!inputFile) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,.cws.json';
+      input.onchange = (e: any) => {
+        const f = e.target.files?.[0];
+        if (f) handleLoadSession(f);
+      };
+      input.click();
+      return;
+    }
+    try {
+      const text = await inputFile.text();
+      const data = JSON.parse(text);
+      if (data?.tracks) {
+        setTracks([]);
+        setProjectName(data.name || inputFile.name.replace(/\.[^/.]+$/, ''));
+        setTempo(data.bpm || tempo);
+        setProjectKey(data.key || projectKey);
+        setTimeSignature(data.timeSignature || timeSignature);
+        setMasterLimiter(data.masterBus?.limiter || masterLimiter);
+        const restored = (data.tracks as any[]).map((t, idx) => ({
+          id: t.id || `track-${idx}`,
+          name: t.name || `Track ${idx + 1}`,
+          audioBuffer: null,
+          audioUrl: t.regions?.[0]?.src || '',
+          volume: Math.round((t.volume ?? 0.8) * 100),
+          pan: t.pan ?? 0,
+          fadeInSeconds: 0,
+          fadeOutSeconds: 0,
+          volumePoints: [],
+          sendA: (t.sends?.a?.level ? Math.round(20 * Math.log10(t.sends.a.level)) : -60),
+          sendB: (t.sends?.b?.level ? Math.round(20 * Math.log10(t.sends.b.level)) : -60),
+          regionGain: t.regions?.[0]?.gain ?? 0,
+          muted: !!t.muted,
+          solo: !!t.solo,
+          color: TRACK_COLORS[idx % TRACK_COLORS.length],
+          trackType: t.type === 'drums' ? 'beat' : t.type === 'midi' ? 'midi' : 'audio',
+          kind: t.kind || 'other',
+          origin: 'manual',
+          height: DEFAULT_TRACK_HEIGHT,
+          trimStartSeconds: t.regions?.[0]?.offset || 0,
+          trimEndSeconds: t.regions?.[0]?.duration || 0,
+        }));
+        setTracks(restored as AudioTrack[]);
+        toast({ title: 'Project loaded', description: inputFile.name });
+      } else {
+        toast({ title: 'Invalid project file', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({ title: 'Failed to load project', variant: 'destructive' });
+    }
+  };
+
+  const handleRecentProjects = () => {
+    try {
+      const recentRaw = localStorage.getItem('recentProjects');
+      if (!recentRaw) {
+        toast({ title: 'No recent projects' });
+        return;
+      }
+      const recent = JSON.parse(recentRaw);
+      const list = recent.map((r: any) => `- ${r.name}`).join('\n');
+      toast({ title: 'Recent Projects', description: list || 'None' });
+    } catch {
+      toast({ title: 'No recent projects' });
+    }
+  };
+
+  const handleExportAudio = async () => {
+    await handleMixPreview();
+    toast({ title: 'Export started', description: 'Mix rendering...' });
+  };
+
+  const handleExportMIDI = () => {
+    exportMidiFile();
+  };
+
+  const handleSelectAll = () => {
+    setSelectedRegionIds(tracks.map((t) => regionIdForTrack(t.id)));
+  };
+
+  const exportMidiFile = () => {
+    const midiTracks = tracks.filter((t) => t.trackType === 'midi' && t.midiNotes?.length);
+    if (!midiTracks.length) {
+      toast({ title: 'No MIDI to export', description: 'Create or import MIDI first.' });
+      return;
+    }
+    // Simple SMF type 0 exporter (single track)
+    const notes = midiTracks.flatMap((t) => t.midiNotes || []);
+    const events: Array<{ delta: number; bytes: number[] }> = [];
+    const noteOn = (delta: number, midi: number, vel: number) => events.push({ delta, bytes: [0x90, midi, vel] });
+    const noteOff = (delta: number, midi: number) => events.push({ delta, bytes: [0x80, midi, 0] });
+    const ticksPerBeat = 480;
+    const beat = 60 / Math.max(40, Math.min(240, tempo || 120));
+    const noteToMidi = (note: string | undefined, octave: number | undefined) => {
+      if (!note || typeof octave !== 'number') return 60;
+      const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const idx = names.indexOf(note.toUpperCase());
+      if (idx === -1) return 60;
+      return Math.max(0, Math.min(127, (octave + 1) * 12 + idx));
+    };
+    notes.forEach((n) => {
+      const startBeat = (n.step ?? 0) / 4;
+      const durBeat = (n.length ?? 1) / 4;
+      const startTick = Math.round(startBeat * ticksPerBeat);
+      const durTick = Math.max(1, Math.round(durBeat * ticksPerBeat));
+      const midi = noteToMidi((n as any).note, (n as any).octave);
+      noteOn(startTick, midi, Math.min(127, Math.max(1, n.velocity ?? 100)));
+      noteOff(startTick + durTick, midi);
+    });
+    events.sort((a, b) => a.delta - b.delta);
+    // Convert to delta times
+    let last = 0;
+    const trackBytes: number[] = [];
+    const writeVarLen = (val: number) => {
+      let buffer = val & 0x7F;
+      while ((val >>= 7)) {
+        buffer <<= 8;
+        buffer |= ((val & 0x7F) | 0x80);
+      }
+      while (true) {
+        trackBytes.push(buffer & 0xFF);
+        if (buffer & 0x80) buffer >>= 8;
+        else break;
+      }
+    };
+    events.forEach((e) => {
+      const delta = e.delta - last;
+      writeVarLen(delta);
+      trackBytes.push(...e.bytes);
+      last = e.delta;
+    });
+    // End of track
+    writeVarLen(0);
+    trackBytes.push(0xFF, 0x2F, 0x00);
+
+    // Header chunk
+    const header = [
+      0x4d, 0x54, 0x68, 0x64, // MThd
+      0x00, 0x00, 0x00, 0x06, // header length
+      0x00, 0x00, // format 0
+      0x00, 0x01, // tracks
+      (ticksPerBeat >> 8) & 0xFF, ticksPerBeat & 0xFF, // division
+    ];
+    const trackHeader = [
+      0x4d, 0x54, 0x72, 0x6b, // MTrk
+      (trackBytes.length >> 24) & 0xFF,
+      (trackBytes.length >> 16) & 0xFF,
+      (trackBytes.length >> 8) & 0xFF,
+      trackBytes.length & 0xFF,
+    ];
+    const all = new Uint8Array([...header, ...trackHeader, ...trackBytes]);
+    const blob = new Blob([all], { type: 'audio/midi' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectName || 'session'}.mid`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'MIDI exported', description: 'Saved .mid file' });
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedRegionIds([]);
+  };
+
+  const handleUndo = () => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    redoStackRef.current.push(JSON.parse(JSON.stringify(tracks)));
+    setTracks(prev);
+  };
+
+  const handleRedo = () => {
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    undoStackRef.current.push(JSON.parse(JSON.stringify(tracks)));
+    setTracks(next);
+  };
+
+  const handleCopy = () => {
+    const selected = tracks.filter((t) => selectedTrackIdSet.has(t.id));
+    clipboardTracksRef.current = selected.map((t) => JSON.parse(JSON.stringify(t)));
+    toast({ title: 'Copied', description: `${clipboardTracksRef.current.length} region(s)` });
+  };
+
+  const handleCut = () => {
+    const remaining = tracks.filter((t) => !selectedTrackIdSet.has(t.id));
+    const selected = tracks.filter((t) => selectedTrackIdSet.has(t.id));
+    clipboardTracksRef.current = selected.map((t) => JSON.parse(JSON.stringify(t)));
+    pushUndo(remaining);
+    setSelectedRegionIds([]);
+    toast({ title: 'Cut', description: `${clipboardTracksRef.current.length} region(s)` });
+  };
+
+  const handlePaste = () => {
+    if (!clipboardTracksRef.current.length) {
+      toast({ title: 'Clipboard empty' });
+      return;
+    }
+    const clones = clipboardTracksRef.current.map((t, idx) => ({
+      ...t,
+      id: `${t.id}-copy-${Date.now()}-${idx}`,
+      name: `${t.name} (Copy)`,
+    }));
+    pushUndo([...tracks, ...clones]);
+    toast({ title: 'Pasted', description: `${clones.length} track(s)` });
+  };
+
+  const handleDeleteTracks = () => {
+    const remaining = tracks.filter((t) => !selectedTrackIdSet.has(t.id));
+    pushUndo(remaining);
+    setSelectedRegionIds([]);
+    toast({ title: 'Deleted', description: 'Selected regions removed' });
+  };
+
+  const toggleRegionSelection = (trackId: string) => {
+    const regionId = regionIdForTrack(trackId);
+    setSelectedRegionIds((prev) =>
+      prev.includes(regionId) ? prev.filter((id) => id !== regionId) : [...prev, regionId]
+    );
+  };
+
+  const handleZoomIn = () => setZoomLevel((z) => Math.min(z * 1.2, 8));
+  const handleZoomOut = () => setZoomLevel((z) => Math.max(z / 1.2, 0.25));
+  const handleFit = () => setZoomLevel(1);
+
+  // ISSUE #6: Automation lane management
+  const toggleAutomationLane = (trackId: string) => {
+    setShowAutomation((prev) => ({ ...prev, [trackId]: !prev[trackId] }));
+  };
+
+  const addAutomationPoint = (trackId: string, time: number, value: number) => {
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (t.id !== trackId) return t;
+        const points = [...(t.volumePoints || [])];
+        // Remove existing point at same time
+        const filtered = points.filter((p) => Math.abs(p.time - time) > 0.05);
+        filtered.push({ time, volume: value });
+        filtered.sort((a, b) => a.time - b.time);
+        return { ...t, volumePoints: filtered };
+      })
+    );
+  };
+
+  const removeAutomationPoint = (trackId: string, time: number) => {
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (t.id !== trackId) return t;
+        const points = (t.volumePoints || []).filter((p) => Math.abs(p.time - time) > 0.05);
+        return { ...t, volumePoints: points };
+      })
+    );
+  };
+
+  // ISSUE #12: Track grouping/folders management
+  const createTrackGroup = (name: string, trackIds: string[]) => {
+    const colors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6'];
+    const newGroup = {
+      id: `group-${Date.now()}`,
+      name,
+      trackIds,
+      collapsed: false,
+      color: colors[trackGroups.length % colors.length],
+    };
+    setTrackGroups((prev) => [...prev, newGroup]);
+    toast({ title: 'Group Created', description: `${name} with ${trackIds.length} tracks` });
+  };
+
+  const toggleGroupCollapse = (groupId: string) => {
+    setTrackGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, collapsed: !g.collapsed } : g))
+    );
+  };
+
+  const addTrackToGroup = (groupId: string, trackId: string) => {
+    setTrackGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId && !g.trackIds.includes(trackId)
+          ? { ...g, trackIds: [...g.trackIds, trackId] }
+          : g
+      )
+    );
+  };
+
+  const removeTrackFromGroup = (groupId: string, trackId: string) => {
+    setTrackGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId ? { ...g, trackIds: g.trackIds.filter((id) => id !== trackId) } : g
+      )
+    );
+  };
+
+  const deleteTrackGroup = (groupId: string) => {
+    setTrackGroups((prev) => prev.filter((g) => g.id !== groupId));
+  };
+
+  // ISSUE #13: Freeze/Bounce track functionality
+  const freezeTrack = async (trackId: string) => {
+    const track = tracks.find((t) => t.id === trackId);
+    if (!track || !audioContextRef.current) {
+      toast({ title: 'Cannot Freeze', description: 'Track not found or audio context unavailable', variant: 'destructive' });
+      return;
+    }
+
+    toast({ title: 'Freezing Track...', description: 'Rendering audio...' });
+
+    try {
+      const duration = getTrackEffectiveDuration(track);
+      if (duration <= 0) {
+        toast({ title: 'Cannot Freeze', description: 'Track has no content', variant: 'destructive' });
+        return;
+      }
+
+      const sampleRate = 44100;
+      const offline = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
+
+      if (track.audioBuffer) {
+        const source = offline.createBufferSource();
+        source.buffer = track.audioBuffer;
+        const gain = offline.createGain();
+        gain.gain.value = track.volume / 100;
+        source.connect(gain);
+        gain.connect(offline.destination);
+        source.start(0, track.trimStartSeconds ?? 0);
+      } else if (track.midiNotes && track.midiNotes.length > 0) {
+        // Render MIDI to audio using simple oscillators
+        const bpm = tempo;
+        const secondsPerBeat = 60 / bpm;
+        
+        track.midiNotes.forEach((n) => {
+          const startBeat = (n.step ?? 0) / 4;
+          const durBeat = (n.length ?? 1) / 4;
+          const startSeconds = startBeat * secondsPerBeat;
+          const durationSeconds = Math.max(0.02, durBeat * secondsPerBeat);
+          
+          const noteMap: Record<string, number> = { 'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11 };
+          const semitone = noteMap[n.note] ?? 0;
+          const midi = (n.octave + 1) * 12 + semitone;
+          const freq = 440 * Math.pow(2, (midi - 69) / 12);
+          
+          const osc = offline.createOscillator();
+          const gain = offline.createGain();
+          osc.type = freq < 200 ? 'sawtooth' : 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, startSeconds);
+          gain.gain.linearRampToValueAtTime(0.3 * (n.velocity / 127), startSeconds + 0.02);
+          gain.gain.setValueAtTime(0.2 * (n.velocity / 127), startSeconds + durationSeconds * 0.7);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startSeconds + durationSeconds);
+          osc.connect(gain);
+          gain.connect(offline.destination);
+          osc.start(startSeconds);
+          osc.stop(startSeconds + durationSeconds + 0.05);
+        });
+      }
+
+      const renderedBuffer = await offline.startRendering();
+      
+      // Update track with frozen audio
+      setTracks((prev) =>
+        prev.map((t) =>
+          t.id === trackId
+            ? {
+                ...t,
+                audioBuffer: renderedBuffer,
+                midiNotes: undefined, // Clear MIDI data after freeze
+                trackType: 'audio',
+              }
+            : t
+        )
+      );
+
+      toast({ title: 'Track Frozen', description: `${track.name} rendered to audio` });
+    } catch (error) {
+      console.error('Freeze error:', error);
+      toast({ title: 'Freeze Failed', description: 'Could not render track', variant: 'destructive' });
+    }
+  };
+
+  const bounceSelectedTracks = async () => {
+    if (selectedRegionIds.length === 0) {
+      toast({ title: 'No Selection', description: 'Select tracks to bounce', variant: 'destructive' });
+      return;
+    }
+
+    toast({ title: 'Bouncing Tracks...', description: 'Mixing selected tracks...' });
+
+    try {
+      const selectedTrackIds = selectedRegionIds.map((r) => r.split('-region-')[0]);
+      const selectedTracks = tracks.filter((t) => selectedTrackIds.includes(t.id));
+      
+      if (selectedTracks.length === 0) return;
+
+      const maxDuration = Math.max(...selectedTracks.map((t) => (t.startTimeSeconds ?? 0) + getTrackEffectiveDuration(t)));
+      const sampleRate = 44100;
+      const offline = new OfflineAudioContext(2, Math.ceil(maxDuration * sampleRate), sampleRate);
+
+      selectedTracks.forEach((track) => {
+        if (track.audioBuffer) {
+          const source = offline.createBufferSource();
+          source.buffer = track.audioBuffer;
+          const gain = offline.createGain();
+          gain.gain.value = track.volume / 100;
+          source.connect(gain);
+          gain.connect(offline.destination);
+          source.start(track.startTimeSeconds ?? 0, track.trimStartSeconds ?? 0);
+        }
+      });
+
+      const renderedBuffer = await offline.startRendering();
+      // Convert AudioBuffer to WAV blob
+      const wavBlob = audioBufferToWav(renderedBuffer);
+      const audioUrl = URL.createObjectURL(wavBlob);
+
+      // Create new bounced track
+      const bouncedTrack: AudioTrack = {
+        id: `bounced-${Date.now()}`,
+        name: `Bounced (${selectedTracks.length} tracks)`,
+        audioBuffer: renderedBuffer,
+        audioUrl,
+        volume: 80,
+        pan: 0,
+        muted: false,
+        solo: false,
+        color: '#EC4899',
+        origin: 'manual',
+        height: DEFAULT_TRACK_HEIGHT,
+        startTimeSeconds: 0,
+      };
+
+      // Remove original tracks and add bounced
+      setTracks((prev) => [
+        ...prev.filter((t) => !selectedTrackIds.includes(t.id)),
+        bouncedTrack,
+      ]);
+
+      setSelectedRegionIds([]);
+      toast({ title: 'Tracks Bounced', description: `${selectedTracks.length} tracks mixed into one` });
+    } catch (error) {
+      console.error('Bounce error:', error);
+      toast({ title: 'Bounce Failed', description: 'Could not mix tracks', variant: 'destructive' });
+    }
+  };
+
+  // ISSUE #10: Zoom to selection
+  const handleZoomToSelection = () => {
+    if (selectedRegionIds.length === 0) {
+      toast({ title: 'No Selection', description: 'Select a region first to zoom to it' });
+      return;
+    }
+
+    // Find the time range of selected regions
+    let minTime = Infinity;
+    let maxTime = 0;
+
+    selectedRegionIds.forEach((regionId) => {
+      const trackId = regionId.split('-region-')[0];
+      const track = tracks.find((t) => t.id === trackId);
+      if (track) {
+        const start = track.startTimeSeconds ?? 0;
+        const end = start + getTrackEffectiveDuration(track);
+        minTime = Math.min(minTime, start);
+        maxTime = Math.max(maxTime, end);
+      }
+    });
+
+    if (minTime === Infinity || maxTime === 0) return;
+
+    // Calculate zoom level to fit selection in view (assuming ~800px visible width)
+    const selectionDuration = maxTime - minTime;
+    const targetWidth = 800; // Approximate visible width
+    const pxPerSecond = targetWidth / Math.max(selectionDuration, 1);
+    const newZoom = pxPerSecond / 120; // 120 is base pxPerSecond
+
+    setZoomLevel(Math.max(0.25, Math.min(8, newZoom)));
+    
+    // Scroll to selection start
+    pauseTimeRef.current = minTime;
+    setCurrentTime(minTime);
+    
+    toast({ title: 'Zoomed to Selection', description: `${minTime.toFixed(1)}s - ${maxTime.toFixed(1)}s` });
+  };
+
+  // ISSUE #1: Drag-and-drop track reordering handlers
+  const handleTrackDragStart = (e: React.DragEvent, trackId: string) => {
+    setDraggedTrackId(trackId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', trackId);
+  };
+
+  const handleTrackDragOver = (e: React.DragEvent, trackId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedTrackId && trackId !== draggedTrackId) {
+      setDragOverTrackId(trackId);
+    }
+  };
+
+  const handleTrackDragLeave = () => {
+    setDragOverTrackId(null);
+  };
+
+  const handleTrackDrop = (e: React.DragEvent, targetTrackId: string) => {
+    e.preventDefault();
+    if (!draggedTrackId || draggedTrackId === targetTrackId) {
+      setDraggedTrackId(null);
+      setDragOverTrackId(null);
+      return;
+    }
+
+    setTracks((prev) => {
+      const draggedIndex = prev.findIndex((t) => t.id === draggedTrackId);
+      const targetIndex = prev.findIndex((t) => t.id === targetTrackId);
+      if (draggedIndex === -1 || targetIndex === -1) return prev;
+
+      const newTracks = [...prev];
+      const [draggedTrack] = newTracks.splice(draggedIndex, 1);
+      newTracks.splice(targetIndex, 0, draggedTrack);
+      return newTracks;
+    });
+
+    setDraggedTrackId(null);
+    setDragOverTrackId(null);
+    toast({ title: 'Track Reordered', description: 'Drag tracks to rearrange order' });
+  };
+
+  const handleTrackDragEnd = () => {
+    setDraggedTrackId(null);
+    setDragOverTrackId(null);
+  };
+
+  // ISSUE #2: Horizontal region dragging handlers
+  const handleRegionMouseDown = (e: React.MouseEvent, trackId: string) => {
+    e.stopPropagation();
+    const track = tracks.find((t) => t.id === trackId);
+    if (!track) return;
+    setRegionDragTrackId(trackId);
+    setRegionDragStartX(e.clientX);
+    setRegionDragOriginalStart(track.startTimeSeconds ?? 0);
+  };
+
+  const handleRegionMouseMove = (e: React.MouseEvent) => {
+    if (!regionDragTrackId) return;
+    const pxPerSecond = 120 * zoomLevel;
+    const deltaX = e.clientX - regionDragStartX;
+    const deltaSeconds = deltaX / pxPerSecond;
+    let newStart = regionDragOriginalStart + deltaSeconds;
+    
+    // Snap to grid if enabled
+    if (snapEnabled) {
+      newStart = snapTime(newStart);
+    }
+    newStart = Math.max(0, newStart);
+    
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === regionDragTrackId ? { ...t, startTimeSeconds: newStart } : t
+      )
+    );
+  };
+
+  const handleRegionMouseUp = () => {
+    if (regionDragTrackId) {
+      setRegionDragTrackId(null);
+    }
+  };
+
+  // Update track start time directly
+  const updateTrackStartTime = (trackId: string, startTime: number) => {
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId ? { ...t, startTimeSeconds: Math.max(0, startTime) } : t
+      )
+    );
+  };
+
+  // ISSUE #3: Multi-region management functions
+  const addRegionToTrack = (trackId: string, region: Omit<AudioRegion, 'id'>) => {
+    const newRegion: AudioRegion = {
+      ...region,
+      id: `region-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    };
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? { ...t, regions: [...(t.regions || []), newRegion] }
+          : t
+      )
+    );
+    return newRegion.id;
+  };
+
+  const removeRegionFromTrack = (trackId: string, regionId: string) => {
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? { ...t, regions: (t.regions || []).filter((r) => r.id !== regionId) }
+          : t
+      )
+    );
+  };
+
+  const duplicateRegion = (trackId: string, regionId: string) => {
+    const track = tracks.find((t) => t.id === trackId);
+    const region = track?.regions?.find((r) => r.id === regionId);
+    if (!region) return;
+
+    const duration = (region.trimEndSeconds || 0) - (region.trimStartSeconds || 0);
+    const newRegion: AudioRegion = {
+      ...region,
+      id: `region-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      startTimeSeconds: region.startTimeSeconds + duration + 0.1, // Place after original
+    };
+
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? { ...t, regions: [...(t.regions || []), newRegion] }
+          : t
+      )
+    );
+    toast({ title: 'Region Duplicated', description: 'New region placed after original' });
+  };
+
+  const updateRegion = (trackId: string, regionId: string, updates: Partial<AudioRegion>) => {
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? {
+              ...t,
+              regions: (t.regions || []).map((r) =>
+                r.id === regionId ? { ...r, ...updates } : r
+              ),
+            }
+          : t
+      )
+    );
+  };
+
+  // ISSUE #4: Split/Slice tool - splits a region at the current playhead position
+  const splitRegionAtPlayhead = (trackId: string) => {
+    const track = tracks.find((t) => t.id === trackId);
+    if (!track) return;
+
+    const splitTime = currentTime;
+    const trackStart = track.startTimeSeconds ?? 0;
+    const trackDuration = getTrackEffectiveDuration(track);
+    const trackEnd = trackStart + trackDuration;
+
+    // Check if playhead is within this track's region
+    if (splitTime <= trackStart || splitTime >= trackEnd) {
+      toast({ title: 'Cannot Split', description: 'Playhead must be within the region to split', variant: 'destructive' });
+      return;
+    }
+
+    const relativeTime = splitTime - trackStart;
+    const trimStart = track.trimStartSeconds ?? 0;
+    const trimEnd = track.trimEndSeconds ?? (track.audioBuffer?.duration ?? 16);
+
+    // Create two regions from the split
+    const region1: AudioRegion = {
+      id: `region-${Date.now()}-left`,
+      audioBuffer: track.audioBuffer,
+      audioUrl: track.audioUrl,
+      startTimeSeconds: trackStart,
+      trimStartSeconds: trimStart,
+      trimEndSeconds: trimStart + relativeTime,
+      fadeInSeconds: track.fadeInSeconds ?? 0.05,
+      fadeOutSeconds: 0.01, // Small fade at split point
+      regionGain: track.regionGain ?? 0,
+      midiNotes: track.midiNotes?.filter((n) => (n.step / 4) * (60 / tempo) < relativeTime),
+    };
+
+    const region2: AudioRegion = {
+      id: `region-${Date.now()}-right`,
+      audioBuffer: track.audioBuffer,
+      audioUrl: track.audioUrl,
+      startTimeSeconds: splitTime,
+      trimStartSeconds: trimStart + relativeTime,
+      trimEndSeconds: trimEnd,
+      fadeInSeconds: 0.01, // Small fade at split point
+      fadeOutSeconds: track.fadeOutSeconds ?? 0.1,
+      regionGain: track.regionGain ?? 0,
+      midiNotes: track.midiNotes?.filter((n) => (n.step / 4) * (60 / tempo) >= relativeTime),
+    };
+
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? { ...t, regions: [region1, region2], audioBuffer: null, midiNotes: undefined }
+          : t
+      )
+    );
+
+    toast({ title: 'Region Split', description: `Split at ${splitTime.toFixed(2)}s` });
+  };
+
+  // Split at a specific time (for context menu or keyboard shortcut)
+  const splitRegionAtTime = (trackId: string, splitTime: number) => {
+    const track = tracks.find((t) => t.id === trackId);
+    if (!track) return;
+
+    const trackStart = track.startTimeSeconds ?? 0;
+    const trackDuration = getTrackEffectiveDuration(track);
+    const trackEnd = trackStart + trackDuration;
+
+    if (splitTime <= trackStart || splitTime >= trackEnd) {
+      return; // Invalid split point
+    }
+
+    const relativeTime = splitTime - trackStart;
+    const trimStart = track.trimStartSeconds ?? 0;
+    const trimEnd = track.trimEndSeconds ?? (track.audioBuffer?.duration ?? 16);
+
+    const region1: AudioRegion = {
+      id: `region-${Date.now()}-left`,
+      audioBuffer: track.audioBuffer,
+      audioUrl: track.audioUrl,
+      startTimeSeconds: trackStart,
+      trimStartSeconds: trimStart,
+      trimEndSeconds: trimStart + relativeTime,
+      fadeInSeconds: track.fadeInSeconds ?? 0.05,
+      fadeOutSeconds: 0.01,
+      regionGain: track.regionGain ?? 0,
+    };
+
+    const region2: AudioRegion = {
+      id: `region-${Date.now()}-right`,
+      audioBuffer: track.audioBuffer,
+      audioUrl: track.audioUrl,
+      startTimeSeconds: splitTime,
+      trimStartSeconds: trimStart + relativeTime,
+      trimEndSeconds: trimEnd,
+      fadeInSeconds: 0.01,
+      fadeOutSeconds: track.fadeOutSeconds ?? 0.1,
+      regionGain: track.regionGain ?? 0,
+    };
+
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? { ...t, regions: [region1, region2], audioBuffer: null }
+          : t
+      )
+    );
+  };
+
+  // ISSUE #7: Markers/Locators management functions
+  const addMarker = (time?: number, label?: string) => {
+    const markerTime = time ?? currentTime;
+    const markerLabel = label ?? `Marker ${markers.length + 1}`;
+    const colors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
+    const newMarker = {
+      id: `marker-${Date.now()}`,
+      time: markerTime,
+      label: markerLabel,
+      color: colors[markers.length % colors.length],
+    };
+    setMarkers((prev) => [...prev, newMarker].sort((a, b) => a.time - b.time));
+    toast({ title: 'Marker Added', description: `${markerLabel} at ${markerTime.toFixed(2)}s` });
+  };
+
+  const removeMarker = (markerId: string) => {
+    setMarkers((prev) => prev.filter((m) => m.id !== markerId));
+  };
+
+  const updateMarkerLabel = (markerId: string, newLabel: string) => {
+    setMarkers((prev) =>
+      prev.map((m) => (m.id === markerId ? { ...m, label: newLabel } : m))
+    );
+  };
+
+  const jumpToMarker = (markerId: string) => {
+    const marker = markers.find((m) => m.id === markerId);
+    if (marker) {
+      pauseTimeRef.current = marker.time;
+      setCurrentTime(marker.time);
+      if (isPlaying) {
+        stopTracks();
+        playTracks();
+      }
+    }
+  };
+
+  const jumpToNextMarker = () => {
+    const nextMarker = markers.find((m) => m.time > currentTime + 0.1);
+    if (nextMarker) {
+      jumpToMarker(nextMarker.id);
+    }
+  };
+
+  const jumpToPrevMarker = () => {
+    const prevMarkers = markers.filter((m) => m.time < currentTime - 0.1);
+    if (prevMarkers.length > 0) {
+      jumpToMarker(prevMarkers[prevMarkers.length - 1].id);
+    }
+  };
+
+  // ISSUE #8: Click-to-seek on timeline
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const pxPerSecond = 120 * zoomLevel;
+    let seekTime = clickX / pxPerSecond;
+    
+    if (snapEnabled) {
+      seekTime = snapTime(seekTime);
+    }
+    seekTime = Math.max(0, Math.min(seekTime, duration));
+    
+    pauseTimeRef.current = seekTime;
+    setCurrentTime(seekTime);
+    
+    if (isPlaying) {
+      stopTracks();
+      playTracks();
+    }
+  };
+
+  // ISSUE #9: Comprehensive keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      const key = e.key.toLowerCase();
+
+      // Space: Play/Pause
+      if (key === ' ') {
+        e.preventDefault();
+        if (isPlaying) pausePlayback();
+        else playTracks();
+        return;
+      }
+
+      // S: Split selected track at playhead
+      if (key === 's' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const selectedTrackId = selectedRegionIds[0]?.split('-region-')[0];
+        if (selectedTrackId) {
+          splitRegionAtPlayhead(selectedTrackId);
+        }
+        return;
+      }
+
+      // M: Add marker at playhead
+      if (key === 'm' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        addMarker();
+        return;
+      }
+
+      // Delete/Backspace: Delete selected
+      if (key === 'delete' || key === 'backspace') {
+        e.preventDefault();
+        handleDeleteTracks();
+        return;
+      }
+
+      // Arrow keys: Nudge playhead
+      if (key === 'arrowleft') {
+        e.preventDefault();
+        const nudge = e.shiftKey ? 1 : 0.1;
+        pauseTimeRef.current = Math.max(0, currentTime - nudge);
+        setCurrentTime(pauseTimeRef.current);
+        return;
+      }
+      if (key === 'arrowright') {
+        e.preventDefault();
+        const nudge = e.shiftKey ? 1 : 0.1;
+        pauseTimeRef.current = Math.min(duration, currentTime + nudge);
+        setCurrentTime(pauseTimeRef.current);
+        return;
+      }
+
+      // Home: Go to start
+      if (key === 'home') {
+        e.preventDefault();
+        pauseTimeRef.current = 0;
+        setCurrentTime(0);
+        return;
+      }
+
+      // End: Go to end
+      if (key === 'end') {
+        e.preventDefault();
+        pauseTimeRef.current = duration;
+        setCurrentTime(duration);
+        return;
+      }
+
+      // [ and ]: Jump to prev/next marker
+      if (key === '[') {
+        e.preventDefault();
+        jumpToPrevMarker();
+        return;
+      }
+      if (key === ']') {
+        e.preventDefault();
+        jumpToNextMarker();
+        return;
+      }
+
+      // +/-: Zoom in/out
+      if (key === '=' || key === '+') {
+        e.preventDefault();
+        handleZoomIn();
+        return;
+      }
+      if (key === '-') {
+        e.preventDefault();
+        handleZoomOut();
+        return;
+      }
+
+      // G: Toggle grid
+      if (key === 'g') {
+        e.preventDefault();
+        setShowGrid((g) => !g);
+        return;
+      }
+
+      // N: Toggle snap
+      if (key === 'n') {
+        e.preventDefault();
+        setSnapEnabled((s) => !s);
+        toast({ title: snapEnabled ? 'Snap Off' : 'Snap On' });
+        return;
+      }
+
+      // L: Toggle loop
+      if (key === 'l') {
+        e.preventDefault();
+        setLoop((l) => !l);
+        return;
+      }
+
+      // Ctrl+Z: Undo
+      if ((e.ctrlKey || e.metaKey) && key === 'z') {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Ctrl+Y or Ctrl+Shift+Z: Redo
+      if ((e.ctrlKey || e.metaKey) && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Ctrl+C: Copy
+      if ((e.ctrlKey || e.metaKey) && key === 'c') {
+        e.preventDefault();
+        handleCopy();
+        return;
+      }
+
+      // Ctrl+X: Cut
+      if ((e.ctrlKey || e.metaKey) && key === 'x') {
+        e.preventDefault();
+        handleCut();
+        return;
+      }
+
+      // Ctrl+V: Paste
+      if ((e.ctrlKey || e.metaKey) && key === 'v') {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+
+      // Ctrl+A: Select all
+      if ((e.ctrlKey || e.metaKey) && key === 'a') {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // Ctrl+S: Save
+      if ((e.ctrlKey || e.metaKey) && key === 's') {
+        e.preventDefault();
+        handleSaveSession(false);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, currentTime, duration, selectedRegionIds, snapEnabled, markers]);
+
+  // ISSUE #5: Calculate crossfade between overlapping regions
+  const calculateCrossfade = (region1: AudioRegion, region2: AudioRegion): { fadeOut: number; fadeIn: number } => {
+    const end1 = region1.startTimeSeconds + (region1.trimEndSeconds - region1.trimStartSeconds);
+    const start2 = region2.startTimeSeconds;
+    const overlap = Math.max(0, end1 - start2);
+    
+    if (overlap > 0) {
+      // Apply equal-power crossfade
+      const crossfadeDuration = Math.min(overlap, 0.5); // Max 500ms crossfade
+      return { fadeOut: crossfadeDuration, fadeIn: crossfadeDuration };
+    }
+    return { fadeOut: region1.fadeOutSeconds, fadeIn: region2.fadeInSeconds };
+  };
+
+  // Apply crossfade to overlapping regions in a track
+  const applyCrossfades = (trackId: string) => {
+    const track = tracks.find((t) => t.id === trackId);
+    if (!track?.regions || track.regions.length < 2) return;
+
+    const sortedRegions = [...track.regions].sort((a, b) => a.startTimeSeconds - b.startTimeSeconds);
+    const updatedRegions = sortedRegions.map((region, idx) => {
+      if (idx === sortedRegions.length - 1) return region;
+      
+      const nextRegion = sortedRegions[idx + 1];
+      const { fadeOut } = calculateCrossfade(region, nextRegion);
+      return { ...region, fadeOutSeconds: fadeOut };
+    });
+
+    // Apply fade-ins
+    const finalRegions = updatedRegions.map((region, idx) => {
+      if (idx === 0) return region;
+      
+      const prevRegion = updatedRegions[idx - 1];
+      const { fadeIn } = calculateCrossfade(prevRegion, region);
+      return { ...region, fadeInSeconds: fadeIn };
+    });
+
+    setTracks((prev) =>
+      prev.map((t) => (t.id === trackId ? { ...t, regions: finalRegions } : t))
+    );
+    toast({ title: 'Crossfades Applied', description: 'Overlapping regions now have smooth transitions' });
+  };
+
+  // Convert legacy single-region track to multi-region format
+  const migrateTrackToRegions = (track: AudioTrack): AudioRegion[] => {
+    if (track.regions && track.regions.length > 0) {
+      return track.regions;
+    }
+    // Create a single region from the track's current data
+    if (track.audioBuffer || (track.midiNotes && track.midiNotes.length > 0)) {
+      return [{
+        id: `region-${track.id}-0`,
+        audioBuffer: track.audioBuffer,
+        audioUrl: track.audioUrl,
+        startTimeSeconds: track.startTimeSeconds ?? 0,
+        trimStartSeconds: track.trimStartSeconds ?? 0,
+        trimEndSeconds: track.trimEndSeconds ?? (track.audioBuffer?.duration ?? 16),
+        fadeInSeconds: track.fadeInSeconds ?? 0.05,
+        fadeOutSeconds: track.fadeOutSeconds ?? 0.1,
+        regionGain: track.regionGain ?? 0,
+        midiNotes: track.midiNotes,
+      }];
+    }
+    return [];
+  };
+
+  const handleQuantize = () => {
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (t.trackType !== 'midi' || !t.midiNotes?.length || (selectedRegionIds.length && !selectedTrackIdSet.has(t.id))) return t;
+        const snapped = t.midiNotes.map((n) => {
+          const start = snapTime((n.step || 0) * 0.1);
+          const len = Math.max(0.05, snapTime(n.length || 0.1));
+          return { ...n, step: start / 0.1, length: len / 0.1 };
+        });
+        return { ...t, midiNotes: snapped };
+      })
+    );
+    toast({ title: 'Quantized', description: 'MIDI notes snapped to grid.' });
+  };
+
+  const handleTranspose = (semitones: number = 2) => {
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (t.trackType !== 'midi' || !t.midiNotes?.length || (selectedRegionIds.length && !selectedTrackIdSet.has(t.id))) return t;
+        const shifted = t.midiNotes.map((n) => {
+          // Transpose by adjusting octave (12 semitones = 1 octave)
+          const octaveShift = Math.floor(semitones / 12);
+          const noteShift = semitones % 12;
+          const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+          const currentNoteIndex = notes.indexOf(n.note.replace(/\d+$/, ''));
+          if (currentNoteIndex === -1) return n;
+          let newNoteIndex = currentNoteIndex + noteShift;
+          let newOctave = n.octave + octaveShift;
+          if (newNoteIndex >= 12) { newNoteIndex -= 12; newOctave++; }
+          if (newNoteIndex < 0) { newNoteIndex += 12; newOctave--; }
+          return { ...n, note: notes[newNoteIndex], octave: newOctave };
+        });
+        return { ...t, midiNotes: shifted };
+      })
+    );
+    toast({ title: 'Transposed', description: `MIDI shifted by ${semitones} semitones.` });
+  };
+
+  const handleTimeStretch = (factor: number = 1.1) => {
+    setTracks((prev) =>
+      prev.map((t) => {
+        if (!t.midiNotes?.length || (selectedRegionIds.length && !selectedTrackIdSet.has(t.id))) return t;
+        const stretched = t.midiNotes.map((n) => ({ ...n, length: (n.length || 1) * factor }));
+        return { ...t, midiNotes: stretched };
+      })
+    );
+    toast({ title: 'Time-stretched', description: `Notes length x${factor}` });
+  };
+
+  const handleProjectSettings = () => {
+    setShowProjectSettingsModal(true);
+  };
+
+  const handleAbout = () => {
+    toast({
+      title: 'CodedSwitch Studio',
+      description: 'Timeline+Mixer build with mix/export, grid, snap, and project save/load.',
+    });
+  };
+
+  const pxPerSecond = 120 * zoomLevel;
+  const baseDurationSeconds = duration > 0 ? duration : 8;
+  const timelineWidth = Math.max(baseDurationSeconds * pxPerSecond, 640);
+  const recordingTimeLabel = formatTime(recordingTime);
+  const menuHandlers = {
+    onNewProject: handleNewProject,
+    onLoadProject: () => handleLoadSession(),
+    onSaveProject: () => handleSaveSession(false),
+    onSaveAs: () => handleSaveSession(false),
+    onSaveTemplate: () => handleSaveSession(true),
+    onRecentProjects: handleRecentProjects,
+    onImportAudio: () => setShowAddTrack(true),
+    onExportAudio: handleExportAudio,
+    onExportMIDI: handleExportMIDI,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onCut: handleCut,
+    onCopy: handleCopy,
+    onPaste: handlePaste,
+    onDelete: handleDeleteTracks,
+    onSelectAll: handleSelectAll,
+    onDeselectAll: handleDeselectAll,
+    onShowPreferences: () => toast({ title: 'Preferences', description: 'Use Project Settings for audio preferences.' }),
+    onShowProjectSettings: handleProjectSettings,
+    onShowKeyboardShortcuts: () => toast({ title: 'Keyboard Shortcuts', description: 'Space: Play/Pause | Ctrl+S: Save | Ctrl+Z: Undo | Ctrl+Y: Redo | Del: Delete | G: Grid | M: Metronome' }),
+    onResetLayout: handleFit,
+    onZoomIn: handleZoomIn,
+    onZoomOut: handleZoomOut,
+    onFitToWindow: handleFit,
+    onToggleGrid: () => setShowGrid((g) => !g),
+    onToggleSnap: () => setSnapEnabled((s) => !s),
+    onToggleFullScreen: handleFullScreen,
+    onToggleMetronome: () => setMetronomeOn((m) => !m),
+    onShowTuner: () => setShowTuner(true),
+    onQuantize: handleQuantize,
+    onTranspose: () => handleTranspose(2),
+    onTimeStretch: () => handleTimeStretch(1.1),
+    onAbout: handleAbout,
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-900 text-white overflow-hidden">
-      {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Music className="w-6 h-6" />
-              Master Multi-Track Player
-            </h2>
-            <p className="text-sm text-gray-400 mt-1">
-              Load and mix multiple audio files together
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Recording Button */}
-            {isRecording ? (
-              <Button 
-                onClick={stopRecording}
-                className="bg-red-600 hover:bg-red-500 animate-pulse"
-              >
-                <StopCircle className="w-4 h-4 mr-2" />
-                Stop ({formatTime(recordingTime)})
-              </Button>
-            ) : (
-              <Button 
-                onClick={startRecording}
-                variant="outline"
-                className="border-red-500 text-red-400 hover:bg-red-500/20"
-              >
-                <Mic className="w-4 h-4 mr-2" />
-                Record
-              </Button>
-            )}
-
-            {/* Add Track Dialog */}
-            <Dialog open={showAddTrack} onOpenChange={setShowAddTrack}>
-              <DialogTrigger asChild>
-                <Button variant="default" className="bg-green-600 hover:bg-green-500">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Track
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle className="text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5" />
-                    Add Track to Multi-Track Player
-                  </DialogTitle>
-                </DialogHeader>
-
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="justify-start" onClick={() => applyTemplate('band')}>
-                    Band Template (Drums, Bass, Melody, Vocal)
-                  </Button>
-                  <Button variant="outline" className="justify-start" onClick={() => applyTemplate('podcast')}>
-                    Podcast Template (Host, Guest, Bed)
-                  </Button>
-                </div>
-                
-                <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as any)} className="mt-4">
-                  <TabsList className="grid grid-cols-4 bg-gray-800">
-                    <TabsTrigger value="library" className="data-[state=active]:bg-blue-600">
-                      <Library className="w-4 h-4 mr-1" />
-                      Library
-                    </TabsTrigger>
-                    <TabsTrigger value="beatlab" className="data-[state=active]:bg-amber-600">
-                      <Drum className="w-4 h-4 mr-1" />
-                      Beat Lab
-                    </TabsTrigger>
-                    <TabsTrigger value="melody" className="data-[state=active]:bg-purple-600">
-                      <Piano className="w-4 h-4 mr-1" />
-                      Melody
-                    </TabsTrigger>
-                    <TabsTrigger value="pianoroll" className="data-[state=active]:bg-blue-500">
-                      <Music className="w-4 h-4 mr-1" />
-                      Piano Roll
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  {/* Library Tab - Uploaded Songs */}
-                  <TabsContent value="library" className="mt-4">
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                      {librarySongs.length === 0 ? (
-                        <div className="text-center py-8 text-gray-400">
-                          <Music className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                          <p>No songs in library yet.</p>
-                          <p className="text-sm">Upload songs in the Song Uploader tab first.</p>
-                        </div>
-                      ) : (
-                        librarySongs.map((song: any) => (
-                          <div
-                            key={song.id}
-                            className="flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Music className="w-5 h-5 text-blue-400" />
-                              <div>
-                                <p className="font-medium text-white">{song.name}</p>
-                                <p className="text-xs text-gray-400">
-                                  {song.format?.toUpperCase()} • {song.duration ? `${Math.round(song.duration)}s` : 'Unknown'}
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                loadFromLibrary(song);
-                                setShowAddTrack(false);
-                              }}
-                              className="bg-green-600 hover:bg-green-500"
-                            >
-                              <Plus className="w-4 h-4 mr-1" />
-                              Add
-                            </Button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Beat Lab Tab */}
-                  <TabsContent value="beatlab" className="mt-4">
-                    <div className="text-center py-8">
-                      <Drum className="w-16 h-16 mx-auto mb-4 text-amber-500" />
-                      <h3 className="text-lg font-semibold mb-2">Import from Beat Lab</h3>
-                      <p className="text-gray-400 mb-4 text-sm">
-                        Create beats in Beat Lab and export them here
-                      </p>
-                      <div className="flex gap-2 justify-center">
-                        <Button
-                          onClick={() => {
-                            addEmptyTrack('Beat Track', 'beat');
-                            setShowAddTrack(false);
-                          }}
-                          className="bg-amber-600 hover:bg-amber-500"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create Empty Beat Track
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'beatmaker' }));
-                            setShowAddTrack(false);
-                            toast({ title: '🥁 Opening Beat Lab', description: 'Create your beat, then export to Multi-Track' });
-                          }}
-                        >
-                          <Wand2 className="w-4 h-4 mr-2" />
-                          Open Beat Lab
-                        </Button>
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Melody Tab */}
-                  <TabsContent value="melody" className="mt-4">
-                    <div className="text-center py-8">
-                      <Piano className="w-16 h-16 mx-auto mb-4 text-purple-500" />
-                      <h3 className="text-lg font-semibold mb-2">Import from Melody Composer</h3>
-                      <p className="text-gray-400 mb-4 text-sm">
-                        Create melodies and export them here
-                      </p>
-                      <div className="flex gap-2 justify-center">
-                        <Button
-                          onClick={() => {
-                            addEmptyTrack('Melody Track', 'melody');
-                            setShowAddTrack(false);
-                          }}
-                          className="bg-purple-600 hover:bg-purple-500"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create Empty Melody Track
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'melody' }));
-                            setShowAddTrack(false);
-                            toast({ title: '🎹 Opening Melody Composer', description: 'Create your melody, then export to Multi-Track' });
-                          }}
-                        >
-                          <Wand2 className="w-4 h-4 mr-2" />
-                          Open Melody Composer
-                        </Button>
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Piano Roll Tab */}
-                  <TabsContent value="pianoroll" className="mt-4">
-                    <div className="text-center py-8">
-                      <Music className="w-16 h-16 mx-auto mb-4 text-blue-500" />
-                      <h3 className="text-lg font-semibold mb-2">Import from Piano Roll</h3>
-                      <p className="text-gray-400 mb-4 text-sm">
-                        Create MIDI sequences in Piano Roll and export them here
-                      </p>
-                      <div className="flex gap-2 justify-center">
-                        <Button
-                          onClick={() => {
-                            addEmptyTrack('Piano Roll Track', 'audio');
-                            setShowAddTrack(false);
-                          }}
-                          className="bg-blue-600 hover:bg-blue-500"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create Empty Track
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'unified-studio' }));
-                            setShowAddTrack(false);
-                            toast({ title: '🎵 Opening Piano Roll', description: 'Create your sequence, then export to Multi-Track' });
-                          }}
-                        >
-                          <Wand2 className="w-4 h-4 mr-2" />
-                          Open Piano Roll
-                        </Button>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-                
-                {/* Quick Add Options */}
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <p className="text-sm text-gray-400 mb-3">Quick Add:</p>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        addEmptyTrack('Vocal Track', 'vocal');
-                        setShowAddTrack(false);
-                      }}
-                    >
-                      <Mic className="w-4 h-4 mr-1" />
-                      Vocal Track
-                    </Button>
-                    <label htmlFor="quick-upload" className="cursor-pointer">
-                      <Button size="sm" variant="outline" asChild>
-                        <span>
-                          <Upload className="w-4 h-4 mr-1" />
-                          Upload Audio File
-                        </span>
-                      </Button>
-                    </label>
-                    <input
-                      id="quick-upload"
-                      type="file"
-                      accept="audio/*"
-                      multiple
-                      onChange={(e) => {
-                        handleFileUpload(e);
-                        setShowAddTrack(false);
-                      }}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Load from Library Button */}
-            <Dialog open={showLibrary} onOpenChange={setShowLibrary}>
-              <DialogTrigger asChild>
-                <Button variant="default" className="bg-purple-600 hover:bg-purple-500">
-                  <Library className="w-4 h-4 mr-2" />
-                  From Library
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl max-h-[70vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="text-white flex items-center gap-2">
-                    <FolderOpen className="w-5 h-5" />
-                    Load from Song Library
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-2 mt-4">
-                  {librarySongs.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
-                      <Music className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No songs in library yet.</p>
-                      <p className="text-sm">Upload songs in the Song Uploader tab first.</p>
-                    </div>
-                  ) : (
-                    librarySongs.map((song: any) => (
-                      <div
-                        key={song.id}
-                        className="flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Music className="w-5 h-5 text-blue-400" />
-                          <div>
-                            <p className="font-medium text-white">{song.name}</p>
-                            <p className="text-xs text-gray-400">
-                              {song.format?.toUpperCase()} • {song.duration ? `${Math.round(song.duration)}s` : 'Unknown duration'}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => loadFromLibrary(song)}
-                          className="bg-green-600 hover:bg-green-500"
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Add
-                        </Button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <label htmlFor="audio-upload">
-              <Button variant="outline" className="cursor-pointer" asChild>
-                <span>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload New
-                </span>
-              </Button>
-            </label>
-            <input
-              id="audio-upload"
-              type="file"
-              accept="audio/*"
-              multiple
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </div>
-        </div>
-      </div>
+      <MTPHeaderContainer
+        tempo={tempo}
+        setTempo={setTempo}
+        projectName={projectName}
+        setProjectName={setProjectName}
+        projectKey={projectKey}
+        setProjectKey={setProjectKey}
+        timeSignature={timeSignature}
+        setTimeSignature={setTimeSignature}
+        metronomeOn={metronomeOn}
+        setMetronomeOn={setMetronomeOn}
+        isRecording={isRecording}
+        recordingTimeLabel={recordingTimeLabel}
+        startRecording={startRecording}
+        stopRecording={stopRecording}
+        showMixer={showMixer}
+        onToggleMixer={() => setShowMixer((v) => !v)}
+        handleFileUpload={handleFileUpload}
+        applyTemplate={applyTemplate}
+        showAddTrack={showAddTrack}
+        setShowAddTrack={setShowAddTrack}
+        activeSourceTab={activeSourceTab}
+        setActiveSourceTab={setActiveSourceTab}
+        librarySongs={librarySongs}
+        loadFromLibrary={(song) => {
+          loadFromLibrary(song);
+          setShowLibrary(false);
+        }}
+        onAddEmptyTrack={addEmptyTrack}
+        onOpenBeatLab={handleOpenBeatLab}
+        onOpenMelody={handleOpenMelody}
+        onOpenPianoRoll={handleOpenPianoRoll}
+        menuHandlers={menuHandlers}
+      />
 
       {/* Transport Controls */}
       <div className="bg-gray-850 border-b border-gray-700 p-4">
@@ -2019,11 +3306,11 @@ export default function MasterMultiTrackPlayer() {
         </div>
 
         {/* Timeline */}
-        <div className="mt-4">
-          <div className="bg-gray-900 rounded h-2 relative overflow-hidden">
+        <div className="mt-4 overflow-auto">
+          <div className="bg-gray-900 rounded h-2 relative overflow-hidden" style={{ minWidth: `${timelineWidth}px` }}>
             <div
               className="absolute top-0 left-0 h-full bg-blue-500"
-              style={{ width: `${(currentTime / duration) * 100}%` }}
+              style={{ width: `${duration > 0 ? Math.min(currentTime / duration, 1) * 100 : 0}%` }}
             />
           </div>
         </div>
@@ -2034,6 +3321,10 @@ export default function MasterMultiTrackPlayer() {
         <Button className="bg-blue-600 hover:bg-blue-500" onClick={handleMixPreview}>
           <Wand2 className="w-4 h-4 mr-2" />
           Mix Preview
+        </Button>
+        <Button className="bg-green-600 hover:bg-green-500" onClick={exportProjectToWav}>
+          <Music className="w-4 h-4 mr-2" />
+          Export WAV
         </Button>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">Quality</span>
@@ -2089,57 +3380,82 @@ export default function MasterMultiTrackPlayer() {
       </div>
 
       {/* Tracks List */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {tracks.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <Music className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-              <h3 className="text-xl font-semibold mb-2">No Tracks Loaded</h3>
-              <p className="text-gray-400 mb-4">
-                Click "Load Audio Files" to add beats, melodies, vocals, and more
-              </p>
-              <label htmlFor="audio-upload-empty">
-                <Button variant="default" className="cursor-pointer" asChild>
-                  <span>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Your First Track
-                  </span>
-                </Button>
-              </label>
-              <input
-                id="audio-upload-empty"
-                type="file"
-                accept="audio/*"
-                multiple
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+      <div className="flex-1 overflow-auto">
+        <div className="relative px-4" style={{ minWidth: `${timelineWidth}px` }}>
+          <GridOverlay duration={duration || baseDurationSeconds} zoom={zoomLevel} showGrid={showGrid} timelineWidth={timelineWidth} />
+          {tracks.length === 0 ? (
+            <div className="h-full flex items-center justify-center py-16 relative z-10">
+              <div className="text-center">
+                <Music className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                <h3 className="text-xl font-semibold mb-2">No Tracks Loaded</h3>
+                <p className="text-gray-400 mb-4">
+                  Click "Load Audio Files" to add beats, melodies, vocals, and more
+                </p>
+                <label htmlFor="audio-upload-empty">
+                  <Button variant="default" className="cursor-pointer" asChild>
+                    <span>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Your First Track
+                    </span>
+                  </Button>
+                </label>
+                <input
+                  id="audio-upload-empty"
+                  type="file"
+                  accept="audio/*"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {tracks.map((track, index) => (
-              <Resizable
-                key={track.id}
-                axis="y"
-                height={track.height ?? DEFAULT_TRACK_HEIGHT}
-                width={0}
-                minConstraints={[0, 40]}
-                maxConstraints={[0, 300]}
-                onResize={(_, data) => {
-                  const nextHeight = Math.max(40, Math.min(300, data.size.height));
-                  setTracks(prev =>
-                    prev.map(t =>
-                      t.id === track.id ? { ...t, height: nextHeight } : t
-                    )
-                  );
-                }}
-                resizeHandles={['s']}
-              >
-                <div style={{ height: (track.height ?? DEFAULT_TRACK_HEIGHT) + 32 }}>
-                  <Card className="bg-gray-800 border-gray-700 relative overflow-hidden h-full">
+          ) : (
+            <div className="space-y-3 relative z-10 pt-8">
+            {tracks.map((track, index) => {
+              const regionId = regionIdForTrack(track.id);
+              const isRegionSelected = selectedRegionIds.includes(regionId);
+              const clipDuration = Math.max(getTrackEffectiveDuration(track), baseDurationSeconds / 2);
+              const regionWidth = Math.max(clipDuration * pxPerSecond, 220);
+              const laneWidth = Math.max(timelineWidth, regionWidth);
+              return (
+                <Resizable
+                  key={track.id}
+                  axis="y"
+                  height={track.height ?? DEFAULT_TRACK_HEIGHT}
+                  width={0}
+                  minConstraints={[0, 40]}
+                  maxConstraints={[0, 300]}
+                  onResize={(_, data) => {
+                    const nextHeight = Math.max(40, Math.min(300, data.size.height));
+                    setTracks(prev =>
+                      prev.map(t =>
+                        t.id === track.id ? { ...t, height: nextHeight } : t
+                      )
+                    );
+                  }}
+                  resizeHandles={['s']}
+                >
+                  <div 
+                    style={{ height: (track.height ?? DEFAULT_TRACK_HEIGHT) + 32, minWidth: `${laneWidth}px` }}
+                    draggable
+                    onDragStart={(e) => handleTrackDragStart(e, track.id)}
+                    onDragOver={(e) => handleTrackDragOver(e, track.id)}
+                    onDragLeave={handleTrackDragLeave}
+                    onDrop={(e) => handleTrackDrop(e, track.id)}
+                    onDragEnd={handleTrackDragEnd}
+                  >
+                    <Card
+                      className={`bg-gray-800 border ${isRegionSelected ? 'border-blue-500 ring-2 ring-blue-400' : dragOverTrackId === track.id ? 'border-green-500 ring-2 ring-green-400' : 'border-gray-700'} ${draggedTrackId === track.id ? 'opacity-50' : ''} relative overflow-hidden h-full transition-all`}
+                    >
                     <CardContent className="p-4 h-full flex flex-col">
                       <div className="flex items-center gap-4 flex-1">
+                        {/* ISSUE #1: Drag handle for track reordering */}
+                        <div
+                          className="w-6 h-full flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-gray-700/50 rounded transition-colors"
+                          title="Drag to reorder track"
+                        >
+                          <GripVertical className="w-4 h-4 text-gray-500" />
+                        </div>
                         {/* Track color stripe */}
                         <div
                           className="w-2 h-full rounded"
@@ -2150,7 +3466,7 @@ export default function MasterMultiTrackPlayer() {
                           {/* Header with name + delete */}
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <h4 className="font-semibold">{track.name}</h4>
+                              <h4 className="font-semibold cursor-pointer" onClick={() => toggleRegionSelection(track.id)}>{track.name}</h4>
                               <Select
                                 value={track.kind || ''}
                                 onValueChange={(v) => updateTrackKind(track.id, v)}
@@ -2165,6 +3481,40 @@ export default function MasterMultiTrackPlayer() {
                                 </SelectContent>
                               </Select>
                             </div>
+                            {/* ISSUE #4: Split button */}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => splitRegionAtPlayhead(track.id)}
+                              title="Split at playhead (S)"
+                            >
+                              <Scissors className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => duplicateTrack(track.id)}
+                              title="Duplicate track"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                            {track.trackType === 'midi' && track.midiNotes?.length && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => bounceTrackToAudio(track.id)}
+                                title="Bounce MIDI to audio"
+                              >
+                                <Wand2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <input
+                              type="color"
+                              value={track.color}
+                              onChange={(e) => updateTrackColor(track.id, e.target.value)}
+                              className="w-6 h-6 rounded cursor-pointer border-0"
+                              title="Change track color"
+                            />
                             <Button
                               size="sm"
                               variant="ghost"
@@ -2174,53 +3524,130 @@ export default function MasterMultiTrackPlayer() {
                             </Button>
                           </div>
 
-                          {/* Waveform, MIDI notes, or empty state */}
+                          {/* Waveform, MIDI notes, or empty state - ISSUE #2: positioned with startTimeSeconds */}
                           {track.audioBuffer ? (
-                            <TrackWaveform
-                              audioBuffer={track.audioBuffer}
-                              color={track.color}
-                              currentTime={currentTime}
-                              duration={track.audioBuffer?.duration || 0}
-                              isPlaying={isPlaying}
-                              height={track.height ?? DEFAULT_TRACK_HEIGHT}
-                              onSeek={(time) => {
-                                pauseTimeRef.current = time;
-                                setCurrentTime(time);
-                                if (isPlaying) {
-                                  stopTracks();
-                                  playTracks();
-                                }
-                              }}
-                            />
+                            <div 
+                              className="relative" 
+                              style={{ minWidth: `${laneWidth}px` }}
+                              onMouseMove={handleRegionMouseMove}
+                              onMouseUp={handleRegionMouseUp}
+                              onMouseLeave={handleRegionMouseUp}
+                            >
+                              <div
+                                className={`absolute cursor-move ${regionDragTrackId === track.id ? 'opacity-80' : ''}`}
+                                style={{ 
+                                  left: `${(track.startTimeSeconds ?? 0) * pxPerSecond}px`,
+                                  width: `${regionWidth}px`
+                                }}
+                                onMouseDown={(e) => handleRegionMouseDown(e, track.id)}
+                              >
+                                <TrackWaveform
+                                  audioBuffer={track.audioBuffer}
+                                  color={track.color}
+                                  currentTime={currentTime - (track.startTimeSeconds ?? 0)}
+                                  duration={track.audioBuffer?.duration || 0}
+                                  isPlaying={isPlaying}
+                                  height={track.height ?? DEFAULT_TRACK_HEIGHT}
+                                  width={regionWidth}
+                                  selected={isRegionSelected}
+                                  onSelect={() => toggleRegionSelection(track.id)}
+                                  onSeek={(time) => {
+                                    pauseTimeRef.current = time + (track.startTimeSeconds ?? 0);
+                                    setCurrentTime(time + (track.startTimeSeconds ?? 0));
+                                    if (isPlaying) {
+                                      stopTracks();
+                                      playTracks();
+                                    }
+                                  }}
+                                />
+                                {/* Start time indicator */}
+                                <div className="absolute -top-5 left-0 text-[10px] text-gray-400 bg-gray-800 px-1 rounded">
+                                  {(track.startTimeSeconds ?? 0).toFixed(1)}s
+                                </div>
+                              </div>
+                            </div>
                           ) : track.midiNotes && track.midiNotes.length > 0 ? (
                             <div
-                              className="relative bg-gray-900 rounded overflow-x-auto"
-                              style={{ height: track.height ?? DEFAULT_TRACK_HEIGHT }}
+                              className="relative"
+                              style={{ minWidth: `${laneWidth}px` }}
+                              onMouseMove={handleRegionMouseMove}
+                              onMouseUp={handleRegionMouseUp}
+                              onMouseLeave={handleRegionMouseUp}
                             >
-                              <div className="relative h-full min-w-[600px]">
-                                {track.midiNotes.map((note) => (
-                                  <div
-                                    key={note.id}
-                                    className="absolute bg-green-600/80 border border-green-400 rounded text-xs flex items-center justify-center text-white font-medium"
-                                    style={{
-                                      left: `${note.step * 12}px`,
-                                      width: `${Math.max((note.length || 4) * 12 - 2, 20)}px`,
-                                      height: '24px',
-                                      top: '8px',
-                                    }}
-                                  >
-                                    {note.note}{note.octave}
+                              <div
+                                className={`absolute bg-gray-900 rounded overflow-x-auto cursor-move ${isRegionSelected ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-900' : ''} ${regionDragTrackId === track.id ? 'opacity-80' : ''}`}
+                                style={{ 
+                                  height: track.height ?? DEFAULT_TRACK_HEIGHT, 
+                                  left: `${(track.startTimeSeconds ?? 0) * pxPerSecond}px`,
+                                  width: `${regionWidth}px`
+                                }}
+                                onClick={() => toggleRegionSelection(track.id)}
+                                onMouseDown={(e) => handleRegionMouseDown(e, track.id)}
+                              >
+                                {/* ISSUE #11: Improved MIDI visualization with velocity colors and piano roll style */}
+                                <div className="relative h-full" style={{ width: `${regionWidth}px` }}>
+                                  {/* Mini piano roll background */}
+                                  <div className="absolute inset-0 opacity-20">
+                                    {[0, 1, 2, 3, 4, 5, 6, 7].map((octave) => (
+                                      <div key={octave} className="absolute w-full h-3 border-b border-gray-700" style={{ top: `${octave * 12}%` }} />
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                              <div className="absolute bottom-1 left-2 text-xs text-green-400 bg-gray-900/80 px-1 rounded">
-                                MIDI: {track.instrument || 'Synth'} ({track.midiNotes.length} notes)
+                                  {track.midiNotes.map((note) => {
+                                    // ISSUE #11: Velocity-based color intensity
+                                    const velocity = note.velocity ?? 100;
+                                    const intensity = Math.max(0.3, velocity / 127);
+                                    const hue = velocity > 100 ? 120 : velocity > 70 ? 80 : velocity > 40 ? 45 : 0; // Green -> Yellow -> Orange -> Red
+                                    const noteHeight = Math.max(16, (track.height ?? DEFAULT_TRACK_HEIGHT) / 8);
+                                    // Position based on octave (higher octave = higher on screen)
+                                    const noteY = Math.max(4, ((7 - note.octave) / 8) * (track.height ?? DEFAULT_TRACK_HEIGHT));
+                                    
+                                    return (
+                                      <div
+                                        key={note.id}
+                                        className="absolute rounded text-[10px] flex items-center justify-center text-white font-medium shadow-sm transition-all hover:scale-105 hover:z-10"
+                                        style={{
+                                          left: `${note.step * 12 * zoomLevel}px`,
+                                          width: `${Math.max((note.length || 4) * 12 * zoomLevel - 2, 20)}px`,
+                                          height: `${noteHeight}px`,
+                                          top: `${noteY}px`,
+                                          backgroundColor: `hsla(${hue}, 70%, 50%, ${intensity})`,
+                                          borderLeft: `3px solid hsla(${hue}, 80%, 60%, 1)`,
+                                          boxShadow: `0 1px 3px rgba(0,0,0,0.3)`,
+                                        }}
+                                        title={`${note.note}${note.octave} | Vel: ${velocity}`}
+                                      >
+                                        {zoomLevel > 0.8 && <span className="truncate px-1">{note.note}{note.octave}</span>}
+                                      </div>
+                                    );
+                                  })}
+                                  {/* Velocity bar visualization */}
+                                  <div className="absolute bottom-0 left-0 right-0 h-4 bg-gray-800/50 flex items-end">
+                                    {track.midiNotes.slice(0, 50).map((note, idx) => (
+                                      <div
+                                        key={`vel-${note.id}`}
+                                        className="w-1 mx-px bg-green-500"
+                                        style={{
+                                          height: `${(note.velocity ?? 100) / 127 * 100}%`,
+                                          opacity: 0.7,
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="absolute bottom-5 left-2 text-xs text-green-400 bg-gray-900/80 px-1 rounded">
+                                  MIDI: {track.instrument || 'Synth'} ({track.midiNotes.length} notes)
+                                </div>
+                                {/* Start time indicator */}
+                                <div className="absolute -top-5 left-0 text-[10px] text-gray-400 bg-gray-800 px-1 rounded">
+                                  {(track.startTimeSeconds ?? 0).toFixed(1)}s
+                                </div>
                               </div>
                             </div>
                           ) : (
                             <div
-                              className="bg-gray-900 rounded flex items-center justify-center gap-3 border-2 border-dashed border-gray-600"
-                              style={{ height: track.height ?? DEFAULT_TRACK_HEIGHT }}
+                              className={`bg-gray-900 rounded flex items-center justify-center gap-3 border-2 border-dashed border-gray-600 ${isRegionSelected ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-900' : ''}`}
+                              style={{ height: track.height ?? DEFAULT_TRACK_HEIGHT, minWidth: `${laneWidth}px` }}
+                              onClick={() => toggleRegionSelection(track.id)}
                             >
                               {track.trackType === 'beat' && (
                                 <Button
@@ -2447,9 +3874,11 @@ export default function MasterMultiTrackPlayer() {
                   </Card>
                 </div>
               </Resizable>
-            ))}
+            );
+          })}
           </div>
         )}
+        </div>
       </div>
 
       {/* Footer Stats */}
@@ -2481,7 +3910,7 @@ export default function MasterMultiTrackPlayer() {
         <DialogContent className="max-w-5xl bg-gray-900 border-gray-700">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
-              Waveform Editor {waveformEditorTrack ? `– ${waveformEditorTrack.name}` : ''}
+              Waveform Editor {waveformEditorTrack ? `- ${waveformEditorTrack.name}` : ''}
             </DialogTitle>
           </DialogHeader>
           <div className="mt-4">
@@ -2501,6 +3930,55 @@ export default function MasterMultiTrackPlayer() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Mixer */}
+      {showMixer && (
+        <div className="h-96 border-t border-gray-800 bg-gray-900">
+          <ProfessionalMixer />
+        </div>
+      )}
+
+      {/* Tuner */}
+      <TunerModal open={showTuner} onClose={() => setShowTuner(false)} freq={tunerFreq} setFreq={setTunerFreq} />
+
+      {/* Project Settings Modal */}
+      <BaseDialog open={showProjectSettingsModal} onOpenChange={setShowProjectSettingsModal}>
+        <BaseDialogContent className="bg-gray-900 border-gray-700">
+          <BaseDialogHeader>
+            <BaseDialogTitle className="text-white">Project Settings</BaseDialogTitle>
+          </BaseDialogHeader>
+          <div className="space-y-3 text-sm text-gray-200">
+            <div className="flex items-center gap-2">
+              <span className="w-32 text-gray-400">Project Name</span>
+              <Input className="bg-gray-800 border-gray-700" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-32 text-gray-400">BPM</span>
+              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-32 text-gray-400">Key</span>
+              <Input className="bg-gray-800 border-gray-700 w-24" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-32 text-gray-400">Time Signature</span>
+              <Input className="bg-gray-800 border-gray-700 w-24" value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-32 text-gray-400">Limiter Threshold</span>
+              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.threshold} onChange={(e) => setMasterLimiter((p) => ({ ...p, threshold: Number(e.target.value) }))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-32 text-gray-400">Limiter Release</span>
+              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.release} onChange={(e) => setMasterLimiter((p) => ({ ...p, release: Number(e.target.value) }))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-32 text-gray-400">Limiter Ceiling</span>
+              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.ceiling} onChange={(e) => setMasterLimiter((p) => ({ ...p, ceiling: Number(e.target.value) }))} />
+            </div>
+          </div>
+        </BaseDialogContent>
+      </BaseDialog>
     </div>
   );
 }

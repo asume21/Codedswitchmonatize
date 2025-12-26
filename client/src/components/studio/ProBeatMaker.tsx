@@ -270,6 +270,96 @@ const DRUM_KITS: Record<string, { name: string; description: string; tracks: { i
   },
 };
 
+const KIT_SOUND_ALIASES: Record<string, string> = {
+  trap: '808',
+};
+
+const CLASSIC_KIT_PROFILES: Record<string, {
+  kick: { start: number; end: number; sweep: number; decay: number; vol: number };
+  snare: { tone: number; toneEnd: number; noiseDecay: number; toneDecay: number; noiseVol: number; toneVol: number };
+  hihat: { decay: number; hp: number };
+  openhat: { decay: number; hp: number };
+  tom: { start: number; end: number; decay: number };
+  tomHi?: { start: number; end: number; decay: number };
+  tomMid?: { start: number; end: number; decay: number };
+  tomLo?: { start: number; end: number; decay: number };
+  perc?: { decay: number; bp: number; noiseVol?: number };
+  cowbell?: { f1: number; f2: number; decay: number; vol: number };
+  rim?: { freq: number; decay: number; vol: number };
+  conga?: { start: number; end: number; decay: number };
+}> = {
+  default: {
+    kick: { start: 65, end: 40, sweep: 0.15, decay: 0.32, vol: 1 },
+    snare: { tone: 200, toneEnd: 170, noiseDecay: 0.15, toneDecay: 0.15, noiseVol: 1, toneVol: 0.6 },
+    hihat: { decay: 0.05, hp: 9000 },
+    openhat: { decay: 0.24, hp: 8000 },
+    tom: { start: 220, end: 140, decay: 0.35 },
+    tomHi: { start: 260, end: 170, decay: 0.32 },
+    tomMid: { start: 220, end: 140, decay: 0.35 },
+    tomLo: { start: 180, end: 110, decay: 0.38 },
+    perc: { decay: 0.12, bp: 6500, noiseVol: 0.8 },
+    cowbell: { f1: 560, f2: 830, decay: 0.18, vol: 0.9 },
+    rim: { freq: 1800, decay: 0.05, vol: 0.7 },
+    conga: { start: 340, end: 160, decay: 0.32 },
+  },
+  '808': {
+    kick: { start: 55, end: 32, sweep: 0.18, decay: 0.42, vol: 1.1 },
+    snare: { tone: 180, toneEnd: 140, noiseDecay: 0.16, toneDecay: 0.14, noiseVol: 0.95, toneVol: 0.55 },
+    hihat: { decay: 0.06, hp: 9500 },
+    openhat: { decay: 0.32, hp: 8500 },
+    tom: { start: 210, end: 130, decay: 0.4 },
+    tomHi: { start: 240, end: 150, decay: 0.36 },
+    tomMid: { start: 210, end: 130, decay: 0.4 },
+    tomLo: { start: 170, end: 100, decay: 0.42 },
+    perc: { decay: 0.14, bp: 7000, noiseVol: 0.9 },
+    cowbell: { f1: 540, f2: 800, decay: 0.22, vol: 1.0 },
+    rim: { freq: 2000, decay: 0.05, vol: 0.75 },
+    conga: { start: 360, end: 170, decay: 0.36 },
+  },
+  '909': {
+    kick: { start: 72, end: 48, sweep: 0.12, decay: 0.28, vol: 1 },
+    snare: { tone: 220, toneEnd: 170, noiseDecay: 0.13, toneDecay: 0.1, noiseVol: 1.1, toneVol: 0.65 },
+    hihat: { decay: 0.07, hp: 11000 },
+    openhat: { decay: 0.28, hp: 9500 },
+    tom: { start: 230, end: 150, decay: 0.32 },
+    tomHi: { start: 270, end: 170, decay: 0.26 },
+    tomMid: { start: 230, end: 150, decay: 0.32 },
+    tomLo: { start: 190, end: 120, decay: 0.34 },
+    perc: { decay: 0.1, bp: 9000, noiseVol: 0.85 },
+    cowbell: { f1: 620, f2: 1180, decay: 0.16, vol: 0.85 },
+    rim: { freq: 2200, decay: 0.045, vol: 0.65 },
+    conga: { start: 380, end: 200, decay: 0.28 },
+  },
+  acoustic: {
+    kick: { start: 78, end: 55, sweep: 0.1, decay: 0.24, vol: 0.95 },
+    snare: { tone: 200, toneEnd: 150, noiseDecay: 0.11, toneDecay: 0.11, noiseVol: 1, toneVol: 0.7 },
+    hihat: { decay: 0.06, hp: 9000 },
+    openhat: { decay: 0.22, hp: 8500 },
+    tom: { start: 205, end: 135, decay: 0.3 },
+    tomHi: { start: 240, end: 150, decay: 0.28 },
+    tomMid: { start: 205, end: 135, decay: 0.3 },
+    tomLo: { start: 170, end: 110, decay: 0.35 },
+    perc: { decay: 0.12, bp: 5200, noiseVol: 0.75 },
+    cowbell: { f1: 520, f2: 760, decay: 0.18, vol: 0.8 },
+    rim: { freq: 1600, decay: 0.06, vol: 0.6 },
+    conga: { start: 320, end: 150, decay: 0.34 },
+  },
+  lofi: {
+    kick: { start: 60, end: 38, sweep: 0.16, decay: 0.4, vol: 0.9 },
+    snare: { tone: 170, toneEnd: 130, noiseDecay: 0.18, toneDecay: 0.12, noiseVol: 0.9, toneVol: 0.5 },
+    hihat: { decay: 0.08, hp: 6500 },
+    openhat: { decay: 0.28, hp: 7000 },
+    tom: { start: 190, end: 110, decay: 0.38 },
+    tomHi: { start: 220, end: 130, decay: 0.32 },
+    tomMid: { start: 190, end: 110, decay: 0.38 },
+    tomLo: { start: 160, end: 90, decay: 0.42 },
+    perc: { decay: 0.16, bp: 4800, noiseVol: 0.8 },
+    cowbell: { f1: 500, f2: 720, decay: 0.2, vol: 0.75 },
+    rim: { freq: 1500, decay: 0.07, vol: 0.55 },
+    conga: { start: 300, end: 130, decay: 0.4 },
+  },
+};
+
 // Default to 808 kit
 const DEFAULT_KIT = '808';
 
@@ -397,6 +487,31 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [metronomeOn, setMetronomeOn] = useState(false);
   const [metronomeVol, setMetronomeVol] = useState(30); // 0-100
   const [copiedTrack, setCopiedTrack] = useState<DrumStep[] | null>(null);
+  
+  // ISSUE #1: Pattern chaining/song mode
+  const [patterns, setPatterns] = useState<{ id: string; name: string; tracks: DrumTrack[] }[]>([]);
+  const [currentPatternIndex, setCurrentPatternIndex] = useState(0);
+  const [songMode, setSongMode] = useState(false);
+  const [songChain, setSongChain] = useState<number[]>([0]); // Pattern indices to play in sequence
+  const [chainPosition, setChainPosition] = useState(0);
+  
+  // ISSUE #2: Pattern save/load
+  const [savedPatterns, setSavedPatterns] = useState<{ id: string; name: string; tracks: DrumTrack[]; bpm: number; kit: string }[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('probeat-saved-patterns');
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return []; }
+      }
+    }
+    return [];
+  });
+  
+  // ISSUE #5: Step copy/paste
+  const [copiedStep, setCopiedStep] = useState<DrumStep | null>(null);
+  
+  // ISSUE #6: Pattern variations (A/B)
+  const [patternVariation, setPatternVariation] = useState<'A' | 'B'>('A');
+  const [variationB, setVariationB] = useState<DrumTrack[] | null>(null);
   
   // Tap tempo state
   const [tapTimes, setTapTimes] = useState<number[]>([]);
@@ -792,16 +907,444 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     }
   };
 
+  // ISSUE #2: Save pattern to localStorage
+  const savePattern = (name?: string) => {
+    const patternName = name || `Pattern ${savedPatterns.length + 1}`;
+    const newPattern = {
+      id: `pattern-${Date.now()}`,
+      name: patternName,
+      tracks: JSON.parse(JSON.stringify(tracks)),
+      bpm,
+      kit: selectedKit,
+    };
+    const updated = [...savedPatterns, newPattern];
+    setSavedPatterns(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('probeat-saved-patterns', JSON.stringify(updated));
+    }
+    toast({ title: '💾 Pattern Saved', description: patternName });
+  };
+
+  const loadPattern = (patternId: string) => {
+    const pattern = savedPatterns.find(p => p.id === patternId);
+    if (!pattern) return;
+    saveHistory();
+    setTracks(JSON.parse(JSON.stringify(pattern.tracks)));
+    setBpm(pattern.bpm);
+    setSelectedKit(pattern.kit);
+    toast({ title: '📂 Pattern Loaded', description: pattern.name });
+  };
+
+  const deletePattern = (patternId: string) => {
+    const updated = savedPatterns.filter(p => p.id !== patternId);
+    setSavedPatterns(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('probeat-saved-patterns', JSON.stringify(updated));
+    }
+    toast({ title: 'Pattern Deleted' });
+  };
+
+  // ISSUE #5: Copy/paste individual step
+  const copyStep = (trackIndex: number, stepIndex: number) => {
+    setCopiedStep({ ...tracks[trackIndex].pattern[stepIndex] });
+    toast({ title: '📋 Step Copied' });
+  };
+
+  const pasteStep = (trackIndex: number, stepIndex: number) => {
+    if (!copiedStep) {
+      toast({ title: 'Nothing to paste', variant: 'destructive' });
+      return;
+    }
+    saveHistory();
+    setTracks(prev => {
+      const copy = JSON.parse(JSON.stringify(prev));
+      copy[trackIndex].pattern[stepIndex] = { ...copiedStep };
+      return copy;
+    });
+    toast({ title: '📋 Step Pasted' });
+  };
+
+  // ISSUE #6: Switch between pattern variations A/B
+  const switchVariation = (variation: 'A' | 'B') => {
+    if (variation === patternVariation) return;
+    
+    if (variation === 'B') {
+      // Save current as A, switch to B
+      if (!variationB) {
+        // Create empty B variation
+        setVariationB(JSON.parse(JSON.stringify(tracks)));
+      }
+      // Store current A
+      const currentA = JSON.parse(JSON.stringify(tracks));
+      // Load B
+      if (variationB) {
+        setTracks(JSON.parse(JSON.stringify(variationB)));
+      }
+      setVariationB(currentA);
+    } else {
+      // Save current as B, switch to A
+      const currentB = JSON.parse(JSON.stringify(tracks));
+      if (variationB) {
+        setTracks(JSON.parse(JSON.stringify(variationB)));
+      }
+      setVariationB(currentB);
+    }
+    setPatternVariation(variation);
+    toast({ title: `Pattern ${variation}` });
+  };
+
+  // ISSUE #9: Add accent pattern (emphasize beats 2 & 4)
+  const applyAccentPattern = () => {
+    saveHistory();
+    setTracks(prev => prev.map(t => ({
+      ...t,
+      pattern: t.pattern.map((step, i) => ({
+        ...step,
+        velocity: step.active && (i % 4 === 2 || i % 4 === 3) 
+          ? Math.min(127, step.velocity + 20) 
+          : step.velocity,
+      })),
+    })));
+    toast({ title: '🎯 Accents Applied', description: 'Beats 2 & 4 emphasized' });
+  };
+
+  // ISSUE #10: Generate drum fill
+  const generateFill = (trackIndex?: number) => {
+    saveHistory();
+    const fillLength = 4; // Last 4 steps
+    const startStep = patternLength - fillLength;
+    
+    setTracks(prev => prev.map((t, ti) => {
+      if (trackIndex !== undefined && ti !== trackIndex) return t;
+      
+      // Only apply fill to percussion tracks
+      const isPerc = ['hihat', 'snare', 'tom', 'tom1', 'tom2', 'tom3'].includes(t.id.toLowerCase());
+      if (!isPerc && trackIndex === undefined) return t;
+      
+      return {
+        ...t,
+        pattern: t.pattern.map((step, si) => {
+          if (si < startStep) return step;
+          // Increasing density toward the end
+          const fillDensity = 0.3 + ((si - startStep) / fillLength) * 0.5;
+          return {
+            ...step,
+            active: Math.random() < fillDensity,
+            velocity: 80 + Math.floor(Math.random() * 47),
+          };
+        }),
+      };
+    }));
+    toast({ title: '🥁 Fill Generated', description: `Last ${fillLength} steps` });
+  };
+
+  // ISSUE #3: Export beat as audio
+  const exportBeatAsAudio = async () => {
+    if (!audioCtx.current) {
+      audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    
+    toast({ title: 'Rendering...', description: 'Exporting beat to audio' });
+    
+    try {
+      const stepDuration = 60 / bpm / 4; // 16th note duration in seconds
+      const totalDuration = patternLength * stepDuration;
+      const sampleRate = 44100;
+      const offline = new OfflineAudioContext(2, Math.ceil(totalDuration * sampleRate), sampleRate);
+      
+      // Schedule all drum hits
+      const hasSolo = tracks.some(t => t.solo);
+      
+      tracks.forEach(track => {
+        if (track.muted) return;
+        if (hasSolo && !track.solo) return;
+        
+        track.pattern.forEach((step, stepIndex) => {
+          if (!step.active) return;
+          
+          const startTime = stepIndex * stepDuration;
+          const velocity = step.velocity / 127;
+          const volume = track.volume / 100;
+          const finalGain = velocity * volume * (masterVol / 100);
+          
+          // Create simple drum sound for export
+          const drumType = DRUM_ID_TO_TYPE[track.id.toLowerCase()] || 'snare';
+          
+          if (drumType === 'kick') {
+            const osc = offline.createOscillator();
+            const gain = offline.createGain();
+            osc.frequency.setValueAtTime(60, startTime);
+            osc.frequency.exponentialRampToValueAtTime(40, startTime + 0.1);
+            gain.gain.setValueAtTime(finalGain, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
+            osc.connect(gain);
+            gain.connect(offline.destination);
+            osc.start(startTime);
+            osc.stop(startTime + 0.3);
+          } else if (drumType === 'snare' || drumType === 'clap') {
+            const buf = offline.createBuffer(1, sampleRate * 0.15, sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < data.length; i++) {
+              data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2) * 0.5;
+            }
+            const source = offline.createBufferSource();
+            source.buffer = buf;
+            const gain = offline.createGain();
+            gain.gain.value = finalGain;
+            source.connect(gain);
+            gain.connect(offline.destination);
+            source.start(startTime);
+          } else if (drumType === 'hihat' || drumType === 'openhat') {
+            const decay = drumType === 'openhat' ? 0.2 : 0.05;
+            const buf = offline.createBuffer(1, sampleRate * decay, sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < data.length; i++) {
+              data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2) * 0.3;
+            }
+            const source = offline.createBufferSource();
+            source.buffer = buf;
+            const filter = offline.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.value = 8000;
+            const gain = offline.createGain();
+            gain.gain.value = finalGain;
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(offline.destination);
+            source.start(startTime);
+          } else {
+            // Generic percussion
+            const buf = offline.createBuffer(1, sampleRate * 0.1, sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < data.length; i++) {
+              data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5) * 0.4;
+            }
+            const source = offline.createBufferSource();
+            source.buffer = buf;
+            const gain = offline.createGain();
+            gain.gain.value = finalGain;
+            source.connect(gain);
+            gain.connect(offline.destination);
+            source.start(startTime);
+          }
+        });
+      });
+      
+      const renderedBuffer = await offline.startRendering();
+      
+      // Convert to WAV
+      const wavBlob = audioBufferToWav(renderedBuffer);
+      const url = URL.createObjectURL(wavBlob);
+      
+      // Download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `beat-${bpm}bpm-${selectedGenre.toLowerCase()}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: '✅ Beat Exported', description: 'WAV file downloaded' });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({ title: 'Export Failed', variant: 'destructive' });
+    }
+  };
+
+  // Helper: Convert AudioBuffer to WAV
+  const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const format = 1;
+    const bitDepth = 16;
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const samples = buffer.length;
+    const dataSize = samples * blockAlign;
+    const bufferSize = 44 + dataSize;
+    const arrayBuffer = new ArrayBuffer(bufferSize);
+    const view = new DataView(arrayBuffer);
+    
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    
+    writeString(0, 'RIFF');
+    view.setUint32(4, bufferSize - 8, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, format, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+    
+    const channels: Float32Array[] = [];
+    for (let c = 0; c < numChannels; c++) channels.push(buffer.getChannelData(c));
+    
+    let offset = 44;
+    for (let i = 0; i < samples; i++) {
+      for (let c = 0; c < numChannels; c++) {
+        const sample = Math.max(-1, Math.min(1, channels[c][i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+  };
+
+  // ISSUE #4: Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const key = e.key.toLowerCase();
+      
+      // Space: Play/Stop
+      if (key === ' ') {
+        e.preventDefault();
+        setIsPlaying(p => {
+          if (p) setCurrentStep(0);
+          return !p;
+        });
+        return;
+      }
+      
+      // Arrow keys: Navigate steps
+      if (key === 'arrowright' && selectedStep) {
+        e.preventDefault();
+        setSelectedStep(s => s ? { ...s, s: Math.min(patternLength - 1, s.s + 1) } : null);
+        return;
+      }
+      if (key === 'arrowleft' && selectedStep) {
+        e.preventDefault();
+        setSelectedStep(s => s ? { ...s, s: Math.max(0, s.s - 1) } : null);
+        return;
+      }
+      if (key === 'arrowup' && selectedStep) {
+        e.preventDefault();
+        setSelectedStep(s => s ? { ...s, t: Math.max(0, s.t - 1) } : null);
+        return;
+      }
+      if (key === 'arrowdown' && selectedStep) {
+        e.preventDefault();
+        setSelectedStep(s => s ? { ...s, t: Math.min(tracks.length - 1, s.t + 1) } : null);
+        return;
+      }
+      
+      // Enter: Toggle selected step
+      if (key === 'enter' && selectedStep) {
+        e.preventDefault();
+        toggleStep(selectedStep.t, selectedStep.s);
+        return;
+      }
+      
+      // C: Copy step
+      if (key === 'c' && selectedStep && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        copyStep(selectedStep.t, selectedStep.s);
+        return;
+      }
+      
+      // V: Paste step
+      if (key === 'v' && selectedStep && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        pasteStep(selectedStep.t, selectedStep.s);
+        return;
+      }
+      
+      // Ctrl+Z: Undo
+      if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      
+      // Ctrl+Y or Ctrl+Shift+Z: Redo
+      if ((e.ctrlKey || e.metaKey) && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      
+      // R: Randomize
+      if (key === 'r' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        randomize();
+        return;
+      }
+      
+      // A/B: Switch variation
+      if (key === 'a' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        switchVariation('A');
+        return;
+      }
+      if (key === 'b' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        switchVariation('B');
+        return;
+      }
+      
+      // F: Generate fill
+      if (key === 'f' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        generateFill();
+        return;
+      }
+      
+      // M: Toggle metronome
+      if (key === 'm' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setMetronomeOn(m => !m);
+        return;
+      }
+      
+      // Ctrl+S: Save pattern
+      if ((e.ctrlKey || e.metaKey) && key === 's') {
+        e.preventDefault();
+        savePattern();
+        return;
+      }
+      
+      // Escape: Deselect
+      if (key === 'escape') {
+        setSelectedStep(null);
+        return;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedStep, patternLength, tracks.length, copiedStep]);
+
   const playSound = useCallback(async (id: string, vel: number, vol: number) => {
     const normalizedId = id.toLowerCase();
     const drumType = DRUM_ID_TO_TYPE[normalizedId] || 'snare';
+    const kitKey = (KIT_SOUND_ALIASES[selectedKit] || selectedKit || 'default').toLowerCase();
+    const kitProfile = CLASSIC_KIT_PROFILES[kitKey] || CLASSIC_KIT_PROFILES.default;
+    const tomProfile = {
+      hi: kitProfile.tomHi || { ...kitProfile.tom, start: kitProfile.tom.start * 1.15, end: kitProfile.tom.end * 1.15 },
+      mid: kitProfile.tomMid || kitProfile.tom,
+      lo: kitProfile.tomLo || { ...kitProfile.tom, start: kitProfile.tom.start * 0.85, end: kitProfile.tom.end * 0.85 },
+    };
+    const cowbellProfile = kitProfile.cowbell || { f1: 560, f2: 830, decay: 0.18, vol: 0.9 };
+    const percProfile = kitProfile.perc || { decay: 0.12, bp: 7000, noiseVol: 0.8 };
+    const rimProfile = kitProfile.rim || { freq: 1800, decay: 0.05, vol: 0.6 };
+    const congaProfile = kitProfile.conga || { start: 340, end: 170, decay: 0.34 };
 
     // When using the realistic engine, delegate to realisticAudio
     if (useRealisticDrums) {
       const baseVelocity = (vel / 127) * (vol / 100) * (masterVol / 100);
       const normalizedVelocity = Math.max(0, Math.min(1, baseVelocity));
 
-      await realisticAudio.playDrumSound(drumType, normalizedVelocity);
+      await realisticAudio.playDrumSound(drumType, normalizedVelocity, kitKey);
       return;
     }
 
@@ -816,53 +1359,135 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     switch (drumType) {
       case 'kick': {
         const o = ctx.createOscillator();
-        o.frequency.setValueAtTime(150, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
+        o.frequency.setValueAtTime(kitProfile.kick.start, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(kitProfile.kick.end, ctx.currentTime + kitProfile.kick.sweep);
         const g = ctx.createGain();
-        g.gain.setValueAtTime(1, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.3);
+        g.gain.setValueAtTime(kitProfile.kick.vol, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + kitProfile.kick.decay);
+        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + kitProfile.kick.decay);
         break;
       }
       case 'snare':
       case 'clap': {
-        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+        const buf = ctx.createBuffer(1, ctx.sampleRate * kitProfile.snare.noiseDecay, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+        const noiseLevel = 0.5 * kitProfile.snare.noiseVol;
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * noiseLevel;
         const s = ctx.createBufferSource(); s.buffer = buf;
         const g = ctx.createGain();
-        g.gain.setValueAtTime(1, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-        s.connect(g); g.connect(gain); s.start(); s.stop(ctx.currentTime + 0.15);
+        g.gain.setValueAtTime(kitProfile.snare.noiseVol, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + kitProfile.snare.noiseDecay);
+
+        // Add a short snare tone for character
+        const tone = ctx.createOscillator();
+        const toneGain = ctx.createGain();
+        tone.type = 'triangle';
+        tone.frequency.setValueAtTime(kitProfile.snare.tone, ctx.currentTime);
+        tone.frequency.exponentialRampToValueAtTime(kitProfile.snare.toneEnd, ctx.currentTime + kitProfile.snare.toneDecay);
+        toneGain.gain.setValueAtTime(kitProfile.snare.toneVol, ctx.currentTime);
+        toneGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + kitProfile.snare.toneDecay);
+
+        s.connect(g); g.connect(gain);
+        tone.connect(toneGain); toneGain.connect(gain);
+
+        s.start(); s.stop(ctx.currentTime + kitProfile.snare.noiseDecay);
+        tone.start(); tone.stop(ctx.currentTime + kitProfile.snare.toneDecay);
         break;
       }
       case 'hihat': {
-        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+        const buf = ctx.createBuffer(1, ctx.sampleRate * kitProfile.hihat.decay, ctx.sampleRate);
         const d = buf.getChannelData(0);
         for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
         const s = ctx.createBufferSource(); s.buffer = buf;
-        const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
-        s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.05);
+        const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = kitProfile.hihat.hp;
+        s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + kitProfile.hihat.decay);
         break;
       }
       case 'openhat': {
-        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
+        const buf = ctx.createBuffer(1, ctx.sampleRate * kitProfile.openhat.decay, ctx.sampleRate);
         const d = buf.getChannelData(0);
         for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.2);
         const s = ctx.createBufferSource(); s.buffer = buf;
-        const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 5000;
-        s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.25);
+        const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = kitProfile.openhat.hp;
+        s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + kitProfile.openhat.decay);
         break;
       }
       case 'tom': {
         const o = ctx.createOscillator();
         o.type = 'sine';
-        o.frequency.setValueAtTime(220, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.2);
+        o.frequency.setValueAtTime(kitProfile.tom.start, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(kitProfile.tom.end, ctx.currentTime + 0.2);
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.9, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.35);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + kitProfile.tom.decay);
+        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + kitProfile.tom.decay);
+        break;
+      }
+      case 'tom_hi':
+      case 'tom_mid':
+      case 'tom_lo': {
+        const profile =
+          drumType === 'tom_hi' ? tomProfile.hi :
+          drumType === 'tom_lo' ? tomProfile.lo :
+          tomProfile.mid;
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(profile.start, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(profile.end, ctx.currentTime + 0.2);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.9, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + profile.decay);
+        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + profile.decay);
+        break;
+      }
+      case 'conga': {
+        const o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(congaProfile.start, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(congaProfile.end, ctx.currentTime + 0.18);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.8, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + congaProfile.decay);
+        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + congaProfile.decay);
+        break;
+      }
+      case 'cowbell': {
+        // 808-style cowbell: two squares with short decay
+        const o1 = ctx.createOscillator();
+        const o2 = ctx.createOscillator();
+        o1.type = 'square';
+        o2.type = 'square';
+        o1.frequency.setValueAtTime(cowbellProfile.f1, ctx.currentTime);
+        o2.frequency.setValueAtTime(cowbellProfile.f2, ctx.currentTime);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(cowbellProfile.vol, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + cowbellProfile.decay);
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 600;
+        o1.connect(g); o2.connect(g); g.connect(hp); hp.connect(gain);
+        o1.start(); o2.start();
+        o1.stop(ctx.currentTime + cowbellProfile.decay);
+        o2.stop(ctx.currentTime + cowbellProfile.decay);
+        break;
+      }
+      case 'perc': {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * percProfile.decay, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (percProfile.noiseVol ?? 0.8) * Math.pow(1 - i / d.length, 1.3);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = percProfile.bp;
+        s.connect(bp); bp.connect(gain); s.start(); s.stop(ctx.currentTime + percProfile.decay);
+        break;
+      }
+      case 'rim': {
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        const g = ctx.createGain();
+        o.frequency.setValueAtTime(rimProfile.freq, ctx.currentTime);
+        g.gain.setValueAtTime(rimProfile.vol, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + rimProfile.decay);
+        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + rimProfile.decay);
         break;
       }
       case 'crash': {
@@ -891,7 +1516,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         s.connect(gain); s.start(); s.stop(ctx.currentTime + 0.08);
       }
     }
-  }, [masterVol, useRealisticDrums]);
+  }, [masterVol, useRealisticDrums, selectedKit]);
 
   // MIDI Learn - capture incoming MIDI note when in learn mode
   useEffect(() => {
@@ -1146,6 +1771,25 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         <div className="flex items-center gap-2">
           <Badge variant="outline">{bpm} BPM</Badge>
           <Badge variant="outline">Step {currentStep + 1}/{patternLength}</Badge>
+          {/* ISSUE #6: Pattern Variation A/B */}
+          <div className="flex gap-1">
+            <Button 
+              size="sm" 
+              variant={patternVariation === 'A' ? 'default' : 'outline'}
+              onClick={() => switchVariation('A')}
+              className={patternVariation === 'A' ? 'bg-blue-600' : ''}
+            >
+              A
+            </Button>
+            <Button 
+              size="sm" 
+              variant={patternVariation === 'B' ? 'default' : 'outline'}
+              onClick={() => switchVariation('B')}
+              className={patternVariation === 'B' ? 'bg-purple-600' : ''}
+            >
+              B
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1296,6 +1940,53 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         <Button variant="outline" onClick={clearAll}><RotateCcw className="w-4 h-4 mr-1" />Clear</Button>
         <Button variant="outline" onClick={undo} disabled={historyIdx <= 0}><Undo2 className="w-4 h-4" /></Button>
         <Button variant="outline" onClick={redo} disabled={historyIdx >= history.length - 1}><Redo2 className="w-4 h-4" /></Button>
+        
+        {/* ISSUE #10: Fill Generator */}
+        <Button variant="outline" onClick={() => generateFill()} title="Generate drum fill (F)">
+          🥁 Fill
+        </Button>
+        
+        {/* ISSUE #9: Accent Pattern */}
+        <Button variant="outline" onClick={applyAccentPattern} title="Emphasize beats 2 & 4">
+          🎯 Accent
+        </Button>
+        
+        {/* ISSUE #3: Export Audio */}
+        <Button variant="outline" onClick={exportBeatAsAudio} className="border-green-500 text-green-300">
+          📥 Export WAV
+        </Button>
+        
+        {/* ISSUE #2: Save/Load Patterns */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">💾 Patterns</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="bg-gray-800 border-gray-700">
+            <DropdownMenuLabel>Saved Patterns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => savePattern()}>
+              Save Current Pattern
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {savedPatterns.length === 0 ? (
+              <DropdownMenuItem disabled>No saved patterns</DropdownMenuItem>
+            ) : (
+              savedPatterns.map(p => (
+                <DropdownMenuItem key={p.id} className="flex justify-between">
+                  <span onClick={() => loadPattern(p.id)}>{p.name}</span>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="h-5 w-5 p-0 text-red-400"
+                    onClick={(e) => { e.stopPropagation(); deletePattern(p.id); }}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
         
         {/* Humanize */}
         <div className="flex items-center gap-2 border-l border-gray-600 pl-2">
@@ -1546,14 +2237,29 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         {tracks.map((track, ti) => (
           <div key={track.id} className="flex items-center gap-2">
             {/* Track Controls */}
-            <div className="flex items-center gap-1 w-44 flex-shrink-0">
+            <div className="flex items-center gap-1 w-56 flex-shrink-0">
               <div className={`w-3 h-3 rounded ${track.color}`} />
               <span
-                className="text-xs font-medium text-white flex-1"
+                className="text-xs font-medium text-white w-14 truncate"
                 title={track.name}
               >
                 {track.name}
               </span>
+              {/* ISSUE #7: Per-track pan control */}
+              <div className="flex items-center gap-0.5" title={`Pan: ${track.pan}`}>
+                <span className="text-[9px] text-gray-500">L</span>
+                <Slider 
+                  value={[track.pan + 50]} 
+                  onValueChange={v => setTracks(p => { 
+                    const c = [...p]; 
+                    c[ti] = {...c[ti], pan: v[0] - 50}; 
+                    return c; 
+                  })}
+                  max={100}
+                  className="w-10"
+                />
+                <span className="text-[9px] text-gray-500">R</span>
+              </div>
               <Button size="sm" variant={track.muted ? 'destructive' : 'outline'}
                 onClick={() => setTracks(p => { const c = [...p]; c[ti] = {...c[ti], muted: !c[ti].muted}; return c; })}
                 className="h-5 w-5 p-0 text-xs" title="Mute">M</Button>
@@ -1572,20 +2278,35 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
 
             {/* Steps */}
             <div className="flex gap-0.5">
-              {track.pattern.map((step, si) => (
-                <button key={si} onClick={() => toggleStep(ti, si)}
-                  className={`w-7 h-7 rounded text-xs font-bold transition-all relative
-                    ${step.active ? `${track.color} text-white shadow-lg` : 'bg-gray-700 text-gray-500 hover:bg-gray-600'}
-                    ${currentStep === si && isPlaying ? 'ring-2 ring-yellow-400 scale-110' : ''}
-                    ${selectedStep?.t === ti && selectedStep?.s === si ? 'ring-2 ring-blue-400' : ''}
-                    ${si % 4 === 0 ? 'ml-1' : ''}`}>
-                  {si + 1}
-                  {/* Flam indicator */}
-                  {step.flam && <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-400 rounded-full" />}
-                  {/* Roll indicator */}
-                  {step.roll > 0 && <span className="absolute -bottom-1 -right-1 text-[8px] bg-cyan-500 rounded px-0.5">{step.roll}x</span>}
-                </button>
-              ))}
+              {track.pattern.map((step, si) => {
+                // ISSUE #8: Visual velocity display - opacity based on velocity
+                const velocityOpacity = step.active ? 0.4 + (step.velocity / 127) * 0.6 : 1;
+                const velocityHeight = step.active ? Math.max(2, (step.velocity / 127) * 100) : 0;
+                
+                return (
+                  <button key={si} onClick={() => toggleStep(ti, si)}
+                    className={`w-7 h-7 rounded text-xs font-bold transition-all relative overflow-hidden
+                      ${step.active ? `${track.color} text-white shadow-lg` : 'bg-gray-700 text-gray-500 hover:bg-gray-600'}
+                      ${currentStep === si && isPlaying ? 'ring-2 ring-yellow-400 scale-110' : ''}
+                      ${selectedStep?.t === ti && selectedStep?.s === si ? 'ring-2 ring-blue-400' : ''}
+                      ${si % 4 === 0 ? 'ml-1' : ''}`}
+                    style={{ opacity: velocityOpacity }}
+                    title={step.active ? `Vel: ${step.velocity}` : ''}>
+                    {si + 1}
+                    {/* ISSUE #8: Velocity bar indicator */}
+                    {step.active && (
+                      <div 
+                        className="absolute bottom-0 left-0 right-0 bg-white/30"
+                        style={{ height: `${velocityHeight}%` }}
+                      />
+                    )}
+                    {/* Flam indicator */}
+                    {step.flam && <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-400 rounded-full" />}
+                    {/* Roll indicator */}
+                    {step.roll > 0 && <span className="absolute -bottom-1 -right-1 text-[8px] bg-cyan-500 rounded px-0.5">{step.roll}x</span>}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Volume */}

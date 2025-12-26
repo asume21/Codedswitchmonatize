@@ -10,15 +10,18 @@ import { createKeyRoutes } from "./routes/keys";
 import { createSongRoutes } from "./routes/songs";
 import { createCreditRoutes } from "./routes/credits";
 import { createPackRoutes } from "./routes/packs";
+import { createAIRoutes } from "./routes/ai";
+import { createAudioRoutes } from "./routes/audio";
+import { createMixRoutes } from "./routes/mix";
+import { createLyricsRoutes } from "./routes/lyrics";
 import { createAstutelyRoutes } from "./routes/astutely";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
-import { musicGenService } from "./services/musicgen";
+import { unifiedMusicService } from "./services/unifiedMusicService";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { callAI } from "./services/aiGateway";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
-import { generateMusicFromLyrics } from "./services/lyricsToMusic";
 import { generateChatMusicianMelody } from "./services/chatMusician";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import { convertCodeToMusic, convertCodeToMusicEnhanced } from "./services/codeToMusic";
@@ -32,6 +35,8 @@ import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID } from "./ut
 import { insertPlaylistSchema } from "@shared/schema";
 import { z } from "zod";
 import { generateSpeechPreview, createVoiceIdForFile, storePreview, getPreview, applyVoiceConversion } from "./services/speechCorrection";
+import { listVoices, getVoice, createVoice, deleteVoice, convertWithVoice, checkRvcHealth } from "./services/voiceLibrary";
+import { extractPitch, pitchCorrect, extractMelody, scoreKaraoke, detectEmotion, classifyAudio, checkApiHealth } from "./services/audioAnalysis";
 import { mixPreviewService, MixPreviewRequest } from "./services/mixPreview";
 import { jobManager } from "./services/jobManager";
 
@@ -58,6 +63,12 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Mount pack routes
   app.use("/api/packs", createPackRoutes(storage));
+
+  // Mount Mix Preview & Jobs routes
+  app.use("/api", createMixRoutes());
+
+  // Mount Lyric Lab routes
+  app.use("/api/lyrics", createLyricsRoutes());
 
   // Mount Astutely AI routes
   app.use("/api", createAstutelyRoutes());
@@ -246,13 +257,13 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   } catch {}
 
   // Local loop/asset directories (for Neumann Pack & Loop Library)
-  const LOCAL_ASSETS_DIR = path.resolve(process.cwd(), "server", "Assests");
+  const LOCAL_ASSETS_DIR = path.resolve(process.cwd(), "server", "Assets");
 
   // Robust loop path resolution: try common install/build locations, prefer packaged assets
   const loopCandidates = [
-    path.resolve(__dirname, "../Assests/loops"),                // compiled build (dist/server -> dist/Assests)
+    path.resolve(__dirname, "../Assets/loops"),                // compiled build (dist/server -> dist/Assets)
     path.join(LOCAL_ASSETS_DIR, "loops"),                        // ts-node from repo root
-    path.resolve(process.cwd(), "Assests", "loops"),             // fallback if cwd is project root
+    path.resolve(process.cwd(), "Assets", "loops"),             // fallback if cwd is project root
     path.resolve(LOCAL_OBJECTS_DIR, "loops"),                    // legacy objects/loops fallback
   ];
 
@@ -2387,7 +2398,7 @@ ${code}
                     return sendError(res, 400, "Missing prompt");
         }
 
-        const packs = await musicGenService.generateSamplePack(prompt, Math.max(1, Math.min(count || 4, 8)));
+        const packs = await unifiedMusicService.generateSamplePack(prompt, { packCount: Math.max(1, Math.min(count || 4, 8)) });
 
         // Persist pack metadata in storage
         const saved = [] as any[];
@@ -2643,6 +2654,413 @@ ${code}
       } catch (error: any) {
         console.error("Speech-correction voiceprint error:", error);
         sendError(res, 500, error.message || "Voiceprint failed");
+      }
+    }
+  );
+
+  // ============================================
+  // VOICE LIBRARY ENDPOINTS
+  // Manage voice models for voice conversion
+  // ============================================
+
+  // Health check for RVC/voice conversion API
+  app.get("/api/voices/health", async (_req: Request, res: Response) => {
+    try {
+      const health = await checkRvcHealth();
+      res.json({ success: true, ...health });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Health check failed";
+      sendError(res, 500, message);
+    }
+  });
+
+  // List all voices for current user
+  app.get("/api/voices", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).session?.userId;
+      if (!userId) {
+        return sendError(res, 401, "Not authenticated");
+      }
+      const voices = listVoices(userId);
+      res.json({ success: true, voices });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to list voices";
+      sendError(res, 500, message);
+    }
+  });
+
+  // Get a specific voice
+  app.get("/api/voices/:voiceId", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { voiceId } = req.params;
+      const voice = getVoice(voiceId);
+      if (!voice) {
+        return sendError(res, 404, "Voice not found");
+      }
+      res.json({ success: true, voice });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to get voice";
+      sendError(res, 500, message);
+    }
+  });
+
+  // Create a new voice from uploaded audio
+  app.post(
+    "/api/voices",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req as any).session?.userId;
+        if (!userId) {
+          return sendError(res, 401, "Not authenticated");
+        }
+
+        const { objectKey, fileUrl, name, duration } = req.body;
+        if (!objectKey && !fileUrl) {
+          return sendError(res, 400, "objectKey or fileUrl required");
+        }
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "Unsupported fileUrl format");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found");
+        }
+
+        const voice = await createVoice(userId, targetPath, name || "My Voice", duration || 0);
+        res.json({ success: true, voice });
+      } catch (error: unknown) {
+        console.error("Create voice error:", error);
+        const message = error instanceof Error ? error.message : "Failed to create voice";
+        sendError(res, 500, message);
+      }
+    }
+  );
+
+  // Delete a voice
+  app.delete(
+    "/api/voices/:voiceId",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req as any).session?.userId;
+        if (!userId) {
+          return sendError(res, 401, "Not authenticated");
+        }
+
+        const { voiceId } = req.params;
+        const deleted = deleteVoice(voiceId, userId);
+        if (!deleted) {
+          return sendError(res, 404, "Voice not found");
+        }
+        res.json({ success: true });
+      } catch (error: unknown) {
+        console.error("Delete voice error:", error);
+        const message = error instanceof Error ? error.message : "Failed to delete voice";
+        if (message === "Access denied") {
+          return sendError(res, 403, message);
+        }
+        sendError(res, 500, message);
+      }
+    }
+  );
+
+  // Convert audio using a voice model
+  app.post(
+    "/api/voices/:voiceId/convert",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { voiceId } = req.params;
+        const { audioUrl, objectKey, pitch, indexRate, filterRadius, rmsMixRate, protect } = req.body;
+
+        let sourceUrl = audioUrl;
+        if (!sourceUrl && objectKey) {
+          sourceUrl = `/api/internal/uploads/${objectKey}`;
+        }
+        if (!sourceUrl) {
+          return sendError(res, 400, "audioUrl or objectKey required");
+        }
+
+        const resultUrl = await convertWithVoice(voiceId, sourceUrl, {
+          pitch,
+          indexRate,
+          filterRadius,
+          rmsMixRate,
+          protect,
+        });
+
+        res.json({ success: true, url: resultUrl });
+      } catch (error: unknown) {
+        console.error("Voice convert error:", error);
+        const message = error instanceof Error ? error.message : "Voice conversion failed";
+        sendError(res, 500, message);
+      }
+    }
+  );
+
+  // ============================================
+  // AUDIO ANALYSIS ENDPOINTS
+  // Uses local RVC-based API for pitch/melody/emotion analysis
+  // ============================================
+
+  // Health check for audio analysis API
+  app.get("/api/audio-analysis/health", async (_req: Request, res: Response) => {
+    try {
+      const health = await checkApiHealth();
+      res.json({ success: true, ...health });
+    } catch (error: any) {
+      sendError(res, 500, error.message || "Health check failed");
+    }
+  });
+
+  // Extract pitch (F0) from audio
+  app.post(
+    "/api/audio-analysis/extract-pitch",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl } = req.body;
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "objectKey or fileUrl required");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found");
+        }
+
+        const result = await extractPitch(targetPath);
+        if (!result) {
+          return sendError(res, 503, "Audio analysis API not available");
+        }
+
+        res.json({ success: true, ...result });
+      } catch (error: any) {
+        console.error("Extract pitch error:", error);
+        sendError(res, 500, error.message || "Pitch extraction failed");
+      }
+    }
+  );
+
+  // Apply pitch correction (auto-tune)
+  app.post(
+    "/api/audio-analysis/pitch-correct",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl, scale, root, correctionStrength } = req.body;
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "objectKey or fileUrl required");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found");
+        }
+
+        const resultUrl = await pitchCorrect(targetPath, { scale, root, correctionStrength });
+        if (!resultUrl) {
+          return sendError(res, 503, "Audio analysis API not available");
+        }
+
+        res.json({ success: true, url: resultUrl });
+      } catch (error: any) {
+        console.error("Pitch correct error:", error);
+        sendError(res, 500, error.message || "Pitch correction failed");
+      }
+    }
+  );
+
+  // Extract melody as MIDI notes
+  app.post(
+    "/api/audio-analysis/extract-melody",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl, minNoteDuration } = req.body;
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "objectKey or fileUrl required");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found");
+        }
+
+        const result = await extractMelody(targetPath, minNoteDuration);
+        if (!result) {
+          return sendError(res, 503, "Audio analysis API not available");
+        }
+
+        res.json({ success: true, ...result });
+      } catch (error: any) {
+        console.error("Extract melody error:", error);
+        sendError(res, 500, error.message || "Melody extraction failed");
+      }
+    }
+  );
+
+  // Score karaoke performance
+  app.post(
+    "/api/audio-analysis/karaoke-score",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl, referenceNotes } = req.body;
+
+        if (!referenceNotes || !Array.isArray(referenceNotes)) {
+          return sendError(res, 400, "referenceNotes array required");
+        }
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "objectKey or fileUrl required");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found");
+        }
+
+        const result = await scoreKaraoke(targetPath, referenceNotes);
+        if (!result) {
+          return sendError(res, 503, "Audio analysis API not available");
+        }
+
+        res.json({ success: true, ...result });
+      } catch (error: any) {
+        console.error("Karaoke score error:", error);
+        sendError(res, 500, error.message || "Karaoke scoring failed");
+      }
+    }
+  );
+
+  // Detect emotion from vocals
+  app.post(
+    "/api/audio-analysis/detect-emotion",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl } = req.body;
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "objectKey or fileUrl required");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found");
+        }
+
+        const result = await detectEmotion(targetPath);
+        if (!result) {
+          return sendError(res, 503, "Audio analysis API not available");
+        }
+
+        res.json({ success: true, ...result });
+      } catch (error: any) {
+        console.error("Detect emotion error:", error);
+        sendError(res, 500, error.message || "Emotion detection failed");
+      }
+    }
+  );
+
+  // Classify audio type
+  app.post(
+    "/api/audio-analysis/classify",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { objectKey, fileUrl } = req.body;
+
+        let targetPath: string;
+        if (objectKey) {
+          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else {
+          return sendError(res, 400, "objectKey or fileUrl required");
+        }
+
+        const resolvedPath = path.resolve(targetPath);
+        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
+          return sendError(res, 403, "Access denied");
+        }
+        if (!fs.existsSync(targetPath)) {
+          return sendError(res, 404, "Audio file not found");
+        }
+
+        const result = await classifyAudio(targetPath);
+        if (!result) {
+          return sendError(res, 503, "Audio analysis API not available");
+        }
+
+        res.json({ success: true, ...result });
+      } catch (error: any) {
+        console.error("Classify audio error:", error);
+        sendError(res, 500, error.message || "Audio classification failed");
       }
     }
   );
@@ -3093,226 +3511,6 @@ ${code}
     },
   );
 
-  // Professional song generation endpoint (Suno via Replicate)
-  app.post("/api/songs/generate-professional", async (req: Request, res: Response) => {
-    try {
-      const { prompt, genre, mood, duration, style, vocals, bpm, key } = req.body;
-      
-      if (!prompt) {
-        return sendError(res, 400, "Missing prompt");
-      }
-
-      console.log('🎵 Generating professional song with MusicGen via Replicate...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      const song = await replicateMusic.generateFullSong(prompt, {
-        genre: genre || 'pop',
-        mood: mood || 'uplifting',
-        duration: duration || 30, // MusicGen max 30 seconds
-        style: style || 'modern',
-        vocals: vocals !== false,
-        bpm: bpm || 120,
-        key: key || 'C Major'
-      });
-
-      console.log('✅ Professional song generated');
-      res.json({
-        success: true,
-        status: 'success',
-        song: song
-      });
-
-    } catch (error) {
-      console.error('❌ Song generation error:', error);
-      sendError(res, 500, "Failed to generate professional song");
-    }
-  });
-
-  // Generate beat and melody (MusicGen via Replicate)
-  app.post("/api/songs/generate-beat", async (req: Request, res: Response) => {
-    try {
-      const { prompt, genre, duration, style, energy } = req.body;
-      
-      if (!prompt) {
-        return sendError(res, 400, "Missing prompt");
-      }
-
-      console.log('🎼 Generating beat and melody with MusicGen via Replicate...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      const result = await replicateMusic.generateBeatAndMelody(prompt, {
-        genre: genre || 'pop',
-        duration: duration || 30,
-        style: style || 'modern',
-        energy: energy || 'medium'
-      });
-
-      console.log('✅ Beat and melody generated');
-      res.json({
-        status: 'success',
-        result: result
-      });
-
-    } catch (error) {
-      console.error('❌ Beat generation error:', error);
-      sendError(res, 500, "Failed to generate beat");
-    }
-  });
-
-  // Generate instrumental (MusicGen via Replicate)
-  app.post("/api/songs/generate-instrumental", async (req: Request, res: Response) => {
-    try {
-      const { prompt, genre, duration, instruments, energy } = req.body;
-      
-      if (!prompt) {
-        return sendError(res, 400, "Missing prompt");
-      }
-
-      console.log('🎹 Generating instrumental with MusicGen via Replicate...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      const result = await replicateMusic.generateInstrumental(prompt, {
-        genre: genre || 'pop',
-        duration: duration || 60,
-        instruments: instruments || ['piano', 'guitar', 'bass', 'drums'],
-        energy: energy || 'medium'
-      });
-
-      console.log('✅ Instrumental generated');
-      res.json({
-        status: 'success',
-        result: result
-      });
-
-    } catch (error) {
-      console.error('❌ Instrumental generation error:', error);
-      sendError(res, 500, "Failed to generate instrumental");
-    }
-  });
-
-  // Genre blending (MusicGen via Replicate)
-  app.post("/api/songs/blend-genres", async (req: Request, res: Response) => {
-    try {
-      const { primaryGenre, secondaryGenres, prompt } = req.body;
-      
-      if (!primaryGenre || !secondaryGenres || !prompt) {
-        return sendError(res, 400, "Missing required parameters");
-      }
-
-      console.log('🎭 Blending genres with MusicGen via Replicate...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      const result = await replicateMusic.blendGenres(primaryGenre, secondaryGenres, prompt);
-
-      console.log('✅ Genres blended');
-      res.json({
-        status: 'success',
-        result: result
-      });
-
-    } catch (error) {
-      console.error('❌ Genre blending error:', error);
-      sendError(res, 500, "Failed to blend genres");
-    }
-  });
-
-  // Generate pattern-based music (for RealisticAudioEngine playback)
-  app.post("/api/songs/generate-pattern", async (req: Request, res: Response) => {
-    try {
-      const { prompt, duration, bpm } = req.body;
-      
-      if (!prompt) {
-        return sendError(res, 400, "Missing prompt");
-      }
-
-      console.log('🎼 Generating music pattern for realistic instruments...');
-      
-      const { patternGenerator } = await import('./services/patternGenerator');
-      
-      const pattern = patternGenerator.generatePattern(
-        prompt,
-        duration || 30,
-        bpm
-      );
-
-      console.log('✅ Music pattern generated with', pattern.patterns.length, 'instruments');
-      res.json({
-        success: true,
-        pattern: pattern
-      });
-
-    } catch (error) {
-      console.error('❌ Pattern generation error:', error);
-      sendError(res, 500, "Failed to generate music pattern");
-    }
-  });
-
-  // Generate drum pattern (MusicGen via Replicate)
-  app.post("/api/songs/generate-drums", async (req: Request, res: Response) => {
-    try {
-      const { prompt, genre, bpm, duration } = req.body;
-      
-      if (!prompt) {
-        return sendError(res, 400, "Missing prompt");
-      }
-
-      console.log('🥁 Generating drum pattern with MusicGen via Replicate...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      const result = await replicateMusic.generateDrumPattern(prompt, {
-        genre: genre || 'pop',
-        bpm: bpm || 120,
-        duration: duration || 30
-      });
-
-      console.log('✅ Drum pattern generated');
-      res.json({
-        status: 'success',
-        result: result
-      });
-
-    } catch (error) {
-      console.error('❌ Drum generation error:', error);
-      sendError(res, 500, "Failed to generate drums");
-    }
-  });
-
-  // Generate melody (MusicGen via Replicate)
-  app.post("/api/songs/generate-melody", async (req: Request, res: Response) => {
-    try {
-      const { prompt, genre, key, duration, instrument } = req.body;
-      
-      if (!prompt) {
-        return sendError(res, 400, "Missing prompt");
-      }
-
-      console.log('🎵 Generating melody with MusicGen via Replicate...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      const result = await replicateMusic.generateMelody(prompt, {
-        genre: genre || 'pop',
-        key: key || 'C Major',
-        duration: duration || 30,
-        instrument: instrument || 'piano'
-      });
-
-      console.log('✅ Melody generated');
-      res.json({
-        status: 'success',
-        result: result
-      });
-
-    } catch (error) {
-      console.error('❌ Melody generation error:', error);
-      sendError(res, 500, "Failed to generate melody");
-    }
-  });
 
   // Get available AI providers
   app.get("/api/ai-providers", async (req: Request, res: Response) => {
@@ -3801,122 +3999,7 @@ Return this exact JSON format:
     }
   );
 
-  app.post(
-    "/api/lyrics/generate-music",
-    requireAuth(),
-    requireCredits(CREDIT_COSTS.INSTRUMENTAL_GENERATION, storage),
-    async (req: Request, res: Response) => {
-      try {
-        const { lyrics, style, genre } = req.body;
 
-        if (!lyrics) {
-          return sendError(res, 400, "Lyrics are required");
-        }
-
-        const generatedMusic = await generateMusicFromLyrics(lyrics, style || 'pop', genre || 'electronic');
-
-        // Deduct credits after successful generation
-        if (req.creditService && req.creditCost) {
-          await req.creditService.deductCredits(
-            req.userId!,
-            req.creditCost,
-            'Music generation from lyrics',
-            { style, genre }
-          );
-        }
-
-        res.json(generatedMusic);
-      } catch (err: any) {
-        console.error("Lyrics to music error:", err);
-        sendError(res, 500, err?.message || "Failed to generate music");
-      }
-    }
-  );
-
-  // Generate music with MusicGen via Replicate
-  app.post(
-    "/api/music/generate-with-musicgen",
-    requireAuth(),
-    requireCredits(CREDIT_COSTS.BEAT_GENERATION, storage),
-    async (req: Request, res: Response) => {
-      try {
-        const { prompt, duration } = req.body;
-
-        if (!prompt) {
-          return res.status(400).json({ message: "Prompt is required" });
-        }
-
-        // Call Replicate API for MusicGen
-        const response = await fetch("https://api.replicate.com/v1/predictions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}`,
-          },
-          body: JSON.stringify({
-            version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb", // MusicGen stereo-melody-large
-            input: {
-              prompt: prompt,
-              duration: duration || 10,
-            },
-          }),
-        });
-
-        const prediction = await response.json();
-
-        // Log the response for debugging
-        console.log('[MusicGen] Replicate API response:', JSON.stringify(prediction, null, 2));
-
-        // Check if Replicate returned an error
-        if (prediction.error || prediction.detail) {
-          console.error('[MusicGen] Replicate API error:', prediction.error || prediction.detail);
-          return res.status(500).json({ 
-            message: `Replicate API error: ${prediction.error || prediction.detail}`,
-            details: prediction
-          });
-        }
-
-        // SECURITY: Validate prediction ID format to prevent SSRF
-        if (!prediction.id || typeof prediction.id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(prediction.id)) {
-          console.error('[MusicGen] Invalid prediction response:', prediction);
-          return res.status(500).json({ 
-            message: "Invalid prediction ID received from API",
-            details: prediction
-          });
-        }
-
-        // Poll for result
-        let result;
-        const REPLICATE_API_BASE = 'https://api.replicate.com';
-        do {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          const statusResponse = await fetch(`${REPLICATE_API_BASE}/v1/predictions/${prediction.id}`, {
-            headers: { "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}` },
-          });
-          result = await statusResponse.json();
-        } while (result.status === "starting" || result.status === "processing");
-
-        if (result.status === "succeeded") {
-          // Deduct credits after successful generation
-          if (req.creditService && req.creditCost) {
-            await req.creditService.deductCredits(
-              req.userId!,
-              req.creditCost,
-              'MusicGen beat generation',
-              { prompt: prompt.substring(0, 100), duration }
-            );
-          }
-          
-          res.json({ audioUrl: result.output });
-        } else {
-          return res.status(500).json({ message: "Music generation failed" });
-        }
-      } catch (err: any) {
-        console.error("MusicGen error:", err);
-        res.status(500).json({ message: err?.message || "Failed to generate music" });
-      }
-    }
-  );
 
   // Save pack to library
   app.post(
@@ -3981,702 +4064,7 @@ Return this exact JSON format:
   // MISSING ROUTES - Added to fix frontend calls
   // ============================================
 
-  // Generate full song (alias for /api/songs/generate-professional)
-  app.post("/api/audio/generate-song", async (req: Request, res: Response) => {
-    try {
-      const { prompt, lyrics, options = {} } = req.body;
-      
-      if (!prompt && !lyrics) {
-        return sendError(res, 400, "Prompt or lyrics required");
-      }
 
-      console.log('🎵 Generating full song via /api/audio/generate-song...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      const result = await replicateMusic.generateFullSong(
-        prompt || `Song with lyrics: ${lyrics?.substring(0, 100)}...`,
-        {
-          genre: options.genre || 'pop',
-          mood: options.mood || 'uplifting',
-          duration: options.duration || 120,
-          vocals: options.vocals !== false
-        }
-      );
-
-      console.log('✅ Full song generated');
-      res.json({
-        status: 'success',
-        audioUrl: result.audioUrl,
-        result: result
-      });
-
-    } catch (error: any) {
-      console.error('❌ Song generation error:', error);
-      sendError(res, 500, error?.message || "Failed to generate song");
-    }
-  });
-
-  // Generate lyrics (alias for /api/lyrics/generate)
-  app.post("/api/audio/generate-lyrics", async (req: Request, res: Response) => {
-    try {
-      const { theme, genre, mood, style } = req.body;
-      
-      if (!theme) {
-        return sendError(res, 400, "Theme is required");
-      }
-
-      console.log('✍️ Generating lyrics via /api/audio/generate-lyrics...');
-      
-      const token = process.env.REPLICATE_API_TOKEN;
-      if (!token) {
-        return sendError(res, 500, "REPLICATE_API_TOKEN not configured");
-      }
-
-      const prompt = `Write song lyrics about "${theme}".
-Genre: ${genre || 'pop'}
-Mood: ${mood || 'uplifting'}
-Style: ${style || 'modern'}
-
-Create complete lyrics with verses, chorus, and bridge.`;
-
-      const response = await fetch("https://api.replicate.com/v1/predictions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Token ${token}`,
-        },
-        body: JSON.stringify({
-          version: "2d19859030ff705a87c746f7e96eea03aefb71f166725aee39692f1476566d48",
-          input: { prompt, max_tokens: 800, temperature: 0.8 },
-        }),
-      });
-
-      const prediction = await response.json();
-      
-      // Poll for result
-      let result;
-      let attempts = 0;
-      do {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-          headers: { "Authorization": `Token ${token}` },
-        });
-        result = await statusResponse.json();
-        attempts++;
-      } while ((result.status === "starting" || result.status === "processing") && attempts < 60);
-
-      if (result.status === "succeeded" && result.output) {
-        const lyrics = Array.isArray(result.output) ? result.output.join('') : result.output;
-        res.json({ content: lyrics, lyrics });
-      } else {
-        throw new Error('Lyrics generation failed');
-      }
-
-    } catch (error: any) {
-      console.error('❌ Lyrics generation error:', error);
-      sendError(res, 500, error?.message || "Failed to generate lyrics");
-    }
-  });
-
-  // Generate beat from lyrics
-  app.post("/api/audio/generate-beat-from-lyrics", async (req: Request, res: Response) => {
-    try {
-      const { lyrics, genre, complexity, bpm } = req.body;
-      
-      if (!lyrics) {
-        return sendError(res, 400, "Lyrics are required");
-      }
-
-      console.log('🥁 Generating beat from lyrics...');
-      
-      const { replicateMusic } = await import('./services/replicateMusicGenerator');
-      
-      // Analyze lyrics to determine beat style
-      const prompt = `${genre || 'hip-hop'} beat for lyrics: "${lyrics.substring(0, 200)}..."`;
-      
-      const result = await replicateMusic.generateBeatAndMelody(prompt, {
-        genre: genre || 'hip-hop',
-        duration: 30,
-        style: complexity === 'high' ? 'complex' : 'simple'
-      });
-
-      console.log('✅ Beat generated from lyrics');
-      res.json({
-        status: 'success',
-        audioUrl: result.audioUrl,
-        result: result
-      });
-
-    } catch (error: any) {
-      console.error('❌ Beat from lyrics error:', error);
-      sendError(res, 500, error?.message || "Failed to generate beat from lyrics");
-    }
-  });
-
-  // Generate dynamic layers
-  app.post("/api/layers/generate", async (req: Request, res: Response) => {
-    try {
-      const { baseTrack, style, complexity, instruments } = req.body;
-      
-      console.log('🎚️ Generating dynamic layers...');
-      
-      const { patternGenerator } = await import('./services/patternGenerator');
-      
-      // Generate layered patterns
-      const layers = [];
-      const instrumentList = instruments || ['piano', 'strings', 'bass', 'drums'];
-      
-      for (const instrument of instrumentList) {
-        const pattern = patternGenerator.generatePattern(
-          `${style || 'ambient'} ${instrument} layer`,
-          30,
-          baseTrack?.bpm || 120
-        );
-        layers.push({
-          instrument,
-          pattern: pattern.patterns[0] || pattern,
-          volume: 0.7,
-          pan: Math.random() * 0.4 - 0.2 // Slight stereo spread
-        });
-      }
-
-      console.log('✅ Generated', layers.length, 'layers');
-      res.json({
-        status: 'success',
-        layers: layers,
-        style: style,
-        complexity: complexity
-      });
-
-    } catch (error: any) {
-      console.error('❌ Layer generation error:', error);
-      sendError(res, 500, error?.message || "Failed to generate layers");
-    }
-  });
-
-  // Generate bass line
-  app.post("/api/music/generate-bass", async (req: Request, res: Response) => {
-    try {
-      const { 
-        chordProgression, 
-        style = 'fingerstyle', 
-        pattern = 'root-fifth',
-        octave = 2,
-        groove = 0.5,
-        noteLength = 0.75,
-        velocity = 0.7,
-        glide = 0
-      } = req.body;
-      
-      console.log('🎸 Generating bass line with params:', { style, pattern, octave, groove, noteLength, velocity, glide });
-      
-      const { generateBassLine } = await import('./services/bassGenerator');
-      
-      // Convert chord array to ChordInfo format - handle both string arrays and object arrays
-      let chords: Array<{ chord: string; duration: number }>;
-      if (Array.isArray(chordProgression) && chordProgression.length > 0) {
-        if (typeof chordProgression[0] === 'string') {
-          chords = chordProgression.map((chord: string) => ({
-            chord,
-            duration: 4 // 4 beats per chord
-          }));
-        } else {
-          // Already in object format
-          chords = chordProgression.map((c: any) => ({
-            chord: c.chord || c.name || 'C',
-            duration: c.duration || 4
-          }));
-        }
-      } else {
-        // Default progression if none provided
-        chords = ['C', 'G', 'Am', 'F'].map(chord => ({ chord, duration: 4 }));
-      }
-      
-      const bassNotes = generateBassLine(
-        chords,
-        style,
-        pattern,
-        octave,
-        groove,
-        noteLength,
-        velocity,
-        glide
-      );
-
-      console.log('✅ Bass line generated');
-      res.json({
-        status: 'success',
-        notes: bassNotes,
-        pattern: 'root-fifth',
-        style: style || 'fingerstyle'
-      });
-
-    } catch (error: any) {
-      console.error('❌ Bass generation error:', error);
-      sendError(res, 500, error?.message || "Failed to generate bass line");
-    }
-  });
-
-  // Phase 3: AI Bassline endpoint for BeatMaker (real AI via callAI)
-  app.post("/api/ai/music/bass", async (req: Request, res: Response) => {
-    try {
-      if (!req.userId) {
-        return sendError(res, 401, "Authentication required - please log in");
-      }
-
-      const { key, bpm, bars, songPlanId, sectionId } = req.body || {};
-
-      const safeKey = typeof key === "string" && key.trim().length > 0 ? key.trim() : "C minor";
-      const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
-      const safeBars = Math.max(1, Math.min(16, Number(bars) || 4));
-
-      console.log(
-        `🎸 [Phase 3] Generating AI bassline via callAI: key=${safeKey}, bpm=${safeBpm}, bars=${safeBars}`,
-      );
-
-      type AIBassTrack = {
-        notes: Array<{
-          pitch: string;
-          start: number;
-          duration: number;
-          velocity?: number;
-        }>;
-      };
-
-      // Fallback bass generator when AI fails
-      const generateFallbackBass = (keyStr: string, numBars: number): AIBassTrack => {
-        const bassNotes: Record<string, string[]> = {
-          'C major': ['C2', 'E2', 'G2', 'C3'],
-          'C minor': ['C2', 'Eb2', 'G2', 'C3'],
-          'G major': ['G1', 'B1', 'D2', 'G2'],
-          'A minor': ['A1', 'C2', 'E2', 'A2'],
-          'D minor': ['D2', 'F2', 'A2', 'D3'],
-          'F major': ['F1', 'A1', 'C2', 'F2'],
-        };
-        
-        const scale = bassNotes[keyStr] || bassNotes['C minor'];
-        const notes: AIBassTrack['notes'] = [];
-        const beatsPerBar = 4;
-        const totalBeats = numBars * beatsPerBar;
-        
-        let currentBeat = 0;
-        while (currentBeat < totalBeats) {
-          // Bass typically plays on beats 1 and 3, with occasional fills
-          const beatInBar = currentBeat % 4;
-          const noteIndex = beatInBar === 0 ? 0 : (beatInBar === 2 ? 2 : Math.floor(Math.random() * scale.length));
-          const duration = beatInBar === 0 || beatInBar === 2 ? 1.5 : 0.5;
-          
-          notes.push({
-            pitch: scale[noteIndex],
-            start: currentBeat,
-            duration: Math.min(duration, totalBeats - currentBeat),
-            velocity: beatInBar === 0 ? 0.9 : 0.7,
-          });
-          
-          currentBeat += duration;
-        }
-        
-        return { notes };
-      };
-
-      let notes: AIBassTrack['notes'] = [];
-      let provider = "Grok/OpenAI via callAI";
-
-      try {
-        const aiResult = await callAI<AIBassTrack>({
-          system:
-            "You are a professional bass player and MIDI arranger. " +
-            "You must return a JSON object with a 'notes' array for a bassline track.",
-          user:
-            `Create a groove-focused bassline in ${safeKey} at ${safeBpm} BPM for ${safeBars} bars. ` +
-            "Return an array 'notes', where each note has { pitch: string (e.g. 'C2'), start: number (beats from 0), duration: number (beats), velocity: 0-1 }. " +
-            "Emphasize root and fifth with tasteful passing tones. Do not include any extra top-level keys beyond 'notes'.",
-          responseFormat: "json",
-          jsonSchema: {
-            type: "object",
-            properties: {
-              notes: {
-                type: "array",
-                minItems: 1,
-                items: {
-                  type: "object",
-                  properties: {
-                    pitch: { type: "string" },
-                    start: { type: "number" },
-                    duration: { type: "number" },
-                    velocity: { type: "number" },
-                  },
-                  required: ["pitch", "start", "duration"],
-                },
-              },
-            },
-            required: ["notes"],
-          },
-          temperature: 0.7,
-          maxTokens: 800,
-        });
-
-        notes = Array.isArray((aiResult as any)?.content?.notes)
-          ? (aiResult as any).content.notes
-          : [];
-      } catch (aiError: any) {
-        console.warn(`⚠️ AI bassline generation failed, using fallback: ${aiError?.message}`);
-        const fallback = generateFallbackBass(safeKey, safeBars);
-        notes = fallback.notes;
-        provider = "Algorithmic Fallback";
-      }
-
-      // If AI returned empty, use fallback
-      if (!notes.length) {
-        console.warn("⚠️ AI returned empty bassline, using fallback");
-        const fallback = generateFallbackBass(safeKey, safeBars);
-        notes = fallback.notes;
-        provider = "Algorithmic Fallback";
-      }
-
-      return res.json({
-        success: true,
-        data: {
-          notes,
-          key: safeKey,
-          bpm: safeBpm,
-          bars: safeBars,
-          provider,
-          generationMethod: provider.includes("Fallback") ? "algorithmic" : "ai",
-          songPlanId: songPlanId || null,
-          sectionId: sectionId || "bass-section",
-        },
-      });
-    } catch (error: any) {
-      console.error("❌ Phase 3 AI bassline error:", error);
-      sendError(res, 500, error?.message || "Failed to generate AI bassline");
-    }
-  });
-
-  // Phase 3: AI Drum Grid endpoint for BeatMaker / ProBeatMaker (real AI via callAI)
-  app.post("/api/ai/music/drums", async (req: Request, res: Response) => {
-    try {
-      if (!req.userId) {
-        return sendError(res, 401, "Authentication required - please log in");
-      }
-
-      const { bpm, bars, style, songPlanId, sectionId, gridResolution } = req.body || {};
-
-      const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
-      const safeBars = Math.max(1, Math.min(16, Number(bars) || 4));
-      const safeStyle = typeof style === "string" && style.length > 0 ? style : "hip-hop";
-      const stepsPerBar = 16; // match BeatMaker gridResolution 1/16
-      const totalSteps = safeBars * stepsPerBar;
-
-      console.log(
-        `🥁 [Phase 3] Generating AI drum grid via callAI: style=${safeStyle}, bpm=${safeBpm}, bars=${safeBars}, steps=${totalSteps}`,
-      );
-
-      type DrumGrid = {
-        kick?: Array<number | boolean>;
-        snare?: Array<number | boolean>;
-        hihat?: Array<number | boolean>;
-        percussion?: Array<number | boolean>;
-      };
-
-      // Helper to generate fallback pattern when AI fails
-      const generateFallbackDrumPattern = (steps: number, styleHint: string): DrumGrid => {
-        const kick: number[] = [];
-        const snare: number[] = [];
-        const hihat: number[] = [];
-        const percussion: number[] = [];
-
-        // Style-based pattern generation
-        const isHipHop = styleHint.toLowerCase().includes('hip') || styleHint.toLowerCase().includes('trap');
-        const isRock = styleHint.toLowerCase().includes('rock');
-        const isElectronic = styleHint.toLowerCase().includes('electro') || styleHint.toLowerCase().includes('house') || styleHint.toLowerCase().includes('techno');
-
-        for (let i = 0; i < steps; i++) {
-          const stepInBar = i % 16;
-          
-          // Kick pattern - varies by style
-          if (isHipHop) {
-            kick.push((stepInBar === 0 || stepInBar === 6 || stepInBar === 10) ? 1 : (Math.random() < 0.1 ? 1 : 0));
-          } else if (isElectronic) {
-            kick.push((stepInBar % 4 === 0) ? 1 : 0);
-          } else {
-            kick.push((stepInBar === 0 || stepInBar === 8) ? 1 : (Math.random() < 0.15 ? 1 : 0));
-          }
-
-          // Snare pattern
-          if (isHipHop) {
-            snare.push((stepInBar === 4 || stepInBar === 12) ? 1 : (Math.random() < 0.08 ? 1 : 0));
-          } else {
-            snare.push((stepInBar === 4 || stepInBar === 12) ? 1 : 0);
-          }
-
-          // Hi-hat pattern
-          if (isElectronic) {
-            hihat.push((stepInBar % 2 === 0) ? 1 : (Math.random() < 0.3 ? 1 : 0));
-          } else {
-            hihat.push((stepInBar % 2 === 0) ? 1 : (Math.random() < 0.4 ? 1 : 0));
-          }
-
-          // Percussion/extras
-          percussion.push(Math.random() < 0.12 ? 1 : 0);
-        }
-
-        return { kick, snare, hihat, percussion };
-      };
-
-      const normalizeRow = (row: Array<number | boolean> | undefined): number[] => {
-        if (!row || !Array.isArray(row) || row.length === 0) {
-          return Array(totalSteps).fill(0);
-        }
-        return row.slice(0, totalSteps).map((v) => (v ? 1 : 0));
-      };
-
-      let rawPattern: DrumGrid | undefined;
-      let provider = "Grok/OpenAI via callAI";
-
-      try {
-        const aiResult = await callAI<{ pattern?: DrumGrid}>({
-          system:
-            "You generate drum patterns for a step sequencer. " +
-            "Always return a JSON object with a 'pattern' property describing drum grids.",
-          user:
-            `Create a modern ${safeStyle} drum pattern at ${safeBpm} BPM for a ${safeBars}-bar loop on a 16-step-per-bar grid. ` +
-            `Return JSON with 'pattern' = { kick: number[${totalSteps}], snare: number[${totalSteps}], hihat: number[${totalSteps}], percussion: number[${totalSteps}] }. ` +
-            "Each array element must be 0 or 1. Do not include any extra properties.",
-          responseFormat: "json",
-          jsonSchema: {
-            type: "object",
-            properties: {
-              pattern: {
-                type: "object",
-                properties: {
-                  kick: {
-                    type: "array",
-                    items: { type: "number" },
-                    minItems: totalSteps,
-                    maxItems: totalSteps,
-                  },
-                  snare: {
-                    type: "array",
-                    items: { type: "number" },
-                    minItems: totalSteps,
-                    maxItems: totalSteps,
-                  },
-                  hihat: {
-                    type: "array",
-                    items: { type: "number" },
-                    minItems: totalSteps,
-                    maxItems: totalSteps,
-                  },
-                  percussion: {
-                    type: "array",
-                    items: { type: "number" },
-                    minItems: totalSteps,
-                    maxItems: totalSteps,
-                  },
-                },
-                required: ["kick", "snare", "hihat", "percussion"],
-              },
-            },
-            required: ["pattern"],
-          },
-          temperature: 0.7,
-          maxTokens: 800,
-        });
-
-        rawPattern = (aiResult as any)?.content?.pattern as DrumGrid | undefined;
-      } catch (aiError: any) {
-        console.warn(`⚠️ AI drum generation failed, using fallback pattern: ${aiError?.message}`);
-        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle);
-        provider = "Algorithmic Fallback";
-      }
-
-      // If AI returned nothing, use fallback
-      if (!rawPattern || (!rawPattern.kick && !rawPattern.snare && !rawPattern.hihat)) {
-        console.warn("⚠️ AI returned empty pattern, using fallback");
-        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle);
-        provider = "Algorithmic Fallback";
-      }
-
-      const grid = {
-        kick: normalizeRow(rawPattern.kick),
-        snare: normalizeRow(rawPattern.snare),
-        hihat: normalizeRow(rawPattern.hihat),
-        percussion: normalizeRow(rawPattern.percussion),
-      };
-
-      return res.json({
-        success: true,
-        data: {
-          grid,
-          bpm: safeBpm,
-          bars: safeBars,
-          style: safeStyle,
-          resolution: gridResolution || "1/16",
-          provider,
-          generationMethod: provider.includes("Fallback") ? "algorithmic" : "ai",
-          songPlanId: songPlanId || null,
-          sectionId: sectionId || "beat-section",
-        },
-      });
-    } catch (error: any) {
-      console.error("❌ Phase 3 AI drum grid error:", error);
-      sendError(res, 500, error?.message || "Failed to generate AI drum grid");
-    }
-  });
-
-  // ============================================
-  // MIX PREVIEW ENDPOINTS - Timeline + Mixer DAW Core
-  // ============================================
-
-  /**
-   * POST /api/mix/preview
-   * Start a mix preview render job
-   * Accepts full track graph with regions, inserts, sends, and master bus
-   * Returns jobId for polling status
-   */
-  app.post("/api/mix/preview", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { session, renderQuality = 'fast', startTime, endTime, format = 'wav' } = req.body;
-
-      if (!session) {
-        return sendError(res, 400, "Session data is required");
-      }
-
-      if (!session.tracks || !Array.isArray(session.tracks)) {
-        return sendError(res, 400, "Session must contain tracks array");
-      }
-
-      const request: MixPreviewRequest = {
-        session,
-        renderQuality: renderQuality === 'high' ? 'high' : 'fast',
-        startTime,
-        endTime,
-        format: format === 'mp3' ? 'mp3' : 'wav',
-      };
-
-      const { jobId, estimatedTime } = await mixPreviewService.startPreview(request);
-
-      // Emit event for real-time clients
-      jobManager.emit('session:updated', { 
-        type: 'mix-preview-started', 
-        sessionId: session.id, 
-        jobId 
-      });
-
-      return res.json({
-        success: true,
-        jobId,
-        estimatedTime,
-        message: `Mix preview job started. Poll /api/jobs/${jobId} for status.`,
-      });
-    } catch (error: any) {
-      console.error("❌ Mix preview error:", error);
-      sendError(res, 500, error?.message || "Failed to start mix preview");
-    }
-  });
-
-  /**
-   * GET /api/jobs/:id
-   * Poll job status for async operations (mix preview, renders, etc.)
-   */
-  app.get("/api/jobs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return sendError(res, 400, "Job ID is required");
-      }
-
-      const job = jobManager.getJob(id);
-
-      if (!job) {
-        return sendError(res, 404, "Job not found");
-      }
-
-      return res.json({
-        success: true,
-        job: {
-          id: job.id,
-          type: job.type,
-          status: job.status,
-          progress: job.progress,
-          result: job.result,
-          error: job.error,
-          createdAt: job.createdAt,
-          updatedAt: job.updatedAt,
-        },
-      });
-    } catch (error: any) {
-      console.error("❌ Job status error:", error);
-      sendError(res, 500, error?.message || "Failed to get job status");
-    }
-  });
-
-  /**
-   * GET /api/mix/preview/:jobId/audio.:format
-   * Serve the rendered audio file (placeholder - would serve actual file in production)
-   */
-  app.get("/api/mix/preview/:jobId/audio.:format", async (req: Request, res: Response) => {
-    try {
-      const { jobId, format } = req.params;
-
-      const job = jobManager.getJob(jobId);
-
-      if (!job) {
-        return sendError(res, 404, "Preview job not found");
-      }
-
-      if (job.status !== 'completed') {
-        return sendError(res, 400, `Preview not ready. Status: ${job.status}, Progress: ${job.progress}%`);
-      }
-
-      // In production, this would serve the actual rendered file
-      // For now, return a placeholder response
-      res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : 'audio/wav');
-      res.setHeader('Content-Disposition', `attachment; filename="mix-preview-${jobId}.${format}"`);
-      
-      // Placeholder: In production, stream the actual file
-      return res.status(200).json({
-        message: "Audio file would be streamed here in production",
-        jobId,
-        format,
-        result: job.result,
-      });
-    } catch (error: any) {
-      console.error("❌ Preview audio error:", error);
-      sendError(res, 500, error?.message || "Failed to serve preview audio");
-    }
-  });
-
-  /**
-   * DELETE /api/jobs/:id
-   * Cancel/delete a job
-   */
-  app.delete("/api/jobs/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-
-      if (!id) {
-        return sendError(res, 400, "Job ID is required");
-      }
-
-      const deleted = jobManager.deleteJob(id);
-
-      if (!deleted) {
-        return sendError(res, 404, "Job not found");
-      }
-
-      return res.json({
-        success: true,
-        message: "Job deleted",
-      });
-    } catch (error: any) {
-      console.error("❌ Job delete error:", error);
-      sendError(res, 500, error?.message || "Failed to delete job");
-    }
-  });
 
   return createServer(app);
 }

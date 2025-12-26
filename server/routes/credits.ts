@@ -26,6 +26,20 @@ export function createCreditRoutes(storage: IStorage) {
   const creditService = getCreditService(storage);
 
   /**
+   * GET /api/credits
+   * Basic auth gate and costs summary
+   */
+  router.get('/', (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    return res.json({
+      message: 'Credits API',
+      costs: CREDIT_COSTS,
+    });
+  });
+
+  /**
    * GET /api/credits/balance
    * Get current credit balance
    */

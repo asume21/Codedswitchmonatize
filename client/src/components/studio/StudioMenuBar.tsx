@@ -5,8 +5,12 @@ interface StudioMenuBarProps {
   onNewProject: () => void;
   onLoadProject: () => void;
   onSaveProject: () => void;
+  onSaveAs: () => void;
+  onSaveTemplate: () => void;
+  onRecentProjects: () => void;
   onImportAudio: () => void;
   onExportAudio: () => void;
+  onExportMIDI: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onCut: () => void;
@@ -14,10 +18,23 @@ interface StudioMenuBarProps {
   onPaste: () => void;
   onDelete: () => void;
   onSelectAll: () => void;
+  onDeselectAll: () => void;
   onShowPreferences: () => void;
+  onShowProjectSettings: () => void;
   onShowKeyboardShortcuts: () => void;
   onResetLayout: () => void;
-  toast: (options: { title: string; description?: string }) => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onFitToWindow: () => void;
+  onToggleGrid: () => void;
+  onToggleSnap: () => void;
+  onToggleFullScreen: () => void;
+  onToggleMetronome: () => void;
+  onShowTuner: () => void;
+  onQuantize: () => void;
+  onTranspose: () => void;
+  onTimeStretch: () => void;
+  onAbout: () => void;
 }
 
 interface MenuItemProps {
@@ -62,8 +79,12 @@ export function StudioMenuBar({
   onNewProject,
   onLoadProject,
   onSaveProject,
+  onSaveAs,
+  onSaveTemplate,
+  onRecentProjects,
   onImportAudio,
   onExportAudio,
+  onExportMIDI,
   onUndo,
   onRedo,
   onCut,
@@ -71,10 +92,23 @@ export function StudioMenuBar({
   onPaste,
   onDelete,
   onSelectAll,
+  onDeselectAll,
   onShowPreferences,
+  onShowProjectSettings,
   onShowKeyboardShortcuts,
   onResetLayout,
-  toast,
+  onZoomIn,
+  onZoomOut,
+  onFitToWindow,
+  onToggleGrid,
+  onToggleSnap,
+  onToggleFullScreen,
+  onToggleMetronome,
+  onShowTuner,
+  onQuantize,
+  onTranspose,
+  onTimeStretch,
+  onAbout,
 }: StudioMenuBarProps) {
   return (
     <div className="flex space-x-0.5">
@@ -82,17 +116,17 @@ export function StudioMenuBar({
       <DropdownMenu label="File">
         <MenuItem label="New Project" shortcut="Ctrl+N" onClick={onNewProject} />
         <MenuItem label="Open Project..." shortcut="Ctrl+O" onClick={onLoadProject} />
-        <MenuItem label="Recent Projects ▶" onClick={() => toast({ title: "Recent Projects" })} />
+        <MenuItem label="Recent Projects ▶" onClick={onRecentProjects} />
         <MenuDivider />
         <MenuItem label="Save Project" shortcut="Ctrl+S" onClick={onSaveProject} />
-        <MenuItem label="Save As..." shortcut="Ctrl+Shift+S" onClick={() => toast({ title: "Save As..." })} />
-        <MenuItem label="Save as Template..." onClick={() => toast({ title: "Save Template" })} />
+        <MenuItem label="Save As..." shortcut="Ctrl+Shift+S" onClick={onSaveAs} />
+        <MenuItem label="Save as Template..." onClick={onSaveTemplate} />
         <MenuDivider />
         <MenuItem label="Import Audio..." shortcut="Ctrl+I" onClick={onImportAudio} />
         <MenuItem label="Export Audio..." shortcut="Ctrl+E" onClick={onExportAudio} />
-        <MenuItem label="Export MIDI..." onClick={() => toast({ title: "Export MIDI" })} />
+        <MenuItem label="Export MIDI..." onClick={onExportMIDI} />
         <MenuDivider />
-        <MenuItem label="Project Settings..." onClick={() => toast({ title: "Project Settings" })} />
+        <MenuItem label="Project Settings..." onClick={onShowProjectSettings} />
       </DropdownMenu>
 
       {/* Edit Menu */}
@@ -106,31 +140,31 @@ export function StudioMenuBar({
         <MenuItem label="Delete" shortcut="Del" onClick={onDelete} />
         <MenuDivider />
         <MenuItem label="Select All" shortcut="Ctrl+A" onClick={onSelectAll} />
-        <MenuItem label="Deselect All" shortcut="Ctrl+D" onClick={() => toast({ title: "Deselect All" })} />
+        <MenuItem label="Deselect All" shortcut="Ctrl+D" onClick={onDeselectAll} />
         <MenuDivider />
         <MenuItem label="Preferences..." shortcut="Ctrl+," onClick={onShowPreferences} />
       </DropdownMenu>
 
       {/* View Menu */}
       <DropdownMenu label="View">
-        <MenuItem label="Zoom In" shortcut="Ctrl+=" onClick={() => toast({ title: "Zoom In" })} />
-        <MenuItem label="Zoom Out" shortcut="Ctrl+-" onClick={() => toast({ title: "Zoom Out" })} />
-        <MenuItem label="Fit to Window" shortcut="Ctrl+0" onClick={() => toast({ title: "Fit to Window" })} />
+        <MenuItem label="Zoom In" shortcut="Ctrl+=" onClick={onZoomIn} />
+        <MenuItem label="Zoom Out" shortcut="Ctrl+-" onClick={onZoomOut} />
+        <MenuItem label="Fit to Window" shortcut="Ctrl+0" onClick={onFitToWindow} />
         <MenuDivider />
-        <MenuItem label="Show Grid" shortcut="G" onClick={() => toast({ title: "Grid toggled" })} />
-        <MenuItem label="Snap to Grid" shortcut="Ctrl+G" onClick={() => toast({ title: "Snap toggled" })} />
+        <MenuItem label="Show Grid" shortcut="G" onClick={onToggleGrid} />
+        <MenuItem label="Snap to Grid" shortcut="Ctrl+G" onClick={onToggleSnap} />
         <MenuDivider />
-        <MenuItem label="Full Screen" shortcut="F11" onClick={() => toast({ title: "Full Screen" })} />
+        <MenuItem label="Full Screen" shortcut="F11" onClick={onToggleFullScreen} />
       </DropdownMenu>
 
       {/* Tools Menu */}
       <DropdownMenu label="Tools">
-        <MenuItem label="Tuner" shortcut="T" onClick={() => toast({ title: "Tuner opened" })} />
-        <MenuItem label="Metronome" shortcut="M" onClick={() => toast({ title: "Metronome toggled" })} />
+        <MenuItem label="Tuner" shortcut="T" onClick={onShowTuner} />
+        <MenuItem label="Metronome" shortcut="M" onClick={onToggleMetronome} />
         <MenuDivider />
-        <MenuItem label="Quantize..." shortcut="Q" onClick={() => toast({ title: "Quantize" })} />
-        <MenuItem label="Transpose..." onClick={() => toast({ title: "Transpose" })} />
-        <MenuItem label="Time Stretch..." onClick={() => toast({ title: "Time Stretch" })} />
+        <MenuItem label="Quantize..." shortcut="Q" onClick={onQuantize} />
+        <MenuItem label="Transpose..." onClick={onTranspose} />
+        <MenuItem label="Time Stretch..." onClick={onTimeStretch} />
       </DropdownMenu>
 
       {/* Help Menu */}
@@ -139,7 +173,7 @@ export function StudioMenuBar({
         <MenuItem label="Documentation" onClick={() => window.open('/docs', '_blank')} />
         <MenuDivider />
         <MenuItem label="Reset Layout" shortcut="Ctrl+Alt+R" onClick={onResetLayout} />
-        <MenuItem label="About CodedSwitch" onClick={() => toast({ title: "CodedSwitch Studio v1.0" })} />
+        <MenuItem label="About CodedSwitch" onClick={onAbout} />
       </DropdownMenu>
     </div>
   );

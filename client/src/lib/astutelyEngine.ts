@@ -148,8 +148,39 @@ export interface AstutelyResult {
 }
 
 export const astutelyGenerate = async (style: string): Promise<AstutelyResult> => {
-  console.log(`🎵 ASTUTELY: Generating "${style}" beat...`);
+  console.log(`🎵 ASTUTELY: Generating "${style}" beat via Backend API...`);
   
+  try {
+    const response = await fetch('/api/astutely', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ style })
+    });
+
+    if (!response.ok) {
+      throw new Error('Astutely API failed');
+    }
+
+    const result = await response.json();
+    console.log(`✅ ASTUTELY: Received AI generated pattern`);
+    
+    // Play preview using realisticAudio
+    try {
+      await playAstutelyPreview(result);
+    } catch (e) {
+      console.warn('Preview playback failed:', e);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Astutely API error, falling back to local:", error);
+    // Fallback to local logic if API fails (copied from previous local implementation for robustness)
+    return generateLocalFallback(style);
+  }
+};
+
+// Fallback local generator (original logic)
+const generateLocalFallback = (style: string): AstutelyResult => {
   const config = STYLE_CONFIGS[style] || STYLE_CONFIGS["Travis Scott rage"];
   const rootNote = NOTES[config.key] || 60;
   const scale = SCALES[config.scale] || SCALES['minor'];
@@ -171,9 +202,9 @@ export const astutelyGenerate = async (style: string): Promise<AstutelyResult> =
   };
   
   // Generate 4 bars (64 steps at 16 steps per bar)
-  const totalSteps = 64;
+  // ... (Logic continues below in original structure, reusing existing helpers)
   
-  // DRUMS - Generate drum hits
+  // DRUMS
   for (let bar = 0; bar < 4; bar++) {
     for (let step = 0; step < 16; step++) {
       const globalStep = bar * 16 + step;
@@ -184,7 +215,7 @@ export const astutelyGenerate = async (style: string): Promise<AstutelyResult> =
     }
   }
   
-  // BASS - Generate bass notes
+  // BASS
   for (let bar = 0; bar < 4; bar++) {
     const chordRoot = chordProg[bar % chordProg.length][0];
     for (let step = 0; step < 16; step++) {
@@ -193,13 +224,13 @@ export const astutelyGenerate = async (style: string): Promise<AstutelyResult> =
       if (bassNote >= 0) {
         const scaleNote = scale[bassNote % scale.length];
         const octaveShift = Math.floor(bassNote / scale.length) * 12;
-        const midiNote = rootNote - 24 + chordRoot + scaleNote + octaveShift; // Bass is 2 octaves down
+        const midiNote = rootNote - 24 + chordRoot + scaleNote + octaveShift;
         result.bass.push({ step: globalStep, note: midiNote, duration: 2 });
       }
     }
   }
   
-  // CHORDS - Generate chord hits (every 4 steps = quarter note)
+  // CHORDS
   for (let bar = 0; bar < 4; bar++) {
     const chord = chordProg[bar % chordProg.length];
     const globalStep = bar * 16;
@@ -207,7 +238,7 @@ export const astutelyGenerate = async (style: string): Promise<AstutelyResult> =
     result.chords.push({ step: globalStep, notes: chordNotes, duration: 16 });
   }
   
-  // MELODY - Generate melody line
+  // MELODY
   for (let bar = 0; bar < 4; bar++) {
     for (let step = 0; step < 16; step++) {
       const globalStep = bar * 16 + step;
@@ -215,19 +246,10 @@ export const astutelyGenerate = async (style: string): Promise<AstutelyResult> =
       if (melodyDegree >= 0) {
         const scaleNote = scale[melodyDegree % scale.length];
         const octaveShift = Math.floor(melodyDegree / scale.length) * 12;
-        const midiNote = rootNote + 12 + scaleNote + octaveShift; // Melody is 1 octave up
+        const midiNote = rootNote + 12 + scaleNote + octaveShift;
         result.melody.push({ step: globalStep, note: midiNote, duration: 1 });
       }
     }
-  }
-  
-  console.log(`🎵 ASTUTELY: Generated ${result.drums.length} drum hits, ${result.bass.length} bass notes, ${result.chords.length} chords, ${result.melody.length} melody notes`);
-  
-  // Play preview using realisticAudio
-  try {
-    await playAstutelyPreview(result);
-  } catch (e) {
-    console.warn('Preview playback failed:', e);
   }
   
   return result;

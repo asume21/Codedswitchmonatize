@@ -9,12 +9,12 @@ import { useTransport } from "@/contexts/TransportContext";
 import { StudioAudioContext } from "@/pages/studio";
 import { useStudioSession } from "@/contexts/StudioSessionContext";
 import ProBeatMaker from "./ProBeatMaker";
-import BassStudio from "./BassStudio";
+import AIBassGenerator from "./AIBassGenerator";
 import LoopLibrary from "./LoopLibrary";
 import { Music, Send, SlidersHorizontal, Waves, Rocket, Sparkles, Package, Library } from "lucide-react";
 import PackGenerator from "@/components/producer/PackGenerator";
 
-// Tabs: Pro Beat Maker, Bass Studio, Loop Library, and Pack Generator
+// Tabs: Pro Beat Maker, Bass Studio (AIBassGenerator), Loop Library, and Pack Generator
 type BeatLabTab = "pro" | "bass-studio" | "loop-library" | "pack-generator";
 
 interface BeatLabProps {
@@ -197,9 +197,40 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
               />
             </TabsContent>
 
-            {/* Bass Studio - Dedicated AI bassline generator wired to Multi-Track */}
+            {/* Bass Studio - AI Bass Generator with 808/Sub/Synth/Electric/Upright styles */}
             <TabsContent value="bass-studio" className="mt-4">
-              <BassStudio />
+              <AIBassGenerator 
+                chordProgression={(studioContext as any)?.chordProgression}
+                onBassGenerated={(bassNotes) => {
+                  // Add bass to tracks
+                  if (bassNotes && bassNotes.length > 0) {
+                    addTrack({
+                      name: "AI Bass Line",
+                      type: "midi",
+                      kind: "midi",
+                      instrument: "Bass Synth",
+                      notes: bassNotes.map((n: any, idx: number) => ({
+                        id: `bass-${idx}-${Date.now()}`,
+                        note: n.note || 'C',
+                        octave: n.octave || 2,
+                        step: Math.round((n.time || idx * 0.5) * 4),
+                        length: Math.round((n.duration || 0.5) * 4),
+                        velocity: Math.round((n.velocity || 0.8) * 127),
+                      })),
+                      payload: {
+                        source: "ai-bass-generator",
+                        type: "midi",
+                      },
+                      lengthBars: 4,
+                      startBar: 0,
+                    });
+                    toast({
+                      title: "🎸 Bass Added to Tracks",
+                      description: `${bassNotes.length} bass notes sent to Multi-Track`,
+                    });
+                  }
+                }}
+              />
             </TabsContent>
 
             {/* Loop Library - Browse and add audio loops as tracks */}

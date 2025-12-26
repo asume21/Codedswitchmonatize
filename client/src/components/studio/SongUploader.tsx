@@ -16,12 +16,13 @@ import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionCo
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
-import { Sparkles, Copy, Plus, Scissors, Mic, FileText, Trash2, Share2, Globe, Lock } from "lucide-react";
+import { Sparkles, Copy, Plus, Scissors, Mic, FileText, Trash2, Share2, Globe, Lock, Download } from "lucide-react";
 import type { Song, Recommendation } from "../../../../shared/schema";
 import { emitEvent } from "@/lib/eventBus";
 import type { ToolRecommendation } from "@/components/studio/effects";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
 import { useTracks } from "@/hooks/useTracks";
+import { Textarea } from "@/components/ui/textarea";
 
 interface UploadContext {
   name?: string;
@@ -52,6 +53,17 @@ export default function SongUploader() {
   const [lyricsAnalyses, setLyricsAnalyses] = useState<Map<string, any>>(new Map());
   const [isAnalyzingLyrics, setIsAnalyzingLyrics] = useState<Map<string, boolean>>(new Map());
   const [isTranscribeAndAnalyze, setIsTranscribeAndAnalyze] = useState<Map<string, boolean>>(new Map());
+  // Speech correction UI state
+  const [speechSongId, setSpeechSongId] = useState<string>('');
+  const [speechTranscript, setSpeechTranscript] = useState<string>('');
+  const [speechWords, setSpeechWords] = useState<Array<{ start: number; end: number; text: string }>>([]);
+  const [speechPreviewUrl, setSpeechPreviewUrl] = useState<string | null>(null);
+  const [speechPreviewId, setSpeechPreviewId] = useState<string | null>(null);
+  const [speechLoading, setSpeechLoading] = useState<{ transcribe: boolean; preview: boolean; commit: boolean }>({
+    transcribe: false,
+    preview: false,
+    commit: false,
+  });
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
@@ -277,6 +289,33 @@ export default function SongUploader() {
     }
   }, [selectedSong, registerSongTrack]);
 
+  const findSongById = useCallback(
+    (id: string | null | undefined) => {
+      if (!id) return undefined;
+      return songs?.find((s) => s.id?.toString() === id);
+    },
+    [songs]
+  );
+
+  const getSongAudioUrl = (song: Song | undefined | null) =>
+    song
+      ? (song as any).url || song.accessibleUrl || song.originalUrl || (song as any).songURL
+      : undefined;
+
+  useEffect(() => {
+    if (!speechSongId) {
+      setSpeechTranscript('');
+      setSpeechWords([]);
+      setSpeechPreviewUrl(null);
+      setSpeechPreviewId(null);
+      return;
+    }
+    const existing = transcriptions.get(speechSongId);
+    if (existing) {
+      setSpeechTranscript(existing);
+    }
+  }, [speechSongId, transcriptions]);
+
   const uploadSongMutation = useMutation({
     mutationFn: async (songData: any) => {
       console.log('🚀 MUTATION: Sending to server:', {
@@ -353,6 +392,131 @@ export default function SongUploader() {
       });
     }
   });
+
+  const runSpeechTranscribe = async () => {
+    const song = findSongById(speechSongId);
+    if (!song) {
+      toast({
+        title: "Choose a song first",
+        description: "Select an uploaded song to run speech correction.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const audioUrl = getSongAudioUrl(song);
+    setSpeechLoading((p) => ({ ...p, transcribe: true }));
+
+    try {
+      const response = await apiRequest("POST", "/api/speech-correction/transcribe", {
+        fileId: song.id,
+        fileUrl: audioUrl,
+      });
+      const data = await response.json();
+      if (data.transcript) {
+        setSpeechTranscript(data.transcript);
+      }
+      if (Array.isArray(data.words)) {
+        setSpeechWords(data.words);
+      }
+      toast({
+        title: "Speech transcript ready",
+        description: "Word-level transcript loaded for editing.",
+      });
+    } catch (error) {
+      console.error("Speech correction transcribe error:", error);
+      toast({
+        title: "Transcription failed",
+        description: "Could not get word-level transcript.",
+        variant: "destructive",
+      });
+    } finally {
+      setSpeechLoading((p) => ({ ...p, transcribe: false }));
+    }
+  };
+
+  const runSpeechPreview = async () => {
+    const song = findSongById(speechSongId);
+    if (!song) {
+      toast({
+        title: "Choose a song first",
+        description: "Select an uploaded song to preview corrections.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!speechTranscript.trim()) {
+      toast({
+        title: "Transcript is empty",
+        description: "Add or import a transcript before previewing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSpeechLoading((p) => ({ ...p, preview: true }));
+    try {
+      const response = await apiRequest("POST", "/api/speech-correction/preview", {
+        transcriptEdits: speechTranscript,
+        wordTiming: speechWords,
+        guideAudioId: song.id,
+        keepTiming: true,
+      });
+      const data = await response.json();
+      setSpeechPreviewUrl(data.previewUrl || data.url || null);
+      setSpeechPreviewId(data.previewId || data.id || null);
+      if (Array.isArray(data.alignedWords)) {
+        setSpeechWords(data.alignedWords);
+      }
+      toast({
+        title: "Preview ready",
+        description: "Listen and compare with the original.",
+      });
+    } catch (error) {
+      console.error("Speech correction preview error:", error);
+      toast({
+        title: "Preview failed",
+        description: "Could not generate preview.",
+        variant: "destructive",
+      });
+    } finally {
+      setSpeechLoading((p) => ({ ...p, preview: false }));
+    }
+  };
+
+  const runSpeechCommit = async () => {
+    if (!speechPreviewId) {
+      toast({
+        title: "No preview to commit",
+        description: "Generate a preview first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSpeechLoading((p) => ({ ...p, commit: true }));
+    try {
+      const response = await apiRequest("POST", "/api/speech-correction/commit", {
+        previewId: speechPreviewId,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (data.finalStemUrl) {
+        setSpeechPreviewUrl(data.finalStemUrl);
+      }
+      toast({
+        title: "Committed",
+        description: "Corrected vocal saved as a new version.",
+      });
+    } catch (error) {
+      console.error("Speech correction commit error:", error);
+      toast({
+        title: "Commit failed",
+        description: "Could not save corrected vocal.",
+        variant: "destructive",
+      });
+    } finally {
+      setSpeechLoading((p) => ({ ...p, commit: false }));
+    }
+  };
 
   const getUploadParameters = async (file?: File) => {
     try {
@@ -1337,6 +1501,97 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
               <h3 className="text-lg font-semibold">Your Song Library ({songs.length})</h3>
             </div>
 
+            <Card className="border-blue-700/60 bg-gray-900/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <i className="fas fa-microphone-alt text-blue-400"></i>
+                  Speech Correction (Transcript → Regenerate Vocal)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid md:grid-cols-3 gap-3 items-end">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-300">Select song</Label>
+                    <Select value={speechSongId} onValueChange={(v) => setSpeechSongId(v)}>
+                      <SelectTrigger className="bg-gray-800 border-gray-700 h-10">
+                        <SelectValue placeholder="Choose uploaded song" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {songs.map((s) => (
+                          <SelectItem key={s.id} value={s.id.toString()}>
+                            {s.name || `Song ${s.id}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={runSpeechTranscribe}
+                      disabled={!speechSongId || speechLoading.transcribe}
+                      className="bg-orange-600 hover:bg-orange-500"
+                    >
+                      {speechLoading.transcribe ? <i className="fas fa-spinner fa-spin mr-1"></i> : <FileText className="w-3 h-3 mr-1" />}
+                      Word Transcribe
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={runSpeechPreview}
+                      disabled={!speechSongId || speechLoading.preview}
+                      className="bg-purple-600 hover:bg-purple-500"
+                    >
+                      {speechLoading.preview ? <i className="fas fa-spinner fa-spin mr-1"></i> : <Sparkles className="w-3 h-3 mr-1" />}
+                      Preview Regen
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={runSpeechCommit}
+                      disabled={!speechPreviewId || speechLoading.commit}
+                      className="bg-green-600 hover:bg-green-500"
+                    >
+                      {speechLoading.commit ? <i className="fas fa-spinner fa-spin mr-1"></i> : <i className="fas fa-save mr-1"></i>}
+                      Commit
+                    </Button>
+                  </div>
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <div>Words: <span className="text-white font-semibold">{speechWords.length}</span></div>
+                    {speechPreviewId && <div>Preview ID: <span className="text-blue-300">{speechPreviewId}</span></div>}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-gray-300">Edit Transcript</Label>
+                  <Textarea
+                    value={speechTranscript}
+                    onChange={(e) => setSpeechTranscript(e.target.value)}
+                    rows={6}
+                    placeholder="Edit the transcript here..."
+                    className="bg-gray-800 border-gray-700 text-sm"
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-400">Original</div>
+                    <audio
+                      controls
+                      className="w-full"
+                      src={getSongAudioUrl(findSongById(speechSongId))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-400">Preview</div>
+                    <audio
+                      controls
+                      className="w-full"
+                      src={speechPreviewUrl || undefined}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="grid gap-4">
               {songs.map((song) => (
                 <Card key={song.id} className={`border-gray-600 ${studioContext.currentUploadedSong?.id === song.id ? 'ring-2 ring-blue-500' : ''}`}>
@@ -1445,6 +1700,25 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                           Add to Tracks
                         </Button>
                         
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+                            if (audioUrl) {
+                              const link = document.createElement('a');
+                              link.href = audioUrl;
+                              link.download = song.name || 'song';
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              toast({ title: "Download Started", description: `Downloading ${song.name}` });
+                            }
+                          }}
+                          className="bg-cyan-600 hover:bg-cyan-500"
+                          data-testid={`button-download-song-${song.id}`}
+                        >
+                          <Download className="w-3 h-3" />
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() => {

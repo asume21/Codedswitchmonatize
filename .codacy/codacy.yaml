@@ -1,4 +1,2 @@
-runtimes:
-    - node@22.2.0
 tools:
-    - eslint@8.57.0
+    - trivy@0.66.0

@@ -237,11 +237,11 @@ export function Arpeggiator({
   return (
     <div className="inline-flex flex-col bg-gray-900/90 rounded-lg border border-purple-500/40 w-48">
       {/* Compact Header - Always visible */}
-      <button
-        onClick={() => enabled ? setExpanded(!expanded) : onEnabledChange(true)}
-        className="flex items-center justify-between px-3 py-2 hover:bg-gray-800/50 rounded-t-lg"
-      >
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-3 py-2 hover:bg-gray-800/50 rounded-t-lg">
+        <div 
+          className="flex items-center gap-2 cursor-pointer flex-1"
+          onClick={() => enabled ? setExpanded(!expanded) : onEnabledChange(true)}
+        >
           <Zap className={`w-4 h-4 ${enabled ? 'text-yellow-400' : 'text-gray-500'}`} />
           <span className="text-xs font-bold text-white">ARP</span>
         </div>
@@ -250,11 +250,17 @@ export function Arpeggiator({
             checked={enabled}
             onCheckedChange={onEnabledChange}
             className="scale-75"
-            onClick={(e) => e.stopPropagation()}
           />
-          {enabled && (expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+          {enabled && (
+            <div 
+              className="cursor-pointer p-1" 
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </div>
+          )}
         </div>
-      </button>
+      </div>
 
       {/* Quick Controls - Show when enabled */}
       {enabled && (

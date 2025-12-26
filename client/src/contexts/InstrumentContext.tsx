@@ -74,7 +74,7 @@ export function InstrumentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadInstrument(currentInstrument);
-  }, []);
+  }, [currentInstrument, loadInstrument]);
 
   return (
     <InstrumentContext.Provider value={{

@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "Codedswitchmonatize",
+			"path": "."
+		}
+	],
+	"settings": {
+		"editor.tabCompletion": "on",
+		"diffEditor.codeLens": true
+	}
+}

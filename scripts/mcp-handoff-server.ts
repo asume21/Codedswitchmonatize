@@ -173,7 +173,7 @@ const server = new McpServer({
 });
 
 server.registerTool(
-  "handoff.write",
+  "handoff_write",
   {
     title: "Create or update a handoff message",
     description: "Store a note for teammates to pick up later.",
@@ -265,7 +265,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "handoff.list",
+  "handoff_list",
   {
     title: "List handoff messages",
     description: "Show stored handoff notes filtered by assignee or status.",
@@ -298,7 +298,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "handoff.clear",
+  "handoff_clear",
   {
     title: "Clear handoff messages",
     description: "Remove specific or all handoff notes.",
@@ -339,7 +339,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "handoff.assign",
+  "handoff_assign",
   {
     title: "Assign or update status",
     description: "Quickly change assignee or status for an existing handoff entry.",
@@ -384,7 +384,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "handoff.history",
+  "handoff_history",
   {
     title: "Show history",
     description: "View the change log for a handoff entry.",
@@ -409,7 +409,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "handoff.attach",
+  "handoff_attach",
   {
     title: "Attach references",
     description: "Add file paths, notes, or links to a handoff entry.",
@@ -461,7 +461,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "handoff.analyze",
+  "handoff_analyze",
   {
     title: "Analyze a task",
     description: "Provide lightweight suggestions and next steps (heuristic, no external AI).",
@@ -521,7 +521,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  "handoff.converge",
+  "handoff_converge",
   {
     title: "Unify ideas",
     description: "Compare proposals from multiple agents and produce a consensus summary.",

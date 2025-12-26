@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
+import type { TrackNote } from '@/types/studioTracks';
 
 // Types for Note, Track, and related interfaces
-export interface Note {
+export interface Note extends TrackNote {
   id: string;
   note: string;
   octave: number;

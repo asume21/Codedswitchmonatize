@@ -1,9 +1,0 @@
-import React from 'react';
-import LandingPage from './Landing';
-
-export default function Home() {
-  // The root of the application ("/") is intended to be the landing page.
-  // This component simply renders the LandingPage component.
-  // All routing logic is handled by the main router and the Layout component.
-  return <LandingPage />;
-}

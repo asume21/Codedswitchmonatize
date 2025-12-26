@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { Loader2, Music2, Zap, Piano, Volume2 } from 'lucide-react';
+import { Loader2, Music2, Zap, Piano, Volume2, Save, RotateCcw, Download, Trash2, Send, Circle, Square, Edit3, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
 
@@ -27,8 +27,11 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
   const [glide, setGlide] = useState([0]); // Glide/portamento
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [generatedBass, setGeneratedBass] = useState<any[]>([]);
+  const [recordedNotes, setRecordedNotes] = useState<any[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const playbackRef = useRef<NodeJS.Timeout | null>(null);
+  const recordStartTimeRef = useRef<number>(0);
   const { toast } = useToast();
 
   // Initialize audio on mount
@@ -36,9 +39,24 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
     realisticAudio.initialize().catch(console.error);
   }, []);
 
-  // Play a single bass note
+  // Play a single bass note (and record if in recording mode)
   const playBassNote = useCallback(async (note: string, oct: number = octave[0]) => {
     setActiveNote(`${note}${oct}`);
+    
+    // Record the note if in recording mode
+    if (isRecording) {
+      const currentTime = Date.now();
+      const timeOffset = (currentTime - recordStartTimeRef.current) / 1000;
+      const newNote = {
+        note,
+        octave: oct,
+        time: timeOffset,
+        duration: noteLength[0] / 100,
+        velocity: velocity[0] / 127,
+      };
+      setRecordedNotes(prev => [...prev, newNote]);
+    }
+    
     try {
       await realisticAudio.initialize();
       // Use synth bass or electric bass based on style
@@ -49,7 +67,55 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
       console.error('Bass playback error:', error);
     }
     setTimeout(() => setActiveNote(null), 200);
-  }, [octave, bassStyle, noteLength, velocity]);
+  }, [octave, bassStyle, noteLength, velocity, isRecording]);
+
+  // Toggle recording mode
+  const toggleRecording = useCallback(() => {
+    if (!isRecording) {
+      recordStartTimeRef.current = Date.now();
+      setRecordedNotes([]);
+      setIsRecording(true);
+      toast({ title: "🔴 Recording", description: "Play notes on the keyboard to record" });
+    } else {
+      setIsRecording(false);
+      toast({ title: "Recording Stopped", description: `${recordedNotes.length} notes recorded` });
+    }
+  }, [isRecording, recordedNotes.length, toast]);
+
+  // Use recorded notes as the generated bass line
+  const useRecordedNotes = useCallback(() => {
+    if (recordedNotes.length === 0) {
+      toast({ title: "No Notes", description: "Record some notes first", variant: "destructive" });
+      return;
+    }
+    setGeneratedBass(recordedNotes);
+    toast({ title: "Notes Applied", description: `${recordedNotes.length} recorded notes ready` });
+  }, [recordedNotes, toast]);
+
+  // Delete a recorded note
+  const deleteRecordedNote = useCallback((index: number) => {
+    setRecordedNotes(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Clear recorded notes
+  const clearRecordedNotes = useCallback(() => {
+    setRecordedNotes([]);
+    toast({ title: "Cleared", description: "Recorded notes cleared" });
+  }, [toast]);
+
+  // Send to Piano Roll for editing
+  const sendToPianoRoll = useCallback(() => {
+    const notesToSend = generatedBass.length > 0 ? generatedBass : recordedNotes;
+    if (notesToSend.length === 0) {
+      toast({ title: "No Notes", description: "Generate or record notes first", variant: "destructive" });
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('bass:sendToPianoRoll', {
+      detail: { notes: notesToSend, instrument: 'Bass Synth' }
+    }));
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'piano-roll' }));
+    toast({ title: "Sent to Piano Roll", description: `${notesToSend.length} notes sent for editing` });
+  }, [generatedBass, recordedNotes, toast]);
 
   // Play generated bass line
   const playGeneratedBass = useCallback(async () => {
@@ -87,6 +153,72 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
     setIsPlaying(false);
     realisticAudio.stopAllSounds();
   }, []);
+
+  // ISSUE #1: Save preset functionality
+  const savePreset = useCallback(() => {
+    const preset = {
+      name: `Bass Preset ${new Date().toLocaleTimeString()}`,
+      settings: { bassStyle, patternType, octave: octave[0], groove: groove[0], noteLength: noteLength[0], velocity: velocity[0], glide: glide[0] },
+      generatedBass,
+    };
+    localStorage.setItem('bass-generator-preset', JSON.stringify(preset));
+    toast({ title: 'Preset Saved', description: 'Bass settings saved to browser' });
+  }, [bassStyle, patternType, octave, groove, noteLength, velocity, glide, generatedBass, toast]);
+
+  // ISSUE #1: Load preset functionality
+  const loadPreset = useCallback(() => {
+    try {
+      const saved = localStorage.getItem('bass-generator-preset');
+      if (saved) {
+        const preset = JSON.parse(saved);
+        if (preset.settings) {
+          setBassStyle(preset.settings.bassStyle || '808');
+          setPatternType(preset.settings.patternType || 'root-fifth');
+          setOctave([preset.settings.octave ?? 2]);
+          setGroove([preset.settings.groove ?? 50]);
+          setNoteLength([preset.settings.noteLength ?? 75]);
+          setVelocity([preset.settings.velocity ?? 70]);
+          setGlide([preset.settings.glide ?? 0]);
+          if (preset.generatedBass) setGeneratedBass(preset.generatedBass);
+          toast({ title: 'Preset Loaded', description: `Loaded: ${preset.name}` });
+        }
+      } else {
+        toast({ title: 'No Preset', description: 'No saved preset found', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Load Failed', description: 'Could not load preset', variant: 'destructive' });
+    }
+  }, [toast]);
+
+  // ISSUE #2: Export bass line to JSON
+  const exportBassLine = useCallback(() => {
+    if (generatedBass.length === 0) {
+      toast({ title: 'No Bass', description: 'Generate a bass line first', variant: 'destructive' });
+      return;
+    }
+    const exportData = {
+      bassLine: generatedBass,
+      settings: { bassStyle, patternType, octave: octave[0], groove: groove[0], noteLength: noteLength[0], velocity: velocity[0], glide: glide[0] },
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bass-line-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast({ title: 'Exported!', description: `Bass line with ${generatedBass.length} notes saved` });
+  }, [generatedBass, bassStyle, patternType, octave, groove, noteLength, velocity, glide, toast]);
+
+  // ISSUE #3: Clear generated bass
+  const clearBass = useCallback(() => {
+    stopPlayback();
+    setGeneratedBass([]);
+    toast({ title: 'Cleared', description: 'Bass line cleared' });
+  }, [stopPlayback, toast]);
 
   const bassStyles = [
     { value: '808', label: '🔊 808 Bass', description: 'Deep trap/hip-hop bass' },
@@ -327,8 +459,20 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
             <Label className="text-sm text-gray-300 flex items-center gap-2">
               <Piano className="w-4 h-4" />
               Interactive Bass Keyboard
+              {isRecording && <span className="text-red-500 animate-pulse">● REC</span>}
             </Label>
-            <span className="text-xs text-purple-400">Octave {octave[0]}</span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={isRecording ? "destructive" : "outline"}
+                onClick={toggleRecording}
+                className="text-xs"
+              >
+                {isRecording ? <Square className="w-3 h-3 mr-1" /> : <Circle className="w-3 h-3 mr-1" />}
+                {isRecording ? 'Stop' : 'Record'}
+              </Button>
+              <span className="text-xs text-purple-400">Octave {octave[0]}</span>
+            </div>
           </div>
           
           {/* Bass Keys */}
@@ -374,19 +518,99 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
           </div>
         </div>
 
-        {/* Playback Controls for Generated Bass */}
-        {generatedBass.length > 0 && (
-          <div className="flex gap-2 pt-2">
-            <Button
-              onClick={isPlaying ? stopPlayback : playGeneratedBass}
-              variant="outline"
-              className="flex-1"
-            >
-              <Volume2 className="w-4 h-4 mr-2" />
-              {isPlaying ? 'Stop' : `Play Bass (${generatedBass.length} notes)`}
-            </Button>
+        {/* Recorded Notes Section */}
+        {recordedNotes.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-red-900/50">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm text-red-300 flex items-center gap-2">
+                <Circle className="w-3 h-3 text-red-500" />
+                Recorded Notes ({recordedNotes.length})
+              </Label>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" onClick={useRecordedNotes} className="text-xs">
+                  Use Notes
+                </Button>
+                <Button size="sm" variant="outline" onClick={sendToPianoRoll} className="text-xs">
+                  <Edit3 className="w-3 h-3 mr-1" />
+                  Edit in Piano Roll
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearRecordedNotes} className="text-xs text-red-400">
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+            <div className="bg-gray-800 rounded p-2 max-h-24 overflow-y-auto">
+              <div className="flex flex-wrap gap-1">
+                {recordedNotes.map((note, idx) => (
+                  <span 
+                    key={idx} 
+                    className="px-2 py-0.5 bg-red-600/30 text-red-300 text-xs rounded flex items-center gap-1 group cursor-pointer hover:bg-red-600/50"
+                    onClick={() => deleteRecordedNote(idx)}
+                    title="Click to delete"
+                  >
+                    {note.note}{note.octave}
+                    <X className="w-2 h-2 opacity-0 group-hover:opacity-100" />
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Playback Controls for Generated Bass */}
+        {generatedBass.length > 0 && (
+          <div className="space-y-2 pt-2">
+            {/* ISSUE #4: Visual display of generated bass notes */}
+            <div className="bg-gray-800 rounded p-2 max-h-20 overflow-y-auto">
+              <div className="flex flex-wrap gap-1">
+                {generatedBass.map((note, idx) => (
+                  <span key={idx} className="px-2 py-0.5 bg-purple-600/30 text-purple-300 text-xs rounded">
+                    {note.note}{note.octave}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={isPlaying ? stopPlayback : playGeneratedBass}
+                variant="outline"
+                className="flex-1"
+              >
+                <Volume2 className="w-4 h-4 mr-2" />
+                {isPlaying ? 'Stop' : `Play (${generatedBass.length})`}
+              </Button>
+              <Button 
+                onClick={() => onBassGenerated?.(generatedBass)} 
+                className="bg-blue-600 hover:bg-blue-500"
+                title="Send to Multi-Track"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Send to Tracks
+              </Button>
+              <Button onClick={sendToPianoRoll} variant="outline" size="icon" title="Edit in Piano Roll">
+                <Edit3 className="w-4 h-4" />
+              </Button>
+              <Button onClick={exportBassLine} variant="outline" size="icon" title="Export bass line">
+                <Download className="w-4 h-4" />
+              </Button>
+              <Button onClick={clearBass} variant="outline" size="icon" title="Clear bass line">
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Preset Controls */}
+        <div className="flex gap-2 pt-2 border-t border-gray-700">
+          <Button onClick={savePreset} variant="outline" size="sm" className="flex-1">
+            <Save className="w-3 h-3 mr-1" />
+            Save
+          </Button>
+          <Button onClick={loadPreset} variant="outline" size="sm" className="flex-1">
+            <RotateCcw className="w-3 h-3 mr-1" />
+            Load
+          </Button>
+        </div>
 
         {/* Info */}
         <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-800">

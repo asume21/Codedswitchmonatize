@@ -9,6 +9,8 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
+import { useInstrumentOptional } from '@/contexts/InstrumentContext';
 
 export function MIDIController() {
   const { 
@@ -20,11 +22,49 @@ export function MIDIController() {
     initializeMIDI,
     refreshDevices,
     settings,
-    updateSettings
+    updateSettings,
+    // MIDI Learn
+    isLearning,
+    learningParameter,
+    startLearning,
+    stopLearning,
+    customMappings,
+    removeMapping,
+    clearAllMappings,
+    // CC Monitor
+    lastCC,
+    ccHistory,
+    clearCCHistory,
+    getAISuggestion,
   } = useMIDI();
+  
+  const globalInstrument = useInstrumentOptional();
   
   const [showDetails, setShowDetails] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showMidiLearn, setShowMidiLearn] = useState(false);
+  const [showCCMonitor, setShowCCMonitor] = useState(false);
+  
+  // Handle instrument change - update both MIDI settings and global context
+  const handleInstrumentChange = (instrument: string) => {
+    updateSettings({ currentInstrument: instrument });
+    // Also update global instrument context so Piano Roll stays in sync
+    if (globalInstrument?.setCurrentInstrument) {
+      globalInstrument.setCurrentInstrument(instrument);
+    }
+  };
+  
+  // Learnable parameters
+  const learnableParams = [
+    { id: 'volume', label: '🔊 Volume', description: 'Master volume control' },
+    { id: 'filter', label: '🎛️ Filter Cutoff', description: 'Low-pass filter' },
+    { id: 'reverb', label: '🌊 Reverb', description: 'Reverb wet/dry mix' },
+    { id: 'attack', label: '📈 Attack', description: 'Note attack time' },
+    { id: 'release', label: '📉 Release', description: 'Note release time' },
+    { id: 'pan', label: '🔄 Pan', description: 'Stereo panning' },
+    { id: 'pitch', label: '🎵 Pitch Bend', description: 'Pitch bend amount' },
+    { id: 'modulation', label: '〰️ Modulation', description: 'Vibrato/tremolo' },
+  ];
   
   if (!isSupported) {
     return (
@@ -98,9 +138,25 @@ export function MIDIController() {
           ) : (
             <Button onClick={refreshDevices} variant="outline" className="flex-1">
               <i className="fas fa-sync mr-2"></i>
-              Refresh Devices
+              Refresh
             </Button>
           )}
+          <Button 
+            onClick={() => setShowMidiLearn(!showMidiLearn)} 
+            variant={showMidiLearn ? "default" : "outline"}
+            className={`px-3 ${isLearning ? 'bg-yellow-600 animate-pulse' : ''}`}
+            title="MIDI Learn"
+          >
+            <i className="fas fa-graduation-cap"></i>
+          </Button>
+          <Button 
+            onClick={() => setShowCCMonitor(!showCCMonitor)} 
+            variant={showCCMonitor ? "default" : "outline"}
+            className="px-3"
+            title="CC Monitor"
+          >
+            <i className="fas fa-chart-line"></i>
+          </Button>
           <Button 
             onClick={() => setShowSettings(!showSettings)} 
             variant="outline"
@@ -269,22 +325,23 @@ export function MIDIController() {
             {/* Current Instrument */}
             <div className="space-y-2 bg-blue-900/20 border border-blue-600 rounded-lg p-3">
               <Label className="text-sm text-blue-300 font-semibold">🎹 Current Instrument</Label>
-              <Select value={settings?.currentInstrument || 'piano'} onValueChange={(value) => updateSettings({ currentInstrument: value })}>
+              <Select 
+                value={settings?.currentInstrument || globalInstrument?.currentInstrument || 'piano'} 
+                onValueChange={handleInstrumentChange}
+              >
                 <SelectTrigger className="bg-gray-800 border-gray-600">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="piano">🎹 Piano</SelectItem>
-                  <SelectItem value="guitar">🎸 Guitar</SelectItem>
-                  <SelectItem value="violin">🎻 Violin</SelectItem>
-                  <SelectItem value="flute">🎵 Flute</SelectItem>
-                  <SelectItem value="trumpet">🎺 Trumpet</SelectItem>
-                  <SelectItem value="bass">🎸 Bass</SelectItem>
-                  <SelectItem value="organ">🎹 Organ</SelectItem>
+                <SelectContent className="max-h-64">
+                  {AVAILABLE_INSTRUMENTS.map((inst) => (
+                    <SelectItem key={inst.value} value={inst.value}>
+                      {inst.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <div className="text-xs text-blue-200">
-                This changes the instrument sound for your MIDI controller
+                Synced with Piano Roll - same instruments, same sounds
               </div>
             </div>
 
@@ -408,35 +465,89 @@ export function MIDIController() {
           </div>
         )}
         
-        {/* No devices found message */}
-        {isConnected && connectedDevices.length === 0 && (
-          <div className="text-center py-4 text-gray-500">
-            <i className="fas fa-search text-2xl mb-2"></i>
-            <p className="text-sm mb-2">No MIDI devices detected</p>
-            <p className="text-xs mb-3">
-              Make sure your MIDI controller is connected and powered on
-            </p>
-            <Button size="sm" variant="outline" onClick={refreshDevices}>
-              <i className="fas fa-sync mr-2"></i>
-              Scan for Devices
-            </Button>
+        {/* MIDI Learn Section */}
+        {showMidiLearn && isConnected && (
+          <div className="space-y-4 border-t border-yellow-600 pt-4 bg-yellow-900/10 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-yellow-300 flex items-center">
+                <i className="fas fa-graduation-cap mr-2"></i>
+                MIDI Learn {isLearning && <span className="ml-2 text-yellow-500 animate-pulse">● Learning...</span>}
+              </h4>
+              {customMappings.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={clearAllMappings} className="text-xs text-red-400">
+                  <i className="fas fa-trash mr-1"></i>
+                  Clear All
+                </Button>
+              )}
+            </div>
+            
+            {isLearning ? (
+              <div className="bg-yellow-800/30 border border-yellow-600 rounded p-3 text-center">
+                <p className="text-yellow-200 text-sm mb-2">Move a knob/slider on your controller...</p>
+                <p className="text-yellow-400 text-xs">Learning: <strong>{learningParameter}</strong></p>
+                <Button size="sm" variant="outline" onClick={stopLearning} className="mt-2 text-xs">Cancel</Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-400">Click "Learn" then move a control on your MIDI device.</p>
+                {learnableParams.map((param) => {
+                  const mapping = customMappings.find(m => m.parameter === param.id);
+                  return (
+                    <div key={param.id} className="flex items-center justify-between p-2 bg-gray-800 rounded text-xs">
+                      <span className="text-gray-200">{param.label}</span>
+                      {mapping && <span className="text-green-400 mx-2">→ CC{mapping.cc}</span>}
+                      {mapping ? (
+                        <Button size="sm" variant="ghost" onClick={() => removeMapping(param.id)} className="text-red-400 h-6 px-2">✕</Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => startLearning(param.id)} className="h-6 px-2">Learn</Button>
+                      )}
+                    </div>
+                  );
+                })}
+                {customMappings.length > 0 && <div className="text-xs text-green-400">✓ {customMappings.length} mapping(s) saved</div>}
+              </div>
+            )}
           </div>
         )}
         
-        {/* Help Section */}
-        {showDetails && (
-          <div className="border-t border-gray-600 pt-4">
-            <h4 className="text-sm font-medium text-gray-300 mb-2">
-              <i className="fas fa-question-circle mr-2"></i>
-              Troubleshooting
-            </h4>
-            <div className="space-y-2 text-xs text-gray-400">
-              <div>• Ensure your MIDI device is connected via USB or MIDI cable</div>
-              <div>• Check that your device is powered on and recognized by your system</div>
-              <div>• Try refreshing devices if your controller doesn't appear</div>
-              <div>• Some devices may require specific drivers or software</div>
-              <div>• Web MIDI works best in Chrome, Edge, or Opera browsers</div>
+        {/* CC Monitor Section */}
+        {showCCMonitor && isConnected && (
+          <div className="space-y-3 border-t border-purple-600 pt-4 bg-purple-900/10 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-purple-300 flex items-center">
+                <i className="fas fa-chart-line mr-2"></i>
+                CC Monitor
+              </h4>
+              <Button size="sm" variant="ghost" onClick={clearCCHistory} className="text-xs text-gray-400">Clear</Button>
             </div>
+            
+            {lastCC && (
+              <div className="bg-purple-800/30 border border-purple-600 rounded p-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-purple-200">CC{lastCC.cc}</span>
+                  <span className="text-purple-400">Val: {lastCC.value}</span>
+                </div>
+                <div className="text-xs text-purple-300 mt-1">
+                  🤖 {getAISuggestion(lastCC.cc).name} - {getAISuggestion(lastCC.cc).suggestion}
+                </div>
+              </div>
+            )}
+            
+            <ScrollArea className="h-20">
+              {ccHistory.length === 0 ? (
+                <div className="text-center py-2 text-gray-500 text-xs">Move knobs/sliders to see CC messages</div>
+              ) : (
+                <div className="space-y-1">
+                  {ccHistory.slice(0, 10).map((cc, idx) => (
+                    <div key={idx} className="flex justify-between p-1 bg-gray-800 rounded text-xs">
+                      <span className="text-gray-400">CC{cc.cc}</span>
+                      <span className="text-gray-200">{cc.value}</span>
+                      <span className="text-gray-500">Ch{cc.channel + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
           </div>
         )}
       </CardContent>

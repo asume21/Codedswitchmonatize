@@ -2,6 +2,7 @@ import { useState, createContext, useEffect } from "react";
 import { useLocation } from "wouter";
 import Header from "@/components/studio/Header";
 import TransportControls from "@/components/studio/TransportControls";
+import GlobalTransportBar from "@/components/studio/GlobalTransportBar";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import MobileNav from "@/components/studio/MobileNav";
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -9,6 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // PlaylistManager integrated into TransportControls
 import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
+import { TransportProvider } from "@/contexts/TransportContext";
 import {
   DEFAULT_STUDIO_TAB,
   getStudioTabById,
@@ -242,36 +244,42 @@ export default function Studio() {
 
   return (
     <AIMessageProvider>
-      <StudioAudioContext.Provider value={studioAudioValue}>
-        <div className="h-screen flex bg-studio-bg text-white">
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header />
+      <TransportProvider initialTempo={studioBpm}>
+        <StudioAudioContext.Provider value={studioAudioValue}>
+          {/* Global Transport Bar - Fixed at bottom, outside main layout */}
+          <GlobalTransportBar />
           
-          {/* Quick-access transport/navigation for tests and keyboard users */}
-          <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-800" role="navigation">
-            <button className="px-3 py-2 rounded bg-purple-600 play-button">Play</button>
-            <button className="px-3 py-2 rounded bg-slate-700 stop-button">Stop</button>
-            <span data-testid="credits-balance" className="text-sm text-slate-300">
-              Credits: 0
-            </span>
-          </div>
-          
-          <div className="flex-1 overflow-x-auto overflow-y-auto pb-16 md:pb-0 bg-studio-bg">
-            <div className="min-w-[1600px] p-3 md:p-6 studio-content bg-studio-bg">
-              {renderTabContent()}
+          <div className="h-screen flex bg-studio-bg text-white pb-16">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Header />
+            
+            {/* Quick-access transport/navigation for tests and keyboard users */}
+            <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-800" role="navigation">
+              <button className="px-3 py-2 rounded bg-purple-600 play-button">Play</button>
+              <button className="px-3 py-2 rounded bg-slate-700 stop-button">Stop</button>
+              <span data-testid="credits-balance" className="text-sm text-slate-300">
+                Credits: 0
+              </span>
             </div>
+            
+            {/* Main content area - add bottom padding for GlobalTransportBar */}
+            <div className="flex-1 overflow-x-auto overflow-y-auto pb-20 md:pb-20 bg-studio-bg">
+              <div className="min-w-[1600px] p-3 md:p-6 studio-content bg-studio-bg">
+                {renderTabContent()}
+              </div>
+            </div>
+            
+            <TransportControls currentTool={activeTabConfig?.shortName ?? "Studio"} activeTab={activeTab} />
           </div>
           
-          <TransportControls currentTool={activeTabConfig?.shortName ?? "Studio"} activeTab={activeTab} />
-        </div>
-        
-        {/* Mobile Bottom Navigation */}
-        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
-        
-        {/* iOS Audio Enable Button */}
-        <IOSAudioEnable />
-        </div>
-      </StudioAudioContext.Provider>
+          {/* Mobile Bottom Navigation */}
+          <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
+          
+          {/* iOS Audio Enable Button */}
+          <IOSAudioEnable />
+          </div>
+        </StudioAudioContext.Provider>
+      </TransportProvider>
     </AIMessageProvider>
   );
 }

@@ -8,38 +8,42 @@ interface AudioSource {
   name: string;
 }
 
-// Custom event types for global audio communication
 declare global {
   interface WindowEventMap {
     'globalAudio:load': CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>;
+    'globalAudio:addToPlaylist': CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>;
     'globalAudio:play': CustomEvent<void>;
     'globalAudio:pause': CustomEvent<void>;
     'globalAudio:stop': CustomEvent<void>;
+    'globalAudio:next': CustomEvent<void>;
+    'globalAudio:prev': CustomEvent<void>;
     'globalAudio:setElement': CustomEvent<{ element: HTMLAudioElement; name: string }>;
   }
 }
 
 interface GlobalAudioContextValue {
-  // Audio state
   isPlaying: boolean;
   currentTime: number;
   duration: number;
   volume: number;
   currentSource: AudioSource | null;
-  
-  // Controls
+  playlist: AudioSource[];
+  currentIndex: number;
+
   play: () => void;
   pause: () => void;
   stop: () => void;
+  next: () => void;
+  previous: () => void;
   seek: (time: number) => void;
   setVolume: (vol: number) => void;
-  
-  // Load audio
+
   loadAudioFile: (file: File) => Promise<void>;
   loadAudioUrl: (url: string, name?: string) => Promise<void>;
   loadAudioBuffer: (buffer: AudioBuffer, name?: string) => void;
-  
-  // Web Audio API access
+  addToPlaylistUrl: (url: string, name?: string, autoplay?: boolean) => Promise<void>;
+  addToPlaylistBuffer: (buffer: AudioBuffer, name?: string, autoplay?: boolean) => void;
+
   audioContext: AudioContext | null;
   masterGain: GainNode | null;
 }
@@ -47,41 +51,41 @@ interface GlobalAudioContextValue {
 const GlobalAudioContext = createContext<GlobalAudioContextValue | undefined>(undefined);
 
 export function GlobalAudioProvider({ children }: { children: ReactNode }) {
-  // Refs for Web Audio API (persist across renders)
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const startTimeRef = useRef<number>(0);
   const pauseTimeRef = useRef<number>(0);
-  
-  // State
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(1);
   const [currentSource, setCurrentSource] = useState<AudioSource | null>(null);
+  const [playlist, setPlaylist] = useState<AudioSource[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
 
-  // Initialize AudioContext lazily (needs user interaction)
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextConstructor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextConstructor) {
+        throw new Error('Web Audio API not supported in this browser');
+      }
+      audioContextRef.current = new AudioContextConstructor();
       masterGainRef.current = audioContextRef.current.createGain();
       masterGainRef.current.connect(audioContextRef.current.destination);
     }
-    
-    // Resume if suspended
     if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
     }
-    
     return audioContextRef.current;
   }, []);
 
-  // Update current time while playing
   useEffect(() => {
     let animationId: number;
-    
     const updateTime = () => {
       if (isPlaying && audioContextRef.current) {
         const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
@@ -89,61 +93,60 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         animationId = requestAnimationFrame(updateTime);
       }
     };
-    
     if (isPlaying) {
       animationId = requestAnimationFrame(updateTime);
     }
-    
     return () => {
       if (animationId) cancelAnimationFrame(animationId);
     };
   }, [isPlaying]);
 
-  // Play
+  const setSourceFromBuffer = useCallback(
+    (buffer: AudioBuffer, source: AudioSource, autoplay: boolean) => {
+      audioBufferRef.current = buffer;
+      setDuration(buffer.duration);
+      setCurrentSource(source);
+      pauseTimeRef.current = 0;
+      setCurrentTime(0);
+      if (autoplay) {
+        setTimeout(() => play(), 10);
+      }
+    },
+    [],
+  );
+
   const play = useCallback(() => {
     const ctx = getAudioContext();
     const buffer = audioBufferRef.current;
-    
     if (!buffer || !masterGainRef.current) return;
-    
-    // Stop existing source
+
     if (sourceNodeRef.current) {
-      try {
-        sourceNodeRef.current.stop();
-      } catch { /* ignore - source may already be stopped */ }
+      try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
     }
-    
-    // Create new source
+
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(masterGainRef.current);
-    
-    // Start from pause position
     const offset = pauseTimeRef.current % buffer.duration;
     source.start(0, offset);
-    
     startTimeRef.current = ctx.currentTime;
     sourceNodeRef.current = source;
     setIsPlaying(true);
-    
-    // Handle end
+
     source.onended = () => {
-      if (isPlaying) {
-        setIsPlaying(false);
+      setIsPlaying(false);
+      if (currentIndex >= 0 && currentIndex < playlist.length - 1) {
+        setTimeout(() => next(), 10);
+      } else {
         pauseTimeRef.current = 0;
         setCurrentTime(0);
       }
     };
-  }, [getAudioContext, isPlaying]);
+  }, [currentIndex, getAudioContext, playlist.length]);
 
-  // Pause
   const pause = useCallback(() => {
     if (sourceNodeRef.current && isPlaying) {
-      try {
-        sourceNodeRef.current.stop();
-      } catch { /* ignore - source may already be stopped */ }
-      
-      // Save current position
+      try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
       if (audioContextRef.current) {
         const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
         pauseTimeRef.current += elapsed;
@@ -152,38 +155,30 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     setIsPlaying(false);
   }, [isPlaying]);
 
-  // Stop
   const stop = useCallback(() => {
     if (sourceNodeRef.current) {
-      try {
-        sourceNodeRef.current.stop();
-      } catch { /* ignore - source may already be stopped */ }
+      try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
     }
     pauseTimeRef.current = 0;
     setCurrentTime(0);
     setIsPlaying(false);
   }, []);
 
-  // Seek
-  const seek = useCallback((time: number) => {
-    const wasPlaying = isPlaying;
-    
-    if (sourceNodeRef.current) {
-      try {
-        sourceNodeRef.current.stop();
-      } catch { /* ignore - source may already be stopped */ }
-    }
-    
-    pauseTimeRef.current = Math.max(0, Math.min(time, duration));
-    setCurrentTime(pauseTimeRef.current);
-    
-    if (wasPlaying) {
-      // Small delay to let stop complete
-      setTimeout(() => play(), 10);
-    }
-  }, [isPlaying, duration, play]);
+  const seek = useCallback(
+    (time: number) => {
+      const wasPlaying = isPlaying;
+      if (sourceNodeRef.current) {
+        try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
+      }
+      pauseTimeRef.current = Math.max(0, Math.min(time, duration));
+      setCurrentTime(pauseTimeRef.current);
+      if (wasPlaying) {
+        setTimeout(() => play(), 10);
+      }
+    },
+    [duration, isPlaying, play],
+  );
 
-  // Set volume
   const setVolume = useCallback((vol: number) => {
     const clampedVol = Math.max(0, Math.min(1, vol));
     setVolumeState(clampedVol);
@@ -192,119 +187,201 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Load audio from File
+  const jumpToIndex = useCallback(
+    (idx: number, autoplay = true) => {
+      if (idx < 0 || idx >= playlist.length) return;
+      const target = playlist[idx];
+      setCurrentIndex(idx);
+      if (target.buffer) {
+        setSourceFromBuffer(target.buffer, target, autoplay);
+      } else if (target.url) {
+        void (async () => {
+          const ctx = getAudioContext();
+          const res = await fetch(target.url!);
+          const arr = await res.arrayBuffer();
+          const buf = await ctx.decodeAudioData(arr);
+          const updated = { ...target, buffer: buf, type: 'buffer' as const };
+          setPlaylist(prev => prev.map((p, i) => (i === idx ? updated : p)));
+          setSourceFromBuffer(buf, updated, autoplay);
+        })();
+      }
+    },
+    [getAudioContext, playlist, setSourceFromBuffer],
+  );
+
+  const next = useCallback(() => {
+    const idx = currentIndex + 1;
+    if (idx < playlist.length) {
+      jumpToIndex(idx, true);
+    } else {
+      stop();
+    }
+  }, [currentIndex, jumpToIndex, playlist.length, stop]);
+
+  const previous = useCallback(() => {
+    const idx = currentIndex - 1;
+    if (idx >= 0) {
+      jumpToIndex(idx, true);
+    } else {
+      seek(0);
+    }
+  }, [currentIndex, jumpToIndex, seek]);
+
   const loadAudioFile = useCallback(async (file: File) => {
     const ctx = getAudioContext();
     const arrayBuffer = await file.arrayBuffer();
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-    
-    audioBufferRef.current = audioBuffer;
-    pauseTimeRef.current = 0;
-    setDuration(audioBuffer.duration);
-    setCurrentTime(0);
-    setCurrentSource({
-      id: `file-${Date.now()}`,
-      type: 'file',
-      name: file.name,
-    });
-  }, [getAudioContext]);
+    const buffer = await ctx.decodeAudioData(arrayBuffer);
+    const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: file.name };
+    setPlaylist([src]);
+    setCurrentIndex(0);
+    setSourceFromBuffer(buffer, src, false);
+  }, [getAudioContext, setSourceFromBuffer]);
 
-  // Load audio from URL
   const loadAudioUrl = useCallback(async (url: string, name?: string) => {
     const ctx = getAudioContext();
     const response = await fetch(url);
     const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-    
-    audioBufferRef.current = audioBuffer;
-    pauseTimeRef.current = 0;
-    setDuration(audioBuffer.duration);
-    setCurrentTime(0);
-    setCurrentSource({
-      id: `url-${Date.now()}`,
-      type: 'file',
-      url,
-      name: name || url.split('/').pop() || 'Audio',
-    });
-  }, [getAudioContext]);
+    const buffer = await ctx.decodeAudioData(arrayBuffer);
+    const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, url, name: name || 'Audio' };
+    setPlaylist([src]);
+    setCurrentIndex(0);
+    setSourceFromBuffer(buffer, src, false);
+  }, [getAudioContext, setSourceFromBuffer]);
 
-  // Load audio from buffer
   const loadAudioBuffer = useCallback((buffer: AudioBuffer, name?: string) => {
-    audioBufferRef.current = buffer;
-    pauseTimeRef.current = 0;
-    setDuration(buffer.duration);
-    setCurrentTime(0);
-    setCurrentSource({
-      id: `buffer-${Date.now()}`,
-      type: 'buffer',
-      buffer,
-      name: name || 'Audio Buffer',
-    });
-  }, []);
+    const ctx = getAudioContext();
+    const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: name || 'Buffer' };
+    setPlaylist([src]);
+    setCurrentIndex(0);
+    setSourceFromBuffer(buffer, src, false);
+    ctx.resume();
+  }, [getAudioContext, setSourceFromBuffer]);
 
-  // Listen for global audio events from other components
-  useEffect(() => {
-    const handleLoad = async (e: CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>) => {
-      try {
-        await loadAudioUrl(e.detail.url, e.detail.name);
-        if (e.detail.autoplay) {
-          setTimeout(() => play(), 100);
-        }
-      } catch (err) {
-        console.error('GlobalAudio: Failed to load audio', err);
+  const addToPlaylistUrl = useCallback(async (url: string, name?: string, autoplay = false) => {
+    const ctx = getAudioContext();
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = await ctx.decodeAudioData(arrayBuffer);
+    const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, url, name: name || 'Audio' };
+    setPlaylist(prev => {
+      const nextList = [...prev, src];
+      if (autoplay) {
+        const idx = nextList.length - 1;
+        setCurrentIndex(idx);
+        setSourceFromBuffer(buffer, src, true);
       }
-    };
+      return nextList;
+    });
+  }, [getAudioContext, setSourceFromBuffer]);
 
+  const addToPlaylistBuffer = useCallback((buffer: AudioBuffer, name?: string, autoplay = false) => {
+    const ctx = getAudioContext();
+    const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: name || 'Buffer' };
+    setPlaylist(prev => {
+      const nextList = [...prev, src];
+      if (autoplay) {
+        const idx = nextList.length - 1;
+        setCurrentIndex(idx);
+        setSourceFromBuffer(buffer, src, true);
+      }
+      return nextList;
+    });
+    ctx.resume();
+  }, [getAudioContext, setSourceFromBuffer]);
+
+  useEffect(() => {
+    const handleVolumeChange = (e: CustomEvent<{ volume: number }>) => setVolume(e.detail.volume);
+    const handleLoad = (e: CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>) => {
+      const { name, url, autoplay } = e.detail;
+      loadAudioUrl(url, name).then(() => {
+        if (autoplay) play();
+      }).catch(err => console.error('Failed to load global audio:', err));
+    };
+    const handleAdd = (e: CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>) => {
+      const { name, url, autoplay } = e.detail;
+      addToPlaylistUrl(url, name, autoplay).catch(err => console.error('Failed to add global audio:', err));
+    };
     const handlePlay = () => play();
     const handlePause = () => pause();
     const handleStop = () => stop();
+    const handleNext = () => next();
+    const handlePrev = () => previous();
+    const handleSetElement: EventListener = (event) => {
+      const e = event as CustomEvent<{ element: HTMLAudioElement; name: string }>;
+      if (!e.detail?.element) return;
+      (async () => {
+        try {
+          const audioEl = e.detail.element;
+          const ctx = getAudioContext();
+          const response = await fetch(audioEl.src);
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = await ctx.decodeAudioData(arrayBuffer);
+          const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: e.detail.name };
+          setPlaylist([src]);
+          setCurrentIndex(0);
+          setSourceFromBuffer(buffer, src, false);
+        } catch (err) {
+          console.error('Failed to set element for global audio:', err);
+        }
+      })();
+    };
 
-    // Add listeners - use type assertion for custom events
-    window.addEventListener('globalAudio:load', handleLoad as unknown as (e: Event) => void);
-    window.addEventListener('globalAudio:play', handlePlay);
-    window.addEventListener('globalAudio:pause', handlePause);
-    window.addEventListener('globalAudio:stop', handleStop);
+    window.addEventListener('globalAudio:volume', handleVolumeChange as EventListener);
+    window.addEventListener('globalAudio:load', handleLoad as EventListener);
+    window.addEventListener('globalAudio:addToPlaylist', handleAdd as EventListener);
+    window.addEventListener('globalAudio:play', handlePlay as EventListener);
+    window.addEventListener('globalAudio:pause', handlePause as EventListener);
+    window.addEventListener('globalAudio:stop', handleStop as EventListener);
+    window.addEventListener('globalAudio:next', handleNext as EventListener);
+    window.addEventListener('globalAudio:prev', handlePrev as EventListener);
+    window.addEventListener('globalAudio:setElement', handleSetElement);
 
     return () => {
-      window.removeEventListener('globalAudio:load', handleLoad as unknown as (e: Event) => void);
-      window.removeEventListener('globalAudio:play', handlePlay);
-      window.removeEventListener('globalAudio:pause', handlePause);
-      window.removeEventListener('globalAudio:stop', handleStop);
+      window.removeEventListener('globalAudio:volume', handleVolumeChange as EventListener);
+      window.removeEventListener('globalAudio:load', handleLoad as EventListener);
+      window.removeEventListener('globalAudio:addToPlaylist', handleAdd as EventListener);
+      window.removeEventListener('globalAudio:play', handlePlay as EventListener);
+      window.removeEventListener('globalAudio:pause', handlePause as EventListener);
+      window.removeEventListener('globalAudio:stop', handleStop as EventListener);
+      window.removeEventListener('globalAudio:next', handleNext as EventListener);
+      window.removeEventListener('globalAudio:prev', handlePrev as EventListener);
+      window.removeEventListener('globalAudio:setElement', handleSetElement);
     };
-  }, [loadAudioUrl, play, pause, stop]);
-
-  const value: GlobalAudioContextValue = {
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    currentSource,
-    play,
-    pause,
-    stop,
-    seek,
-    setVolume,
-    loadAudioFile,
-    loadAudioUrl,
-    loadAudioBuffer,
-    audioContext: audioContextRef.current,
-    masterGain: masterGainRef.current,
-  };
+  }, [addToPlaylistUrl, getAudioContext, loadAudioUrl, next, pause, play, previous, setVolume, stop, setSourceFromBuffer]);
 
   return (
-    <GlobalAudioContext.Provider value={value}>
+    <GlobalAudioContext.Provider
+      value={{
+        isPlaying,
+        currentTime,
+        duration,
+        volume,
+        currentSource,
+        playlist,
+        currentIndex,
+        play,
+        pause,
+        stop,
+        next,
+        previous,
+        seek,
+        setVolume,
+        loadAudioFile,
+        loadAudioUrl,
+        loadAudioBuffer,
+        addToPlaylistUrl,
+        addToPlaylistBuffer,
+        audioContext: audioContextRef.current,
+        masterGain: masterGainRef.current,
+      }}
+    >
       {children}
     </GlobalAudioContext.Provider>
   );
 }
 
 export function useGlobalAudio() {
-  const context = useContext(GlobalAudioContext);
-  if (!context) {
-    throw new Error('useGlobalAudio must be used within a GlobalAudioProvider');
-  }
-  return context;
+  const ctx = useContext(GlobalAudioContext);
+  if (!ctx) throw new Error('useGlobalAudio must be used within a GlobalAudioProvider');
+  return ctx;
 }
-
-// Export for direct access to singleton audio context
-export { GlobalAudioContext };

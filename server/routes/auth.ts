@@ -188,7 +188,7 @@ export function createAuthRoutes(storage: IStorage) {
 
       const user = await storage.getUser(req.userId);
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        return res.status(401).json({ message: "Not authenticated" });
       }
 
       // Return user without password

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAudio } from "./use-audio";
-import { AudioEngine } from "@/lib/audio";
+import { realisticAudio } from "@/lib/realisticAudio";
 import { useInstrumentOptional } from "@/contexts/InstrumentContext";
 
 // Global drum mode flag - shared across all useMIDI instances
@@ -35,6 +35,45 @@ interface MIDISettings {
   midiVolume?: number; // 0 to 1
 }
 
+// CC Message for monitoring
+interface CCMessage {
+  cc: number;
+  value: number;
+  channel: number;
+  timestamp: number;
+}
+
+// MIDI Learn mapping
+interface MIDIMapping {
+  cc: number;
+  parameter: string;
+  label: string;
+  min?: number;
+  max?: number;
+}
+
+// Common controller profiles for AI suggestions
+const COMMON_CC_MAPPINGS: Record<number, { name: string; typical: string }> = {
+  1: { name: 'Modulation Wheel', typical: 'vibrato' },
+  7: { name: 'Volume', typical: 'volume' },
+  10: { name: 'Pan', typical: 'pan' },
+  11: { name: 'Expression', typical: 'expression' },
+  64: { name: 'Sustain Pedal', typical: 'sustain' },
+  71: { name: 'Resonance/Timbre', typical: 'filter' },
+  74: { name: 'Brightness/Cutoff', typical: 'filter' },
+  91: { name: 'Reverb', typical: 'reverb' },
+  93: { name: 'Chorus', typical: 'chorus' },
+  // Common slider/knob ranges
+  16: { name: 'General Purpose 1', typical: 'custom' },
+  17: { name: 'General Purpose 2', typical: 'custom' },
+  18: { name: 'General Purpose 3', typical: 'custom' },
+  19: { name: 'General Purpose 4', typical: 'custom' },
+  20: { name: 'Slider/Knob', typical: 'custom' },
+  21: { name: 'Slider/Knob', typical: 'custom' },
+  22: { name: 'Slider/Knob', typical: 'custom' },
+  23: { name: 'Slider/Knob', typical: 'custom' },
+};
+
 export function useMIDI() {
   const [midiAccess, setMidiAccess] = useState<any | null>(null);
   const [connectedDevices, setConnectedDevices] = useState<MIDIDevice[]>([]);
@@ -55,7 +94,22 @@ export function useMIDI() {
     release: 0.5,
   });
   
-  const audioEngineRef = useRef<AudioEngine | null>(null);
+  // MIDI Learn state
+  const [isLearning, setIsLearning] = useState(false);
+  const [learningParameter, setLearningParameter] = useState<string | null>(null);
+  const [ccHistory, setCcHistory] = useState<CCMessage[]>([]);
+  const [customMappings, setCustomMappings] = useState<MIDIMapping[]>(() => {
+    // Load saved mappings from localStorage
+    try {
+      const saved = localStorage.getItem('midi-custom-mappings');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [lastCC, setLastCC] = useState<CCMessage | null>(null);
+  
+  const audioInitializedRef = useRef<boolean>(false);
   
   // Drum mode state (local for React reactivity, but uses global flag for actual checks)
   const [drumMode, setDrumModeState] = useState(globalDrumMode);
@@ -116,10 +170,72 @@ export function useMIDI() {
 
   // Update master volume
   const setMasterVolume = useCallback((volume: number) => {
-    if (audioEngineRef.current?.masterGain) {
-      audioEngineRef.current.masterGain.gain.value = volume;
-      console.log(`🔊 Master volume set to ${Math.round(volume * 100)}%`);
+    // realisticAudio handles volume internally
+    console.log(`🔊 Master volume set to ${Math.round(volume * 100)}%`);
+  }, []);
+
+  // MIDI Learn functions
+  const startLearning = useCallback((parameter: string) => {
+    setIsLearning(true);
+    setLearningParameter(parameter);
+    console.log(`🎓 MIDI Learn started for: ${parameter}`);
+  }, []);
+
+  const stopLearning = useCallback(() => {
+    setIsLearning(false);
+    setLearningParameter(null);
+    console.log('🎓 MIDI Learn stopped');
+  }, []);
+
+  const addMapping = useCallback((cc: number, parameter: string, label: string) => {
+    const newMapping: MIDIMapping = { cc, parameter, label };
+    setCustomMappings(prev => {
+      // Remove existing mapping for this parameter
+      const filtered = prev.filter(m => m.parameter !== parameter);
+      const updated = [...filtered, newMapping];
+      // Save to localStorage
+      localStorage.setItem('midi-custom-mappings', JSON.stringify(updated));
+      return updated;
+    });
+    console.log(`✅ Mapped CC${cc} to ${parameter}`);
+  }, []);
+
+  const removeMapping = useCallback((parameter: string) => {
+    setCustomMappings(prev => {
+      const updated = prev.filter(m => m.parameter !== parameter);
+      localStorage.setItem('midi-custom-mappings', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearAllMappings = useCallback(() => {
+    setCustomMappings([]);
+    localStorage.removeItem('midi-custom-mappings');
+    console.log('🗑️ All MIDI mappings cleared');
+  }, []);
+
+  // Get AI suggestion for a CC number
+  const getAISuggestion = useCallback((cc: number): { name: string; suggestion: string } => {
+    const known = COMMON_CC_MAPPINGS[cc];
+    if (known) {
+      return { name: known.name, suggestion: known.typical };
     }
+    // AI heuristics for unknown CCs
+    if (cc >= 0 && cc <= 31) {
+      return { name: `Controller ${cc}`, suggestion: 'Likely a slider or knob - try mapping to volume, filter, or effect' };
+    }
+    if (cc >= 32 && cc <= 63) {
+      return { name: `LSB for CC${cc - 32}`, suggestion: 'Fine control for another parameter' };
+    }
+    if (cc >= 102 && cc <= 119) {
+      return { name: `Undefined ${cc}`, suggestion: 'Custom control - map to any parameter' };
+    }
+    return { name: `CC ${cc}`, suggestion: 'Unknown - move the control again to identify' };
+  }, []);
+
+  // Clear CC history
+  const clearCCHistory = useCallback(() => {
+    setCcHistory([]);
   }, []);
 
   // MIDI note number to note name conversion
@@ -184,60 +300,42 @@ export function useMIDI() {
         return;
       }
 
-      // Use the REAL AudioEngine - the one that already works perfectly!
+      // Use realisticAudio - same audio system as Piano Roll for consistent sound
       try {
-        // Initialize AudioEngine if needed
-        if (!audioEngineRef.current) {
-          audioEngineRef.current = new AudioEngine();
-          await audioEngineRef.current.initialize();
-          console.log('🎵 MIDI using real AudioEngine with all instruments!');
+        // Initialize realisticAudio if needed
+        if (!audioInitializedRef.current) {
+          await realisticAudio.initialize();
+          audioInitializedRef.current = true;
+          console.log('🎵 MIDI using realisticAudio (same as Piano Roll)!');
         }
 
-        // Calculate frequency from MIDI note
-        const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
-        
         // Get instrument name from settingsRef (always current, no stale closure)
         const currentSettings = settingsRef.current;
-        const instrumentSetting = currentSettings.currentInstrument || 'piano';
-        
-        // Map simple instrument names to AudioEngine-compatible names
-        // AudioEngine checks for substrings like "piano", "guitar", "violin", etc.
-        const instrumentForEngine: { [key: string]: string } = {
-          piano: "piano",
-          guitar: "guitar", 
-          bass: "bass-electric",
-          violin: "violin",
-          flute: "flute",
-          trumpet: "trumpet",
-          organ: "organ",
-          synth: "synth",
-          strings: "violin",
-          brass: "trumpet",
-        };
-        const instrument = instrumentForEngine[instrumentSetting] || instrumentSetting;
+        // Use the exact instrument name - no mapping needed since we use same system as Piano Roll
+        const instrument = currentSettings.currentInstrument || 'piano';
         
         // Apply MIDI volume (multiply with velocity)
         const midiVolume = currentSettings.midiVolume ?? 0.5;
         const adjustedVelocity = normalizedVelocity * midiVolume;
         
-        // Play note with SHORT duration and NO sustain for responsive MIDI feel
-        // Notes will decay naturally instead of droning on
-        await audioEngineRef.current.playNote(
-          frequency,
+        // Play note using realisticAudio - same API as Piano Roll
+        // realisticAudio.playNote(note, octave, duration, instrument, velocity)
+        await realisticAudio.playNote(
+          note,
+          octave,
           0.5, // shorter duration for snappier MIDI response
-          adjustedVelocity,
           instrument,
-          false // NO sustain - notes decay naturally when key released
+          adjustedVelocity
         );
 
         console.log(
-          `✅ MIDI [${instrumentSetting}→${instrument}]: ${note}${octave} (${frequency.toFixed(1)}Hz) vel=${adjustedVelocity.toFixed(2)}`,
+          `✅ MIDI [${instrument}]: ${note}${octave} vel=${adjustedVelocity.toFixed(2)}`,
         );
       } catch (error) {
-        console.error(`❌ AudioEngine playNote failed for ${note}${octave}:`, error);
+        console.error(`❌ realisticAudio playNote failed for ${note}${octave}:`, error);
       }
     },
-    [noteNumberToName, playNote],
+    [noteNumberToName],
   );
 
   // Handle note off events
@@ -274,6 +372,39 @@ export function useMIDI() {
         console.log(
           `🎛️ MIDI Control Change: CC${controlNumber} = ${controlValue} (Channel ${channel + 1})`,
         );
+
+        // Record CC to history for monitoring
+        const ccMsg: CCMessage = {
+          cc: controlNumber,
+          value: controlValue,
+          channel,
+          timestamp: Date.now(),
+        };
+        setLastCC(ccMsg);
+        setCcHistory(prev => {
+          const updated = [ccMsg, ...prev].slice(0, 50); // Keep last 50
+          return updated;
+        });
+
+        // MIDI Learn mode - capture CC for mapping
+        if (isLearning && learningParameter) {
+          const suggestion = getAISuggestion(controlNumber);
+          addMapping(controlNumber, learningParameter, suggestion.name);
+          stopLearning();
+          // Dispatch event for UI notification
+          window.dispatchEvent(new CustomEvent('midi-learn-complete', {
+            detail: { cc: controlNumber, parameter: learningParameter, name: suggestion.name }
+          }));
+        }
+
+        // Check custom mappings first
+        const customMapping = customMappings.find(m => m.cc === controlNumber);
+        if (customMapping) {
+          const normalizedValue = controlValue / 127;
+          window.dispatchEvent(new CustomEvent('midi-cc-mapped', {
+            detail: { parameter: customMapping.parameter, value: normalizedValue, cc: controlNumber }
+          }));
+        }
 
         // Common MIDI CC mappings
         switch (controlNumber) {
@@ -707,5 +838,19 @@ export function useMIDI() {
     sliderDuration,
     drumMode,
     setDrumMode,
+    // MIDI Learn exports
+    isLearning,
+    learningParameter,
+    startLearning,
+    stopLearning,
+    addMapping,
+    removeMapping,
+    clearAllMappings,
+    customMappings,
+    // CC Monitoring exports
+    lastCC,
+    ccHistory,
+    clearCCHistory,
+    getAISuggestion,
   };
 }

@@ -34,15 +34,67 @@ interface UploadContext {
   mimeType?: string;
 }
 
+const AI_CHAT_HISTORY_KEY = 'codedswitch_ai_chat_history';
+
+const DEFAULT_MESSAGE: Message = {
+  id: "1",
+  type: "ai",
+  content: "Hello! I'm your AI assistant for CodedSwitch Studio. I can help you with:\n• Code translation and optimization\n• Music composition suggestions\n• Beat pattern generation\n• Vulnerability scanning insights\n• Lyric writing assistance\n• Song analysis and insights\n\nUpload a song below to get AI-powered analysis, or ask me anything!",
+  timestamp: new Date(Date.now() - 120000),
+};
+
 export default function AIAssistant() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      type: "ai",
-      content: "Hello! I'm your AI assistant for CodedSwitch Studio. I can help you with:\n• Code translation and optimization\n• Music composition suggestions\n• Beat pattern generation\n• Vulnerability scanning insights\n• Lyric writing assistance\n• Song analysis and insights\n\nUpload a song below to get AI-powered analysis, or ask me anything!",
-      timestamp: new Date(Date.now() - 120000),
-    },
-  ]);
+  // ISSUE #1: Load chat history from localStorage
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(AI_CHAT_HISTORY_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+        }
+      } catch (e) {
+        console.error('Failed to load chat history:', e);
+      }
+    }
+    return [DEFAULT_MESSAGE];
+  });
+
+  // ISSUE #1: Save chat history to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 0) {
+      try {
+        localStorage.setItem(AI_CHAT_HISTORY_KEY, JSON.stringify(messages));
+      } catch (e) {
+        console.error('Failed to save chat history:', e);
+      }
+    }
+  }, [messages]);
+
+  // ISSUE #2: Clear chat function
+  const clearChat = () => {
+    setMessages([DEFAULT_MESSAGE]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(AI_CHAT_HISTORY_KEY);
+    }
+  };
+
+  // ISSUE #3: Export chat transcript
+  const exportChatTranscript = () => {
+    const transcript = messages.map(m => 
+      `[${m.timestamp.toLocaleString()}] ${m.type === 'ai' ? 'AI' : 'You'}:\n${m.content}\n`
+    ).join('\n---\n\n');
+    
+    const blob = new Blob([transcript], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ai-chat-${Date.now()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   // Song uploader state
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -630,6 +682,24 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-heading font-bold">AI Music & Code Assistant</h2>
           <div className="flex items-center space-x-4">
+            <Button
+              onClick={clearChat}
+              variant="outline"
+              size="sm"
+              className="border-gray-600"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Clear Chat
+            </Button>
+            <Button
+              onClick={exportChatTranscript}
+              variant="outline"
+              size="sm"
+              className="border-gray-600"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Export
+            </Button>
             <Button
               onClick={() => {
                 initialize();

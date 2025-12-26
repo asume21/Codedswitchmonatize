@@ -41,9 +41,10 @@ const LoadingFallback = () => (
 );
 
 // Wrapper to add Suspense to lazy components
-const withSuspense = (Component: React.LazyExoticComponent<any>) => () => (
+type SuspendedComponent = React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>>;
+const withSuspense = (Component: SuspendedComponent) => (props: Record<string, unknown> = {}) => (
   <Suspense fallback={<LoadingFallback />}>
-    <Component />
+    <Component {...props} />
   </Suspense>
 );
 

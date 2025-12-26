@@ -46,8 +46,8 @@ export interface StudioSessionState {
   setPattern: (pattern: unknown) => void;
 
   // Shared melody notes for the current song (used by MelodyComposerV2 / piano roll)
-  melody: any[];
-  setMelody: (notes: any[]) => void;
+  melody: unknown[];
+  setMelody: (notes: unknown[]) => void;
 
   hasGeneratedMusic: boolean;
   markGeneratedFromLyrics: (meta: { title?: string | null }) => void;
@@ -96,8 +96,8 @@ interface StudioSessionProviderProps {
 const STORAGE_KEY = "studioSession";
 
 const createId = () => {
-  if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
-    return (crypto as any).randomUUID() as string;
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
   }
   return `v_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 };
@@ -109,7 +109,7 @@ export function StudioSessionProvider({ children }: StudioSessionProviderProps) 
   const [lyricsVersions, setLyricsVersions] = useState<LyricsVersion[]>([]);
   const [activeLyricsVersionId, setActiveLyricsVersionIdState] = useState<string | null>(null);
   const [pattern, setPatternState] = useState<unknown>(null);
-  const [melody, setMelodyState] = useState<any[]>([]);
+  const [melody, setMelodyState] = useState<unknown[]>([]);
   const [hasGeneratedMusic, setHasGeneratedMusic] = useState(false);
 
   useEffect(() => {
@@ -153,7 +153,7 @@ export function StudioSessionProvider({ children }: StudioSessionProviderProps) 
         lyricsVersions: LyricsVersion[];
         activeLyricsVersionId: string | null;
         pattern: unknown;
-        melody: any[];
+        melody: unknown[];
         hasGeneratedMusic: boolean;
       }>;
 
@@ -292,7 +292,7 @@ export function StudioSessionProvider({ children }: StudioSessionProviderProps) 
     setPatternState(value);
   };
 
-  const setMelody = (notes: any[]) => {
+  const setMelody = (notes: unknown[]) => {
     setMelodyState(notes);
   };
 

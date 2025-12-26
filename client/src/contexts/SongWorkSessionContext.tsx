@@ -22,7 +22,7 @@ export interface SongWorkSession {
     duration?: number;
     issues: SongIssue[];
   };
-  midiData?: any;
+  midiData?: unknown;
   createdAt: number;
 }
 

@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
+import { Plus, Trash2, Save, FolderOpen, Download, Upload } from "lucide-react";
+
+// ISSUE #1: Mixer presets storage key
+const MIXER_PRESETS_KEY = "mixer-presets";
 
 interface MixerChannel {
   id: string;
@@ -111,6 +115,20 @@ export default function Mixer() {
   const { initialize, isInitialized } = useAudio();
   const [isLinked, setIsLinked] = useState(false);
 
+  // ISSUE #1: Saved presets state
+  const [savedPresets, setSavedPresets] = useState<Array<{id: string; name: string; channels: MixerChannel[]; masterVolume: number; effects: typeof effects}>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(MIXER_PRESETS_KEY);
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return []; }
+      }
+    }
+    return [];
+  });
+
+  // ISSUE #4: Master EQ state
+  const [masterEQ, setMasterEQ] = useState({ high: 1, mid: 0, low: 2 });
+
   const updateChannel = (channelId: string, updates: Partial<MixerChannel>) => {
     setChannels(prev => prev.map(channel => 
       channel.id === channelId ? { ...channel, ...updates } : channel
@@ -169,6 +187,129 @@ export default function Mixer() {
     }
   };
 
+  // ISSUE #1: Save preset
+  const savePreset = useCallback(() => {
+    const name = prompt('Enter preset name:', `Preset ${savedPresets.length + 1}`);
+    if (!name) return;
+    
+    const newPreset = {
+      id: `preset-${Date.now()}`,
+      name,
+      channels: JSON.parse(JSON.stringify(channels)),
+      masterVolume,
+      effects: JSON.parse(JSON.stringify(effects))
+    };
+    
+    const updated = [...savedPresets, newPreset];
+    setSavedPresets(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(MIXER_PRESETS_KEY, JSON.stringify(updated));
+    }
+    toast({ title: '💾 Preset Saved', description: `"${name}" saved` });
+  }, [channels, masterVolume, effects, savedPresets, toast]);
+
+  // ISSUE #1: Load preset
+  const loadPreset = useCallback((presetId: string) => {
+    const preset = savedPresets.find(p => p.id === presetId);
+    if (!preset) return;
+    
+    setChannels(JSON.parse(JSON.stringify(preset.channels)));
+    setMasterVolume(preset.masterVolume);
+    setEffects(JSON.parse(JSON.stringify(preset.effects)));
+    toast({ title: '📂 Preset Loaded', description: `"${preset.name}" loaded` });
+  }, [savedPresets, toast]);
+
+  // ISSUE #1: Delete preset
+  const deletePreset = useCallback((presetId: string) => {
+    const updated = savedPresets.filter(p => p.id !== presetId);
+    setSavedPresets(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(MIXER_PRESETS_KEY, JSON.stringify(updated));
+    }
+    toast({ title: '🗑️ Preset Deleted' });
+  }, [savedPresets, toast]);
+
+  // ISSUE #2: Add channel
+  const addChannel = useCallback(() => {
+    const name = prompt('Enter channel name:', `CH ${channels.length + 1}`);
+    if (!name) return;
+    
+    const newChannel: MixerChannel = {
+      id: `channel-${Date.now()}`,
+      name: name.toUpperCase(),
+      volume: 75,
+      pan: 0,
+      muted: false,
+      solo: false,
+      eq: { high: 0, mid: 0, low: 0 },
+      sends: { reverb: 0, delay: 0 },
+      level: 50
+    };
+    
+    setChannels(prev => [...prev, newChannel]);
+    toast({ title: '➕ Channel Added', description: `"${name}" added` });
+  }, [channels.length, toast]);
+
+  // ISSUE #2: Remove channel
+  const removeChannel = useCallback((channelId: string) => {
+    if (channels.length <= 1) {
+      toast({ title: 'Cannot remove', description: 'At least one channel required', variant: 'destructive' });
+      return;
+    }
+    setChannels(prev => prev.filter(c => c.id !== channelId));
+    toast({ title: '🗑️ Channel Removed' });
+  }, [channels.length, toast]);
+
+  // ISSUE #5: Export mix settings as JSON
+  const exportMixSettings = useCallback(() => {
+    const settings = {
+      channels,
+      masterVolume,
+      masterEQ,
+      effects,
+      exportedAt: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `mixer-settings-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: '📤 Settings Exported' });
+  }, [channels, masterVolume, masterEQ, effects, toast]);
+
+  // ISSUE #5: Import mix settings from JSON
+  const importMixSettings = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const settings = JSON.parse(event.target?.result as string);
+          if (settings.channels) setChannels(settings.channels);
+          if (settings.masterVolume) setMasterVolume(settings.masterVolume);
+          if (settings.masterEQ) setMasterEQ(settings.masterEQ);
+          if (settings.effects) setEffects(settings.effects);
+          toast({ title: '📥 Settings Imported' });
+        } catch {
+          toast({ title: 'Import Failed', description: 'Invalid JSON file', variant: 'destructive' });
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [toast]);
+
   return (
     <div className="h-full flex flex-col">
       <div className="p-6 border-b border-gray-600">
@@ -197,6 +338,53 @@ export default function Mixer() {
             </Button>
           </div>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 mt-4 flex-wrap">
+        <Button onClick={addChannel} variant="outline" size="sm" className="flex items-center gap-1">
+          <Plus className="w-4 h-4" />
+          Add Channel
+        </Button>
+        
+        <Button onClick={savePreset} variant="outline" size="sm" className="flex items-center gap-1 bg-green-600/20 hover:bg-green-600/30">
+          <Save className="w-4 h-4" />
+          Save Preset
+        </Button>
+        
+        {savedPresets.length > 0 && (
+          <select
+            className="h-8 px-2 text-sm bg-gray-700 border border-gray-600 rounded"
+            onChange={(e) => {
+              if (e.target.value === 'delete') {
+                const toDelete = prompt('Enter preset name to delete:');
+                const preset = savedPresets.find(p => p.name === toDelete);
+                if (preset) deletePreset(preset.id);
+              } else if (e.target.value) {
+                loadPreset(e.target.value);
+              }
+              e.target.value = '';
+            }}
+            defaultValue=""
+          >
+            <option value="">📂 Load Preset ({savedPresets.length})</option>
+            {savedPresets.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+            <option value="delete">🗑️ Delete Preset...</option>
+          </select>
+        )}
+        
+        <div className="border-l border-gray-600 h-6 mx-2" />
+        
+        <Button onClick={exportMixSettings} variant="outline" size="sm" className="flex items-center gap-1">
+          <Download className="w-4 h-4" />
+          Export
+        </Button>
+        
+        <Button onClick={importMixSettings} variant="outline" size="sm" className="flex items-center gap-1">
+          <Upload className="w-4 h-4" />
+          Import
+        </Button>
       </div>
 
       <ScrollArea className="flex-1 p-6">
@@ -389,19 +577,40 @@ export default function Mixer() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs">HIGH</span>
                   <div className="w-16">
-                    <Slider value={[1]} min={-12} max={12} step={1} className="h-1" />
+                    <Slider 
+                      value={[masterEQ.high]} 
+                      onValueChange={([v]) => setMasterEQ(prev => ({ ...prev, high: v }))}
+                      min={-12} 
+                      max={12} 
+                      step={1} 
+                      className="h-1" 
+                    />
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs">MID</span>
                   <div className="w-16">
-                    <Slider value={[0]} min={-12} max={12} step={1} className="h-1" />
+                    <Slider 
+                      value={[masterEQ.mid]} 
+                      onValueChange={([v]) => setMasterEQ(prev => ({ ...prev, mid: v }))}
+                      min={-12} 
+                      max={12} 
+                      step={1} 
+                      className="h-1" 
+                    />
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs">LOW</span>
                   <div className="w-16">
-                    <Slider value={[2]} min={-12} max={12} step={1} className="h-1" />
+                    <Slider 
+                      value={[masterEQ.low]} 
+                      onValueChange={([v]) => setMasterEQ(prev => ({ ...prev, low: v }))}
+                      min={-12} 
+                      max={12} 
+                      step={1} 
+                      className="h-1" 
+                    />
                   </div>
                 </div>
               </div>

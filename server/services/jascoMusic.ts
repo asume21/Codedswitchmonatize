@@ -1,5 +1,5 @@
 import fetch from "node-fetch";
-import type { MusicGenPack, MusicGenSample } from "./musicgen";
+import type { MusicPack as MusicGenPack, MusicSample as MusicGenSample } from "./unifiedMusicService";
 
 interface JascoModelResponse {
   bpm?: number;

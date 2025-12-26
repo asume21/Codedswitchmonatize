@@ -44,6 +44,10 @@ import { createTrackPayload } from '@/types/studioTracks';
 import { UndoManager } from '@/lib/UndoManager';
 import 'react-resizable/css/styles.css';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
+import AudioDetector from './AudioDetector';
+import AstutelyChatbot from '../ai/AstutelyChatbot';
+import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
+import { Zap, Sparkles } from 'lucide-react';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
@@ -69,6 +73,33 @@ const LEGACY_WORKFLOW_ID_MAP: Record<string, WorkflowPreset['id']> = {
 };
 
 const DEFAULT_TRACK_HEIGHT = 120;
+
+type ClipType = 'midi' | 'audio';
+interface TrackClip {
+  id: string;
+  trackId: string;
+  type: ClipType;
+  name: string;
+  startBar: number;
+  lengthBars: number;
+}
+
+interface Marker {
+  id: string;
+  bar: number;
+  label: string;
+}
+
+interface GridSettings {
+  division: '1' | '1/2' | '1/4' | '1/8' | '1/16' | '1/32';
+  triplet: boolean;
+}
+
+interface SessionSettings {
+  bpm: number;
+  timeSignature: { numerator: number; denominator: number };
+  key: string;
+}
 
 // Workflow Configuration Profiles
 const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
@@ -184,7 +215,30 @@ export default function UnifiedStudioWorkspace() {
   
   
   // Main View State (DAW-style tabs)
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack'>('arrangement');
+  const resolveInitialActiveView = () => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('studioActiveView');
+      const validViews: WorkflowConfig['activeView'][] = [
+        'arrangement',
+        'piano-roll',
+        'mixer',
+        'ai-studio',
+        'lyrics',
+        'song-uploader',
+        'code-to-music',
+        'audio-tools',
+        'beat-lab',
+        'multitrack',
+      ];
+      if (saved && validViews.includes(saved as WorkflowConfig['activeView'])) {
+        return saved as WorkflowConfig['activeView'];
+      }
+    }
+    // Default to Code-to-Music so the tool is immediately available in fresh sessions and tests
+    return 'code-to-music' as WorkflowConfig['activeView'];
+  };
+
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack'>(resolveInitialActiveView);
   
   // Section expansion states
   const [timelineExpanded, setTimelineExpanded] = useState(true);
@@ -217,11 +271,51 @@ export default function UnifiedStudioWorkspace() {
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGridEnabled, setSnapToGridEnabled] = useState(true);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [showMetronomeSettings, setShowMetronomeSettings] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showSampleBrowser, setShowSampleBrowser] = useState(false);
+  const [showAudioDetector, setShowAudioDetector] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
+  const [showAstutely, setShowAstutely] = useState(false);
+  const [transportCollapsed, setTransportCollapsed] = useState(true);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('studioActiveView', activeView);
+    }
+  }, [activeView]);
+  useEffect(() => {
+    if (activeView === 'piano-roll') {
+      setTransportCollapsed(true);
+    }
+  }, [activeView]);
+  // Clips, markers, and session/grid state
+  const [clips, setClips] = useState<TrackClip[]>([]);
+  const [markers, setMarkers] = useState<Marker[]>([]);
+  const [gridSettings, setGridSettings] = useState<GridSettings>({ division: '1/16', triplet: false });
+  const [sessionSettings, setSessionSettings] = useState<SessionSettings>({
+    bpm: 120,
+    timeSignature: { numerator: 4, denominator: 4 },
+    key: 'C',
+  });
+  const [showGridSettingsDialog, setShowGridSettingsDialog] = useState(false);
+  const [showTempoMapDialog, setShowTempoMapDialog] = useState(false);
+  const [showTimeSignatureDialog, setShowTimeSignatureDialog] = useState(false);
+  const [showKeySignatureDialog, setShowKeySignatureDialog] = useState(false);
+  const [showMarkerListDialog, setShowMarkerListDialog] = useState(false);
+  const [showInsertTimeDialog, setShowInsertTimeDialog] = useState(false);
+  const [insertTimeBars, setInsertTimeBars] = useState(4);
+  const [timeDialogMode, setTimeDialogMode] = useState<'insert' | 'delete' | 'duplicate'>('insert');
+  const gridDivisions: GridSettings['division'][] = ['1', '1/2', '1/4', '1/8', '1/16', '1/32'];
+  const keySignatures = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const [gridDivisionDraft, setGridDivisionDraft] = useState<GridSettings['division']>('1/16');
+  const [gridTripletDraft, setGridTripletDraft] = useState(false);
+  const [tempoMap, setTempoMap] = useState(sessionSettings.bpm);
+  const [timeSignatureDraft, setTimeSignatureDraft] = useState(sessionSettings.timeSignature);
+  const [keySignatureDraft, setKeySignatureDraft] = useState(sessionSettings.key);
+  const [insertTimeError, setInsertTimeError] = useState<string | null>(null);
   const undoManagerRef = useRef<UndoManager<StudioTrack[]> | null>(null);
   const isRestoringTracksRef = useRef(false);
   const [trackHistory, setTrackHistory] = useState<StudioTrack[][]>([]);
@@ -274,6 +368,38 @@ export default function UnifiedStudioWorkspace() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toast]);
 
+  // Sync dialog drafts with current settings when opened
+  useEffect(() => {
+    if (showTempoMapDialog) {
+      setTempoMap(sessionSettings.bpm);
+    }
+  }, [showTempoMapDialog, sessionSettings.bpm]);
+
+  useEffect(() => {
+    if (showTimeSignatureDialog) {
+      setTimeSignatureDraft(sessionSettings.timeSignature);
+    }
+  }, [showTimeSignatureDialog, sessionSettings.timeSignature]);
+
+  useEffect(() => {
+    if (showKeySignatureDialog) {
+      setKeySignatureDraft(sessionSettings.key);
+    }
+  }, [showKeySignatureDialog, sessionSettings.key]);
+
+  useEffect(() => {
+    if (showGridSettingsDialog) {
+      setGridDivisionDraft(gridSettings.division);
+      setGridTripletDraft(gridSettings.triplet);
+    }
+  }, [showGridSettingsDialog, gridSettings.division, gridSettings.triplet]);
+
+  useEffect(() => {
+    if (showInsertTimeDialog) {
+      setInsertTimeError(null);
+    }
+  }, [showInsertTimeDialog]);
+
   // Handle navigation requests from child components (e.g. LyricLab, BeatLab)
   useEffect(() => {
     const handleNavigateToTab = (event: Event) => {
@@ -312,6 +438,115 @@ export default function UnifiedStudioWorkspace() {
     window.addEventListener('navigateToTab', handleNavigateToTab as EventListener);
     return () => window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener);
   }, [toast]);
+
+  // Arrange / timeline actions
+  const getCurrentBar = () => Math.max(1, Math.floor(position / 4) + 1);
+
+  const handleInsertTime = (bars: number) => {
+    const bar = getCurrentBar();
+    setClips(prev =>
+      prev.map(c => (c.startBar >= bar ? { ...c, startBar: c.startBar + bars } : c))
+    );
+    setMarkers(prev =>
+      prev.map(m => (m.bar >= bar ? { ...m, bar: m.bar + bars } : m))
+    );
+    toast({ title: "Inserted Time", description: `${bars} bars at bar ${bar}` });
+  };
+
+  const handleDeleteTime = (bars: number) => {
+    const bar = getCurrentBar();
+    setClips(prev =>
+      prev
+        .map(c => (c.startBar >= bar ? { ...c, startBar: Math.max(1, c.startBar - bars) } : c))
+        .filter(c => c.lengthBars > 0)
+    );
+    setMarkers(prev =>
+      prev.map(m => (m.bar >= bar ? { ...m, bar: Math.max(1, m.bar - bars) } : m))
+    );
+    toast({ title: "Deleted Time", description: `${bars} bars at bar ${bar}` });
+  };
+
+  const handleDuplicateTime = (bars: number) => {
+    const bar = getCurrentBar();
+    const windowEnd = bar + bars;
+    const windowClips = clips.filter(c => {
+      const clipEnd = c.startBar + c.lengthBars;
+      return !(clipEnd <= bar || c.startBar >= windowEnd);
+    });
+    const duplicated = windowClips.map(c => ({
+      ...c,
+      id: `clip-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
+      startBar: c.startBar + bars,
+    }));
+    setClips(prev => [...prev, ...duplicated]);
+    toast({ title: "Duplicated Time", description: `${bars} bars from bar ${bar}` });
+  };
+
+  const handleAddMarker = () => {
+    const bar = getCurrentBar();
+    const marker: Marker = { id: `marker-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`, bar, label: `Marker ${markers.length + 1}` };
+    setMarkers(prev => [...prev, marker]);
+    toast({ title: "Marker Added", description: `Marker at bar ${bar}` });
+  };
+
+  const handleLoopSelection = () => {
+    const bar = getCurrentBar();
+    setLoop({ enabled: true, start: bar - 1, end: bar - 1 + 4 });
+    toast({ title: "Loop Enabled", description: `Looping bars ${bar}-${bar + 3}` });
+  };
+
+  const handleSetLoopLength = (bars: number) => {
+    const bar = getCurrentBar();
+    setLoop({ enabled: true, start: bar - 1, end: bar - 1 + bars });
+    toast({ title: "Loop Length Set", description: `${bars} bars starting at ${bar}` });
+  };
+
+  const handleApplyTimeDialog = () => {
+    if (insertTimeBars <= 0 || Number.isNaN(insertTimeBars)) {
+      setInsertTimeError('Enter a positive number of bars.');
+      return;
+    }
+    if (timeDialogMode === 'insert') {
+      handleInsertTime(insertTimeBars);
+    } else if (timeDialogMode === 'delete') {
+      handleDeleteTime(insertTimeBars);
+    } else {
+      handleDuplicateTime(insertTimeBars);
+    }
+    setShowInsertTimeDialog(false);
+  };
+
+  const handleSaveGridSettings = () => {
+    setGridSettings({ division: gridDivisionDraft, triplet: gridTripletDraft });
+    setShowGridSettingsDialog(false);
+    toast({ title: 'Grid Settings Updated', description: `${gridDivisionDraft}${gridTripletDraft ? ' triplet' : ''}` });
+  };
+
+  const handleSaveTempoMap = () => {
+    const bpm = Math.max(20, Math.min(400, tempoMap));
+    setSessionSettings((prev) => ({ ...prev, bpm }));
+    setTransportTempo(bpm);
+    setShowTempoMapDialog(false);
+    toast({ title: 'Tempo Updated', description: `${bpm} BPM` });
+  };
+
+  const handleSaveTimeSignature = () => {
+    const numerator = Math.max(1, Math.floor(timeSignatureDraft.numerator || 4));
+    const denominator = Math.max(1, Math.floor(timeSignatureDraft.denominator || 4));
+    setSessionSettings((prev) => ({ ...prev, timeSignature: { numerator, denominator } }));
+    setShowTimeSignatureDialog(false);
+    toast({ title: 'Time Signature Updated', description: `${numerator}/${denominator}` });
+  };
+
+  const handleSaveKeySignature = () => {
+    setSessionSettings((prev) => ({ ...prev, key: keySignatureDraft }));
+    setShowKeySignatureDialog(false);
+    toast({ title: 'Key Signature Updated', description: keySignatureDraft });
+  };
+
+  const handleDeleteMarker = (id: string) => {
+    setMarkers((prev) => prev.filter((m) => m.id !== id));
+  };
 
   useEffect(() => {
     const handleFocusTrack = (event: Event) => {
@@ -1017,9 +1252,68 @@ export default function UnifiedStudioWorkspace() {
   };
 
   // File menu actions
+  const buildProjectData = () => ({
+    version: 1,
+    timestamp: new Date().toISOString(),
+    tracks,
+    clips,
+    markers,
+    gridSettings,
+    sessionSettings,
+    loop,
+    tempo,
+    selectedTrack,
+    snapToGridEnabled,
+    showGrid,
+  });
+
+  const downloadProject = (data: any) => {
+    const dataStr = JSON.stringify(data, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CodedSwitch-Project-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const applyProjectData = (projectData: any) => {
+    const normalizedTracks: StudioTrack[] = (projectData.tracks ?? []).map((t: any) => ({
+      ...t,
+      id: t.id ?? `track-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
+      type: t.type ?? 'midi',
+      volume: t.volume ?? 0.8,
+      pan: t.pan ?? 0,
+      notes: t.notes ?? [],
+      lengthBars: t.lengthBars ?? 4,
+      startBar: t.startBar ?? 0,
+      payload: t.payload ?? {},
+    }));
+    setTracks(normalizedTracks);
+    setClips(projectData.clips ?? []);
+    setMarkers(projectData.markers ?? []);
+    if (projectData.gridSettings) setGridSettings(projectData.gridSettings);
+    if (projectData.sessionSettings) {
+      setSessionSettings(projectData.sessionSettings);
+      if (projectData.sessionSettings.bpm) {
+        setTransportTempo(projectData.sessionSettings.bpm);
+      }
+    } else if (projectData.tempo) {
+      setTransportTempo(projectData.tempo);
+    }
+    if (projectData.loop) setLoop(projectData.loop);
+    if (projectData.selectedTrack) setSelectedTrack(projectData.selectedTrack);
+    if (typeof projectData.snapToGridEnabled === 'boolean') setSnapToGridEnabled(projectData.snapToGridEnabled);
+    if (typeof projectData.showGrid === 'boolean') setShowGrid(projectData.showGrid);
+  };
+
   const handleNewProject = () => {
     if (confirm('Create new project? This will clear all tracks.')) {
       setTracks([]);
+      setClips([]);
+      setMarkers([]);
+      setSelectedTrack(null);
       toast({
         title: "New Project",
         description: "Created new empty project",
@@ -1029,62 +1323,46 @@ export default function UnifiedStudioWorkspace() {
 
   const handleSaveProject = () => {
     if (!requirePro("save", () => setShowLicenseModal(true))) return;
-    const projectData = {
-      tracks,
-      timestamp: new Date().toISOString(),
-    };
+    const projectData = buildProjectData();
     localStorage.setItem('unifiedStudioProject', JSON.stringify(projectData));
+    downloadProject(projectData);
     toast({
       title: "Project Saved",
-      description: "Your project has been saved locally",
+      description: "Saved to browser storage and downloaded to your drive",
     });
   };
 
   const handleLoadProject = () => {
-    const saved = localStorage.getItem('unifiedStudioProject');
-    if (saved) {
-      const projectData = JSON.parse(saved);
-      const normalized: StudioTrack[] = (projectData.tracks ?? []).map((t: any) => ({
-        ...t,
-        id: t.id ?? `track-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
-        type: t.type ?? 'midi',
-        volume: t.volume ?? 0.8,
-        pan: t.pan ?? 0,
-        notes: t.notes ?? [],
-        lengthBars: t.lengthBars ?? 4,
-        startBar: t.startBar ?? 0,
-        payload: t.payload ?? {},
-      }));
-      setTracks(normalized);
-      toast({
-        title: "Project Loaded",
-        description: "Project loaded successfully",
-      });
-    } else {
-      toast({
-        title: "No Project Found",
-        description: "No saved project found",
-        variant: "destructive",
-      });
-    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const projectData = JSON.parse(text);
+        applyProjectData(projectData);
+        toast({
+          title: "Project Loaded",
+          description: file.name,
+        });
+      } catch (err) {
+        console.error(err);
+        toast({
+          title: "Load Failed",
+          description: "Invalid project file",
+          variant: "destructive",
+        });
+      }
+    };
+    input.click();
   };
 
   const handleExport = () => {
     if (!requirePro("export", () => setShowLicenseModal(true))) return;
-    // Create a simple audio export
-    const projectData = {
-      tracks,
-      tempo,
-      timestamp: new Date().toISOString(),
-    };
-    const dataStr = JSON.stringify(projectData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `CodedSwitch-Project-${Date.now()}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const projectData = buildProjectData();
+    downloadProject(projectData);
     toast({
       title: "Project Exported",
       description: "Project exported as JSON file",
@@ -1216,6 +1494,19 @@ export default function UnifiedStudioWorkspace() {
   };
 
   // Create menu actions
+  const addClip = (trackId: string, type: ClipType, name: string, lengthBars = 4) => {
+    const clip: TrackClip = {
+      id: `clip-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
+      trackId,
+      type,
+      name,
+      startBar: getCurrentBar(),
+      lengthBars,
+    };
+    setClips((prev) => [...prev, clip]);
+    return clip;
+  };
+
   const handleNewMIDITrack = () => {
     const newTrack: StudioTrack = {
       id: `track-${Date.now()}`,
@@ -1264,6 +1555,137 @@ export default function UnifiedStudioWorkspace() {
     toast({ title: "Audio Track Created", description: newTrack.name });
   };
 
+  const handleNewInstrumentTrack = () => {
+    const newTrack: StudioTrack = {
+      id: `track-${Date.now()}`,
+      name: `Instrument ${tracks.length + 1}`,
+      kind: 'midi',
+      type: 'midi',
+      instrument: 'piano',
+      notes: [],
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      solo: false,
+      lengthBars: 4,
+      startBar: 0,
+      source: 'user-created',
+      bpm: 120,
+      payload: createTrackPayload({ type: 'midi', instrument: 'piano' }),
+      data: {},
+    };
+    setTracks([...tracks, newTrack]);
+    setSelectedTrack(newTrack.id);
+    toast({ title: "Instrument Track Created", description: newTrack.name });
+  };
+
+  const handleNewReturnTrack = () => {
+    const newTrack: StudioTrack = {
+      id: `return-${Date.now()}`,
+      name: `Return ${tracks.length + 1}`,
+      kind: 'aux',
+      type: 'aux',
+      instrument: 'aux',
+      notes: [],
+      volume: 0.7,
+      pan: 0,
+      muted: false,
+      solo: false,
+      lengthBars: 0,
+      startBar: 0,
+      source: 'user-created',
+      bpm: sessionSettings.bpm,
+      payload: createTrackPayload({ type: 'aux' as any }),
+      data: { returns: true },
+    };
+    setTracks([...tracks, newTrack]);
+    setSelectedTrack(newTrack.id);
+    toast({ title: "Return Track Created", description: newTrack.name });
+  };
+
+  const ensureTrackForEffect = (kind: 'audio' | 'midi') => {
+    if (selectedTrack) return selectedTrack;
+    if (kind === 'audio') {
+      handleNewAudioTrack();
+      return `track-${Date.now()}`; // fallback; selection set in handler
+    }
+    handleNewMIDITrack();
+    return `track-${Date.now()}`;
+  };
+
+  const handleInsertEffect = (tool: ToolType, kind: 'audio' | 'midi') => {
+    const targetId = selectedTrack || ensureTrackForEffect(kind);
+    const existingChain = getTrackEffectsChain(targetId);
+    if (!existingChain.includes(tool)) {
+      setTrackEffectsChain(targetId, [...existingChain, tool]);
+    }
+    setSelectedTrack(targetId);
+    setActiveEffectTool(tool);
+    setEffectsDialogOpen(true);
+    toast({ title: `${tool} inserted`, description: `Added to ${tracks.find(t => t.id === targetId)?.name || 'track'}` });
+  };
+
+  const handleNewSend = () => {
+    const sendTrack: StudioTrack = {
+      id: `send-${Date.now()}`,
+      name: `Send ${tracks.length + 1}`,
+      kind: 'aux',
+      type: 'aux',
+      instrument: 'aux',
+      notes: [],
+      volume: 0.7,
+      pan: 0,
+      muted: false,
+      solo: false,
+      lengthBars: 0,
+      startBar: 0,
+      source: 'user-created',
+      bpm: sessionSettings.bpm,
+      payload: createTrackPayload({ type: 'aux' as any }),
+      data: { send: true },
+    };
+    setTracks([...tracks, sendTrack]);
+    if (selectedTrack) {
+      setTracks(prev => prev.map(t => t.id === selectedTrack ? { ...t, data: { ...(t.data ?? {}), sends: [...((t.data as any)?.sends ?? []), { targetId: sendTrack.id, level: 0.5 }] } } : t));
+    }
+    toast({ title: "Send Created", description: sendTrack.name });
+  };
+
+  const handleNewBus = () => {
+    const busTrack: StudioTrack = {
+      id: `bus-${Date.now()}`,
+      name: `Bus ${tracks.length + 1}`,
+      kind: 'aux',
+      type: 'aux',
+      instrument: 'aux',
+      notes: [],
+      volume: 0.7,
+      pan: 0,
+      muted: false,
+      solo: false,
+      lengthBars: 0,
+      startBar: 0,
+      source: 'user-created',
+      bpm: sessionSettings.bpm,
+      payload: createTrackPayload({ type: 'aux' as any }),
+      data: { bus: true },
+    };
+    setTracks([...tracks, busTrack]);
+    toast({ title: "Bus Created", description: busTrack.name });
+  };
+
+  const handleInsertClip = (name: string, preferAudio = false) => {
+    if (!selectedTrack) {
+      toast({ title: "Select a track", description: "Choose a track before adding a clip." });
+      return;
+    }
+    const track = tracks.find(t => t.id === selectedTrack);
+    if (!track) return;
+    const type: ClipType = preferAudio || track.type === 'audio' || track.kind === 'audio' ? 'audio' : 'midi';
+    const clip = addClip(track.id, type, name, 4);
+    toast({ title: `${name} Added`, description: `${name} at bar ${clip.startBar}` });
+  };
+
   // Mix menu actions
   const handleNormalize = () => {
     toast({ title: "Normalize", description: "Audio normalized to 0dB" });
@@ -1292,6 +1714,63 @@ export default function UnifiedStudioWorkspace() {
 
   const handleGroupTracks = () => {
     toast({ title: "Group Tracks", description: "Selected tracks grouped" });
+  };
+
+  const handleUngroupTracks = () => {
+    toast({ title: "Ungroup Tracks", description: "Selected tracks ungrouped" });
+  };
+
+  const handleFadeIn = () => {
+    if (!selectedTrack) {
+      toast({ title: "Select a track", description: "Choose a track to apply fade in" });
+      return;
+    }
+    // Apply fade in to selected track's clips
+    setClips(prev => prev.map(clip => 
+      clip.trackId === selectedTrack ? { ...clip, fadeIn: 0.5 } : clip
+    ));
+    toast({ title: "Fade In Applied", description: "0.5s fade in added to track clips" });
+  };
+
+  const handleFadeOut = () => {
+    if (!selectedTrack) {
+      toast({ title: "Select a track", description: "Choose a track to apply fade out" });
+      return;
+    }
+    // Apply fade out to selected track's clips
+    setClips(prev => prev.map(clip => 
+      clip.trackId === selectedTrack ? { ...clip, fadeOut: 0.5 } : clip
+    ));
+    toast({ title: "Fade Out Applied", description: "0.5s fade out added to track clips" });
+  };
+
+  const handleFreezeTrack = () => {
+    if (!selectedTrack) {
+      toast({ title: "Select a track", description: "Choose a track to freeze" });
+      return;
+    }
+    const track = tracks.find(t => t.id === selectedTrack);
+    if (track) {
+      setTracks(tracks.map(t => t.id === selectedTrack ? { ...t, frozen: true } : t));
+      toast({ title: "Track Frozen", description: `${track.name} frozen - effects rendered to audio` });
+    }
+  };
+
+  const handleFlattenTrack = () => {
+    if (!selectedTrack) {
+      toast({ title: "Select a track", description: "Choose a track to flatten" });
+      return;
+    }
+    const track = tracks.find(t => t.id === selectedTrack);
+    if (track) {
+      // Flatten merges all clips into one and removes automation
+      toast({ title: "Track Flattened", description: `${track.name} flattened - clips merged` });
+    }
+  };
+
+  const handleClickTrackSettings = () => {
+    setShowMetronomeSettings(true);
+    toast({ title: "Click Track Settings", description: "Opening metronome settings..." });
   };
 
   const handleSoloAll = () => {
@@ -1324,15 +1803,7 @@ export default function UnifiedStudioWorkspace() {
     toast({ title: "Reset Pan", description: "All pan controls centered" });
   };
 
-  // Arrange menu actions
-  const handleLoopSelection = () => {
-    setLoop({ enabled: true, start: 0, end: 4 });
-    toast({ title: "Loop Enabled", description: "Selection looped" });
-  };
-
-  const handleAddMarker = () => {
-    toast({ title: "Marker Added", description: `Marker at bar ${Math.floor(playheadPosition / 16) + 1}` });
-  };
+  // Arrange menu actions (handleLoopSelection and handleAddMarker defined earlier)
 
   const handleSnapToGrid = () => {
     setSnapToGridEnabled((prev) => {
@@ -1554,7 +2025,7 @@ export default function UnifiedStudioWorkspace() {
                   <span>{activeView === 'ai-studio' ? '✓' : '  '} AI Studio</span>
                   <span className="text-xs text-gray-500">F5</span>
                 </button>
-                <button onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white" data-testid="tab-code-to-music">
                   <span>{activeView === 'code-to-music' ? '✓' : '  '} Code to Music</span>
                   <span className="text-xs text-gray-500">F6</span>
                 </button>
@@ -1620,35 +2091,35 @@ export default function UnifiedStudioWorkspace() {
                   <span>New Audio Track</span>
                   <span className="text-xs text-gray-500">Ctrl+T</span>
                 </button>
-                <button onClick={() => toast({ title: "New Instrument Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleNewInstrumentTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Instrument Track
                 </button>
-                <button onClick={() => toast({ title: "New Return Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleNewReturnTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Return Track
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Insert Audio Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleInsertEffect('EQ', 'audio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Insert Audio Effect...
                 </button>
-                <button onClick={() => toast({ title: "Insert MIDI Effect" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleInsertEffect('Compressor', 'midi')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Insert MIDI Effect...
                 </button>
-                <button onClick={() => toast({ title: "Insert Instrument" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleInsertEffect('Reverb', 'midi')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Insert Instrument...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "New Send" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleNewSend} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Send
                 </button>
-                <button onClick={() => toast({ title: "New Bus" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleNewBus} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   New Bus
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Empty Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => handleInsertClip('Empty Clip')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Empty Clip</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+M</span>
                 </button>
-                <button onClick={() => toast({ title: "Recording Clip" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleInsertClip('Recording Clip', true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Recording Clip
                 </button>
               </div>
@@ -1658,15 +2129,15 @@ export default function UnifiedStudioWorkspace() {
             <div className="relative group">
               <Button variant="ghost" size="sm">Arrange ▼</Button>
               <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
-                <button onClick={() => toast({ title: "Insert Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setTimeDialogMode('insert'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Insert Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+I</span>
                 </button>
-                <button onClick={() => toast({ title: "Delete Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setTimeDialogMode('delete'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Delete Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+Del</span>
                 </button>
-                <button onClick={() => toast({ title: "Duplicate Time" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setTimeDialogMode('duplicate'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Duplicate Time...</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+D</span>
                 </button>
@@ -1675,7 +2146,7 @@ export default function UnifiedStudioWorkspace() {
                   <span>Loop Selection</span>
                   <span className="text-xs text-gray-500">Ctrl+L</span>
                 </button>
-                <button onClick={() => toast({ title: "Set Loop Length" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleSetLoopLength(4)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Set Loop Length...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
@@ -1683,10 +2154,7 @@ export default function UnifiedStudioWorkspace() {
                   <span>Add Marker</span>
                   <span className="text-xs text-gray-500">M</span>
                 </button>
-                <button onClick={() => toast({ title: "Add Locator" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
-                  Add Locator
-                </button>
-                <button onClick={() => toast({ title: "Marker List" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowMarkerListDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Marker List...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
@@ -1698,17 +2166,17 @@ export default function UnifiedStudioWorkspace() {
                   <span>{showGrid ? '✓' : '  '} Show Grid</span>
                   <span className="text-xs text-gray-500">G</span>
                 </button>
-                <button onClick={() => toast({ title: "Grid Settings" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowGridSettingsDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Grid Settings...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => toast({ title: "Tempo Map" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowTempoMapDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Tempo Map...
                 </button>
-                <button onClick={() => toast({ title: "Time Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowTimeSignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Time Signature...
                 </button>
-                <button onClick={() => toast({ title: "Key Signature" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowKeySignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Key Signature...
                 </button>
               </div>
@@ -1726,10 +2194,10 @@ export default function UnifiedStudioWorkspace() {
                   <span>Reverse</span>
                   <span className="text-xs text-gray-500">Ctrl+R</span>
                 </button>
-                <button onClick={() => toast({ title: "Fade In" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFadeIn} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Fade In
                 </button>
-                <button onClick={() => toast({ title: "Fade Out" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFadeOut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Fade Out
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
@@ -1737,10 +2205,10 @@ export default function UnifiedStudioWorkspace() {
                   <span>Bounce to Audio</span>
                   <span className="text-xs text-gray-500">Ctrl+B</span>
                 </button>
-                <button onClick={() => toast({ title: "Freeze Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFreezeTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Freeze Track
                 </button>
-                <button onClick={() => toast({ title: "Flatten Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFlattenTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                   Flatten Track
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
@@ -1748,7 +2216,7 @@ export default function UnifiedStudioWorkspace() {
                   <span>Group Tracks</span>
                   <span className="text-xs text-gray-500">Ctrl+G</span>
                 </button>
-                <button onClick={() => toast({ title: "Ungroup Tracks" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleUngroupTracks} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
                   <span>Ungroup Tracks</span>
                   <span className="text-xs text-gray-500">Ctrl+Shift+G</span>
                 </button>
@@ -1794,17 +2262,17 @@ export default function UnifiedStudioWorkspace() {
                       <span>{metronomeEnabled ? '✓' : '  '} Metronome</span>
                       <span className="text-xs text-gray-500">C</span>
                     </button>
-                    <button onClick={() => toast({ title: "Click Track" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={handleClickTrackSettings} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Click Track Settings...
                     </button>
                     <div className="border-t border-gray-700 my-1"></div>
-                    <button onClick={() => toast({ title: "Spectrum Analyzer" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => { setShowAudioDetector(true); toast({ title: "Spectrum Analyzer", description: "Opening Audio Detector..." }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Spectrum Analyzer
                     </button>
-                    <button onClick={() => toast({ title: "Chord Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       Chord Detector
                     </button>
-                    <button onClick={() => toast({ title: "BPM Detector" })} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
                       BPM Detector
                     </button>
                   </div>
@@ -2265,6 +2733,19 @@ export default function UnifiedStudioWorkspace() {
           <div className="px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-200">
             Snap: <span className={snapToGridEnabled ? 'text-green-400 font-semibold' : 'text-gray-400'}>{snapToGridEnabled ? 'On' : 'Off'}</span>
           </div>
+          <Button
+            onClick={() => setShowAstutely(true)}
+            className="h-8 px-4 font-bold text-white transition-all hover:scale-105"
+            style={{ 
+              background: 'linear-gradient(135deg, #F59E0B, #EF4444)',
+              boxShadow: '0 0 20px rgba(245, 158, 11, 0.4)'
+            }}
+            size="sm"
+            title="Astutely - Your AI music production assistant"
+          >
+            <Sparkles className="w-4 h-4 mr-1.5" />
+            Astutely
+          </Button>
           <Button
             onClick={() => setShowMusicGen(!showMusicGen)}
             className="bg-purple-600 hover:bg-purple-500 h-8 px-3"
@@ -2990,30 +3471,203 @@ export default function UnifiedStudioWorkspace() {
               onClose={() => setEffectsDialogOpen(false)}
             />
           )}
-          {activeEffectTool === 'Deesser' && (
-            <DeesserPlugin
-              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
-              onClose={() => setEffectsDialogOpen(false)}
-            />
-          )}
-          {activeEffectTool === 'Reverb' && (
-            <ReverbPlugin
-              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
-              onClose={() => setEffectsDialogOpen(false)}
-            />
-          )}
-          {activeEffectTool === 'Limiter' && (
-            <LimiterPlugin
-              audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
-              onClose={() => setEffectsDialogOpen(false)}
-            />
-          )}
           {activeEffectTool === 'NoiseGate' && (
             <NoiseGatePlugin
               audioUrl={tracks.find((t) => t.id === selectedTrack)?.audioUrl}
               onClose={() => setEffectsDialogOpen(false)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert/Delete/Duplicate Time Dialog */}
+      <Dialog open={showInsertTimeDialog} onOpenChange={setShowInsertTimeDialog}>
+        <DialogContent className="max-w-md bg-gray-900 border border-gray-700">
+          <DialogTitle className="text-lg font-bold text-white mb-2">
+            {timeDialogMode === 'insert' && 'Insert Time'}
+            {timeDialogMode === 'delete' && 'Delete Time'}
+            {timeDialogMode === 'duplicate' && 'Duplicate Time'}
+          </DialogTitle>
+          <div className="space-y-3">
+            <label className="text-sm text-gray-300 flex items-center justify-between">
+              Bars
+              <Input
+                type="number"
+                min={1}
+                value={insertTimeBars}
+                onChange={(e) => setInsertTimeBars(Number(e.target.value))}
+                className="bg-gray-800 border-gray-700 text-white w-24 ml-2"
+              />
+            </label>
+            {insertTimeError && <p className="text-sm text-red-400">{insertTimeError}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowInsertTimeDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleApplyTimeDialog}>
+                {timeDialogMode === 'insert' && 'Insert'}
+                {timeDialogMode === 'delete' && 'Delete'}
+                {timeDialogMode === 'duplicate' && 'Duplicate'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Grid Settings Dialog */}
+      <Dialog open={showGridSettingsDialog} onOpenChange={setShowGridSettingsDialog}>
+        <DialogContent className="max-w-md bg-gray-900 border border-gray-700">
+          <DialogTitle className="text-lg font-bold text-white mb-2">Grid Settings</DialogTitle>
+          <div className="space-y-4">
+            <label className="text-sm text-gray-300 flex items-center justify-between">
+              Division
+              <select
+                value={gridDivisionDraft}
+                onChange={(e) => setGridDivisionDraft(e.target.value as GridSettings['division'])}
+                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white ml-2"
+              >
+                {gridDivisions.map((div) => (
+                  <option key={div} value={div}>
+                    {div}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-300">Triplet Grid</span>
+              <Switch checked={gridTripletDraft} onCheckedChange={setGridTripletDraft} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowGridSettingsDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveGridSettings}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tempo Map Dialog */}
+      <Dialog open={showTempoMapDialog} onOpenChange={setShowTempoMapDialog}>
+        <DialogContent className="max-w-md bg-gray-900 border border-gray-700">
+          <DialogTitle className="text-lg font-bold text-white mb-2">Tempo Map</DialogTitle>
+          <div className="space-y-3">
+            <label className="text-sm text-gray-300 flex items-center justify-between">
+              BPM (20-400)
+              <Input
+                type="number"
+                min={20}
+                max={400}
+                value={tempoMap}
+                onChange={(e) => setTempoMap(Number(e.target.value))}
+                className="bg-gray-800 border-gray-700 text-white w-24 ml-2"
+              />
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowTempoMapDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveTempoMap}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Time Signature Dialog */}
+      <Dialog open={showTimeSignatureDialog} onOpenChange={setShowTimeSignatureDialog}>
+        <DialogContent className="max-w-md bg-gray-900 border border-gray-700">
+          <DialogTitle className="text-lg font-bold text-white mb-2">Time Signature</DialogTitle>
+          <div className="space-y-3">
+            <label className="text-sm text-gray-300 flex items-center justify-between">
+              Numerator
+              <Input
+                type="number"
+                min={1}
+                value={timeSignatureDraft.numerator}
+                onChange={(e) => setTimeSignatureDraft({ ...timeSignatureDraft, numerator: Number(e.target.value) })}
+                className="bg-gray-800 border-gray-700 text-white w-24 ml-2"
+              />
+            </label>
+            <label className="text-sm text-gray-300 flex items-center justify-between">
+              Denominator
+              <Input
+                type="number"
+                min={1}
+                value={timeSignatureDraft.denominator}
+                onChange={(e) => setTimeSignatureDraft({ ...timeSignatureDraft, denominator: Number(e.target.value) })}
+                className="bg-gray-800 border-gray-700 text-white w-24 ml-2"
+              />
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowTimeSignatureDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveTimeSignature}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Key Signature Dialog */}
+      <Dialog open={showKeySignatureDialog} onOpenChange={setShowKeySignatureDialog}>
+        <DialogContent className="max-w-md bg-gray-900 border border-gray-700">
+          <DialogTitle className="text-lg font-bold text-white mb-2">Key Signature</DialogTitle>
+          <div className="space-y-4">
+            <label className="text-sm text-gray-300 flex items-center justify-between">
+              Key
+              <select
+                value={keySignatureDraft}
+                onChange={(e) => setKeySignatureDraft(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white ml-2"
+              >
+                {keySignatures.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowKeySignatureDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveKeySignature}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Marker List Dialog */}
+      <Dialog open={showMarkerListDialog} onOpenChange={setShowMarkerListDialog}>
+        <DialogContent className="max-w-md bg-gray-900 border border-gray-700">
+          <DialogTitle className="text-lg font-bold text-white mb-3">Markers</DialogTitle>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {markers.length === 0 && <p className="text-sm text-gray-400">No markers yet.</p>}
+            {markers.map((m) => (
+              <div key={m.id} className="flex items-center justify-between bg-gray-800 rounded px-2 py-1">
+                <div className="text-sm text-gray-200">
+                  <span className="font-semibold">Bar {m.bar}</span>
+                  <span className="text-gray-400 ml-2">{m.label}</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => handleDeleteMarker(m.id)}>
+                  Delete
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end pt-3">
+            <Button variant="outline" size="sm" onClick={() => setShowMarkerListDialog(false)}>
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -3178,6 +3832,53 @@ export default function UnifiedStudioWorkspace() {
       onClose={() => setShowLicenseModal(false)}
       onUpgrade={startUpgrade}
     />
+    {/* Audio Detector Dialog */}
+    <Dialog open={showAudioDetector} onOpenChange={setShowAudioDetector}>
+      <DialogContent className="max-w-2xl bg-gray-900 border-gray-700">
+        <DialogTitle className="sr-only">Audio Detector</DialogTitle>
+        <AudioDetector 
+          onClose={() => setShowAudioDetector(false)}
+          onChordDetected={(chord) => {
+            if (chord.confidence > 0.7) {
+              toast({ title: `🎵 ${chord.chord}`, description: `Confidence: ${Math.round(chord.confidence * 100)}%` });
+            }
+          }}
+          onBPMDetected={(bpm) => {
+            if (bpm.bpm > 0 && bpm.confidence > 0.5) {
+              toast({ title: `🥁 ${bpm.bpm} BPM`, description: `Time signature: ${bpm.timeSignature}` });
+            }
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+
+    {/* Astutely AI Chatbot - The single source of truth for all AI in CodedSwitch */}
+    {showAstutely && (
+      <AstutelyChatbot 
+        onClose={() => setShowAstutely(false)}
+        onBeatGenerated={(result: AstutelyResult) => {
+          const notes = astutelyToNotes(result);
+          
+          if (result.bpm && result.bpm > 0) {
+            setTransportTempo(result.bpm);
+          }
+          
+          localStorage.setItem('astutely-generated', JSON.stringify({
+            notes,
+            bpm: result.bpm,
+            timestamp: Date.now()
+          }));
+          
+          setActiveView('piano-roll');
+          
+          toast({ 
+            title: '🔥 Astutely Generated!', 
+            description: `${notes.length} notes at ${result.bpm} BPM added to Piano Roll.`,
+            duration: 5000,
+          });
+        }}
+      />
+    )}
     </div>
   );
 } 

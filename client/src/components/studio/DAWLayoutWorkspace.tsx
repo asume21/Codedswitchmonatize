@@ -217,18 +217,78 @@ function EffectsPanel() {
   );
 }
 
-// Timeline panel
+// Timeline panel with basic arrangement view
 function TimelinePanel() {
+  const [zoom, setZoom] = useState(50);
+  const [position, setPosition] = useState(0);
+  const bars = 32;
+  const beatsPerBar = 4;
+  
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <Clock className="w-4 h-4" />
-          Timeline
-        </CardTitle>
+    <Card className="h-full flex flex-col">
+      <CardHeader className="pb-2 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Timeline
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Zoom:</span>
+            <Slider 
+              value={[zoom]} 
+              onValueChange={([v]) => setZoom(v)} 
+              min={20} 
+              max={100} 
+              className="w-24"
+            />
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="h-full bg-gray-900/50 rounded-lg flex items-center justify-center">
-        <p className="text-gray-500">Arrangement View Coming Soon</p>
+      <CardContent className="flex-1 overflow-hidden p-2">
+        <ScrollArea className="h-full">
+          <div className="relative bg-gray-900/50 rounded-lg min-h-[200px]">
+            {/* Time ruler */}
+            <div className="h-6 border-b border-gray-700 flex sticky top-0 bg-gray-800/90 z-10">
+              {Array.from({ length: bars }).map((_, bar) => (
+                <div 
+                  key={bar} 
+                  className="border-r border-gray-700 text-xs text-gray-400 px-1 flex-shrink-0"
+                  style={{ width: `${zoom * 2}px` }}
+                >
+                  {bar + 1}
+                </div>
+              ))}
+            </div>
+            {/* Track lanes placeholder */}
+            <div className="space-y-1 p-2">
+              {['Track 1', 'Track 2', 'Track 3'].map((track, idx) => (
+                <div 
+                  key={idx} 
+                  className="h-16 bg-gray-800/50 rounded border border-gray-700/50 flex items-center px-2"
+                >
+                  <span className="text-xs text-gray-500 w-20">{track}</span>
+                  <div className="flex-1 h-10 bg-gray-700/30 rounded mx-2 relative overflow-hidden">
+                    {/* Grid lines */}
+                    <div className="absolute inset-0 flex">
+                      {Array.from({ length: bars * beatsPerBar }).map((_, beat) => (
+                        <div 
+                          key={beat} 
+                          className={`border-r ${beat % beatsPerBar === 0 ? 'border-gray-600' : 'border-gray-700/30'}`}
+                          style={{ width: `${zoom / 2}px` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Playhead */}
+            <div 
+              className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
+              style={{ left: `${80 + position * zoom}px` }}
+            />
+          </div>
+        </ScrollArea>
       </CardContent>
     </Card>
   );

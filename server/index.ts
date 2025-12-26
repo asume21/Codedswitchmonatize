@@ -30,7 +30,7 @@ app.use("/data", express.static(dataRoot));
 
 // Serve audio assets (loops, bass samples, etc.)
 // Resolve from repo root so packaged assets are available in prod.
-const assetsRoot = path.resolve(process.cwd(), "server", "Assests");
+const assetsRoot = path.resolve(process.cwd(), "server", "Assets");
 app.use("/assets", express.static(assetsRoot));
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)

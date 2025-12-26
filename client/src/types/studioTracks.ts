@@ -8,20 +8,41 @@ export interface TrackPayload {
   volume: number;
   pan: number;
   bpm: number;
-  notes?: any[];
+  notes?: TrackNote[];
   audioUrl?: string;
   instrument?: string;
   color?: string;
-  pattern?: any;
-  data?: any;
+  pattern?: unknown;
+  data?: unknown;
   // Extended properties for various track types
   startTime?: number;
   duration?: number;
   packId?: string;
-  samples?: any[];
+  samples?: SampleInfo[];
   key?: string;
   genre?: string;
-  [key: string]: any; // Allow additional properties
+  [key: string]: unknown; // Allow additional properties
+}
+
+export interface TrackNote {
+  id?: string;
+  step?: number;
+  length?: number;
+  velocity?: number;
+  note?: string;
+  octave?: number;
+  [key: string]: unknown;
+}
+
+export interface SampleInfo {
+  id?: string;
+  name?: string;
+  url?: string;
+  startTime?: number;
+  duration?: number;
+  gain?: number;
+  pan?: number;
+  [key: string]: unknown;
 }
 
 export interface TrackClip {

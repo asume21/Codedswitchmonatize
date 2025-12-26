@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1, X, Volume2, FolderOpen, Sliders, Drum, Piano, Waves, Mic2, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1, X, Volume2, FolderOpen, Sliders, Drum, Piano, Waves, Mic2, Sparkles, Download } from "lucide-react";
 import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +15,8 @@ import { useInstrumentOptional } from "@/contexts/InstrumentContext";
 import { PianoKeys } from "./PianoKeys";
 import { StepGrid } from "./StepGrid";
 import { TrackControls } from "./TrackControls";
+import { TrackWaveformLane } from "./TrackWaveformLane";
+import AILoopGenerator from "./AILoopGenerator";
 import { PlaybackControls } from "./PlaybackControls";
 import { KeyScaleSelector } from "./KeyScaleSelector";
 import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
@@ -31,6 +34,9 @@ import {
   AVAILABLE_INSTRUMENTS
 } from "./types/pianoRollTypes";
 import { createTrackPayload } from "@/types/studioTracks";
+
+// ISSUE #1: Pattern storage key
+const PIANO_ROLL_STORAGE_KEY = "piano-roll-patterns";
 
 // Initialize piano keys
 const PIANO_KEYS: PianoKey[] = [];
@@ -158,6 +164,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [snapValue, setSnapValue] = useState(1); // 1 = 1/4 note, 0.5 = 1/8, 0.25 = 1/16
   const [showVelocityEditor, setShowVelocityEditor] = useState(true);
+  const [showTrackOverview, setShowTrackOverview] = useState(true);
   const [clipboard, setClipboard] = useState<Note[]>([]);
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase' | 'slice'>('draw');
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
@@ -175,6 +182,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const [strumMode, setStrumMode] = useState(false); // guitar-style strum delay
   
   // FINAL MISSING FEATURES
+  const [showAILoopGenerator, setShowAILoopGenerator] = useState(false); // AI Loop Generator panel
   const [showGhostNotes, setShowGhostNotes] = useState(true); // Show other tracks' notes in gray
   const [swingAmount, setSwingAmount] = useState(0); // 0-100% swing/groove
   const [scaleSnapEnabled, setScaleSnapEnabled] = useState(false); // Snap to scale notes only
@@ -205,6 +213,20 @@ export const VerticalPianoRoll: React.FC = () => {
   const [mixerPanelOpen, setMixerPanelOpen] = useState(false);
   const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
   const [inspectorPanelOpen, setInspectorPanelOpen] = useState(false);
+  
+  // ISSUE #1: Pattern save/load state
+  const [savedPatterns, setSavedPatterns] = useState<Array<{id: string; name: string; tracks: Track[]; bpm: number; key: string}>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(PIANO_ROLL_STORAGE_KEY);
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return []; }
+      }
+    }
+    return [];
+  });
+  
+  // ISSUE #6: Pattern length control
+  const [patternSteps, setPatternSteps] = useState(64);
   
   const { toast } = useToast();
   const { currentSession, updateSession } = useSongWorkSession();
@@ -1481,12 +1503,26 @@ export const VerticalPianoRoll: React.FC = () => {
   // SLICE NOTES AT PLAYHEAD
   const sliceNotesAtPlayhead = useCallback(() => {
     const sliceStep = currentStep;
+    
+    // Check if playhead is at the beginning
+    if (sliceStep === 0) {
+      toast({ 
+        title: '⚠️ Position Playhead First', 
+        description: 'Click on a step number in the timeline header to position the playhead where you want to slice',
+        duration: 4000
+      });
+      return;
+    }
+    
     const notesToSlice = selectedTrack.notes.filter(note => 
       note.step < sliceStep && (note.step + note.length) > sliceStep
     );
     
     if (notesToSlice.length === 0) {
-      toast({ title: 'No notes to slice', description: 'Move playhead over notes to slice them' });
+      toast({ 
+        title: 'No notes at playhead', 
+        description: `No notes span across step ${sliceStep + 1}. Click timeline to move playhead over a note.`
+      });
       return;
     }
     
@@ -1820,6 +1856,170 @@ export const VerticalPianoRoll: React.FC = () => {
     toast({ title: '🎷 Swing Applied', description: `${swingAmount}% groove added` });
   }, [selectedNoteIds, selectedTrack, selectedTrackIndex, swingAmount, addToHistory, toast]);
 
+  // ISSUE #1: Save pattern to localStorage
+  const savePattern = useCallback(() => {
+    const name = prompt('Enter pattern name:', `Pattern ${savedPatterns.length + 1}`);
+    if (!name) return;
+    
+    const newPattern = {
+      id: `pattern-${Date.now()}`,
+      name,
+      tracks: JSON.parse(JSON.stringify(tracks)),
+      bpm,
+      key: currentKey
+    };
+    
+    const updated = [...savedPatterns, newPattern];
+    setSavedPatterns(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PIANO_ROLL_STORAGE_KEY, JSON.stringify(updated));
+    }
+    toast({ title: '💾 Pattern Saved', description: `"${name}" saved to library` });
+  }, [tracks, bpm, currentKey, savedPatterns, toast]);
+
+  // ISSUE #1: Load pattern from localStorage
+  const loadPattern = useCallback((patternId: string) => {
+    const pattern = savedPatterns.find(p => p.id === patternId);
+    if (!pattern) return;
+    
+    setTracks(JSON.parse(JSON.stringify(pattern.tracks)));
+    setBpm(pattern.bpm);
+    setCurrentKey(pattern.key);
+    toast({ title: '📂 Pattern Loaded', description: `"${pattern.name}" loaded` });
+  }, [savedPatterns, toast]);
+
+  // ISSUE #1: Delete pattern from localStorage
+  const deletePattern = useCallback((patternId: string) => {
+    const updated = savedPatterns.filter(p => p.id !== patternId);
+    setSavedPatterns(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PIANO_ROLL_STORAGE_KEY, JSON.stringify(updated));
+    }
+    toast({ title: '🗑️ Pattern Deleted' });
+  }, [savedPatterns, toast]);
+
+  // ISSUE #2: Export as MIDI file
+  const exportMIDI = useCallback(() => {
+    const allNotes = tracks.flatMap(t => t.notes);
+    if (allNotes.length === 0) {
+      toast({ title: 'No notes to export', variant: 'destructive' });
+      return;
+    }
+    
+    // Simple MIDI file format (Type 0)
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const ticksPerBeat = 480;
+    const ticksPerStep = ticksPerBeat / 4; // 16th notes
+    
+    // Build MIDI events
+    const events: Array<{time: number; type: 'on' | 'off'; note: number; velocity: number}> = [];
+    
+    allNotes.forEach(note => {
+      const midiNote = (note.octave + 1) * 12 + noteNames.indexOf(note.note);
+      const startTick = note.step * ticksPerStep;
+      const endTick = (note.step + note.length) * ticksPerStep;
+      
+      events.push({ time: startTick, type: 'on', note: midiNote, velocity: note.velocity });
+      events.push({ time: endTick, type: 'off', note: midiNote, velocity: 0 });
+    });
+    
+    // Sort by time
+    events.sort((a, b) => a.time - b.time);
+    
+    // Build MIDI binary
+    const midiData: number[] = [];
+    
+    // Header chunk
+    midiData.push(0x4D, 0x54, 0x68, 0x64); // "MThd"
+    midiData.push(0x00, 0x00, 0x00, 0x06); // Header length
+    midiData.push(0x00, 0x00); // Format type 0
+    midiData.push(0x00, 0x01); // 1 track
+    midiData.push((ticksPerBeat >> 8) & 0xFF, ticksPerBeat & 0xFF); // Ticks per beat
+    
+    // Track chunk
+    const trackData: number[] = [];
+    
+    // Tempo meta event (microseconds per beat)
+    const microsecondsPerBeat = Math.round(60000000 / bpm);
+    trackData.push(0x00); // Delta time
+    trackData.push(0xFF, 0x51, 0x03); // Tempo meta event
+    trackData.push((microsecondsPerBeat >> 16) & 0xFF);
+    trackData.push((microsecondsPerBeat >> 8) & 0xFF);
+    trackData.push(microsecondsPerBeat & 0xFF);
+    
+    // Note events
+    let lastTime = 0;
+    events.forEach(event => {
+      const delta = event.time - lastTime;
+      lastTime = event.time;
+      
+      // Variable length delta time
+      if (delta < 128) {
+        trackData.push(delta);
+      } else {
+        trackData.push(0x80 | ((delta >> 7) & 0x7F));
+        trackData.push(delta & 0x7F);
+      }
+      
+      // Note on/off
+      trackData.push(event.type === 'on' ? 0x90 : 0x80);
+      trackData.push(event.note);
+      trackData.push(event.velocity);
+    });
+    
+    // End of track
+    trackData.push(0x00, 0xFF, 0x2F, 0x00);
+    
+    // Track header
+    midiData.push(0x4D, 0x54, 0x72, 0x6B); // "MTrk"
+    const trackLength = trackData.length;
+    midiData.push((trackLength >> 24) & 0xFF);
+    midiData.push((trackLength >> 16) & 0xFF);
+    midiData.push((trackLength >> 8) & 0xFF);
+    midiData.push(trackLength & 0xFF);
+    midiData.push(...trackData);
+    
+    // Download
+    const blob = new Blob([new Uint8Array(midiData)], { type: 'audio/midi' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `piano-roll-${Date.now()}.mid`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: '🎹 MIDI Exported', description: `${allNotes.length} notes exported` });
+  }, [tracks, bpm, toast]);
+
+  // ISSUE #3: Quantize selected notes
+  const quantizeNotes = useCallback((quantizeValue: number = 4) => {
+    if (selectedNoteIds.size === 0) {
+      toast({ title: 'Select notes first', variant: 'destructive' });
+      return;
+    }
+    
+    const updatedNotes = selectedTrack.notes.map(note => {
+      if (!selectedNoteIds.has(note.id)) return note;
+      const quantizedStep = Math.round(note.step / quantizeValue) * quantizeValue;
+      return { ...note, step: quantizedStep };
+    });
+    
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
+    ));
+    addToHistory(updatedNotes);
+    toast({ title: '🎯 Quantized', description: `${selectedNoteIds.size} notes snapped to 1/${16/quantizeValue} grid` });
+  }, [selectedNoteIds, selectedTrack, selectedTrackIndex, addToHistory, toast]);
+
+  // ISSUE #5: Clear all tracks
+  const clearAllTracks = useCallback(() => {
+    if (!confirm('Clear all notes from all tracks?')) return;
+    setTracks(prev => prev.map(track => ({ ...track, notes: [] })));
+    toast({ title: '🗑️ All Tracks Cleared' });
+  }, [toast]);
+
   // DRAG-TO-SELECT HANDLERS
   const handleSelectionStart = useCallback((e: React.MouseEvent, keyIndex: number, step: number) => {
     if (pianoRollTool !== 'select') return;
@@ -1982,641 +2182,258 @@ export const VerticalPianoRoll: React.FC = () => {
             </Alert>
           )}
           
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold">🎹 Piano Roll</h1>
+          <div className="flex flex-col gap-1">
+            {/* ═══════════════════════════════════════════════════════════════════════════ */}
+            {/* UNIFIED COMPACT TOOLBAR - Everything in one slim bar                        */}
+            {/* ═══════════════════════════════════════════════════════════════════════════ */}
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/80 border-b border-gray-700/50">
+              {/* Track Info */}
+              <div className="flex items-center gap-2 pr-2 border-r border-gray-600/50">
+                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">TRACK</span>
+                <select
+                  value={selectedTrackIndex}
+                  onChange={(e) => setSelectedTrackIndex(parseInt(e.target.value))}
+                  className="h-6 px-2 text-xs bg-gray-700 border border-gray-600 rounded font-medium min-w-[100px]"
+                >
+                  {tracks.map((t, i) => (
+                    <option key={t.id} value={i}>{i + 1}. {t.name} ({t.notes.length})</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Transport */}
               {playbackControls}
-            </div>
-            
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button size="sm" variant="outline" onClick={handleSendToMaster} className="flex items-center gap-2">
-                <Send className="w-4 h-4" />
-                Send to Master
-              </Button>
-            </div>
-            
-            {/* Professional Editing Toolbar */}
-            <div className="flex items-center gap-1 flex-wrap p-2 bg-gray-800/50 rounded-lg border border-gray-700">
-              {/* Tool Selection */}
-              <div className="flex items-center gap-1 pr-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant={pianoRollTool === 'draw' ? 'default' : 'ghost'}
-                  onClick={() => setPianoRollTool('draw')}
-                  title="Draw notes"
-                  data-testid="button-tool-draw"
-                >
-                  <Pencil className="w-4 h-4" />
+              
+              <div className="w-px h-5 bg-gray-600/50" />
+              
+              {/* Tools */}
+              <div className="flex items-center gap-0.5">
+                <Button size="sm" variant={pianoRollTool === 'draw' ? 'default' : 'ghost'} onClick={() => setPianoRollTool('draw')} title="Draw" className="h-7 w-7 p-0">
+                  <Pencil className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant={pianoRollTool === 'select' ? 'default' : 'ghost'}
-                  onClick={() => setPianoRollTool('select')}
-                  title="Select notes (drag to box select)"
-                  data-testid="button-tool-select"
-                >
-                  <MousePointer2 className="w-4 h-4" />
+                <Button size="sm" variant={pianoRollTool === 'select' ? 'default' : 'ghost'} onClick={() => setPianoRollTool('select')} title="Select" className="h-7 w-7 p-0">
+                  <MousePointer2 className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant={pianoRollTool === 'erase' ? 'default' : 'ghost'}
-                  onClick={() => setPianoRollTool('erase')}
-                  title="Erase notes"
-                  data-testid="button-tool-erase"
-                >
-                  <Eraser className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant={pianoRollTool === 'slice' ? 'default' : 'ghost'}
-                  onClick={() => setPianoRollTool('slice')}
-                  title="Slice notes at playhead"
-                  data-testid="button-tool-slice"
-                >
-                  <Scissors className="w-4 h-4" />
+                <Button size="sm" variant={pianoRollTool === 'erase' ? 'default' : 'ghost'} onClick={() => setPianoRollTool('erase')} title="Erase" className="h-7 w-7 p-0">
+                  <Eraser className="w-3.5 h-3.5" />
                 </Button>
               </div>
               
-              {/* Slice Action */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={sliceNotesAtPlayhead}
-                  title="Slice all notes at playhead"
-                  data-testid="button-slice-at-playhead"
-                >
-                  <SplitSquareVertical className="w-4 h-4" />
-                  <span className="text-xs ml-1">Slice</span>
+              <div className="w-px h-5 bg-gray-600/50" />
+              
+              {/* Edit */}
+              <div className="flex items-center gap-0.5">
+                <Button size="sm" variant="ghost" onClick={undo} disabled={historyIndex <= 0} title="Undo" className="h-7 w-7 p-0">
+                  <Undo2 className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo" className="h-7 w-7 p-0">
+                  <Redo2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
               
-              {/* Undo/Redo */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button size="sm" variant="ghost" onClick={undo} disabled={historyIndex <= 0} title="Undo (Ctrl+Z)" data-testid="button-undo">
-                  <Undo2 className="w-4 h-4" />
+              <div className="w-px h-5 bg-gray-600/50" />
+              
+              {/* Snap */}
+              <div className="flex items-center gap-0.5">
+                <Button size="sm" variant={snapEnabled ? 'default' : 'ghost'} onClick={() => setSnapEnabled(!snapEnabled)} title="Snap" className="h-7 w-7 p-0">
+                  <Grid3X3 className="w-3.5 h-3.5" />
                 </Button>
-                <Button size="sm" variant="ghost" onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo (Ctrl+Y)" data-testid="button-redo">
-                  <Redo2 className="w-4 h-4" />
+                <Button size="sm" variant={scaleSnapEnabled ? 'default' : 'ghost'} onClick={() => setScaleSnapEnabled(!scaleSnapEnabled)} title="Scale" className="h-7 w-7 p-0">
+                  <Magnet className="w-3.5 h-3.5" />
                 </Button>
               </div>
               
-              {/* Copy/Paste */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    const selected = selectedTrack.notes.filter(n => selectedNoteIds.has(n.id));
-                    if (selected.length > 0) {
-                      setClipboard(selected);
-                      toast({ title: 'Copied', description: `${selected.length} note(s)` });
-                    }
-                  }}
-                  disabled={selectedNoteIds.size === 0}
-                  title="Copy (Ctrl+C)"
-                  data-testid="button-copy"
-                >
-                  <Copy className="w-4 h-4" />
+              <div className="w-px h-5 bg-gray-600/50" />
+              
+              {/* Zoom */}
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setHorizontalZoom(prev => Math.max(0.25, prev - 0.25))} className="h-7 w-7 p-0">
+                  <ZoomOut className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    if (clipboard.length > 0) {
-                      const minStep = Math.min(...clipboard.map(n => n.step));
-                      const pastedNotes = clipboard.map(n => ({
-                        ...n,
-                        id: `pasted-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                        step: n.step - minStep + currentStep
-                      }));
-                      addToHistory(selectedTrack.notes);
-                      setTracks(prev => prev.map((t, i) => 
-                        i === selectedTrackIndex ? { ...t, notes: [...t.notes, ...pastedNotes] } : t
-                      ));
-                      toast({ title: 'Pasted', description: `${pastedNotes.length} note(s)` });
-                    }
-                  }}
-                  disabled={clipboard.length === 0}
-                  title="Paste (Ctrl+V)"
-                  data-testid="button-paste"
-                >
-                  <Clipboard className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    if (selectedNoteIds.size > 0) {
-                      addToHistory(selectedTrack.notes);
-                      setTracks(prev => prev.map((t, i) => 
-                        i === selectedTrackIndex ? { ...t, notes: t.notes.filter(n => !selectedNoteIds.has(n.id)) } : t
-                      ));
-                      setSelectedNoteIds(new Set());
-                      toast({ title: 'Deleted', description: 'Selected notes removed' });
-                    }
-                  }}
-                  disabled={selectedNoteIds.size === 0}
-                  title="Delete selected"
-                  data-testid="button-delete-selected"
-                >
-                  <Trash2 className="w-4 h-4" />
+                <span className="text-xs text-gray-400 w-8 text-center">{Math.round(horizontalZoom * 100)}%</span>
+                <Button size="sm" variant="ghost" onClick={() => setHorizontalZoom(prev => Math.min(3, prev + 0.25))} className="h-7 w-7 p-0">
+                  <ZoomIn className="w-3.5 h-3.5" />
                 </Button>
               </div>
               
-              {/* Transpose */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => { setTransposeAmount(12); applyTranspose(); }}
-                  disabled={selectedNoteIds.size === 0}
-                  title="Transpose up octave"
-                  data-testid="button-transpose-up-octave"
-                >
-                  <ArrowUp className="w-4 h-4" />
-                  <span className="text-xs ml-1">Oct</span>
+              <div className="flex-1" />
+              
+              {/* Key */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400">Key:</span>
+                <select value={currentKey} onChange={(e) => setCurrentKey(e.target.value)} className="h-6 px-1 text-xs bg-gray-700 border border-gray-600 rounded">
+                  {CIRCLE_OF_FIFTHS.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              
+              <div className="w-px h-5 bg-gray-600/50" />
+              
+              {/* Quick Actions */}
+              <div className="flex items-center gap-0.5">
+                <Button size="sm" variant={isRecording ? 'destructive' : 'ghost'} onClick={toggleRecording} title="Record" className="h-7 w-7 p-0">
+                  <Circle className={`w-3.5 h-3.5 ${isRecording ? 'animate-pulse fill-red-500' : ''}`} />
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => { setTransposeAmount(-12); applyTranspose(); }}
-                  disabled={selectedNoteIds.size === 0}
-                  title="Transpose down octave"
-                  data-testid="button-transpose-down-octave"
-                >
-                  <ArrowDown className="w-4 h-4" />
-                  <span className="text-xs ml-1">Oct</span>
+                <Button size="sm" variant={loopEnabled ? 'default' : 'ghost'} onClick={toggleLoop} title="Loop" className="h-7 w-7 p-0">
+                  <Repeat className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleAISuggest} title="AI" className="h-7 w-7 p-0 text-purple-400">
+                  <Wand2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
               
-              {/* Scale Lock & Quantize */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant={scaleSnapEnabled ? 'default' : 'ghost'}
-                  onClick={() => setScaleSnapEnabled(!scaleSnapEnabled)}
-                  title="Scale Lock - snap to scale notes only"
-                  data-testid="button-scale-lock"
-                >
-                  <Magnet className="w-4 h-4" />
-                  <span className="text-xs ml-1">Scale</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant={snapEnabled ? 'default' : 'ghost'}
-                  onClick={() => setSnapEnabled(!snapEnabled)}
-                  title="Grid Snap"
-                  data-testid="button-grid-snap"
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                </Button>
-              </div>
+              <div className="w-px h-5 bg-gray-600/50" />
               
-              {/* View Options */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant={showGhostNotes ? 'default' : 'ghost'}
-                  onClick={() => setShowGhostNotes(!showGhostNotes)}
-                  title="Ghost Notes - show other tracks"
-                  data-testid="button-ghost-notes"
-                >
-                  {showGhostNotes ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  <span className="text-xs ml-1">Ghost</span>
+              {/* Export */}
+              <div className="flex items-center gap-0.5">
+                <Button size="sm" variant="ghost" onClick={handleSendToMaster} title="Send to Master" className="h-7 w-7 p-0">
+                  <Send className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant={showVelocityEditor ? 'default' : 'ghost'}
-                  onClick={() => setShowVelocityEditor(!showVelocityEditor)}
-                  title="Velocity Editor"
-                  data-testid="button-velocity-editor"
-                >
-                  <span className="text-xs font-bold">V</span>
+                <Button size="sm" variant="ghost" onClick={exportMIDI} title="Export MIDI" className="h-7 w-7 p-0">
+                  <Download className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant={automationLane !== 'off' ? 'default' : 'ghost'}
-                  onClick={() => setAutomationLane(automationLane === 'off' ? 'volume' : 'off')}
-                  title="MIDI CC Automation Lane"
-                  data-testid="button-automation-lane"
-                >
-                  <span className="text-xs font-bold">CC</span>
-                </Button>
-              </div>
-              
-              {/* Humanize */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={applyHumanize}
-                  disabled={selectedNoteIds.size === 0}
-                  title="Humanize - add natural variation"
-                  data-testid="button-humanize"
-                >
-                  <Shuffle className="w-4 h-4" />
-                  <span className="text-xs ml-1">Humanize</span>
-                </Button>
-                <Slider
-                  value={[humanizeAmount]}
-                  onValueChange={(v) => setHumanizeAmount(v[0])}
-                  min={0}
-                  max={100}
-                  step={5}
-                  className="w-16"
-                  data-testid="slider-humanize"
-                />
-                <span className="text-xs text-gray-400">{humanizeAmount}%</span>
-              </div>
-              
-              {/* Zoom Controls */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setHorizontalZoom(prev => Math.min(3, prev + 0.25))}
-                  title="Zoom In Horizontal"
-                  data-testid="button-zoom-h-in"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </Button>
-                <span className="text-xs text-gray-400">{Math.round(horizontalZoom * 100)}%</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setHorizontalZoom(prev => Math.max(0.25, prev - 0.25))}
-                  title="Zoom Out Horizontal"
-                  data-testid="button-zoom-h-out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              {/* Advanced Features */}
-              <div className="flex items-center gap-1 px-2 border-r border-gray-600">
-                <Button
-                  size="sm"
-                  variant={foldViewEnabled ? 'default' : 'ghost'}
-                  onClick={() => setFoldViewEnabled(!foldViewEnabled)}
-                  title="Fold View - hide unused keys"
-                  data-testid="button-fold-view"
-                >
-                  <Layers className="w-4 h-4" />
-                  <span className="text-xs ml-1">Fold</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant={strumMode ? 'default' : 'ghost'}
-                  onClick={() => setStrumMode(!strumMode)}
-                  title="Strum Tool - guitar-style delay"
-                  data-testid="button-strum"
-                >
-                  <Guitar className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant={legatoMode ? 'default' : 'ghost'}
-                  onClick={() => setLegatoMode(!legatoMode)}
-                  title="Legato Mode - connected notes"
-                  data-testid="button-legato"
-                >
-                  <Link className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              {/* More Pro Features */}
-              <div className="flex items-center gap-1 px-2">
-                <Button
-                  size="sm"
-                  variant={portamentoEnabled ? 'default' : 'ghost'}
-                  onClick={() => setPortamentoEnabled(!portamentoEnabled)}
-                  title="Portamento - slide between notes"
-                  data-testid="button-portamento"
-                >
-                  <SplitSquareVertical className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant={noteRepeatEnabled ? 'default' : 'ghost'}
-                  onClick={() => setNoteRepeatEnabled(!noteRepeatEnabled)}
-                  title="Note Repeat/Roll (hi-hat rolls)"
-                  data-testid="button-note-repeat"
-                >
-                  <Repeat1 className="w-4 h-4" />
+                <Button size="sm" variant="ghost" onClick={savePattern} title="Save Pattern" className="h-7 w-7 p-0 text-green-400">
+                  <Plus className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
             
-            {/* Chord Stamps - Quick Chord Insertion */}
-            <div className="flex items-center gap-2 flex-wrap p-2 bg-gradient-to-r from-amber-900/30 to-orange-900/30 rounded-md border border-amber-500/30">
-              <span className="text-xs font-medium text-amber-300">Chord Stamps:</span>
-              {['Maj', 'Min', '7th', 'Maj7', 'Min7', 'Dim', 'Aug', 'Sus4'].map((chordType) => (
-                <Button
-                  key={chordType}
-                  size="sm"
-                  variant="outline"
-                  className="text-xs px-2"
-                  onClick={() => {
-                    const rootNote = currentKey;
-                    const octave = 4;
-                    let intervals: number[] = [];
-                    
-                    switch (chordType) {
-                      case 'Maj': intervals = [0, 4, 7]; break;
-                      case 'Min': intervals = [0, 3, 7]; break;
-                      case '7th': intervals = [0, 4, 7, 10]; break;
-                      case 'Maj7': intervals = [0, 4, 7, 11]; break;
-                      case 'Min7': intervals = [0, 3, 7, 10]; break;
-                      case 'Dim': intervals = [0, 3, 6]; break;
-                      case 'Aug': intervals = [0, 4, 8]; break;
-                      case 'Sus4': intervals = [0, 5, 7]; break;
-                    }
-                    
-                    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                    const rootIndex = notes.indexOf(rootNote);
-                    const strumDelay = strumMode ? 1 : 0;
-                    
-                    const newNotes: Note[] = intervals.map((interval, idx) => {
-                      const noteIndex = (rootIndex + interval) % 12;
-                      const noteOctave = octave + Math.floor((rootIndex + interval) / 12);
-                      return {
-                        id: crypto.randomUUID(),
-                        note: notes[noteIndex],
-                        octave: noteOctave,
-                        step: currentStep + (strumDelay * idx),
-                        velocity: 100 - (strumMode ? idx * 5 : 0),
-                        length: 4
-                      };
-                    });
-                    
-                    addToHistory(selectedTrack.notes);
-                    setTracks(prev => prev.map((t, i) => 
-                      i === selectedTrackIndex 
-                        ? { ...t, notes: [...t.notes, ...newNotes] }
-                        : t
-                    ));
-                    toast({ title: `${rootNote} ${chordType}`, description: 'Chord inserted at playhead' });
-                  }}
-                  data-testid={`button-chord-stamp-${chordType.toLowerCase()}`}
-                >
-                  {currentKey} {chordType}
-                </Button>
-              ))}
-            </div>
-            
-            {/* New Features: Recording, Loop, AI Suggest */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                size="sm"
-                variant={isRecording ? 'destructive' : 'outline'}
-                onClick={toggleRecording}
-                className="flex items-center gap-2"
-              >
-                <Circle className={`w-4 h-4 ${isRecording ? 'animate-pulse' : ''}`} />
-                {isRecording ? 'Stop Recording' : 'Record'}
-              </Button>
-              
-              <Button
-                size="sm"
-                variant={loopEnabled ? 'default' : 'outline'}
-                onClick={toggleLoop}
-                disabled={selectedTrack.notes.length === 0}
-                className="flex items-center gap-2"
-              >
-                <Repeat className="w-4 h-4" />
-                {loopEnabled ? 'Loop On' : 'Loop Off'}
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleAISuggest}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30"
-              >
-                <Wand2 className="w-4 h-4" />
-                AI Suggest
-              </Button>
-            </div>
-            
-            {keyScaleSelector}
-            {chordProgressionDisplay}
-            
-            {/* LVTR-Style Chord Inversion Slider */}
-            <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 rounded-lg p-4 border border-indigo-500/30">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <RotateCw className="w-5 h-5 text-indigo-400" />
-                  <h3 className="text-sm font-semibold text-indigo-300">Chord Inversion</h3>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowProgressionBuilder(!showProgressionBuilder)}
-                  className="text-xs"
-                >
-                  {showProgressionBuilder ? 'Hide' : 'Show'} Builder
-                </Button>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <span className="text-xs text-gray-400 w-16">Root</span>
-                <Slider
-                  value={[chordInversion]}
-                  onValueChange={(v) => setChordInversion(v[0])}
-                  min={0}
-                  max={2}
-                  step={1}
-                  className="flex-1"
-                />
-                <span className="text-xs text-gray-400 w-16 text-right">2nd Inv</span>
-                <div className="px-3 py-1 bg-indigo-600 rounded text-xs font-bold min-w-[80px] text-center">
-                  {chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st Inv' : '2nd Inv'}
-                </div>
-              </div>
-              
-              {/* Drag & Drop Progression Builder */}
-              {showProgressionBuilder && (
-                <div className="mt-4 pt-4 border-t border-indigo-500/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-medium text-indigo-300">Custom Progression</h4>
+            {/* ═══════════════════════════════════════════════════════════════════════════ */}
+            {/* SECONDARY BAR - Chords & Arpeggio (collapsible)                             */}
+            {/* ═══════════════════════════════════════════════════════════════════════════ */}
+            <details className="group" open>
+              <summary className="flex items-center gap-2 px-2 py-1 bg-gray-800/40 cursor-pointer hover:bg-gray-800/60 text-xs text-gray-400">
+                <span>▸ Chords & Tools</span>
+              </summary>
+              <div className="flex items-center gap-2 px-2 py-1 bg-gray-800/30">
+                {/* Chord Stamps */}
+                <div className="flex items-center gap-0.5">
+                  {['Maj', 'Min', '7th', 'Dim'].map((chordType) => (
                     <Button
+                      key={chordType}
                       size="sm"
                       variant="ghost"
-                      onClick={() => setCustomProgression([])}
-                      className="text-xs h-6"
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      Clear
-                    </Button>
-                  </div>
-                  
-                  {/* Custom Progression Display */}
-                  <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-gray-900/50 rounded border-2 border-dashed border-indigo-500/30 mb-3">
-                    {customProgression.length === 0 ? (
-                      <span className="text-xs text-gray-500 italic">Drag chords here to build your progression...</span>
-                    ) : (
-                      customProgression.map((chord, index) => (
-                        <div
-                          key={`custom-${index}`}
-                          draggable
-                          onDragStart={() => setDraggedChordIndex(index)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            if (draggedChordIndex !== null && draggedChordIndex !== index) {
-                              const newProgression = [...customProgression];
-                              const [removed] = newProgression.splice(draggedChordIndex, 1);
-                              newProgression.splice(index, 0, removed);
-                              setCustomProgression(newProgression);
-                            }
-                            setDraggedChordIndex(null);
-                          }}
-                          className="flex items-center gap-1 px-3 py-2 bg-indigo-600 rounded cursor-move hover:bg-indigo-500 transition-colors"
-                        >
-                          <GripVertical className="w-3 h-3 text-indigo-200" />
-                          <span className="text-sm font-medium">{chord}</span>
-                          <button
-                            onClick={() => setCustomProgression(prev => prev.filter((_, i) => i !== index))}
-                            className="ml-1 text-indigo-200 hover:text-white"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  
-                  {/* Available Chords */}
-                  <div className="flex flex-wrap gap-2">
-                    {Object.keys(DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys]?.chords || {}).map((chord) => (
-                      <button
-                        key={chord}
-                        onClick={() => setCustomProgression(prev => [...prev, chord])}
-                        className="px-2 py-1 bg-gray-700 hover:bg-indigo-600 rounded text-xs font-medium transition-colors"
-                      >
-                        <Plus className="w-3 h-3 inline mr-1" />
-                        {chord}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Chord Mode Toggle, Arpeggiator & Sync Scroll */}
-            <div className="flex items-center justify-between gap-4 p-3 bg-gradient-to-r from-purple-900/50 to-gray-800/50 rounded-md border border-purple-500/30">
-              <div className="flex items-center gap-3">
-                {/* Track Selector */}
-                <div className="flex items-center gap-2 mr-4 bg-black/40 rounded-lg p-1 pr-3 border border-purple-500/30">
-                  <div className={`w-3 h-8 rounded-l ${selectedTrack.color || 'bg-blue-500'}`}></div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Track</span>
-                    <select
-                      value={selectedTrackIndex}
-                      onChange={(e) => {
-                        const idx = parseInt(e.target.value);
-                        setSelectedTrackIndex(idx);
-                        toast({ title: `Switched to ${tracks[idx].name}` });
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        const rootNote = currentKey;
+                        const octave = 4;
+                        let intervals: number[] = [];
+                        switch (chordType) {
+                          case 'Maj': intervals = [0, 4, 7]; break;
+                          case 'Min': intervals = [0, 3, 7]; break;
+                          case '7th': intervals = [0, 4, 7, 10]; break;
+                          case 'Dim': intervals = [0, 3, 6]; break;
+                        }
+                        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                        const rootIndex = notes.indexOf(rootNote);
+                        const newNotes: Note[] = intervals.map((interval) => ({
+                          id: crypto.randomUUID(),
+                          note: notes[(rootIndex + interval) % 12],
+                          octave: octave + Math.floor((rootIndex + interval) / 12),
+                          step: currentStep,
+                          velocity: 100,
+                          length: 4
+                        }));
+                        addToHistory(selectedTrack.notes);
+                        setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: [...t.notes, ...newNotes] } : t));
+                        toast({ title: `${rootNote} ${chordType}` });
                       }}
-                      className="bg-transparent text-sm font-bold text-white outline-none cursor-pointer hover:text-purple-300 transition-colors"
                     >
-                      {tracks.map((t, i) => (
-                        <option key={t.id} value={i} className="bg-gray-900 text-white">
-                          {i + 1}. {t.name} ({t.notes.length} notes)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      {chordType}
+                    </Button>
+                  ))}
                 </div>
-
-                {/* Compact Arpeggiator */}
-                <Arpeggiator
-                  enabled={liveArpEnabled}
-                  onEnabledChange={(enabled) => {
-                    setLiveArpEnabled(enabled);
-                    // Auto-enable chord mode when arp is on so keys get added to activeKeys
-                    if (enabled && !chordMode) {
-                      setChordMode(true);
-                    }
-                  }}
-                  bpm={bpm}
-                  activeNotes={Array.from(activeKeys).map(keyIndex => {
-                    const key = PIANO_KEYS[keyIndex];
-                    return key ? { note: key.note, octave: key.octave } : { note: 'C', octave: 4 };
-                  }).filter(n => n.note)}
-                  instrument={selectedTrack?.instrument || 'piano'}
-                />
-                <Button
-                  size="lg"
-                  variant={isRecording ? "destructive" : "default"}
-                  className={`text-sm font-bold px-6 ${isRecording ? 'bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-400 animate-pulse' : 'bg-red-700 hover:bg-red-800'}`}
-                  onClick={isRecording ? stopRecording : startRecording}
-                  data-testid="button-record"
-                >
-                  <div className="w-3 h-3 rounded-full bg-white mr-2" />
-                  <span className="text-base">
-                    {isRecording ? '⏹️ STOP RECORDING' : '🎙️ RECORD'}
-                  </span>
+                
+                <div className="w-px h-4 bg-gray-600/50" />
+                
+                {/* Arpeggio */}
+                <select value={arpeggioMode} onChange={(e) => setArpeggioMode(e.target.value as any)} className="h-6 px-1 text-xs bg-gray-700/50 border border-gray-600/50 rounded">
+                  <option value="off">Arp Off</option>
+                  <option value="up">↑ Up</option>
+                  <option value="down">↓ Down</option>
+                  <option value="updown">↕</option>
+                </select>
+                <Button size="sm" variant="ghost" onClick={applyArpeggio} disabled={selectedNoteIds.size === 0 || arpeggioMode === 'off'} className="h-6 w-6 p-0">
+                  <Zap className="w-3 h-3" />
                 </Button>
                 
-                {/* Go to Beginning Button */}
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="text-sm font-bold px-4 bg-gray-700 hover:bg-gray-600 border-gray-500"
-                  onClick={goToBeginning}
-                  data-testid="button-go-to-beginning"
-                  title="Return to beginning (also happens automatically when recording stops)"
-                >
-                  <span className="text-base">⏮️ Beginning</span>
+                <div className="w-px h-4 bg-gray-600/50" />
+                
+                {/* Octave */}
+                <Button size="sm" variant="ghost" onClick={() => shiftOctave(1)} disabled={selectedNoteIds.size === 0} title="Oct+" className="h-6 w-6 p-0">
+                  <ArrowUp className="w-3 h-3" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => shiftOctave(-1)} disabled={selectedNoteIds.size === 0} title="Oct-" className="h-6 w-6 p-0">
+                  <ArrowDown className="w-3 h-3" />
                 </Button>
                 
-                <Button
-                  size="lg"
-                  variant={chordMode ? "default" : "secondary"}
-                  className={`text-sm font-bold px-6 ${chordMode ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400' : 'bg-gray-700'}`}
-                  onClick={() => {
-                    setChordMode(!chordMode);
-                    if (!chordMode) {
-                      setActiveKeys(new Set());
-                    }
-                  }}
-                  disabled={isRecording}
-                  data-testid="button-chord-mode"
-                >
-                  <Music className="w-5 h-5 mr-2" />
-                  <span className="text-base">
-                    {chordMode ? '🎵 CHORD ON' : '🎵 Chord OFF'}
-                  </span>
+                <div className="w-px h-4 bg-gray-600/50" />
+                
+                {/* Copy/Paste */}
+                <Button size="sm" variant="ghost" onClick={() => { const sel = selectedTrack.notes.filter(n => selectedNoteIds.has(n.id)); if (sel.length) { setClipboard(sel); toast({ title: 'Copied' }); }}} disabled={selectedNoteIds.size === 0} className="h-6 w-6 p-0">
+                  <Copy className="w-3 h-3" />
                 </Button>
-                {isRecording && (
-                  <p className="text-sm text-red-300 font-medium animate-pulse">
-                    🔴 Recording... Play notes on your keyboard!
-                  </p>
+                <Button size="sm" variant="ghost" onClick={() => { if (clipboard.length) { const minStep = Math.min(...clipboard.map(n => n.step)); const pasted = clipboard.map(n => ({ ...n, id: crypto.randomUUID(), step: n.step - minStep + currentStep })); addToHistory(selectedTrack.notes); setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: [...t.notes, ...pasted] } : t)); }}} disabled={clipboard.length === 0} className="h-6 w-6 p-0">
+                  <Clipboard className="w-3 h-3" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { if (selectedNoteIds.size) { addToHistory(selectedTrack.notes); setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: t.notes.filter(n => !selectedNoteIds.has(n.id)) } : t)); setSelectedNoteIds(new Set()); }}} disabled={selectedNoteIds.size === 0} className="h-6 w-6 p-0 text-red-400">
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+                
+                <div className="flex-1" />
+                
+                {/* Pattern Load */}
+                {savedPatterns.length > 0 && (
+                  <select className="h-6 px-1 text-xs bg-gray-700/50 border border-gray-600/50 rounded" onChange={(e) => { if (e.target.value) loadPattern(e.target.value); e.target.value = ''; }} defaultValue="">
+                    <option value="">📂 Patterns ({savedPatterns.length})</option>
+                    {savedPatterns.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 )}
-                {!isRecording && chordMode && (
-                  <p className="text-sm text-purple-300 font-medium">
-                    Tap piano keys to build your chord, then click the grid!
-                  </p>
-                )}
+                
+                <Button size="sm" variant="ghost" onClick={() => setShowAILoopGenerator(!showAILoopGenerator)} className={cn("h-6 px-2 text-xs", showAILoopGenerator && "bg-blue-600")}>
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  AI Loop
+                </Button>
               </div>
-              
-              <Button
-                size="sm"
-                variant={syncScroll ? "default" : "secondary"}
-                className={`text-xs font-medium px-4 ${syncScroll ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700'}`}
-                onClick={() => setSyncScroll(!syncScroll)}
-                data-testid="button-sync-scroll"
-              >
-                {syncScroll ? <Link2 className="w-4 h-4 mr-1.5" /> : <Link2Off className="w-4 h-4 mr-1.5" />}
-                {syncScroll ? 'Linked' : 'Free Scroll'}
-              </Button>
-            </div>
+            </details>
+            
+            {/* AI Loop Generator Panel */}
+            {showAILoopGenerator && (
+              <div className="px-2 py-1 bg-gray-800/30 border-b border-gray-700/30">
+                <AILoopGenerator currentBpm={bpm} currentKey={currentKey} currentScale="minor" onClose={() => setShowAILoopGenerator(false)} />
+              </div>
+            )}
+            
           </div>
         </CardHeader>
 
-        <CardContent className="h-[calc(100%-250px)] overflow-hidden flex flex-col">
+        <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
+          {/* Track Overview Waveform Lane */}
+          {showTrackOverview && (
+            <TrackWaveformLane
+              tracks={tracks}
+              selectedTrackIndex={selectedTrackIndex}
+              onTrackSelect={setSelectedTrackIndex}
+              currentStep={currentStep}
+              totalSteps={STEPS}
+              stepWidth={STEP_WIDTH}
+              horizontalZoom={horizontalZoom}
+              onPlayheadClick={(step) => setCurrentStep(step)}
+              isCollapsed={false}
+              onToggleCollapse={() => setShowTrackOverview(false)}
+            />
+          )}
+          
+          {/* Collapsed Track Overview Toggle */}
+          {!showTrackOverview && (
+            <div 
+              className="border-b border-gray-600 bg-gray-800/50 px-3 py-1 cursor-pointer hover:bg-gray-700/50 flex items-center justify-between"
+              onClick={() => setShowTrackOverview(true)}
+            >
+              <span className="text-xs text-gray-400">Track Overview (collapsed)</span>
+              <Layers className="w-3 h-3 text-gray-400" />
+            </div>
+          )}
+          
           <div className={`flex relative overflow-auto ${showVelocityEditor ? 'flex-1' : 'h-full'}`} ref={gridRef} onScroll={handleGridScroll}>
             {/* Piano Keys - fixed on left, scrolls with content */}
             <div className="sticky left-0 z-10">
@@ -2662,6 +2479,7 @@ export const VerticalPianoRoll: React.FC = () => {
               isSelecting={isSelecting}
               selectionStart={selectionStart}
               selectionEnd={selectionEnd}
+              onPlayheadClick={(step) => setCurrentStep(step)}
             />
           </div>
           

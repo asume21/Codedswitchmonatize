@@ -215,6 +215,40 @@ export default function CodeToMusicStudioV2() {
     setIsPlaying(false);
   };
 
+  // ISSUE #8: Export music data as JSON
+  const handleExport = () => {
+    if (!musicData) {
+      toast({
+        title: 'No Music',
+        description: 'Generate music first before exporting',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const exportData = {
+      code,
+      language,
+      music: musicData,
+      exportedAt: new Date().toISOString(),
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `code-to-music-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Exported!',
+      description: 'Music data saved as JSON file',
+    });
+  };
+
   useEffect(() => {
     return () => {
       clearScheduledPlayback();
@@ -450,7 +484,12 @@ export default function CodeToMusicStudioV2() {
                     <Play className="w-4 h-4 mr-2" />
                     {isPlaying ? 'Stop' : 'Play Music'}
                   </Button>
-                  <Button variant="outline" className="border-purple-500/50">
+                  <Button 
+                    variant="outline" 
+                    className="border-purple-500/50"
+                    onClick={handleExport}
+                    disabled={!musicData}
+                  >
                     <Download className="w-4 h-4" />
                   </Button>
                 </div>

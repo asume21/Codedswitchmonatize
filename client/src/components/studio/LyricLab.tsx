@@ -834,12 +834,78 @@ Type here or use AI generation...`);
     setCurrentSessionId(sessionId);
   }, [createSession, setCurrentSessionId, toast]);
 
+  // ISSUE #1: Export lyrics to file
+  const exportLyrics = useCallback(() => {
+    if (!content.trim()) {
+      toast({ title: "No Lyrics", description: "Write some lyrics first", variant: "destructive" });
+      return;
+    }
+    const exportText = `${title}\n${"=".repeat(title.length)}\n\n${content}\n\n---\nGenre: ${genre}\nMood: ${mood}\nRhyme Scheme: ${rhymeScheme}\nExported: ${new Date().toLocaleString()}`;
+    const blob = new Blob([exportText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${title.replace(/[^a-zA-Z0-9]/g, "_")}-lyrics.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast({ title: "Exported!", description: "Lyrics saved to file" });
+  }, [content, title, genre, mood, rhymeScheme, toast]);
+
+  // ISSUE #2: Import lyrics from file
+  const importLyrics = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".txt,.lrc,.md";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const structured = autoStructureLyrics(text);
+        setContent(structured);
+        studioContext.setCurrentLyrics(structured);
+        toast({ title: "Imported!", description: `Loaded lyrics from ${file.name}` });
+      } catch {
+        toast({ title: "Import Failed", description: "Could not read file", variant: "destructive" });
+      }
+    };
+    input.click();
+  }, [studioContext, toast]);
+
+  // ISSUE #3: Add section function
+  const addSection = useCallback((sectionName: string) => {
+    const newSection = `\n\n[${sectionName}]\n`;
+    setContent(prev => prev + newSection);
+    toast({ title: "Section Added", description: `Added [${sectionName}]` });
+  }, [toast]);
+
   return (
     <div className="h-full flex flex-col">
       <div className="p-6 border-b border-gray-600">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-heading font-bold">Song Doctor · Lyric Lab</h2>
           <div className="flex items-center space-x-4">
+            <Button
+              onClick={importLyrics}
+              variant="outline"
+              size="sm"
+              className="border-gray-600"
+            >
+              <i className="fas fa-file-import mr-2"></i>
+              Import
+            </Button>
+            <Button
+              onClick={exportLyrics}
+              variant="outline"
+              size="sm"
+              className="border-gray-600"
+              disabled={!content.trim()}
+            >
+              <i className="fas fa-file-export mr-2"></i>
+              Export
+            </Button>
             <Button
               onClick={() => {
                 initialize();
@@ -1104,10 +1170,18 @@ Type here or use AI generation...`);
                   <span>Chorus</span>
                   <span className="text-gray-400">16 bars</span>
                 </div>
-                <div className="flex items-center justify-between p-2 bg-gray-600 rounded cursor-pointer hover:bg-gray-500">
-                  <span className="text-gray-400">+ Add Section</span>
-                  <i className="fas fa-plus text-gray-400"></i>
-                </div>
+                <Select onValueChange={(val) => addSection(val)}>
+                  <SelectTrigger className="bg-gray-600 border-gray-500 text-gray-300">
+                    <SelectValue placeholder="+ Add Section" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Verse 3">Verse 3</SelectItem>
+                    <SelectItem value="Bridge">Bridge</SelectItem>
+                    <SelectItem value="Outro">Outro</SelectItem>
+                    <SelectItem value="Hook">Hook</SelectItem>
+                    <SelectItem value="Ad-lib">Ad-lib</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

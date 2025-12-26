@@ -1,14 +1,23 @@
 {
   "currentBranch": "main",
   "activeFiles": [
-    "client/src/lib/LicenseGuard.tsx",
-    "client/src/components/studio/effects/"
+    "D:\\RVC\\rvc_api.py",
+    "D:\\RVC\\audio_analysis_api.py",
+    "D:\\RVC\\README-API.md",
+    "d:\\Codedswitchmonatize\\server\\services\\audioAnalysis.ts",
+    "d:\\Codedswitchmonatize\\server\\services\\speechCorrection.ts",
+    "d:\\Codedswitchmonatize\\server\\routes.ts"
   ],
   "recentChanges": [
-    "Fixed Upgrade Now button - added credentials and error handling",
-    "Created comprehensive DAW features audit",
-    "Split workload between Cascade and Codex"
+    "Installed RVC (Retrieval-based Voice Conversion) locally on D:\\RVC with PyTorch + CUDA 12.4",
+    "Created RVC API wrapper (rvc_api.py) on port 7870 for voice conversion",
+    "Created Audio Analysis API (audio_analysis_api.py) on port 7871 with: pitch correction (auto-tune), melody extraction (vocals to MIDI), karaoke scoring, emotion detection, audio classification",
+    "Wired both APIs to CodedSwitch backend via server/services/audioAnalysis.ts and server/services/speechCorrection.ts",
+    "Added 6 new backend endpoints under /api/audio-analysis/*",
+    "Both APIs running and tested - GPU (GTX 1050 Ti) working with half-precision",
+    "Created startup scripts: start-api.bat and start-analysis-api.bat",
+    "Updated README-API.md with full documentation"
   ],
-  "notes": "WORKLOAD SPLIT:\\n\\nCASCADE: Delay/Echo, Chorus/Flanger, Saturation/Distortion effects, Auto-save, MIDI Export, Stem Export, Fix musicgen-from-structure.ts\\n\\nCODEX: Keyboard Shortcuts, Touch Support, Track Templates, Punch-in/out UI, Loop Recording UI, Fade In/Out, Clean legacy routes",
-  "lastUpdated": "2025-12-17T06:42:03.793083"
+  "notes": "RVC and Audio Analysis APIs are LOCAL-ONLY (run on user's machine with GPU). They provide: voice cloning/conversion, auto-tune, melody-to-MIDI, karaoke scoring, emotion detection, audio classification. CodedSwitch backend gracefully falls back if APIs unavailable. User still needs to add voice models (.pth files) to D:\\\\RVC\\\\assets\\\\weights\\\\ for voice conversion to work.",
+  "lastUpdated": "2025-12-23T03:11:57.494549"
 }

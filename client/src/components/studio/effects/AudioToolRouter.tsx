@@ -64,6 +64,22 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [], onAud
     }
   };
 
+  // ISSUE #2: Export processed audio (placeholder - actual export happens in plugins)
+  const handleExportAudio = () => {
+    if (!songUrl) {
+      toast({
+        title: "No Audio",
+        description: "Load audio first before exporting",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Export Started",
+      description: "Open a tool and use its export function for processed audio",
+    });
+  };
+
   const handleAutoFix = async () => {
     if (!songUrl) {
       toast({

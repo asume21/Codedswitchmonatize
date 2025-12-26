@@ -118,6 +118,28 @@ export function CompressorPlugin({ audioUrl, onClose }: CompressorPluginProps) {
     });
   };
 
+  // ISSUE #1: Load preset functionality
+  const loadPreset = () => {
+    try {
+      const saved = localStorage.getItem('compressor-preset-last');
+      if (saved) {
+        const preset = JSON.parse(saved);
+        if (preset.settings) {
+          updateParameter('threshold', preset.settings.threshold);
+          updateParameter('knee', preset.settings.knee);
+          updateParameter('ratio', preset.settings.ratio);
+          updateParameter('attack', preset.settings.attack);
+          updateParameter('release', preset.settings.release);
+          toast({ title: 'Preset Loaded', description: `Loaded: ${preset.name}` });
+        }
+      } else {
+        toast({ title: 'No Preset', description: 'No saved preset found', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Load Failed', description: 'Could not load preset', variant: 'destructive' });
+    }
+  };
+
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
@@ -164,6 +186,10 @@ export function CompressorPlugin({ audioUrl, onClose }: CompressorPluginProps) {
             <Button onClick={savePreset} variant="outline">
               <Save className="h-4 w-4 mr-2" />
               Save
+            </Button>
+            <Button onClick={loadPreset} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Load
             </Button>
           </div>
         )}

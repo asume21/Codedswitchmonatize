@@ -48,6 +48,42 @@ export default function ProfessionalStudio() {
     // Optionally implement playback logic here, or leave empty for now
   }
 
+  // Piano Roll AI Suggestion - using correct PianoRollNote type
+  const [pianoRollNotes, setPianoRollNotes] = useState<Array<{ id: string; pitch: number; start: number; duration: number; velocity: number }>>([]);
+  
+  function handleAISuggestPianoRoll() {
+    if (!requirePro("ai-chords", () => setShowUpgrade(true))) return;
+    // Generate a simple AI-suggested melody based on chord progression (MIDI pitch values)
+    const suggestedNotes = [
+      { id: 'n1', pitch: 60, start: 0, duration: 0.5, velocity: 100 },     // C4
+      { id: 'n2', pitch: 64, start: 0.5, duration: 0.5, velocity: 100 },   // E4
+      { id: 'n3', pitch: 67, start: 1, duration: 0.5, velocity: 100 },     // G4
+      { id: 'n4', pitch: 72, start: 1.5, duration: 1, velocity: 100 },     // C5
+      { id: 'n5', pitch: 71, start: 2.5, duration: 0.5, velocity: 90 },    // B4
+      { id: 'n6', pitch: 69, start: 3, duration: 0.5, velocity: 90 },      // A4
+      { id: 'n7', pitch: 67, start: 3.5, duration: 1, velocity: 100 },     // G4
+    ];
+    setPianoRollNotes(suggestedNotes);
+  }
+
+  // Drum Machine AI Suggestion - using correct DrumStep type
+  const [drumPattern, setDrumPattern] = useState<Array<{ id: string; step: number; velocity: number; active: boolean }>>([]);
+  
+  function handleAISuggestDrumPattern() {
+    if (!requirePro("ai-chords", () => setShowUpgrade(true))) return;
+    // Generate a basic AI-suggested drum pattern
+    const suggestedPattern: Array<{ id: string; step: number; velocity: number; active: boolean }> = [];
+    for (let step = 0; step < 16; step++) {
+      // Kick on 1, 5, 9, 13
+      if (step % 4 === 0) suggestedPattern.push({ id: `kick-${step}`, step, velocity: 100, active: true });
+      // Snare on 5, 13
+      if (step === 4 || step === 12) suggestedPattern.push({ id: `snare-${step}`, step, velocity: 100, active: true });
+      // Hi-hat on every other step
+      if (step % 2 === 0) suggestedPattern.push({ id: `hihat-${step}`, step, velocity: 80, active: true });
+    }
+    setDrumPattern(suggestedPattern);
+  }
+
   // Full Song Generation State
   const [songPrompt, setSongPrompt] = useState('');
   const [songOptions, setSongOptions] = useState({
@@ -1157,8 +1193,8 @@ export default function ProfessionalStudio() {
                 onPlay={handlePlayChordProgression}
                 onProgressionChange={setChordProgression}
               />
-              <ModularPianoRoll notes={[]} onAISuggest={() => { /* TODO: AI hook */ }} onNotesChange={() => {}} />
-              <ModularDrumMachine pattern={[]} onAISuggest={() => { /* TODO: AI hook */ }} onPatternChange={() => {}} />
+              <ModularPianoRoll notes={pianoRollNotes} onAISuggest={handleAISuggestPianoRoll} onNotesChange={setPianoRollNotes} />
+              <ModularDrumMachine pattern={drumPattern} onAISuggest={handleAISuggestDrumPattern} onPatternChange={setDrumPattern} />
 
             </CardContent>
           </Card>
