@@ -353,6 +353,17 @@ export class RealisticAudioEngine {
       return;
     }
     
+    // iOS fix: Always try to resume if suspended
+    if (this.audioContext.state === 'suspended') {
+      console.log('🎵 Audio context suspended, resuming...');
+      try {
+        await this.audioContext.resume();
+        console.log('🎵 Audio context resumed for playback');
+      } catch (e) {
+        console.warn('🎵 Failed to resume audio context:', e);
+      }
+    }
+    
     // NOTE: Removed octave clamping to allow full octave range (0-8)
     // Soundfonts support wider range than originally assumed
     let adjustedOctave = octave;
@@ -448,6 +459,15 @@ export class RealisticAudioEngine {
     if (!this.audioContext) {
       console.error('AudioContext not available for synthetic drums');
       return;
+    }
+    
+    // iOS fix: Always try to resume if suspended
+    if (this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch (e) {
+        console.warn('🎵 Failed to resume audio context for drums:', e);
+      }
     }
 
     const currentTime = this.audioContext.currentTime;
