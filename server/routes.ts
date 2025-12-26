@@ -3447,6 +3447,121 @@ ${code}
     }
   );
 
+  // Generate full song WITH VOCALS using MiniMax Music-1.5
+  // Supports up to 4 minutes with natural vocals and rich instrumentation
+  app.post(
+    "/api/music/generate-with-vocals",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.SONG_GENERATION, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { lyrics, prompt, genre, mood, style, duration } = req.body;
+
+        if (!lyrics || lyrics.length < 10) {
+          return sendError(res, 400, "Lyrics are required (minimum 10 characters)");
+        }
+
+        const replicateToken = process.env.REPLICATE_API_TOKEN;
+        if (!replicateToken) {
+          return res.status(500).json({ message: "REPLICATE_API_TOKEN not configured" });
+        }
+
+        console.log('🎤 Generating song with vocals using MiniMax Music-1.5...');
+
+        // Build style prompt
+        const stylePrompt = [
+          genre || 'pop',
+          style || 'modern',
+          mood || 'uplifting'
+        ].filter(Boolean).join(', ');
+
+        console.log('📝 Style prompt:', stylePrompt);
+        console.log('📜 Lyrics preview:', lyrics.substring(0, 100) + '...');
+
+        // Call MiniMax Music-1.5 via Replicate using model endpoint
+        const response = await fetch("https://api.replicate.com/v1/models/minimax/music-1.5/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Token ${replicateToken}`,
+          },
+          body: JSON.stringify({
+            input: {
+              lyrics: lyrics,
+              prompt: stylePrompt
+            },
+          }),
+        });
+
+        const prediction = await response.json();
+
+        if (!prediction.id) {
+          console.error('[MiniMax] Invalid prediction response:', prediction);
+          return res.status(500).json({ message: "Failed to start song generation" });
+        }
+
+        // Poll for result (MiniMax can take 1-3 minutes for full songs)
+        let result;
+        const REPLICATE_API_BASE = 'https://api.replicate.com';
+        let attempts = 0;
+        const maxAttempts = 180; // 6 minutes max
+
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusResponse = await fetch(`${REPLICATE_API_BASE}/v1/predictions/${prediction.id}`, {
+            headers: { "Authorization": `Token ${replicateToken}` },
+          });
+          result = await statusResponse.json();
+          attempts++;
+
+          if (attempts % 15 === 0) {
+            console.log(`⏳ MiniMax generation in progress... (${attempts * 2}s)`);
+          }
+
+          if (attempts >= maxAttempts) {
+            return res.status(500).json({ message: "Song generation timeout" });
+          }
+        } while (result.status === "starting" || result.status === "processing");
+
+        if (result.status === "succeeded" && result.output) {
+          // Deduct credits after successful generation
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(
+              req.userId!,
+              req.creditCost,
+              'Full song with vocals (MiniMax)',
+              { genre, mood, lyricsPreview: lyrics.substring(0, 50) }
+            );
+          }
+
+          // MiniMax returns the audio URL
+          const audioUrl = typeof result.output === 'string' 
+            ? result.output 
+            : (result.output?.url ? result.output.url() : result.output);
+
+          console.log(`✅ MiniMax generated full song with vocals:`, audioUrl);
+
+          return res.json({
+            success: true,
+            audioUrl,
+            title: `${genre || 'AI'} Song`,
+            genre: genre || 'AI Generated',
+            prompt: stylePrompt,
+            provider: 'MiniMax Music-1.5',
+            quality: 'Full song with vocals (up to 4 mins)',
+            hasVocals: true
+          });
+        } else {
+          console.error('[MiniMax] Generation failed:', result);
+          return res.status(500).json({ message: `Song generation failed: ${result.error || 'Unknown error'}` });
+        }
+      } catch (err: any) {
+        console.error("MiniMax song generation error:", err);
+        return res.status(500).json({ message: err?.message || "Failed to generate song with vocals" });
+      }
+    }
+  );
+
   // Save lyrics endpoint
   app.post("/api/lyrics", requireAuth(), async (req: Request, res: Response) => {
     try {

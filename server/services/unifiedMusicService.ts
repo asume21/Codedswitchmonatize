@@ -113,8 +113,69 @@ export class UnifiedMusicService {
   }
 
   /**
-   * Generate studio-quality full song using MusicGen Large (stereo)
-   * Note: Using MusicGen instead of Bark since Bark is text-to-speech, not music generation
+   * Generate full song with vocals using MiniMax Music-1.5
+   * Supports up to 4 minutes with natural vocals and rich instrumentation
+   * Cost: $0.03 per output
+   */
+  async generateFullSongWithVocals(prompt: string, lyrics: string, options: {
+    genre?: string;
+    mood?: string;
+    duration?: number;
+    style?: string;
+  }): Promise<any> {
+    try {
+      const {
+        genre = "pop",
+        mood = "uplifting",
+        duration = 120,
+        style = "modern"
+      } = options;
+
+      console.log('🎤 UnifiedMusic: Generating full song WITH VOCALS using MiniMax Music-1.5...');
+
+      // Build style prompt for MiniMax
+      const stylePrompt = `${genre}, ${style}, ${mood}`;
+      
+      console.log('📝 Style prompt:', stylePrompt);
+      console.log('📜 Lyrics:', lyrics.substring(0, 100) + '...');
+
+      // MiniMax Music-1.5 - Full songs with vocals up to 4 minutes
+      const output = await replicate.run(
+        "minimax/music-1.5",
+        {
+          input: {
+            lyrics: lyrics,
+            prompt: stylePrompt
+          }
+        }
+      );
+
+      // MiniMax returns a FileOutput object with url() method
+      const audioUrl = typeof output === 'object' && output !== null && 'url' in output 
+        ? (output as any).url() 
+        : output;
+
+      return {
+        status: 'success',
+        audio_url: audioUrl,
+        metadata: {
+          duration,
+          quality: "High quality with vocals",
+          generator: "minimax-music-1.5",
+          hasVocals: true,
+          prompt: stylePrompt,
+          lyrics: lyrics.substring(0, 200)
+        }
+      };
+    } catch (error) {
+      console.error("MiniMax song generation failed:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate studio-quality instrumental using MusicGen Large (stereo)
+   * Best for instrumentals, beats, and backing tracks (no vocals)
    */
   async generateFullSong(prompt: string, options: {
     genre?: string;
@@ -124,6 +185,7 @@ export class UnifiedMusicService {
     vocals?: boolean;
     bpm?: number;
     key?: string;
+    lyrics?: string;
   }): Promise<any> {
     try {
       const {
@@ -133,20 +195,28 @@ export class UnifiedMusicService {
         style = "modern",
         vocals = true,
         bpm,
-        key
+        key,
+        lyrics
       } = options;
 
-      console.log('🎵 UnifiedMusic: Generating full song with optimized MusicGen...');
+      // If vocals requested AND lyrics provided, use MiniMax Music-1.5
+      if (vocals && lyrics && lyrics.length > 10) {
+        console.log('🎤 Vocals requested with lyrics - using MiniMax Music-1.5');
+        return this.generateFullSongWithVocals(prompt, lyrics, {
+          genre, mood, duration: Math.min(duration, 240), style
+        });
+      }
+
+      console.log('🎵 UnifiedMusic: Generating instrumental with optimized MusicGen...');
 
       // Build professional prompt with genre-specific terminology
       const musicPrompt = this.buildProfessionalPrompt(prompt, {
-        genre, mood, style, bpm, key, vocals
+        genre, mood, style, bpm, key, vocals: false
       });
 
       console.log('📝 Professional prompt:', musicPrompt);
 
       // Use MusicGen stereo-melody-large for best quality instrumentals
-      // Note: MusicGen doesn't generate vocals, so we generate high-quality instrumentals
       const output = await replicate.run(
         "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
         {
@@ -158,8 +228,8 @@ export class UnifiedMusicService {
             normalization_strategy: "loudness",
             top_k: 250,
             top_p: 0.0,
-            temperature: 0.8,        // Lowered for more coherent output
-            classifier_free_guidance: 5.0  // Increased for better prompt adherence
+            temperature: 0.8,
+            classifier_free_guidance: 5.0
           }
         }
       );
@@ -171,6 +241,7 @@ export class UnifiedMusicService {
           duration,
           quality: "48kHz stereo",
           generator: "musicgen-stereo-melody-large",
+          hasVocals: false,
           prompt: musicPrompt
         }
       };
