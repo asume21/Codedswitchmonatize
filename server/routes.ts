@@ -1674,14 +1674,35 @@ Return in this exact JSON format:
 
       console.log(`Starting stem separation: ${stems} stems`);
 
-      const predictionResponse = await fetch('https://api.replicate.com/v1/models/cjwbw/demucs/predictions', {
+      // First, get the latest version of the demucs model
+      const modelResponse = await fetch('https://api.replicate.com/v1/models/cjwbw/demucs', {
+        headers: {
+          'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
+        },
+      });
+      
+      if (!modelResponse.ok) {
+        console.error('Failed to get model info:', await modelResponse.text());
+        return sendError(res, 500, "Stem separation model not available");
+      }
+      
+      const modelInfo = await modelResponse.json() as any;
+      const latestVersion = modelInfo.latest_version?.id;
+      
+      if (!latestVersion) {
+        return sendError(res, 500, "Could not determine model version");
+      }
+      
+      console.log(`Using demucs version: ${latestVersion}`);
+
+      const predictionResponse = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
           'Content-Type': 'application/json',
-          'Prefer': 'wait'
         },
         body: JSON.stringify({
+          version: latestVersion,
           input: {
             audio: finalAudioUrl,
           },
