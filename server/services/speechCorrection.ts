@@ -17,6 +17,7 @@ type PreviewInput = {
   transcript: string;
   duration?: number;
   stylePrompt?: string;
+  voiceId?: string;
 };
 
 export interface SpeechPreviewRecord {
@@ -66,21 +67,120 @@ export async function generateSpeechPreview({
   transcript,
   duration = 15,
   stylePrompt,
-}: PreviewInput): Promise<string> {
-  const promptParts = [];
-  if (stylePrompt) promptParts.push(stylePrompt);
-  promptParts.push(transcript.trim());
-  const prompt = promptParts.filter(Boolean).join(" | ");
-
-  const result = await unifiedMusicService.generateTrack(prompt, {
-    type: 'melody',
-    duration
-  });
+  voiceId: selectedVoiceId,
+  sourceAudioPath,
+}: PreviewInput & { sourceAudioPath?: string }): Promise<string> {
+  const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
   
-  if (!result || !result.audio_url) {
-    throw new Error("Speech preview generation failed (Replicate returned empty URL)");
+  console.log("[SpeechPreview] Starting preview generation");
+  console.log("[SpeechPreview] Voice ID:", selectedVoiceId);
+  console.log("[SpeechPreview] Source audio:", sourceAudioPath);
+  
+  if (!elevenLabsApiKey) {
+    throw new Error("ElevenLabs API key not configured");
   }
-  return result.audio_url;
+
+  const objectsDir = fs.existsSync('/data') 
+    ? path.resolve('/data', 'objects')
+    : path.resolve(process.cwd(), 'objects');
+  
+  if (!fs.existsSync(objectsDir)) {
+    fs.mkdirSync(objectsDir, { recursive: true });
+  }
+
+  // If we have source audio, use Speech-to-Speech to convert the vocals
+  if (sourceAudioPath && selectedVoiceId) {
+    console.log("[SpeechPreview] Using Speech-to-Speech conversion on source audio");
+    
+    // Step 1: Isolate vocals from the source audio
+    const sourceBuffer = fs.readFileSync(sourceAudioPath);
+    
+    console.log("[SpeechPreview] Step 1: Isolating vocals...");
+    const isolateResponse = await fetch('https://api.elevenlabs.io/v1/audio-isolation', {
+      method: 'POST',
+      headers: {
+        'xi-api-key': elevenLabsApiKey,
+      },
+      body: (() => {
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('audio', sourceBuffer, { filename: 'input.mp3', contentType: 'audio/mpeg' });
+        return form;
+      })(),
+    });
+
+    if (!isolateResponse.ok) {
+      const err = await isolateResponse.text();
+      console.error("[SpeechPreview] Isolation failed:", err);
+      throw new Error("Failed to isolate vocals");
+    }
+
+    const vocalsBuffer = Buffer.from(await isolateResponse.arrayBuffer());
+    console.log("[SpeechPreview] Vocals isolated, size:", vocalsBuffer.length);
+
+    // Step 2: Convert vocals to selected voice using Speech-to-Speech
+    console.log("[SpeechPreview] Step 2: Converting to selected voice...");
+    const FormData = require('form-data');
+    const stsForm = new FormData();
+    stsForm.append('audio', vocalsBuffer, { filename: 'vocals.mp3', contentType: 'audio/mpeg' });
+    stsForm.append('model_id', 'eleven_english_sts_v2');
+    stsForm.append('voice_settings', JSON.stringify({ stability: 0.5, similarity_boost: 0.75 }));
+
+    const stsResponse = await fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${selectedVoiceId}`, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': elevenLabsApiKey,
+        ...stsForm.getHeaders(),
+      },
+      body: stsForm,
+    });
+
+    if (!stsResponse.ok) {
+      const err = await stsResponse.text();
+      console.error("[SpeechPreview] STS failed:", err);
+      throw new Error("Failed to convert voice");
+    }
+
+    const convertedBuffer = Buffer.from(await stsResponse.arrayBuffer());
+    console.log("[SpeechPreview] Voice converted, size:", convertedBuffer.length);
+
+    // Save the converted vocals
+    const filename = `sts_preview_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.mp3`;
+    const outputPath = path.join(objectsDir, filename);
+    fs.writeFileSync(outputPath, convertedBuffer);
+    
+    console.log("[SpeechPreview] Saved converted vocals to:", outputPath);
+    return `/api/internal/uploads/${filename}`;
+  }
+
+  // Fallback: Use TTS if no source audio (just read the transcript)
+  console.log("[SpeechPreview] No source audio, using TTS fallback");
+  const voiceId = selectedVoiceId || "21m00Tcm4TlvDq8ikWAM";
+  
+  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': elevenLabsApiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: transcript.trim().substring(0, 5000),
+      model_id: 'eleven_monolingual_v1',
+      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`TTS failed: ${errorText}`);
+  }
+
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
+  const filename = `tts_preview_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.mp3`;
+  const outputPath = path.join(objectsDir, filename);
+  fs.writeFileSync(outputPath, audioBuffer);
+  
+  return `/api/internal/uploads/${filename}`;
 }
 
 export function createVoiceIdForFile(filePath: string) {

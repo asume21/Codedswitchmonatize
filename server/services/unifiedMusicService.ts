@@ -174,6 +174,60 @@ export class UnifiedMusicService {
   }
 
   /**
+   * Generate premium quality music using Google Lyria 2
+   * 48kHz stereo output, commercial use allowed
+   * Cost: $2 per 1000 seconds of output
+   */
+  async generateWithLyria2(prompt: string, options: {
+    genre?: string;
+    mood?: string;
+    style?: string;
+  }): Promise<any> {
+    try {
+      const { genre = "pop", mood = "uplifting", style = "modern" } = options;
+
+      console.log('🎵 UnifiedMusic: Generating with Google Lyria 2 (premium 48kHz)...');
+
+      // Build professional prompt
+      const fullPrompt = this.buildProfessionalPrompt(prompt, {
+        genre, mood, style, vocals: false
+      });
+
+      console.log('📝 Lyria 2 prompt:', fullPrompt);
+
+      // Google Lyria 2 - Premium 48kHz stereo
+      const output = await replicate.run(
+        "google/lyria-2",
+        {
+          input: {
+            prompt: fullPrompt
+          }
+        }
+      );
+
+      // Lyria 2 returns a FileOutput object with url() method
+      const audioUrl = typeof output === 'object' && output !== null && 'url' in output 
+        ? (output as any).url() 
+        : output;
+
+      return {
+        status: 'success',
+        audio_url: audioUrl,
+        metadata: {
+          quality: "48kHz stereo (premium)",
+          generator: "google-lyria-2",
+          hasVocals: false,
+          prompt: fullPrompt,
+          commercial: true
+        }
+      };
+    } catch (error) {
+      console.error("Lyria 2 generation failed:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Generate studio-quality instrumental using MusicGen Large (stereo)
    * Best for instrumentals, beats, and backing tracks (no vocals)
    */

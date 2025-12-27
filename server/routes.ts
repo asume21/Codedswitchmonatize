@@ -38,6 +38,7 @@ import { listVoices, getVoice, createVoice, deleteVoice, convertWithVoice, check
 import { extractPitch, pitchCorrect, extractMelody, scoreKaraoke, detectEmotion, classifyAudio, checkApiHealth } from "./services/audioAnalysis";
 import { mixPreviewService, MixPreviewRequest } from "./services/mixPreview";
 import { jobManager } from "./services/jobManager";
+import { elevenLabsService } from "./services/elevenLabsService";
 
 // Standardized error response helper
 const sendError = (res: Response, statusCode: number, message: string) => {
@@ -1648,21 +1649,29 @@ Return in this exact JSON format:
         });
       }
 
-      // Handle local file URLs - convert to base64 data URI for Replicate
+      // Handle local file URLs - for Replicate we need a publicly accessible URL
+      // For local files, we'll use base64 only for small files (<10MB)
+      // For larger files, we need to use a file hosting service or return an error
       let finalAudioUrl = audioUrl;
       if (audioUrl.includes('/api/internal/uploads/')) {
         try {
-          // Extract the object key from the URL
           const objectKey = decodeURIComponent(audioUrl.split('/api/internal/uploads/')[1]);
           const filePath = path.join(LOCAL_OBJECTS_DIR, objectKey);
           
           if (fs.existsSync(filePath)) {
             const fileBuffer = fs.readFileSync(filePath);
+            const fileSizeMB = fileBuffer.length / 1024 / 1024;
+            
+            // Replicate has a ~10MB limit for base64 payloads
+            if (fileSizeMB > 8) {
+              return sendError(res, 413, `File too large (${fileSizeMB.toFixed(1)}MB). Maximum size is 8MB. Please use a shorter audio clip or compress the file.`);
+            }
+            
             const base64 = fileBuffer.toString('base64');
             const ext = path.extname(filePath).toLowerCase().replace('.', '');
             const mimeType = ext === 'mp3' ? 'audio/mpeg' : ext === 'wav' ? 'audio/wav' : ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
             finalAudioUrl = `data:${mimeType};base64,${base64}`;
-            console.log(`Converted local file to base64 data URI (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+            console.log(`Converted local file to base64 data URI (${fileSizeMB.toFixed(2)} MB)`);
           } else {
             return sendError(res, 404, "Audio file not found on server");
           }
@@ -2605,19 +2614,54 @@ ${code}
     async (req: Request, res: Response) => {
       try {
         const transcript = (req.body.transcriptEdits || req.body.transcript || "").trim();
-        const { duration, stylePrompt, wordTiming, voiceId } = req.body;
+        const { duration, stylePrompt, wordTiming, voiceId, guideAudioId } = req.body;
         if (!transcript) return sendError(res, 400, "Missing transcript");
+
+        // Get the source audio path from the song if provided
+        let sourceAudioPath: string | undefined;
+        if (guideAudioId) {
+          try {
+            const song = await storage.getSong(guideAudioId.toString());
+            if (song) {
+              // Get the audio file path - check multiple possible URL fields
+              const songUrl = (song as any).url || song.accessibleUrl || song.originalUrl || (song as any).songURL;
+              console.log("[SpeechPreview] Song URL:", songUrl);
+              
+              if (songUrl && songUrl.includes('/api/internal/uploads/')) {
+                const objectKey = songUrl.split('/api/internal/uploads/')[1];
+                sourceAudioPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(objectKey));
+              } else if (songUrl && songUrl.includes('/api/songs/stream/')) {
+                // Handle stream URLs - get the actual file
+                const songId = songUrl.split('/api/songs/stream/')[1];
+                const streamSong = await storage.getSong(songId);
+                if (streamSong?.originalUrl) {
+                  const objectKey = streamSong.originalUrl.split('/api/internal/uploads/')[1];
+                  if (objectKey) {
+                    sourceAudioPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(objectKey));
+                  }
+                }
+              }
+              
+              // Check if file exists
+              if (sourceAudioPath && fs.existsSync(sourceAudioPath)) {
+                console.log("[SpeechPreview] Source audio path found:", sourceAudioPath);
+              } else {
+                console.log("[SpeechPreview] Source audio file not found at:", sourceAudioPath);
+                sourceAudioPath = undefined;
+              }
+            }
+          } catch (e) {
+            console.error("[SpeechPreview] Failed to get song:", e);
+          }
+        }
 
         let url = await generateSpeechPreview({
           transcript,
           duration: duration ?? 15,
           stylePrompt,
+          voiceId,
+          sourceAudioPath,
         });
-
-        // Apply voice conversion if voiceId provided
-        if (voiceId) {
-          url = await applyVoiceConversion(url, voiceId);
-        }
 
         const previewId = crypto.randomUUID();
         storePreview({
@@ -2851,6 +2895,366 @@ ${code}
         console.error("Voice convert error:", error);
         const message = error instanceof Error ? error.message : "Voice conversion failed";
         sendError(res, 500, message);
+      }
+    }
+  );
+
+  // ============================================
+  // ELEVENLABS VOICE CLONING ENDPOINTS
+  // Cloud-based voice cloning and text-to-speech
+  // ============================================
+
+  // List all ElevenLabs voices
+  app.get("/api/elevenlabs/voices", requireAuth(), async (_req: Request, res: Response) => {
+    try {
+      const voices = await elevenLabsService.listVoices();
+      res.json({ success: true, voices });
+    } catch (error: any) {
+      console.error("ElevenLabs list voices error:", error);
+      sendError(res, 500, error.message || "Failed to list voices");
+    }
+  });
+
+  // Get ElevenLabs subscription info
+  app.get("/api/elevenlabs/subscription", requireAuth(), async (_req: Request, res: Response) => {
+    try {
+      const subscription = await elevenLabsService.getSubscriptionInfo();
+      res.json({ success: true, ...subscription });
+    } catch (error: any) {
+      console.error("ElevenLabs subscription error:", error);
+      sendError(res, 500, error.message || "Failed to get subscription");
+    }
+  });
+
+  // Clone a voice from audio samples
+  app.post(
+    "/api/elevenlabs/clone",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT * 2, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { name, description, audioUrls } = req.body;
+
+        if (!name || !audioUrls || !Array.isArray(audioUrls) || audioUrls.length === 0) {
+          return sendError(res, 400, "name and audioUrls array required");
+        }
+
+        // Fetch audio files
+        const audioBuffers: Buffer[] = [];
+        for (const url of audioUrls) {
+          let audioPath: string;
+          if (url.includes("/api/internal/uploads/")) {
+            const objectKey = url.split("/api/internal/uploads/")[1];
+            audioPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(objectKey));
+          } else {
+            // External URL - fetch it
+            const response = await fetch(url);
+            const buffer = Buffer.from(await response.arrayBuffer());
+            audioBuffers.push(buffer);
+            continue;
+          }
+
+          if (fs.existsSync(audioPath)) {
+            audioBuffers.push(fs.readFileSync(audioPath));
+          }
+        }
+
+        if (audioBuffers.length === 0) {
+          return sendError(res, 400, "No valid audio files found");
+        }
+
+        const voice = await elevenLabsService.cloneVoice(
+          name,
+          description || `Voice clone created from ${audioBuffers.length} samples`,
+          audioBuffers
+        );
+
+        res.json({ success: true, voice });
+      } catch (error: any) {
+        console.error("ElevenLabs clone error:", error);
+        sendError(res, 500, error.message || "Failed to clone voice");
+      }
+    }
+  );
+
+  // Delete an ElevenLabs voice
+  app.delete(
+    "/api/elevenlabs/voices/:voiceId",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { voiceId } = req.params;
+        await elevenLabsService.deleteVoice(voiceId);
+        res.json({ success: true, message: "Voice deleted" });
+      } catch (error: any) {
+        console.error("ElevenLabs delete error:", error);
+        sendError(res, 500, error.message || "Failed to delete voice");
+      }
+    }
+  );
+
+  // Text to speech with ElevenLabs
+  app.post(
+    "/api/elevenlabs/tts",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { voiceId, text, stability, similarity_boost } = req.body;
+
+        if (!voiceId || !text) {
+          return sendError(res, 400, "voiceId and text required");
+        }
+
+        const audioBuffer = await elevenLabsService.textToSpeech(voiceId, text, {
+          stability: stability ?? 0.5,
+          similarity_boost: similarity_boost ?? 0.75,
+        });
+
+        // Save to file
+        const filename = `tts_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp3`;
+        const outputPath = path.join(LOCAL_OBJECTS_DIR, filename);
+        fs.writeFileSync(outputPath, audioBuffer);
+
+        res.json({
+          success: true,
+          url: `/api/internal/uploads/${filename}`,
+          size: audioBuffer.length,
+        });
+      } catch (error: any) {
+        console.error("ElevenLabs TTS error:", error);
+        sendError(res, 500, error.message || "Failed to generate speech");
+      }
+    }
+  );
+
+  // Speech to speech (voice conversion) with ElevenLabs
+  app.post(
+    "/api/elevenlabs/sts",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { voiceId, audioUrl, objectKey, stability, similarity_boost } = req.body;
+
+        if (!voiceId) {
+          return sendError(res, 400, "voiceId required");
+        }
+
+        let audioBuffer: Buffer;
+        if (objectKey) {
+          const audioPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+          if (!fs.existsSync(audioPath)) {
+            return sendError(res, 404, "Audio file not found");
+          }
+          audioBuffer = fs.readFileSync(audioPath);
+        } else if (audioUrl) {
+          if (audioUrl.includes("/api/internal/uploads/")) {
+            const key = audioUrl.split("/api/internal/uploads/")[1];
+            const audioPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(key));
+            audioBuffer = fs.readFileSync(audioPath);
+          } else {
+            const response = await fetch(audioUrl);
+            audioBuffer = Buffer.from(await response.arrayBuffer());
+          }
+        } else {
+          return sendError(res, 400, "audioUrl or objectKey required");
+        }
+
+        const resultBuffer = await elevenLabsService.speechToSpeech(voiceId, audioBuffer, {
+          stability: stability ?? 0.5,
+          similarity_boost: similarity_boost ?? 0.75,
+        });
+
+        // Save to file
+        const filename = `sts_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp3`;
+        const outputPath = path.join(LOCAL_OBJECTS_DIR, filename);
+        fs.writeFileSync(outputPath, resultBuffer);
+
+        res.json({
+          success: true,
+          url: `/api/internal/uploads/${filename}`,
+          size: resultBuffer.length,
+        });
+      } catch (error: any) {
+        console.error("ElevenLabs STS error:", error);
+        sendError(res, 500, error.message || "Failed to convert speech");
+      }
+    }
+  );
+
+  // Audio isolation (remove background noise)
+  app.post(
+    "/api/elevenlabs/isolate",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { audioUrl, objectKey } = req.body;
+
+        let audioBuffer: Buffer;
+        if (objectKey) {
+          const audioPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+          if (!fs.existsSync(audioPath)) {
+            return sendError(res, 404, "Audio file not found");
+          }
+          audioBuffer = fs.readFileSync(audioPath);
+        } else if (audioUrl) {
+          if (audioUrl.includes("/api/internal/uploads/")) {
+            const key = audioUrl.split("/api/internal/uploads/")[1];
+            const audioPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(key));
+            audioBuffer = fs.readFileSync(audioPath);
+          } else {
+            const response = await fetch(audioUrl);
+            audioBuffer = Buffer.from(await response.arrayBuffer());
+          }
+        } else {
+          return sendError(res, 400, "audioUrl or objectKey required");
+        }
+
+        const resultBuffer = await elevenLabsService.isolateAudio(audioBuffer);
+
+        // Save to file
+        const filename = `isolated_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp3`;
+        const outputPath = path.join(LOCAL_OBJECTS_DIR, filename);
+        fs.writeFileSync(outputPath, resultBuffer);
+
+        res.json({
+          success: true,
+          url: `/api/internal/uploads/${filename}`,
+          size: resultBuffer.length,
+        });
+      } catch (error: any) {
+        console.error("ElevenLabs isolate error:", error);
+        sendError(res, 500, error.message || "Failed to isolate audio");
+      }
+    }
+  );
+
+  // ============================================
+  // DOWNLOAD EXTERNAL AUDIO FILE
+  // Downloads an external audio URL and saves it locally
+  // ============================================
+  app.post(
+    "/api/audio/download-external",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { url } = req.body;
+
+        if (!url || typeof url !== 'string') {
+          return sendError(res, 400, "URL required");
+        }
+
+        // Download the file
+        const response = await fetch(url);
+        if (!response.ok) {
+          return sendError(res, 500, "Failed to download file");
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // Determine file extension from URL or content-type
+        const contentType = response.headers.get('content-type') || 'audio/mpeg';
+        let ext = 'mp3';
+        if (contentType.includes('wav')) ext = 'wav';
+        else if (contentType.includes('flac')) ext = 'flac';
+        else if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
+
+        // Save to local storage
+        const filename = `downloaded_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.${ext}`;
+        const outputPath = path.join(LOCAL_OBJECTS_DIR, filename);
+        fs.writeFileSync(outputPath, buffer);
+
+        res.json({
+          success: true,
+          url: `/api/internal/uploads/${filename}`,
+          objectKey: filename,
+          size: buffer.length,
+        });
+      } catch (error: any) {
+        console.error("Download external error:", error);
+        sendError(res, 500, error.message || "Failed to download file");
+      }
+    }
+  );
+
+  // ============================================
+  // AUDIO MIXING ENDPOINT
+  // Mix two audio files together (e.g., vocals + instrumental)
+  // ============================================
+  app.post(
+    "/api/audio/mix",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { vocalsUrl, instrumentalUrl, vocalsVolume = 1.0, instrumentalVolume = 0.8 } = req.body;
+
+        if (!vocalsUrl || !instrumentalUrl) {
+          return sendError(res, 400, "vocalsUrl and instrumentalUrl required");
+        }
+
+        // Get file paths - download external URLs if needed
+        const getFilePath = async (url: string): Promise<string> => {
+          if (url.includes("/api/internal/uploads/")) {
+            const key = decodeURIComponent(url.split("/api/internal/uploads/")[1]);
+            return path.join(LOCAL_OBJECTS_DIR, key);
+          } else if (url.startsWith("http")) {
+            // Download external file
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Failed to download external file");
+            const buffer = Buffer.from(await response.arrayBuffer());
+            const filename = `temp_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp3`;
+            const filePath = path.join(LOCAL_OBJECTS_DIR, filename);
+            fs.writeFileSync(filePath, buffer);
+            return filePath;
+          }
+          throw new Error("Invalid audio URL");
+        };
+
+        const vocalsPath = await getFilePath(vocalsUrl);
+        const instrumentalPath = await getFilePath(instrumentalUrl);
+
+        if (!fs.existsSync(vocalsPath) || !fs.existsSync(instrumentalPath)) {
+          return sendError(res, 404, "Audio files not found");
+        }
+
+        // Output file
+        const outputFilename = `mixed_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp3`;
+        const outputPath = path.join(LOCAL_OBJECTS_DIR, outputFilename);
+
+        // Use FFmpeg to mix the audio files
+        const ffmpeg = require("fluent-ffmpeg");
+        
+        await new Promise<void>((resolve, reject) => {
+          ffmpeg()
+            .input(instrumentalPath)
+            .input(vocalsPath)
+            .complexFilter([
+              `[0:a]volume=${instrumentalVolume}[instrumental]`,
+              `[1:a]volume=${vocalsVolume}[vocals]`,
+              `[instrumental][vocals]amix=inputs=2:duration=longest[out]`
+            ])
+            .outputOptions(["-map", "[out]"])
+            .audioCodec("libmp3lame")
+            .audioBitrate("192k")
+            .output(outputPath)
+            .on("end", () => resolve())
+            .on("error", (err: Error) => reject(err))
+            .run();
+        });
+
+        const outputSize = fs.statSync(outputPath).size;
+
+        res.json({
+          success: true,
+          url: `/api/internal/uploads/${outputFilename}`,
+          size: outputSize,
+        });
+      } catch (error: any) {
+        console.error("Audio mix error:", error);
+        sendError(res, 500, error.message || "Failed to mix audio");
       }
     }
   );
@@ -3558,6 +3962,177 @@ ${code}
       } catch (err: any) {
         console.error("MiniMax song generation error:", err);
         return res.status(500).json({ message: err?.message || "Failed to generate song with vocals" });
+      }
+    }
+  );
+
+  // Generate premium music using Google Lyria 2
+  // 48kHz stereo output, commercial use allowed
+  app.post(
+    "/api/music/generate-lyria2",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.SONG_GENERATION * 2, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { prompt, genre, mood, style } = req.body;
+
+        if (!prompt || prompt.length < 5) {
+          return sendError(res, 400, "Prompt is required (minimum 5 characters)");
+        }
+
+        const replicateToken = process.env.REPLICATE_API_TOKEN;
+        if (!replicateToken) {
+          return res.status(500).json({ message: "REPLICATE_API_TOKEN not configured" });
+        }
+
+        console.log('🎵 Generating premium music with Google Lyria 2...');
+
+        const genreTerms: Record<string, string> = {
+          'hip-hop': 'hard-hitting 808 bass, crisp hi-hats',
+          'trap': 'rolling hi-hats, deep 808 sub-bass',
+          'pop': 'catchy hooks, polished production',
+          'edm': 'powerful drops, sidechained bass',
+          'house': 'four-on-the-floor kick, groovy bassline',
+          'country': 'steel guitar, acoustic elements',
+          'jazz': 'complex harmonies, swing rhythm'
+        };
+
+        const genreDesc = genreTerms[(genre || 'pop').toLowerCase()] || 'professional production';
+        const fullPrompt = `${prompt}. ${genre || 'pop'} style, ${genreDesc}. ${mood || 'uplifting'} mood. Studio-quality.`;
+
+        const response = await fetch("https://api.replicate.com/v1/models/google/lyria-2/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Token ${replicateToken}`,
+          },
+          body: JSON.stringify({ input: { prompt: fullPrompt } }),
+        });
+
+        const prediction = await response.json();
+        if (!prediction.id) {
+          return res.status(500).json({ message: "Failed to start Lyria 2 generation" });
+        }
+
+        let result;
+        let attempts = 0;
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { "Authorization": `Token ${replicateToken}` },
+          });
+          result = await statusResponse.json();
+          attempts++;
+          if (attempts >= 120) return res.status(500).json({ message: "Generation timeout" });
+        } while (result.status === "starting" || result.status === "processing");
+
+        if (result.status === "succeeded" && result.output) {
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(req.userId!, req.creditCost, 'Lyria 2 generation', { genre, mood });
+          }
+          const audioUrl = typeof result.output === 'string' ? result.output : result.output;
+          return res.json({
+            success: true,
+            audioUrl,
+            provider: 'Google Lyria 2',
+            quality: '48kHz stereo (premium)',
+            commercial: true
+          });
+        }
+        return res.status(500).json({ message: `Generation failed: ${result.error || 'Unknown error'}` });
+      } catch (err: any) {
+        console.error("Lyria 2 error:", err);
+        return res.status(500).json({ message: err?.message || "Failed to generate with Lyria 2" });
+      }
+    }
+  );
+
+  // Generate fixed-BPM loops using MusicGen-Looper
+  // Returns multiple variations at exact BPM
+  app.post(
+    "/api/music/generate-loops",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.BEAT_GENERATION, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { prompt, bpm = 140, variations = 4, maxDuration = 8, modelVersion = "medium" } = req.body;
+
+        if (!prompt || prompt.length < 3) {
+          return sendError(res, 400, "Prompt is required");
+        }
+
+        const replicateToken = process.env.REPLICATE_API_TOKEN;
+        if (!replicateToken) {
+          return res.status(500).json({ message: "REPLICATE_API_TOKEN not configured" });
+        }
+
+        console.log(`🔁 Generating ${variations} loop variations at ${bpm} BPM...`);
+
+        const response = await fetch("https://api.replicate.com/v1/models/meta/musicgen-looper/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Token ${replicateToken}`,
+          },
+          body: JSON.stringify({
+            input: {
+              prompt: `${prompt}, ${bpm} bpm`,
+              bpm: Math.min(Math.max(bpm, 40), 300),
+              variations: Math.min(Math.max(variations, 1), 20),
+              max_duration: Math.min(Math.max(maxDuration, 2), 20),
+              model_version: modelVersion,
+              top_k: 250,
+              top_p: 0,
+              temperature: 1,
+              classifier_free_guidance: 3,
+              output_format: "wav"
+            },
+          }),
+        });
+
+        const prediction = await response.json();
+        if (!prediction.id) {
+          return res.status(500).json({ message: "Failed to start loop generation" });
+        }
+
+        let result;
+        let attempts = 0;
+        do {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { "Authorization": `Token ${replicateToken}` },
+          });
+          result = await statusResponse.json();
+          attempts++;
+          if (attempts >= 90) return res.status(500).json({ message: "Loop generation timeout" });
+        } while (result.status === "starting" || result.status === "processing");
+
+        if (result.status === "succeeded" && result.output) {
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(req.userId!, req.creditCost, 'Loop generation', { bpm, variations });
+          }
+          
+          // MusicGen-Looper returns an array of loop URLs
+          const loops = Array.isArray(result.output) ? result.output : [result.output];
+          
+          return res.json({
+            success: true,
+            loops: loops.map((url: string, i: number) => ({
+              id: `loop_${i + 1}`,
+              url,
+              bpm,
+              variation: i + 1
+            })),
+            bpm,
+            variations: loops.length,
+            provider: 'MusicGen-Looper',
+            quality: 'Fixed-BPM WAV loops'
+          });
+        }
+        return res.status(500).json({ message: `Loop generation failed: ${result.error || 'Unknown error'}` });
+      } catch (err: any) {
+        console.error("MusicGen-Looper error:", err);
+        return res.status(500).json({ message: err?.message || "Failed to generate loops" });
       }
     }
   );

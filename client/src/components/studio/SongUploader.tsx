@@ -64,6 +64,15 @@ export default function SongUploader() {
     preview: false,
     commit: false,
   });
+  const [speechVoiceId, setSpeechVoiceId] = useState<string>('');
+  const [availableVoices, setAvailableVoices] = useState<Array<{ voice_id: string; name: string }>>([]);
+  // Vocal replacement state
+  const [vocalReplacementLoading, setVocalReplacementLoading] = useState(false);
+  const [extractedVocalsUrl, setExtractedVocalsUrl] = useState<string | null>(null);
+  const [convertedVocalsUrl, setConvertedVocalsUrl] = useState<string | null>(null);
+  const [instrumentalUrl, setInstrumentalUrl] = useState<string | null>(null);
+  const [finalMixUrl, setFinalMixUrl] = useState<string | null>(null);
+  const [vocalReplacementStep, setVocalReplacementStep] = useState<'idle' | 'extracting' | 'converting' | 'mixing' | 'done'>('idle');;
 
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
@@ -283,6 +292,51 @@ export default function SongUploader() {
     refetch();
   }, [refetch]);
 
+  // Load saved transcriptions from songs data
+  useEffect(() => {
+    if (songs && songs.length > 0) {
+      const newTranscriptions = new Map<string, string>();
+      songs.forEach((song: any) => {
+        if (song.transcription) {
+          newTranscriptions.set(song.id.toString(), song.transcription);
+        }
+      });
+      if (newTranscriptions.size > 0) {
+        setTranscriptions(prev => {
+          const merged = new Map(prev);
+          newTranscriptions.forEach((value, key) => {
+            if (!merged.has(key)) {
+              merged.set(key, value);
+            }
+          });
+          return merged;
+        });
+      }
+    }
+  }, [songs]);
+
+  // Fetch available ElevenLabs voices for speech correction
+  useEffect(() => {
+    const fetchVoices = async () => {
+      try {
+        const response = await fetch('/api/elevenlabs/voices', { credentials: 'include' });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.voices && Array.isArray(data.voices)) {
+            setAvailableVoices(data.voices);
+            // Auto-select first voice if none selected
+            if (!speechVoiceId && data.voices.length > 0) {
+              setSpeechVoiceId(data.voices[0].voice_id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch voices:', error);
+      }
+    };
+    fetchVoices();
+  }, []);
+
   useEffect(() => {
     if (selectedSong) {
       registerSongTrack(selectedSong);
@@ -461,16 +515,19 @@ export default function SongUploader() {
         wordTiming: speechWords,
         guideAudioId: song.id,
         keepTiming: true,
+        voiceId: speechVoiceId,
       });
       const data = await response.json();
-      setSpeechPreviewUrl(data.previewUrl || data.url || null);
+      const previewUrl = data.previewUrl || data.url || null;
+      console.log("[SpeechPreview] Received URL:", previewUrl);
+      setSpeechPreviewUrl(previewUrl);
       setSpeechPreviewId(data.previewId || data.id || null);
       if (Array.isArray(data.alignedWords)) {
         setSpeechWords(data.alignedWords);
       }
       toast({
         title: "Preview ready",
-        description: "Listen and compare with the original.",
+        description: previewUrl ? `URL: ${previewUrl.substring(0, 50)}...` : "No URL returned",
       });
     } catch (error) {
       console.error("Speech correction preview error:", error);
@@ -1525,7 +1582,19 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <Select value={speechVoiceId} onValueChange={(v) => setSpeechVoiceId(v)}>
+                      <SelectTrigger className="bg-gray-800 border-gray-700 h-8 w-40 text-xs">
+                        <SelectValue placeholder="Select voice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableVoices.map((v) => (
+                          <SelectItem key={v.voice_id} value={v.voice_id}>
+                            {v.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Button
                       size="sm"
                       onClick={runSpeechTranscribe}
@@ -1538,7 +1607,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                     <Button
                       size="sm"
                       onClick={runSpeechPreview}
-                      disabled={!speechSongId || speechLoading.preview}
+                      disabled={!speechSongId || !speechVoiceId || speechLoading.preview}
                       className="bg-purple-600 hover:bg-purple-500"
                     >
                       {speechLoading.preview ? <i className="fas fa-spinner fa-spin mr-1"></i> : <Sparkles className="w-3 h-3 mr-1" />}
