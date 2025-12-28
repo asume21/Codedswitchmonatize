@@ -28,6 +28,13 @@ import {
   type InsertCreditTransaction,
   type UserSubscription,
   type InsertUserSubscription,
+  type Track,
+  type InsertTrack,
+  type JamSession,
+  type InsertJamSession,
+  type JamContribution,
+  type InsertJamContribution,
+  type JamLike,
   users,
   userSubscriptions,
   projects,
@@ -43,6 +50,10 @@ import {
   samples,
   lyricsAnalyses,
   creditTransactions,
+  tracks,
+  jamSessions,
+  jamContributions,
+  jamLikes,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -180,6 +191,31 @@ export interface IStorage {
   getSamplesByPack(packId: string): Promise<Sample[]>;
   createSample(sample: InsertSample): Promise<Sample>;
   deleteSample(id: string): Promise<void>;
+
+  // Tracks - Single source of truth for all audio in arrangements
+  getTrack(id: string): Promise<Track | undefined>;
+  getProjectTracks(projectId: string): Promise<Track[]>;
+  getUserTracks(userId: string): Promise<Track[]>;
+  createTrack(userId: string, projectId: string | null, track: InsertTrack): Promise<Track>;
+  updateTrack(id: string, data: Partial<Track>): Promise<Track>;
+  deleteTrack(id: string): Promise<void>;
+  deleteProjectTracks(projectId: string): Promise<void>;
+
+  // Jam Sessions
+  getJamSession(id: string): Promise<JamSession | undefined>;
+  getActiveJamSessions(): Promise<JamSession[]>;
+  getUserJamSessions(userId: string): Promise<JamSession[]>;
+  createJamSession(hostId: string, session: InsertJamSession): Promise<JamSession>;
+  updateJamSession(id: string, data: Partial<JamSession>): Promise<JamSession>;
+  endJamSession(id: string): Promise<JamSession>;
+
+  // Jam Contributions
+  getJamContributions(sessionId: string): Promise<JamContribution[]>;
+  createJamContribution(sessionId: string, userId: string, contribution: InsertJamContribution): Promise<JamContribution>;
+
+  // Jam Likes
+  addJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<JamLike>;
+  removeJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -936,6 +972,138 @@ export class MemStorage implements IStorage {
   async deleteSample(id: string): Promise<void> {
     this.samples.delete(id);
   }
+
+  // Tracks - stub implementations for MemStorage (not persisted)
+  private tracksMap: Map<string, Track> = new Map();
+  private jamSessionsMap: Map<string, JamSession> = new Map();
+  private jamContributionsMap: Map<string, JamContribution> = new Map();
+  private jamLikesMap: Map<string, JamLike> = new Map();
+
+  async getTrack(id: string): Promise<Track | undefined> {
+    return this.tracksMap.get(id);
+  }
+  async getProjectTracks(projectId: string): Promise<Track[]> {
+    return Array.from(this.tracksMap.values()).filter(t => t.projectId === projectId);
+  }
+  async getUserTracks(userId: string): Promise<Track[]> {
+    return Array.from(this.tracksMap.values()).filter(t => t.userId === userId);
+  }
+  async createTrack(userId: string, projectId: string | null, track: InsertTrack): Promise<Track> {
+    const id = randomUUID();
+    const newTrack: Track = {
+      id,
+      userId,
+      projectId,
+      songId: null,
+      name: track.name,
+      type: track.type,
+      audioUrl: track.audioUrl,
+      position: track.position ?? 0,
+      duration: track.duration ?? null,
+      volume: track.volume ?? 100,
+      pan: track.pan ?? 0,
+      muted: track.muted ?? false,
+      solo: track.solo ?? false,
+      color: track.color ?? null,
+      effects: track.effects ?? null,
+      metadata: track.metadata ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.tracksMap.set(id, newTrack);
+    return newTrack;
+  }
+  async updateTrack(id: string, data: Partial<Track>): Promise<Track> {
+    const existing = this.tracksMap.get(id);
+    if (!existing) throw new Error("Track not found");
+    const updated = { ...existing, ...data, updatedAt: new Date() };
+    this.tracksMap.set(id, updated);
+    return updated;
+  }
+  async deleteTrack(id: string): Promise<void> {
+    this.tracksMap.delete(id);
+  }
+  async deleteProjectTracks(projectId: string): Promise<void> {
+    for (const [id, track] of this.tracksMap) {
+      if (track.projectId === projectId) this.tracksMap.delete(id);
+    }
+  }
+
+  // Jam Sessions - stub implementations
+  async getJamSession(id: string): Promise<JamSession | undefined> {
+    return this.jamSessionsMap.get(id);
+  }
+  async getActiveJamSessions(): Promise<JamSession[]> {
+    return Array.from(this.jamSessionsMap.values()).filter(s => s.isActive);
+  }
+  async getUserJamSessions(userId: string): Promise<JamSession[]> {
+    return Array.from(this.jamSessionsMap.values()).filter(s => s.hostId === userId);
+  }
+  async createJamSession(hostId: string, session: InsertJamSession): Promise<JamSession> {
+    const id = randomUUID();
+    const newSession: JamSession = {
+      id,
+      hostId,
+      name: session.name,
+      description: session.description ?? null,
+      genre: session.genre ?? null,
+      bpm: session.bpm ?? 120,
+      keySignature: session.keySignature ?? null,
+      isPublic: session.isPublic ?? true,
+      isActive: true,
+      maxParticipants: session.maxParticipants ?? 10,
+      createdAt: new Date(),
+      endedAt: null,
+    };
+    this.jamSessionsMap.set(id, newSession);
+    return newSession;
+  }
+  async updateJamSession(id: string, data: Partial<JamSession>): Promise<JamSession> {
+    const existing = this.jamSessionsMap.get(id);
+    if (!existing) throw new Error("Jam session not found");
+    const updated = { ...existing, ...data };
+    this.jamSessionsMap.set(id, updated);
+    return updated;
+  }
+  async endJamSession(id: string): Promise<JamSession> {
+    return this.updateJamSession(id, { isActive: false, endedAt: new Date() });
+  }
+
+  // Jam Contributions
+  async getJamContributions(sessionId: string): Promise<JamContribution[]> {
+    return Array.from(this.jamContributionsMap.values()).filter(c => c.sessionId === sessionId);
+  }
+  async createJamContribution(sessionId: string, userId: string, contribution: InsertJamContribution): Promise<JamContribution> {
+    const id = randomUUID();
+    const newContribution: JamContribution = {
+      id,
+      sessionId,
+      userId,
+      trackId: null,
+      type: contribution.type,
+      audioUrl: contribution.audioUrl ?? null,
+      position: contribution.position ?? 0,
+      duration: contribution.duration ?? null,
+      createdAt: new Date(),
+    };
+    this.jamContributionsMap.set(id, newContribution);
+    return newContribution;
+  }
+
+  // Jam Likes
+  async addJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<JamLike> {
+    const id = randomUUID();
+    const like: JamLike = { id, sessionId, contributionId, userId, createdAt: new Date() };
+    this.jamLikesMap.set(id, like);
+    return like;
+  }
+  async removeJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<void> {
+    for (const [id, like] of this.jamLikesMap) {
+      if (like.sessionId === sessionId && like.userId === userId && like.contributionId === contributionId) {
+        this.jamLikesMap.delete(id);
+      }
+    }
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1634,6 +1802,144 @@ export class DatabaseStorage implements IStorage {
       .where(eq(creditTransactions.id, transactionId))
       .limit(1);
     return transaction || undefined;
+  }
+
+  // ============ TRACKS - Single source of truth for all audio ============
+  async getTrack(id: string): Promise<Track | undefined> {
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, id)).limit(1);
+    return track || undefined;
+  }
+
+  async getProjectTracks(projectId: string): Promise<Track[]> {
+    return db.select().from(tracks).where(eq(tracks.projectId, projectId)).orderBy(tracks.position);
+  }
+
+  async getUserTracks(userId: string): Promise<Track[]> {
+    return db.select().from(tracks).where(eq(tracks.userId, userId)).orderBy(desc(tracks.createdAt));
+  }
+
+  async createTrack(userId: string, projectId: string | null, track: InsertTrack): Promise<Track> {
+    const [newTrack] = await db
+      .insert(tracks)
+      .values({
+        ...track,
+        userId,
+        projectId,
+      })
+      .returning();
+    return newTrack;
+  }
+
+  async updateTrack(id: string, data: Partial<Track>): Promise<Track> {
+    const [updated] = await db
+      .update(tracks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(tracks.id, id))
+      .returning();
+    if (!updated) throw new Error("Track not found");
+    return updated;
+  }
+
+  async deleteTrack(id: string): Promise<void> {
+    await db.delete(tracks).where(eq(tracks.id, id));
+  }
+
+  async deleteProjectTracks(projectId: string): Promise<void> {
+    await db.delete(tracks).where(eq(tracks.projectId, projectId));
+  }
+
+  // ============ JAM SESSIONS ============
+  async getJamSession(id: string): Promise<JamSession | undefined> {
+    const [session] = await db.select().from(jamSessions).where(eq(jamSessions.id, id)).limit(1);
+    return session || undefined;
+  }
+
+  async getActiveJamSessions(): Promise<JamSession[]> {
+    return db.select().from(jamSessions).where(eq(jamSessions.isActive, true)).orderBy(desc(jamSessions.createdAt));
+  }
+
+  async getUserJamSessions(userId: string): Promise<JamSession[]> {
+    return db.select().from(jamSessions).where(eq(jamSessions.hostId, userId)).orderBy(desc(jamSessions.createdAt));
+  }
+
+  async createJamSession(hostId: string, session: InsertJamSession): Promise<JamSession> {
+    const [newSession] = await db
+      .insert(jamSessions)
+      .values({
+        ...session,
+        hostId,
+      })
+      .returning();
+    return newSession;
+  }
+
+  async updateJamSession(id: string, data: Partial<JamSession>): Promise<JamSession> {
+    const [updated] = await db
+      .update(jamSessions)
+      .set(data)
+      .where(eq(jamSessions.id, id))
+      .returning();
+    if (!updated) throw new Error("Jam session not found");
+    return updated;
+  }
+
+  async endJamSession(id: string): Promise<JamSession> {
+    const [ended] = await db
+      .update(jamSessions)
+      .set({ isActive: false, endedAt: new Date() })
+      .where(eq(jamSessions.id, id))
+      .returning();
+    if (!ended) throw new Error("Jam session not found");
+    return ended;
+  }
+
+  // ============ JAM CONTRIBUTIONS ============
+  async getJamContributions(sessionId: string): Promise<JamContribution[]> {
+    return db.select().from(jamContributions).where(eq(jamContributions.sessionId, sessionId)).orderBy(jamContributions.createdAt);
+  }
+
+  async createJamContribution(sessionId: string, userId: string, contribution: InsertJamContribution): Promise<JamContribution> {
+    const [newContribution] = await db
+      .insert(jamContributions)
+      .values({
+        ...contribution,
+        sessionId,
+        userId,
+      })
+      .returning();
+    return newContribution;
+  }
+
+  // ============ JAM LIKES ============
+  async addJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<JamLike> {
+    const [like] = await db
+      .insert(jamLikes)
+      .values({
+        sessionId,
+        contributionId,
+        userId,
+      })
+      .returning();
+    return like;
+  }
+
+  async removeJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<void> {
+    if (contributionId) {
+      await db.delete(jamLikes).where(
+        and(
+          eq(jamLikes.sessionId, sessionId),
+          eq(jamLikes.contributionId, contributionId),
+          eq(jamLikes.userId, userId)
+        )
+      );
+    } else {
+      await db.delete(jamLikes).where(
+        and(
+          eq(jamLikes.sessionId, sessionId),
+          eq(jamLikes.userId, userId)
+        )
+      );
+    }
   }
 }
 

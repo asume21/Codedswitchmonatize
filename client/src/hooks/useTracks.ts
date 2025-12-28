@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import type { TrackClip, TrackPayload, TrackType } from '@/types/studioTracks';
 import { DEFAULT_TRACK_PAYLOAD } from '@/types/studioTracks';
+import { useToast } from '@/hooks/use-toast';
 
 export type StudioTrackType = TrackType;
 
@@ -72,7 +73,20 @@ function buildPayload(existing: TrackClip | undefined, updates: Partial<StudioTr
 }
 
 export function useTracks() {
-  const { tracks, addTrack, updateTrack, removeTrack, clearTracks } = useTrackStore();
+  const { 
+    tracks, 
+    addTrack, 
+    updateTrack, 
+    removeTrack, 
+    clearTracks,
+    loadTracksFromServer,
+    saveTrackToServer,
+    currentProjectId,
+    isLoading,
+    isSynced,
+    setProjectId,
+  } = useTrackStore();
+  const { toast } = useToast();
 
   const normalized = useMemo<StudioTrack[]>(() => (
     tracks.map((track) => {
@@ -153,11 +167,55 @@ export function useTracks() {
     });
   }, [tracks, updateTrack]);
 
+  const addAndSaveTrack = useCallback(async (track: StudioTrackInput): Promise<string> => {
+    const id = addStudioTrack(track);
+    
+    const trackClip: TrackClip = {
+      id,
+      name: track.name ?? 'Track',
+      kind: track.kind ?? (track.type === 'audio' ? 'audio' : track.type === 'beat' ? 'beat' : 'piano'),
+      lengthBars: track.lengthBars ?? 4,
+      startBar: track.startBar ?? 0,
+      muted: track.muted ?? false,
+      solo: track.solo ?? false,
+      payload: {
+        type: track.type ?? 'midi',
+        audioUrl: track.audioUrl,
+        volume: track.volume ?? 0.8,
+        pan: track.pan ?? 0,
+        notes: track.notes ?? [],
+        instrument: track.instrument,
+        bpm: track.bpm ?? 120,
+        source: track.source ?? 'generated',
+        color: track.color,
+      },
+    };
+    
+    const serverId = await saveTrackToServer(trackClip);
+    if (serverId) {
+      toast({ title: '✅ Track Saved', description: `"${track.name}" saved to your library` });
+    }
+    
+    return id;
+  }, [addStudioTrack, saveTrackToServer, toast]);
+
+  const loadTracks = useCallback(async (projectId?: string) => {
+    await loadTracksFromServer(projectId);
+    toast({ title: '📂 Tracks Loaded', description: 'Your tracks have been loaded' });
+  }, [loadTracksFromServer, toast]);
+
   return {
     tracks: normalized,
     addTrack: addStudioTrack,
+    addAndSaveTrack,
     updateTrack: updateStudioTrack,
     removeTrack,
     clearTracks,
+    loadTracks,
+    saveTrack: saveTrackToServer,
+    currentProjectId,
+    setProjectId,
+    isLoading,
+    isSynced,
   };
 }

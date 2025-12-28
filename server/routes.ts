@@ -4060,10 +4060,424 @@ Return this exact JSON format:
   );
 
   // ============================================
-  // MISSING ROUTES - Added to fix frontend calls
+  // ASTUTELY AI BEAT GENERATOR
+  // ============================================
+  app.post("/api/astutely", async (req: Request, res: Response) => {
+    try {
+      const { style } = req.body;
+      
+      // Style configurations for different genres
+      const STYLE_CONFIGS: Record<string, any> = {
+        "Travis Scott rage": { bpm: 150, key: "F#", scale: "minor", drumPattern: "trap-hard", bassStyle: "808-slide", chordVoicing: "dark-pad" },
+        "Drake smooth": { bpm: 85, key: "Bb", scale: "minor", drumPattern: "rnb-bounce", bassStyle: "smooth-sub", chordVoicing: "neo-soul" },
+        "Lo-fi chill": { bpm: 75, key: "C", scale: "major", drumPattern: "lofi-dusty", bassStyle: "mellow-bass", chordVoicing: "jazzy-7ths" },
+        "K-pop cute": { bpm: 125, key: "G", scale: "major", drumPattern: "kpop-punchy", bassStyle: "synth-pluck", chordVoicing: "bright-pop" },
+        "Phonk drift": { bpm: 140, key: "E", scale: "minor", drumPattern: "phonk-cowbell", bassStyle: "distorted-808", chordVoicing: "memphis-dark" },
+        "Future bass": { bpm: 150, key: "A", scale: "major", drumPattern: "future-sidechain", bassStyle: "wobble-bass", chordVoicing: "supersaws" },
+        "Afrobeats bounce": { bpm: 105, key: "D", scale: "major", drumPattern: "afro-log", bassStyle: "afro-bass", chordVoicing: "african-keys" },
+        "Latin trap": { bpm: 95, key: "Am", scale: "minor", drumPattern: "dembow", bassStyle: "reggaeton-bass", chordVoicing: "latin-piano" },
+        "Hyperpop glitch": { bpm: 165, key: "F", scale: "major", drumPattern: "glitch-stutter", bassStyle: "distorted-synth", chordVoicing: "chaotic-arps" },
+        "The Weeknd dark": { bpm: 108, key: "Eb", scale: "minor", drumPattern: "synthwave-kick", bassStyle: "retro-bass", chordVoicing: "80s-synth" },
+      };
+
+      const config = STYLE_CONFIGS[style] || STYLE_CONFIGS["Travis Scott rage"];
+      
+      // Generate drum pattern
+      const drums: any[] = [];
+      const numBeats = 16;
+      for (let i = 0; i < numBeats; i++) {
+        // Kick on 1 and 3 (or variations)
+        if (i % 4 === 0 || (config.drumPattern.includes('trap') && i === 6) || (config.drumPattern.includes('trap') && i === 14)) {
+          drums.push({ time: i * 0.25, instrument: 'kick', velocity: 0.9 });
+        }
+        // Snare/clap on 2 and 4
+        if (i % 8 === 4) {
+          drums.push({ time: i * 0.25, instrument: 'snare', velocity: 0.85 });
+        }
+        // Hi-hats
+        if (config.drumPattern.includes('trap') || config.drumPattern.includes('phonk')) {
+          // Fast hi-hats for trap
+          drums.push({ time: i * 0.25, instrument: 'hihat', velocity: 0.6 + Math.random() * 0.2 });
+          if (Math.random() > 0.5) {
+            drums.push({ time: i * 0.25 + 0.125, instrument: 'hihat', velocity: 0.4 });
+          }
+        } else {
+          // Regular hi-hats
+          if (i % 2 === 0) {
+            drums.push({ time: i * 0.25, instrument: 'hihat', velocity: 0.7 });
+          }
+        }
+      }
+
+      // Generate bass pattern
+      const bass: any[] = [];
+      const rootNote = 36; // Low bass
+      const bassNotes = [0, 0, 5, 3]; // Root, root, 5th, minor 3rd
+      for (let i = 0; i < 4; i++) {
+        bass.push({
+          note: rootNote + bassNotes[i],
+          time: i,
+          duration: 0.9,
+          velocity: 0.8
+        });
+      }
+
+      // Generate chord progression
+      const chords: any[] = [];
+      const chordRoot = 60; // Middle C area
+      const chordProgressions = [
+        [[0, 3, 7], [5, 8, 12], [3, 7, 10], [7, 10, 14]], // i - iv - III - VII
+        [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]], // I - IV - V - I
+      ];
+      const progression = config.scale === 'minor' ? chordProgressions[0] : chordProgressions[1];
+      for (let i = 0; i < 4; i++) {
+        const chord = progression[i];
+        chord.forEach((interval: number) => {
+          chords.push({
+            note: chordRoot + interval,
+            time: i,
+            duration: 0.95,
+            velocity: 0.6
+          });
+        });
+      }
+
+      // Generate melody
+      const melody: any[] = [];
+      const melodyRoot = 72; // Higher octave
+      const scaleIntervals = config.scale === 'minor' ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11];
+      for (let i = 0; i < 8; i++) {
+        const interval = scaleIntervals[Math.floor(Math.random() * scaleIntervals.length)];
+        melody.push({
+          note: melodyRoot + interval,
+          time: i * 0.5,
+          duration: 0.4,
+          velocity: 0.7
+        });
+      }
+
+      res.json({
+        style,
+        bpm: config.bpm,
+        key: config.key,
+        drums,
+        bass,
+        chords,
+        melody
+      });
+    } catch (err: any) {
+      console.error("Astutely generation error:", err);
+      sendError(res, 500, err?.message || "Failed to generate beat");
+    }
+  });
+
+  // ============================================
+  // TRACKS API - Single source of truth for all audio
   // ============================================
 
+  // Get all tracks for a project
+  app.get("/api/tracks/project/:projectId", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const tracks = await storage.getProjectTracks(projectId);
+      res.json({ success: true, tracks });
+    } catch (err: any) {
+      console.error("Get project tracks error:", err);
+      sendError(res, 500, err?.message || "Failed to get tracks");
+    }
+  });
 
+  // Get all tracks for current user
+  app.get("/api/tracks", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const tracks = await storage.getUserTracks(req.userId!);
+      res.json({ success: true, tracks });
+    } catch (err: any) {
+      console.error("Get user tracks error:", err);
+      sendError(res, 500, err?.message || "Failed to get tracks");
+    }
+  });
+
+  // Get single track
+  app.get("/api/tracks/:id", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const track = await storage.getTrack(req.params.id);
+      if (!track) {
+        return sendError(res, 404, "Track not found");
+      }
+      res.json({ success: true, track });
+    } catch (err: any) {
+      console.error("Get track error:", err);
+      sendError(res, 500, err?.message || "Failed to get track");
+    }
+  });
+
+  // Create a new track
+  app.post("/api/tracks", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { projectId, name, type, audioUrl, position, duration, volume, pan, color, effects, metadata } = req.body;
+      
+      if (!name || !type || !audioUrl) {
+        return sendError(res, 400, "name, type, and audioUrl are required");
+      }
+
+      const track = await storage.createTrack(req.userId!, projectId || null, {
+        name,
+        type,
+        audioUrl,
+        position: position || 0,
+        duration,
+        volume: volume ?? 100,
+        pan: pan ?? 0,
+        muted: false,
+        solo: false,
+        color,
+        effects,
+        metadata,
+      });
+
+      res.json({ success: true, track });
+    } catch (err: any) {
+      console.error("Create track error:", err);
+      sendError(res, 500, err?.message || "Failed to create track");
+    }
+  });
+
+  // Update a track
+  app.patch("/api/tracks/:id", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // Verify track exists and belongs to user
+      const existing = await storage.getTrack(id);
+      if (!existing) {
+        return sendError(res, 404, "Track not found");
+      }
+      if (existing.userId !== req.userId) {
+        return sendError(res, 403, "Not authorized to update this track");
+      }
+
+      const track = await storage.updateTrack(id, updates);
+      res.json({ success: true, track });
+    } catch (err: any) {
+      console.error("Update track error:", err);
+      sendError(res, 500, err?.message || "Failed to update track");
+    }
+  });
+
+  // Delete a track
+  app.delete("/api/tracks/:id", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify track exists and belongs to user
+      const existing = await storage.getTrack(id);
+      if (!existing) {
+        return sendError(res, 404, "Track not found");
+      }
+      if (existing.userId !== req.userId) {
+        return sendError(res, 403, "Not authorized to delete this track");
+      }
+
+      await storage.deleteTrack(id);
+      res.json({ success: true, message: "Track deleted" });
+    } catch (err: any) {
+      console.error("Delete track error:", err);
+      sendError(res, 500, err?.message || "Failed to delete track");
+    }
+  });
+
+  // ============================================
+  // MIX/EXPORT - Combine all tracks into one file
+  // ============================================
+
+  app.post("/api/tracks/mix", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { projectId, trackIds } = req.body;
+      
+      // Get tracks to mix
+      let tracksToMix: any[] = [];
+      if (projectId) {
+        tracksToMix = await storage.getProjectTracks(projectId);
+      } else if (trackIds && Array.isArray(trackIds)) {
+        for (const id of trackIds) {
+          const track = await storage.getTrack(id);
+          if (track) tracksToMix.push(track);
+        }
+      }
+
+      if (tracksToMix.length === 0) {
+        return sendError(res, 400, "No tracks to mix");
+      }
+
+      // Filter out muted tracks
+      const activeTracks = tracksToMix.filter(t => !t.muted);
+      if (activeTracks.length === 0) {
+        return sendError(res, 400, "All tracks are muted");
+      }
+
+      // Build ffmpeg command to mix all tracks
+      const ffmpeg = require("fluent-ffmpeg");
+      const outputFilename = `mix_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp3`;
+      const outputPath = path.join(LOCAL_OBJECTS_DIR, outputFilename);
+
+      // Create complex filter for mixing with volume control
+      let inputs: string[] = [];
+      let filterParts: string[] = [];
+      
+      for (let i = 0; i < activeTracks.length; i++) {
+        const track = activeTracks[i];
+        let audioPath = track.audioUrl;
+        
+        // Convert URL to local path
+        if (audioPath.startsWith('/api/internal/uploads/')) {
+          audioPath = path.join(LOCAL_OBJECTS_DIR, audioPath.split('/api/internal/uploads/')[1]);
+        } else if (audioPath.startsWith('/objects/')) {
+          audioPath = path.join(LOCAL_OBJECTS_DIR, audioPath.split('/objects/')[1]);
+        }
+        
+        if (!fs.existsSync(audioPath)) {
+          console.warn(`Track file not found: ${audioPath}`);
+          continue;
+        }
+        
+        inputs.push(audioPath);
+        const vol = (track.volume || 100) / 100;
+        filterParts.push(`[${i}:a]volume=${vol}[a${i}]`);
+      }
+
+      if (inputs.length === 0) {
+        return sendError(res, 400, "No valid audio files found");
+      }
+
+      // Mix all tracks
+      const mixFilter = inputs.length > 1 
+        ? filterParts.join(';') + ';' + filterParts.map((_, i) => `[a${i}]`).join('') + `amix=inputs=${inputs.length}:duration=longest[out]`
+        : `[0:a]volume=1[out]`;
+
+      await new Promise<void>((resolve, reject) => {
+        let cmd = ffmpeg();
+        inputs.forEach(input => cmd = cmd.input(input));
+        
+        cmd
+          .complexFilter(mixFilter, 'out')
+          .audioCodec('libmp3lame')
+          .audioBitrate('192k')
+          .output(outputPath)
+          .on('end', () => resolve())
+          .on('error', (err: any) => reject(err))
+          .run();
+      });
+
+      const mixUrl = `/api/internal/uploads/${outputFilename}`;
+      
+      res.json({ 
+        success: true, 
+        url: mixUrl,
+        message: `Mixed ${inputs.length} tracks successfully`
+      });
+    } catch (err: any) {
+      console.error("Mix tracks error:", err);
+      sendError(res, 500, err?.message || "Failed to mix tracks");
+    }
+  });
+
+  // ============================================
+  // JAM SESSIONS API
+  // ============================================
+
+  // Get active jam sessions
+  app.get("/api/jam-sessions", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const sessions = await storage.getActiveJamSessions();
+      res.json({ success: true, sessions });
+    } catch (err: any) {
+      sendError(res, 500, err?.message || "Failed to get jam sessions");
+    }
+  });
+
+  // Get user's jam sessions
+  app.get("/api/jam-sessions/mine", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const sessions = await storage.getUserJamSessions(req.userId!);
+      res.json({ success: true, sessions });
+    } catch (err: any) {
+      sendError(res, 500, err?.message || "Failed to get your jam sessions");
+    }
+  });
+
+  // Get single jam session
+  app.get("/api/jam-sessions/:id", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const session = await storage.getJamSession(req.params.id);
+      if (!session) {
+        return sendError(res, 404, "Jam session not found");
+      }
+      const contributions = await storage.getJamContributions(session.id);
+      res.json({ success: true, session, contributions });
+    } catch (err: any) {
+      sendError(res, 500, err?.message || "Failed to get jam session");
+    }
+  });
+
+  // Create jam session
+  app.post("/api/jam-sessions", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { name, description, genre, bpm, keySignature, isPublic, maxParticipants } = req.body;
+      if (!name) {
+        return sendError(res, 400, "Session name is required");
+      }
+      const session = await storage.createJamSession(req.userId!, {
+        name,
+        description,
+        genre,
+        bpm: bpm || 120,
+        keySignature,
+        isPublic: isPublic !== false,
+        maxParticipants: maxParticipants || 10,
+      });
+      res.json({ success: true, session });
+    } catch (err: any) {
+      sendError(res, 500, err?.message || "Failed to create jam session");
+    }
+  });
+
+  // End jam session
+  app.post("/api/jam-sessions/:id/end", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const session = await storage.getJamSession(req.params.id);
+      if (!session) {
+        return sendError(res, 404, "Jam session not found");
+      }
+      if (session.hostId !== req.userId) {
+        return sendError(res, 403, "Only the host can end this session");
+      }
+      const ended = await storage.endJamSession(req.params.id);
+      res.json({ success: true, session: ended });
+    } catch (err: any) {
+      sendError(res, 500, err?.message || "Failed to end jam session");
+    }
+  });
+
+  // Add contribution to jam session
+  app.post("/api/jam-sessions/:id/contribute", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { type, audioUrl, position, duration } = req.body;
+      if (!type || !audioUrl) {
+        return sendError(res, 400, "type and audioUrl are required");
+      }
+      const contribution = await storage.createJamContribution(req.params.id, req.userId!, {
+        type,
+        audioUrl,
+        position: position || 0,
+        duration,
+      });
+      res.json({ success: true, contribution });
+    } catch (err: any) {
+      sendError(res, 500, err?.message || "Failed to add contribution");
+    }
+  });
 
   return createServer(app);
 }

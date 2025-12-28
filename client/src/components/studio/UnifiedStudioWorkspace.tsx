@@ -185,8 +185,12 @@ export default function UnifiedStudioWorkspace() {
   const {
     tracks,
     addTrack: addTrackToStore,
+    addAndSaveTrack,
     updateTrack: updateTrackInStore,
     removeTrack: removeTrackFromStore,
+    loadTracks,
+    isLoading: tracksLoading,
+    isSynced: tracksSynced,
   } = useTracks();
   
   // MIDI Controller Integration

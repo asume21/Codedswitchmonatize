@@ -32,7 +32,7 @@ export async function runMigrations() {
     `;
     console.log('? Migration: transcription_status index created');
 
-    // Create user subscriptions table for Stripe billing
+    // Migration: user_subscriptions table ensured
     await sql`
       CREATE TABLE IF NOT EXISTS user_subscriptions (
         id SERIAL PRIMARY KEY,
@@ -48,9 +48,81 @@ export async function runMigrations() {
     await sql`
       CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription_id ON user_subscriptions(stripe_subscription_id)
     `;
-    console.log('? Migration: user_subscriptions table ensured');
+    console.log('✅ Migration: user_subscriptions table ensured');
 
-    console.log('? All migrations completed successfully');
+    // Migration: tracks table
+    await sql`
+      CREATE TABLE IF NOT EXISTS tracks (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR REFERENCES users(id),
+        project_id VARCHAR REFERENCES projects(id),
+        song_id VARCHAR REFERENCES songs(id),
+        name VARCHAR NOT NULL,
+        type VARCHAR NOT NULL,
+        audio_url VARCHAR NOT NULL,
+        position INTEGER DEFAULT 0,
+        duration INTEGER,
+        volume INTEGER DEFAULT 100,
+        pan INTEGER DEFAULT 0,
+        muted BOOLEAN DEFAULT false,
+        solo BOOLEAN DEFAULT false,
+        color VARCHAR,
+        effects JSONB,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: tracks table ensured');
+
+    // Migration: jam_sessions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS jam_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        host_id VARCHAR REFERENCES users(id),
+        name VARCHAR NOT NULL,
+        description TEXT,
+        genre VARCHAR,
+        bpm INTEGER DEFAULT 120,
+        key_signature VARCHAR,
+        is_public BOOLEAN DEFAULT true,
+        is_active BOOLEAN DEFAULT true,
+        max_participants INTEGER DEFAULT 10,
+        created_at TIMESTAMP DEFAULT NOW(),
+        ended_at TIMESTAMP
+      )
+    `;
+    console.log('✅ Migration: jam_sessions table ensured');
+
+    // Migration: jam_contributions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS jam_contributions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR REFERENCES jam_sessions(id) ON DELETE CASCADE,
+        user_id VARCHAR REFERENCES users(id),
+        track_id VARCHAR REFERENCES tracks(id),
+        type VARCHAR NOT NULL,
+        audio_url VARCHAR,
+        position INTEGER DEFAULT 0,
+        duration INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: jam_contributions table ensured');
+
+    // Migration: jam_likes table
+    await sql`
+      CREATE TABLE IF NOT EXISTS jam_likes (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR REFERENCES jam_sessions(id) ON DELETE CASCADE,
+        contribution_id VARCHAR REFERENCES jam_contributions(id) ON DELETE CASCADE,
+        user_id VARCHAR REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: jam_likes table ensured');
+
+    console.log('✅ All migrations completed successfully');
   } catch (error) {
     // If columns already exist, that's fine
     if (error instanceof Error && error.message.includes('already exists')) {

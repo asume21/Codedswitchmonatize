@@ -10,22 +10,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { 
   Settings, CreditCard, LogIn, ChevronDown,
-  Coins,
-  Piano, Wand2, Mic2, Drum,
-  Code, Shield, MessageSquare, Headphones, Zap 
+  Coins, Home, LayoutDashboard, Mic2, Shield, MessageSquare
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const NAV_ITEMS = [
-  { icon: Piano, label: 'DAW', path: '/', color: 'bg-indigo-600' },
-  { icon: Zap, label: 'Flow', path: '/flow', color: 'bg-orange-500' },
-  { icon: Wand2, label: 'Melody', path: '/melody-composer', color: 'bg-pink-600' },
+  { icon: Home, label: 'Home', path: '/', color: 'bg-purple-600' },
+  { icon: LayoutDashboard, label: 'Studio', path: '/studio', color: 'bg-indigo-600' },
   { icon: Mic2, label: 'Lyrics', path: '/lyric-lab', color: 'bg-rose-600' },
-  { icon: Drum, label: 'Beats', path: '/codebeat-studio', color: 'bg-amber-600' },
-  { icon: Code, label: 'Code', path: '/code-translator', color: 'bg-emerald-600' },
   { icon: Shield, label: 'Security', path: '/vulnerability-scanner', color: 'bg-red-600' },
-  { icon: MessageSquare, label: 'AI', path: '/ai-assistant', color: 'bg-cyan-600' },
-  { icon: Headphones, label: 'Mix', path: '/mix-studio', color: 'bg-violet-600' },
+  { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant', color: 'bg-cyan-600' },
 ];
 
 export function Navigation() {
@@ -34,12 +28,12 @@ export function Navigation() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [location] = useLocation();
 
-  // Show first 5 items in nav bar, rest in "More" dropdown
-  const visibleItems = NAV_ITEMS.slice(0, 2);
-  const moreItems = NAV_ITEMS.slice(2);
+  // Show all items in nav bar (simplified navigation)
+  const visibleItems = NAV_ITEMS.slice(0, 3);
+  const moreItems = NAV_ITEMS.slice(3);
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" role="navigation" aria-label="Main navigation">
       <div className="flex h-14 items-center justify-between px-4">
         {/* Left: Logo + Nav Items */}
         <div className="flex items-center space-x-2">
@@ -73,9 +67,12 @@ export function Navigation() {
             <button
               onClick={() => setMoreOpen(!moreOpen)}
               className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+              aria-expanded={moreOpen}
+              aria-haspopup="true"
+              aria-label="More navigation options"
             >
               <span className="hidden md:inline">More</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
             
             {moreOpen && (
@@ -126,7 +123,7 @@ export function Navigation() {
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full" aria-label="User menu">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>CS</AvatarFallback>
                   </Avatar>

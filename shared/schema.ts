@@ -364,6 +364,72 @@ export const projectVersions = pgTable("project_versions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// TRACKS TABLE - Single source of truth for all audio in arrangements
+export const tracks = pgTable("tracks", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  projectId: varchar("project_id").references(() => projects.id),
+  songId: varchar("song_id").references(() => songs.id), // optional - if track is from an uploaded song
+  name: varchar("name").notNull(),
+  type: varchar("type").notNull(), // 'beat', 'vocal', 'loop', 'recording', 'generated', 'uploaded', 'instrumental'
+  audioUrl: varchar("audio_url").notNull(),
+  position: integer("position").default(0), // position in arrangement (in milliseconds)
+  duration: integer("duration"), // duration in milliseconds
+  volume: integer("volume").default(100), // 0-100
+  pan: integer("pan").default(0), // -100 to 100 (left to right)
+  muted: boolean("muted").default(false),
+  solo: boolean("solo").default(false),
+  color: varchar("color"), // for UI display
+  effects: jsonb("effects"), // { reverb: 0-100, delay: 0-100, eq: {...} }
+  metadata: jsonb("metadata"), // additional info like BPM, key, source generator
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// JAM SESSIONS - Collaborative music creation
+export const jamSessions = pgTable("jam_sessions", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  hostId: varchar("host_id").references(() => users.id),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  genre: varchar("genre"),
+  bpm: integer("bpm").default(120),
+  keySignature: varchar("key_signature"),
+  isPublic: boolean("is_public").default(true),
+  isActive: boolean("is_active").default(true),
+  maxParticipants: integer("max_participants").default(10),
+  createdAt: timestamp("created_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export const jamContributions = pgTable("jam_contributions", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").references(() => jamSessions.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id),
+  trackId: varchar("track_id").references(() => tracks.id),
+  type: varchar("type").notNull(), // 'beat', 'melody', 'vocal', 'loop'
+  audioUrl: varchar("audio_url"),
+  position: integer("position").default(0),
+  duration: integer("duration"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const jamLikes = pgTable("jam_likes", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").references(() => jamSessions.id, { onDelete: "cascade" }),
+  contributionId: varchar("contribution_id").references(() => jamContributions.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertLyricsSchema = createInsertSchema(lyrics).pick({
   title: true,
   content: true,
@@ -439,6 +505,40 @@ export const insertProjectVersionSchema = createInsertSchema(projectVersions).pi
   changeDescription: true,
 });
 
+// Tracks insert schema
+export const insertTrackSchema = createInsertSchema(tracks).pick({
+  name: true,
+  type: true,
+  audioUrl: true,
+  position: true,
+  duration: true,
+  volume: true,
+  pan: true,
+  muted: true,
+  solo: true,
+  color: true,
+  effects: true,
+  metadata: true,
+});
+
+// Jam session schemas
+export const insertJamSessionSchema = createInsertSchema(jamSessions).pick({
+  name: true,
+  description: true,
+  genre: true,
+  bpm: true,
+  keySignature: true,
+  isPublic: true,
+  maxParticipants: true,
+});
+
+export const insertJamContributionSchema = createInsertSchema(jamContributions).pick({
+  type: true,
+  audioUrl: true,
+  position: true,
+  duration: true,
+});
+
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type UserFollow = typeof userFollows.$inferSelect;
@@ -476,6 +576,17 @@ export type SamplePack = typeof samplePacks.$inferSelect;
 export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
 export type Sample = typeof samples.$inferSelect;
 export type InsertSample = z.infer<typeof insertSampleSchema>;
+
+// Track types
+export type Track = typeof tracks.$inferSelect;
+export type InsertTrack = z.infer<typeof insertTrackSchema>;
+
+// Jam session types
+export type JamSession = typeof jamSessions.$inferSelect;
+export type InsertJamSession = z.infer<typeof insertJamSessionSchema>;
+export type JamContribution = typeof jamContributions.$inferSelect;
+export type InsertJamContribution = z.infer<typeof insertJamContributionSchema>;
+export type JamLike = typeof jamLikes.$inferSelect;
 
 // AI Recommendation System for Song Analysis
 export enum RecommendationCategory {

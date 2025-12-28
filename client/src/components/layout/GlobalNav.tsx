@@ -2,9 +2,8 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import { 
-  Home, LayoutDashboard, Music, Piano, Wand2, Mic2, 
-  Drum, Code, Shield, MessageSquare, Headphones, 
-  ChevronDown, Zap, Menu, X, LogIn, Coins
+  Home, LayoutDashboard, Mic2, Shield, MessageSquare, 
+  ChevronDown, Menu, LogIn, Coins, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,16 +13,9 @@ import { apiRequest } from '@/lib/queryClient';
 const NAV_ITEMS = [
   { icon: Home, label: 'Home', path: '/' },
   { icon: LayoutDashboard, label: 'Studio', path: '/studio' },
-  { icon: Zap, label: 'Flow', path: '/flow' },
-  { icon: Music, label: 'Unified Studio', path: '/unified-studio' },
-  { icon: Piano, label: 'DAW Layout', path: '/daw-layout' },
-  { icon: Wand2, label: 'Melody Composer', path: '/melody-composer' },
-  { icon: Mic2, label: 'Lyric Lab', path: '/lyric-lab' },
-  { icon: Drum, label: 'Beat Studio', path: '/codebeat-studio' },
-  { icon: Code, label: 'Code Translator', path: '/code-translator' },
-  { icon: Shield, label: 'Security Scanner', path: '/vulnerability-scanner' },
-  { icon: MessageSquare, label: 'AI Assistant', path: '/ai-assistant' },
-  { icon: Headphones, label: 'Mix Studio', path: '/mix-studio' },
+  { icon: Mic2, label: 'Lyrics', path: '/lyric-lab' },
+  { icon: Shield, label: 'Security', path: '/vulnerability-scanner' },
+  { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant' },
 ];
 
 interface GlobalNavProps {
