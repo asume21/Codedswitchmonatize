@@ -1,7 +1,7 @@
 import React from 'react';
-import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Track, AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
+import { AstutelyKnob, AstutelyLedButton } from '@/components/astutely/AstutelyControls';
 
 interface TrackControlsProps {
   tracks: Track[];
@@ -10,6 +10,7 @@ interface TrackControlsProps {
   onVolumeChange: (trackId: string, volume: number) => void;
   onMuteToggle: (trackId: string) => void;
   onInstrumentChange: (trackId: string, instrument: string) => void;
+  showTrackList?: boolean;
 }
 
 export const TrackControls: React.FC<TrackControlsProps> = ({
@@ -18,8 +19,12 @@ export const TrackControls: React.FC<TrackControlsProps> = ({
   onTrackSelect,
   onVolumeChange,
   onMuteToggle,
-  onInstrumentChange
+  onInstrumentChange,
+  showTrackList = true
 }) => {
+  const track = tracks[selectedTrack];
+  const sidebarMode = !showTrackList;
+
   // Group instruments by category
   const instrumentsByCategory = AVAILABLE_INSTRUMENTS.reduce((acc, inst) => {
     if (!acc[inst.category]) acc[inst.category] = [];
@@ -27,17 +32,21 @@ export const TrackControls: React.FC<TrackControlsProps> = ({
     return acc;
   }, {} as Record<string, typeof AVAILABLE_INSTRUMENTS>);
 
+  if (!track) {
+    return null;
+  }
+
   return (
-    <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-600">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
+    <div className="p-2 bg-gray-800 rounded border border-gray-600">
+      <div className={sidebarMode ? "flex flex-col gap-2" : "flex items-center justify-between mb-4"}>
+        <div className={sidebarMode ? "flex flex-col gap-2" : "flex items-center gap-4"}>
           <span className="text-sm font-medium">
-            Track: {tracks[selectedTrack]?.name}
+            Track: {track.name}
           </span>
-          <div className="w-48">
+          <div className="w-full min-w-0">
             <Select
-              value={tracks[selectedTrack]?.instrument}
-              onValueChange={(value) => onInstrumentChange(tracks[selectedTrack]?.id, value)}
+              value={track.instrument}
+              onValueChange={(value) => onInstrumentChange(track.id, value)}
             >
               <SelectTrigger className="h-8 text-xs bg-gray-700 border-gray-600">
                 <SelectValue placeholder="Select Instrument" />
@@ -59,54 +68,51 @@ export const TrackControls: React.FC<TrackControlsProps> = ({
             </Select>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onMuteToggle(tracks[selectedTrack]?.id)}
-            className={`px-2 py-1 text-xs rounded ${
-              tracks[selectedTrack]?.muted 
-                ? 'bg-red-600 hover:bg-red-500' 
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            aria-label={tracks[selectedTrack]?.muted ? 'Unmute track' : 'Mute track'}
+        <div className={sidebarMode ? "flex items-center justify-between gap-2" : "flex items-center gap-3"}>
+          <AstutelyLedButton
+            active={track.muted}
+            tone={track.muted ? 'red' : 'cyan'}
+            size="sm"
+            onClick={() => onMuteToggle(track.id)}
+            aria-label={track.muted ? 'Unmute track' : 'Mute track'}
           >
-            {tracks[selectedTrack]?.muted ? '🔇' : '🔊'}
-          </button>
-          <span className="text-sm">Volume:</span>
-          <Slider
-            value={[tracks[selectedTrack]?.volume || 80]}
-            onValueChange={(value) => onVolumeChange(tracks[selectedTrack]?.id, value[0])}
+            MUTE
+          </AstutelyLedButton>
+
+          <AstutelyKnob
+            label="VOL"
+            value={track.volume || 0}
+            onValueChange={(value) => onVolumeChange(track.id, value)}
             min={0}
             max={100}
             step={1}
-            className="w-20"
-            aria-label="Track volume"
+            size={46}
+            unit="%"
+            tone="cyan"
           />
-          <span className="text-sm w-8">
-            {tracks[selectedTrack]?.volume}%
-          </span>
         </div>
       </div>
       
-      <div className="mt-3">
-        <span className="text-sm font-medium mb-2 block">Tracks:</span>
-        <div className="flex flex-wrap gap-2">
-          {tracks.map((track, index) => (
-            <button
-              key={track.id}
-              onClick={() => onTrackSelect(index)}
-              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                selectedTrack === index
-                  ? `${track.color} text-white`
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-              aria-label={`Select ${track.name} track`}
-              aria-pressed={selectedTrack === index}
-            >
-              {track.name}
-            </button>
-          ))}
+      {showTrackList && (
+        <div className="mt-3">
+          <span className="text-sm font-medium mb-2 block">Tracks:</span>
+          <div className="flex flex-wrap gap-2">
+            {tracks.map((track, index) => (
+              <AstutelyLedButton
+                key={track.id}
+                active={selectedTrack === index}
+                tone={selectedTrack === index ? 'cyan' : 'cyan'}
+                size="sm"
+                onClick={() => onTrackSelect(index)}
+                aria-label={`Select ${track.name} track`}
+                aria-pressed={selectedTrack === index}
+              >
+                {track.name}
+              </AstutelyLedButton>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

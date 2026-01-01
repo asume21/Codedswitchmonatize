@@ -1,0 +1,627 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ASTUTELY THEME - Holographic Cyberpunk Design System
+   Apply this theme globally to match the Astutely AI interface
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ROOT VARIABLES & SHADCN OVERRIDES
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Primary Cyan Palette */
+  --astutely-cyan-50: rgba(6, 182, 212, 0.05);
+  --astutely-cyan-100: rgba(6, 182, 212, 0.1);
+  --astutely-cyan-200: rgba(6, 182, 212, 0.2);
+  --astutely-cyan-300: rgba(6, 182, 212, 0.3);
+  --astutely-cyan-400: rgba(6, 182, 212, 0.4);
+  --astutely-cyan-500: #06b6d4;
+  --astutely-cyan-glow: 0 0 20px rgba(6, 182, 212, 0.3);
+  --astutely-cyan-glow-strong: 0 0 40px rgba(6, 182, 212, 0.5);
+
+  --astutely-magenta-500: #d946ef;
+  --astutely-magenta-glow: 0 0 22px rgba(217, 70, 239, 0.28);
+  --astutely-amber-500: #f59e0b;
+  --astutely-amber-glow: 0 0 22px rgba(245, 158, 11, 0.25);
+
+  --astutely-neon-mix-glow: 0 0 22px rgba(6, 182, 212, 0.22), 0 0 18px rgba(217, 70, 239, 0.14), 0 0 16px rgba(245, 158, 11, 0.12);
+  --astutely-neon-mix-glow-strong: 0 0 40px rgba(6, 182, 212, 0.35), 0 0 30px rgba(217, 70, 239, 0.22), 0 0 26px rgba(245, 158, 11, 0.18);
+  --astutely-neon-conic: conic-gradient(from 180deg, rgba(6,182,212,0.95), rgba(217,70,239,0.9), rgba(245,158,11,0.9), rgba(6,182,212,0.95));
+  
+  /* Background Colors */
+  --astutely-bg-dark: #020617;
+  --astutely-bg-panel: rgba(2, 6, 23, 0.85);
+  --astutely-bg-card: rgba(15, 23, 42, 0.6);
+  --astutely-bg-hover: rgba(6, 182, 212, 0.15);
+  
+  /* Border Colors */
+  --astutely-border: rgba(6, 182, 212, 0.3);
+  --astutely-border-hover: rgba(6, 182, 212, 0.6);
+  
+  /* Text Colors */
+  --astutely-text-primary: #f8fafc;
+  --astutely-text-secondary: #94a3b8;
+  --astutely-text-muted: #64748b;
+  
+  /* Shadcn Overrides */
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 188.7 94.5% 42.7%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 188.7 94.5% 42.7% / 0.3;
+  --input: 188.7 94.5% 42.7% / 0.3;
+  --ring: 188.7 94.5% 42.7%;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOBAL APP STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOBAL APP STYLES & RESET
+   ───────────────────────────────────────────────────────────────────────────── */
+html, body, #root, .astutely-app {
+  background: radial-gradient(circle at 50% 35%, rgba(8, 16, 30, 1) 0%, #020617 65%, #01020a 100%) !important;
+  color: #f8fafc !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Force global scanline effect */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 2px, 3px 100%;
+}
+
+/* Force global grid pattern */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.05;
+  background-image: linear-gradient(rgba(6, 182, 212, 0.1) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(6, 182, 212, 0.1) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   EXTREME GLOBAL OVERRIDES - ASTUTELY CORE DESIGN SYSTEM
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ALL DIVS - Force dark transparent backgrounds where applicable */
+div:not(.absolute):not(.relative):not(.flex):not(.flex-col):not(.flex-row) {
+  border-color: rgba(6, 182, 212, 0.2);
+}
+
+/* CARDS - Global Override */
+[class*="Card"], .card, section, article {
+  background: rgba(2, 6, 23, 0.85) !important;
+  border: 1px solid rgba(6, 182, 212, 0.4) !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(6, 182, 212, 0.1) !important;
+  border-radius: 4px !important;
+}
+
+/* BUTTONS - Global Override */
+button, .btn, [class*="Button"], [role="button"], [data-radix-collection-item] {
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+  font-weight: 900 !important;
+  border-radius: 2px !important;
+  border: 1px solid rgba(6, 182, 212, 0.3) !important;
+  background: rgba(6, 182, 212, 0.08) !important;
+  color: #06b6d4 !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+button:hover, .btn:hover, [role="button"]:hover, [class*="Button"]:hover {
+  background: rgba(6, 182, 212, 0.2) !important;
+  border-color: #06b6d4 !important;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.5) !important;
+  transform: translateY(-1px) !important;
+  color: #fff !important;
+}
+
+/* TABS & NAVIGATION */
+[data-state="active"], .active, [aria-selected="true"], .bg-primary {
+  background: rgba(6, 182, 212, 0.3) !important;
+  border-color: #06b6d4 !important;
+  color: #fff !important;
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.4) !important;
+}
+
+/* INPUTS & FORM ELEMENTS */
+input, textarea, select, [class*="Input"], [class*="Textarea"], [class*="Select"] {
+  background: rgba(0, 0, 0, 0.7) !important;
+  border: 1px solid rgba(6, 182, 212, 0.4) !important;
+  color: #f8fafc !important;
+  border-radius: 2px !important;
+  padding: 0.5rem !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: #06b6d4 !important;
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.3) !important;
+  outline: none !important;
+}
+
+/* HEADERS & TYPOGRAPHY */
+h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.2em !important;
+  color: #06b6d4 !important;
+  text-shadow: 0 0 15px rgba(6, 182, 212, 0.6) !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+/* SLIDERS, PROGRESS, METERS */
+[class*="SliderTrack"], [role="progressbar"], .bg-secondary { 
+  background: rgba(6, 182, 212, 0.1) !important; 
+}
+
+[class*="SliderRange"], [class*="progress-indicator"], .bg-primary:not(button) { 
+  background: linear-gradient(90deg, #06b6d4, #22d3ee) !important;
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.6) !important; 
+}
+
+[class*="SliderThumb"] { 
+  background: #fff !important; 
+  border: 2px solid #06b6d4 !important; 
+  box-shadow: 0 0 20px #06b6d4 !important; 
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* BORDERS - Global Force */
+.border, .border-t, .border-b, .border-l, .border-r {
+  border-color: rgba(6, 182, 212, 0.3) !important;
+}
+
+/* SCROLLBARS */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(2, 6, 23, 0.9);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.2);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.4);
+}
+
+
+
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ASTUTELY CORE HUD COMPONENTS
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-panel-header {
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.2) 0%, transparent 100%) !important;
+  border-left: 4px solid var(--astutely-cyan-500) !important;
+  padding: 0.75rem 1.25rem !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.2em !important;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCANLINE OVERLAY EFFECT
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-scanlines::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.03;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%,
+    rgba(0, 0, 0, 0.25) 50%
+  ),
+  linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.06),
+    rgba(0, 255, 0, 0.02),
+    rgba(0, 0, 255, 0.06)
+  );
+  background-size: 100% 2px, 3px 100%;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GRID BACKGROUND PATTERN
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-grid-bg {
+  background-image: 
+    linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PANEL STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-panel {
+  background: var(--astutely-bg-panel);
+  border: 1px solid var(--astutely-border);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--astutely-neon-mix-glow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.astutely-panel:hover {
+  border-color: var(--astutely-border-hover);
+  box-shadow: var(--astutely-neon-mix-glow-strong);
+}
+
+.astutely-pro-panel {
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.82) 0%, rgba(2, 6, 23, 0.72) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  box-shadow: var(--astutely-neon-mix-glow), inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(20px);
+}
+
+.astutely-pro-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.055;
+  background-image: var(--astutely-neon-conic);
+  mix-blend-mode: screen;
+}
+
+.astutely-pro-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image: radial-gradient(circle at 30% 20%, rgba(6,182,212,0.28), transparent 45%), radial-gradient(circle at 75% 35%, rgba(217,70,239,0.22), transparent 50%), radial-gradient(circle at 55% 80%, rgba(245,158,11,0.18), transparent 55%);
+}
+
+.astutely-neon-ring {
+  box-shadow: var(--astutely-neon-mix-glow);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  background: rgba(0,0,0,0.65);
+}
+
+.astutely-neon-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: var(--astutely-neon-conic);
+  filter: blur(8px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.astutely-neon-ring::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid rgba(255,255,255,0.08);
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HEADER STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-header {
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.15) 0%, rgba(6, 30, 40, 0.8) 50%, rgba(6, 182, 212, 0.15) 100%);
+  border-bottom: 1px solid var(--astutely-border);
+  box-shadow: 0 4px 30px rgba(6, 182, 212, 0.15);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION HEADERS
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-section-header {
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.1) 0%, rgba(6, 30, 40, 0.6) 100%);
+  border-bottom: 1px solid var(--astutely-border);
+  color: var(--astutely-cyan-500);
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BUTTON STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-btn {
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid var(--astutely-border);
+  color: var(--astutely-cyan-500);
+  transition: all 0.2s ease;
+}
+
+.astutely-btn:hover {
+  background: rgba(6, 182, 212, 0.2);
+  border-color: var(--astutely-border-hover);
+  box-shadow: var(--astutely-cyan-glow);
+  transform: translateY(-1px);
+}
+
+.astutely-btn:active {
+  transform: scale(0.98);
+}
+
+.astutely-btn-primary {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(6, 182, 212, 0.1) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.5);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+}
+
+.astutely-btn-primary:hover {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.5) 0%, rgba(6, 182, 212, 0.2) 100%);
+  box-shadow: 0 0 25px rgba(6, 182, 212, 0.5);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TAB STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--astutely-text-secondary);
+  transition: all 0.2s ease;
+}
+
+.astutely-tab:hover {
+  background: var(--astutely-bg-hover);
+  border-color: var(--astutely-border);
+  color: var(--astutely-cyan-500);
+}
+
+.astutely-tab-active {
+  background: rgba(6, 182, 212, 0.15) !important;
+  border: 1px solid rgba(6, 182, 212, 0.4) !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CORNER ACCENTS
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-corners {
+  position: relative;
+}
+
+.astutely-corners::before,
+.astutely-corners::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--astutely-border-hover);
+  pointer-events: none;
+}
+
+.astutely-corners::before {
+  top: 0;
+  left: 0;
+  border-top: 2px solid;
+  border-left: 2px solid;
+}
+
+.astutely-corners::after {
+  top: 0;
+  right: 0;
+  border-top: 2px solid;
+  border-right: 2px solid;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   INPUT STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-input {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--astutely-border);
+  color: var(--astutely-text-primary);
+  transition: all 0.2s ease;
+}
+
+.astutely-input:focus {
+  border-color: var(--astutely-cyan-500);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+  outline: none;
+}
+
+.astutely-input::placeholder {
+  color: var(--astutely-text-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SLIDER STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-slider {
+  background: rgba(6, 182, 212, 0.1);
+  border-radius: 4px;
+}
+
+.astutely-slider-thumb {
+  background: var(--astutely-cyan-500);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+}
+
+.astutely-slider-track {
+  background: linear-gradient(90deg, var(--astutely-cyan-500), rgba(6, 182, 212, 0.3));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CARD STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-card {
+  background: var(--astutely-bg-card);
+  border: 1px solid var(--astutely-border);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOW TEXT
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-glow-text {
+  color: var(--astutely-cyan-500);
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.5), 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+.astutely-gradient-text {
+  background: linear-gradient(90deg, #fff, #67e8f9, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ANIMATIONS
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes astutely-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes astutely-scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes astutely-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(6, 182, 212, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(6, 182, 212, 0.6); }
+}
+
+.astutely-animate-pulse {
+  animation: astutely-pulse 2s infinite;
+}
+
+.astutely-animate-glow {
+  animation: astutely-glow 2s infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCROLLBAR STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.astutely-scrollbar::-webkit-scrollbar-track {
+  background: rgba(6, 182, 212, 0.05);
+}
+
+.astutely-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.3);
+  border-radius: 3px;
+}
+
+.astutely-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.5);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DROPDOWN/MENU STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-menu {
+  background: rgba(0, 0, 0, 0.95);
+  border: 1px solid var(--astutely-border);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), var(--astutely-cyan-glow);
+}
+
+.astutely-menu-item {
+  color: var(--astutely-text-primary);
+  transition: all 0.15s ease;
+}
+
+.astutely-menu-item:hover {
+  background: var(--astutely-bg-hover);
+  color: var(--astutely-cyan-500);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TRACK LANE STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-track-lane {
+  background: rgba(6, 182, 212, 0.03);
+  border: 1px solid var(--astutely-border);
+  transition: all 0.2s ease;
+}
+
+.astutely-track-lane:hover {
+  background: rgba(6, 182, 212, 0.08);
+  border-color: var(--astutely-border-hover);
+}
+
+.astutely-track-lane-selected {
+  background: rgba(6, 182, 212, 0.1);
+  border-color: var(--astutely-cyan-500);
+  box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.1);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BADGE STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-badge {
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid var(--astutely-border);
+  color: var(--astutely-cyan-500);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TOOLTIP STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-tooltip {
+  background: rgba(0, 0, 0, 0.95);
+  border: 1px solid var(--astutely-border);
+  color: var(--astutely-text-primary);
+  box-shadow: var(--astutely-cyan-glow);
+}

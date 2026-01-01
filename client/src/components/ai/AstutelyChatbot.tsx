@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders } from 'lucide-react';
+import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
@@ -17,6 +17,7 @@ import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { StudioAudioContext } from '@/pages/studio';
 import { globalSystems, globalAI, globalAudio } from '@/lib/globalSystems';
+import { AstroHUD } from './AstroHUD';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -43,8 +44,8 @@ interface ProjectStatus {
 }
 
 const STORAGE_KEY = 'astutelyChatbot';
-const DEFAULT_WIDTH = 380;
-const DEFAULT_HEIGHT = 520;
+const DEFAULT_WIDTH = 420; // Increased for HUD
+const DEFAULT_HEIGHT = 650; // Increased for HUD
 
 const clampPosition = (x: number, y: number, width: number, height: number) => {
   const padding = 24;
@@ -58,10 +59,10 @@ const clampPosition = (x: number, y: number, width: number, height: number) => {
 };
 
 const quickActions = [
-  { icon: Music, label: 'Generate Beat', action: 'beat', color: 'from-purple-500 to-pink-500' },
-  { icon: Wand2, label: 'Create Melody', action: 'melody', color: 'from-orange-500 to-yellow-500' },
-  { icon: Play, label: 'Play/Pause', action: 'play', color: 'from-green-500 to-emerald-500' },
-  { icon: Eye, label: 'Project Status', action: 'status', color: 'from-blue-500 to-cyan-500' },
+  { icon: Music, label: 'Generate Beat', action: 'beat', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50' },
+  { icon: Wand2, label: 'Create Melody', action: 'melody', color: 'bg-purple-500/20 text-purple-400 border-purple-500/50' },
+  { icon: Play, label: 'Play/Pause', action: 'play', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' },
+  { icon: Eye, label: 'Project Status', action: 'status', color: 'bg-blue-500/20 text-blue-400 border-blue-500/50' },
 ];
 
 export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyChatbotProps) {
@@ -70,7 +71,7 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   // ═══════════════════════════════════════════════════════════════════════════
   
   // Track Store - knows all tracks in the project
-  const trackStore = useTrackStore();
+  const { tracks, addTrack, saveTrackToServer } = useTrackStore();
   
   // Transport - controls playback (play/pause/stop, tempo, position)
   const transport = useTransport();
@@ -83,20 +84,20 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   
   // Get current project status for AI context
   const getProjectStatus = (): ProjectStatus => {
-    const totalNotes = trackStore.tracks.reduce((sum, track) => {
-      const notes = (track as any).notes || (track as any).data?.notes || [];
+    const totalNotes = tracks.reduce((sum: number, track: any) => {
+      const notes = track.payload?.notes || [];
       return sum + (Array.isArray(notes) ? notes.length : 0);
     }, 0);
     
     return {
-      trackCount: trackStore.tracks.length,
+      trackCount: tracks.length,
       totalNotes,
-      bpm: transport.tempo || studioContext.bpm || 120,
-      key: studioContext.currentKey || 'C',
-      isPlaying: transport.isPlaying || studioContext.isPlaying,
+      bpm: transport.tempo || studioContext?.bpm || 120,
+      key: studioContext?.currentKey || 'C',
+      isPlaying: transport.isPlaying || studioContext?.isPlaying || false,
       currentPosition: transport.position || 0,
-      hasUploadedSong: !!studioContext.currentUploadedSong,
-      songName: studioContext.currentUploadedSong?.name || songSession.currentSession?.songName,
+      hasUploadedSong: !!studioContext?.currentUploadedSong,
+      songName: studioContext?.currentUploadedSong?.name || songSession.currentSession?.songName,
     };
   };
 
@@ -126,16 +127,10 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: `Hey! I'm Astutely, your AI music production brain. 🧠🎵
+      content: `CENTRAL AI BRAIN ONLINE. 🧠
+Connected to all tracks and transport. Ready to generate, mix, and control.
 
-I'm connected to your ENTIRE project and can:
-• **Generate** beats, melodies, bass lines
-• **Control** playback (play/pause/stop)
-• **See** all your tracks and notes
-• **Analyze** your project in real-time
-• **Navigate** to any tool in the DAW
-
-Try: "play", "stop", "status", "make a trap beat", or ask me anything!`,
+Try: "play", "make a drill beat", or "analyze my project".`,
       timestamp: new Date(),
     },
   ]);
@@ -225,18 +220,13 @@ Try: "play", "stop", "status", "make a trap beat", or ask me anything!`,
   
   const handleSetTempo = (newBpm: number) => {
     transport.setTempo(newBpm);
-    studioContext.setBpm(newBpm);
+    studioContext?.setBpm?.(newBpm);
     return newBpm;
   };
   
   const handleNavigateToTool = (tool: string) => {
     window.dispatchEvent(new CustomEvent('navigateToTab', { detail: tool }));
     return tool;
-  };
-  
-  const handleAddTrack = (trackData: any) => {
-    trackStore.addTrack(trackData);
-    return trackData.name || 'New Track';
   };
 
   const handleQuickAction = async (action: string) => {
@@ -268,6 +258,32 @@ Try: "play", "stop", "status", "make a trap beat", or ask me anything!`,
         
         if (onBeatGenerated) {
           onBeatGenerated(result);
+        }
+
+        // PERSISTENCE: Save all 4 generated tracks to database
+        const trackTypes = ['drums', 'bass', 'chords', 'melody'];
+        for (const type of trackTypes) {
+          const typeNotes = notes.filter(n => n.trackType === type);
+          if (typeNotes.length > 0) {
+            const trackData: any = {
+              id: `ai-${type}-${Date.now()}`,
+              name: `Astutely ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+              kind: type === 'drums' ? 'beat' : 'midi',
+              lengthBars: 4,
+              startBar: 0,
+              payload: {
+                type: type === 'drums' ? 'beat' : 'midi',
+                notes: typeNotes,
+                bpm: result.bpm,
+                source: 'astutely',
+                color: type === 'drums' ? '#ef4444' : type === 'bass' ? '#f59e0b' : type === 'chords' ? '#8b5cf6' : '#3b82f6',
+                volume: 0.8,
+                pan: 0,
+              }
+            };
+            addTrack(trackData);
+            await saveTrackToServer(trackData);
+          }
         }
 
         window.dispatchEvent(new CustomEvent('astutely:generated', { 
@@ -320,15 +336,15 @@ Say "play" to resume or "stop" to reset.`,
 
       } else if (action === 'status') {
         const status = getProjectStatus();
-        const tracks = trackStore.tracks;
+        const projectTracks = tracks;
         
         let trackList = '';
-        if (tracks.length > 0) {
-          trackList = tracks.slice(0, 5).map((t: any, i: number) => 
+        if (projectTracks.length > 0) {
+          trackList = projectTracks.slice(0, 5).map((t: any, i: number) => 
             `  ${i + 1}. ${t.name || t.type || 'Track'}`
           ).join('\n');
-          if (tracks.length > 5) {
-            trackList += `\n  ... and ${tracks.length - 5} more`;
+          if (projectTracks.length > 5) {
+            trackList += `\n  ... and ${projectTracks.length - 5} more`;
           }
         }
         
@@ -341,7 +357,7 @@ Say "play" to resume or "stop" to reset.`,
 ${status.isPlaying ? '▶️ Currently playing' : '⏹️ Stopped'} at beat ${status.currentPosition.toFixed(1)}
 ${status.hasUploadedSong ? `🎧 Song loaded: "${status.songName}"` : '📂 No song uploaded'}
 
-${tracks.length > 0 ? `**Tracks:**\n${trackList}` : '💡 No tracks yet - say "make a beat" to get started!'}
+${projectTracks.length > 0 ? `**Tracks:**\n${trackList}` : '💡 No tracks yet - say "make a beat" to get started!'}
 
 What would you like to do?`,
           timestamp: new Date(),
@@ -662,124 +678,281 @@ Keep responses concise but helpful. Reference their current project when relevan
         maxHeight: `${DEFAULT_HEIGHT}px`,
         zIndex: 9999,
       }}
+      className="animate-in fade-in zoom-in duration-300"
     >
-      <Card className="shadow-2xl border-2 border-orange-500/50 bg-gray-900 overflow-hidden">
-        {/* Header - Draggable */}
-        <CardHeader 
-          className="pb-2 cursor-move"
-          style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}
-          onPointerDown={handlePointerDown}
-        >
-          <div className="flex items-center justify-center py-1">
-            <GripHorizontal className="w-4 h-4 text-white/50" />
-          </div>
+      <div className="relative group">
+        {/* Holographic Border Glow */}
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 animate-pulse" />
+        
+        <Card className="relative shadow-2xl border border-cyan-500/50 bg-black/80 backdrop-blur-3xl rounded-xl overflow-hidden shadow-[0_0_50px_rgba(6,182,212,0.2)]">
+          {/* Scanline Effect Overlay */}
+          <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-50 bg-[length:100%_2px,3px_100%]" />
           
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-yellow-300" />
-              <span className="text-xl font-bold text-white">Astutely</span>
-              <Badge variant="secondary" className="bg-green-500/30 text-green-300 text-xs">
-                {transport.isPlaying ? '▶️' : '⏹️'} {transport.tempo || studioContext.bpm || 120} BPM
-              </Badge>
+          {/* Header - Draggable */}
+          <CardHeader 
+            className="pb-2 cursor-move border-b border-cyan-500/30 bg-cyan-950/40 backdrop-blur-md"
+            onPointerDown={handlePointerDown}
+          >
+            <div className="flex items-center justify-center py-0.5 opacity-30">
+              <div className="w-12 h-1 bg-cyan-500 rounded-full" />
             </div>
-            <div className="flex space-x-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMinimized(true)}
-                className="h-7 w-7 p-0 text-white hover:bg-white/20"
-              >
-                <Minus className="w-3 h-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="h-7 w-7 p-0 text-white hover:bg-white/20"
-              >
-                <X className="w-3 h-3" />
-              </Button>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative group/brain">
+                  <div className="absolute -inset-2 bg-cyan-500/20 rounded-full blur-xl group-hover/brain:bg-cyan-500/40 transition-all duration-500" />
+                  <Cpu className="w-7 h-7 text-cyan-400 relative z-10 animate-[pulse_2s_infinite]" />
+                  <Sparkles className="w-3 h-3 text-white absolute -top-1 -right-1 z-20 animate-spin-slow" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-200 to-cyan-400 uppercase tracking-[0.2em] leading-none">
+                    Astutely Core
+                  </h3>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Neural Link Active</span>
+                    </div>
+                    <Activity className="w-3 h-3 text-cyan-500/50 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMinimized(true)}
+                  className="h-8 w-8 p-0 text-cyan-400 hover:bg-cyan-500/20"
+                >
+                  <Minus className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  className="h-8 w-8 p-0 text-cyan-400 hover:bg-red-500/20 hover:text-red-400"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        </CardHeader>
+          </CardHeader>
 
-        <CardContent className="p-0 flex flex-col" style={{ height: '440px' }}>
-          {/* Quick Actions */}
-          <div className="p-3 border-b border-gray-700 bg-gray-800/50">
-            <div className="grid grid-cols-4 gap-2">
+          <CardContent className="p-0 flex flex-col" style={{ height: `${DEFAULT_HEIGHT - 85}px` }}>
+            {/* HOLOGRAPHIC ASTRO-HUD */}
+            <div className="p-5 bg-gradient-to-b from-cyan-950/30 to-transparent relative overflow-hidden group/hud">
+              {/* Dynamic Grid Background for HUD area */}
+              <div className="absolute inset-0 opacity-10 pointer-events-none" 
+                   style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(6,182,212,0.4) 1px, transparent 0)', backgroundSize: '16px 16px' }} />
+              
+              <div className="flex justify-between items-end mb-3 px-1 relative z-10">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.15em]">
+                    <Database className="w-3 h-3 animate-[bounce_2s_infinite]" /> Matrix Status
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-[8px] text-cyan-500/60 uppercase font-black">Streams</span>
+                      <span className="text-lg font-black text-white leading-none tracking-tighter">{getProjectStatus().trackCount}</span>
+                    </div>
+                    <div className="w-px h-6 bg-cyan-500/20 self-end mb-1" />
+                    <div className="flex flex-col">
+                      <span className="text-[8px] text-cyan-500/60 uppercase font-black">Elements</span>
+                      <span className="text-lg font-black text-white leading-none tracking-tighter">{getProjectStatus().totalNotes}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-right space-y-1">
+                  <div className="flex items-center gap-2 justify-end text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.15em]">
+                    Temporal Sync <Cpu className="w-3 h-3 text-cyan-400" />
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[8px] text-cyan-500/60 uppercase font-black">Velocity</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-black text-cyan-400 leading-none tabular-nums tracking-tighter">{getProjectStatus().bpm}</span>
+                      <span className="text-[9px] font-black text-cyan-500/40">BPM</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="relative cursor-crosshair" onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const newPos = (x / rect.width) * 16;
+                transport.seek(newPos);
+              }}>
+                <AstroHUD 
+                  tracks={tracks.map(t => ({
+                    id: t.id,
+                    name: t.name || 'Unnamed Track',
+                    color: t.payload?.color || '#3b82f6',
+                    notes: (t.payload?.notes || []).map(n => ({
+                      ...n,
+                      id: n.id || `note-${Math.random().toString(36).substr(2, 9)}`
+                    })),
+                    muted: false, // Default for HUD
+                    volume: (t.payload?.volume || 0.8) * 100,
+                    instrument: t.payload?.instrument || 'piano'
+                  })) as any}
+                  currentStep={Math.floor(transport.position * 4)}
+                  totalSteps={64}
+                  isPlaying={transport.isPlaying}
+                />
+              </div>
+
+              {/* HOLOGRAPHIC TRANSPORT CONTROLS */}
+              <div className="mt-5 flex items-center justify-between bg-cyan-950/40 border border-cyan-500/30 rounded-xl p-2.5 backdrop-blur-xl relative z-10 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+                <div className="flex gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => transport.stop()}
+                    className="h-10 w-10 p-0 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/20 rounded-lg transition-all active:scale-95"
+                  >
+                    <Square className="w-4 h-4 fill-current opacity-80" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handlePlayPause}
+                    className={`h-10 w-14 p-0 border border-cyan-400/40 rounded-lg shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all active:scale-95 ${
+                      transport.isPlaying 
+                        ? 'bg-cyan-500/30 text-white animate-[pulse_1.5s_infinite] border-cyan-300' 
+                        : 'text-cyan-400 hover:bg-cyan-500/20'
+                    }`}
+                  >
+                    {transport.isPlaying 
+                      ? <Pause className="w-5 h-5 fill-current" /> 
+                      : <Play className="w-5 h-5 fill-current ml-0.5" />
+                    }
+                  </Button>
+                </div>
+
+                <div className="flex-1 px-4 flex flex-col gap-1">
+                  <div className="flex justify-between text-[8px] font-black text-cyan-500/60 uppercase tracking-widest">
+                    <span>Signal Strength</span>
+                    <span>{transport.isPlaying ? 'Transmitting' : 'Standby'}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-cyan-950/60 rounded-full overflow-hidden border border-cyan-500/10">
+                    <div 
+                      className="h-full bg-gradient-to-r from-cyan-600 to-cyan-300 transition-all duration-300 shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                      style={{ width: transport.isPlaying ? '100%' : '15%' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end">
+                    <div className="text-[8px] text-cyan-500/40 font-mono uppercase leading-none">Sync</div>
+                    <Badge variant="outline" className="text-[8px] h-3 px-1 border-cyan-500/20 text-cyan-400/60 font-mono uppercase">LOCKED</Badge>
+                  </div>
+                  <div className="w-8 h-8 rounded-full border border-cyan-500/30 flex items-center justify-center relative overflow-hidden group/knob">
+                    <div className="absolute inset-0 bg-cyan-500/10 scale-0 group-hover/hud:scale-100 transition-transform" />
+                    <Volume2 className="w-3.5 h-3.5 text-cyan-400 z-10" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions Bar */}
+            <div className="px-4 py-2 flex gap-2 border-b border-cyan-500/10 bg-black/20">
               {quickActions.map(action => (
                 <button
                   key={action.action}
                   onClick={() => handleQuickAction(action.action)}
                   disabled={isLoading}
-                  className={`p-2 rounded-lg bg-gradient-to-br ${action.color} hover:scale-105 transition-all disabled:opacity-50`}
-                  title={action.label}
+                  className={`flex-1 flex flex-col items-center justify-center p-2 rounded-lg border transition-all hover:scale-105 active:scale-95 disabled:opacity-50 bg-black/40 border-cyan-500/20 text-cyan-400 hover:border-cyan-400 hover:bg-cyan-500/10 shadow-lg`}
                 >
-                  <action.icon className="w-5 h-5 mx-auto text-white" />
+                  <action.icon className="w-4 h-4 mb-1" />
+                  <span className="text-[9px] uppercase font-bold tracking-tighter">{action.label}</span>
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-lg p-3 ${
-                    msg.role === 'user'
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-                      : 'bg-gray-800 text-gray-100'
-                  }`}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  <p className="text-xs opacity-50 mt-1">
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
+            {/* Chat Interface */}
+            <div className="flex-1 overflow-hidden flex flex-col bg-black/40">
+              {/* Messages Area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-cyan-500/20">
+                {messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-lg p-3 relative group/msg ${
+                        msg.role === 'user'
+                          ? 'bg-cyan-600/20 text-cyan-100 border border-cyan-500/30'
+                          : 'bg-white/5 text-gray-200 border border-white/10'
+                      }`}
+                    >
+                      {msg.role === 'assistant' && (
+                        <div className="absolute -left-1 -top-1 w-2 h-2 border-t border-l border-cyan-500" />
+                      )}
+                      <p className="text-xs leading-relaxed font-medium">{msg.content}</p>
+                      <div className="mt-2 flex items-center justify-between opacity-30 group-hover/msg:opacity-100 transition-opacity">
+                        <span className="text-[9px] font-mono">
+                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {msg.role === 'assistant' && (
+                          <div className="flex gap-1">
+                            <div className="w-1.5 h-1.5 bg-cyan-500/30 rounded-full" />
+                            <div className="w-1.5 h-1.5 bg-cyan-500/30 rounded-full" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <div className="flex space-x-2">
+                        <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
               </div>
-            ))}
-            
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-800 rounded-lg p-3">
-                  <div className="flex space-x-2">
-                    <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+
+              {/* Input Control Center */}
+              <div className="p-4 border-t border-cyan-500/20 bg-cyan-500/5">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-cyan-400/10 rounded-lg blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
+                  <div className="relative flex items-end gap-2">
+                    <div className="flex-1 bg-black/60 rounded-lg border border-cyan-500/30 overflow-hidden focus-within:border-cyan-400 transition-colors">
+                      <div className="px-2 pt-1 flex items-center gap-1.5 text-[8px] text-cyan-500 font-mono uppercase tracking-widest">
+                        <Search className="w-2.5 h-2.5" /> Input Command
+                      </div>
+                      <Textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        placeholder="Type command or ask Astutely..."
+                        className="w-full bg-transparent border-none text-xs text-white placeholder:text-cyan-900 focus:ring-0 min-h-[50px] max-h-[120px] resize-none px-3 pb-2"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSend}
+                      disabled={isLoading || !input.trim()}
+                      className="h-[50px] w-[50px] bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-all active:scale-90"
+                    >
+                      <Send className="w-5 h-5" />
+                    </Button>
                   </div>
                 </div>
               </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="border-t border-gray-700 p-3 bg-gray-800/50">
-            <div className="flex space-x-2">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder="Ask me anything about music..."
-                className="flex-1 min-h-[50px] max-h-[80px] resize-none bg-gray-900 border-gray-600"
-                disabled={isLoading}
-              />
-              <Button
-                onClick={handleSend}
-                disabled={isLoading || !input.trim()}
-                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

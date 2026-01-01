@@ -5,13 +5,13 @@ import { queryClient } from "@/lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Navigation } from "@/components/layout/navigation";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })));
@@ -48,10 +48,13 @@ const UserProfilePage = React.lazy(() => import("@/pages/user-profile"));
 // Loading fallback component
 function LoadingFallback() {
   return (
-    <div className="flex items-center justify-center h-screen bg-gray-900">
+    <div className="flex items-center justify-center h-screen bg-black/95 text-cyan-100 astutely-app astutely-scanlines astutely-grid-bg">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p className="text-gray-400">Loading...</p>
+        <div className="relative mx-auto mb-4 h-12 w-12">
+          <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20 shadow-[0_0_25px_rgba(6,182,212,0.25)]" />
+          <div className="absolute inset-0 animate-spin rounded-full border-2 border-cyan-300/10 border-t-cyan-300 border-r-cyan-300/40" />
+        </div>
+        <p className="text-cyan-200/70 font-bold tracking-widest uppercase text-xs">Loading...</p>
       </div>
     </div>
   );
@@ -59,10 +62,9 @@ function LoadingFallback() {
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen w-full">
+    <div className="flex h-screen w-full bg-black/95 text-cyan-100 overflow-hidden">
       {/* Main content area */}
-      <div className="flex-1 flex flex-col">
-        <Navigation />
+      <div className="flex-1 flex flex-col min-w-0">
         <main id="main-content" className="flex-1 overflow-x-auto overflow-y-auto" role="main">
           <div className="w-full h-full">{children}</div>
         </main>
@@ -109,13 +111,20 @@ function LyricLabRoute() {
 function App() {
   // Initialize Google Analytics when app loads
   useEffect(() => {
+    // Force Astutely classes on body
+    document.body.className = 'astutely-app astutely-scanlines astutely-grid-bg astutely-scrollbar';
+    
     // Verify required environment variable is present
     const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
     if (!measurementId) {
-      console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
+      if (import.meta.env.DEV) {
+        console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
+      }
     } else {
       initGA();
-      console.log('🔍 Google Analytics initialized - now tracking website visitors!');
+      if (import.meta.env.DEV) {
+        console.log('🔍 Google Analytics initialized - now tracking website visitors!');
+      }
     }
   }, []);
 
@@ -128,14 +137,43 @@ function App() {
   useAnalytics();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          {/* GLOBAL NAVIGATION - Available on ALL pages */}
-          <GlobalNav className="fixed top-4 left-4 z-[9999]" />
-          <Suspense fallback={<LoadingFallback />}>
-            <Switch>
+    <ErrorBoundary
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-black/95 text-cyan-100 astutely-app astutely-scanlines astutely-grid-bg p-6">
+          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-cyan-500/30 bg-black/70 backdrop-blur-xl shadow-[0_0_30px_rgba(6,182,212,0.18)]">
+            <div className="absolute inset-0 pointer-events-none opacity-[0.06] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_2px]" />
+            <div className="relative p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300/80">System Fault</div>
+                  <div className="mt-2 text-xl font-black text-white">Something went wrong</div>
+                  <div className="mt-2 text-sm text-cyan-200/70">
+                    A component crashed. Refresh to recover.
+                  </div>
+                </div>
+                <div className="h-12 w-12 rounded-xl border border-cyan-500/30 bg-cyan-500/10 shadow-[0_0_18px_rgba(6,182,212,0.22)]" />
+              </div>
+              <div className="mt-6 flex items-center justify-end">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="h-10 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 text-xs font-black uppercase tracking-widest text-cyan-100 shadow-[0_0_18px_rgba(6,182,212,0.18)] hover:bg-cyan-500/20"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            {/* GLOBAL NAVIGATION - Available on ALL pages */}
+            <GlobalNav className="fixed top-4 left-4 z-[9999]" />
+            <Suspense fallback={<LoadingFallback />}>
+              <Switch>
               {/* ============================================
                   LANDING PAGE - Default route (LIGHTWEIGHT)
                   No audio providers = FAST initial load
@@ -231,11 +269,12 @@ function App() {
               
               {/* 404 */}
               <Route component={NotFound} />
-            </Switch>
-          </Suspense>
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+              </Switch>
+            </Suspense>
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

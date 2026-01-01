@@ -15,11 +15,11 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 
 const NAV_ITEMS = [
-  { icon: Home, label: 'Home', path: '/', color: 'bg-purple-600' },
-  { icon: LayoutDashboard, label: 'Studio', path: '/studio', color: 'bg-indigo-600' },
-  { icon: Mic2, label: 'Lyrics', path: '/lyric-lab', color: 'bg-rose-600' },
-  { icon: Shield, label: 'Security', path: '/vulnerability-scanner', color: 'bg-red-600' },
-  { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant', color: 'bg-cyan-600' },
+  { icon: Home, label: 'Home', path: '/', color: 'bg-cyan-600/25 border border-cyan-500/40' },
+  { icon: LayoutDashboard, label: 'Studio', path: '/studio', color: 'bg-cyan-600/25 border border-cyan-500/40' },
+  { icon: Mic2, label: 'Lyrics', path: '/lyric-lab', color: 'bg-cyan-600/25 border border-cyan-500/40' },
+  { icon: Shield, label: 'Security', path: '/vulnerability-scanner', color: 'bg-cyan-600/25 border border-cyan-500/40' },
+  { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant', color: 'bg-cyan-600/25 border border-cyan-500/40' },
 ];
 
 export function Navigation() {
@@ -33,16 +33,16 @@ export function Navigation() {
   const moreItems = NAV_ITEMS.slice(3);
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" role="navigation" aria-label="Main navigation">
+    <nav className="astutely-panel border-b border-cyan-500/40 bg-black/80 backdrop-blur-md" role="navigation" aria-label="Main navigation">
       <div className="flex h-14 items-center justify-between px-4">
         {/* Left: Logo + Nav Items */}
         <div className="flex items-center space-x-2">
           <Link href="/">
             <div className="flex items-center space-x-2 mr-4">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
-                <span className="text-white font-bold text-xs">CS</span>
+              <div className="h-8 w-8 rounded-lg bg-black/80 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_18px_rgba(6,182,212,0.25)]">
+                <span className="text-cyan-200 font-black text-xs tracking-widest">CS</span>
               </div>
-              <span className="text-lg font-bold hidden sm:block">CodedSwitch</span>
+              <span className="text-lg font-black hidden sm:block text-cyan-100 tracking-widest">CodedSwitch</span>
             </div>
           </Link>
           
@@ -53,10 +53,10 @@ export function Navigation() {
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg cursor-pointer font-medium transition-all ${
                   location === item.path 
                     ? `${item.color} text-white` 
-                    : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    : 'text-cyan-100/70 hover:text-white hover:bg-cyan-500/10 border border-transparent'
                 }`}
               >
-                <item.icon className="w-4 h-4" />
+                <item.icon className="w-4 h-4 text-cyan-300" />
                 <span className="hidden md:inline">{item.label}</span>
               </span>
             </Link>
@@ -66,43 +66,43 @@ export function Navigation() {
           <div className="relative">
             <button
               onClick={() => setMoreOpen(!moreOpen)}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg text-cyan-100/70 hover:text-white hover:bg-cyan-500/10 transition-all border border-transparent"
               aria-expanded={moreOpen}
               aria-haspopup="true"
               aria-label="More navigation options"
             >
               <span className="hidden md:inline">More</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+              <ChevronDown className={`w-4 h-4 text-cyan-300 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
             
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-                <div className="absolute top-full left-0 mt-2 w-56 bg-[#1a1025] border border-purple-500/20 rounded-xl py-2 z-50 shadow-xl">
+                <div className="absolute top-full left-0 mt-2 w-56 bg-black/90 border border-cyan-500/40 rounded-xl py-2 z-50 shadow-[0_0_30px_rgba(6,182,212,0.25)] backdrop-blur-md astutely-panel">
                   {moreItems.map(item => (
                     <Link key={item.path} href={item.path}>
                       <span
                         onClick={() => setMoreOpen(false)}
                         className={`flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-all ${
                           location === item.path
-                            ? 'bg-purple-600/20 text-white'
-                            : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                            ? 'bg-cyan-500/20 text-white'
+                            : 'text-cyan-100/80 hover:bg-cyan-500/10 hover:text-white'
                         }`}
                       >
-                        <item.icon className="w-4 h-4 text-purple-400" />
+                        <item.icon className="w-4 h-4 text-cyan-300" />
                         {item.label}
                       </span>
                     </Link>
                   ))}
 
-                  <div className="mx-4 my-2 h-px bg-purple-500/20" />
+                  <div className="mx-4 my-2 h-px bg-cyan-500/30" />
 
                   <Link href="/buy-credits">
                     <span
                       onClick={() => setMoreOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-all text-gray-300 hover:bg-white/5 hover:text-white"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-all text-cyan-100/80 hover:bg-cyan-500/10 hover:text-white"
                     >
-                      <Coins className="w-4 h-4 text-purple-400" />
+                      <Coins className="w-4 h-4 text-cyan-300" />
                       Get Credits
                     </span>
                   </Link>

@@ -4,7 +4,7 @@ import { useAudio } from '@/hooks/use-audio';
 
 interface PianoKeysProps {
   pianoKeys: PianoKey[];
-  selectedTrack: Track;
+  selectedTrack?: Track;
   onKeyClick: (keyIndex: number, step?: number) => void;
   keyHeight: number;
   currentStep: number;
@@ -12,69 +12,69 @@ interface PianoKeysProps {
   chordMode: boolean;
   activeKeys: Set<number>;
   onActiveKeysChange: (keys: Set<number>) => void;
-  onScroll?: () => void;
-  arpEnabled?: boolean; // When true, use hold mode instead of toggle
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
+  onPlayNote?: (note: string, octave: number) => void;
+  onPlayNoteOff?: (note: string, octave: number) => void;
+  arpEnabled?: boolean;
 }
 
-// Force rebuild
 export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
-  pianoKeys,
+  pianoKeys = [],
   selectedTrack,
   onKeyClick,
   keyHeight,
   currentStep,
   isPlaying,
   chordMode,
-  activeKeys,
+  activeKeys = new Set<number>(),
   onActiveKeysChange,
   onScroll,
+  scrollRef,
+  onPlayNote,
+  onPlayNoteOff,
   arpEnabled = false
 }, ref) => {
   const sustainedNotesRef = useRef<Map<number, any>>(new Map());
   const { playNote } = useAudio();
 
-  // Handle mouse/touch DOWN - activate key
   const handleKeyDown = useCallback((keyIndex: number) => {
     const key = pianoKeys[keyIndex];
+
+    if (!key) return;
     
-    if (arpEnabled) {
-      // ARP MODE: Add key on press (arpeggiator handles the repeating)
+    if (onPlayNote) {
+      onPlayNote(key.note, key.octave);
+    } else {
+      playNote(key.note, key.octave, 0.3, selectedTrack?.instrument || 'piano', 0.8);
+    }
+
+    if (arpEnabled || chordMode) {
       const newSet = new Set(activeKeys);
       if (!newSet.has(keyIndex)) {
         newSet.add(keyIndex);
-        // Play initial note
-        playNote(key.note, key.octave, 0.3, selectedTrack?.instrument || 'piano', 0.8);
         onActiveKeysChange(newSet);
       }
-    } else if (chordMode) {
-      // CHORD MODE: Toggle key on/off
-      const newSet = new Set(activeKeys);
-      if (newSet.has(keyIndex)) {
-        newSet.delete(keyIndex);
-        const notePlayer = sustainedNotesRef.current.get(keyIndex);
-        if (notePlayer?.stop) notePlayer.stop();
-        sustainedNotesRef.current.delete(keyIndex);
-      } else {
-        newSet.add(keyIndex);
-        playNote(key.note, key.octave, 1.5, selectedTrack?.instrument || 'piano', 0.8);
-      }
-      onActiveKeysChange(newSet);
     } else {
-      // NORMAL MODE: Single note for grid placement
       onKeyClick(keyIndex);
     }
-  }, [activeKeys, arpEnabled, chordMode, onActiveKeysChange, onKeyClick, pianoKeys, playNote, selectedTrack?.instrument]);
+  }, [activeKeys, arpEnabled, chordMode, onActiveKeysChange, onKeyClick, pianoKeys, playNote, onPlayNote, selectedTrack?.instrument]);
 
-  // Handle mouse/touch UP - deactivate key (only in arp mode)
   const handleKeyUp = useCallback((keyIndex: number) => {
+    const key = pianoKeys[keyIndex];
+    if (!key) return;
+
+    if (onPlayNoteOff) {
+      onPlayNoteOff(key.note, key.octave);
+    }
+
     if (arpEnabled) {
       const newSet = new Set(activeKeys);
       newSet.delete(keyIndex);
       onActiveKeysChange(newSet);
     }
-  }, [arpEnabled, activeKeys, onActiveKeysChange]);
+  }, [arpEnabled, activeKeys, onActiveKeysChange, onPlayNoteOff, pianoKeys]);
 
-  // Legacy click handler for backwards compatibility
   const handleKeyClick = useCallback((keyIndex: number) => {
     if (!arpEnabled) {
       handleKeyDown(keyIndex);
@@ -90,17 +90,16 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
 
   return (
     <div 
-      ref={ref}
-      className="w-28 bg-gradient-to-b from-gray-900 to-black border-r-2 border-gray-700 shadow-2xl"
+      ref={scrollRef || ref}
+      className="w-28 bg-black border-r border-cyan-500/30 shadow-2xl overflow-y-auto astutely-scrollbar"
       onScroll={onScroll}
-      style={{ borderTop: 'none', overflow: 'hidden' }}
+      style={{ borderTop: 'none' }}
     >
       {/* Spacer to match step header height */}
-      <div className="sticky top-0 z-10" style={{ height: '30px', background: 'transparent', border: 'none' }} />
+      <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-sm border-b border-cyan-500/20" style={{ height: '30px' }} />
       
-      <div className="relative" style={{ height: `${pianoKeys.length * keyHeight}px`, overflow: 'hidden' }}>
+      <div className="relative" style={{ height: `${pianoKeys.length * keyHeight}px` }}>
         {pianoKeys.map((key, index) => {
-          // Calculate EXACT Y position for this key to match grid row
           const yPosition = index * keyHeight;
           const isActive = activeKeys.has(index);
           const whiteKeyStyle: CSSProperties = {
@@ -110,17 +109,11 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
             right: 0,
             height: `${keyHeight}px`,
             boxSizing: 'border-box',
-            padding: 0,
-            margin: 0,
-            borderLeft: '1px solid #1a1a1a',
-            borderRight: '1px solid #1a1a1a',
-            border: 'none',
-            lineHeight: `${keyHeight}px`,
-            backgroundImage: isActive
-              ? 'linear-gradient(180deg, #ffffff, #d9f99d)'
-              : 'linear-gradient(180deg, #f8fafc, #e2e8f0)',
-            boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.8)',
+            borderBottom: '1px solid rgba(6, 182, 212, 0.1)',
+            backgroundColor: isActive ? 'rgba(6, 182, 212, 0.3)' : 'rgba(255, 255, 255, 0.02)',
+            color: isActive ? '#fff' : 'rgba(6, 182, 212, 0.4)',
             zIndex: 1,
+            transition: 'all 0.1s ease',
           };
 
           const blackKeyStyle: CSSProperties = {
@@ -130,15 +123,11 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
             height: `${keyHeight}px`,
             width: '65%',
             boxSizing: 'border-box',
-            padding: 0,
-            margin: 0,
-            border: 'none',
-            lineHeight: `${keyHeight}px`,
-            backgroundImage: isActive
-              ? 'linear-gradient(90deg, #4c1d95, #1e1b4b)'
-              : 'linear-gradient(90deg, #0f172a, #000000)',
-            boxShadow: '2px 0 4px rgba(0,0,0,0.5), inset -1px 0 2px rgba(255,255,255,0.1)',
+            backgroundColor: isActive ? '#06b6d4' : '#000',
+            border: '1px solid rgba(6, 182, 212, 0.3)',
+            boxShadow: isActive ? '0 0 15px #06b6d4' : 'none',
             zIndex: 10,
+            transition: 'all 0.1s ease',
           };
 
           return (
@@ -170,13 +159,13 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
               <div className="flex flex-col items-center justify-center h-full">
                 <span
                   className={`${
-                    key.isBlack ? 'text-white opacity-90' : 'text-black opacity-90'
-                  } ${isActive ? 'font-extrabold' : ''}`}
+                    key.isBlack ? 'text-white opacity-90' : 'text-cyan-500 opacity-90'
+                  } ${isActive ? 'font-extrabold text-white' : ''}`}
                 >
                   {key.key}
                 </span>
                 {isActive && (
-                  <span className="text-[10px] font-extrabold text-green-900 dark:text-green-100 mt-0.5 animate-pulse">
+                  <span className="text-[10px] font-extrabold text-white mt-0.5 animate-pulse">
                     ♪
                   </span>
                 )}
@@ -188,3 +177,4 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
     </div>
   );
 });
+

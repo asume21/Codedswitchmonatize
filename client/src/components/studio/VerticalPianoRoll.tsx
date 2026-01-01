@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import * as React from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import { Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1, X, Volume2, FolderOpen, Sliders, Drum, Piano, Waves, Mic2, Sparkles, Download } from "lucide-react";
+import { 
+  Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1, X, Volume2, FolderOpen, Sliders, Drum, Piano, Waves, Mic2, Sparkles, Download, Square, RotateCcw, VolumeX, Headphones, Settings, BarChart3, TrendingUp, Radio, FileMusic, Filter
+} from "lucide-react";
 import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
+import { professionalAudio } from "@/lib/professionalAudio";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useTransport } from "@/contexts/TransportContext";
+import { useTracks } from "@/hooks/useTracks";
+import type { TrackClip } from "@/types/studioTracks";
 import { useTrackStore } from "@/contexts/TrackStoreContext";
 import { useInstrumentOptional } from "@/contexts/InstrumentContext";
 import { PianoKeys } from "./PianoKeys";
@@ -21,6 +27,7 @@ import { PlaybackControls } from "./PlaybackControls";
 import { KeyScaleSelector } from "./KeyScaleSelector";
 import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
 import { duplicateTrackData } from "@/lib/trackClone";
+import { apiRequest } from "@/lib/queryClient";
 import { 
   Note, 
   Track, 
@@ -126,7 +133,25 @@ const DEFAULT_TRACKS: Track[] = [
   }
 ];
 
-export const VerticalPianoRoll: React.FC = () => {
+interface VerticalPianoRollProps {
+  tracks?: any[];
+  selectedTrack?: string;
+  isPlaying?: boolean;
+  currentTime?: number;
+  onPlayNote?: (note: string, octave: number, duration: number, instrument: string) => void;
+  onPlayNoteOff?: (note: string, octave: number, instrument: string) => void;
+  onNotesChange?: (updatedNotes: any[]) => void;
+}
+
+export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
+  tracks: propTracks,
+  selectedTrack: propSelectedTrack,
+  isPlaying: propIsPlaying,
+  currentTime: propCurrentTime,
+  onPlayNote,
+  onPlayNoteOff,
+  onNotesChange
+}) => {
   // Get transport state from context for sync with floating transport
   const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx } = useTransport();
   
@@ -134,15 +159,72 @@ export const VerticalPianoRoll: React.FC = () => {
   const globalInstrument = useInstrumentOptional();
   
   // State - sync with transport context
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [internalIsPlaying, setInternalIsPlaying] = useState(false);
+  const isPlaying = propIsPlaying !== undefined ? propIsPlaying : internalIsPlaying;
+  
+  const [internalCurrentStep, setInternalCurrentStep] = useState(0);
+  const currentStep = propCurrentTime !== undefined ? Math.floor(propCurrentTime * 4) : internalCurrentStep;
+
   const [bpm, setBpm] = useState(120);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [countInEnabled, setCountInEnabled] = useState(true);
-  const [tracks, setTracks] = useState<Track[]>(() => 
+  
+  const [internalTracks, setInternalTracks] = useState<Track[]>(() => 
     JSON.parse(JSON.stringify(DEFAULT_TRACKS))
   );
-  const [selectedTrackIndex, setSelectedTrackIndex] = useState(0);
+
+  const [trackSettingsOverrides, setTrackSettingsOverrides] = useState<Record<string, Partial<Pick<Track, 'instrument' | 'volume' | 'muted'>>>>({});
+  
+  // Use prop tracks if provided, otherwise internal
+  const tracks = useMemo(() => {
+    if (propTracks && propTracks.length > 0) {
+      return propTracks.map(t => {
+        const override = trackSettingsOverrides[t.id] || {};
+        return {
+          id: t.id,
+          name: t.name,
+          color: t.color || 'bg-blue-500',
+          notes: t.notes || [],
+          muted: override.muted ?? t.muted ?? false,
+          volume: override.volume ?? ((t.volume || 0.8) * 100),
+          instrument: override.instrument ?? (t.instrument || 'piano')
+        };
+      });
+    }
+    return internalTracks;
+  }, [propTracks, internalTracks, trackSettingsOverrides]);
+
+  const [internalSelectedTrackIndex, setInternalSelectedTrackIndex] = useState(0);
+  
+  const selectedTrackIndex = useMemo(() => {
+    if (propSelectedTrack) {
+      const idx = tracks.findIndex(t => t.id === propSelectedTrack);
+      return idx !== -1 ? idx : 0;
+    }
+    return internalSelectedTrackIndex;
+  }, [propSelectedTrack, tracks, internalSelectedTrackIndex]);
+
+  const setSelectedTrackIndex = (idx: number) => {
+    setInternalSelectedTrackIndex(idx);
+  };
+
+  const setTracks = (newTracks: Track[] | ((prev: Track[]) => Track[])) => {
+    if (onNotesChange && propSelectedTrack) {
+      const updatedTracks = typeof newTracks === 'function' ? newTracks(tracks) : newTracks;
+      const currentTrackNotes = updatedTracks.find(t => t.id === propSelectedTrack)?.notes || [];
+      onNotesChange(currentTrackNotes);
+    } else {
+      setInternalTracks(newTracks as any);
+    }
+  };
+
+  const setIsPlaying = (playing: boolean) => {
+    setInternalIsPlaying(playing);
+  };
+
+  const setCurrentStep = (step: number | ((prev: number) => number)) => {
+    setInternalCurrentStep(step as any);
+  };
   const [zoom, setZoom] = useState(1);
   const [currentKey, setCurrentKey] = useState('C');
   const [selectedProgression, setSelectedProgression] = useState<ChordProgression>(CHORD_PROGRESSIONS[0]);
@@ -230,15 +312,15 @@ export const VerticalPianoRoll: React.FC = () => {
   
   const { toast } = useToast();
   const { currentSession, updateSession } = useSongWorkSession();
-  // Note: useTransport is already called at the top for transport sync
-  const { tracks: registeredClips, addTrack, updateTrack, removeTrack } = useTrackStore();
+  // Use useTracks hook for persistence
+  const { tracks: registeredClips, addAndSaveTrack, updateTrack: updateTrackInStore, removeTrack } = useTracks();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pianoKeysRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingNotesRef = useRef<Note[]>([]);
-  const selectedTrack = tracks[selectedTrackIndex];
+  const selectedTrack = (tracks[selectedTrackIndex] || tracks[0] || internalTracks[0]) as Track;
   const pianoTrackIdRef = useRef<string>(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `piano-${Date.now()}`);
   const hasRegisteredTrackRef = useRef(false);
   const wavCacheRef = useRef<string | null>(null);
@@ -278,14 +360,14 @@ export const VerticalPianoRoll: React.FC = () => {
   toastRef.current = toast;
   
   useEffect(() => {
-    const handleAstutelyGenerated = (e: CustomEvent<{ notes: any[]; bpm: number }>) => {
-      const { notes, bpm: newBpm } = e.detail;
+    const handleAstutelyGenerated = (e: CustomEvent<{ notes: any[]; bpm: number; channelMapping?: Record<string, string> }>) => {
+      const { notes, bpm: newBpm, channelMapping } = e.detail;
       if (!notes || notes.length === 0) {
         console.warn('🎵 No notes received from AI Loop Generator');
         return;
       }
       
-      console.log('🎵 Loading Astutely-generated notes:', notes.length, notes);
+      console.log('🎵 Loading Astutely-generated notes:', notes.length, notes, channelMapping);
       setBpm(newBpm);
       
       // Group notes by track type
@@ -315,15 +397,19 @@ export const VerticalPianoRoll: React.FC = () => {
       // Track which index to select after update
       let bestTrackIndex = 0;
       
-      setTracks(prev => {
-        const newTracks = prev.map(t => ({ ...t })); // Deep copy
+      setTracks((prevTracks: Track[]) => {
+        const newTracks = [...prevTracks]; // Deep copy
         
         // Find or create tracks for each type
-        const findOrCreateTrack = (name: string, instrument: string, color: string) => {
+        const findOrCreateTrack = (name: string, instrument: string, color: string, typeHint?: string) => {
           let trackIndex = newTracks.findIndex(t => t.name.toLowerCase().includes(name.toLowerCase()));
           if (trackIndex === -1) {
+            const newTrackId = (typeHint && channelMapping && channelMapping[typeHint]) 
+              ? channelMapping[typeHint] 
+              : `track-${Date.now()}-${name}`;
+
             const newTrack = {
-              id: `track-${Date.now()}-${name}`,
+              id: newTrackId,
               name: name.charAt(0).toUpperCase() + name.slice(1),
               color,
               notes: [] as Note[],
@@ -339,7 +425,7 @@ export const VerticalPianoRoll: React.FC = () => {
         
         // Add drum notes
         if (drumNotes.length > 0) {
-          const { track, index } = findOrCreateTrack('drums', 'drums', 'bg-pink-500');
+          const { track, index } = findOrCreateTrack('drums', 'drums', 'bg-pink-500', 'drums');
           track.notes = drumNotes.map(convertNote);
           bestTrackIndex = index;
           console.log(`🥁 Added ${drumNotes.length} drum notes to track ${index}`);
@@ -347,7 +433,7 @@ export const VerticalPianoRoll: React.FC = () => {
         
         // Add bass notes
         if (bassNotes.length > 0) {
-          const { track, index } = findOrCreateTrack('bass', 'bass-electric', 'bg-green-500');
+          const { track, index } = findOrCreateTrack('bass', 'bass-electric', 'bg-green-500', 'bass');
           track.notes = bassNotes.map(convertNote);
           bestTrackIndex = index;
           console.log(`🎸 Added ${bassNotes.length} bass notes to track ${index}`);
@@ -355,7 +441,7 @@ export const VerticalPianoRoll: React.FC = () => {
         
         // Add chord notes
         if (chordNotes.length > 0) {
-          const { track, index } = findOrCreateTrack('chords', 'piano', 'bg-purple-500');
+          const { track, index } = findOrCreateTrack('chords', 'piano', 'bg-purple-500', 'chords');
           track.notes = chordNotes.map(convertNote);
           bestTrackIndex = index;
           console.log(`🎹 Added ${chordNotes.length} chord notes to track ${index}`);
@@ -363,7 +449,7 @@ export const VerticalPianoRoll: React.FC = () => {
         
         // Add melody notes (highest priority for display)
         if (melodyNotes.length > 0) {
-          const { track, index } = findOrCreateTrack('melody', 'piano', 'bg-blue-500');
+          const { track, index } = findOrCreateTrack('melody', 'piano', 'bg-blue-500', 'melody');
           track.notes = melodyNotes.map(convertNote);
           bestTrackIndex = index;
           console.log(`🎵 Added ${melodyNotes.length} melody notes to track ${index}`);
@@ -497,7 +583,7 @@ export const VerticalPianoRoll: React.FC = () => {
   }, [removeTrack]);
 
   const patternLengthSteps = useMemo(() => {
-    const noteEndSteps = tracks.flatMap(track => track.notes.map(note => note.step + note.length));
+    const noteEndSteps = tracks.flatMap(track => track.notes.map((note: Note) => note.step + note.length));
     if (noteEndSteps.length === 0) {
       return STEPS;
     }
@@ -505,35 +591,48 @@ export const VerticalPianoRoll: React.FC = () => {
   }, [tracks]);
 
   useEffect(() => {
-    const clipLengthBars = Math.max(1, Math.ceil(patternLengthSteps / 16));
-    const clipPayload = createTrackPayload({
-      type: 'midi',
-      source: 'piano-roll',
-      bpm,
-      notes: tracks.flatMap(t => t.notes),
-      data: {
-        tracks,
-        key: currentKey,
-        progression: selectedProgression,
-      },
-    });
+    const syncTrack = async () => {
+      const clipLengthBars = Math.max(1, Math.ceil(patternLengthSteps / 16));
+      const clipPayload = createTrackPayload({
+        type: 'midi',
+        source: 'piano-roll',
+        bpm,
+        notes: tracks.flatMap(t => t.notes),
+        data: {
+          tracks,
+          key: currentKey,
+          progression: selectedProgression,
+        },
+      });
 
-    const clip = {
-      id: pianoTrackIdRef.current,
-      kind: 'piano' as const,
-      name: `Piano Roll - ${selectedTrack?.name ?? 'Track'}`,
-      lengthBars: clipLengthBars,
-      startBar: 0,
-      payload: clipPayload,
+      const clip = {
+        id: pianoTrackIdRef.current,
+        kind: 'piano' as const,
+        name: `Piano Roll - ${selectedTrack?.name ?? 'Track'}`,
+        lengthBars: clipLengthBars,
+        startBar: 0,
+        payload: clipPayload,
+      };
+
+      if (hasRegisteredTrackRef.current) {
+        updateTrack(pianoTrackIdRef.current, clip);
+      } else {
+        await addAndSaveTrack({
+          id: pianoTrackIdRef.current,
+          name: clip.name,
+          type: (clip.kind as any) === 'audio' ? 'audio' : (clip.kind as any) === 'beat' ? 'beat' : 'midi',
+          notes: clip.payload?.notes || [],
+          instrument: clip.payload?.instrument,
+          bpm: clip.payload?.bpm || 120,
+          source: clip.payload?.source || 'piano-roll',
+          color: clip.payload?.color,
+        });
+        hasRegisteredTrackRef.current = true;
+      }
     };
 
-    if (hasRegisteredTrackRef.current) {
-      updateTrack(pianoTrackIdRef.current, clip);
-    } else {
-      addTrack(clip);
-      hasRegisteredTrackRef.current = true;
-    }
-  }, [tracks, bpm, currentKey, selectedProgression, selectedTrack, addTrack, updateTrack, patternLengthSteps]);
+    syncTrack();
+  }, [tracks, bpm, currentKey, selectedProgression, selectedTrack, addAndSaveTrack, updateTrack, patternLengthSteps]);
 
   useEffect(() => {
     if (currentSession) {
@@ -541,8 +640,63 @@ export const VerticalPianoRoll: React.FC = () => {
     }
   }, [registeredClips, currentSession, updateSession]);
 
+  // Check if we're being controlled externally
+  const isExternallyControlled = propCurrentTime !== undefined;
+  
+  // Track the previous step to detect step changes for external playback
+  const prevStepRef = useRef<number>(-1);
+  
+  // Effect to play notes when externally controlled and step changes
+  useEffect(() => {
+    if (!isExternallyControlled || !propIsPlaying) return;
+    
+    const newStep = Math.floor(propCurrentTime * 4) % STEPS;
+    if (newStep === prevStepRef.current) return;
+    
+    prevStepRef.current = newStep;
+    const stepDuration = (60 / bpm / 4);
+    
+    // Play notes at the current step
+    tracks.forEach(track => {
+      if (!track.muted) {
+        const notesAtStep = track.notes.filter((note: Note) => note.step === newStep);
+        notesAtStep.forEach((note: Note) => {
+          const noteDuration = note.length * stepDuration;
+          
+          if (onPlayNote) {
+            // Use parent's playNote for centralized audio routing
+            onPlayNote(note.note, note.octave, noteDuration, track.instrument);
+          } else {
+            // Fallback to direct playback
+            const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
+            realisticAudio.playNote(
+              note.note,
+              note.octave,
+              noteDuration,
+              track.instrument,
+              track.volume / 100,
+              true,
+              mixerChannel?.input
+            );
+          }
+        });
+      }
+    });
+  }, [isExternallyControlled, propIsPlaying, propCurrentTime, bpm, tracks, onPlayNote]);
+
   // Playback control - synced with transport context
   const handlePlay = useCallback(() => {
+    // If externally controlled, don't run internal playback - just toggle state
+    if (isExternallyControlled) {
+      setIsPlaying(!isPlaying);
+      if (isPlaying) {
+        pauseTransport();
+      } else {
+        playTransport();
+      }
+      return;
+    }
+    
     if (isPlaying) {
       // Pause
       if (intervalRef.current) {
@@ -570,19 +724,24 @@ export const VerticalPianoRoll: React.FC = () => {
           // Play notes at the current step
           tracks.forEach(track => {
             if (!track.muted) {
-              const notesAtStep = track.notes.filter(note => note.step === nextStep);
+              const notesAtStep = track.notes.filter((note: Note) => note.step === nextStep);
               if (notesAtStep.length > 0) {
                 console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes`, notesAtStep);
               }
-              notesAtStep.forEach(note => {
+              notesAtStep.forEach((note: Note) => {
                 const noteDuration = (note.length * stepDuration) / 1000;
+                
+                // Route to mixer channel
+                const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
                 
                 realisticAudio.playNote(
                   note.note,
                   note.octave,
                   noteDuration,
                   track.instrument,
-                  (note.velocity / 127) * (track.volume / 100)
+                  track.volume / 100,
+                  true,
+                  mixerChannel?.input
                 );
               });
             }
@@ -592,7 +751,7 @@ export const VerticalPianoRoll: React.FC = () => {
         });
       }, stepDuration);
     }
-  }, [isPlaying, bpm, tracks, playTransport, pauseTransport]);
+  }, [isPlaying, bpm, tracks, playTransport, pauseTransport, isExternallyControlled]);
 
   const handleStop = useCallback(() => {
     if (intervalRef.current) {
@@ -672,31 +831,108 @@ export const VerticalPianoRoll: React.FC = () => {
     });
   }, [isPlaying, handleStop, toast]);
 
+  // ADVANCED FEATURE FUNCTIONS (moved before keyboard shortcuts to fix declaration order)
+  
+  // Snap to grid function
+  const snapToGrid = useCallback((step: number): number => {
+    if (!snapEnabled) return step;
+    return Math.round(step / snapValue) * snapValue;
+  }, [snapEnabled, snapValue]);
+
+  // Add to history for undo/redo
+  const addToHistory = useCallback((notes: Note[]) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push([...notes]);
+      return newHistory;
+    });
+    setHistoryIndex(prev => prev + 1);
+  }, [historyIndex]);
+
+  // Undo
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const previousState = history[historyIndex - 1];
+      setTracks(prev => prev.map((track, index) =>
+        index === selectedTrackIndex ? { ...track, notes: previousState } : track
+      ));
+      setHistoryIndex(prev => prev - 1);
+    }
+  }, [historyIndex, history, selectedTrackIndex]);
+
+  // Redo
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const nextState = history[historyIndex + 1];
+      setTracks(prev => prev.map((track, index) =>
+        index === selectedTrackIndex ? { ...track, notes: nextState } : track
+      ));
+      setHistoryIndex(prev => prev + 1);
+    }
+  }, [historyIndex, history, selectedTrackIndex]);
+
+  // Copy selected notes
+  const copySelected = useCallback(() => {
+    if (selectedNoteIds.size === 0) return;
+    const selectedNotes = selectedTrack.notes.filter((n: Note) => selectedNoteIds.has(n.id));
+    setClipboard(selectedNotes);
+    toast({ title: '📋 Copied', description: `${selectedNotes.length} note${selectedNotes.length === 1 ? '' : 's'} copied` });
+  }, [selectedNoteIds, selectedTrack, toast]);
+
+  // Paste notes
+  const pasteNotes = useCallback(() => {
+    if (clipboard.length === 0) return;
+    const minStep = Math.min(...clipboard.map((n: Note) => n.step));
+    const newNotes = clipboard.map((note: Note) => ({
+      ...note,
+      id: `${Date.now()}-${Math.random()}`,
+      step: snapToGrid(currentStep + (note.step - minStep)),
+    }));
+    const updatedNotes = [...selectedTrack.notes, ...newNotes];
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
+    ));
+    addToHistory(updatedNotes);
+    toast({ title: '📌 Pasted', description: `${newNotes.length} note${newNotes.length === 1 ? '' : 's'} pasted` });
+  }, [clipboard, currentStep, selectedTrack, selectedTrackIndex, snapToGrid, addToHistory, toast]);
+
+  // Delete selected notes
+  const deleteSelected = useCallback(() => {
+    if (selectedNoteIds.size === 0) return;
+    const updatedNotes = selectedTrack.notes.filter((n: Note) => !selectedNoteIds.has(n.id));
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
+    ));
+    addToHistory(updatedNotes);
+    setSelectedNoteIds(new Set());
+    toast({ title: '🗑️ Deleted', description: `${selectedNoteIds.size} note${selectedNoteIds.size === 1 ? '' : 's'} removed` });
+  }, [selectedNoteIds, selectedTrack, selectedTrackIndex, addToHistory, toast]);
+
   // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
   useEffect(() => {
     const pressedKeys = new Set<string>();
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (ev: KeyboardEvent) => {
       // Don't capture if user is typing in an input field
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
       
-      const key = e.key.toLowerCase();
+      const k = ev.key.toLowerCase();
       
       // Prevent key repeat
-      if (pressedKeys.has(key)) return;
-      pressedKeys.add(key);
+      if (pressedKeys.has(k)) return;
+      pressedKeys.add(k);
 
       // SPACE - Play/Pause
-      if (key === ' ') {
-        e.preventDefault();
+      if (k === ' ') {
+        ev.preventDefault();
         handlePlay();
         return;
       }
 
       // ENHANCED: Number keys 1-7 trigger chords from progression
-      if (key >= '1' && key <= '7') {
-        e.preventDefault();
-        const chordIndex = parseInt(key) - 1;
+      if (k >= '1' && k <= '7') {
+        ev.preventDefault();
+        const chordIndex = parseInt(k) - 1;
         if (selectedProgression.chords[chordIndex]) {
           const chordSymbol = selectedProgression.chords[chordIndex];
           const keyData = DEFAULT_customKeys[currentKey as keyof typeof DEFAULT_customKeys];
@@ -713,92 +949,105 @@ export const VerticalPianoRoll: React.FC = () => {
             }
             
             // Play chord
+            const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack.id);
             chordNotes.forEach((note, index) => {
               setTimeout(() => {
-                realisticAudio.playNote(note, 4, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
+                realisticAudio.playNote(
+                  note, 
+                  4, 
+                  0.8, 
+                  selectedTrack.instrument, 
+                  selectedTrack.volume / 100,
+                  true,
+                  mixerChannel?.input
+                );
               }, index * 50);
             });
-            
-            // Visual feedback
-            toast({
-              title: `${chordSymbol} Chord`,
-              description: `Inversion: ${chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st' : '2nd'} • Notes: ${chordNotes.join('-')}`,
-              duration: 2000
-            });
           }
+          
+          // Visual feedback
+          toast({
+            title: `${chordSymbol} Chord`,
+            description: `Inversion: ${chordInversion === 0 ? 'Root' : chordInversion === 1 ? '1st' : '2nd'} • Notes: ${chordNotes?.join('-')}`,
+          });
+          setTracks((prev: Track[]) => {
+            const c = [...prev];
+            c[selectedTrackIndex] = { ...c[selectedTrackIndex], volume: selectedTrack.volume };
+            return c;
+          });
         }
         return;
       }
 
-      // NEW KEYBOARD SHORTCUTS
-      if (e.ctrlKey || e.metaKey) {
+      // CTRL + KEYS
+      if (ev.ctrlKey || ev.metaKey) {
         // Ctrl+Z - Undo
-        if (key === 'z' && !e.shiftKey) {
-          e.preventDefault();
+        if (k === 'z' && !ev.shiftKey) {
+          ev.preventDefault();
           undo();
           return;
         }
-        // Ctrl+Y or Ctrl+Shift+Z - Redo
-        if (key === 'y' || (key === 'z' && e.shiftKey)) {
-          e.preventDefault();
+        if (k === 'y' || (k === 'z' && ev.shiftKey)) {
+          ev.preventDefault();
           redo();
           return;
         }
-        // Ctrl+C - Copy (but not chord mode toggle)
-        if (key === 'c' && selectedNoteIds.size > 0) {
-          e.preventDefault();
+        // Ctrl+C - Copy
+        if (k === 'c' && selectedNoteIds.size > 0) {
+          ev.preventDefault();
           copySelected();
           return;
         }
         // Ctrl+V - Paste
-        if (key === 'v') {
-          e.preventDefault();
+        if (k === 'v') {
+          ev.preventDefault();
           pasteNotes();
           return;
         }
         // Ctrl+A - Select all
-        if (key === 'a') {
-          e.preventDefault();
-          setSelectedNoteIds(new Set(selectedTrack.notes.map(n => n.id)));
+        if (k === 'a') {
+          ev.preventDefault();
+          setSelectedNoteIds(new Set(selectedTrack.notes.map((n: Note) => n.id)));
           toast({ title: 'All Selected' });
           return;
         }
         // Ctrl+I - Cycle chord inversion
-        if (key === 'i') {
-          e.preventDefault();
+        if (k === 'i') {
+          ev.preventDefault();
           setChordInversion((prev) => (prev + 1) % 3);
           return;
         }
       }
 
       // Delete/Backspace - Delete selected notes
-      if ((key === 'delete' || key === 'backspace') && selectedNoteIds.size > 0) {
-        e.preventDefault();
+      if ((k === 'delete' || k === 'backspace') && selectedNoteIds.size > 0) {
+        ev.preventDefault();
         deleteSelected();
         return;
       }
 
-      // FLOATING PANEL SHORTCUTS (merged from CodedSwitchFlow)
+      // FLOATING PANEL SHORTCUTS
       // M - Toggle Mixer Panel
-      if (key === 'm' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
+      if (k === 'm' && !ev.ctrlKey && !ev.metaKey) {
+        ev.preventDefault();
         setMixerPanelOpen(prev => !prev);
         return;
       }
       // B - Toggle Browser Panel
-      if (key === 'b' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
+      if (k === 'b' && !ev.ctrlKey && !ev.metaKey) {
+        ev.preventDefault();
         setBrowserPanelOpen(prev => !prev);
         return;
       }
       // I - Toggle Inspector Panel (only without Ctrl)
-      if (key === 'i' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
+      if (k === 'i' && !ev.ctrlKey && !ev.metaKey) {
+        ev.preventDefault();
         setInspectorPanelOpen(prev => !prev);
         return;
       }
       // Escape - Close all panels
-      if (key === 'escape') {
+      if (k === 'escape') {
+        ev.preventDefault();
         setMixerPanelOpen(false);
         setBrowserPanelOpen(false);
         setInspectorPanelOpen(false);
@@ -806,9 +1055,9 @@ export const VerticalPianoRoll: React.FC = () => {
       }
 
       // Check if this key maps to a piano note
-      const noteMapping = KEYBOARD_TO_NOTE[key];
+      const noteMapping = KEYBOARD_TO_NOTE[k];
       if (noteMapping) {
-        e.preventDefault();
+        ev.preventDefault();
         
         // Find the piano key index
         const keyIndex = PIANO_KEYS.findIndex(
@@ -818,12 +1067,15 @@ export const VerticalPianoRoll: React.FC = () => {
         if (keyIndex !== -1) {
           // Play the note
           const pianoKey = PIANO_KEYS[keyIndex];
+          const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack.id);
           realisticAudio.playNote(
             pianoKey.note,
             pianoKey.octave,
             0.8,
             selectedTrack.instrument,
-            selectedTrack.volume / 100
+            selectedTrack.volume / 100,
+            true,
+            mixerChannel?.input
           );
 
           // RECORDING MODE - Capture timing!
@@ -846,48 +1098,31 @@ export const VerticalPianoRoll: React.FC = () => {
             
             const elapsedMs = now - actualStartTime;
             // Convert milliseconds to steps based on BPM
-            // Each step is a 16th note: (60000ms / bpm) / 4
             const msPerStep = (60000 / bpm) / 4;
             
-            // 🎹 CHORD TOLERANCE: Notes played within 150ms snap to the same step
-            // Keyboard events fire sequentially even when keys pressed "together"
-            // 150ms is generous enough to catch all notes in a chord
+            // 🎹 CHORD TOLERANCE
             const CHORD_TOLERANCE_MS = 150;
             
             let step: number;
             const recentNotes = recordingNotesRef.current;
             
-            // Find the most recent note by looking at its timestamp (stored in id)
-            // We need to check if THIS note is close in TIME to the last one
             if (recentNotes.length > 0) {
-              // Get the last note's actual recording timestamp from its ID
               const lastNote = recentNotes[recentNotes.length - 1];
               const lastNoteTimestamp = parseInt(lastNote.id.split('-').pop() || '0');
               const timeSinceLastNote = now - lastNoteTimestamp;
               
-              console.log(`⏱️ Time since last note: ${timeSinceLastNote}ms`);
-              
               if (timeSinceLastNote <= CHORD_TOLERANCE_MS) {
-                // Snap to the same step as the last note (chord grouping)
                 step = lastNote.step;
-                console.log(`🎹 CHORD! Snapping to step ${step} (${timeSinceLastNote}ms apart)`);
               } else {
-                // Normal quantization - this is a new beat
                 const rawStep = elapsedMs / msPerStep;
                 step = Math.round(rawStep) % STEPS;
-                console.log(`🎵 New beat at step ${step} (${timeSinceLastNote}ms since last)`);
               }
             } else {
-              // First note - always step 0
               step = 0;
-              console.log(`🎵 First note at step 0`);
             }
             
-            // Wrap around if exceeding grid (loop back to start)
             step = step % STEPS;
             
-            // Create and add note to recording buffer
-            // IMPORTANT: Timestamp is stored in the ID for chord detection!
             const newNote: Note = {
               id: `rec-${pianoKey.key}-${now}`,
               note: pianoKey.note,
@@ -898,104 +1133,40 @@ export const VerticalPianoRoll: React.FC = () => {
             };
             
             recordingNotesRef.current.push(newNote);
-            
-            // Visual feedback - move playhead to show position
             setCurrentStep(step);
-            
-            console.log(`✅ Recorded: ${pianoKey.note}${pianoKey.octave} at step ${step}`);
           } 
-          // Chord mode (not recording)
           else if (chordMode) {
-            // In chord mode, accumulate selected keys and audition together
             setActiveKeys(prev => {
               const next = new Set(prev);
               next.add(keyIndex);
               return next;
             });
-            realisticAudio.playNote(pianoKey.note, pianoKey.octave, 0.8, selectedTrack.instrument, selectedTrack.volume / 100);
-          } 
-          // Normal mode (allow multiple simultaneous keys)
-          else {
-            setActiveKeys(prev => {
-              const next = new Set(prev);
-              next.add(keyIndex);
-              return next;
-            });
-            addNote(keyIndex);
+            const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack.id);
+            realisticAudio.playNote(
+              pianoKey.note, 
+              pianoKey.octave, 
+              0.8, 
+              selectedTrack.instrument, 
+              selectedTrack.volume / 100,
+              true,
+              mixerChannel?.input
+            );
           }
         }
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      pressedKeys.delete(key);
-
-      // Clear released key from visual feedback when not in chord mode
-      if (!chordMode) {
-        const noteMapping = KEYBOARD_TO_NOTE[key];
-        if (noteMapping) {
-          setActiveKeys(prev => {
-            const next = new Set(prev);
-            // remove the released key index
-            const keyIndex = PIANO_KEYS.findIndex(k => k.note.toLowerCase() === noteMapping.note.toLowerCase() && k.octave === noteMapping.octave);
-            if (keyIndex >= 0) next.delete(keyIndex);
-            return next;
-          });
-        }
-      }
+    const handleKeyUp = (ev: KeyboardEvent) => {
+      pressedKeys.delete(ev.key.toLowerCase());
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chordMode, selectedTrack, handlePlay, isRecording, recordingStartTime, bpm, selectedProgression, currentKey, chordInversion, toast, selectedNoteIds]);
-
-  // Note management
-  const addNote = useCallback((keyIndex: number, step?: number, playAudio: boolean = true) => {
-    const key = PIANO_KEYS[keyIndex];
-    
-    // If no step provided (from PianoKeys), use current step or 0
-    const noteStep = step !== undefined ? step : (currentStep || 0);
-    
-    const newNote: Note = {
-      id: `${key.key}-${noteStep}-${Date.now()}`,
-      note: key.note,
-      octave: key.octave,
-      step: noteStep,
-      velocity: 100,
-      length: 1
-    };
-
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex
-        ? { ...track, notes: [...track.notes, newNote] }
-        : track
-    ));
-
-    if (playAudio) {
-      realisticAudio.playNote(
-        key.note, 
-        key.octave, 
-        0.8, 
-        selectedTrack.instrument, 
-        selectedTrack.volume / 100
-      );
-    }
-  }, [selectedTrackIndex, selectedTrack, currentStep]);
-
-  const removeNote = useCallback((noteId: string) => {
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex
-        ? { ...track, notes: track.notes.filter(note => note.id !== noteId) }
-        : track
-    ));
-  }, [selectedTrackIndex]);
+  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
     setTracks(prev => prev.map((track, index) =>
@@ -1036,6 +1207,66 @@ export const VerticalPianoRoll: React.FC = () => {
         : track
     ));
   }, [selectedTrackIndex]);
+
+  // Remove a note from the grid
+  const removeNote = useCallback((noteId: string) => {
+    const updatedNotes = selectedTrack.notes.filter((n: Note) => n.id !== noteId);
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
+    ));
+    addToHistory(updatedNotes);
+  }, [selectedTrack, selectedTrackIndex, addToHistory]);
+
+  // Add a note to the grid (used by PianoKeys and StepGrid)
+  const addNote = useCallback((keyIndex: number, step?: number) => {
+    const pianoKey = PIANO_KEYS[keyIndex];
+    if (!pianoKey) return;
+    
+    const targetStep = step ?? currentStep;
+    
+    // Check if note already exists at this position
+    const existingNote = selectedTrack.notes.find(
+      (n: Note) => n.note === pianoKey.note && n.octave === pianoKey.octave && n.step === targetStep
+    );
+    
+    if (existingNote) {
+      // If note exists, remove it (toggle behavior)
+      const updatedNotes = selectedTrack.notes.filter((n: Note) => n.id !== existingNote.id);
+      setTracks(prev => prev.map((track, index) =>
+        index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
+      ));
+      addToHistory(updatedNotes);
+      return;
+    }
+    
+    // Create new note
+    const newNote: Note = {
+      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      note: pianoKey.note,
+      octave: pianoKey.octave,
+      step: targetStep,
+      velocity: 100,
+      length: 1
+    };
+    
+    // Play the note for audio feedback
+    const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack.id);
+    realisticAudio.playNote(
+      pianoKey.note,
+      pianoKey.octave,
+      0.8,
+      selectedTrack.instrument,
+      selectedTrack.volume / 100,
+      true,
+      mixerChannel?.input
+    );
+    
+    const updatedNotes = [...selectedTrack.notes, newNote];
+    setTracks(prev => prev.map((track, index) =>
+      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
+    ));
+    addToHistory(updatedNotes);
+  }, [currentStep, selectedTrack, selectedTrackIndex, addToHistory]);
 
   // Copy a note to a new position (Alt+drag)
   const copyNote = useCallback((noteId: string, newStep: number, newKeyIndex: number) => {
@@ -1112,16 +1343,19 @@ export const VerticalPianoRoll: React.FC = () => {
         const pianoKey = PIANO_KEYS[keyIndex];
         if (pianoKey) {
           // Add note to grid
-          addNote(keyIndex, step, false);
+          addNote(keyIndex, step);
           
           // Play the note with slight delay for chord effect
+          const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack.id);
           setTimeout(() => {
             realisticAudio.playNote(
               pianoKey.note, 
               pianoKey.octave, 
               0.8, 
               selectedTrack.instrument, 
-              selectedTrack.volume / 100
+              selectedTrack.volume / 100,
+              true,
+              mixerChannel?.input
             );
           }, index * 50);
         }
@@ -1150,22 +1384,54 @@ export const VerticalPianoRoll: React.FC = () => {
   }, []);
 
   const handleVolumeChange = useCallback((trackId: string, volume: number) => {
+    setTrackSettingsOverrides(prev => ({
+      ...prev,
+      [trackId]: { ...(prev[trackId] || {}), volume }
+    }));
+
     setTracks(prev => prev.map(track =>
       track.id === trackId ? { ...track, volume } : track
     ));
-  }, []);
+
+    // Persist to shared track store when Piano Roll is driven by external tracks
+    if (propTracks && propTracks.length > 0) {
+      updateTrackInStore(trackId, { volume: volume / 100 });
+    }
+  }, [propTracks, updateTrackInStore]);
 
   const handleMuteToggle = useCallback((trackId: string) => {
+    const currentMuted = trackSettingsOverrides[trackId]?.muted ?? tracks.find(t => t.id === trackId)?.muted ?? false;
+    const nextMuted = !currentMuted;
+
+    setTrackSettingsOverrides(prev => ({
+      ...prev,
+      [trackId]: { ...(prev[trackId] || {}), muted: nextMuted }
+    }));
+
     setTracks(prev => prev.map(track =>
-      track.id === trackId ? { ...track, muted: !track.muted } : track
+      track.id === trackId ? { ...track, muted: nextMuted } : track
     ));
-  }, []);
+
+    if (propTracks && propTracks.length > 0) {
+      updateTrackInStore(trackId, { muted: nextMuted });
+    }
+  }, [propTracks, trackSettingsOverrides, tracks, updateTrackInStore]);
 
   const handleInstrumentChange = useCallback((trackId: string, instrument: string) => {
+    setTrackSettingsOverrides(prev => ({
+      ...prev,
+      [trackId]: { ...(prev[trackId] || {}), instrument }
+    }));
+
     setTracks(prev => prev.map(track =>
       track.id === trackId ? { ...track, instrument } : track
     ));
     
+    // Persist to shared track store when Piano Roll is driven by external tracks
+    if (propTracks && propTracks.length > 0) {
+      updateTrackInStore(trackId, { instrument });
+    }
+
     // Update global instrument context for MIDI sync
     if (globalInstrument?.setCurrentInstrument) {
       globalInstrument.setCurrentInstrument(instrument);
@@ -1178,7 +1444,7 @@ export const VerticalPianoRoll: React.FC = () => {
         description: `Changed track instrument to ${AVAILABLE_INSTRUMENTS.find(i => i.value === instrument)?.label}`,
       });
     });
-  }, [toast, globalInstrument]);
+  }, [toast, globalInstrument, propTracks, updateTrackInStore]);
 
   const handleKeyChange = useCallback((key: string) => {
     // Save current scale state before switching
@@ -1276,86 +1542,9 @@ export const VerticalPianoRoll: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // NEW ADVANCED FEATURE FUNCTIONS
-  
-  // Snap to grid function
-  const snapToGrid = useCallback((step: number): number => {
-    if (!snapEnabled) return step;
-    return Math.round(step / snapValue) * snapValue;
-  }, [snapEnabled, snapValue]);
-
-  // Add to history for undo/redo
-  const addToHistory = useCallback((notes: Note[]) => {
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push([...notes]);
-      return newHistory;
-    });
-    setHistoryIndex(prev => prev + 1);
-  }, [historyIndex]);
-
-  // Undo
-  const undo = useCallback(() => {
-    if (historyIndex > 0) {
-      const previousState = history[historyIndex - 1];
-      setTracks(prev => prev.map((track, index) =>
-        index === selectedTrackIndex ? { ...track, notes: previousState } : track
-      ));
-      setHistoryIndex(prev => prev - 1);
-    }
-  }, [historyIndex, history, selectedTrackIndex]);
-
-  // Redo
-  const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
-      setTracks(prev => prev.map((track, index) =>
-        index === selectedTrackIndex ? { ...track, notes: nextState } : track
-      ));
-      setHistoryIndex(prev => prev + 1);
-    }
-  }, [historyIndex, history, selectedTrackIndex]);
-
-  // Copy selected notes
-  const copySelected = useCallback(() => {
-    if (selectedNoteIds.size === 0) return;
-    const selectedNotes = selectedTrack.notes.filter(n => selectedNoteIds.has(n.id));
-    setClipboard(selectedNotes);
-    toast({ title: '📋 Copied', description: `${selectedNotes.length} note${selectedNotes.length === 1 ? '' : 's'} copied` });
-  }, [selectedNoteIds, selectedTrack, toast]);
-
-  // Paste notes
-  const pasteNotes = useCallback(() => {
-    if (clipboard.length === 0) return;
-    const minStep = Math.min(...clipboard.map(n => n.step));
-    const newNotes = clipboard.map(note => ({
-      ...note,
-      id: `${Date.now()}-${Math.random()}`,
-      step: snapToGrid(currentStep + (note.step - minStep)),
-    }));
-    const updatedNotes = [...selectedTrack.notes, ...newNotes];
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
-    ));
-    addToHistory(updatedNotes);
-    toast({ title: '📌 Pasted', description: `${newNotes.length} note${newNotes.length === 1 ? '' : 's'} pasted` });
-  }, [clipboard, currentStep, selectedTrack, selectedTrackIndex, snapToGrid, addToHistory, toast]);
-
-  // Delete selected notes
-  const deleteSelected = useCallback(() => {
-    if (selectedNoteIds.size === 0) return;
-    const updatedNotes = selectedTrack.notes.filter(n => !selectedNoteIds.has(n.id));
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
-    ));
-    addToHistory(updatedNotes);
-    setSelectedNoteIds(new Set());
-    toast({ title: '🗑️ Deleted', description: `${selectedNoteIds.size} note${selectedNoteIds.size === 1 ? '' : 's'} removed` });
-  }, [selectedNoteIds, selectedTrack, selectedTrackIndex, addToHistory, toast]);
-
   // Update note velocity
   const updateNoteVelocity = useCallback((noteId: string, velocity: number) => {
-    const updatedNotes = selectedTrack.notes.map(n => 
+    const updatedNotes = selectedTrack.notes.map((n: Note) => 
       n.id === noteId ? { ...n, velocity: Math.max(1, Math.min(127, velocity)) } : n
     );
     setTracks(prev => prev.map((track, index) =>
@@ -1367,7 +1556,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const applyArpeggio = useCallback(() => {
     if (selectedNoteIds.size === 0 || arpeggioMode === 'off') return;
     
-    const selectedNotes = selectedTrack.notes.filter(n => selectedNoteIds.has(n.id));
+    const selectedNotes = selectedTrack.notes.filter((n: Note) => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) return;
     
     // Sort notes by pitch
@@ -1379,7 +1568,7 @@ export const VerticalPianoRoll: React.FC = () => {
     
     // Apply arpeggio pattern
     let arpeggioNotes: Note[] = [];
-    const baseStep = Math.min(...selectedNotes.map(n => n.step));
+    const baseStep = Math.min(...selectedNotes.map((n: Note) => n.step));
     
     if (arpeggioMode === 'up') {
       sortedNotes.forEach((note, i) => {
@@ -1402,14 +1591,14 @@ export const VerticalPianoRoll: React.FC = () => {
     }
     
     // Remove original notes and add arpeggio
-    const otherNotes = selectedTrack.notes.filter(n => !selectedNoteIds.has(n.id));
+    const otherNotes = selectedTrack.notes.filter((n: Note) => !selectedNoteIds.has(n.id));
     const updatedNotes = [...otherNotes, ...arpeggioNotes];
     
     setTracks(prev => prev.map((track, index) =>
       index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
     ));
     addToHistory(updatedNotes);
-    setSelectedNoteIds(new Set(arpeggioNotes.map(n => n.id)));
+    setSelectedNoteIds(new Set(arpeggioNotes.map((n: Note) => n.id)));
     toast({ title: '🎵 Arpeggio Applied', description: `${arpeggioMode.toUpperCase()} pattern created` });
   }, [selectedNoteIds, selectedTrack, selectedTrackIndex, arpeggioMode, arpeggioSpeed, addToHistory, toast]);
 
@@ -1417,7 +1606,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const applyHumanize = useCallback(() => {
     if (selectedNoteIds.size === 0 || humanizeAmount === 0) return;
     
-    const updatedNotes = selectedTrack.notes.map(note => {
+    const updatedNotes = selectedTrack.notes.map((note: Note) => {
       if (!selectedNoteIds.has(note.id)) return note;
       
       // Randomize timing (±humanizeAmount% of a step)
@@ -1444,7 +1633,7 @@ export const VerticalPianoRoll: React.FC = () => {
     
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     
-    const updatedNotes = selectedTrack.notes.map(note => {
+    const updatedNotes = selectedTrack.notes.map((note: Note) => {
       if (!selectedNoteIds.has(note.id)) return note;
       
       const currentPitch = note.octave * 12 + noteNames.indexOf(note.note);
@@ -1466,7 +1655,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const shiftOctave = useCallback((direction: 1 | -1) => {
     if (selectedNoteIds.size === 0) return;
     
-    const updatedNotes = selectedTrack.notes.map(note => {
+    const updatedNotes = selectedTrack.notes.map((note: Note) => {
       if (!selectedNoteIds.has(note.id)) return note;
       return { ...note, octave: Math.max(0, Math.min(8, note.octave + direction)) };
     });
@@ -1492,7 +1681,7 @@ export const VerticalPianoRoll: React.FC = () => {
       return;
     }
     
-    const notesToSlice = selectedTrack.notes.filter(note => 
+    const notesToSlice = selectedTrack.notes.filter((note: Note) => 
       note.step < sliceStep && (note.step + note.length) > sliceStep
     );
     
@@ -1506,7 +1695,7 @@ export const VerticalPianoRoll: React.FC = () => {
     
     let sliceCounter = 0;
     const slicedNotes: Note[] = [];
-    const updatedNotes = selectedTrack.notes.filter(note => {
+    const updatedNotes = selectedTrack.notes.filter((note: Note) => {
       if (note.step < sliceStep && (note.step + note.length) > sliceStep) {
         const leftPart: Note = {
           ...note,
@@ -1574,44 +1763,36 @@ export const VerticalPianoRoll: React.FC = () => {
     }
   }, [loopEnabled, selectedTrack.notes, toast]);
 
-  // AI SUGGEST FUNCTION (placeholder for AI integration)
+  // AI NEURAL MELODY GENERATION
   const handleAISuggest = useCallback(async () => {
     try {
       toast({ 
-        title: '🪄 AI Suggest', 
-        description: 'Generating melody ideas...',
+        title: '🪄 Neural Processing', 
+        description: 'Generating holographic melody ideas...',
       });
 
-      const stepDurationSeconds = 60 / bpm / 4; // 16th note duration in seconds
-      const response = await fetch('/api/melody/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          scale: `${currentKey} Major`,
-          style: 'melodic',
-          complexity: 5,
-          availableTracks: tracks.map((t) => ({
-            instrument: t.instrument,
-            name: t.name,
-            notes: t.notes?.length || 0,
-          })),
-          musicalParams: {
-            bpm,
-            key: currentKey,
-            timeSignature: '4/4',
-          },
-        }),
+      const stepDurationSeconds = 60 / bpm / 4; 
+      const response = await apiRequest('POST', '/api/melody/generate', {
+        scale: `${currentKey} Major`,
+        style: 'melodic',
+        complexity: 5,
+        availableTracks: tracks.map((t) => ({
+          instrument: t.instrument,
+          name: t.name,
+          notes: t.notes?.length || 0,
+        })),
+        musicalParams: {
+          bpm,
+          key: currentKey,
+          timeSignature: '4/4',
+        },
       });
 
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result?.message || result?.error || 'AI melody generation failed');
-      }
-
       const aiNotes = result?.data?.notes || result?.data || [];
+      
       if (!Array.isArray(aiNotes) || aiNotes.length === 0) {
-        throw new Error('No notes returned from AI');
+        throw new Error('No holographic data returned from neural engine');
       }
 
       const generatedNotes: Note[] = aiNotes.map((n: any, index: number) => {
@@ -1637,18 +1818,18 @@ export const VerticalPianoRoll: React.FC = () => {
       addToHistory(generatedNotes);
 
       toast({ 
-        title: 'AI Suggest Applied', 
-        description: `Added ${generatedNotes.length} notes to ${selectedTrack.name}`,
+        title: '✨ Sequence Synchronized', 
+        description: `Successfully injected ${generatedNotes.length} notes into ${selectedTrack.name}`,
       });
     } catch (error) {
-      console.error('AI Suggest failed:', error);
+      console.error('Neural suggestion failed:', error);
       toast({ 
-        title: 'AI Suggest Failed', 
-        description: error instanceof Error ? error.message : 'Could not generate melody',
+        title: 'Neural Engine Error', 
+        description: error instanceof Error ? error.message : 'Could not synchronize melody sequence',
         variant: 'destructive'
       });
     }
-  }, [addToHistory, bpm, currentKey, selectedTrack.name, selectedTrackIndex, toast, tracks]);
+  }, [apiRequest, addToHistory, bpm, currentKey, selectedTrack.name, selectedTrackIndex, toast, tracks]);
 
   const noteToMidi = (key: string) => {
     const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -1777,7 +1958,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const detectChord = useCallback(() => {
     if (selectedNoteIds.size === 0) return;
     
-    const selectedNotes = selectedTrack.notes.filter(n => selectedNoteIds.has(n.id));
+    const selectedNotes = selectedTrack.notes.filter((n: Note) => selectedNoteIds.has(n.id));
     if (selectedNotes.length < 2) {
       setDetectedChord('Single Note');
       return;
@@ -1785,10 +1966,10 @@ export const VerticalPianoRoll: React.FC = () => {
     
     // Get unique note names (ignore octaves)
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const uniqueNotes = Array.from(new Set(selectedNotes.map(n => n.note)));
+    const uniqueNotes = Array.from(new Set(selectedNotes.map((n: Note) => n.note))) as string[];
     
     // Simple chord detection
-    const intervals = uniqueNotes.map(note => noteNames.indexOf(note)).sort((a, b) => a - b);
+    const intervals = uniqueNotes.map((note: string) => noteNames.indexOf(note)).sort((a, b) => a - b);
     const root = noteNames[intervals[0]];
     
     // Check common chord patterns
@@ -1816,7 +1997,7 @@ export const VerticalPianoRoll: React.FC = () => {
   const applySwing = useCallback(() => {
     if (selectedNoteIds.size === 0 || swingAmount === 0) return;
     
-    const updatedNotes = selectedTrack.notes.map(note => {
+    const updatedNotes = selectedTrack.notes.map((note: Note) => {
       if (!selectedNoteIds.has(note.id)) return note;
       
       // Apply swing to off-beat notes (odd steps)
@@ -1978,7 +2159,7 @@ export const VerticalPianoRoll: React.FC = () => {
       return;
     }
     
-    const updatedNotes = selectedTrack.notes.map(note => {
+    const updatedNotes = selectedTrack.notes.map((note: Note) => {
       if (!selectedNoteIds.has(note.id)) return note;
       const quantizedStep = Math.round(note.step / quantizeValue) * quantizeValue;
       return { ...note, step: quantizedStep };
@@ -2028,7 +2209,7 @@ export const VerticalPianoRoll: React.FC = () => {
     const maxKey = Math.max(selectionStart.y, selectionEnd.y);
     
     // Find notes within selection box
-    const notesInSelection = selectedTrack.notes.filter(note => {
+    const notesInSelection = selectedTrack.notes.filter((note: Note) => {
       const noteKeyIndex = PIANO_KEYS.findIndex(k => k.note === note.note && k.octave === note.octave);
       return note.step >= minStep && note.step <= maxStep && 
              noteKeyIndex >= minKey && noteKeyIndex <= maxKey;
@@ -2037,10 +2218,10 @@ export const VerticalPianoRoll: React.FC = () => {
     // Add to selection (or replace if not holding Ctrl)
     if (e.ctrlKey || e.metaKey) {
       const newSelection = new Set(selectedNoteIds);
-      notesInSelection.forEach(note => newSelection.add(note.id));
+      notesInSelection.forEach((note: Note) => newSelection.add(note.id));
       setSelectedNoteIds(newSelection);
     } else {
-      setSelectedNoteIds(new Set(notesInSelection.map(n => n.id)));
+      setSelectedNoteIds(new Set(notesInSelection.map((n: Note) => n.id)));
     }
     
     // Reset selection state
@@ -2096,794 +2277,208 @@ export const VerticalPianoRoll: React.FC = () => {
     />
   ), [selectedProgression, currentKey, currentChordIndex, handleChordClick, chordInversion]);
 
-  return (
-    <div className="h-full w-full bg-gray-900 text-white">
-      <Card className="h-full bg-gray-800 border-gray-700">
-        <CardHeader className="pb-4">
-          {/* Session Context Banner */}
-          {currentSession && pianoRollIssue && (
-            <Alert className="mb-4 bg-blue-900/30 border-blue-500/50" data-testid="alert-session-context">
-              <Info className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-1">
-                    <div className="font-semibold" data-testid="text-session-song-name">
-                      Working on: {currentSession.songName}
-                    </div>
-                    <div className="text-xs text-gray-300" data-testid="text-session-metadata">
-                      {currentSession.analysis?.bpm ? `${currentSession.analysis.bpm} BPM` : ''} 
-                      {currentSession.analysis?.key && currentSession.analysis?.bpm ? ' • ' : ''}
-                      {currentSession.analysis?.key ? `Key of ${currentSession.analysis.key}` : ''}
-                    </div>
-                    <div className="text-sm text-blue-200 mt-1" data-testid="text-session-issue">
-                      Issue: {pianoRollIssue.description}
-                    </div>
-                  </div>
-                  
-                  {/* Audio Playback Controls */}
-                  {originalAudioLoaded && (
-                    <div className="flex items-center gap-3 pt-2 border-t border-blue-500/30" data-testid="audio-controls">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleOriginalAudioPlayPause}
-                        className="shrink-0"
-                        data-testid="button-play-original"
-                      >
-                        {originalAudioPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                      </Button>
-                      <div className="flex-1 flex items-center gap-2">
-                        <span className="text-xs text-gray-400 w-10 text-right" data-testid="text-current-time">
-                          {formatTime(originalAudioCurrentTime)}
-                        </span>
-                        <Slider
-                          value={[originalAudioCurrentTime]}
-                          max={originalAudioDuration}
-                          step={0.1}
-                          className="flex-1"
-                          onValueChange={(values) => handleOriginalAudioSeek(values[0])}
-                          data-testid="slider-audio-seek"
-                        />
-                        <span className="text-xs text-gray-400 w-10" data-testid="text-total-time">
-                          {formatTime(originalAudioDuration)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {!originalAudioLoaded && currentSession.audioUrl && (
-                    <div className="text-xs text-gray-400 pt-2 border-t border-blue-500/30">
-                      Loading original audio...
-                    </div>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          <div className="flex flex-col gap-1">
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            {/* UNIFIED COMPACT TOOLBAR - Everything in one slim bar                        */}
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/80 border-b border-gray-700/50 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600">
-              {/* Track Info */}
-              <div className="flex items-center gap-2 pr-2 border-r border-gray-600/50 flex-shrink-0">
-                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wide">TRACK</span>
-                <select
-                  value={selectedTrackIndex}
-                  onChange={(e) => setSelectedTrackIndex(parseInt(e.target.value))}
-                  className="h-6 px-2 text-xs bg-gray-700 border border-gray-600 rounded font-medium min-w-[100px]"
-                >
-                  {tracks.map((t, i) => (
-                    <option key={t.id} value={i}>{i + 1}. {t.name} ({t.notes.length})</option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Transport */}
-              {playbackControls}
-              
-              <div className="w-px h-5 bg-gray-600/50" />
-              
-              {/* Tools */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Button size="sm" variant={pianoRollTool === 'draw' ? 'default' : 'ghost'} onClick={() => setPianoRollTool('draw')} title="Draw" className="h-7 w-7 p-0">
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant={pianoRollTool === 'select' ? 'default' : 'ghost'} onClick={() => setPianoRollTool('select')} title="Select" className="h-7 w-7 p-0">
-                  <MousePointer2 className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant={pianoRollTool === 'erase' ? 'default' : 'ghost'} onClick={() => setPianoRollTool('erase')} title="Erase" className="h-7 w-7 p-0">
-                  <Eraser className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              
-              <div className="w-px h-5 bg-gray-600/50" />
-              
-              {/* Edit */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Button size="sm" variant="ghost" onClick={undo} disabled={historyIndex <= 0} title="Undo" className="h-7 w-7 p-0">
-                  <Undo2 className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={redo} disabled={historyIndex >= history.length - 1} title="Redo" className="h-7 w-7 p-0">
-                  <Redo2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              
-              <div className="w-px h-5 bg-gray-600/50" />
-              
-              {/* Snap */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Button size="sm" variant={snapEnabled ? 'default' : 'ghost'} onClick={() => setSnapEnabled(!snapEnabled)} title="Snap" className="h-7 w-7 p-0">
-                  <Grid3X3 className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant={scaleSnapEnabled ? 'default' : 'ghost'} onClick={() => setScaleSnapEnabled(!scaleSnapEnabled)} title="Scale" className="h-7 w-7 p-0">
-                  <Magnet className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              
-              <div className="w-px h-5 bg-gray-600/50" />
-              
-              {/* Zoom */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <Button size="sm" variant="ghost" onClick={() => setHorizontalZoom(prev => Math.max(0.25, prev - 0.25))} className="h-7 w-7 p-0">
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </Button>
-                <span className="text-xs text-gray-400 w-8 text-center">{Math.round(horizontalZoom * 100)}%</span>
-                <Button size="sm" variant="ghost" onClick={() => setHorizontalZoom(prev => Math.min(3, prev + 0.25))} className="h-7 w-7 p-0">
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              
-              <div className="flex-1" />
-              
-              {/* Key */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <span className="text-xs text-gray-400">Key:</span>
-                <select value={currentKey} onChange={(e) => setCurrentKey(e.target.value)} className="h-6 px-1 text-xs bg-gray-700 border border-gray-600 rounded">
-                  {CIRCLE_OF_FIFTHS.map(k => <option key={k} value={k}>{k}</option>)}
-                </select>
-              </div>
-              
-              <div className="w-px h-5 bg-gray-600/50" />
-              
-              {/* Quick Actions */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Button size="sm" variant={isRecording ? 'destructive' : 'ghost'} onClick={toggleRecording} title="Record" className="h-7 w-7 p-0">
-                  <Circle className={`w-3.5 h-3.5 ${isRecording ? 'animate-pulse fill-red-500' : ''}`} />
-                </Button>
-                <Button size="sm" variant={loopEnabled ? 'default' : 'ghost'} onClick={toggleLoop} title="Loop" className="h-7 w-7 p-0">
-                  <Repeat className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={handleAISuggest} title="AI" className="h-7 w-7 p-0 text-purple-400">
-                  <Wand2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              
-              <div className="w-px h-5 bg-gray-600/50" />
-              
-              {/* Export */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Button size="sm" variant="ghost" onClick={handleSendToMaster} title="Send to Master" className="h-7 w-7 p-0">
-                  <Send className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={exportMIDI} title="Export MIDI" className="h-7 w-7 p-0">
-                  <Download className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={savePattern} title="Save Pattern" className="h-7 w-7 p-0 text-green-400">
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-            
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            {/* SECONDARY BAR - Chords & Arpeggio (collapsible)                             */}
-            {/* ═══════════════════════════════════════════════════════════════════════════ */}
-            <details className="group" open>
-              <summary className="flex items-center gap-2 px-2 py-1 bg-gray-800/40 cursor-pointer hover:bg-gray-800/60 text-xs text-gray-400">
-                <span>▸ Chords & Tools</span>
-              </summary>
-              <div className="flex items-center gap-2 px-2 py-1 bg-gray-800/30 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600">
-                {/* Chord Stamps */}
-                <div className="flex items-center gap-0.5">
-                  {['Maj', 'Min', '7th', 'Dim'].map((chordType) => (
-                    <Button
-                      key={chordType}
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => {
-                        const rootNote = currentKey;
-                        const octave = 4;
-                        let intervals: number[] = [];
-                        switch (chordType) {
-                          case 'Maj': intervals = [0, 4, 7]; break;
-                          case 'Min': intervals = [0, 3, 7]; break;
-                          case '7th': intervals = [0, 4, 7, 10]; break;
-                          case 'Dim': intervals = [0, 3, 6]; break;
-                        }
-                        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                        const rootIndex = notes.indexOf(rootNote);
-                        const newNotes: Note[] = intervals.map((interval) => ({
-                          id: crypto.randomUUID(),
-                          note: notes[(rootIndex + interval) % 12],
-                          octave: octave + Math.floor((rootIndex + interval) / 12),
-                          step: currentStep,
-                          velocity: 100,
-                          length: 4
-                        }));
-                        addToHistory(selectedTrack.notes);
-                        setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: [...t.notes, ...newNotes] } : t));
-                        toast({ title: `${rootNote} ${chordType}` });
-                      }}
-                    >
-                      {chordType}
-                    </Button>
-                  ))}
-                </div>
-                
-                <div className="w-px h-4 bg-gray-600/50" />
-                
-                {/* Arpeggio */}
-                <select value={arpeggioMode} onChange={(e) => setArpeggioMode(e.target.value as any)} className="h-6 px-1 text-xs bg-gray-700/50 border border-gray-600/50 rounded">
-                  <option value="off">Arp Off</option>
-                  <option value="up">↑ Up</option>
-                  <option value="down">↓ Down</option>
-                  <option value="updown">↕</option>
-                </select>
-                <Button size="sm" variant="ghost" onClick={applyArpeggio} disabled={selectedNoteIds.size === 0 || arpeggioMode === 'off'} className="h-6 w-6 p-0">
-                  <Zap className="w-3 h-3" />
-                </Button>
-                
-                <div className="w-px h-4 bg-gray-600/50" />
-                
-                {/* Octave */}
-                <Button size="sm" variant="ghost" onClick={() => shiftOctave(1)} disabled={selectedNoteIds.size === 0} title="Oct+" className="h-6 w-6 p-0">
-                  <ArrowUp className="w-3 h-3" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => shiftOctave(-1)} disabled={selectedNoteIds.size === 0} title="Oct-" className="h-6 w-6 p-0">
-                  <ArrowDown className="w-3 h-3" />
-                </Button>
-                
-                <div className="w-px h-4 bg-gray-600/50" />
-                
-                {/* Copy/Paste */}
-                <Button size="sm" variant="ghost" onClick={() => { const sel = selectedTrack.notes.filter(n => selectedNoteIds.has(n.id)); if (sel.length) { setClipboard(sel); toast({ title: 'Copied' }); }}} disabled={selectedNoteIds.size === 0} className="h-6 w-6 p-0">
-                  <Copy className="w-3 h-3" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => { if (clipboard.length) { const minStep = Math.min(...clipboard.map(n => n.step)); const pasted = clipboard.map(n => ({ ...n, id: crypto.randomUUID(), step: n.step - minStep + currentStep })); addToHistory(selectedTrack.notes); setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: [...t.notes, ...pasted] } : t)); }}} disabled={clipboard.length === 0} className="h-6 w-6 p-0">
-                  <Clipboard className="w-3 h-3" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => { if (selectedNoteIds.size) { addToHistory(selectedTrack.notes); setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: t.notes.filter(n => !selectedNoteIds.has(n.id)) } : t)); setSelectedNoteIds(new Set()); }}} disabled={selectedNoteIds.size === 0} className="h-6 w-6 p-0 text-red-400">
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-                
-                <div className="flex-1" />
-                
-                {/* Pattern Load */}
-                {savedPatterns.length > 0 && (
-                  <select className="h-6 px-1 text-xs bg-gray-700/50 border border-gray-600/50 rounded" onChange={(e) => { if (e.target.value) loadPattern(e.target.value); e.target.value = ''; }} defaultValue="">
-                    <option value="">📂 Patterns ({savedPatterns.length})</option>
-                    {savedPatterns.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                )}
-                
-                <Button size="sm" variant="ghost" onClick={() => setShowAILoopGenerator(!showAILoopGenerator)} className={cn("h-6 px-2 text-xs", showAILoopGenerator && "bg-blue-600")}>
-                  <Sparkles className="w-3 h-3 mr-1" />
-                  AI Loop
-                </Button>
-              </div>
-            </details>
-            
-            {/* AI Loop Generator Panel */}
-            {showAILoopGenerator && (
-              <div className="px-2 py-1 bg-gray-800/30 border-b border-gray-700/30">
-                <AILoopGenerator currentBpm={bpm} currentKey={currentKey} currentScale="minor" onClose={() => setShowAILoopGenerator(false)} />
-              </div>
-            )}
-            
-          </div>
-        </CardHeader>
+  const handleNoteOff = useCallback((note: string, octave: number) => {
+    if (onPlayNoteOff) {
+      onPlayNoteOff(note, octave, selectedTrack?.instrument || 'piano');
+    } else {
+      const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
+      realisticAudio.noteOff(note, octave, selectedTrack?.instrument || 'piano');
+    }
+  }, [onPlayNoteOff, selectedTrack]);
 
-        <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
-          {/* Track Overview Waveform Lane */}
-          {showTrackOverview && (
-            <TrackWaveformLane
-              tracks={tracks}
-              selectedTrackIndex={selectedTrackIndex}
-              onTrackSelect={setSelectedTrackIndex}
-              currentStep={currentStep}
-              totalSteps={STEPS}
-              stepWidth={STEP_WIDTH}
-              horizontalZoom={horizontalZoom}
-              onPlayheadClick={(step) => setCurrentStep(step)}
-              isCollapsed={false}
-              onToggleCollapse={() => setShowTrackOverview(false)}
-            />
-          )}
+  return (
+    <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
+      {/* Top Professional DAW Toolbar */}
+      <div className="flex items-center justify-between p-2 border-b border-cyan-500/30 astutely-header">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30">
+            <Piano className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-black tracking-widest uppercase">Astutely Piano Roll</span>
+          </div>
           
-          {/* Collapsed Track Overview Toggle */}
-          {!showTrackOverview && (
-            <div 
-              className="border-b border-gray-600 bg-gray-800/50 px-3 py-1 cursor-pointer hover:bg-gray-700/50 flex items-center justify-between"
-              onClick={() => setShowTrackOverview(true)}
+          <div className="h-6 w-px bg-cyan-500/20" />
+          
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPianoRollTool('draw')}
+              className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'draw' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
             >
-              <span className="text-xs text-gray-400">Track Overview (collapsed)</span>
-              <Layers className="w-3 h-3 text-gray-400" />
-            </div>
-          )}
+              <Pencil className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPianoRollTool('select')}
+              className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'select' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
+            >
+              <MousePointer2 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPianoRollTool('erase')}
+              className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'erase' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
+            >
+              <Eraser className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-cyan-500/30">
+            <div className={cn("w-2 h-2 rounded-full", isPlaying ? "bg-cyan-500 animate-pulse shadow-glow-cyan" : "bg-cyan-950")} />
+            <span className="text-[10px] font-black tabular-nums tracking-widest uppercase">
+              {currentKey} {selectedProgression.name}
+            </span>
+          </div>
           
-          <div className={`flex relative overflow-auto ${showVelocityEditor ? 'flex-1' : 'h-full'}`} ref={gridRef} onScroll={handleGridScroll}>
-            {/* Piano Keys - fixed on left, scrolls with content */}
-            <div className="sticky left-0 z-10">
-              <PianoKeys
-                ref={pianoKeysRef}
-                pianoKeys={foldViewEnabled && selectedTrack.notes.length > 0 ? PIANO_KEYS.filter(k => selectedTrack.notes.some(n => n.note === k.note && n.octave === k.octave)) : PIANO_KEYS}
-                selectedTrack={selectedTrack}
-                onKeyClick={addNote}
-                keyHeight={KEY_HEIGHT * verticalZoom}
-                currentStep={currentStep}
-                isPlaying={isPlaying}
-                chordMode={chordMode || liveArpEnabled}
-                activeKeys={activeKeys}
-                onActiveKeysChange={setActiveKeys}
-                onScroll={handlePianoScroll}
-                arpEnabled={liveArpEnabled}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={isPlaying ? handleStop : handlePlay}
+            className={cn("h-8 px-4 rounded-none font-black tracking-widest", isPlaying ? "bg-red-500/20 text-red-400 border-red-500 shadow-glow-red" : "bg-cyan-500/20 text-cyan-400 border-cyan-500 shadow-glow-cyan")}
+          >
+            {isPlaying ? <Square className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+            {isPlaying ? 'STOP' : 'START'}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAILoopGenerator(v => !v)}
+            className={cn(
+              "h-8 px-4 rounded-none font-black tracking-widest",
+              showAILoopGenerator
+                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                : "bg-black/60 text-cyan-500/60 border border-cyan-500/30"
+            )}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            LOOP
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {showAILoopGenerator && (
+          <div className="absolute inset-0 z-[200] bg-black/70">
+            <div className="absolute right-4 top-4 bottom-4 w-[min(760px,calc(100%-2rem))] overflow-y-auto">
+              <AILoopGenerator
+                currentBpm={bpm}
+                currentKey={currentKey}
+                currentScale={'minor'}
+                onClose={() => setShowAILoopGenerator(false)}
               />
             </div>
-            
-            {/* Grid on right */}
-            <StepGrid
-              steps={STEPS}
-              pianoKeys={foldViewEnabled && selectedTrack.notes.length > 0 ? PIANO_KEYS.filter(k => selectedTrack.notes.some(n => n.note === k.note && n.octave === k.octave)) : PIANO_KEYS}
-              selectedTrack={selectedTrack}
-              currentStep={currentStep}
-              stepWidth={STEP_WIDTH * horizontalZoom}
-              keyHeight={KEY_HEIGHT * verticalZoom}
-              zoom={zoom}
-              onStepClick={addNote}
-              onChordAdd={addChordToGrid}
-              onNoteRemove={removeNote}
-              onNoteResize={resizeNote}
-              onNoteMove={moveNote}
-              onNoteCopy={copyNote}
-              onMultiNoteResize={resizeMultipleNotes}
-              onNoteSelect={selectNote}
-              chordMode={chordMode}
-              onScroll={handleGridScroll}
-              selectedNoteIds={selectedNoteIds}
-              onSelectionStart={handleSelectionStart}
-              onSelectionMove={handleSelectionMove}
-              onSelectionEnd={handleSelectionEnd}
-              isSelecting={isSelecting}
-              selectionStart={selectionStart}
-              selectionEnd={selectionEnd}
-              onPlayheadClick={(step) => setCurrentStep(step)}
-            />
           </div>
-          
-          {/* Velocity Editor Lane */}
-          {showVelocityEditor && (
-            <div className="h-24 border-t border-gray-700 bg-gray-900/50 flex" data-testid="velocity-editor-lane">
-              {/* Left label area matching piano keys width */}
-              <div className="w-20 flex-shrink-0 flex items-center justify-center border-r border-gray-700 bg-gray-800/50">
-                <span className="text-xs text-gray-400 font-medium">Velocity</span>
-              </div>
-              
-              {/* Velocity bars container - synced with main grid scroll */}
-              <div 
-                className="flex-1 overflow-auto relative"
-                onScroll={(e) => {
-                  if (gridRef.current && !isSyncingRef.current) {
-                    isSyncingRef.current = true;
-                    gridRef.current.scrollLeft = e.currentTarget.scrollLeft;
-                    isSyncingRef.current = false;
-                  }
-                }}
-                ref={(el) => {
-                  if (el && gridRef.current) {
-                    el.scrollLeft = gridRef.current.scrollLeft;
-                  }
-                }}
-              >
-                <svg 
-                  className="w-full h-full"
-                  style={{ 
-                    width: STEPS * STEP_WIDTH * horizontalZoom,
-                    minWidth: '100%'
-                  }}
-                >
-                  {/* Background grid lines */}
-                  {Array.from({ length: STEPS }, (_, step) => (
-                    <line
-                      key={`vgrid-${step}`}
-                      x1={step * STEP_WIDTH * horizontalZoom}
-                      y1={0}
-                      x2={step * STEP_WIDTH * horizontalZoom}
-                      y2="100%"
-                      stroke={step % 4 === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'}
-                      strokeWidth={1}
-                    />
-                  ))}
-                  
-                  {/* Velocity reference lines */}
-                  <line x1={0} y1="25%" x2="100%" y2="25%" stroke="rgba(255,255,255,0.1)" strokeDasharray="4,4" />
-                  <line x1={0} y1="50%" x2="100%" y2="50%" stroke="rgba(255,255,255,0.15)" strokeDasharray="4,4" />
-                  <line x1={0} y1="75%" x2="100%" y2="75%" stroke="rgba(255,255,255,0.1)" strokeDasharray="4,4" />
-                  
-                  {/* Velocity bars for each note */}
-                  {selectedTrack.notes.map((note) => {
-                    const barHeight = (note.velocity / 127) * 80;
-                    const barX = note.step * STEP_WIDTH * horizontalZoom + 2;
-                    const barWidth = Math.max(STEP_WIDTH * horizontalZoom * note.length - 4, 4);
-                    const isSelected = selectedNoteIds.has(note.id);
-                    
-                    return (
-                      <g key={`vel-${note.id}`}>
-                        <rect
-                          x={barX}
-                          y={`${96 - barHeight}%`}
-                          width={barWidth}
-                          height={`${barHeight}%`}
-                          fill={isSelected ? 'rgb(59, 130, 246)' : 'rgb(34, 197, 94)'}
-                          opacity={0.8}
-                          rx={2}
-                          className="cursor-ns-resize transition-colors"
-                          data-testid={`velocity-bar-${note.id}`}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            const startY = e.clientY;
-                            const startVelocity = note.velocity;
-                            
-                            const handleDrag = (moveEvent: MouseEvent) => {
-                              const deltaY = startY - moveEvent.clientY;
-                              const newVelocity = Math.min(127, Math.max(1, startVelocity + deltaY));
-                              
-                              setTracks(prev => prev.map((t, i) => 
-                                i === selectedTrackIndex 
-                                  ? { ...t, notes: t.notes.map(n => n.id === note.id ? { ...n, velocity: newVelocity } : n) }
-                                  : t
-                              ));
-                            };
-                            
-                            const handleUp = () => {
-                              document.removeEventListener('mousemove', handleDrag);
-                              document.removeEventListener('mouseup', handleUp);
-                            };
-                            
-                            document.addEventListener('mousemove', handleDrag);
-                            document.addEventListener('mouseup', handleUp);
-                          }}
-                        />
-                        {/* Velocity value label */}
-                        <text
-                          x={barX + barWidth / 2}
-                          y={`${92 - barHeight}%`}
-                          textAnchor="middle"
-                          fill="white"
-                          fontSize="9"
-                          className="pointer-events-none"
-                        >
-                          {note.velocity}
-                        </text>
-                        {/* Note Probability indicator (diamond) */}
-                        {noteProbability[note.id] !== undefined && noteProbability[note.id] < 100 && (
-                          <polygon
-                            points={`${barX + barWidth / 2},${8} ${barX + barWidth / 2 + 5},${13} ${barX + barWidth / 2},${18} ${barX + barWidth / 2 - 5},${13}`}
-                            fill={`rgba(251, 191, 36, ${noteProbability[note.id] / 100})`}
-                            stroke="rgb(251, 191, 36)"
-                            strokeWidth={1}
-                            className="cursor-pointer"
-                            data-testid={`probability-indicator-${note.id}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const newProb = prompt(`Set probability for this note (0-100%):`, String(noteProbability[note.id] ?? 100));
-                              if (newProb !== null) {
-                                const prob = Math.max(0, Math.min(100, parseInt(newProb) || 100));
-                                setNoteProbability(prev => ({ ...prev, [note.id]: prob }));
-                              }
-                            }}
-                          />
-                        )}
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-              {/* Note Probability Toggle */}
-              <div className="absolute top-1 right-1 flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 text-xs px-2"
-                  onClick={() => {
-                    if (selectedNoteIds.size > 0) {
-                      const prob = prompt('Set probability for selected notes (0-100%):', '100');
-                      if (prob !== null) {
-                        const probValue = Math.max(0, Math.min(100, parseInt(prob) || 100));
-                        const newProbs = { ...noteProbability };
-                        selectedNoteIds.forEach(id => { newProbs[id] = probValue; });
-                        setNoteProbability(newProbs);
-                        toast({ title: 'Probability Set', description: `${selectedNoteIds.size} note(s) set to ${probValue}%` });
-                      }
-                    } else {
-                      toast({ title: 'Select Notes', description: 'Select notes first to set probability' });
-                    }
-                  }}
-                  title="Set note probability (chance each note plays)"
-                  data-testid="button-set-probability"
-                >
-                  <Shuffle className="w-3 h-3 mr-1" />
-                  Prob
-                </Button>
-              </div>
+        )}
+        {/* Track Overview Sidebar */}
+        {showTrackOverview && (
+          <div className="w-48 border-r border-cyan-500/30 bg-black/40 flex flex-col">
+            <div className="p-3 border-b border-cyan-500/20 bg-cyan-500/5">
+              <span className="text-[9px] font-black tracking-[0.2em] uppercase opacity-60">Matrix Status</span>
             </div>
-          )}
-          
-          {/* MIDI CC Automation Lane */}
-          {automationLane !== 'off' && (
-            <div className="h-20 border-t border-gray-700 bg-gray-900/50 flex" data-testid="automation-lane">
-              {/* Left label area */}
-              <div className="w-20 flex-shrink-0 flex flex-col items-center justify-center border-r border-gray-700 bg-gray-800/50 gap-1">
-                <span className="text-xs text-gray-400 font-medium capitalize">{automationLane}</span>
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant={automationLane === 'volume' ? 'default' : 'ghost'}
-                    className="h-5 w-5 p-0"
-                    onClick={() => setAutomationLane('volume')}
-                    title="Volume automation"
-                    data-testid="button-automation-volume"
-                  >
-                    V
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={automationLane === 'pan' ? 'default' : 'ghost'}
-                    className="h-5 w-5 p-0"
-                    onClick={() => setAutomationLane('pan')}
-                    title="Pan automation"
-                    data-testid="button-automation-pan"
-                  >
-                    P
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Automation curve area */}
-              <div 
-                className="flex-1 overflow-auto relative"
-                onScroll={(e) => {
-                  if (gridRef.current && !isSyncingRef.current) {
-                    isSyncingRef.current = true;
-                    gridRef.current.scrollLeft = e.currentTarget.scrollLeft;
-                    isSyncingRef.current = false;
-                  }
-                }}
-                ref={(el) => {
-                  if (el && gridRef.current) {
-                    el.scrollLeft = gridRef.current.scrollLeft;
-                  }
-                }}
-              >
-                <svg 
-                  className="w-full h-full cursor-crosshair"
-                  style={{ 
-                    width: STEPS * STEP_WIDTH * horizontalZoom,
-                    minWidth: '100%'
-                  }}
-                  data-testid="automation-curve-svg"
+
+            <div className="border-b border-cyan-500/20 p-2 bg-black/60">
+              <TrackControls
+                tracks={tracks}
+                selectedTrack={selectedTrackIndex}
+                onTrackSelect={handleTrackSelect}
+                onVolumeChange={handleVolumeChange}
+                onMuteToggle={handleMuteToggle}
+                onInstrumentChange={handleInstrumentChange}
+                showTrackList={false}
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto astutely-scrollbar">
+              {tracks.map((track, idx) => (
+                <div 
+                  key={`${track.id}-${idx}`}
+                  onClick={() => setSelectedTrackIndex(idx)}
+                  className={cn(
+                    "p-3 border-b border-cyan-500/10 cursor-pointer transition-all",
+                    selectedTrackIndex === idx ? "bg-cyan-500/20 border-l-4 border-l-cyan-500" : "hover:bg-cyan-500/5"
+                  )}
                 >
-                  {/* Background grid */}
-                  {Array.from({ length: STEPS }, (_, step) => (
-                    <line
-                      key={`agrid-${step}`}
-                      x1={step * STEP_WIDTH * horizontalZoom}
-                      y1={0}
-                      x2={step * STEP_WIDTH * horizontalZoom}
-                      y2="100%"
-                      stroke={step % 4 === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'}
-                      strokeWidth={1}
-                    />
-                  ))}
-                  
-                  {/* Center line for pan / 50% line for volume */}
-                  <line x1={0} y1="50%" x2="100%" y2="50%" stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
-                  <line x1={0} y1="25%" x2="100%" y2="25%" stroke="rgba(255,255,255,0.08)" strokeDasharray="4,4" />
-                  <line x1={0} y1="75%" x2="100%" y2="75%" stroke="rgba(255,255,255,0.08)" strokeDasharray="4,4" />
-                  
-                  {/* Automation curve - currently shows static center/max value */}
-                  <line 
-                    x1={0} 
-                    y1={automationLane === 'volume' ? '10%' : '50%'} 
-                    x2="100%" 
-                    y2={automationLane === 'volume' ? '10%' : '50%'} 
-                    stroke={automationLane === 'volume' ? 'rgb(34, 197, 94)' : 'rgb(59, 130, 246)'}
-                    strokeWidth={2}
-                  />
-                  
-                  {/* Labels */}
-                  <text x={5} y={15} fill="rgba(255,255,255,0.5)" fontSize="9">
-                    {automationLane === 'volume' ? '100%' : 'R'}
-                  </text>
-                  <text x={5} y="52%" fill="rgba(255,255,255,0.5)" fontSize="9">
-                    {automationLane === 'volume' ? '50%' : 'C'}
-                  </text>
-                  <text x={5} y="95%" fill="rgba(255,255,255,0.5)" fontSize="9">
-                    {automationLane === 'volume' ? '0%' : 'L'}
-                  </text>
-                </svg>
-              </div>
-            </div>
-          )}
-        </CardContent>
-
-        <div className="px-6 pb-6">
-          <TrackControls
-            tracks={tracks}
-            selectedTrack={selectedTrackIndex}
-            onTrackSelect={handleTrackSelect}
-            onVolumeChange={handleVolumeChange}
-            onMuteToggle={handleMuteToggle}
-            onInstrumentChange={handleInstrumentChange}
-          />
-        </div>
-      </Card>
-
-      {/* FLOATING PANELS (merged from CodedSwitchFlow) */}
-      
-      {/* Mixer Panel - Right Side */}
-      <div 
-        className={`fixed right-0 top-0 bottom-0 w-96 z-50 border-l transition-transform duration-300 ${mixerPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}
-        style={{ 
-          background: 'rgba(15, 10, 26, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderColor: 'rgba(139, 92, 246, 0.2)',
-          boxShadow: mixerPanelOpen ? '0 0 80px rgba(139, 92, 246, 0.4)' : 'none',
-        }}
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.05)' }}>
-          <div className="flex items-center gap-3">
-            <Volume2 className="w-4 h-4 text-purple-400" />
-            <h3 className="text-sm font-bold uppercase tracking-widest text-purple-400">Mixer</h3>
-            <kbd className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-gray-400">M</kbd>
-          </div>
-          <button onClick={() => setMixerPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-4 h-[calc(100%-52px)] overflow-auto">
-          <div className="flex gap-2 h-full overflow-x-auto pb-2">
-            {tracks.map((track, idx) => (
-              <div key={track.id} className="flex flex-col items-center gap-2 p-3 rounded-xl min-w-[72px] flex-shrink-0 bg-purple-500/5 border border-purple-500/20">
-                <div className="h-36 w-3 rounded-full relative overflow-hidden bg-black/40">
-                  <div 
-                    className="absolute bottom-0 w-full rounded-full transition-all duration-150"
-                    style={{ height: `${track.muted ? 0 : track.volume}%`, background: `linear-gradient(to top, ${track.color.replace('bg-', '#').replace('-500', '')}, ${track.color.replace('bg-', '#').replace('-500', '')}88)` }}
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={cn("text-[10px] font-black truncate uppercase tracking-tighter", selectedTrackIndex === idx ? "text-white" : "text-cyan-500/60")}>
+                      {track.name}
+                    </span>
+                    <div className={cn("w-1.5 h-1.5 rounded-full", track.muted ? "bg-red-500" : "bg-cyan-500")} />
+                  </div>
+                  <div className="text-[8px] font-bold opacity-40 uppercase">{track.instrument}</div>
                 </div>
-                <span className="text-xs font-mono text-gray-400">{track.muted ? '---' : track.volume}</span>
-                <div className="flex gap-1">
-                  <button onClick={() => handleMuteToggle(track.id)} className={`text-xs px-2 py-1 rounded font-bold transition-all ${track.muted ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-400'}`}>M</button>
-                </div>
-                <span className="text-xs font-semibold truncate w-full text-center text-gray-300">{track.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Browser Panel - Bottom */}
-      <div 
-        className={`fixed left-0 right-0 bottom-0 h-72 z-50 border-t transition-transform duration-300 ${browserPanelOpen ? 'translate-y-0' : 'translate-y-full'}`}
-        style={{ 
-          background: 'rgba(15, 10, 26, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderColor: 'rgba(139, 92, 246, 0.2)',
-          boxShadow: browserPanelOpen ? '0 0 80px rgba(139, 92, 246, 0.4)' : 'none',
-        }}
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.05)' }}>
-          <div className="flex items-center gap-3">
-            <FolderOpen className="w-4 h-4 text-purple-400" />
-            <h3 className="text-sm font-bold uppercase tracking-widest text-purple-400">Browser</h3>
-            <kbd className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-gray-400">B</kbd>
-          </div>
-          <button onClick={() => setBrowserPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-4 h-[calc(100%-52px)] overflow-auto">
-          <div className="grid grid-cols-6 gap-2 mb-4">
-            {[
-              { name: 'Drums', icon: Drum, color: '#EC4899' },
-              { name: 'Bass', icon: Guitar, color: '#10B981' },
-              { name: 'Keys', icon: Piano, color: '#3B82F6' },
-              { name: 'Synths', icon: Waves, color: '#8B5CF6' },
-              { name: 'Vocals', icon: Mic2, color: '#F59E0B' },
-              { name: 'FX', icon: Sparkles, color: '#06B6D4' },
-            ].map(cat => (
-              <button key={cat.name} className="p-3 rounded-lg transition-all hover:scale-105 bg-purple-500/5 border border-purple-500/20">
-                <cat.icon className="w-5 h-5 mx-auto mb-1" style={{ color: cat.color }} />
-                <span className="text-xs font-semibold block text-gray-200">{cat.name}</span>
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {['808 Kick', 'Hi-Hat Loop', 'Snare Trap', 'Sub Bass', 'Piano Chord', 'Synth Lead', 'Vocal Chop', 'Riser FX'].map(sample => (
-              <button key={sample} className="p-2 rounded-lg text-left text-sm text-gray-300 bg-purple-500/5 border border-purple-500/20 hover:bg-purple-500/10 transition-all">
-                {sample}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Inspector Panel - Left Side */}
-      <div 
-        className={`fixed left-0 top-0 bottom-0 w-80 z-50 border-r transition-transform duration-300 ${inspectorPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}
-        style={{ 
-          background: 'rgba(15, 10, 26, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderColor: 'rgba(139, 92, 246, 0.2)',
-          boxShadow: inspectorPanelOpen ? '0 0 80px rgba(139, 92, 246, 0.4)' : 'none',
-        }}
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.05)' }}>
-          <div className="flex items-center gap-3">
-            <Sliders className="w-4 h-4 text-purple-400" />
-            <h3 className="text-sm font-bold uppercase tracking-widest text-purple-400">Inspector</h3>
-            <kbd className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-gray-400">I</kbd>
-          </div>
-          <button onClick={() => setInspectorPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-4 h-[calc(100%-52px)] overflow-auto space-y-4">
-          <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-            <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-purple-400">Note Properties</h4>
-            <div className="space-y-2 text-sm text-gray-400">
-              <div className="flex justify-between"><span>Selected</span><span className="text-gray-200">{selectedNoteIds.size} notes</span></div>
-              <div className="flex justify-between"><span>Track</span><span className="text-gray-200">{selectedTrack?.name || 'None'}</span></div>
-              <div className="flex justify-between"><span>Instrument</span><span className="text-gray-200">{selectedTrack?.instrument || 'None'}</span></div>
-            </div>
-          </div>
-          <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-            <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-purple-400">Actions</h4>
-            <div className="grid grid-cols-2 gap-2">
-              {['Duplicate', 'Delete', 'Quantize', 'Humanize'].map(action => (
-                <button key={action} onClick={() => toast({ title: action })} className="px-3 py-2 text-xs font-semibold rounded-lg transition-all hover:scale-105 bg-purple-500/20 text-gray-200 border border-purple-500/20">
-                  {action}
-                </button>
               ))}
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Keyboard Hints Bar */}
-      <div 
-        className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 px-5 py-2.5 rounded-full opacity-40 hover:opacity-100 transition-opacity z-40"
-        style={{ 
-          background: 'rgba(15, 10, 26, 0.9)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(139, 92, 246, 0.2)',
-        }}
-      >
-        {[
-          { key: 'Space', action: 'Play' },
-          { key: 'M', action: 'Mixer' },
-          { key: 'B', action: 'Browser' },
-          { key: 'I', action: 'Inspector' },
-          { key: 'Esc', action: 'Close' },
-        ].map(({ key, action }) => (
-          <span key={key} className="flex items-center gap-1.5 text-xs text-gray-400">
-            <kbd className="px-1.5 py-0.5 rounded text-xs font-mono bg-purple-500/20 text-purple-400">{key}</kbd>
-            {action}
-          </span>
-        ))}
+        {/* Piano Roll Grid Area */}
+        <div className="flex-1 flex overflow-hidden relative">
+          <PianoKeys 
+            pianoKeys={PIANO_KEYS}
+            selectedTrack={selectedTrack}
+            onKeyClick={addNote}
+            keyHeight={KEY_HEIGHT}
+            currentStep={currentStep}
+            isPlaying={isPlaying}
+            chordMode={chordMode}
+            activeKeys={activeKeys}
+            onActiveKeysChange={setActiveKeys}
+            scrollRef={pianoKeysRef}
+            onScroll={handlePianoScroll}
+            onPlayNote={(note: string, octave: number) => {
+              const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
+              realisticAudio.playNote(note, octave, 0.5, selectedTrack?.instrument || 'piano', 0.8, true, channel?.input);
+            }}
+            onPlayNoteOff={handleNoteOff}
+            arpEnabled={liveArpEnabled}
+          />
+          <StepGrid 
+            steps={patternSteps}
+            pianoKeys={PIANO_KEYS}
+            selectedTrack={selectedTrack}
+            currentStep={currentStep}
+            stepWidth={STEP_WIDTH}
+            keyHeight={KEY_HEIGHT}
+            zoom={zoom}
+            onStepClick={addNote}
+            onChordAdd={addChordToGrid}
+            onNoteRemove={removeNote}
+            onNoteResize={resizeNote}
+            onNoteMove={moveNote}
+            onNoteCopy={copyNote}
+            onMultiNoteResize={resizeMultipleNotes}
+            onNoteSelect={selectNote}
+            chordMode={chordMode}
+            onScroll={handleGridScroll}
+            selectedNoteIds={selectedNoteIds}
+            onSelectionStart={handleSelectionStart}
+            onSelectionMove={handleSelectionMove}
+            onSelectionEnd={handleSelectionEnd}
+            isSelecting={isSelecting}
+            selectionStart={selectionStart}
+            selectionEnd={selectionEnd}
+            onPlayheadClick={(step) => setCurrentStep(step)}
+            tracks={tracks}
+            selectedTrackIndex={selectedTrackIndex}
+            scrollRef={gridRef}
+            tool={pianoRollTool}
+            snapEnabled={snapEnabled}
+            snapValue={snapValue}
+            showGhostNotes={showGhostNotes}
+            onNotesChange={(newNotes: any[]) => {
+              setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: newNotes } : t));
+            }}
+          />
+        </div>
       </div>
     </div>
   );
 };
 
 export default VerticalPianoRoll;
+

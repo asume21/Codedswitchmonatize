@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { TrackNote } from '@/types/studioTracks';
+import type { TrackNote } from '../../../types/studioTracks';
 
 // Types for Note, Track, and related interfaces
 export interface Note extends TrackNote {

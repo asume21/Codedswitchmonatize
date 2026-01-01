@@ -42,6 +42,25 @@ interface RhymeResponse {
   source?: "api" | "datamuse";
 }
 
+const DEFAULT_LYRIC_TEMPLATE = `[Verse 1]
+Started from the bottom of the code base,
+Debugging through the night at my own pace,
+Functions calling functions in this digital space,
+Building something greater than the human race.
+
+[Pre-Chorus]
+Binary dreams and electric thoughts,
+Creating melodies from the code I've wrought.
+
+[Chorus]
+We're translating hearts to algorithms,
+Making music from the syntax we're writing,
+Every loop and every variable's a rhythm,
+In this digital symphony we're designing.
+
+[Verse 2]
+Type here or use AI generation...`;
+
 function estimateSyllables(word: string): number {
   const cleaned = word.toLowerCase().replace(/[^a-z]/g, "");
   if (!cleaned) return 0;
@@ -156,24 +175,15 @@ export default function LyricLab() {
   };
 
   const [title, setTitle] = useState("My Awesome Track");
-  const [content, setContent] = useState(`[Verse 1]
-Started from the bottom of the code base,
-Debugging through the night at my own pace,
-Functions calling functions in this digital space,
-Building something greater than the human race.
-
-[Pre-Chorus]
-Binary dreams and electric thoughts,
-Creating melodies from the code I've wrought.
-
-[Chorus]
-We're translating hearts to algorithms,
-Making music from the syntax we're writing,
-Every loop and every variable's a rhythm,
-In this digital symphony we're designing.
-
-[Verse 2]
-Type here or use AI generation...`);
+  const [content, setContent] = useState(() => {
+    try {
+      const stored = localStorage.getItem('lyricLabCurrentLyrics');
+      if (stored && stored.trim()) return stored;
+    } catch {
+      // Ignore storage errors
+    }
+    return DEFAULT_LYRIC_TEMPLATE;
+  });
 
   // Undo/Redo history
   const [undoStack, setUndoStack] = useState<string[]>([]);
@@ -214,26 +224,17 @@ Type here or use AI generation...`);
     return () => clearTimeout(debounce);
   }, [content]);
 
-  // Update studio context and localStorage whenever lyrics content changes
+  // Load persisted lyrics on component mount (studio session first, then localStorage, then studio context)
   React.useEffect(() => {
-    if (studioContext.currentLyrics !== content) {
-      studioContext.setCurrentLyrics(content);
+    if (studioSession.lyrics && studioSession.lyrics !== content) {
+      setContent(studioSession.lyrics);
+      studioContext.setCurrentLyrics(studioSession.lyrics);
+      return;
     }
-    if (studioSession.lyrics !== content) {
-      studioSession.setLyrics(content);
-    }
-    try {
-      localStorage.setItem('lyricLabCurrentLyrics', content);
-    } catch {
-      // Ignore storage errors (e.g. private mode)
-    }
-  }, [content, studioContext, studioSession]);
 
-  // Load persisted lyrics on component mount (localStorage first, then studio context)
-  React.useEffect(() => {
     try {
       const stored = localStorage.getItem('lyricLabCurrentLyrics');
-      if (stored && stored !== content) {
+      if (stored && stored.trim() && stored !== content) {
         setContent(stored);
         studioContext.setCurrentLyrics(stored);
         studioSession.setLyrics(stored);
@@ -249,6 +250,21 @@ Type here or use AI generation...`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
+
+  // Update studio context and localStorage whenever lyrics content changes
+  React.useEffect(() => {
+    if (studioContext.currentLyrics !== content) {
+      studioContext.setCurrentLyrics(content);
+    }
+    if (studioSession.lyrics !== content) {
+      studioSession.setLyrics(content);
+    }
+    try {
+      localStorage.setItem('lyricLabCurrentLyrics', content);
+    } catch {
+      // Ignore storage errors (e.g. private mode)
+    }
+  }, [content, studioContext, studioSession]);
 
   // Load session from URL parameters
   useEffect(() => {
@@ -882,7 +898,7 @@ Type here or use AI generation...`);
   }, [toast]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full min-h-0 flex flex-col">
       <div className="p-6 border-b border-gray-600">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-heading font-bold">Song Doctor · Lyric Lab</h2>
@@ -977,7 +993,7 @@ Type here or use AI generation...`);
         </div>
       )}
 
-      <ScrollArea className="flex-1 p-6">
+      <ScrollArea className="flex-1 min-h-0 p-6">
         <div className="grid grid-cols-3 gap-6">
           {/* Lyric Editor */}
           <div className="col-span-2 bg-studio-panel border border-gray-600 rounded-lg overflow-hidden">

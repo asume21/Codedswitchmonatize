@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, Music, Drum, Guitar, Piano, Mic2, Wand2, RefreshCw, Send, Save, FolderPlus, Heart } from 'lucide-react';
+import { Loader2, Sparkles, Music, Drum, Guitar, Piano, Mic2, Wand2, RefreshCw, Send, Save, FolderPlus, Heart, X, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { professionalAudio } from '@/lib/professionalAudio';
 
 interface AILoopGeneratorProps {
   currentBpm?: number;
@@ -101,11 +102,21 @@ export default function AILoopGenerator({
   const [showLibrary, setShowLibrary] = useState(false);
 
   const dispatchTopianoRoll = (loop: GeneratedLoop) => {
+    // Get mixer channel hints
+    const channels = professionalAudio.getChannels();
+    const channelMapping = {
+      drums: channels.find(c => c.id === 'drums' || c.name.toLowerCase() === 'drums')?.id,
+      bass: channels.find(c => c.id === 'bass' || c.name.toLowerCase() === 'bass')?.id,
+      chords: channels.find(c => c.id === 'instruments' || c.name.toLowerCase() === 'instruments')?.id,
+      melody: channels.find(c => c.id === 'lead' || c.name.toLowerCase() === 'lead')?.id,
+    };
+
     // Dispatch event to Piano Roll
     const event = new CustomEvent('astutely:generated', {
       detail: {
         notes: loop.notes,
         bpm: loop.bpm,
+        channelMapping,
         timestamp: Date.now()
       }
     });
@@ -115,6 +126,7 @@ export default function AILoopGenerator({
     localStorage.setItem('astutely-generated', JSON.stringify({
       notes: loop.notes,
       bpm: loop.bpm,
+      channelMapping,
       timestamp: Date.now()
     }));
     
@@ -378,244 +390,228 @@ export default function AILoopGenerator({
   };
 
   return (
-    <Card className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-purple-500/30">
-      <CardHeader className="pb-3">
+    <Card className="bg-white/5 border-white/10 backdrop-blur-xl rounded-3xl relative overflow-hidden shadow-2xl group">
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-blue-500/5 to-pink-500/5 pointer-events-none" />
+      
+      <CardHeader className="relative z-10 border-b border-white/5 pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-400" />
+          <CardTitle className="text-xl flex items-center gap-3 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-400 to-blue-400 font-black uppercase tracking-tight">
+            <Sparkles className="w-6 h-6 text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
             AI Loop Generator
           </CardTitle>
-          <Badge variant="secondary" className="bg-purple-500/20 text-purple-300">Pro</Badge>
+          <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30 text-[10px] font-black tracking-widest uppercase px-2 py-0">
+            Neural Engine
+          </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+
+      <CardContent className="space-y-6 pt-6 relative z-10">
         {/* Quick Generate Buttons */}
-        <div className="space-y-2">
-          <label className="text-xs text-gray-400 font-medium">Quick Generate</label>
-          <div className="grid grid-cols-4 gap-2">
+        <div className="space-y-3">
+          <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] ml-1">Rapid Synthesis</label>
+          <div className="grid grid-cols-4 gap-3">
             <Button
               size="sm"
               variant="outline"
-              className="flex flex-col items-center gap-1 h-auto py-2 border-blue-500/30 hover:bg-blue-500/20"
+              className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-blue-500/20 hover:bg-blue-500/20 hover:border-blue-500/40 rounded-xl transition-all group/btn"
               onClick={() => generateQuickContent('melody')}
               disabled={isGenerating}
             >
-              {generatingType === 'melody' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Music className="w-4 h-4 text-blue-400" />}
-              <span className="text-xs">Melody</span>
+              {generatingType === 'melody' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Music className="w-5 h-5 text-blue-400 group-hover/btn:scale-110 transition-transform" />}
+              <span className="text-[10px] font-black uppercase tracking-tighter">Melody</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="flex flex-col items-center gap-1 h-auto py-2 border-pink-500/30 hover:bg-pink-500/20"
+              className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-pink-500/20 hover:bg-pink-500/20 hover:border-pink-500/40 rounded-xl transition-all group/btn"
               onClick={() => generateQuickContent('drums')}
               disabled={isGenerating}
             >
-              {generatingType === 'drums' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Drum className="w-4 h-4 text-pink-400" />}
-              <span className="text-xs">Drums</span>
+              {generatingType === 'drums' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Drum className="w-5 h-5 text-pink-400 group-hover/btn:scale-110 transition-transform" />}
+              <span className="text-[10px] font-black uppercase tracking-tighter">Drums</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="flex flex-col items-center gap-1 h-auto py-2 border-green-500/30 hover:bg-green-500/20"
+              className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-green-500/20 hover:bg-green-500/20 hover:border-green-500/40 rounded-xl transition-all group/btn"
               onClick={() => generateQuickContent('bass')}
               disabled={isGenerating}
             >
-              {generatingType === 'bass' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Guitar className="w-4 h-4 text-green-400" />}
-              <span className="text-xs">Bass</span>
+              {generatingType === 'bass' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Guitar className="w-5 h-5 text-green-400 group-hover/btn:scale-110 transition-transform" />}
+              <span className="text-[10px] font-black uppercase tracking-tighter">Bass</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="flex flex-col items-center gap-1 h-auto py-2 border-purple-500/30 hover:bg-purple-500/20"
+              className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-purple-500/20 hover:bg-purple-500/20 hover:border-purple-500/40 rounded-xl transition-all group/btn"
               onClick={() => generateQuickContent('chords')}
               disabled={isGenerating}
             >
-              {generatingType === 'chords' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Piano className="w-4 h-4 text-purple-400" />}
-              <span className="text-xs">Chords</span>
+              {generatingType === 'chords' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Piano className="w-5 h-5 text-purple-400 group-hover/btn:scale-110 transition-transform" />}
+              <span className="text-[10px] font-black uppercase tracking-tighter">Chords</span>
             </Button>
           </div>
         </div>
 
-        {/* Settings */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-1">
-            <label className="text-xs text-gray-400">Genre</label>
+        {/* Settings Grid */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Genre</label>
             <Select value={genre} onValueChange={setGenre}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 bg-white/5 border-white/10 rounded-xl hover:bg-white/10 transition-all text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
                 {GENRES.map(g => (
-                  <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                  <SelectItem key={g.value} value={g.value} className="focus:bg-purple-500/20 text-xs font-medium">{g.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-gray-400">Key</label>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Key</label>
             <Select value={key} onValueChange={setKey}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 bg-white/5 border-white/10 rounded-xl hover:bg-white/10 transition-all text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
                 {KEYS.map(k => (
-                  <SelectItem key={k} value={k}>{k}</SelectItem>
+                  <SelectItem key={k} value={k} className="focus:bg-blue-500/20 text-xs font-medium">{k}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-gray-400">Scale</label>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Scale</label>
             <Select value={scale} onValueChange={setScale}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 bg-white/5 border-white/10 rounded-xl hover:bg-white/10 transition-all text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
                 {SCALES.map(s => (
-                  <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                  <SelectItem key={s} value={s} className="focus:bg-pink-500/20 text-xs font-medium">{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs text-gray-400">BPM: {bpm}</label>
-            <Slider
-              value={[bpm]}
-              onValueChange={(v) => setBpm(v[0])}
-              min={60}
-              max={180}
-              step={1}
-              className="w-full"
-            />
+        <div className="grid grid-cols-2 gap-6 bg-white/5 p-4 rounded-2xl border border-white/5">
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest">BPM</label>
+              <span className="text-xs font-black text-blue-400 drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]">{bpm}</span>
+            </div>
+            <Slider value={[bpm]} onValueChange={(v) => setBpm(v[0])} min={60} max={180} step={1} className="py-2" />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-gray-400">Complexity: {complexity}%</label>
-            <Slider
-              value={[complexity]}
-              onValueChange={(v) => setComplexity(v[0])}
-              min={10}
-              max={100}
-              step={10}
-              className="w-full"
-            />
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-black text-purple-300/60 uppercase tracking-widest">Complexity</label>
+              <span className="text-xs font-black text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.5)]">{complexity}%</span>
+            </div>
+            <Slider value={[complexity]} onValueChange={(v) => setComplexity(v[0])} min={10} max={100} step={10} className="py-2" />
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs text-gray-400">Bars: {bars}</label>
-          <Slider
-            value={[bars]}
-            onValueChange={(v) => setBars(v[0])}
-            min={1}
-            max={8}
-            step={1}
-            className="w-full"
-          />
+        <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/5">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-black text-cyan-300/60 uppercase tracking-widest">Arrangement Length</label>
+            <span className="text-xs font-black text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{bars} Bars</span>
+          </div>
+          <Slider value={[bars]} onValueChange={(v) => setBars(v[0])} min={1} max={8} step={1} className="py-2" />
         </div>
 
         {/* Track Toggles */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-xs text-gray-400">Include:</label>
-          <Button
-            size="sm"
-            variant={includeDrums ? 'default' : 'outline'}
-            className="h-6 text-xs px-2"
-            onClick={() => setIncludeDrums(!includeDrums)}
-          >
-            <Drum className="w-3 h-3 mr-1" />
-            Drums
-          </Button>
-          <Button
-            size="sm"
-            variant={includeBass ? 'default' : 'outline'}
-            className="h-6 text-xs px-2"
-            onClick={() => setIncludeBass(!includeBass)}
-          >
-            <Guitar className="w-3 h-3 mr-1" />
-            Bass
-          </Button>
-          <Button
-            size="sm"
-            variant={includeChords ? 'default' : 'outline'}
-            className="h-6 text-xs px-2"
-            onClick={() => setIncludeChords(!includeChords)}
-          >
-            <Piano className="w-3 h-3 mr-1" />
-            Chords
-          </Button>
-          <Button
-            size="sm"
-            variant={includeMelody ? 'default' : 'outline'}
-            className="h-6 text-xs px-2"
-            onClick={() => setIncludeMelody(!includeMelody)}
-          >
-            <Music className="w-3 h-3 mr-1" />
-            Melody
-          </Button>
+        <div className="space-y-3">
+          <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Engine Sub-Systems</label>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { label: 'Drums', active: includeDrums, setter: setIncludeDrums, icon: Drum, color: 'pink' },
+              { label: 'Bass', active: includeBass, setter: setIncludeBass, icon: Guitar, color: 'green' },
+              { label: 'Chords', active: includeChords, setter: setIncludeChords, icon: Piano, color: 'purple' },
+              { label: 'Melody', active: includeMelody, setter: setIncludeMelody, icon: Music, color: 'blue' }
+            ].map((sys) => (
+              <Button
+                key={sys.label}
+                size="sm"
+                variant={sys.active ? 'default' : 'outline'}
+                className={`h-8 px-4 rounded-full font-black uppercase text-[10px] tracking-widest transition-all border-2 ${
+                  sys.active 
+                    ? `bg-${sys.color}-500/20 border-${sys.color}-500/50 text-${sys.color}-400 shadow-[0_0_10px_rgba(var(--${sys.color}-500),0.2)]` 
+                    : 'bg-white/5 border-white/10 text-white/40'
+                }`}
+                onClick={() => sys.setter(!sys.active)}
+              >
+                <sys.icon className="w-3 h-3 mr-2" />
+                {sys.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Generate Full Loop Button */}
         <Button
-          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          className="w-full h-14 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-blue-600 hover:from-purple-500 hover:via-fuchsia-500 hover:to-blue-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] border border-white/20"
           onClick={generateFullLoop}
           disabled={isGenerating || (!includeDrums && !includeBass && !includeChords && !includeMelody)}
         >
           {isGenerating && generatingType === 'full' ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Generating...
+              <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+              Neural Rendering...
             </>
           ) : (
             <>
-              <Wand2 className="w-4 h-4 mr-2" />
-              Generate Full Loop
+              <Wand2 className="w-5 h-5 mr-3 drop-shadow-[0_0_8px_white]" />
+              Generate Full Sequence
             </>
           )}
         </Button>
 
-        {/* Save to Library / Library Toggle */}
-        <div className="flex gap-2">
+        {/* Library Management */}
+        <div className="flex gap-3">
           <Button
             size="sm"
-            variant="outline"
-            className="flex-1 border-green-500/30 hover:bg-green-500/20"
+            variant="ghost"
+            className="flex-1 h-11 bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all"
             onClick={() => setShowSaveDialog(true)}
             disabled={!lastGeneratedLoop}
           >
-            <Save className="w-4 h-4 mr-2 text-green-400" />
-            Save to Library
+            <Save className="w-4 h-4 mr-2" />
+            Archive Loop
           </Button>
           <Button
             size="sm"
-            variant={showLibrary ? 'default' : 'outline'}
-            className="flex-1"
+            variant="ghost"
+            className={`flex-1 h-11 border rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${
+              showLibrary 
+                ? 'bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' 
+                : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'
+            }`}
             onClick={() => setShowLibrary(!showLibrary)}
           >
             <FolderPlus className="w-4 h-4 mr-2" />
-            Library ({savedLoops.length})
+            Neural Archive ({savedLoops.length})
           </Button>
         </div>
 
         {/* Save Dialog */}
         {showSaveDialog && (
-          <div className="p-3 bg-gray-800/80 rounded-lg border border-green-500/30 space-y-2">
-            <label className="text-xs text-gray-400">Loop Name</label>
+          <div className="p-4 bg-black/40 backdrop-blur-2xl rounded-2xl border border-green-500/30 space-y-3 animate-in fade-in zoom-in-95">
+            <label className="text-[10px] font-black text-green-400/80 uppercase tracking-widest ml-1">Archive Identifier</label>
             <div className="flex gap-2">
               <Input
                 value={loopName}
                 onChange={(e) => setLoopName(e.target.value)}
-                placeholder="My awesome loop..."
-                className="flex-1 h-8 text-sm"
+                placeholder="SEQUENCE_ID_01..."
+                className="flex-1 h-10 bg-white/5 border-white/10 rounded-lg text-sm font-bold text-white placeholder:text-white/20"
                 onKeyDown={(e) => e.key === 'Enter' && saveToLibrary()}
               />
-              <Button size="sm" onClick={saveToLibrary} className="bg-green-600 hover:bg-green-700">
-                Save
+              <Button size="sm" onClick={saveToLibrary} className="bg-green-600 hover:bg-green-500 h-10 px-4 rounded-lg font-black uppercase text-xs">
+                Sync
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowSaveDialog(false)}>
-                Cancel
+              <Button size="sm" variant="ghost" onClick={() => setShowSaveDialog(false)} className="h-10 text-white/40 hover:text-white">
+                <X className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -623,50 +619,49 @@ export default function AILoopGenerator({
 
         {/* Loop Library */}
         {showLibrary && (
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-2 animate-in slide-in-from-bottom-4 duration-300">
             {savedLoops.length === 0 ? (
-              <div className="text-center text-gray-500 text-sm py-4">
-                No saved loops yet. Generate and save some!
+              <div className="text-center text-white/20 text-[10px] font-black uppercase tracking-widest py-8 bg-black/20 rounded-2xl border border-dashed border-white/10">
+                Archive Empty // Waiting for Input
               </div>
             ) : (
               <>
-                {/* Favorites first */}
                 {savedLoops
                   .sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0))
                   .map(loop => (
                     <div 
                       key={loop.id}
-                      className="flex items-center gap-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700 hover:border-purple-500/50 transition-colors"
+                      className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5 hover:border-purple-500/40 hover:bg-white/10 transition-all group/item shadow-sm"
                     >
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-6 w-6 p-0"
+                        className="h-8 w-8 p-0 hover:bg-transparent"
                         onClick={() => toggleFavorite(loop.id)}
                       >
-                        <Heart className={`w-4 h-4 ${loop.isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-500'}`} />
+                        <Heart className={`w-4 h-4 transition-all ${loop.isFavorite ? 'fill-red-500 text-red-500 drop-shadow-[0_0_5px_rgba(239,68,68,0.5)]' : 'text-white/20 group-hover/item:text-white/40'}`} />
                       </Button>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{loop.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {loop.genre} • {loop.key} {loop.scale} • {loop.bpm} BPM • {loop.bars} bars
+                        <div className="text-xs font-black text-white/90 truncate uppercase tracking-tight">{loop.name}</div>
+                        <div className="text-[9px] font-black text-white/30 uppercase tracking-tighter">
+                          {loop.genre} • {loop.key} {loop.scale} • {loop.bpm} BPM
                         </div>
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs"
+                        className="h-8 px-3 text-[10px] font-black uppercase tracking-widest bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20 rounded-lg"
                         onClick={() => loadFromLibrary(loop)}
                       >
-                        Load
+                        Recall
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+                        className="h-8 w-8 p-0 text-white/20 hover:text-red-400 hover:bg-red-400/10 rounded-lg"
                         onClick={() => deleteFromLibrary(loop.id)}
                       >
-                        ×
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   ))}
@@ -674,7 +669,12 @@ export default function AILoopGenerator({
             )}
           </div>
         )}
+
+        <p className="text-[9px] text-white/20 text-center font-black uppercase tracking-[0.3em] pt-2">
+          Holographic Loop Matrix // Multi-System Synchronization Ready
+        </p>
       </CardContent>
     </Card>
   );
 }
+

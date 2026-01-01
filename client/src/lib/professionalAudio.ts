@@ -3,6 +3,8 @@
  * Features: Real-time effects, professional mixing console, advanced routing
  */
 
+import { getAudioContext } from './audioContext';
+
 export interface AudioEffect {
   id: string;
   name: string;
@@ -70,7 +72,7 @@ export class ProfessionalAudioEngine {
     if (this.isInitialized) return;
     
     try {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.audioContext = getAudioContext();
       this.sampleRate = this.audioContext.sampleRate;
       
       console.log('🎛️ Professional Audio Engine - Initializing');

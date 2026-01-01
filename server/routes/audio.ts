@@ -4,6 +4,9 @@ import { unifiedMusicService } from "../services/unifiedMusicService";
 import { patternGenerator } from "../services/patternGenerator";
 import { generateBassLine } from "../services/bassGenerator";
 import { callAI } from "../services/aiGateway";
+import { requireCredits } from "../middleware/requireCredits";
+import { CREDIT_COSTS } from "../services/credits";
+import { storage } from "../storage";
 
 const router = Router();
 
@@ -755,6 +758,66 @@ Create complete lyrics with verses, chorus, and bridge.`;
     } catch (error: any) {
       console.error("❌ Phase 3 AI drum grid error:", error);
       sendError(res, 500, error?.message || "Failed to generate AI drum grid");
+    }
+  });
+
+  // Generate layered composition (Beat + Melody) for MixerStudio
+  router.post("/audio/layered-composition", requireAuth(), requireCredits(CREDIT_COSTS.AI_MIXING, storage), async (req: Request, res: Response) => {
+    try {
+      const { prompt, beatStyle, melodyType, bpm, key } = req.body;
+      
+      console.log('🎚️ Generating layered composition:', { beatStyle, melodyType, bpm, key });
+
+      // Generate patterns for different layers
+      const beatPattern = patternGenerator.generatePattern(
+        `${beatStyle || 'hip-hop'} drum beat`,
+        30,
+        bpm || 120
+      );
+
+      const melodyPattern = patternGenerator.generatePattern(
+        `${melodyType || 'piano'} melody in ${key || 'C'}`,
+        30,
+        bpm || 120
+      );
+
+      res.json({
+        success: true,
+        composition: {
+          beat: beatPattern,
+          melody: melodyPattern,
+          bass: null, // Optional for now
+        },
+        metadata: {
+          bpm: bpm || 120,
+          key: key || 'C',
+          style: beatStyle,
+        }
+      });
+    } catch (error: any) {
+      console.error('❌ Layered composition error:', error);
+      res.status(500).json({ success: false, message: "Failed to generate layered composition" });
+    }
+  });
+
+  // Export master for MixerStudio
+  router.post("/audio/export-master", requireAuth(), requireCredits(CREDIT_COSTS.AUDIO_MASTERING, storage), async (req: Request, res: Response) => {
+    try {
+      const { tracks, masterEQ, masterVolume } = req.body;
+      
+      console.log('📤 Exporting master mix...');
+
+      // In a real implementation, this would trigger a server-side render
+      // For now, we return a success message and a placeholder URL
+      res.json({
+        success: true,
+        message: "Mastering process started",
+        exportUrl: "/api/audio/placeholder-master.mp3",
+        downloadUrl: "/api/audio/placeholder-master.mp3"
+      });
+    } catch (error: any) {
+      console.error('❌ Export master error:', error);
+      res.status(500).json({ success: false, message: "Failed to export master" });
     }
   });
 

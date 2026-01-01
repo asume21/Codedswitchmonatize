@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import { getAudioContext } from './audioContext';
 
 interface PackSample {
   id: string;
@@ -108,14 +109,44 @@ export class PackAudioSynthesizer {
   private scheduledEvents: number[] = [];
   private recorder: MediaRecorder | null = null;
   private recordedChunks: Blob[] = [];
+  private targetNode: AudioNode | null = null;
+
+  setTargetNode(node: AudioNode | null) {
+    this.targetNode = node;
+    // Reconnect if synths already exist
+    if (node) {
+      this.synth?.disconnect();
+      this.synth?.connect(node);
+      this.bassSynth?.disconnect();
+      this.bassSynth?.connect(node);
+      this.drumSynth?.disconnect();
+      this.drumSynth?.connect(node);
+      this.noiseSynth?.disconnect();
+      this.noiseSynth?.connect(node);
+      this.metalSynth?.disconnect();
+      this.metalSynth?.connect(node);
+    }
+  }
 
   async initialize() {
+    const sharedCtx = getAudioContext();
+    if (Tone.context.rawContext !== sharedCtx) {
+      Tone.setContext(new Tone.Context(sharedCtx));
+    }
+    
     await Tone.start();
     
     this.synth = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'triangle' },
       envelope: { attack: 0.02, decay: 0.3, sustain: 0.4, release: 0.8 }
-    }).toDestination();
+    });
+    
+    if (this.targetNode) {
+      this.synth.connect(this.targetNode);
+    } else {
+      this.synth.toDestination();
+    }
+    
     this.synth.volume.value = -6;
 
     this.bassSynth = new Tone.MonoSynth({
@@ -123,7 +154,14 @@ export class PackAudioSynthesizer {
       envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.3 },
       filter: { Q: 2, type: 'lowpass', rolloff: -24 },
       filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.3, baseFrequency: 100, octaves: 2 }
-    }).toDestination();
+    });
+    
+    if (this.targetNode) {
+      this.bassSynth.connect(this.targetNode);
+    } else {
+      this.bassSynth.toDestination();
+    }
+    
     this.bassSynth.volume.value = -3;
 
     this.drumSynth = new Tone.MembraneSynth({
@@ -131,13 +169,27 @@ export class PackAudioSynthesizer {
       octaves: 4,
       oscillator: { type: 'sine' },
       envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.1 }
-    }).toDestination();
+    });
+    
+    if (this.targetNode) {
+      this.drumSynth.connect(this.targetNode);
+    } else {
+      this.drumSynth.toDestination();
+    }
+    
     this.drumSynth.volume.value = 0;
 
     this.noiseSynth = new Tone.NoiseSynth({
       noise: { type: 'white' },
       envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.05 }
-    }).toDestination();
+    });
+    
+    if (this.targetNode) {
+      this.noiseSynth.connect(this.targetNode);
+    } else {
+      this.noiseSynth.toDestination();
+    }
+    
     this.noiseSynth.volume.value = -12;
 
     this.metalSynth = new Tone.MetalSynth({
@@ -146,7 +198,14 @@ export class PackAudioSynthesizer {
       modulationIndex: 32,
       resonance: 4000,
       octaves: 1.5
-    }).toDestination();
+    });
+    
+    if (this.targetNode) {
+      this.metalSynth.connect(this.targetNode);
+    } else {
+      this.metalSynth.toDestination();
+    }
+    
     this.metalSynth.volume.value = -18;
   }
 

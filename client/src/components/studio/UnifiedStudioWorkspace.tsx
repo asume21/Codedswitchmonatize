@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
 import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
 import FloatingAIAssistant from './FloatingAIAssistant';
@@ -331,6 +332,48 @@ export default function UnifiedStudioWorkspace() {
   
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
+  const [transportBarCollapsed, setTransportBarCollapsed] = useState(false);
+  const [transportBarPos, setTransportBarPos] = useState<{ x: number; y: number }>(() => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+    try {
+      const raw = localStorage.getItem('studio:floatingTransport:pos');
+      if (!raw) return { x: 0, y: 0 };
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') {
+        return { x: parsed.x, y: parsed.y };
+      }
+      return { x: 0, y: 0 };
+    } catch {
+      return { x: 0, y: 0 };
+    }
+  });
+  const transportDragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; dragging: boolean } | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem('studio:floatingTransport:pos', JSON.stringify(transportBarPos));
+    } catch {
+      // ignore
+    }
+  }, [transportBarPos]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem('studio:floatingTransport:collapsed', JSON.stringify(transportBarCollapsed));
+    } catch {
+      // ignore
+    }
+  }, [transportBarCollapsed]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('studio:floatingTransport:collapsed');
+      if (raw != null) setTransportBarCollapsed(Boolean(JSON.parse(raw)));
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { isPro, requirePro, startUpgrade } = useLicenseGate();
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   useEffect(() => {
@@ -968,8 +1011,9 @@ export default function UnifiedStudioWorkspace() {
     let savedWorkflow = localStorage.getItem('selectedWorkflow') as string | null;
     
     if (!hasSeenWorkflowSelector) {
-      // First time - show workflow selector
-      setShowWorkflowSelector(true);
+      // First time - do not auto-open the modal (it blocks UI interactions).
+      // Users can still open it explicitly via the Change Workflow button.
+      localStorage.setItem('hasSeenWorkflowSelector', 'true');
     } else if (savedWorkflow) {
       // Migrate legacy workflow IDs to new format
       if (LEGACY_WORKFLOW_ID_MAP[savedWorkflow]) {
@@ -1153,40 +1197,33 @@ export default function UnifiedStudioWorkspace() {
   };
 
   // Play a note with the REAL audio engines (Synthesis for instruments, realisticAudio for drums)
-  const playNote = async (note: string, octave: number, instrumentType?: string) => {
+  const playNote = async (note: string, octave: number, instrumentType?: string, durationSeconds: number = 0.5) => {
     try {
-      // Get current track's instrument or use default
       const currentTrack = tracks.find(t => t.id === selectedTrack);
-      let uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
-      
-      // GET VOLUME AND PAN FROM TRACK
+      const uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       const trackVolume = currentTrack?.volume ?? 0.8;
-      const trackPan = currentTrack?.pan ?? 0;
-      
-      // Check if it's a drum instrument - use realisticAudio drum synthesis
-      const drumMap: Record<string, string> = {
-        'Kick': 'kick',
-        'Snare': 'snare',
-        'Hi-Hat': 'hihat',
-        'Tom': 'tom',
-        'Cymbal': 'crash',
-        'Full Kit': 'kick'
-      };
-      
+
+      const drumMap = { Kick: 'kick', Snare: 'snare', 'Hi-Hat': 'hihat', Tom: 'tom', Cymbal: 'crash', 'Full Kit': 'kick' };
       if (drumMap[uiInstrument]) {
-        // Use real drum synthesis from realisticAudio WITH TRACK VOLUME
         await realisticAudio.playDrumSound(drumMap[uiInstrument], trackVolume);
         return;
       }
       
-      // For melodic instruments, use the RealisticAudioEngine with General MIDI soundfonts
-      // This supports ALL instruments: trumpet, synth bass, violin, flute, etc.
-      const midiInstrument = mapInstrumentName(uiInstrument);
+      // For melodic instruments, use the RealisticAudioEngine with General MIDI soundfonts.
+      // If we were given an internal/soundfont key (e.g. electric_bass_pick), pass it through.
+      const looksLikeSoundfontKey = /^[a-z0-9_-]+$/.test(uiInstrument);
+      const midiInstrument = looksLikeSoundfontKey ? uiInstrument : mapInstrumentName(uiInstrument);
       
       console.log(`🎹 Playing ${note}${octave} with instrument: ${uiInstrument} → ${midiInstrument}`);
       
-      // Play using RealisticAudioEngine (soundfont-player) WITH TRACK VOLUME
-      await realisticAudio.playNote(note, octave, trackVolume, midiInstrument, 0.5);
+      // realisticAudio.playNote(note, octave, duration, instrument, velocity)
+      await realisticAudio.playNote(
+        note,
+        octave,
+        durationSeconds,
+        midiInstrument,
+        Math.min(1, Math.max(0, trackVolume))
+      );
       
       // TODO: Apply pan using Web Audio API StereoPannerNode
     } catch (error) {
@@ -2022,194 +2059,194 @@ export default function UnifiedStudioWorkspace() {
 
   // Desktop Layout - Full featured UI
   return (
-    <div className="h-full w-full flex flex-col bg-gray-900 text-white overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-black astutely-app astutely-scanlines astutely-grid-bg astutely-scrollbar overflow-hidden">
       {/* Top Bar */}
-      <div className="h-12 bg-gray-800 border-b border-gray-700 flex items-center px-2 justify-between flex-shrink-0">
-        <div className="flex items-center space-x-2">
-          <h1 className="text-lg font-bold">🎵 Studio</h1>
+      <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-xl font-black tracking-[0.3em] astutely-gradient-text uppercase">CodedSwitch</h1>
           <div className="flex space-x-0.5">
             <div className="relative group">
-              <Button variant="ghost" size="sm">File ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
-                <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+              <Button variant="ghost" size="sm" className="astutely-button">File ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+                <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New Project</span>
-                  <span className="text-xs text-gray-500">Ctrl+N</span>
+                  <span className="text-xs text-cyan-400">Ctrl+N</span>
                 </button>
-                <button onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Open Project...</span>
-                  <span className="text-xs text-gray-500">Ctrl+O</span>
+                  <span className="text-xs text-cyan-400">Ctrl+O</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Save Project</span>
-                  <span className="text-xs text-gray-500">Ctrl+S</span>
+                  <span className="text-xs text-cyan-400">Ctrl+S</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Import Audio...</span>
-                  <span className="text-xs text-gray-500">Ctrl+I</span>
+                  <span className="text-xs text-cyan-400">Ctrl+I</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Export Audio...</span>
                   <span className="text-xs text-gray-500">Ctrl+E</span>
                 </button>
               </div>
             </div>
             <div className="relative group">
-              <Button variant="ghost" size="sm">Edit ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
-                <button onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+              <Button variant="ghost" size="sm" className="astutely-button">Edit ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+                <button onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Undo</span>
-                  <span className="text-xs text-gray-500">Ctrl+Z</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Z</span>
                 </button>
-                <button onClick={handleRedo} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleRedo} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Redo</span>
-                  <span className="text-xs text-gray-500">Ctrl+Y</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Y</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleCut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleCut} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Cut</span>
-                  <span className="text-xs text-gray-500">Ctrl+X</span>
+                  <span className="text-xs text-cyan-400">Ctrl+X</span>
                 </button>
-                <button onClick={handleCopy} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleCopy} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Copy</span>
-                  <span className="text-xs text-gray-500">Ctrl+C</span>
+                  <span className="text-xs text-cyan-400">Ctrl+C</span>
                 </button>
-                <button onClick={handlePaste} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handlePaste} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Paste</span>
-                  <span className="text-xs text-gray-500">Ctrl+V</span>
+                  <span className="text-xs text-cyan-400">Ctrl+V</span>
                 </button>
-                <button onClick={handleDelete} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleDelete} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Delete</span>
-                  <span className="text-xs text-gray-500">Del</span>
+                  <span className="text-xs text-cyan-400">Del</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleSelectAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleSelectAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Select All</span>
-                  <span className="text-xs text-gray-500">Ctrl+A</span>
+                  <span className="text-xs text-cyan-400">Ctrl+A</span>
                 </button>
               </div>
             </div>
             <div className="relative group">
-              <Button variant="ghost" size="sm">View ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
-                <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+              <Button variant="ghost" size="sm" className="astutely-button">View ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+                <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
-                  <span className="text-xs text-gray-500">F1</span>
+                  <span className="text-xs text-cyan-400">F1</span>
                 </button>
-                <button onClick={() => setActiveView('beat-lab')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => setActiveView('beat-lab')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'beat-lab' ? '✓' : '  '} Beat Lab</span>
-                  <span className="text-xs text-gray-500">F2</span>
+                  <span className="text-xs text-cyan-400">F2</span>
                 </button>
-                <button onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'piano-roll' ? '✓' : '  '} Piano Roll</span>
-                  <span className="text-xs text-gray-500">F3</span>
+                  <span className="text-xs text-cyan-400">F3</span>
                 </button>
-                <button onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'mixer' ? '✓' : '  '} Mixer</span>
-                  <span className="text-xs text-gray-500">F4</span>
+                  <span className="text-xs text-cyan-400">F4</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'ai-studio' ? '✓' : '  '} AI Studio</span>
-                  <span className="text-xs text-gray-500">F5</span>
+                  <span className="text-xs text-cyan-400">F5</span>
                 </button>
-                <button onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white" data-testid="tab-code-to-music">
+                <button onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item" data-testid="tab-code-to-music">
                   <span>{activeView === 'code-to-music' ? '✓' : '  '} Code to Music</span>
-                  <span className="text-xs text-gray-500">F6</span>
+                  <span className="text-xs text-cyan-400">F6</span>
                 </button>
-                <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'lyrics' ? '✓' : '  '} Lyrics</span>
-                  <span className="text-xs text-gray-500">F7</span>
+                  <span className="text-xs text-cyan-400">F7</span>
                 </button>
-                <button onClick={() => setActiveView('audio-tools')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => setActiveView('audio-tools')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'audio-tools' ? '✓' : '  '} Audio Tools</span>
-                  <span className="text-xs text-gray-500">F8</span>
+                  <span className="text-xs text-cyan-400">F8</span>
                 </button>
-                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'song-uploader' ? '✓' : '  '} Upload</span>
-                  <span className="text-xs text-gray-500">F9</span>
+                  <span className="text-xs text-cyan-400">F9</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{instrumentsExpanded ? '✓' : '  '} Instrument Library</span>
-                  <span className="text-xs text-gray-500">Ctrl+1</span>
+                  <span className="text-xs text-cyan-400">Ctrl+1</span>
                 </button>
-                <button onClick={() => { setShowSampleBrowser(!showSampleBrowser); toast({ title: showSampleBrowser ? "Sample Browser Hidden" : "Sample Browser Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setShowSampleBrowser(!showSampleBrowser); toast({ title: showSampleBrowser ? "Sample Browser Hidden" : "Sample Browser Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{showSampleBrowser ? '✓' : '  '} Sample Browser</span>
-                  <span className="text-xs text-gray-500">Ctrl+2</span>
+                  <span className="text-xs text-cyan-400">Ctrl+2</span>
                 </button>
-                <button onClick={() => { setShowInspector(!showInspector); toast({ title: showInspector ? "Inspector Hidden" : "Inspector Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setShowInspector(!showInspector); toast({ title: showInspector ? "Inspector Hidden" : "Inspector Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{showInspector ? '✓' : '  '} Inspector</span>
-                  <span className="text-xs text-gray-500">Ctrl+3</span>
+                  <span className="text-xs text-cyan-400">Ctrl+3</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleZoomIn} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleZoomIn} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Zoom In</span>
-                  <span className="text-xs text-gray-500">Ctrl++</span>
+                  <span className="text-xs text-cyan-400">Ctrl++</span>
                 </button>
-                <button onClick={handleZoomOut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleZoomOut} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Zoom Out</span>
-                  <span className="text-xs text-gray-500">Ctrl+-</span>
+                  <span className="text-xs text-cyan-400">Ctrl+-</span>
                 </button>
-                <button onClick={handleZoomToFit} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleZoomToFit} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Zoom to Fit</span>
-                  <span className="text-xs text-gray-500">Ctrl+0</span>
+                  <span className="text-xs text-cyan-400">Ctrl+0</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Full Screen</span>
-                  <span className="text-xs text-gray-500">F11</span>
+                  <span className="text-xs text-cyan-400">F11</span>
                 </button>
-                <button onClick={() => { setFocusModeEnabled(!focusModeEnabled); toast({ title: focusModeEnabled ? "Focus Mode Off" : "Focus Mode On", description: focusModeEnabled ? "UI elements restored" : "Distraction-free mode enabled" }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setFocusModeEnabled(!focusModeEnabled); toast({ title: focusModeEnabled ? "Focus Mode Off" : "Focus Mode On", description: focusModeEnabled ? "UI elements restored" : "Distraction-free mode enabled" }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{focusModeEnabled ? '✓' : '  '} Focus Mode</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+F</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+F</span>
                 </button>
               </div>
             </div>
 
             {/* CREATE Menu */}
             <div className="relative group">
-              <Button variant="ghost" size="sm">Create ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
-                <button onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+              <Button variant="ghost" size="sm" className="astutely-button">Create ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+                <button onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New MIDI Track</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+T</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+T</span>
                 </button>
-                <button onClick={handleNewAudioTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleNewAudioTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New Audio Track</span>
-                  <span className="text-xs text-gray-500">Ctrl+T</span>
+                  <span className="text-xs text-cyan-400">Ctrl+T</span>
                 </button>
-                <button onClick={handleNewInstrumentTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleNewInstrumentTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Instrument Track
                 </button>
-                <button onClick={handleNewReturnTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleNewReturnTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Return Track
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => handleInsertEffect('EQ', 'audio')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={() => handleInsertEffect('EQ', 'audio')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Insert Audio Effect...
                 </button>
-                <button onClick={() => handleInsertEffect('Compressor', 'midi')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleInsertEffect('Compressor', 'midi')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Insert MIDI Effect...
                 </button>
-                <button onClick={() => handleInsertEffect('Reverb', 'midi')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleInsertEffect('Reverb', 'midi')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Insert Instrument...
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleNewSend} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleNewSend} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Send
                 </button>
-                <button onClick={handleNewBus} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleNewBus} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Bus
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => handleInsertClip('Empty Clip')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={() => handleInsertClip('Empty Clip')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Empty Clip</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+M</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+M</span>
                 </button>
-                <button onClick={() => handleInsertClip('Recording Clip', true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleInsertClip('Recording Clip', true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Recording Clip
                 </button>
               </div>
@@ -2217,56 +2254,56 @@ export default function UnifiedStudioWorkspace() {
 
             {/* ARRANGE Menu */}
             <div className="relative group">
-              <Button variant="ghost" size="sm">Arrange ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
-                <button onClick={() => { setTimeDialogMode('insert'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+              <Button variant="ghost" size="sm" className="astutely-button">Arrange ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+                <button onClick={() => { setTimeDialogMode('insert'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Insert Time...</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+I</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+I</span>
                 </button>
-                <button onClick={() => { setTimeDialogMode('delete'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setTimeDialogMode('delete'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Delete Time...</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+Del</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+Del</span>
                 </button>
-                <button onClick={() => { setTimeDialogMode('duplicate'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={() => { setTimeDialogMode('duplicate'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Duplicate Time...</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+D</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+D</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleLoopSelection} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleLoopSelection} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Loop Selection</span>
-                  <span className="text-xs text-gray-500">Ctrl+L</span>
+                  <span className="text-xs text-cyan-400">Ctrl+L</span>
                 </button>
-                <button onClick={() => handleSetLoopLength(4)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => handleSetLoopLength(4)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Set Loop Length...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleAddMarker} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleAddMarker} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Add Marker</span>
-                  <span className="text-xs text-gray-500">M</span>
+                  <span className="text-xs text-cyan-400">M</span>
                 </button>
-                <button onClick={() => setShowMarkerListDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowMarkerListDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Marker List...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleSnapToGrid} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleSnapToGrid} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{snapToGridEnabled ? '✓' : '  '} Snap to Grid</span>
-                  <span className="text-xs text-gray-500">Ctrl+G</span>
+                  <span className="text-xs text-cyan-400">Ctrl+G</span>
                 </button>
-                <button onClick={handleToggleGrid} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleToggleGrid} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{showGrid ? '✓' : '  '} Show Grid</span>
-                  <span className="text-xs text-gray-500">G</span>
+                  <span className="text-xs text-cyan-400">G</span>
                 </button>
-                <button onClick={() => setShowGridSettingsDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowGridSettingsDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Grid Settings...
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={() => setShowTempoMapDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={() => setShowTempoMapDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Tempo Map...
                 </button>
-                <button onClick={() => setShowTimeSignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowTimeSignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Time Signature...
                 </button>
-                <button onClick={() => setShowKeySignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={() => setShowKeySignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Key Signature...
                 </button>
               </div>
@@ -2274,60 +2311,60 @@ export default function UnifiedStudioWorkspace() {
 
             {/* MIX Menu */}
             <div className="relative group">
-              <Button variant="ghost" size="sm">Mix ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
-                <button onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+              <Button variant="ghost" size="sm" className="astutely-button">Mix ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+                <button onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Normalize</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+N</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+N</span>
                 </button>
-                <button onClick={handleReverse} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleReverse} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Reverse</span>
-                  <span className="text-xs text-gray-500">Ctrl+R</span>
+                  <span className="text-xs text-cyan-400">Ctrl+R</span>
                 </button>
-                <button onClick={handleFadeIn} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFadeIn} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Fade In
                 </button>
-                <button onClick={handleFadeOut} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFadeOut} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Fade Out
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleBounceToAudio} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleBounceToAudio} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Bounce to Audio</span>
-                  <span className="text-xs text-gray-500">Ctrl+B</span>
+                  <span className="text-xs text-cyan-400">Ctrl+B</span>
                 </button>
-                <button onClick={handleFreezeTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFreezeTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Freeze Track
                 </button>
-                <button onClick={handleFlattenTrack} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleFlattenTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Flatten Track
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleGroupTracks} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleGroupTracks} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Group Tracks</span>
-                  <span className="text-xs text-gray-500">Ctrl+G</span>
+                  <span className="text-xs text-cyan-400">Ctrl+G</span>
                 </button>
-                <button onClick={handleUngroupTracks} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                <button onClick={handleUngroupTracks} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Ungroup Tracks</span>
-                  <span className="text-xs text-gray-500">Ctrl+Shift+G</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+G</span>
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleSoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleSoloAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Solo All Tracks
                 </button>
-                <button onClick={handleMuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleMuteAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Mute All Tracks
                 </button>
-                <button onClick={handleUnsoloAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleUnsoloAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Unsolo All
                 </button>
-                <button onClick={handleUnmuteAll} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleUnmuteAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Unmute All
                 </button>
-                <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleResetFaders} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <button onClick={handleResetFaders} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Reset All Faders
                 </button>
-                <button onClick={handleResetPan} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                <button onClick={handleResetPan} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Reset All Pan
                 </button>
               </div>
@@ -2335,34 +2372,34 @@ export default function UnifiedStudioWorkspace() {
 
             {/* MORE Menu - Groups Tools, Window, Help */}
             <div className="relative group">
-              <Button variant="ghost" size="sm">More ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-900/80 backdrop-blur-md border border-gray-600/60 rounded shadow-2xl mt-1 w-56 z-[100] ring-1 ring-white/10">
+              <Button variant="ghost" size="sm" className="astutely-button">More ▼</Button>
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
                 {/* Tools Submenu */}
                 <div className="relative group/tools">
-                  <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <div className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between text-cyan-100 astutely-menu-item">
                     <span>🔧 Tools</span>
                     <span>▶</span>
                   </div>
-                  <div className="hidden group-hover/tools:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
-                    <button onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                  <div className="hidden group-hover/tools:block absolute left-full top-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] ml-1 w-56 z-[100] astutely-panel">
+                    <button onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                       <span>Tuner</span>
-                      <span className="text-xs text-gray-500">Ctrl+Shift+U</span>
+                      <span className="text-xs text-cyan-400">Ctrl+Shift+U</span>
                     </button>
-                    <button onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                    <button onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                       <span>{metronomeEnabled ? '✓' : '  '} Metronome</span>
-                      <span className="text-xs text-gray-500">C</span>
+                      <span className="text-xs text-cyan-400">C</span>
                     </button>
-                    <button onClick={handleClickTrackSettings} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={handleClickTrackSettings} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                       Click Track Settings...
                     </button>
-                    <div className="border-t border-gray-700 my-1"></div>
-                    <button onClick={() => { setShowAudioDetector(true); toast({ title: "Spectrum Analyzer", description: "Opening Audio Detector..." }); }} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <div className="border-t border-cyan-500/30 my-1"></div>
+                    <button onClick={() => { setShowAudioDetector(true); toast({ title: "Spectrum Analyzer", description: "Opening Audio Detector..." }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                       Spectrum Analyzer
                     </button>
-                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                       Chord Detector
                     </button>
-                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                       BPM Detector
                     </button>
                   </div>
@@ -2370,41 +2407,44 @@ export default function UnifiedStudioWorkspace() {
 
                 {/* Window Submenu */}
                 <div className="relative group/window">
-                  <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <div className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between text-cyan-100 astutely-menu-item">
                     <span>🪟 Window</span>
                     <span>▶</span>
                   </div>
-                  <div className="hidden group-hover/window:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
-                    <button onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                  <div className="hidden group-hover/window:block absolute left-full top-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] ml-1 w-56 z-[100] astutely-panel">
+                    <button onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                       <span>Reset Layout</span>
-                      <span className="text-xs text-gray-500">Ctrl+Alt+R</span>
+                      <span className="text-xs text-cyan-400">Ctrl+Alt+R</span>
                     </button>
-                    <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                       {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
                     </button>
-                    <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                    <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                       <span>Full Screen</span>
-                      <span className="text-xs text-gray-500">F11</span>
+                      <span className="text-xs text-cyan-400">F11</span>
+                    </button>
+                    <button onClick={() => setFocusModeEnabled(!focusModeEnabled)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                      {focusModeEnabled ? '✓' : '  '} Focus Mode
                     </button>
                   </div>
                 </div>
 
                 {/* Help Submenu */}
                 <div className="relative group/help">
-                  <div className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between">
+                  <div className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between text-cyan-100 astutely-menu-item">
                     <span>❓ Help</span>
                     <span>▶</span>
                   </div>
-                  <div className="hidden group-hover/help:block absolute left-full top-0 bg-gray-800 border border-gray-700 rounded shadow-lg ml-1 w-56 z-[100]">
-                    <button onClick={handleShowKeyboardShortcuts} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-white">
+                  <div className="hidden group-hover/help:block absolute left-full top-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] ml-1 w-56 z-[100] astutely-panel">
+                    <button onClick={handleShowKeyboardShortcuts} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                       <span>Keyboard Shortcuts</span>
-                      <span className="text-xs text-gray-500">?</span>
+                      <span className="text-xs text-cyan-400">?</span>
                     </button>
-                    <button onClick={() => window.open('/docs', '_blank')} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <button onClick={() => window.open('/docs', '_blank')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                       Documentation
                     </button>
-                    <div className="border-t border-gray-700 my-1"></div>
-                    <button onClick={handleShowAbout} className="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm cursor-pointer bg-transparent border-none text-white">
+                    <div className="border-t border-cyan-500/30 my-1"></div>
+                    <button onClick={handleShowAbout} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                       About CodedSwitch
                     </button>
                   </div>
@@ -2414,17 +2454,17 @@ export default function UnifiedStudioWorkspace() {
 
             {/* MIDI Menu */}
             <div className="relative group">
-              <Button variant="ghost" size="sm" className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="flex items-center gap-1 astutely-button">
                 <Cable className="w-3 h-3" />
                 MIDI ▼
                 {midiConnected && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>}
               </Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-72 z-[100] p-3 space-y-3">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-72 z-[100] p-3 space-y-3 astutely-panel">
                 {/* MIDI Status */}
-                <div className="pb-2 border-b border-gray-700">
+                <div className="pb-2 border-b border-cyan-500/30">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-white">MIDI Controller</span>
-                    <div className={`px-2 py-0.5 rounded text-xs font-semibold ${midiConnected ? 'bg-green-600' : 'bg-gray-600'}`}>
+                    <span className="text-sm font-semibold text-cyan-100">MIDI Controller</span>
+                    <div className={`px-2 py-0.5 rounded text-xs font-semibold ${midiConnected ? 'bg-green-600' : 'bg-cyan-600'}`}>
                       {midiConnected ? '● Connected' : '○ Disconnected'}
                     </div>
                   </div>
@@ -2443,7 +2483,7 @@ export default function UnifiedStudioWorkspace() {
                         initializeMIDI();
                         toast({ title: "Connecting to MIDI...", description: "Please wait..." });
                       }}
-                      className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium flex items-center justify-center gap-2"
+                      className="w-full px-3 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-sm font-medium flex items-center justify-center gap-2 astutely-button"
                     >
                       <Cable className="w-4 h-4" />
                       Connect MIDI Controller
@@ -2454,7 +2494,7 @@ export default function UnifiedStudioWorkspace() {
                         refreshMIDIDevices();
                         toast({ title: "Refreshing MIDI devices...", description: "Scanning for controllers" });
                       }}
-                      className="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium flex items-center justify-center gap-2"
+                      className="w-full px-3 py-2 bg-cyan-700 hover:bg-cyan-600 rounded text-sm font-medium flex items-center justify-center gap-2 astutely-button"
                     >
                       <RefreshCw className="w-4 h-4" />
                       Refresh Devices
@@ -2464,13 +2504,13 @@ export default function UnifiedStudioWorkspace() {
 
                 {/* Connected Devices */}
                 {midiConnected && midiDevices.length > 0 && (
-                  <div className="pt-2 border-t border-gray-700">
-                    <div className="text-xs text-gray-400 mb-2">Connected ({midiDevices.length}):</div>
+                  <div className="pt-2 border-t border-cyan-500/30">
+                    <div className="text-xs text-cyan-400 mb-2">Connected ({midiDevices.length}):</div>
                     <div className="space-y-1 max-h-32 overflow-y-auto">
                       {midiDevices.slice(0, 3).map((device) => (
-                        <div key={device.id} className="text-xs bg-gray-700/50 rounded px-2 py-1.5">
-                          <div className="font-medium text-white truncate">{device.name}</div>
-                          <div className="text-gray-400 truncate">{device.manufacturer}</div>
+                        <div key={device.id} className="text-xs bg-cyan-500/10 border border-cyan-500/20 rounded px-2 py-1.5">
+                          <div className="font-medium text-cyan-100 truncate">{device.name}</div>
+                          <div className="text-cyan-400 truncate">{device.manufacturer}</div>
                         </div>
                       ))}
                     </div>
@@ -2479,7 +2519,7 @@ export default function UnifiedStudioWorkspace() {
 
                 {/* Active Notes Indicator */}
                 {midiConnected && midiActiveNotes.size > 0 && (
-                  <div className="pt-2 border-t border-gray-700">
+                  <div className="pt-2 border-t border-cyan-500/30">
                     <div className="text-xs text-green-400 flex items-center gap-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                       Playing: {Array.from(midiActiveNotes).join(', ')}
@@ -2489,10 +2529,10 @@ export default function UnifiedStudioWorkspace() {
 
                 {/* MIDI Volume Control */}
                 {midiConnected && (
-                  <div className="pt-2 border-t border-gray-700">
+                  <div className="pt-2 border-t border-cyan-500/30">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-blue-300">🔊 MIDI Volume</span>
-                      <span className="text-xs text-blue-400 font-bold">{Math.round((midiSettings?.midiVolume ?? 0.3) * 100)}%</span>
+                      <span className="text-xs font-semibold text-cyan-300">🔊 MIDI Volume</span>
+                      <span className="text-xs text-cyan-400 font-bold">{Math.round((midiSettings?.midiVolume ?? 0.3) * 100)}%</span>
                     </div>
                     <Slider
                       value={[(midiSettings?.midiVolume ?? 0.3) * 100]}
@@ -2503,9 +2543,9 @@ export default function UnifiedStudioWorkspace() {
                       max={100}
                       min={0}
                       step={1}
-                      className="w-full"
+                      className="w-full astutely-slider"
                     />
-                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <div className="flex justify-between text-xs text-cyan-400 mt-1">
                       <span>Silent</span>
                       <span>Loud</span>
                     </div>
@@ -2514,12 +2554,12 @@ export default function UnifiedStudioWorkspace() {
 
                 {/* Current Instrument */}
                 {midiConnected && (
-                  <div className="pt-2 border-t border-gray-700">
-                    <div className="text-xs text-gray-400 mb-1">Current Instrument:</div>
+                  <div className="pt-2 border-t border-cyan-500/30">
+                    <div className="text-xs text-cyan-400 mb-1">Current Instrument:</div>
                     <select
                       value={midiSettings?.currentInstrument || 'piano'}
                       onChange={(e) => updateMIDISettings({ currentInstrument: e.target.value })}
-                      className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm"
+                      className="w-full px-2 py-1 bg-black/60 border border-cyan-500/40 rounded text-sm text-cyan-100 astutely-input"
                     >
                       <option value="piano">🎹 Piano</option>
                       <option value="guitar">🎸 Guitar</option>
@@ -2534,14 +2574,14 @@ export default function UnifiedStudioWorkspace() {
 
                 {/* Advanced MIDI Settings */}
                 {midiConnected && (
-                  <div className="pt-2 border-t border-gray-700 space-y-2">
-                    <div className="text-xs font-semibold text-gray-300 mb-2">⚙️ Advanced Options</div>
+                  <div className="pt-2 border-t border-cyan-500/30 space-y-2">
+                    <div className="text-xs font-semibold text-cyan-300 mb-2">⚙️ Advanced Options</div>
                     
                     {/* Sustain Pedal */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-300">Sustain Pedal</span>
-                        <span className="text-xs text-gray-500">(CC 64)</span>
+                        <span className="text-xs text-cyan-100">Sustain Pedal</span>
+                        <span className="text-xs text-cyan-400">(CC 64)</span>
                       </div>
                       <Switch
                         checked={midiSettings?.sustainPedal !== false}
@@ -2559,8 +2599,8 @@ export default function UnifiedStudioWorkspace() {
                     {/* Pitch Bend */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-300">Pitch Bend</span>
-                        <span className="text-xs text-gray-500">(±2 semitones)</span>
+                        <span className="text-xs text-cyan-100">Pitch Bend</span>
+                        <span className="text-xs text-cyan-400">(±2 semitones)</span>
                       </div>
                       <Switch
                         checked={midiSettings?.pitchBend !== false}
@@ -2578,8 +2618,8 @@ export default function UnifiedStudioWorkspace() {
                     {/* Modulation */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-300">Modulation</span>
-                        <span className="text-xs text-gray-500">(CC 1)</span>
+                        <span className="text-xs text-cyan-100">Modulation</span>
+                        <span className="text-xs text-cyan-400">(CC 1)</span>
                       </div>
                       <Switch
                         checked={midiSettings?.modulation !== false}
@@ -2595,10 +2635,10 @@ export default function UnifiedStudioWorkspace() {
                     </div>
 
                     {/* Auto-Connect New Devices */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between astutely-switch">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-300">Auto-Connect</span>
-                        <span className="text-xs text-gray-500">(New devices)</span>
+                        <span className="text-xs text-cyan-100">Auto-Connect</span>
+                        <span className="text-xs text-cyan-400">(New devices)</span>
                       </div>
                       <Switch
                         checked={midiSettings?.autoConnect !== false}
@@ -2606,7 +2646,7 @@ export default function UnifiedStudioWorkspace() {
                           updateMIDISettings({ autoConnect: checked });
                           toast({ 
                             title: checked ? "Auto-Connect Enabled" : "Auto-Connect Disabled",
-                            description: checked ? "New devices connect automatically" : "Manual connection required",
+                            description: checked ? "New devices will auto-connect" : "Manual connection required",
                             duration: 2000 
                           });
                         }}
@@ -2616,7 +2656,7 @@ export default function UnifiedStudioWorkspace() {
                 )}
 
                 {/* Help Text */}
-                <div className="pt-2 border-t border-gray-700 text-xs text-gray-400">
+                <div className="pt-2 border-t border-cyan-500/30 text-xs text-cyan-400">
                   💡 MIDI works across all tabs - play Piano Roll, Arrangement, Mixer in real-time!
                 </div>
               </div>
@@ -2626,11 +2666,11 @@ export default function UnifiedStudioWorkspace() {
         
         {/* Transport Controls */}
         <div className="w-full flex items-center gap-3 mt-2 mb-3 relative z-0 py-1 overflow-x-auto overflow-y-visible whitespace-nowrap">
-          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 h-12 shrink-0">
+          <div className="flex items-center gap-2 bg-black/60 border border-cyan-500/40 rounded px-3 h-12 shrink-0 astutely-panel">
             <Button
               size="sm"
               onClick={() => (transportPlaying ? pauseTransport() : startTransport())}
-              className={transportPlaying ? "bg-green-600 hover:bg-green-500" : "bg-blue-600 hover:bg-blue-500"}
+              className={transportPlaying ? "bg-green-600 hover:bg-green-500 astutely-button" : "bg-cyan-600 hover:bg-cyan-500 astutely-button"}
             >
               {transportPlaying ? <Pause className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
               {transportPlaying ? 'Pause' : 'Play'}
@@ -2642,19 +2682,20 @@ export default function UnifiedStudioWorkspace() {
                 stopTransport();
                 seek(0);
               }}
+              className="astutely-button border-cyan-500/40 text-cyan-100 hover:bg-cyan-500/20"
             >
               <Square className="w-4 h-4 mr-1" />
               Stop
             </Button>
-            <div className="flex items-center gap-2 text-xs text-gray-300 min-w-[110px]">
+            <div className="flex items-center gap-2 text-xs text-cyan-100 min-w-[110px]">
               <span className="font-semibold whitespace-nowrap">Bar {Math.max(1, Math.floor(playheadPosition / 16) + 1)}</span>
-              <span className="text-gray-500 whitespace-nowrap">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
+              <span className="text-cyan-400 whitespace-nowrap">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 h-12 shrink-0">
-            <Sliders className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-300 font-medium">Tempo</span>
+          <div className="flex items-center gap-2 bg-black/60 border border-cyan-500/40 rounded px-3 h-12 shrink-0 astutely-panel">
+            <Sliders className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs text-cyan-100 font-medium">Tempo</span>
             <div className="w-28">
               <Slider
                 value={[tempo]}
@@ -2662,20 +2703,20 @@ export default function UnifiedStudioWorkspace() {
                 max={200}
                 min={40}
                 step={1}
-                className="w-full"
+                className="w-full astutely-slider"
               />
             </div>
-            <span className="text-xs text-white font-bold w-14 text-right">{Math.round(tempo)} BPM</span>
+            <span className="text-xs text-cyan-400 font-bold w-14 text-right">{Math.round(tempo)} BPM</span>
           </div>
 
-          <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded px-3 h-12 shrink-0">
-            <Repeat className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-300 font-medium">Loop</span>
+          <div className="flex items-center gap-2 bg-black/60 border border-cyan-500/40 rounded px-3 h-12 shrink-0 astutely-panel">
+            <Repeat className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs text-cyan-100 font-medium">Loop</span>
             <Switch
               checked={loop.enabled}
               onCheckedChange={(checked) => setLoop({ enabled: checked })}
             />
-            <span className="text-xs text-gray-400 whitespace-nowrap">
+            <span className="text-xs text-cyan-400 whitespace-nowrap">
               Bars {loop.start + 1}-{loop.end}
             </span>
             <DropdownMenu>
@@ -2683,16 +2724,16 @@ export default function UnifiedStudioWorkspace() {
                 <Button
                   size="sm"
                   variant={loop.enabled ? 'default' : 'outline'}
-                  className="px-3"
+                  className="px-3 astutely-button"
                 >
                   {Math.max(1, Math.round((loop.end ?? 4) - (loop.start ?? 0)))}-Bar
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-gray-900 border border-gray-700 text-white">
+              <DropdownMenuContent align="end" className="bg-black/90 border border-cyan-500/40 text-cyan-100 astutely-panel">
                 {[1, 2, 4, 8].map((bars) => (
                   <DropdownMenuItem
                     key={bars}
-                    className="text-sm"
+                    className="text-sm astutely-menu-item"
                     onClick={() => setLoop({ enabled: true, start: loop.start ?? 0, end: (loop.start ?? 0) + bars })}
                   >
                     {bars}-Bar
@@ -2705,14 +2746,14 @@ export default function UnifiedStudioWorkspace() {
       </div>
 
       {/* DAW-Style Tab Bar - All tabs together */}
-      <div className="bg-gray-850 border-b border-gray-700 px-2 py-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-black/60 border-b border-cyan-500/40 px-2 py-2 flex flex-wrap items-center justify-between gap-2 astutely-panel">
         {/* All Tabs - Left Side */}
         <div className="flex flex-wrap items-center gap-1">
           <Button
             variant={activeView === 'arrangement' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('arrangement')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Layers className="w-3 h-3 mr-1" />
             Arrange
@@ -2724,7 +2765,7 @@ export default function UnifiedStudioWorkspace() {
               setBeatLabTab('pro');
               setActiveView('beat-lab');
             }}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Music className="w-3 h-3 mr-1" />
             Beats
@@ -2736,7 +2777,7 @@ export default function UnifiedStudioWorkspace() {
               setBeatLabTab('pack-generator');
               setActiveView('beat-lab');
             }}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
             title="Open Pack Generator"
           >
             <Package className="w-3 h-3 mr-1" />
@@ -2746,7 +2787,7 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'piano-roll' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('piano-roll')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Piano className="w-3 h-3 mr-1" />
             Piano
@@ -2755,7 +2796,7 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'mixer' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('mixer')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Sliders className="w-3 h-3 mr-1" />
             Mixer
@@ -2764,17 +2805,17 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'multitrack' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('multitrack')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Layers className="w-3 h-3 mr-1" />
             Multi-Track
           </Button>
-          <div className="w-px h-5 bg-gray-600 mx-1" />
+          <div className="w-px h-5 bg-cyan-500/40 mx-1" />
           <Button
             variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('ai-studio')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Wand2 className="w-3 h-3 mr-1" />
             AI Studio
@@ -2783,7 +2824,7 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('code-to-music')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
             data-testid="tab-code-to-music"
           >
             <Wand2 className="w-3 h-3 mr-1" />
@@ -2793,7 +2834,7 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'lyrics' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('lyrics')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Mic2 className="w-3 h-3 mr-1" />
             Lyrics
@@ -2802,7 +2843,7 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'audio-tools' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('audio-tools')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Wrench className="w-3 h-3 mr-1" />
             Tools
@@ -2811,7 +2852,7 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'song-uploader' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('song-uploader')}
-            className="h-8 px-3 text-xs"
+            className="h-8 px-3 text-xs astutely-button"
           >
             <Upload className="w-3 h-3 mr-1" />
             Upload
@@ -2820,12 +2861,12 @@ export default function UnifiedStudioWorkspace() {
 
         {/* Right Side - Compact Action Buttons & Volume */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-200">
-            Snap: <span className={snapToGridEnabled ? 'text-green-400 font-semibold' : 'text-gray-400'}>{snapToGridEnabled ? 'On' : 'Off'}</span>
+          <div className="px-2 py-1 rounded border border-cyan-500/40 bg-black/60 text-xs text-cyan-100 astutely-panel">
+            Snap: <span className={snapToGridEnabled ? 'text-green-400 font-semibold' : 'text-cyan-400'}>{snapToGridEnabled ? 'On' : 'Off'}</span>
           </div>
           <Button
             onClick={() => setShowAstutely(true)}
-            className="h-8 px-4 font-bold text-white transition-all hover:scale-105"
+            className="h-8 px-4 font-bold text-white transition-all hover:scale-105 astutely-button"
             style={{ 
               background: 'linear-gradient(135deg, #F59E0B, #EF4444)',
               boxShadow: '0 0 20px rgba(245, 158, 11, 0.4)'
@@ -2838,7 +2879,7 @@ export default function UnifiedStudioWorkspace() {
           </Button>
           <Button
             onClick={() => setShowMusicGen(!showMusicGen)}
-            className="bg-purple-600 hover:bg-purple-500 h-8 px-3"
+            className="bg-cyan-600 hover:bg-cyan-500 h-8 px-3 astutely-button"
             size="sm"
             title="Generate Music"
           >
@@ -2847,7 +2888,7 @@ export default function UnifiedStudioWorkspace() {
           </Button>
           <Button
             onClick={() => setShowWorkflowSelector(true)}
-            className="bg-green-600 hover:bg-green-500 h-8 px-3"
+            className="bg-cyan-700 hover:bg-cyan-600 h-8 px-3 astutely-button"
             data-testid="button-change-workflow"
             size="sm"
             title="Change Workflow"
@@ -2857,8 +2898,8 @@ export default function UnifiedStudioWorkspace() {
           </Button>
           
           {/* Master Volume - Compact */}
-          <div className="flex items-center gap-2 px-2 py-1 bg-gray-800 rounded border border-gray-700">
-            <Sliders className="w-3 h-3 text-gray-400" />
+          <div className="flex items-center gap-2 px-2 py-1 bg-black/60 rounded border border-cyan-500/40 astutely-panel">
+            <Sliders className="w-3 h-3 text-cyan-400" />
             <div className="w-16">
               <Slider
                 value={[masterVolume * 100]}
@@ -2870,10 +2911,10 @@ export default function UnifiedStudioWorkspace() {
                 max={100}
                 min={0}
                 step={1}
-                className="w-full"
+                className="w-full astutely-slider"
               />
             </div>
-            <span className="text-xs text-white font-bold w-8 text-right">{Math.round(masterVolume * 100)}%</span>
+            <span className="text-xs text-cyan-400 font-bold w-8 text-right">{Math.round(masterVolume * 100)}%</span>
           </div>
         </div>
       </div>
@@ -2890,11 +2931,11 @@ export default function UnifiedStudioWorkspace() {
                 onClick={() => setActiveView('arrangement')}
                 variant="outline"
                 size="sm"
-                className="bg-gray-900/95 border-gray-600 hover:bg-gray-800 shadow-lg backdrop-blur-sm flex items-center gap-2"
+                className="bg-black/90 border-cyan-500/40 hover:bg-cyan-500/20 shadow-lg backdrop-blur-sm flex items-center gap-2 astutely-button"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Back to Studio</span>
-                <Home className="w-4 h-4 sm:hidden" />
+                <ArrowLeft className="w-4 h-4 text-cyan-400" />
+                <span className="hidden sm:inline text-cyan-100">Back to Studio</span>
+                <Home className="w-4 h-4 sm:hidden text-cyan-400" />
               </Button>
             </div>
           )}
@@ -2903,7 +2944,7 @@ export default function UnifiedStudioWorkspace() {
           {activeView === 'arrangement' && (
           <>
           {/* Timeline Section */}
-          <div className="border-b border-gray-700">
+          <div className="border-b border-cyan-500/40">
             <div
               role="button"
               tabIndex={0}
@@ -2914,10 +2955,10 @@ export default function UnifiedStudioWorkspace() {
                   setTimelineExpanded((prev) => !prev);
                 }
               }}
-              className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-750 flex items-center justify-between"
+              className="w-full px-4 py-2 bg-black/60 hover:bg-cyan-500/10 flex items-center justify-between astutely-panel"
             >
-              <span className="font-medium">
-                {timelineExpanded ? <ChevronDown className="inline w-4 h-4 mr-2" /> : <ChevronRight className="inline w-4 h-4 mr-2" />}
+              <span className="font-medium text-cyan-100">
+                {timelineExpanded ? <ChevronDown className="inline w-4 h-4 mr-2 text-cyan-400" /> : <ChevronRight className="inline w-4 h-4 mr-2 text-cyan-400" />}
                 TIMELINE - ALL TRACKS ({tracks.length})
               </span>
               <div className="flex items-center space-x-2">
@@ -2926,7 +2967,7 @@ export default function UnifiedStudioWorkspace() {
                     size="sm"
                     variant="outline"
                     onClick={(e) => { e.stopPropagation(); setShowWaveformEditor(true); }}
-                    className="text-xs"
+                    className="text-xs astutely-button border-cyan-500/40 text-cyan-100 hover:bg-cyan-500/20"
                   >
                     Waveform Edit
                   </Button>
@@ -2941,7 +2982,7 @@ export default function UnifiedStudioWorkspace() {
                       description: "AI will suggest optimal track arrangement, structure, and transitions"
                     });
                   }}
-                  className="text-xs bg-gradient-to-r from-purple-600 to-blue-600"
+                  className="text-xs bg-gradient-to-r from-cyan-600 to-blue-600 astutely-button"
                 >
                   <Wand2 className="w-3 h-3 mr-1" />
                   AI Arrange
@@ -2953,12 +2994,12 @@ export default function UnifiedStudioWorkspace() {
                     e.stopPropagation();
                     addTrack('New Track', 'midi');
                   }}
-                  className="text-xs"
+                  className="text-xs astutely-button border-cyan-500/40 text-cyan-100 hover:bg-cyan-500/20"
                 >
                   <i className="fas fa-plus mr-1"></i>
                   Add Track
                 </Button>
-                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                <div className="flex items-center space-x-2 text-sm text-cyan-400">
                   <span>Zoom:</span>
                   <Slider
                     value={zoom}
@@ -2966,7 +3007,7 @@ export default function UnifiedStudioWorkspace() {
                     max={100}
                     min={10}
                     step={1}
-                    className="w-24"
+                    className="w-24 astutely-slider"
                     onClick={(e) => e.stopPropagation()}
                   />
                   <span>{zoom[0]}%</span>
@@ -2975,7 +3016,7 @@ export default function UnifiedStudioWorkspace() {
             </div>
             
             {timelineExpanded && (
-              <div ref={trackListRef} className="bg-gray-900 p-4 max-h-96 overflow-y-auto">
+              <div ref={trackListRef} className="bg-black/60 p-4 max-h-96 overflow-y-auto astutely-panel">
                 <div className="grid gap-2" style={{ gridTemplateRows: 'repeat(auto-fit, minmax(80px, 1fr))' }}>
                   {tracks.map((track) => {
                     const trackHeight = trackHeights[track.id] ?? DEFAULT_TRACK_HEIGHT;
@@ -3192,7 +3233,10 @@ export default function UnifiedStudioWorkspace() {
                   isPlaying={transportPlaying}
                   currentTime={playheadPosition}
                   onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
-                    playNote(note, octave, instrument);
+                    playNote(note, octave, instrument, duration);
+                  }}
+                  onPlayNoteOff={(note: string, octave: number, instrument: string) => {
+                    playNoteOff(note, octave, instrument);
                   }}
                   onNotesChange={(updatedNotes: any[]) => {
                     if (selectedTrack) {
@@ -3355,8 +3399,10 @@ export default function UnifiedStudioWorkspace() {
 
           {/* BEAT LAB VIEW */}
           {activeView === 'beat-lab' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
-              <BeatLab initialTab={beatLabTab} />
+            <div className="flex-1 min-h-0 overflow-y-auto bg-gray-900 pt-14 flex flex-col">
+              <div className="flex-1 min-h-0">
+                <BeatLab initialTab={beatLabTab} />
+              </div>
             </div>
           )}
 
@@ -3393,8 +3439,11 @@ export default function UnifiedStudioWorkspace() {
                       isPlaying={transportPlaying}
                       currentTime={playheadPosition}
                       onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
-                        // Play note with current track's instrument
-                        playNote(note, octave, instrument);
+                        // Play note using the instrument selected in the Piano Roll
+                        playNote(note, octave, instrument, duration);
+                      }}
+                      onPlayNoteOff={(note: string, octave: number, instrument: string) => {
+                        playNoteOff(note, octave, instrument);
                       }}
                       onNotesChange={(updatedNotes: any[]) => {
                         // Update the notes for the selected track
@@ -3456,7 +3505,7 @@ export default function UnifiedStudioWorkspace() {
 
           {/* SONG UPLOADER VIEW */}
           {activeView === 'song-uploader' && (
-            <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto pt-14 astutely-pro-panel">
               <SongUploader />
             </div>
           )}
@@ -3832,8 +3881,71 @@ export default function UnifiedStudioWorkspace() {
 
       {/* Floating Transport Bar - Surfaces in Piano Roll and Arrangement views */}
       {(activeView === 'piano-roll' || activeView === 'arrangement') && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
-          <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3">
+        <div
+          className="fixed z-50"
+          style={{
+            left: '50%',
+            bottom: '16px',
+            transform: `translate(calc(-50% + ${transportBarPos.x}px), ${transportBarPos.y}px)`,
+          }}
+        >
+          <div className={cn(
+            "bg-gray-900/95 backdrop-blur-sm border border-gray-700 shadow-2xl",
+            transportBarCollapsed ? "rounded-2xl px-3 py-2" : "rounded-full px-4 py-2",
+            "flex items-center gap-3"
+          )}>
+            <button
+              type="button"
+              className="h-8 w-8 rounded-full border border-gray-700 bg-black/40 text-gray-300 hover:text-white cursor-move"
+              title="Drag transport"
+              onPointerDown={(e) => {
+                const target = e.currentTarget;
+                target.setPointerCapture?.(e.pointerId);
+                transportDragRef.current = {
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  baseX: transportBarPos.x,
+                  baseY: transportBarPos.y,
+                  dragging: true,
+                };
+              }}
+              onPointerMove={(e) => {
+                const drag = transportDragRef.current;
+                if (!drag?.dragging) return;
+                const dx = e.clientX - drag.startX;
+                const dy = e.clientY - drag.startY;
+                setTransportBarPos({ x: drag.baseX + dx, y: drag.baseY + dy });
+              }}
+              onPointerUp={(e) => {
+                const target = e.currentTarget;
+                target.releasePointerCapture?.(e.pointerId);
+                if (transportDragRef.current) {
+                  transportDragRef.current.dragging = false;
+                }
+              }}
+              onPointerCancel={(e) => {
+                const target = e.currentTarget;
+                target.releasePointerCapture?.(e.pointerId);
+                if (transportDragRef.current) {
+                  transportDragRef.current.dragging = false;
+                }
+              }}
+            >
+              <Cable className="w-4 h-4 mx-auto" />
+            </button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTransportBarCollapsed((v) => !v)}
+              className="rounded-full w-10 h-10 p-0"
+              title={transportBarCollapsed ? 'Expand transport' : 'Collapse transport'}
+            >
+              {transportBarCollapsed ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
+            </Button>
+
+            {!transportBarCollapsed && (
+              <>
             {/* Play/Pause */}
             <Button
               size="sm"
@@ -3913,6 +4025,8 @@ export default function UnifiedStudioWorkspace() {
                 />
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       )}

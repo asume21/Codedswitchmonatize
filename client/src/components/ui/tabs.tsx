@@ -12,7 +12,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+      "astutely-panel inline-flex h-10 items-center justify-center rounded-md bg-black/60 border border-cyan-500/30 p-1 text-cyan-400/80",
       className
     )}
     {...props}
@@ -27,7 +27,9 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+      "astutely-button inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-black uppercase tracking-widest ring-offset-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:pointer-events-none disabled:opacity-60",
+      "text-cyan-100/70 hover:text-cyan-100 hover:bg-cyan-500/10",
+      "data-[state=active]:bg-cyan-500/25 data-[state=active]:text-white data-[state=active]:shadow-[0_0_20px_rgba(6,182,212,0.25)] data-[state=active]:border data-[state=active]:border-cyan-500/40",
       className
     )}
     {...props}

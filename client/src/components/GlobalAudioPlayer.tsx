@@ -32,10 +32,13 @@ export function GlobalAudioPlayer() {
   const draggingRef = useRef<boolean>(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Hide if nothing loaded
-  const hasContent = currentSource || playlist.length > 0;
-  const activeSource = useMemo(() => currentSource ?? playlist[currentIndex] ?? null, [currentIndex, currentSource, playlist]);
-  if (!hasContent || !activeSource) return null;
+  // Derived state (hooks must run consistently across renders)
+  const activeSource = useMemo(
+    () => currentSource ?? playlist[currentIndex] ?? null,
+    [currentIndex, currentSource, playlist]
+  );
+  const hasContent = Boolean(currentSource) || playlist.length > 0;
+  const shouldRender = hasContent && Boolean(activeSource);
 
   const formatTime = (seconds: number) => {
     if (!Number.isFinite(seconds)) return '0:00';
@@ -83,6 +86,9 @@ export function GlobalAudioPlayer() {
   };
 
   const playlistLabel = playlist.length ? `${currentIndex + 1}/${playlist.length}` : '1/1';
+
+  // Hide if nothing loaded (must be AFTER hooks)
+  if (!shouldRender || !activeSource) return null;
 
   return (
     <div

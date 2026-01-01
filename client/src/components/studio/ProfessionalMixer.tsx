@@ -16,13 +16,14 @@ import {
   Volume2, VolumeX, Headphones, Settings, 
   Play, Pause, Square, RotateCcw,
   Zap, Waves, Filter, Sliders, 
-  BarChart3, TrendingUp, Radio, Wand2, FileMusic
+  BarChart3, TrendingUp, Radio, Wand2, FileMusic, Sparkles
 } from 'lucide-react';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { useTracks } from '@/hooks/useTracks';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
 
 interface ChannelMeterData {
@@ -43,6 +44,7 @@ interface MixerState {
 export default function ProfessionalMixer() {
   const { toast } = useToast();
   const { currentSession, setCurrentSessionId } = useSongWorkSession();
+  const { tracks } = useTracks();
   const [location] = useLocation();
   const [mixerState, setMixerState] = useState<MixerState>({
     channels: [],
@@ -118,26 +120,20 @@ export default function ProfessionalMixer() {
     }
   }, [location, setCurrentSessionId]);
 
-  // Initialize professional audio engine
+  // Initialize professional audio engine and synchronize tracks
   useEffect(() => {
     const initializeAudio = async () => {
       try {
         await professionalAudio.initialize();
         
-        // Create default mixer channels
-        const defaultChannels = [
-          { id: 'drums', name: 'Drums', color: '#ef4444' },
-          { id: 'bass', name: 'Bass', color: '#8b5cf6' },
-          { id: 'keys', name: 'Keys', color: '#3b82f6' },
-          { id: 'guitar', name: 'Guitar', color: '#f59e0b' },
-          { id: 'vocals', name: 'Vocals', color: '#10b981' },
-          { id: 'fx', name: 'FX', color: '#ec4899' },
-          { id: 'master', name: 'Master', color: '#6b7280' }
-        ];
-        
-        const channels = defaultChannels.map(ch => 
-          professionalAudio.createMixerChannel(ch.id, ch.name)
-        );
+        // Sync mixer channels with project tracks
+        const channels = tracks.map(track => {
+          // Check if channel already exists in audio engine
+          const existing = professionalAudio.getChannels().find(ch => ch.id === track.id);
+          if (existing) return existing;
+          
+          return professionalAudio.createMixerChannel(track.id, track.name || `Track ${track.id.slice(0, 4)}`);
+        });
         
         setMixerState({
           channels,
@@ -174,6 +170,37 @@ export default function ProfessionalMixer() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only initialize once on mount
+
+  // Watch for track changes and update mixer channels
+  useEffect(() => {
+    if (!mixerState.isInitialized) return;
+
+    const currentChannels = professionalAudio.getChannels();
+    let hasChanges = false;
+    
+    // Add new tracks as channels and update existing ones
+    tracks.forEach(track => {
+      const existing = currentChannels.find(ch => ch.id === track.id);
+      if (!existing) {
+        professionalAudio.createMixerChannel(track.id, track.name || `Track ${track.id.slice(0, 4)}`);
+        hasChanges = true;
+      } else {
+        // Update name if changed
+        if (existing.name !== track.name) {
+          existing.name = track.name || existing.name;
+          hasChanges = true;
+        }
+      }
+    });
+
+    // For now, just update local state if anything changed
+    if (hasChanges) {
+      setMixerState(prev => ({
+        ...prev,
+        channels: professionalAudio.getChannels()
+      }));
+    }
+  }, [tracks, mixerState.isInitialized]);
   
   const startMetering = useCallback(() => {
     const updateMeters = () => {
@@ -294,7 +321,7 @@ export default function ProfessionalMixer() {
       )
     }));
   };
-  
+
   const handleChannelSolo = (channelId: string, solo: boolean) => {
     professionalAudio.soloChannel(channelId, solo);
     setMixerState(prev => ({
@@ -304,439 +331,447 @@ export default function ProfessionalMixer() {
       )
     }));
   };
-  
+
   const handleSendLevel = (channelId: string, sendId: string, level: number[]) => {
     professionalAudio.setSendLevel(channelId, sendId, level[0] / 100);
   };
-  
+
   const renderChannelStrip = (channel: MixerChannel) => {
     const meters = meterData.get(channel.id) || { peak: 0, rms: 0, spectrum: [] };
     const isSelected = selectedChannel === channel.id;
     
     return (
-      <Card 
+      <div 
         key={channel.id} 
-        className={`w-20 h-full transition-all ${
-          isSelected ? 'ring-2 ring-blue-500 bg-gray-800' : 'bg-gray-900'
+        className={`w-24 shrink-0 flex flex-col items-center gap-4 p-4 transition-all duration-500 border relative group overflow-hidden ${
+          isSelected 
+            ? 'astutely-track-lane-selected' 
+            : 'astutely-track-lane'
         }`}
+        onClick={() => setSelectedChannel(channel.id)}
       >
-        <CardHeader className="p-2 pb-1">
-          <CardTitle className="text-xs text-center truncate">{channel.name}</CardTitle>
-        </CardHeader>
+        <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         
-        <CardContent className="p-2 space-y-2">
-          {/* Peak/RMS Meters */}
-          <div className="h-24 bg-gray-800 rounded relative overflow-hidden">
+        <div className="flex flex-col items-center gap-1 relative z-10 w-full">
+          <div className="text-[9px] font-black text-cyan-500/40 uppercase tracking-[0.2em] truncate w-full text-center">CH-{channel.id.slice(0, 3)}</div>
+          <div className={`text-[11px] font-black tracking-widest truncate w-full text-center transition-colors ${isSelected ? 'text-white shadow-glow-cyan' : 'text-cyan-500/80'}`}>
+            {channel.name.toUpperCase()}
+          </div>
+        </div>
+        
+        {/* Astutely HUD Metering */}
+        <div className="w-full h-40 bg-black/80 rounded-sm border border-cyan-500/20 p-1 flex justify-center gap-1 relative overflow-hidden">
+          <div className="absolute inset-0 flex flex-col justify-between p-1 pointer-events-none opacity-20">
+            {[0, -6, -12, -18, -24, -36, -48].map(db => (
+              <div key={db} className="w-full border-t border-cyan-500/30 flex justify-between items-center">
+                <span className="text-[5px] font-bold text-cyan-400">{db}</span>
+              </div>
+            ))}
+          </div>
+          
+          <div className="w-2.5 h-full bg-cyan-950/40 rounded-t-sm relative overflow-hidden border border-cyan-500/10">
             <div 
-              className="absolute bottom-0 left-1 w-2 bg-green-500 transition-all"
+              className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-cyan-900 via-cyan-500 to-white shadow-glow-cyan transition-all duration-75"
               style={{ height: `${meters.rms * 100}%` }}
             />
+          </div>
+          <div className="w-2.5 h-full bg-cyan-950/40 rounded-t-sm relative overflow-hidden border border-cyan-500/10">
             <div 
-              className="absolute bottom-0 right-1 w-2 bg-red-500 transition-all"
+              className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-cyan-900 via-cyan-400 to-white shadow-glow-cyan transition-all duration-75"
               style={{ height: `${meters.peak * 100}%` }}
             />
-            <div className="absolute top-1 left-0 right-0 text-center">
-              <div className="text-[8px] text-gray-400">RMS</div>
-              <div className="text-[8px] text-gray-400">PK</div>
-            </div>
           </div>
-          
-          {/* EQ Section */}
-          <div className="space-y-1">
-            <div className="text-[8px] text-gray-400 text-center">EQ</div>
-            <div className="grid grid-cols-2 gap-1">
-              <Slider
-                orientation="vertical"
-                value={[50]}
-                onValueChange={(v) => handleChannelEQ(channel.id, 'high', v)}
-                min={0}
-                max={100}
-                className="h-8"
-                data-testid={`eq-high-${channel.id}`}
-              />
-              <Slider
-                orientation="vertical"
-                value={[50]}
-                onValueChange={(v) => handleChannelEQ(channel.id, 'highMid', v)}
-                min={0}
-                max={100}
-                className="h-8"
-                data-testid={`eq-highmid-${channel.id}`}
-              />
-              <Slider
-                orientation="vertical"
-                value={[50]}
-                onValueChange={(v) => handleChannelEQ(channel.id, 'lowMid', v)}
-                min={0}
-                max={100}
-                className="h-8"
-                data-testid={`eq-lowmid-${channel.id}`}
-              />
-              <Slider
-                orientation="vertical"
-                value={[50]}
-                onValueChange={(v) => handleChannelEQ(channel.id, 'low', v)}
-                min={0}
-                max={100}
-                className="h-8"
-                data-testid={`eq-low-${channel.id}`}
-              />
-            </div>
-          </div>
-          
-          {/* Send Levels */}
-          <div className="space-y-1">
-            <div className="text-[8px] text-gray-400 text-center">SENDS</div>
-            <div className="flex justify-between">
-              {mixerState.sends.slice(0, 3).map((send, idx) => (
-                <Slider
-                  key={send.id}
-                  orientation="vertical"
-                  value={[0]}
-                  onValueChange={(v) => handleSendLevel(channel.id, send.id, v)}
-                  min={0}
-                  max={100}
-                  className="h-6 w-3"
-                  data-testid={`send-${send.id}-${channel.id}`}
-                />
-              ))}
-            </div>
-          </div>
-          
-          {/* Pan */}
-          <div>
-            <div className="text-[8px] text-gray-400 text-center">PAN</div>
+        </div>
+        
+        {/* Panner Knob */}
+        <div className="w-full space-y-4">
+          <div className="flex flex-col items-center gap-1">
+            <div className="text-[7px] font-black text-cyan-500/50 uppercase tracking-[0.3em]">PAN</div>
             <Slider
-              value={[50]}
+              value={[(channel.pan + 1) * 50]}
               onValueChange={(v) => handleChannelPan(channel.id, v)}
               min={0}
               max={100}
               className="w-full"
-              data-testid={`pan-${channel.id}`}
             />
           </div>
           
-          {/* Mute/Solo */}
-          <div className="flex justify-between">
+          <div className="flex flex-col gap-1">
             <Button
               size="sm"
-              variant={channel.muted ? "destructive" : "outline"}
-              className="text-xs px-1 py-0 h-6"
-              onClick={() => handleChannelMute(channel.id, !channel.muted)}
-              data-testid={`mute-${channel.id}`}
+              variant="ghost"
+              className={`h-7 w-full text-[9px] font-black tracking-widest rounded-none transition-all ${channel.muted ? "bg-red-500/40 border-red-500 text-white shadow-glow-red" : "border-cyan-500/30 text-cyan-500/60"}`}
+              onClick={(e) => { e.stopPropagation(); handleChannelMute(channel.id, !channel.muted); }}
             >
-              M
+              MUTE
             </Button>
             <Button
               size="sm"
-              variant={channel.solo ? "default" : "outline"}
-              className="text-xs px-1 py-0 h-6"
-              onClick={() => handleChannelSolo(channel.id, !channel.solo)}
-              data-testid={`solo-${channel.id}`}
+              variant="ghost"
+              className={`h-7 w-full text-[9px] font-black tracking-widest rounded-none transition-all ${channel.solo ? "bg-cyan-500 text-white shadow-glow-cyan" : "border-cyan-500/30 text-cyan-500/60"}`}
+              onClick={(e) => { e.stopPropagation(); handleChannelSolo(channel.id, !channel.solo); }}
             >
-              S
+              SOLO
             </Button>
           </div>
-          
-          {/* Main Volume Fader */}
-          <div className="h-32 flex justify-center">
-            <Slider
-              orientation="vertical"
-              value={[channel.volume * 100]}
-              onValueChange={(v) => handleChannelVolume(channel.id, v)}
-              min={0}
-              max={100}
-              className="h-full"
-              data-testid={`volume-${channel.id}`}
-            />
+        </div>
+        
+        {/* Vertical Fader */}
+        <div className="w-full h-48 flex flex-col items-center justify-between pt-2 relative">
+          <div className="absolute left-1/2 -translate-x-1/2 top-4 bottom-4 w-px bg-cyan-500/10 pointer-events-none" />
+          <Slider
+            orientation="vertical"
+            value={[channel.volume * 100]}
+            onValueChange={(v) => handleChannelVolume(channel.id, v)}
+            min={0}
+            max={100}
+            className="h-full relative z-10"
+          />
+          <div className="mt-4 bg-black/90 border border-cyan-500/30 px-2 py-1 min-w-[42px] text-center shadow-inner">
+            <span className={`text-[10px] font-black tabular-nums ${isSelected ? 'text-white' : 'text-cyan-500/80'}`}>
+              {Math.round(channel.volume * 100)}
+            </span>
           </div>
-          
-          <div className="text-[8px] text-gray-400 text-center">
-            {Math.round(channel.volume * 100)}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   };
-  
+
   if (!mixerState.isInitialized) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Zap className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-500" />
-          <div>Initializing Professional Audio Engine...</div>
-          <div className="text-sm text-gray-400">Loading world-class mixing console</div>
+          <div className="text-white font-bold">Initializing Professional Audio Engine...</div>
+          <div className="text-sm text-gray-400">Loading holographic mixing console</div>
         </div>
       </div>
     );
   }
-  
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-heading font-bold text-white flex items-center gap-2">
-            <Sliders className="h-6 w-6 text-blue-500" />
-            Professional Mixer
-          </h2>
-          <p className="text-gray-400">World-class mixing console with real-time processing</p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-green-400 border-green-400">
-            <Radio className="h-3 w-3 mr-1" />
-            Live
-          </Badge>
+    <div className="flex flex-col min-h-screen astutely-pro-panel rounded-none astutely-mixer overflow-hidden">
+      {/* Header Area */}
+      <div className="flex-none p-6 pb-0">
+        <div className="flex items-center justify-between astutely-panel-header mb-6 relative z-10">
+          <div className="relative z-10">
+            <h2 className="text-3xl font-heading font-black astutely-gradient-text flex items-center gap-3">
+              <Sliders className="h-8 w-8 text-cyan-400" />
+              PROFESSIONAL MIXER
+            </h2>
+            <p className="text-cyan-200/60 font-medium tracking-wide mt-1 uppercase text-[10px]">Holographic Precision · Real-time DSP Engine</p>
+          </div>
           
-          <Button
-            variant={isPlaying ? "destructive" : "default"}
-            onClick={() => setIsPlaying(!isPlaying)}
-            data-testid="transport-play"
-          >
-            {isPlaying ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          </Button>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="flex items-center gap-2 px-4 py-2 bg-black/40 rounded-full border border-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Live Engine</span>
+            </div>
+            
+            <Button
+              variant="ghost"
+              onClick={() => setIsPlaying(!isPlaying)}
+              className={`w-12 h-12 rounded-xl border transition-all duration-300 ${
+                isPlaying 
+                  ? "bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30 shadow-[0_0_20px_rgba(239,44,44,0.3)]" 
+                  : "bg-blue-500/20 border-blue-500/50 text-blue-400 hover:bg-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+              }`}
+              data-testid="transport-play"
+            >
+              {isPlaying ? <Square className="h-6 w-6 fill-current" /> : <Play className="h-6 w-6 fill-current" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Active Session Info */}
+        {currentSession && (
+          <div className="bg-gradient-to-r from-blue-600/20 to-transparent border-l-4 border-blue-500 rounded-r-lg px-6 py-3 backdrop-blur-sm mb-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 bg-blue-500/20 rounded-lg">
+                <FileMusic className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-blue-400/70 uppercase tracking-tighter block">Active Session</span>
+                <span className="text-lg font-bold text-white tracking-tight">{currentSession.songName}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Session Status Banner */}
-      {currentSession && (
-        <div className="bg-blue-900/30 border border-blue-500/50 rounded-lg px-4 py-3">
-          <div className="flex items-center space-x-3">
-            <FileMusic className="w-5 h-5 text-blue-400" />
-            <span className="text-sm font-medium text-blue-200">Mixing:</span>
-            <span className="text-sm font-bold text-white">{currentSession.songName}</span>
-            <Badge variant="outline" className="text-xs border-blue-400 text-blue-300">
-              Session Active
-            </Badge>
-          </div>
-        </div>
-      )}
-      
-      {/* Main Mixer Interface */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="channels">Channels</TabsTrigger>
-          <TabsTrigger value="sends">Send Returns</TabsTrigger>
-          <TabsTrigger value="master">Master Section</TabsTrigger>
-          <TabsTrigger value="ai-mix">
-            <Wand2 className="w-4 h-4 mr-1" />
-            AI Mixing
-          </TabsTrigger>
-          <TabsTrigger value="analyzer">Spectrum</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="channels" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Volume2 className="h-5 w-5" />
-                Channel Strips
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2 overflow-x-auto pb-4">
-                {mixerState.channels.map(renderChannelStrip)}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="sends" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Waves className="h-5 w-5" />
-                Send Returns & Effects
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {mixerState.sends.map(send => (
-                <div key={send.id} className="p-4 bg-gray-800 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="font-medium">{send.name}</div>
-                    <Badge variant="secondary">{send.effect?.type}</Badge>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm text-gray-400">Return Level</label>
-                      <Slider
-                        value={[send.return * 100]}
-                        onValueChange={(v) => {/* Handle send return level */}}
-                        min={0}
-                        max={100}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-400">Wet Level</label>
-                      <Slider
-                        value={[send.wetLevel * 100]}
-                        onValueChange={(v) => {/* Handle wet level */}}
-                        min={0}
-                        max={100}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="master" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Master Section
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-400">Master Level</label>
-                  <Slider
-                    value={[mixerState.masterLevel * 100]}
-                    onValueChange={(v) => setMixerState(prev => ({ ...prev, masterLevel: v[0] / 100 }))}
-                    min={0}
-                    max={100}
-                    data-testid="master-volume"
-                  />
-                </div>
-                
-                <div className="h-32 bg-gray-800 rounded p-2 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-400">MASTER METERS</div>
-                    <div className="flex gap-2 mt-2">
-                      <div className="w-4 h-24 bg-gray-700 rounded overflow-hidden">
-                        <div 
-                          className="w-full bg-green-500 transition-all"
-                          style={{ 
-                            height: `${mixerState.masterMeters.rms * 100}%`,
-                            marginTop: `${100 - mixerState.masterMeters.rms * 100}%`
-                          }}
-                        />
-                      </div>
-                      <div className="w-4 h-24 bg-gray-700 rounded overflow-hidden">
-                        <div 
-                          className="w-full bg-red-500 transition-all"
-                          style={{ 
-                            height: `${mixerState.masterMeters.peak * 100}%`,
-                            marginTop: `${100 - mixerState.masterMeters.peak * 100}%`
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Main Mixer Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-0">
+        <div className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-5 p-1 bg-black/40 border border-white/10 rounded-2xl h-14 backdrop-blur-xl">
+              <TabsTrigger value="channels" className="rounded-xl data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 data-[state=active]:border border-transparent data-[state=active]:border-blue-500/30 transition-all font-bold tracking-tight">CHANNELS</TabsTrigger>
+              <TabsTrigger value="sends" className="rounded-xl data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-400 data-[state=active]:border border-transparent data-[state=active]:border-purple-500/30 transition-all font-bold tracking-tight">BUS / SENDS</TabsTrigger>
+              <TabsTrigger value="master" className="rounded-xl data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:border border-transparent data-[state=active]:border-amber-500/30 transition-all font-bold tracking-tight">MASTER</TabsTrigger>
+              <TabsTrigger value="ai-mix" className="rounded-xl data-[state=active]:bg-pink-500/20 data-[state=active]:text-pink-400 data-[state=active]:border border-transparent data-[state=active]:border-pink-500/30 transition-all font-bold tracking-tight flex items-center gap-2">
+                <Wand2 className="w-4 h-4" />
+                AI MIXING
+              </TabsTrigger>
+              <TabsTrigger value="analyzer" className="rounded-xl data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border border-transparent data-[state=active]:border-cyan-500/30 transition-all font-bold tracking-tight">SPECTRUM</TabsTrigger>
+            </TabsList>
             
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Master Processing
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-400">Master Compressor</label>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    <div>
-                      <div className="text-xs text-gray-500">Threshold</div>
-                      <Slider value={[82]} min={0} max={100} />
+            <TabsContent value="channels" className="mt-6">
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl shadow-2xl overflow-hidden">
+                <div className="flex items-center gap-3 mb-8">
+                  <Volume2 className="h-6 w-6 text-blue-400" />
+                  <h3 className="text-xl font-bold tracking-tighter text-white/90 uppercase">Mixing Console</h3>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                  {mixerState.channels.map(renderChannelStrip)}
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="sends" className="mt-6 space-y-6">
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
+                <div className="flex items-center gap-3 mb-8">
+                  <Waves className="h-6 w-6 text-purple-400" />
+                  <h3 className="text-xl font-bold tracking-tighter text-white/90 uppercase">Global Returns</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {mixerState.sends.map(send => (
+                    <div key={send.id} className="p-6 bg-black/40 border border-white/10 rounded-2xl hover:border-purple-500/30 transition-all group">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="font-black text-purple-400 tracking-tighter group-hover:drop-shadow-[0_0_5px_rgba(168,85,247,0.5)] transition-all uppercase">{send.name}</div>
+                        <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 uppercase tracking-tighter text-[10px]">{send.effect?.type}</Badge>
+                      </div>
+                      <div className="space-y-6">
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
+                            <span>Return</span>
+                            <span className="text-purple-400">{Math.round(send.return * 100)}%</span>
+                          </div>
+                          <Slider
+                            value={[send.return * 100]}
+                            onValueChange={() => {}}
+                            min={0}
+                            max={100}
+                            className="opacity-80 hover:opacity-100"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
+                            <span>Wetness</span>
+                            <span className="text-purple-400">{Math.round(send.wetLevel * 100)}%</span>
+                          </div>
+                          <Slider
+                            value={[send.wetLevel * 100]}
+                            onValueChange={() => {}}
+                            min={0}
+                            max={100}
+                            className="opacity-80 hover:opacity-100"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-500">Ratio</div>
-                      <Slider value={[30]} min={0} max={100} />
+                  ))}
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="master" className="mt-6 space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-white/5 border border-white/10 rounded-3xl backdrop-blur-xl overflow-hidden">
+                  <CardHeader className="p-8 pb-4">
+                    <CardTitle className="text-xl font-bold tracking-tighter text-amber-400 flex items-center gap-3 uppercase">
+                      <TrendingUp className="h-6 w-6" />
+                      Output Stage
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-8 pt-4 space-y-8">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Master Gain</label>
+                        <span className="text-2xl font-black text-amber-400 tabular-nums">{(mixerState.masterLevel * 100).toFixed(1)}%</span>
+                      </div>
+                      <Slider
+                        value={[mixerState.masterLevel * 100]}
+                        onValueChange={(v) => setMixerState(prev => ({ ...prev, masterLevel: v[0] / 100 }))}
+                        min={0}
+                        max={100}
+                        step={0.1}
+                        className="h-2"
+                        data-testid="master-volume"
+                      />
                     </div>
+                    
+                    <div className="h-48 bg-black/60 rounded-2xl border border-white/5 p-6 relative flex items-center justify-center overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-t from-amber-500/5 to-transparent pointer-events-none" />
+                      <div className="text-center w-full relative z-10">
+                        <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-6">Master VU Telemetry</div>
+                        <div className="flex justify-center gap-8">
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-6 h-24 bg-white/5 rounded-full relative overflow-hidden border border-white/10 p-0.5">
+                              <div 
+                                className="w-full bg-gradient-to-t from-green-500 via-yellow-500 to-red-500 rounded-full transition-all duration-75 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+                                style={{ 
+                                  height: `${mixerState.masterMeters.rms * 100}%`,
+                                  marginTop: `${100 - mixerState.masterMeters.rms * 100}%`
+                                }}
+                              />
+                            </div>
+                            <span className="text-[9px] font-black text-white/40 tracking-tighter text-white">RMS</span>
+                          </div>
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-6 h-24 bg-white/5 rounded-full relative overflow-hidden border border-white/10 p-0.5">
+                              <div 
+                                className="w-full bg-gradient-to-t from-green-500 via-yellow-500 to-red-500 rounded-full transition-all duration-75 shadow-[0_0_15px_rgba(239,68,68,0.4)]"
+                                style={{ 
+                                  height: `${mixerState.masterMeters.peak * 100}%`,
+                                  marginTop: `${100 - mixerState.masterMeters.peak * 100}%`
+                                }}
+                              />
+                            </div>
+                            <span className="text-[9px] font-black text-white/40 tracking-tighter text-white">PEAK</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-white/5 border border-white/10 rounded-3xl backdrop-blur-xl">
+                  <CardHeader className="p-8 pb-4">
+                    <CardTitle className="text-xl font-bold tracking-tighter text-cyan-400 flex items-center gap-3 uppercase">
+                      <Settings className="h-6 w-6" />
+                      Master DSP
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-8 pt-4 space-y-8">
+                    <div className="p-6 bg-black/40 border border-white/5 rounded-2xl space-y-6">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black text-white/60 uppercase tracking-widest">Precision Compressor</label>
+                        <div className="w-2 h-2 bg-cyan-500 rounded-full shadow-[0_0_8px_#06b6d4]" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-[9px] font-bold text-white/30 uppercase">
+                            <span>Threshold</span>
+                            <span className="text-cyan-400">-12.4 dB</span>
+                          </div>
+                          <Slider value={[82]} min={0} max={100} className="h-1" />
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-[9px] font-bold text-white/30 uppercase">
+                            <span>Ratio</span>
+                            <span className="text-cyan-400">4.0:1</span>
+                          </div>
+                          <Slider value={[30]} min={0} max={100} className="h-1" />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="p-6 bg-black/40 border border-white/5 rounded-2xl space-y-6">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black text-white/60 uppercase tracking-widest">Brickwall Limiter</label>
+                        <div className="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444]" />
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-[9px] font-bold text-white/30 uppercase">
+                          <span>Ceiling</span>
+                          <span className="text-red-400">-0.1 dBFS</span>
+                        </div>
+                        <Slider value={[99]} min={0} max={100} className="h-1" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="ai-mix" className="mt-6">
+              <Card className="bg-gradient-to-br from-indigo-950/40 via-purple-950/40 to-pink-950/40 border-2 border-white/10 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-[0_0_50px_rgba(168,85,247,0.15)]">
+                <CardHeader className="p-10 pb-6 border-b border-white/5">
+                  <CardTitle className="text-3xl font-black tracking-tighter text-white flex items-center gap-4 uppercase drop-shadow-2xl">
+                    <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-lg">
+                      <Wand2 className="h-8 w-8 text-white" />
+                    </div>
+                    Astutely Mix Intelligence
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-10 space-y-8">
+                  <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-1000"></div>
+                    <Textarea
+                      placeholder="Tell Astutely how you want your track to feel... e.g., 'Make it sound like a 1980s synthwave dream with lush reverb and punchy drums'"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      className="relative min-h-[180px] bg-black/60 border-white/10 rounded-2xl p-6 text-lg font-medium text-white placeholder:text-white/20 focus:ring-purple-500/50 resize-none transition-all"
+                    />
+                  </div>
+                  
+                  <Button
+                    onClick={handleAIMix}
+                    className="w-full h-16 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xl tracking-tight rounded-2xl shadow-2xl transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                    disabled={aiMixMutation.isPending}
+                  >
+                    {aiMixMutation.isPending ? (
+                      <div className="flex items-center gap-3">
+                        <RotateCcw className="h-6 w-6 animate-spin" />
+                        <span>NEURAL PROCESSING...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <Zap className="h-6 w-6 fill-current" />
+                        <span>GENERATE MASTER MIX</span>
+                      </div>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="analyzer" className="mt-6">
+              <div className="bg-black/60 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className="h-6 w-6 text-cyan-400" />
+                    <h3 className="text-xl font-bold tracking-tighter text-white/90 uppercase">Signal Analysis</h3>
+                  </div>
+                  <Badge variant="outline" className="bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-black uppercase text-[10px] tracking-widest px-4 py-1">Real-time FFT</Badge>
+                </div>
+                
+                <div className="relative aspect-[21/9] w-full bg-black/40 rounded-2xl border border-white/5 overflow-hidden shadow-inner">
+                  <canvas 
+                    ref={spectrumCanvasRef} 
+                    className="w-full h-full"
+                    width={1200}
+                    height={400}
+                  />
+                  <div className="absolute inset-0 pointer-events-none grid grid-cols-8 grid-rows-4 opacity-10">
+                    {Array.from({ length: 32 }).map((_, i) => (
+                      <div key={i} className="border-[0.5px] border-cyan-500/30" />
+                    ))}
                   </div>
                 </div>
                 
-                <div>
-                  <label className="text-sm text-gray-400">Master Limiter</label>
-                  <div className="mt-1">
-                    <div className="text-xs text-gray-500">Ceiling</div>
-                    <Slider value={[99]} min={0} max={100} />
-                  </div>
+                <div className="grid grid-cols-4 gap-6 mt-8">
+                  {[
+                    { label: 'Dynamic Range', value: '14.2 LUFS', icon: Radio },
+                    { label: 'Peak Level', value: `${(mixerState.masterMeters.peak * 100).toFixed(1)}%`, icon: TrendingUp },
+                    { label: 'RMS Power', value: `${(mixerState.masterMeters.rms * 100).toFixed(1)}%`, icon: Zap },
+                    { label: 'Phase Correlation', value: '+0.85', icon: Waves }
+                  ].map((stat, i) => (
+                    <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center gap-4">
+                      <div className="p-2 bg-black/40 rounded-lg">
+                        <stat.icon className="h-4 w-4 text-cyan-400" />
+                      </div>
+                      <div>
+                        <div className="text-[8px] font-black text-white/20 uppercase tracking-widest">{stat.label}</div>
+                        <div className="text-sm font-bold text-white tabular-nums">{stat.value}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="ai-mix" className="space-y-4">
-          <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wand2 className="h-5 w-5 text-purple-400" />
-                AI-Powered Mixing Assistant
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm text-gray-400 mb-2 block">
-                  Describe Your Ideal Mix
-                </label>
-                <Textarea
-                  placeholder="e.g., 'Make it punchy with deep bass and crisp highs, add reverb to vocals, compress the drums...'"
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  className="min-h-[120px] bg-gray-800/50"
-                  rows={5}
-                />
               </div>
-              
-              <Button
-                onClick={handleAIMix}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500"
-                disabled={aiMixMutation.isPending}
-              >
-                <Wand2 className="w-4 h-4 mr-2" />
-                {aiMixMutation.isPending ? "Mixing..." : "AI Mix & Master"}
-              </Button>
-              
-              <div className="mt-4 p-4 bg-gray-800/50 rounded-lg">
-                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-yellow-400" />
-                  AI Mixing Capabilities
-                </h4>
-                <ul className="text-xs text-gray-400 space-y-1">
-                  <li>• Automatic level balancing</li>
-                  <li>• Smart EQ adjustments</li>
-                  <li>• Dynamic compression</li>
-                  <li>• Reverb & delay optimization</li>
-                  <li>• Stereo width enhancement</li>
-                  <li>• Genre-appropriate processing</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="analyzer" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Real-time Spectrum Analyzer
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <canvas
-                ref={spectrumCanvasRef}
-                width={800}
-                height={300}
-                className="w-full border border-gray-700 rounded bg-gray-900"
-              />
-              <div className="mt-2 text-center text-sm text-gray-400">
-                Professional spectrum analysis with real-time frequency visualization
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
     </div>
   );
 }

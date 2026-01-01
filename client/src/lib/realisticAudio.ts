@@ -1,14 +1,108 @@
 import Soundfont from 'soundfont-player';
+import { getAudioContext } from './audioContext';
+
+const INSTRUMENT_LIBRARY = {
+  // Direct General MIDI mappings (self-referencing for direct use)
+  acoustic_grand_piano: 'acoustic_grand_piano',
+  electric_piano_1: 'electric_piano_1',
+  electric_piano_2: 'electric_piano_2',
+  harpsichord: 'harpsichord',
+  synth_bass_1: 'synth_bass_1',
+  synth_bass_2: 'synth_bass_2',
+  electric_bass_finger: 'electric_bass_finger',
+  electric_bass_pick: 'electric_bass_pick',
+  acoustic_bass: 'acoustic_bass',
+  fretless_bass: 'fretless_bass',
+  slap_bass_1: 'slap_bass_1',
+  acoustic_guitar_steel: 'acoustic_guitar_steel',
+  electric_guitar_clean: 'electric_guitar_clean',
+  acoustic_guitar_nylon: 'acoustic_guitar_nylon',
+  violin: 'violin',
+  viola: 'viola',
+  cello: 'cello',
+  contrabass: 'contrabass',
+  string_ensemble_1: 'string_ensemble_1',
+  flute: 'flute',
+  clarinet: 'clarinet',
+  tenor_sax: 'tenor_sax',
+  trumpet: 'trumpet',
+  french_horn: 'french_horn',
+  trombone: 'trombone',
+  lead_1_square: 'lead_1_square',
+  lead_2_sawtooth: 'lead_2_sawtooth',
+  pad_2_warm: 'pad_2_warm',
+  taiko_drum: 'taiko_drum',
+  synth_drum: 'synth_drum',
+  reverse_cymbal: 'reverse_cymbal',
+  melodic_tom: 'melodic_tom',
+  timpani: 'timpani',
+  woodblock: 'woodblock',
+  agogo: 'agogo',
+  tinkle_bell: 'tinkle_bell',
+  steel_drums: 'steel_drums',
+  synth_voice: 'synth_voice',
+  choir_aahs: 'choir_aahs',
+  orchestral_harp: 'orchestral_harp',
+  
+  // Legacy mappings for backwards compatibility
+  piano: 'acoustic_grand_piano',
+  'piano-keyboard': 'acoustic_grand_piano',
+  'piano-grand': 'acoustic_grand_piano', 
+  'piano-organ': 'church_organ',
+  guitar: 'acoustic_guitar_steel',
+  'strings-guitar': 'acoustic_guitar_steel',
+  'guitar-acoustic': 'acoustic_guitar_steel',
+  'guitar-electric': 'electric_guitar_clean',
+  'guitar-distorted': 'distortion_guitar',
+  'guitar-nylon': 'acoustic_guitar_nylon',
+  'strings-violin': 'violin',
+  'strings-ukulele': 'acoustic_guitar_nylon',
+  'flute-recorder': 'recorder',
+  'flute-indian': 'flute',
+  'flute-concert': 'flute',
+  'horns-trumpet': 'trumpet',
+  'horns-trombone': 'trombone',
+  'horns-french': 'french_horn',
+  'synth-analog': 'electric_piano_1',
+  'synth-digital': 'electric_piano_2',
+  'synth-fm': 'electric_piano_1',
+  'bass-electric': 'electric_bass_finger',
+  'bass-upright': 'acoustic_bass',
+  'bass-synth': 'synth_bass_1',
+  // Neumann Bass Pack aliases (mapped onto the most suitable GM bass programs)
+  'neumann_sub_bass': 'synth_bass_1',
+  'neumann_punch_bass': 'electric_bass_finger',
+  'neumann_grit_bass': 'synth_bass_2',
+  'pads-warm': 'pad_2_warm',
+  'pads-strings': 'string_ensemble_1',
+  'pads-choir': 'choir_aahs',
+  'leads-square': 'lead_1_square',
+  'leads-saw': 'lead_2_sawtooth',
+  'leads-pluck': 'lead_6_voice',
+  'drum-kick': 'taiko_drum',
+  'drum-snare': 'steel_drums',
+  'drum-hihat': 'agogo',
+  'drum-crash': 'reverse_cymbal',
+  'drum-tom': 'melodic_tom',
+  'drum-clap': 'steel_drums',
+  bass: 'electric_bass_finger',
+  organ: 'church_organ',
+  synth: 'lead_1_square',
+  strings: 'string_ensemble_1'
+};
 
 export class RealisticAudioEngine {
-  private instruments: { [key: string]: any} = {}
-  private audioContext: AudioContext | null = null;
+  private instruments: { [key: string]: any } = {};
+  private instrumentLoadPromises: Record<string, Promise<any>> = {};
+  private activeNotes: Map<string, any[]> = new Map(); // Track active audio nodes by key
+  private audioContext: AudioContext | null = getAudioContext();
   private isInitialized = false;
   private isLoading = false;
-  private initPromise: Promise<void> | null = null; // Track initialization promise
-  public bassDrumDuration = 0.8; // Configurable bass drum duration
+  private initPromise: Promise<void> | null = null;
+  public bassDrumDuration = 0.8;
+  private instrumentLibrary: { [key: string]: string };
 
-  // Drum kit voicing profiles to give each kit a distinct sound
+  // Drum kit voicing profiles
   private drumKitAliases: Record<string, string> = {
     trap: '808',
   };
@@ -75,271 +169,84 @@ export class RealisticAudioEngine {
     },
   };
 
-  // Map our instrument names to General MIDI soundfont names
-  private instrumentLibrary: { [key: string]: string } = {
-    // Direct General MIDI mappings (self-referencing for direct use)
-    acoustic_grand_piano: 'acoustic_grand_piano',
-    electric_piano_1: 'electric_piano_1',
-    electric_piano_2: 'electric_piano_2',
-    harpsichord: 'harpsichord',
-    synth_bass_1: 'synth_bass_1',
-    synth_bass_2: 'synth_bass_2',
-    electric_bass_finger: 'electric_bass_finger',
-    electric_bass_pick: 'electric_bass_pick',
-    acoustic_bass: 'acoustic_bass',
-    fretless_bass: 'fretless_bass',
-    slap_bass_1: 'slap_bass_1',
-    acoustic_guitar_steel: 'acoustic_guitar_steel',
-    electric_guitar_clean: 'electric_guitar_clean',
-    acoustic_guitar_nylon: 'acoustic_guitar_nylon',
-    violin: 'violin',
-    viola: 'viola',
-    cello: 'cello',
-    contrabass: 'contrabass',
-    string_ensemble_1: 'string_ensemble_1',
-    flute: 'flute',
-    clarinet: 'clarinet',
-    tenor_sax: 'tenor_sax',
-    trumpet: 'trumpet',
-    french_horn: 'french_horn',
-    trombone: 'trombone',
-    lead_1_square: 'lead_1_square',
-    lead_2_sawtooth: 'lead_2_sawtooth',
-    pad_2_warm: 'pad_2_warm',
-    taiko_drum: 'taiko_drum',
-    synth_drum: 'synth_drum',
-    reverse_cymbal: 'reverse_cymbal',
-    melodic_tom: 'melodic_tom',
-    timpani: 'timpani',
-    woodblock: 'woodblock',
-    agogo: 'agogo',
-    tinkle_bell: 'tinkle_bell',
-    steel_drums: 'steel_drums',
-    synth_voice: 'synth_voice',
-    choir_aahs: 'choir_aahs',
-    orchestral_harp: 'orchestral_harp',
-    
-    // Legacy mappings for backwards compatibility
-    piano: 'acoustic_grand_piano',
-    'piano-keyboard': 'acoustic_grand_piano',
-    'piano-grand': 'acoustic_grand_piano', 
-    'piano-organ': 'church_organ',
-    guitar: 'acoustic_guitar_steel',
-    'strings-guitar': 'acoustic_guitar_steel',
-    'guitar-acoustic': 'acoustic_guitar_steel',
-    'guitar-electric': 'electric_guitar_clean',
-    'guitar-distorted': 'distortion_guitar',
-    'guitar-nylon': 'acoustic_guitar_nylon',
-    'strings-violin': 'violin',
-    'strings-ukulele': 'acoustic_guitar_nylon',
-    'flute-recorder': 'recorder',
-    'flute-indian': 'flute',
-    'flute-concert': 'flute',
-    'horns-trumpet': 'trumpet',
-    'horns-trombone': 'trombone',
-    'horns-french': 'french_horn',
-    'synth-analog': 'electric_piano_1',
-    'synth-digital': 'electric_piano_2',
-    'synth-fm': 'electric_piano_1',
-    'bass-electric': 'electric_bass_finger',
-    'bass-upright': 'acoustic_bass',
-    'bass-synth': 'synth_bass_1',
-    // Neumann Bass Pack aliases (mapped onto the most suitable GM bass programs)
-    'neumann_sub_bass': 'synth_bass_1',
-    'neumann_punch_bass': 'electric_bass_finger',
-    'neumann_grit_bass': 'synth_bass_2',
-    'pads-warm': 'pad_2_warm',
-    'pads-strings': 'string_ensemble_1',
-    'pads-choir': 'choir_aahs',
-    'leads-square': 'lead_1_square',
-    'leads-saw': 'lead_2_sawtooth',
-    'leads-pluck': 'lead_6_voice',
-    'drum-kick': 'taiko_drum',
-    'drum-snare': 'steel_drums',
-    'drum-hihat': 'agogo',
-    'drum-crash': 'reverse_cymbal',
-    'drum-tom': 'melodic_tom',
-    'drum-clap': 'steel_drums',
-    bass: 'electric_bass_finger',
-    organ: 'church_organ',
-    synth: 'lead_1_square',
-    strings: 'string_ensemble_1'
+  // Singleton pattern for shared instance
+  static getInstance() {
+    if (!(window as any).realisticAudio) {
+      (window as any).realisticAudio = new RealisticAudioEngine();
+    }
+    return (window as any).realisticAudio;
   }
 
-  async initialize(): Promise<void> {
-    // Return immediately if already initialized
-    if (this.isInitialized) {
-      console.log('🎵 Audio already initialized, skipping');
-      return;
-    }
-    
-    // If initialization is in progress, return the existing promise
-    if (this.initPromise) {
-      console.log('🎵 Audio initialization in progress, waiting...');
-      return this.initPromise;
-    }
-    
-    // Mark as loading and create initialization promise
-    this.isLoading = true;
-    
-    this.initPromise = (async () => {
-    try {
-      // Create Web Audio context
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      console.log('🎵 Realistic audio context created, state:', this.audioContext.state);
-      console.log('🎵 Environment:', process.env.NODE_ENV || 'development');
-      
-      // Handle suspended context (required for browser autoplay policies)
-      if (this.audioContext.state === 'suspended') {
-        console.log('🎵 Audio context suspended, attempting to resume...');
-        
-        // Add a click listener to resume context on next user interaction
-        const resumeAudio = async () => {
-          if (this.audioContext && this.audioContext.state === 'suspended') {
-            try {
-              await this.audioContext.resume();
-              console.log('🎵 Audio context resumed successfully');
-            } catch (error) {
-              console.error('🎵 Failed to resume audio context:', error);
-            }
-          }
-          document.removeEventListener('click', resumeAudio);
-          document.removeEventListener('keydown', resumeAudio);
-          document.removeEventListener('touchstart', resumeAudio, { passive: true } as any);
-        }
-        
-        // Listen for user interactions to resume audio (passive listeners for mobile)
-        document.addEventListener('click', resumeAudio, { once: true });
-        document.addEventListener('keydown', resumeAudio, { once: true });
-        document.addEventListener('touchstart', resumeAudio, { once: true, passive: true });
-        
-        // Don't try to resume immediately - wait for user interaction
-        console.log('🎵 Audio context needs user interaction to resume');
-      }
-
-      console.log('🎵 Realistic audio context started, final state:', this.audioContext.state);
-
-      // Load ONLY essential instruments on mobile for better performance
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const essentialInstruments = isMobile
-        ? ['piano', 'guitar', 'bass-electric', 'strings'] // Minimal set for mobile
-        : ['piano', 'guitar', 'strings-guitar', 'violin', 'flute', 'trumpet', 
-           'piano-organ', 'bass-electric', 'strings-violin',
-           'horns-trumpet', 'flute-concert', 'strings', 
-           'synth-analog', 'leads-square'];
-      
-      console.log(`🎵 Loading ${essentialInstruments.length} instruments (mobile: ${isMobile})`);
-      
-      // Load instruments with timeout protection for mobile
-      await Promise.race([
-        this.loadInstruments(essentialInstruments),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Instrument loading timeout')), isMobile ? 10000 : 20000)
-        )
-      ]).catch(error => {
-        console.warn('⚠️ Some instruments failed to load, continuing anyway:', error);
-      });
-      
-      this.isInitialized = true;
-      this.isLoading = false;
-      console.log('🎵 Realistic audio engine initialized');
-    } catch (error) {
-      console.error('Failed to initialize realistic audio engine:', error);
-      this.isLoading = false;
-      // Don't throw - allow app to continue with limited functionality
-      this.isInitialized = true; // Mark as initialized anyway
-    } finally {
-      this.initPromise = null; // Clear promise after completion
-    }
-    })(); // End of async IIFE
-    
-    return this.initPromise; // Return the initialization promise
+  constructor() {
+    this.instrumentLibrary = INSTRUMENT_LIBRARY;
   }
 
-  public async resume(): Promise<void> {
-    if (!this.audioContext) {
-      await this.initialize();
-    }
+  async initialize() {
+    if (this.isInitialized && this.audioContext?.state === 'running') return;
+    this.audioContext = getAudioContext();
+    this.isInitialized = true;
+    console.log('🎹 RealisticAudioEngine initialized');
+  }
 
-    if (this.audioContext && this.audioContext.state !== 'running') {
+  /**
+   * Resume the audio context (critical for iOS/Safari)
+   */
+  async resume() {
+    if (!this.audioContext) await this.initialize();
+    if (this.audioContext?.state === 'suspended') {
       await this.audioContext.resume();
-      console.log('RealisticAudio context resumed');
     }
   }
 
-  private async loadInstruments(instrumentNames: string[]): Promise<void> {
-    if (!this.audioContext) {
-      throw new Error('Audio context not initialized');
-    }
+  /**
+   * Centralized helper to ensure an instrument is loaded before use.
+   * Prevents duplicate/concurrent fetch requests.
+   */
+  private async ensureInstrumentLoaded(instrumentName: string): Promise<any> {
+    const key = String(instrumentName || 'piano');
 
-    const loadPromises = instrumentNames.map(async (name) => {
-      if (this.instruments[name] || !(name in this.instrumentLibrary)) {
-        return;
-      }
+    // 1. Check if already loaded
+    if (this.instruments[key]) return this.instruments[key];
 
+    // 2. Check if currently loading
+    const existingPromise = this.instrumentLoadPromises[key];
+    if (existingPromise) return existingPromise;
+
+    // 3. Start loading
+    console.log(`📡 Loading instrument: ${key}...`);
+    const loadPromise = (async () => {
       try {
-        const soundfontName = this.instrumentLibrary[name];
-        console.log(`🎵 Loading realistic ${name} instrument (${soundfontName})`);
-        
-        const instrument = await Soundfont.instrument(
-          this.audioContext!, 
-          soundfontName as any, // Type assertion for soundfont-player compatibility
-          {
-            format: 'mp3', // Use MP3 for better browser compatibility
-            soundfont: 'FluidR3_GM', // Standard General MIDI soundfont (more reliable)
-            nameToUrl: (name: string, soundfont: string, format: string) => {
-              // Use the standard gleitz repo which hosts FluidR3_GM
-              return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
-            }
-          }
-        );
-        
-        this.instruments[name] = instrument;
-        console.log(`🎵 Loaded realistic ${name} instrument successfully`);
+        if (!this.audioContext) await this.initialize();
+        const instrument = await Soundfont.instrument(this.audioContext!, key as any);
+        this.instruments[key] = instrument;
+        console.log(`✅ Instrument loaded: ${key}`);
+        return instrument;
       } catch (error) {
-        console.error(`🎵 Failed to load ${name} instrument:`, error);
+        console.error(`❌ Failed to load instrument ${key}:`, error);
+        delete this.instrumentLoadPromises[key];
+        throw error;
       }
-    });
+    })();
 
-    await Promise.all(loadPromises);
+    this.instrumentLoadPromises[key] = loadPromise;
+    return loadPromise;
   }
 
+  /**
+   * Load an additional instrument into the engine
+   */
   async loadAdditionalInstrument(instrumentName: string): Promise<void> {
-    if (this.instruments[instrumentName] || !(instrumentName in this.instrumentLibrary) || !this.audioContext) {
-      return;
-    }
-
-    try {
-      console.log(`Loading additional realistic ${instrumentName} instrument`);
-      
-      const soundfontName = this.instrumentLibrary[instrumentName];
-      const instrument = await Soundfont.instrument(
-        this.audioContext, 
-        soundfontName as any, // Type assertion for soundfont-player compatibility
-        {
-          format: 'mp3',
-          soundfont: 'FluidR3_GM',
-          nameToUrl: (name: string, soundfont: string, format: string) => {
-            return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
-          }
-        }
-      );
-      
-      this.instruments[instrumentName] = instrument;
-      console.log(`Loaded additional realistic ${instrumentName} instrument successfully`);
-    } catch (error) {
-      console.error(`Failed to load additional ${instrumentName} instrument:`, error);
-    }
+    await this.ensureInstrumentLoaded(instrumentName);
   }
 
   async playNote(
-    note: string, 
-    octave: number, 
-    duration: number, 
-    instrument: string = 'piano', 
+    note: string,
+    octave: number,
+    duration: number,
+    instrument: string = 'piano',
     velocity: number = 0.7,
-    sustainEnabled: boolean = true
+    isMidi: boolean = false,
+    targetNode?: AudioNode
   ): Promise<void> {
     console.log(`🎵 playNote: ${note}${octave} on ${instrument}`);
 
@@ -352,98 +259,69 @@ export class RealisticAudioEngine {
       console.warn('🎵 Audio context not available, skipping playback');
       return;
     }
-    
+
     // iOS fix: Always try to resume if suspended
     if (this.audioContext.state === 'suspended') {
-      console.log('🎵 Audio context suspended, resuming...');
       try {
         await this.audioContext.resume();
-        console.log('🎵 Audio context resumed for playback');
       } catch (e) {
         console.warn('🎵 Failed to resume audio context:', e);
       }
     }
-    
-    // NOTE: Removed octave clamping to allow full octave range (0-8)
-    // Soundfonts support wider range than originally assumed
-    let adjustedOctave = octave;
 
-    // Use the instrument key directly, or fallback to legacy mapping
-    let realInstrument = instrument;
-    
-    // If instrument not loaded, try fallback mapping to available instruments
-    if (!this.instruments[realInstrument]) {
-      // Ensure instrument is a string before using .includes()
-      const instrumentStr = String(instrument || 'piano').toLowerCase();
-      
-      // Map to instruments that are actually loaded (from essentialInstruments list)
-      if (instrumentStr.includes('piano') || instrumentStr.includes('keyboard') || instrumentStr.includes('grand')) {
-        realInstrument = 'piano';
-      } else if (instrumentStr.includes('guitar') || instrumentStr.includes('string')) {
-        realInstrument = 'guitar';
-      } else if (instrumentStr.includes('violin')) {
-        realInstrument = 'violin';
-      } else if (instrumentStr.includes('flute')) {
-        realInstrument = 'flute';
-      } else if (instrumentStr.includes('trumpet') || instrumentStr.includes('horn')) {
-        realInstrument = 'trumpet';
-      } else if (instrumentStr.includes('bass') || instrumentStr.includes('synth_bass')) {
-        realInstrument = 'bass-electric';
-      } else if (instrumentStr.includes('organ')) {
-        realInstrument = 'piano-organ';
-      } else if (instrumentStr.includes('synth') || instrumentStr.includes('analog')) {
-        realInstrument = 'synth-analog';
-      } else if (instrumentStr.includes('lead') || instrumentStr.includes('sawtooth') || instrumentStr.includes('square')) {
-        realInstrument = 'leads-square';
-      } else if (instrumentStr.includes('pad') || instrumentStr.includes('warm')) {
-        realInstrument = 'strings'; // Use strings as fallback for pads
-      } else {
-        realInstrument = 'piano'; // Ultimate fallback
-      }
-    }
-    
-    const instrumentSampler = this.instruments[realInstrument];
-    if (!instrumentSampler) {
-      console.error(`❌ Instrument ${realInstrument} not loaded - available instruments:`, Object.keys(this.instruments));
-      console.log('🎵 DEBUG: Trying to load instrument on-demand...');
-      try {
-        await this.loadAdditionalInstrument(realInstrument);
-        const retrySampler = this.instruments[realInstrument];
-        if (!retrySampler) {
-          console.error(`❌ Still failed to load ${realInstrument}`);
-          return;
-        }
-      } catch (loadError) {
-        console.error(`❌ Failed to load ${realInstrument} on-demand:`, loadError);
-        return;
-      }
-    }
+    const requestedInstrument = String(instrument || 'piano');
+    let realInstrument = requestedInstrument;
 
     try {
-      const noteWithOctave = `${note}${adjustedOctave}`;
-      // Only log in debug mode to reduce console spam
-      if (process.env.NODE_ENV === 'development') {
-        console.debug(`🎵 Playing ${realInstrument}: ${noteWithOctave}`);
+      // Ensure instrument is loaded
+      await this.ensureInstrumentLoaded(realInstrument);
+
+      if (this.instruments[realInstrument]) {
+        const noteName = `${note}${octave}`;
+        const destination = targetNode || this.audioContext.destination;
+
+        const audioNode = this.instruments[realInstrument].play(
+          noteName,
+          this.audioContext.currentTime,
+          {
+            duration: duration > 0 ? duration : undefined,
+            gain: velocity,
+            destination: destination
+          }
+        );
+
+        if (audioNode) {
+          // Track active node for cleanup/noteOff
+          const noteKey = `${realInstrument}:${noteName}`;
+          if (!this.activeNotes.has(noteKey)) {
+            this.activeNotes.set(noteKey, []);
+          }
+          this.activeNotes.get(noteKey)?.push(audioNode);
+
+          // If duration is provided, automatically schedule removal from tracking
+          if (duration > 0) {
+            setTimeout(() => {
+              const nodes = this.activeNotes.get(noteKey);
+              if (nodes) {
+                const index = nodes.indexOf(audioNode);
+                if (index > -1) nodes.splice(index, 1);
+                if (nodes.length === 0) this.activeNotes.delete(noteKey);
+              }
+            }, duration * 1000 + 100);
+          }
+          return;
+        }
       }
 
-      const audioNode = this.instruments[realInstrument].play(noteWithOctave, this.audioContext!.currentTime, {
-        duration,
-        gain: velocity
-      });
-
-      if (!audioNode) {
-        // Sample not available for this octave - silently fall back to synthetic
-        // This is expected for extreme octaves (E8, A8, etc.) - not an error
-        await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
-      }
+      // Fallback to synthetic if soundfont fails or is missing
+      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || this.audioContext.destination);
     } catch (error) {
-      // Silently fall back to synthetic for unsupported notes
-      // This is expected behavior, not an error worth logging
-      await this.fallbackToSynthetic(note, adjustedOctave, duration, velocity);
+      console.warn(`⚠️ Soundfont play failed for ${realInstrument}, using synthetic fallback`);
+      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || this.audioContext.destination);
     }
   }
 
-  async playDrumSound(drumType: string, velocity: number = 0.7, kit: string = 'default'): Promise<void> {
+  async playDrumSound(drumType: string, velocity: number = 0.7, kit: string = 'default', targetNode?: AudioNode): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -471,60 +349,61 @@ export class RealisticAudioEngine {
     }
 
     const currentTime = this.audioContext.currentTime;
+    const destination = targetNode || this.audioContext.destination;
     
     try {
       // Recreate the professional drum synthesis here
       switch (drumType) {
         case 'kick':
-          this.playSyntheticKick(currentTime, velocity, kitProfile.kick);
+          this.playSyntheticKick(currentTime, velocity, kitProfile.kick, destination);
           break;
         case 'bass': // Deeper, sub-bass drum
-          this.playSyntheticBassDrum(currentTime, velocity);
+          this.playSyntheticBassDrum(currentTime, velocity, destination);
           break;
         case 'snare':
-          this.playSyntheticSnare(currentTime, velocity, kitProfile.snare);
+          this.playSyntheticSnare(currentTime, velocity, kitProfile.snare, destination);
           break;
         case 'hihat':
-          this.playSyntheticHihat(currentTime, velocity, kitProfile.hihat);
+          this.playSyntheticHihat(currentTime, velocity, kitProfile.hihat, destination);
           break;
         case 'openhat':
-          this.playSyntheticOpenHat(currentTime, velocity, kitProfile.openhat);
+          this.playSyntheticOpenHat(currentTime, velocity, kitProfile.openhat, destination);
           break;
         case 'tom':
-          this.playSyntheticTom(currentTime, velocity, kitProfile.tom);
+          this.playSyntheticTom(currentTime, velocity, kitProfile.tom, destination);
           break;
         case 'tom_hi':
           // Slightly higher tom
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.95), kitProfile.tom);
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.95), kitProfile.tom, destination);
           break;
         case 'tom_mid':
-          this.playSyntheticTom(currentTime, velocity, kitProfile.tom);
+          this.playSyntheticTom(currentTime, velocity, kitProfile.tom, destination);
           break;
         case 'tom_lo':
           // Slightly deeper, heavier tom
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 1.05), kitProfile.tom);
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 1.05), kitProfile.tom, destination);
           break;
         case 'conga':
           // Conga-style: reuse tom but a bit brighter
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.9), kitProfile.tom);
+          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.9), kitProfile.tom, destination);
           break;
         case 'clap':
-          this.playSyntheticClap(currentTime, velocity);
+          this.playSyntheticClap(currentTime, velocity, destination);
           break;
         case 'perc':
           // Perc: shorter, clickier clap
-          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.8));
+          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.8), destination);
           break;
         case 'rim':
           // Rimshot-ish: also clap-based but quieter
-          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.7));
+          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.7), destination);
           break;
         case 'crash':
-          this.playSyntheticCrash(currentTime, velocity);
+          this.playSyntheticCrash(currentTime, velocity, destination);
           break;
         case 'fx':
           // FX: use crash with lower velocity so it sits back in the mix
-          this.playSyntheticCrash(currentTime, Math.min(1, velocity * 0.6));
+          this.playSyntheticCrash(currentTime, Math.min(1, velocity * 0.6), destination);
           break;
         default:
           console.warn(`🎵 Unknown drum type: ${drumType}`);
@@ -535,7 +414,7 @@ export class RealisticAudioEngine {
   }
 
   // Fallback to synthetic audio generation for unsupported octaves
-  private async fallbackToSynthetic(note: string, octave: number, duration: number, velocity: number): Promise<void> {
+  private async fallbackToSynthetic(note: string, octave: number, duration: number, velocity: number, destination?: AudioNode): Promise<void> {
     // Silent fallback - no logging needed as this is expected behavior for extreme octaves
     if (!this.audioContext) {
       return;
@@ -551,7 +430,7 @@ export class RealisticAudioEngine {
       const gainNode = this.audioContext.createGain();
 
       oscillator.connect(gainNode);
-      gainNode.connect(this.audioContext.destination);
+      gainNode.connect(destination || this.audioContext.destination);
 
       oscillator.frequency.value = frequency;
       oscillator.type = 'sine'; // Simple sine wave for fallback
@@ -593,15 +472,44 @@ export class RealisticAudioEngine {
     return this.isInitialized && !this.isLoading;
   }
 
+  // Stop a specific note on a specific instrument
+  noteOff(note: string, octave: number, instrument: string = 'piano') {
+    const noteName = `${note}${octave}`;
+    const noteKey = `${instrument}:${noteName}`;
+    const nodes = this.activeNotes.get(noteKey);
+
+    if (nodes && nodes.length > 0) {
+      const node = nodes.shift();
+      if (node && typeof node.stop === 'function') {
+        node.stop(this.audioContext?.currentTime || 0);
+      }
+      if (nodes.length === 0) {
+        this.activeNotes.delete(noteKey);
+      }
+    }
+  }
+
   // Stop all playing sounds
   stopAllSounds() {
-    if (this.audioContext) {
-      this.audioContext.close().then(() => {
-        this.audioContext = null;
-        this.isInitialized = false;
-        this.instruments = {};
+    // 1. Release all active soundfont notes
+    this.activeNotes.forEach((nodes, key) => {
+      nodes.forEach(node => {
+        if (node && typeof node.stop === 'function') {
+          try {
+            node.stop(this.audioContext?.currentTime || 0);
+          } catch (e) {
+            // Ignore stop errors
+          }
+        }
       });
-    }
+    });
+    this.activeNotes.clear();
+
+    // 2. Reset local state
+    // IMPORTANT: Do NOT close() the shared AudioContext.
+    this.instruments = {};
+    this.instrumentLoadPromises = {};
+    this.isInitialized = false;
   }
 
   // Professional synthetic drum implementations (to avoid circular imports)
@@ -614,7 +522,7 @@ export class RealisticAudioEngine {
     filterQ: number;
     bodyGain: number;
     clickVol: number;
-  }): void {
+  }, destination?: AudioNode): void {
     if (!this.audioContext) return;
 
     try {
@@ -655,10 +563,10 @@ export class RealisticAudioEngine {
       // Connect
       kickOsc.connect(kickFilter);
       kickFilter.connect(kickGain);
-      kickGain.connect(this.audioContext.destination);
+      kickGain.connect(destination || this.audioContext.destination);
 
       kickClickOsc.connect(kickClickGain);
-      kickClickGain.connect(this.audioContext.destination);
+      kickClickGain.connect(destination || this.audioContext.destination);
 
       kickOsc.start(currentTime);
       kickClickOsc.start(currentTime);
@@ -681,7 +589,8 @@ export class RealisticAudioEngine {
       noiseDecay: number;
       noiseVol: number;
       toneVol: number;
-    }
+    },
+    destination?: AudioNode
   ): void {
     if (!this.audioContext) return;
 
@@ -727,10 +636,10 @@ export class RealisticAudioEngine {
       // Connect
       snareNoise.connect(snareFilter);
       snareFilter.connect(snareGain);
-      snareGain.connect(this.audioContext.destination);
+      snareGain.connect(destination || this.audioContext.destination);
 
       snareTone.connect(snareToneGain);
-      snareToneGain.connect(this.audioContext.destination);
+      snareToneGain.connect(destination || this.audioContext.destination);
 
       snareNoise.start(currentTime);
       snareTone.start(currentTime);
@@ -743,7 +652,8 @@ export class RealisticAudioEngine {
   private playSyntheticHihat(
     currentTime: number,
     velocity: number,
-    profile?: { decay: number; hpHz: number; vol: number }
+    profile?: { decay: number; hpHz: number; vol: number },
+    destination?: AudioNode
   ): void {
     if (!this.audioContext) return;
 
@@ -778,7 +688,7 @@ export class RealisticAudioEngine {
       // Connect
       hihatNoise.connect(hihatFilter);
       hihatFilter.connect(hihatGain);
-      hihatGain.connect(this.audioContext.destination);
+      hihatGain.connect(destination || this.audioContext.destination);
 
       hihatNoise.start(currentTime);
     } catch (error) {
@@ -789,7 +699,8 @@ export class RealisticAudioEngine {
   private playSyntheticTom(
     currentTime: number,
     velocity: number,
-    profile?: { startFreq: number; endFreq: number; filterHz: number; vol: number; decay: number }
+    profile?: { startFreq: number; endFreq: number; filterHz: number; vol: number; decay: number },
+    destination?: AudioNode
   ): void {
     if (!this.audioContext) return;
 
@@ -818,7 +729,7 @@ export class RealisticAudioEngine {
       // Connect
       tomOsc.connect(tomFilter);
       tomFilter.connect(tomGain);
-      tomGain.connect(this.audioContext.destination);
+      tomGain.connect(destination || this.audioContext.destination);
 
       tomOsc.start(currentTime);
       tomOsc.stop(currentTime + t.decay);
@@ -830,7 +741,8 @@ export class RealisticAudioEngine {
   private playSyntheticOpenHat(
     currentTime: number,
     velocity: number,
-    profile?: { decay: number; hpHz: number; vol: number }
+    profile?: { decay: number; hpHz: number; vol: number },
+    destination?: AudioNode
   ): void {
     if (!this.audioContext) return;
 
@@ -865,7 +777,7 @@ export class RealisticAudioEngine {
       // Connect
       openhatNoise.connect(openhatFilter);
       openhatFilter.connect(openhatGain);
-      openhatGain.connect(this.audioContext.destination);
+      openhatGain.connect(destination || this.audioContext.destination);
 
       openhatNoise.start(currentTime);
     } catch (error) {
@@ -873,7 +785,7 @@ export class RealisticAudioEngine {
     }
   }
 
-  private playSyntheticClap(currentTime: number, velocity: number): void {
+  private playSyntheticClap(currentTime: number, velocity: number, destination?: AudioNode): void {
     if (!this.audioContext) return;
 
     try {
@@ -915,7 +827,7 @@ export class RealisticAudioEngine {
       clapNoise.connect(clapFilter);
       clapFilter.connect(clapFilter2);
       clapFilter2.connect(clapGain);
-      clapGain.connect(this.audioContext.destination);
+      clapGain.connect(destination || this.audioContext.destination);
 
       clapNoise.start(currentTime);
     } catch (error) {
@@ -923,7 +835,7 @@ export class RealisticAudioEngine {
     }
   }
 
-  private playSyntheticCrash(currentTime: number, velocity: number): void {
+  private playSyntheticCrash(currentTime: number, velocity: number, destination?: AudioNode): void {
     if (!this.audioContext) return;
 
     try {
@@ -959,7 +871,7 @@ export class RealisticAudioEngine {
       // Connect
       crashNoise.connect(crashFilter);
       crashFilter.connect(crashGain);
-      crashGain.connect(this.audioContext.destination);
+      crashGain.connect(destination || this.audioContext.destination);
 
       crashNoise.start(currentTime);
     } catch (error) {
@@ -967,7 +879,7 @@ export class RealisticAudioEngine {
     }
   }
 
-  private playSyntheticBassDrum(currentTime: number, velocity: number): void {
+  private playSyntheticBassDrum(currentTime: number, velocity: number, destination?: AudioNode): void {
     if (!this.audioContext) return;
 
     try {
@@ -996,7 +908,7 @@ export class RealisticAudioEngine {
       // Connect
       bassOsc.connect(bassFilter);
       bassFilter.connect(bassGain);
-      bassGain.connect(this.audioContext.destination);
+      bassGain.connect(destination || this.audioContext.destination);
 
       bassOsc.start(currentTime);
       bassOsc.stop(currentTime + duration);

@@ -117,134 +117,188 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-gray-900 h-full overflow-y-auto">
-      <Card className="border border-gray-700 bg-gray-850">
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-6 p-6 bg-black/40 backdrop-blur-3xl overflow-y-auto rounded-3xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+      <div className="bg-white/5 border border-white/10 rounded-3xl backdrop-blur-md relative overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 pointer-events-none" />
+        
+        <div className="p-8 flex flex-col gap-6 md:flex-row md:items-center md:justify-between relative z-10">
           <div>
-            <CardTitle className="text-2xl text-white flex items-center gap-2">
-              <Music className="w-5 h-5 text-blue-400" />
+            <CardTitle className="text-3xl font-heading font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-400 flex items-center gap-3 drop-shadow-[0_0_15px_rgba(59,130,246,0.5)] uppercase tracking-tight">
+              <Music className="w-8 h-8 text-blue-400 drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
               Beat Lab
             </CardTitle>
-            <p className="text-sm text-gray-400">
-              Orchestrate generators, pattern editors, and sample packs into the timeline.
+            <p className="text-blue-200/60 font-medium tracking-wide mt-2 max-w-xl">
+              Orchestrate advanced neural generators, pattern editors, and premium sample packs directly into your production timeline.
             </p>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline">Tempo: {Math.round(tempo)} BPM</Badge>
-              <Badge variant="secondary">Tracks ready to sync</Badge>
+            <div className="flex items-center gap-3 mt-4">
+              <div className="px-3 py-1 bg-blue-500/20 rounded-full border border-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.2)]">
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Tempo: {Math.round(tempo)} BPM</span>
+              </div>
+              <div className="px-3 py-1 bg-green-500/20 rounded-full border border-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
+                <span className="text-[10px] font-black text-green-400 uppercase tracking-widest">Engine Sync Ready</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="bg-green-600 hover:bg-green-500" onClick={() => sendPatternToTracks()}>
-              <Send className="w-4 h-4 mr-2" />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button 
+              size="lg" 
+              className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.2)] font-black uppercase tracking-tighter" 
+              onClick={() => sendPatternToTracks()}
+            >
+              <Send className="w-5 h-5 mr-2" />
               Send Pattern
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => sendMelodyToTracks()}>
-              <Waves className="w-4 h-4 mr-2" />
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.2)] font-black uppercase tracking-tighter" 
+              onClick={() => sendMelodyToTracks()}
+            >
+              <Waves className="w-5 h-5 mr-2" />
               Send Melody
             </Button>
-            <Button size="sm" variant="outline" onClick={() => handleRoute("mixer")}>
-              <SlidersHorizontal className="w-4 h-4 mr-2" />
-              Mixer
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => handleRoute("audio-tools")}>
-              <Music className="w-4 h-4 mr-2" />
-              Audio Tools
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => handleRoute("uploader")}>
-              <Rocket className="w-4 h-4 mr-2" />
-              Save / Export
-            </Button>
+            
+            <div className="flex gap-2 ml-2 pl-4 border-l border-white/10">
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="w-12 h-12 bg-white/5 border border-white/10 text-blue-400 hover:bg-blue-500/20 transition-all rounded-xl" 
+                onClick={() => handleRoute("mixer")}
+                title="Mixer"
+              >
+                <SlidersHorizontal className="w-5 h-5" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="w-12 h-12 bg-white/5 border border-white/10 text-cyan-400 hover:bg-cyan-500/20 transition-all rounded-xl" 
+                onClick={() => handleRoute("audio-tools")}
+                title="Audio Tools"
+              >
+                <Music className="w-5 h-5" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                className="w-12 h-12 bg-white/5 border border-white/10 text-amber-400 hover:bg-amber-500/20 transition-all rounded-xl" 
+                onClick={() => handleRoute("uploader")}
+                title="Save / Export"
+              >
+                <Rocket className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+
+        <div className="p-8 pt-0">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as BeatLabTab)} className="w-full">
-            <TabsList className="flex flex-wrap gap-2 bg-gray-800">
-              <TabsTrigger value="pro" className="flex items-center gap-1 bg-gradient-to-r from-purple-600 to-blue-600">
+            <TabsList className="grid w-full grid-cols-4 p-1 bg-black/40 border border-white/10 rounded-2xl h-14 backdrop-blur-xl mb-8">
+              <TabsTrigger 
+                value="pro" 
+                className="rounded-xl data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-400 data-[state=active]:border border-transparent data-[state=active]:border-purple-500/30 transition-all font-black tracking-tight flex items-center gap-2 uppercase text-xs"
+              >
                 <Sparkles className="w-4 h-4" />
                 Pro Beat Maker
               </TabsTrigger>
-              <TabsTrigger value="bass-studio" className="flex items-center gap-1">
+              <TabsTrigger 
+                value="bass-studio" 
+                className="rounded-xl data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 data-[state=active]:border border-transparent data-[state=active]:border-blue-500/30 transition-all font-black tracking-tight flex items-center gap-2 uppercase text-xs"
+              >
                 <Waves className="w-4 h-4" />
                 Bass Studio
               </TabsTrigger>
-              <TabsTrigger value="loop-library" className="flex items-center gap-1">
+              <TabsTrigger 
+                value="loop-library" 
+                className="rounded-xl data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border border-transparent data-[state=active]:border-cyan-500/30 transition-all font-black tracking-tight flex items-center gap-2 uppercase text-xs"
+              >
                 <Library className="w-4 h-4" />
                 Loop Library
               </TabsTrigger>
-              <TabsTrigger value="pack-generator" className="flex items-center gap-1">
+              <TabsTrigger 
+                value="pack-generator" 
+                className="rounded-xl data-[state=active]:bg-pink-500/20 data-[state=active]:text-pink-400 data-[state=active]:border border-transparent data-[state=active]:border-pink-500/30 transition-all font-black tracking-tight flex items-center gap-2 uppercase text-xs"
+              >
                 <Package className="w-4 h-4" />
                 Pack Generator
               </TabsTrigger>
             </TabsList>
 
             {/* Pro Beat Maker - Full-featured drum machine with all professional features */}
-            <TabsContent value="pro" className="mt-4">
-              <ProBeatMaker 
-                onPatternChange={(tracks, bpm) => {
-                  // Convert tracks to pattern format for timeline
-                  const pattern: Record<string, boolean[]> = {};
-                  tracks.forEach(t => {
-                    pattern[t.id] = t.pattern.map(s => s.active);
-                  });
-                  setLatestPattern(pattern);
-                  session.setPattern(pattern);
-                  toast({
-                    title: "🎵 Pattern Ready",
-                    description: `Beat at ${bpm} BPM captured`,
-                  });
-                }}
-              />
+            <TabsContent value="pro" className="mt-4 outline-none">
+              <div className="bg-black/20 rounded-2xl border border-white/5 p-1">
+                <ProBeatMaker 
+                  onPatternChange={(tracks, bpm) => {
+                    // Convert tracks to pattern format for timeline
+                    const pattern: Record<string, boolean[]> = {};
+                    tracks.forEach(t => {
+                      pattern[t.id] = t.pattern.map(s => s.active);
+                    });
+                    setLatestPattern(pattern);
+                    session.setPattern(pattern);
+                    toast({
+                      title: "🎵 Pattern Ready",
+                      description: `Beat at ${bpm} BPM captured`,
+                    });
+                  }}
+                />
+              </div>
             </TabsContent>
 
             {/* Bass Studio - AI Bass Generator with 808/Sub/Synth/Electric/Upright styles */}
-            <TabsContent value="bass-studio" className="mt-4">
-              <AIBassGenerator 
-                chordProgression={(studioContext as any)?.chordProgression}
-                onBassGenerated={(bassNotes) => {
-                  // Add bass to tracks
-                  if (bassNotes && bassNotes.length > 0) {
-                    addTrack({
-                      name: "AI Bass Line",
-                      type: "midi",
-                      kind: "midi",
-                      instrument: "Bass Synth",
-                      notes: bassNotes.map((n: any, idx: number) => ({
-                        id: `bass-${idx}-${Date.now()}`,
-                        note: n.note || 'C',
-                        octave: n.octave || 2,
-                        step: Math.round((n.time || idx * 0.5) * 4),
-                        length: Math.round((n.duration || 0.5) * 4),
-                        velocity: Math.round((n.velocity || 0.8) * 127),
-                      })),
-                      payload: {
-                        source: "ai-bass-generator",
+            <TabsContent value="bass-studio" className="mt-4 outline-none">
+              <div className="bg-black/20 rounded-2xl border border-white/5 p-1">
+                <AIBassGenerator 
+                  chordProgression={(studioContext as any)?.chordProgression}
+                  onBassGenerated={(bassNotes) => {
+                    // Add bass to tracks
+                    if (bassNotes && bassNotes.length > 0) {
+                      addTrack({
+                        name: "AI Bass Line",
                         type: "midi",
-                      },
-                      lengthBars: 4,
-                      startBar: 0,
-                    });
-                    toast({
-                      title: "🎸 Bass Added to Tracks",
-                      description: `${bassNotes.length} bass notes sent to Multi-Track`,
-                    });
-                  }
-                }}
-              />
+                        kind: "midi",
+                        instrument: "Bass Synth",
+                        notes: bassNotes.map((n: any, idx: number) => ({
+                          id: `bass-${idx}-${Date.now()}`,
+                          note: n.note || 'C',
+                          octave: n.octave || 2,
+                          step: Math.round((n.time || idx * 0.5) * 4),
+                          length: Math.round((n.duration || 0.5) * 4),
+                          velocity: Math.round((n.velocity || 0.8) * 127),
+                        })),
+                        payload: {
+                          source: "ai-bass-generator",
+                          type: "midi",
+                        },
+                        lengthBars: 4,
+                        startBar: 0,
+                      });
+                      toast({
+                        title: "🎸 Bass Added to Tracks",
+                        description: `${bassNotes.length} bass notes sent to Multi-Track`,
+                      });
+                    }
+                  }}
+                />
+              </div>
             </TabsContent>
 
             {/* Loop Library - Browse and add audio loops as tracks */}
-            <TabsContent value="loop-library" className="mt-4">
-              <LoopLibrary />
+            <TabsContent value="loop-library" className="mt-4 outline-none">
+              <div className="bg-black/20 rounded-2xl border border-white/5 p-6">
+                <LoopLibrary />
+              </div>
             </TabsContent>
 
             {/* Pack Generator - AI-powered sample pack creation */}
-            <TabsContent value="pack-generator" className="mt-4">
-              <PackGenerator />
+            <TabsContent value="pack-generator" className="mt-4 outline-none">
+              <div className="bg-black/20 rounded-2xl border border-white/5 p-6">
+                <PackGenerator />
+              </div>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

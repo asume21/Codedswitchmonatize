@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import { realisticAudio } from "./realisticAudio";
+import { getAudioContext } from "./audioContext";
 
 export type InstrumentName = "piano" | "synth" | "bass" | "drums" | "custom";
 
@@ -29,16 +30,47 @@ class AudioEngine {
   private drumVoices: Partial<Record<DrumType, Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth>> = {};
   private drumBus: Tone.Volume | null = null;
   private metronomeSynth: Tone.Synth | null = null;
+  private targetNode: AudioNode | null = null;
 
   constructor() {
     this.volume = new Tone.Volume(0);
-    this.volume.toDestination();
+  }
+
+  setTargetNode(node: AudioNode | null) {
+    this.targetNode = node;
+    this.volume.disconnect();
+    if (node) {
+      this.volume.connect(node);
+    } else {
+      this.volume.toDestination();
+    }
+    
+    if (this.drumBus) {
+      this.drumBus.disconnect();
+      if (node) {
+        this.drumBus.connect(node);
+      } else {
+        this.drumBus.toDestination();
+      }
+    }
   }
 
   // Core initialization
   async initialize() {
     if (this.isInitialized) return;
-    // Don't start Tone.js here - let it start when user interacts
+    
+    // Use shared context for Tone.js
+    const sharedCtx = getAudioContext();
+    if (Tone.context.rawContext !== sharedCtx) {
+      Tone.setContext(new Tone.Context(sharedCtx));
+    }
+
+    if (!this.targetNode) {
+      this.volume.toDestination();
+    } else {
+      this.volume.connect(this.targetNode);
+    }
+
     try {
       await realisticAudio.initialize();
     } catch (error) {
@@ -99,7 +131,7 @@ class AudioEngine {
   }
 
   // Note playback - ALWAYS use RealisticAudioEngine when available
-  playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: string = 'piano') {
+  playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: string = 'piano', targetNode?: AudioNode) {
     if (!this.isInitialized) {
       console.warn('AudioEngine not initialized');
       return;
@@ -125,8 +157,8 @@ class AudioEngine {
       // pass it through unchanged instead of collapsing to piano.
       const realInstrument = instrumentMap[instrument] ?? instrument;
       
-      // Use RealisticAudioEngine for high-quality playback
-      realisticAudio.playNote(noteName, octave, durationSec, realInstrument, velocity);
+      // Use RealisticAudioEngine for high-quality playback with optional routing
+      realisticAudio.playNote(noteName, octave, durationSec, realInstrument, velocity, true, targetNode);
       console.log(`🎹 Playing ${instrument} via RealisticAudioEngine: ${note} (duration: ${durationSec}s, velocity: ${velocity})`);
       return;
     }

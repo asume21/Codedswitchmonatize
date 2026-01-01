@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, Music2, Zap, Piano, Volume2, Save, RotateCcw, Download, Trash2, Send, Circle, Square, Edit3, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
+import { professionalAudio } from '@/lib/professionalAudio';
 
 interface BassGeneratorProps {
   chordProgression?: Array<{ chord: string; duration: number }>;
@@ -59,10 +61,56 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
     
     try {
       await realisticAudio.initialize();
-      // Use synth bass or electric bass based on style
-      const instrument = bassStyle === 'electric' ? 'electric_bass_finger' : 
-                        bassStyle === 'upright' ? 'acoustic_bass' : 'synth_bass_1';
-      await realisticAudio.playNote(note, oct, noteLength[0] / 100, instrument, velocity[0] / 127);
+
+      const mixerChannel = professionalAudio.getChannels().find(
+        ch => ch.id === 'bass' || ch.name.toLowerCase() === 'bass'
+      );
+
+      if (bassStyle === 'sub') {
+        const audioContext = (realisticAudio as any)?.audioContext as AudioContext | null;
+        if (!audioContext) return;
+
+        const currentTime = audioContext.currentTime;
+        const destination = (mixerChannel?.input as AudioNode | undefined) || audioContext.destination;
+
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(55, currentTime);
+
+        const startGain = Math.min(1, Math.max(0, (velocity[0] / 127) * 0.9));
+        const durationSeconds = Math.max(0.05, (noteLength[0] / 100) * 0.8);
+        gain.gain.setValueAtTime(0.0001, currentTime);
+        gain.gain.exponentialRampToValueAtTime(startGain, currentTime + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, currentTime + durationSeconds);
+
+        osc.connect(gain);
+        gain.connect(destination);
+
+        osc.start(currentTime);
+        osc.stop(currentTime + durationSeconds + 0.02);
+        return;
+      }
+
+      const styleToInstrument: Record<string, string> = {
+        '808': 'synth_bass_1',
+        sub: 'synth_bass_1',
+        synth: 'synth_bass_2',
+        electric: 'electric_bass_finger',
+        upright: 'acoustic_bass',
+      };
+
+      const instrument = styleToInstrument[bassStyle] || 'synth_bass_1';
+      await realisticAudio.playNote(
+        note,
+        oct,
+        noteLength[0] / 100,
+        instrument,
+        velocity[0] / 127,
+        true,
+        mixerChannel?.input
+      );
     } catch (error) {
       console.error('Bass playback error:', error);
     }
@@ -151,7 +199,6 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
       playbackRef.current = null;
     }
     setIsPlaying(false);
-    realisticAudio.stopAllSounds();
   }, []);
 
   // ISSUE #1: Save preset functionality
@@ -297,326 +344,293 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
   };
 
   return (
-    <Card className="bg-gray-900 border-gray-800">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-purple-400">
-          <Music2 className="w-5 h-5" />
+    <Card className="bg-white/5 border-white/10 backdrop-blur-xl rounded-3xl relative overflow-hidden shadow-2xl group">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 pointer-events-none" />
+      
+      <CardHeader className="relative z-10 border-b border-white/5 pb-4">
+        <CardTitle className="flex items-center gap-3 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 font-black uppercase tracking-tighter">
+          <Music2 className="w-6 h-6 text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
           AI Bass Generator
-          <span className="text-xs text-gray-500 font-normal ml-auto">Bass Dragon Style</span>
+          <Badge variant="outline" className="ml-auto bg-purple-500/10 text-purple-400 border-purple-500/30 text-[10px] font-black tracking-widest uppercase px-2 py-0">
+            Bass Dragon
+          </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Bass Style Selector */}
-        <div className="space-y-2">
-          <Label className="text-sm text-gray-300">Bass Style</Label>
-          <Select value={bassStyle} onValueChange={setBassStyle}>
-            <SelectTrigger className="bg-gray-800 border-gray-700">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-gray-700">
-              {bassStyles.map(style => (
-                <SelectItem key={style.value} value={style.value}>
-                  <div className="flex flex-col">
-                    <span>{style.label}</span>
-                    <span className="text-xs text-gray-400">{style.description}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
-        {/* Pattern Type */}
-        <div className="space-y-2">
-          <Label className="text-sm text-gray-300">Pattern Type</Label>
-          <Select value={patternType} onValueChange={setPatternType}>
-            <SelectTrigger className="bg-gray-800 border-gray-700">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-gray-700">
-              {patternTypes.map(pattern => (
-                <SelectItem key={pattern.value} value={pattern.value}>
-                  <div className="flex flex-col">
-                    <span>{pattern.label}</span>
-                    <span className="text-xs text-gray-400">{pattern.description}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <CardContent className="space-y-6 pt-6 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column: Style & Pattern */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest ml-1">Bass Style</Label>
+              <Select value={bassStyle} onValueChange={setBassStyle}>
+                <SelectTrigger className="bg-white/5 border-white/10 rounded-xl hover:bg-white/10 transition-all">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
+                  {bassStyles.map(style => (
+                    <SelectItem key={style.value} value={style.value} className="focus:bg-blue-500/20">
+                      <div className="flex flex-col py-1">
+                        <span className="font-bold text-white tracking-tight">{style.label}</span>
+                        <span className="text-[10px] text-white/40 font-medium uppercase tracking-tighter">{style.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        {/* Octave Selector */}
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <Label className="text-sm text-gray-300">Octave</Label>
-            <span className="text-xs text-purple-400 font-bold">{octave[0]}</span>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest ml-1">Pattern Type</Label>
+              <Select value={patternType} onValueChange={setPatternType}>
+                <SelectTrigger className="bg-white/5 border-white/10 rounded-xl hover:bg-white/10 transition-all">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
+                  {patternTypes.map(pattern => (
+                    <SelectItem key={pattern.value} value={pattern.value} className="focus:bg-purple-500/20">
+                      <div className="flex flex-col py-1">
+                        <span className="font-bold text-white tracking-tight">{pattern.label}</span>
+                        <span className="text-[10px] text-white/40 font-medium uppercase tracking-tighter">{pattern.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <Slider
-            value={octave}
-            onValueChange={setOctave}
-            min={0}
-            max={4}
-            step={1}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>Sub Bass</span>
-            <span>Mid Bass</span>
-          </div>
-        </div>
 
-        {/* Groove Amount */}
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <Label className="text-sm text-gray-300">Groove / Swing</Label>
-            <span className="text-xs text-purple-400 font-bold">{groove[0]}%</span>
-          </div>
-          <Slider
-            value={groove}
-            onValueChange={setGroove}
-            min={0}
-            max={100}
-            step={1}
-            className="w-full"
-          />
-        </div>
+          {/* Right Column: Sliders */}
+          <div className="space-y-4 bg-white/5 p-4 rounded-2xl border border-white/5">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-black text-purple-300/60 uppercase tracking-widest">Octave</Label>
+                <span className="text-xs font-black text-purple-400 drop-shadow-[0_0_5px_rgba(168,85,247,0.5)]">{octave[0]}</span>
+              </div>
+              <Slider value={octave} onValueChange={setOctave} min={0} max={4} step={1} className="py-2" />
+            </div>
 
-        {/* Note Length */}
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <Label className="text-sm text-gray-300">Note Length</Label>
-            <span className="text-xs text-purple-400 font-bold">{noteLength[0]}%</span>
-          </div>
-          <Slider
-            value={noteLength}
-            onValueChange={setNoteLength}
-            min={10}
-            max={100}
-            step={1}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>Staccato</span>
-            <span>Legato</span>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest">Groove</Label>
+                <span className="text-xs font-black text-blue-400 drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]">{groove[0]}%</span>
+              </div>
+              <Slider value={groove} onValueChange={setGroove} min={0} max={100} step={1} className="py-2" />
+            </div>
           </div>
         </div>
 
-        {/* Velocity */}
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <Label className="text-sm text-gray-300">Velocity</Label>
-            <span className="text-xs text-purple-400 font-bold">{velocity[0]}</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-3 bg-white/5 p-3 rounded-xl border border-white/5">
+            <div className="flex justify-between items-center">
+              <Label className="text-[10px] font-black text-cyan-300/60 uppercase tracking-widest">Length</Label>
+              <span className="text-[10px] font-black text-cyan-400">{noteLength[0]}%</span>
+            </div>
+            <Slider value={noteLength} onValueChange={setNoteLength} min={10} max={100} step={1} />
           </div>
-          <Slider
-            value={velocity}
-            onValueChange={setVelocity}
-            min={20}
-            max={127}
-            step={1}
-            className="w-full"
-          />
+          <div className="space-y-3 bg-white/5 p-3 rounded-xl border border-white/5">
+            <div className="flex justify-between items-center">
+              <Label className="text-[10px] font-black text-amber-300/60 uppercase tracking-widest">Velocity</Label>
+              <span className="text-[10px] font-black text-amber-400">{velocity[0]}</span>
+            </div>
+            <Slider value={velocity} onValueChange={setVelocity} min={20} max={127} step={1} />
+          </div>
+          <div className="space-y-3 bg-white/5 p-3 rounded-xl border border-white/5">
+            <div className="flex justify-between items-center">
+              <Label className="text-[10px] font-black text-pink-300/60 uppercase tracking-widest">Glide</Label>
+              <span className="text-[10px] font-black text-pink-400">{glide[0]}%</span>
+            </div>
+            <Slider value={glide} onValueChange={setGlide} min={0} max={100} step={1} />
+          </div>
         </div>
 
-        {/* Glide Amount */}
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <Label className="text-sm text-gray-300">Glide / Portamento</Label>
-            <span className="text-xs text-purple-400 font-bold">{glide[0]}%</span>
-          </div>
-          <Slider
-            value={glide}
-            onValueChange={setGlide}
-            min={0}
-            max={100}
-            step={1}
-            className="w-full"
-          />
-        </div>
-
-        {/* Generate Button */}
         <Button
           onClick={generateBassLine}
           disabled={isGenerating || !chordProgression || chordProgression.length === 0}
-          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+          className="w-full h-14 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98] border border-white/20"
         >
           {isGenerating ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Generating Bass...
+              <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+              Synthesizing Frequencies...
             </>
           ) : (
             <>
-              <Zap className="w-4 h-4 mr-2" />
-              Generate Bass Line
+              <Zap className="w-5 h-5 mr-3 drop-shadow-[0_0_8px_white]" />
+              Generate Neural Bass
             </>
           )}
         </Button>
 
-        {/* Interactive Bass Keyboard */}
-        <div className="space-y-2 pt-4 border-t border-gray-700">
+        {/* Interactive Keyboard Section */}
+        <div className="space-y-4 pt-6 border-t border-white/10">
           <div className="flex items-center justify-between">
-            <Label className="text-sm text-gray-300 flex items-center gap-2">
-              <Piano className="w-4 h-4" />
-              Interactive Bass Keyboard
-              {isRecording && <span className="text-red-500 animate-pulse">● REC</span>}
+            <Label className="text-[10px] font-black text-blue-300/60 uppercase tracking-[0.2em] flex items-center gap-2">
+              <Piano className="w-4 h-4 text-blue-400" />
+              Interactive Haptic Keyboard
+              {isRecording && <span className="text-red-500 animate-pulse font-black ml-2">● SIGNAL CAPTURE</span>}
             </Label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Button
                 size="sm"
                 variant={isRecording ? "destructive" : "outline"}
                 onClick={toggleRecording}
-                className="text-xs"
+                className={`h-8 px-4 rounded-full font-black uppercase text-[10px] tracking-widest border-2 transition-all ${
+                  isRecording ? 'animate-pulse' : 'bg-white/5 border-white/10'
+                }`}
               >
-                {isRecording ? <Square className="w-3 h-3 mr-1" /> : <Circle className="w-3 h-3 mr-1" />}
-                {isRecording ? 'Stop' : 'Record'}
+                {isRecording ? <Square className="w-3 h-3 mr-2 fill-current" /> : <Circle className="w-3 h-3 mr-2 fill-current" />}
+                {isRecording ? 'Abort' : 'Rec'}
               </Button>
-              <span className="text-xs text-purple-400">Octave {octave[0]}</span>
+              <div className="px-3 py-1 bg-purple-500/20 rounded-full border border-purple-500/30">
+                <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Oct {octave[0]}</span>
+              </div>
             </div>
           </div>
           
-          {/* Bass Keys */}
-          <div className="flex gap-1 p-2 bg-gray-800 rounded-lg overflow-x-auto">
-            {BASS_NOTES.map((note) => {
-              const isBlack = note.includes('#');
-              const isActive = activeNote === `${note}${octave[0]}`;
-              return (
-                <button
-                  key={note}
-                  onMouseDown={() => playBassNote(note)}
-                  onTouchStart={() => playBassNote(note)}
-                  className={`
-                    ${isBlack 
-                      ? 'bg-gray-900 text-white w-8 h-16 -mx-2 z-10 rounded-b' 
-                      : 'bg-gradient-to-b from-gray-200 to-gray-400 text-gray-800 w-10 h-20 rounded-b-lg'
-                    }
-                    ${isActive ? 'ring-2 ring-purple-500 scale-95' : ''}
-                    flex items-end justify-center pb-1 text-xs font-bold
-                    hover:opacity-80 active:scale-95 transition-all
-                    shadow-md cursor-pointer select-none
-                  `}
-                >
-                  {note}
-                </button>
-              );
-            })}
+          <div className="p-4 bg-black/40 rounded-2xl border border-white/5 shadow-inner">
+            <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
+              {BASS_NOTES.map((note) => {
+                const isBlack = note.includes('#');
+                const isActive = activeNote === `${note}${octave[0]}`;
+                return (
+                  <button
+                    key={note}
+                    onMouseDown={() => playBassNote(note)}
+                    className={`
+                      relative shrink-0 transition-all duration-75
+                      ${isBlack 
+                        ? 'bg-gradient-to-b from-gray-800 to-black text-white w-8 h-20 -mx-3 z-10 rounded-b-lg border-x border-b border-white/10' 
+                        : 'bg-gradient-to-b from-white to-gray-300 text-gray-900 w-12 h-32 rounded-b-xl border-x border-b border-gray-400'
+                      }
+                      ${isActive ? 'brightness-150 scale-95 shadow-[0_0_20px_rgba(59,130,246,0.8)]' : ''}
+                      flex items-end justify-center pb-3 text-[10px] font-black uppercase tracking-tighter
+                      hover:brightness-110 active:scale-95 cursor-pointer select-none
+                    `}
+                  >
+                    <span className={isBlack ? 'text-blue-400/80' : 'text-gray-500'}>{note}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           
-          {/* Quick Octave Buttons */}
           <div className="flex gap-2 justify-center">
             {[0, 1, 2, 3].map((oct) => (
               <Button
                 key={oct}
                 size="sm"
-                variant={octave[0] === oct ? "default" : "outline"}
+                variant="ghost"
                 onClick={() => setOctave([oct])}
-                className="text-xs"
+                className={`h-8 w-12 rounded-lg font-black text-[10px] transition-all border ${
+                  octave[0] === oct 
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
+                    : 'bg-white/5 border-white/5 text-white/40 hover:text-white hover:bg-white/10'
+                }`}
               >
-                Oct {oct}
+                {oct}
               </Button>
             ))}
           </div>
         </div>
 
-        {/* Recorded Notes Section */}
+        {/* Recorded Signal Flow */}
         {recordedNotes.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-red-900/50">
+          <div className="space-y-3 p-4 bg-red-500/5 border border-red-500/20 rounded-2xl animate-in fade-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between">
-              <Label className="text-sm text-red-300 flex items-center gap-2">
-                <Circle className="w-3 h-3 text-red-500" />
-                Recorded Notes ({recordedNotes.length})
+              <Label className="text-[10px] font-black text-red-400/80 uppercase tracking-widest flex items-center gap-2">
+                <Circle className="w-3 h-3 fill-current animate-pulse" />
+                Captured Signal ({recordedNotes.length})
               </Label>
-              <div className="flex gap-1">
-                <Button size="sm" variant="outline" onClick={useRecordedNotes} className="text-xs">
-                  Use Notes
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={useRecordedNotes} className="h-7 text-[10px] font-black uppercase tracking-tighter rounded-lg border-red-500/30 text-red-400 hover:bg-red-500/10">
+                  Sync
                 </Button>
-                <Button size="sm" variant="outline" onClick={sendToPianoRoll} className="text-xs">
+                <Button size="sm" variant="outline" onClick={sendToPianoRoll} className="h-7 text-[10px] font-black uppercase tracking-tighter rounded-lg border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
                   <Edit3 className="w-3 h-3 mr-1" />
-                  Edit in Piano Roll
+                  Edit
                 </Button>
-                <Button size="sm" variant="ghost" onClick={clearRecordedNotes} className="text-xs text-red-400">
-                  <Trash2 className="w-3 h-3" />
+                <Button size="sm" variant="ghost" onClick={clearRecordedNotes} className="h-7 w-7 p-0 text-red-400/60 hover:text-red-400 hover:bg-red-500/10">
+                  <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
-            <div className="bg-gray-800 rounded p-2 max-h-24 overflow-y-auto">
-              <div className="flex flex-wrap gap-1">
-                {recordedNotes.map((note, idx) => (
-                  <span 
-                    key={idx} 
-                    className="px-2 py-0.5 bg-red-600/30 text-red-300 text-xs rounded flex items-center gap-1 group cursor-pointer hover:bg-red-600/50"
-                    onClick={() => deleteRecordedNote(idx)}
-                    title="Click to delete"
-                  >
-                    {note.note}{note.octave}
-                    <X className="w-2 h-2 opacity-0 group-hover:opacity-100" />
-                  </span>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
+              {recordedNotes.map((note, idx) => (
+                <div 
+                  key={idx} 
+                  onClick={() => deleteRecordedNote(idx)}
+                  className="px-2 py-1 bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-black rounded-md flex items-center gap-1.5 hover:bg-red-500/20 cursor-pointer transition-all group"
+                >
+                  {note.note}{note.octave}
+                  <X className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100" />
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Playback Controls for Generated Bass */}
+        {/* Generated Pattern Output */}
         {generatedBass.length > 0 && (
-          <div className="space-y-2 pt-2">
-            {/* ISSUE #4: Visual display of generated bass notes */}
-            <div className="bg-gray-800 rounded p-2 max-h-20 overflow-y-auto">
-              <div className="flex flex-wrap gap-1">
-                {generatedBass.map((note, idx) => (
-                  <span key={idx} className="px-2 py-0.5 bg-purple-600/30 text-purple-300 text-xs rounded">
-                    {note.note}{note.octave}
-                  </span>
-                ))}
-              </div>
+          <div className="space-y-4 p-5 bg-blue-500/5 border border-blue-500/20 rounded-2xl shadow-xl animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+              {generatedBass.map((note, idx) => (
+                <span key={idx} className="px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black rounded-md shadow-sm">
+                  {note.note}{note.octave}
+                </span>
+              ))}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Button
                 onClick={isPlaying ? stopPlayback : playGeneratedBass}
                 variant="outline"
-                className="flex-1"
+                className={`flex-1 h-12 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${
+                  isPlaying ? 'bg-red-500/10 border-red-500/50 text-red-400 animate-pulse' : 'bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                }`}
               >
-                <Volume2 className="w-4 h-4 mr-2" />
-                {isPlaying ? 'Stop' : `Play (${generatedBass.length})`}
+                {isPlaying ? <Square className="w-4 h-4 mr-2 fill-current" /> : <Volume2 className="w-4 h-4 mr-2" />}
+                {isPlaying ? 'Stop' : `Audition (${generatedBass.length})`}
               </Button>
               <Button 
                 onClick={() => onBassGenerated?.(generatedBass)} 
-                className="bg-blue-600 hover:bg-blue-500"
-                title="Send to Multi-Track"
+                className="h-12 px-6 bg-green-600 hover:bg-green-500 text-white rounded-xl shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all hover:scale-105 active:scale-95"
+                title="Inject into Production Timeline"
               >
-                <Send className="w-4 h-4 mr-2" />
-                Send to Tracks
+                <Send className="w-5 h-5 mr-2" />
+                Commit
               </Button>
-              <Button onClick={sendToPianoRoll} variant="outline" size="icon" title="Edit in Piano Roll">
-                <Edit3 className="w-4 h-4" />
-              </Button>
-              <Button onClick={exportBassLine} variant="outline" size="icon" title="Export bass line">
-                <Download className="w-4 h-4" />
-              </Button>
-              <Button onClick={clearBass} variant="outline" size="icon" title="Clear bass line">
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex gap-1.5">
+                <Button onClick={sendToPianoRoll} variant="ghost" size="icon" className="h-12 w-12 rounded-xl bg-white/5 border border-white/5 text-purple-400 hover:bg-purple-500/10" title="Edit in Piano Roll">
+                  <Edit3 className="w-5 h-5" />
+                </Button>
+                <Button onClick={exportBassLine} variant="ghost" size="icon" className="h-12 w-12 rounded-xl bg-white/5 border border-white/5 text-amber-400 hover:bg-amber-500/10" title="Export Data">
+                  <Download className="w-5 h-5" />
+                </Button>
+                <Button onClick={clearBass} variant="ghost" size="icon" className="h-12 w-12 rounded-xl bg-white/5 border border-white/5 text-red-400 hover:bg-red-500/10" title="Clear Buffer">
+                  <Trash2 className="w-5 h-5" />
+                </Button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Preset Controls */}
-        <div className="flex gap-2 pt-2 border-t border-gray-700">
-          <Button onClick={savePreset} variant="outline" size="sm" className="flex-1">
-            <Save className="w-3 h-3 mr-1" />
-            Save
+        {/* Preset & Save Management */}
+        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
+          <Button onClick={savePreset} variant="ghost" size="sm" className="h-10 rounded-xl bg-white/5 border border-white/5 text-white/60 hover:text-white hover:bg-white/10 font-black uppercase text-[10px] tracking-widest">
+            <Save className="w-3.5 h-3.5 mr-2" />
+            Save Preset
           </Button>
-          <Button onClick={loadPreset} variant="outline" size="sm" className="flex-1">
-            <RotateCcw className="w-3 h-3 mr-1" />
-            Load
+          <Button onClick={loadPreset} variant="ghost" size="sm" className="h-10 rounded-xl bg-white/5 border border-white/5 text-white/60 hover:text-white hover:bg-white/10 font-black uppercase text-[10px] tracking-widest">
+            <RotateCcw className="w-3.5 h-3.5 mr-2" />
+            Load Preset
           </Button>
         </div>
 
-        {/* Info */}
-        <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-800">
-          Click keys to play bass notes manually, or use AI to generate patterns
-        </div>
+        <p className="text-[9px] text-white/20 text-center font-black uppercase tracking-[0.3em] pt-2">
+          Quantum Neural Bass Engine // Ready for Signal Processing
+        </p>
       </CardContent>
     </Card>
   );
 }
+

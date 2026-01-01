@@ -5,19 +5,19 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "astutely-button inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-cyan-600/20 text-cyan-100 border border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.18)] hover:bg-cyan-500/25 hover:text-white",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-red-500/20 text-red-100 border border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.18)] hover:bg-red-500/25 hover:text-white",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "border border-cyan-500/40 bg-black/60 text-cyan-100 hover:bg-cyan-500/15",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+          "bg-cyan-950/40 text-cyan-100 border border-cyan-500/25 hover:bg-cyan-500/15",
+        ghost: "text-cyan-100 hover:bg-cyan-500/15",
+        link: "text-cyan-300 underline-offset-4 hover:underline hover:text-cyan-200",
       },
       size: {
         default: "h-10 px-4 py-2",

@@ -47,6 +47,8 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTracks } from '@/hooks/useTracks';
+import { getAudioContext } from '@/lib/audioContext';
+import { professionalAudio } from '@/lib/professionalAudio';
 import { Resizable } from 'react-resizable';
 import { RepeatIcon } from 'lucide-react';
 import WaveformVisualizer from './WaveformVisualizer';
@@ -669,15 +671,15 @@ export default function MasterMultiTrackPlayer() {
 
   // Initialize Audio Context
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    masterGainRef.current = audioContextRef.current.createGain();
-    masterGainRef.current.connect(audioContextRef.current.destination);
+    const ctx = getAudioContext();
+    audioContextRef.current = ctx;
+    masterGainRef.current = ctx.createGain();
+    masterGainRef.current.connect(ctx.destination);
     masterGainRef.current.gain.value = masterVolume / 100;
 
     return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
+      // Don't close shared context here, just disconnect local nodes
+      masterGainRef.current?.disconnect();
     };
   }, []);
 
@@ -1199,10 +1201,22 @@ export default function MasterMultiTrackPlayer() {
       // Set pan (volume handled with envelope below)
       panNode.pan.value = track.pan;
 
-      // Connect: source -> gain -> pan -> master -> destination
+      // Find matching mixer channel
+      const channels = professionalAudio.getChannels();
+      const mixerChannel = channels.find(c => c.id === track.id) 
+                        || (track.kind ? channels.find(c => c.id === track.kind || c.name.toLowerCase() === track.kind!.toLowerCase()) : undefined)
+                        || (track.trackType ? channels.find(c => c.id === track.trackType || c.name.toLowerCase() === track.trackType!.toLowerCase()) : undefined);
+
+      // Connect: source -> gain -> pan -> mixer channel (or local master) -> destination
       source.connect(gainNode);
       gainNode.connect(panNode);
-      panNode.connect(masterGainRef.current!);
+      
+      if (mixerChannel) {
+        panNode.connect(mixerChannel.input);
+        console.log(`🔊 Track ${track.name} routed to mixer channel: ${mixerChannel.name}`);
+      } else {
+        panNode.connect(masterGainRef.current!);
+      }
 
       // Store references
       track.sourceNode = source;
@@ -3147,7 +3161,7 @@ export default function MasterMultiTrackPlayer() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900 text-white overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col bg-gray-900 text-white">
       <MTPHeaderContainer
         tempo={tempo}
         setTempo={setTempo}
@@ -3182,6 +3196,8 @@ export default function MasterMultiTrackPlayer() {
         onOpenPianoRoll={handleOpenPianoRoll}
         menuHandlers={menuHandlers}
       />
+
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
 
       {/* Transport Controls */}
       <div className="bg-gray-850 border-b border-gray-700 px-4 py-2">
@@ -3979,6 +3995,7 @@ export default function MasterMultiTrackPlayer() {
           </div>
         </BaseDialogContent>
       </BaseDialog>
+      </div>
     </div>
   );
 }

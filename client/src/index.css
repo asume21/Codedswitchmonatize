@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Astutely Theme */
+@import './styles/astutely-theme.css';
+
 /* Screen reader only utility */
 .sr-only {
   position: absolute;
@@ -571,8 +574,64 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
-/* GLOBAL UI POLISH - Consistent styling across the entire application         */
+/* HOLOGRAPHIC & CYBERPUNK ANIMATIONS                                          */
 /* ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes scan {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(400%); }
+}
+
+.animate-scan {
+  animation: scan 3s linear infinite;
+}
+
+@keyframes data-flicker {
+  0% { opacity: 0.1; }
+  5% { opacity: 0.3; }
+  10% { opacity: 0.1; }
+  15% { opacity: 0.4; }
+  25% { opacity: 0.1; }
+  30% { opacity: 0.2; }
+  100% { opacity: 0.1; }
+}
+
+.animate-data-flicker {
+  animation: data-flicker 4s linear infinite;
+}
+
+@keyframes holographic-glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(-2px, -1px); }
+  60% { transform: translate(2px, 1px); }
+  80% { transform: translate(2px, -1px); }
+  100% { transform: translate(0); }
+}
+
+.hover-hologram:hover {
+  animation: holographic-glitch 0.2s ease-in-out infinite;
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+}
+
+/* Custom scrollbar for HUD */
+.scrollbar-hud::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-hud::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.scrollbar-hud::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.3);
+  border-radius: 10px;
+}
+
+.scrollbar-hud::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.5);
+}
+
 
 /* Smooth transitions for all interactive elements */
 button, .btn, [role="button"], a, input, select, textarea {

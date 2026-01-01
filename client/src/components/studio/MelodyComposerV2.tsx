@@ -253,7 +253,8 @@ function MelodyComposerV2() {
   };
 
   return (
-    <div className="h-full bg-gradient-to-br from-gray-900 to-black p-6 overflow-auto">
+    <div className="flex flex-col min-h-full astutely-pro-panel overflow-hidden">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Header */}
@@ -268,7 +269,7 @@ function MelodyComposerV2() {
         </div>
 
         {/* Main Controls */}
-        <div className="bg-gray-800 rounded-lg p-6">
+        <div className="bg-black/40 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-2xl">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             
             {/* Tempo Control */}
@@ -290,10 +291,10 @@ function MelodyComposerV2() {
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-300">Active Track</label>
               <Select value={selectedTrack} onValueChange={setSelectedTrack}>
-                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                <SelectTrigger className="bg-black/40 border-white/10 text-white rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
                   {tracks.map(track => (
                     <SelectItem key={track.id} value={track.id}>
                       {track.name} ({track.instrument})
@@ -346,7 +347,7 @@ function MelodyComposerV2() {
           </div>
 
         {/* Status Bar */}
-        <div className="mt-4 p-3 bg-gray-700 rounded-lg">
+        <div className="mt-4 p-3 bg-black/40 border border-white/10 rounded-2xl backdrop-blur-xl">
           <div className="flex justify-between items-center text-sm">
             <div className="text-gray-300">
               <strong>Status:</strong> {isPlaying ? '🟢 Playing' : '🔴 Stopped'} | 
@@ -405,7 +406,7 @@ function MelodyComposerV2() {
         )}
 
         {/* Plugin Status */}
-        <div className="bg-gray-800 rounded-lg p-4">
+        <div className="bg-black/40 border border-white/10 rounded-3xl p-4 backdrop-blur-xl">
           <h3 className="text-lg font-semibold text-white mb-3">🔌 Plugin System Status</h3>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className={`p-3 rounded ${activePlugins.trackControls ? 'bg-green-900' : 'bg-gray-700'}`}>
@@ -433,9 +434,10 @@ function MelodyComposerV2() {
         </div>
 
         {/* Footer */}
-        <div className="text-center text-gray-500 text-sm">
+        <div className="text-center text-white/30 text-sm">
           <p>✅ Plugin-Based Architecture | 🎛️ Multi-Track Mixing | 🎹 Real-Time Audio | 🥁 Step Sequencing</p>
         </div>
+      </div>
       </div>
     </div>
   );

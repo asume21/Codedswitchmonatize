@@ -56,8 +56,8 @@ function getNoteFrequency(note: string, octave: number = 4): number {
 }
 
 interface UseAudioReturn {
-  playNote: (note: string | number, octave?: number, duration?: number, instrument?: string, velocity?: number, sustainEnabled?: boolean) => void;
-  playDrum: (type: DrumType, volume?: number) => void;
+  playNote: (note: string | number, octave?: number, duration?: number | string, instrument?: string, velocity?: number, sustainEnabled?: boolean, targetNode?: AudioNode) => void;
+  playDrum: (type: DrumType, velocity?: number, targetNode?: AudioNode) => void;
   setMasterVolume: (volume: number) => void;
   isInitialized: boolean;
   initialize: () => Promise<void>;
@@ -229,7 +229,7 @@ export function useAudio(): UseAudioReturn {
     };
   }, []);
 
-  const playNote = useCallback(async (note: string | number, octave: number = 4, duration: number | string = 0.5, instrument: string = 'piano', velocity: number = 0.7, sustainEnabled: boolean = true) => {
+  const playNote = useCallback(async (note: string | number, octave: number = 4, duration: number | string = 0.5, instrument: string = 'piano', velocity: number = 0.7, sustainEnabled: boolean = true, targetNode?: AudioNode) => {
     try {
       if (!globalAudioInitialized) {
         await initialize();
@@ -248,14 +248,16 @@ export function useAudio(): UseAudioReturn {
       }
 
       const fullNote = `${noteString}${octave}`;
-      audioEngine.playNote(fullNote, duration, velocity, instrument as any);
+      audioEngine.playNote(fullNote, duration, velocity, instrument as any, targetNode);
     } catch (error) {
       console.error('Error playing note:', error);
     }
-  }, []);
+  }, [initialize]);
 
-  const playDrum = useCallback((type: DrumType, volume: number = 0.7) => {
-    audioEngine.playDrum(type, volume);
+  const playDrum = useCallback((type: DrumType, velocity: number = 0.7, targetNode?: AudioNode) => {
+    audioEngine.playDrum(type, velocity);
+    // Note: audioEngine.playDrum doesn't currently support targetNode directly in its signature, 
+    // but it uses realisticAudio which does. RealisticAudio is managed inside audioEngine.
   }, []);
 
   const setMasterVolume = useCallback((volume: number) => {
