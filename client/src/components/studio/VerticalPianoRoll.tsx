@@ -615,7 +615,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       };
 
       if (hasRegisteredTrackRef.current) {
-        updateTrack(pianoTrackIdRef.current, clip);
+        updateTrackInStore(pianoTrackIdRef.current, clip);
       } else {
         await addAndSaveTrack({
           id: pianoTrackIdRef.current,
@@ -632,7 +632,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     };
 
     syncTrack();
-  }, [tracks, bpm, currentKey, selectedProgression, selectedTrack, addAndSaveTrack, updateTrack, patternLengthSteps]);
+  }, [tracks, bpm, currentKey, selectedProgression, selectedTrack, addAndSaveTrack, updateTrackInStore, patternLengthSteps]);
 
   useEffect(() => {
     if (currentSession) {
@@ -1922,12 +1922,13 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       wavCacheRef.current = url;
 
       const existingPayload = registeredClips.find(c => c.id === pianoTrackIdRef.current)?.payload;
-      updateTrack(pianoTrackIdRef.current, {
+      updateTrackInStore(pianoTrackIdRef.current, {
         payload: createTrackPayload({
           ...existingPayload,
           notes: notePool,
-          bpm,
-          audioUrl: url,
+          waveformUrl: url,
+          type: 'audio',
+          source: 'piano-roll'
         })
       });
 
@@ -1939,12 +1940,12 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         }
       }));
 
-      toast({ title: "Sent to Master", description: "Piano roll bounced to audio and routed to Multi-Track." });
+      toast({ title: "Sent to Master", description: "Piano roll bounced to arrangement." });
     } catch (error) {
       console.error('Send to master failed', error);
       toast({ title: "Send failed", description: "Could not bounce piano roll.", variant: "destructive" });
     }
-  }, [tracks, bpm, toast, registeredClips, updateTrack, selectedTrack]);
+  }, [tracks, bpm, toast, registeredClips, updateTrackInStore, selectedTrack]);
 
   // DUPLICATE TRACK FUNCTION
   const duplicateTrack = useCallback(() => {
@@ -2144,9 +2145,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const link = document.createElement('a');
     link.href = url;
     link.download = `piano-roll-${Date.now()}.mid`;
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
     toast({ title: '🎹 MIDI Exported', description: `${allNotes.length} notes exported` });
