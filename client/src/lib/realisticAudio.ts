@@ -203,7 +203,8 @@ export class RealisticAudioEngine {
    * Prevents duplicate/concurrent fetch requests.
    */
   private async ensureInstrumentLoaded(instrumentName: string): Promise<any> {
-    const key = String(instrumentName || 'piano');
+    // Resolve alias to GM key
+    const key = (this.instrumentLibrary as any)[String(instrumentName || 'piano')] || String(instrumentName || 'piano');
 
     // 1. Check if already loaded
     if (this.instruments[key]) return this.instruments[key];
@@ -270,7 +271,8 @@ export class RealisticAudioEngine {
     }
 
     const requestedInstrument = String(instrument || 'piano');
-    let realInstrument = requestedInstrument;
+    // Map requested name to GM key if possible
+    let realInstrument = (this.instrumentLibrary as any)[requestedInstrument] || requestedInstrument;
 
     try {
       // Ensure instrument is loaded
@@ -474,8 +476,9 @@ export class RealisticAudioEngine {
 
   // Stop a specific note on a specific instrument
   noteOff(note: string, octave: number, instrument: string = 'piano') {
+    const realInstrument = (this.instrumentLibrary as any)[instrument] || instrument;
     const noteName = `${note}${octave}`;
-    const noteKey = `${instrument}:${noteName}`;
+    const noteKey = `${realInstrument}:${noteName}`;
     const nodes = this.activeNotes.get(noteKey);
 
     if (nodes && nodes.length > 0) {
