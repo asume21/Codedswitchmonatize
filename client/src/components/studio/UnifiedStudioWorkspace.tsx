@@ -2059,9 +2059,9 @@ export default function UnifiedStudioWorkspace() {
 
   // Desktop Layout - Full featured UI
   return (
-    <div className="h-full w-full flex flex-col bg-black astutely-app astutely-scanlines astutely-grid-bg astutely-scrollbar overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-black astutely-app astutely-scanlines astutely-grid-bg astutely-scrollbar overflow-visible">
       {/* Top Bar */}
-      <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header">
+      <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-4">
           <h1 className="text-xl font-black tracking-[0.3em] astutely-gradient-text uppercase">CodedSwitch</h1>
           <div className="flex space-x-0.5">
