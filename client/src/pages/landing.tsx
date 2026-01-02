@@ -187,14 +187,31 @@ export default function Landing() {
                   <p className="text-xl text-white/50 leading-relaxed">
                     {feature.description}
                   </p>
-                  <ul className="space-y-4">
-                    {['Professional Grade Output', 'Real-time Processing', 'Seamless Integration'].map((item, j) => (
-                      <li key={j} className="flex items-center gap-3 text-white/80">
-                        <CheckCircle2 className={`w-5 h-5 text-${feature.color}-400`} />
-                        <span className="font-bold tracking-tight">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {feature.title === "Astutely AI Brain" ? (
+                    <div className="space-y-6">
+                      <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                        <p className="text-purple-300 font-bold mb-2">Real-time Neural DAW Control</p>
+                        <p className="text-sm text-white/40">Command your studio with natural language. From tempo shifts to complex routing, Astutely executes your intent instantly.</p>
+                      </div>
+                      <ul className="space-y-4">
+                        {['Professional Grade Output', 'Real-time Processing', 'Seamless Integration'].map((item, j) => (
+                          <li key={j} className="flex items-center gap-3 text-white/80">
+                            <CheckCircle2 className="w-5 h-5 text-purple-400" />
+                            <span className="font-bold tracking-tight">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <ul className="space-y-4">
+                      {['Professional Grade Output', 'Real-time Processing', 'Seamless Integration'].map((item, j) => (
+                        <li key={j} className="flex items-center gap-3 text-white/80">
+                          <CheckCircle2 className={`w-5 h-5 text-${feature.color}-400`} />
+                          <span className="font-bold tracking-tight">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="flex-1 relative group">
                   <div className={`absolute -inset-1 bg-gradient-to-r from-${feature.color}-500 to-blue-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500`} />
