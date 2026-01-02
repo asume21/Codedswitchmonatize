@@ -921,14 +921,22 @@ export default function SongUploader() {
       // Store in context for Global Transport to play
       studioContext.setCurrentUploadedSong(song, audio);
       
+      // Start playback immediately
+      try {
+        await audio.play();
+        console.log('▶️ Playback started for:', song.name);
+      } catch (playError) {
+        console.warn('⚠️ Auto-play blocked, user interaction required:', playError);
+      }
+      
       // Also load into global audio player for persistent playback across navigation
       window.dispatchEvent(new CustomEvent('globalAudio:load', {
-        detail: { name: song.name, url: accessibleURL, type: 'song', autoplay: false }
+        detail: { name: song.name, url: accessibleURL, type: 'song', autoplay: true }
       }));
       
       toast({
-        title: "Song Loaded",
-        description: `${song.name} ready to play. Use Global Transport ▶️ to play.`,
+        title: "Song Playing",
+        description: `Now playing: ${song.name}`,
       });
       
     } catch (error) {
