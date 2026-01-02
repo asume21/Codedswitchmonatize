@@ -414,40 +414,52 @@ export default function AILoopGenerator({
               size="sm"
               variant="outline"
               className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-blue-500/20 hover:bg-blue-500/20 hover:border-blue-500/40 rounded-xl transition-all group/btn"
-              onClick={() => generateQuickContent('melody')}
+              onClick={(e) => {
+                e.stopPropagation();
+                generateQuickContent('melody');
+              }}
               disabled={isGenerating}
             >
-              {generatingType === 'melody' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Music className="w-5 h-5 text-blue-400 group-hover/btn:scale-110 transition-transform" />}
+              {generatingType === 'melody' ? <Loader2 className="w-5 h-5 animate-spin text-blue-400" /> : <Music className="w-5 h-5 text-blue-400 group-hover/btn:scale-110 transition-transform" />}
               <span className="text-[10px] font-black uppercase tracking-tighter">Melody</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
               className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-pink-500/20 hover:bg-pink-500/20 hover:border-pink-500/40 rounded-xl transition-all group/btn"
-              onClick={() => generateQuickContent('drums')}
+              onClick={(e) => {
+                e.stopPropagation();
+                generateQuickContent('drums');
+              }}
               disabled={isGenerating}
             >
-              {generatingType === 'drums' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Drum className="w-5 h-5 text-pink-400 group-hover/btn:scale-110 transition-transform" />}
+              {generatingType === 'drums' ? <Loader2 className="w-5 h-5 animate-spin text-pink-400" /> : <Drum className="w-5 h-5 text-pink-400 group-hover/btn:scale-110 transition-transform" />}
               <span className="text-[10px] font-black uppercase tracking-tighter">Drums</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
               className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-green-500/20 hover:bg-green-500/20 hover:border-green-500/40 rounded-xl transition-all group/btn"
-              onClick={() => generateQuickContent('bass')}
+              onClick={(e) => {
+                e.stopPropagation();
+                generateQuickContent('bass');
+              }}
               disabled={isGenerating}
             >
-              {generatingType === 'bass' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Guitar className="w-5 h-5 text-green-400 group-hover/btn:scale-110 transition-transform" />}
+              {generatingType === 'bass' ? <Loader2 className="w-5 h-5 animate-spin text-green-400" /> : <Guitar className="w-5 h-5 text-green-400 group-hover/btn:scale-110 transition-transform" />}
               <span className="text-[10px] font-black uppercase tracking-tighter">Bass</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
               className="flex flex-col items-center gap-2 h-auto py-3 bg-white/5 border-purple-500/20 hover:bg-purple-500/20 hover:border-purple-500/40 rounded-xl transition-all group/btn"
-              onClick={() => generateQuickContent('chords')}
+              onClick={(e) => {
+                e.stopPropagation();
+                generateQuickContent('chords');
+              }}
               disabled={isGenerating}
             >
-              {generatingType === 'chords' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Piano className="w-5 h-5 text-purple-400 group-hover/btn:scale-110 transition-transform" />}
+              {generatingType === 'chords' ? <Loader2 className="w-5 h-5 animate-spin text-purple-400" /> : <Piano className="w-5 h-5 text-purple-400 group-hover/btn:scale-110 transition-transform" />}
               <span className="text-[10px] font-black uppercase tracking-tighter">Chords</span>
             </Button>
           </div>
@@ -552,12 +564,15 @@ export default function AILoopGenerator({
         {/* Generate Full Loop Button */}
         <Button
           className="w-full h-14 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-blue-600 hover:from-purple-500 hover:via-fuchsia-500 hover:to-blue-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] border border-white/20"
-          onClick={generateFullLoop}
+          onClick={(e) => {
+            e.stopPropagation();
+            generateFullLoop();
+          }}
           disabled={isGenerating || (!includeDrums && !includeBass && !includeChords && !includeMelody)}
         >
           {isGenerating && generatingType === 'full' ? (
             <>
-              <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+              <Loader2 className="w-5 h-5 mr-3 animate-spin text-white" />
               Neural Rendering...
             </>
           ) : (
