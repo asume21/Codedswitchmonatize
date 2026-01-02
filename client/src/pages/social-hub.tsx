@@ -22,16 +22,16 @@ export default function SocialHub() {
       name: 'Twitter/X',
       description: 'Share your beats on Twitter',
       icon: <Twitter className="h-5 w-5" />,
-      enabled: true,
-      followers: 1250
+      enabled: false,
+      followers: 0
     },
     {
       id: 'instagram',
       name: 'Instagram',
       description: 'Post your music to Instagram',
       icon: <Instagram className="h-5 w-5" />,
-      enabled: true,
-      followers: 2840
+      enabled: false,
+      followers: 0
     },
     {
       id: 'youtube',
@@ -46,8 +46,8 @@ export default function SocialHub() {
       name: 'Facebook',
       description: 'Share with your network',
       icon: <Facebook className="h-5 w-5" />,
-      enabled: true,
-      followers: 980
+      enabled: false,
+      followers: 0
     }
   ]);
 
@@ -117,15 +117,15 @@ export default function SocialHub() {
           <div className="flex items-center justify-center space-x-4 mb-6">
             <Badge variant="secondary" className="bg-green-500/20 text-green-400">
               <Users className="h-3 w-3 mr-1" />
-              5,070 Followers
+              0 Followers
             </Badge>
             <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-400">
               <Trophy className="h-3 w-3 mr-1" />
-              Top Creator
+              New Creator
             </Badge>
             <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
               <Star className="h-3 w-3 mr-1" />
-              4.9 Rating
+              0.0 Rating
             </Badge>
           </div>
         </div>
@@ -229,19 +229,19 @@ export default function SocialHub() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">2,847</div>
+                <div className="text-2xl font-bold text-green-400">0</div>
                 <div className="text-sm text-gray-400">Total Shares</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-400">12,543</div>
+                <div className="text-2xl font-bold text-blue-400">0</div>
                 <div className="text-sm text-gray-400">Total Views</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-400">856</div>
+                <div className="text-2xl font-bold text-purple-400">0</div>
                 <div className="text-sm text-gray-400">New Followers</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">4.8</div>
+                <div className="text-2xl font-bold text-yellow-400">0.0</div>
                 <div className="text-sm text-gray-400">Avg Rating</div>
               </div>
             </div>
@@ -254,31 +254,26 @@ export default function SocialHub() {
             <CardTitle className="text-white">Recent Shares</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { type: 'Beat', title: 'Hip-Hop Beat #47', platform: 'Twitter', time: '2 hours ago', likes: 23 },
-                { type: 'Melody', title: 'Jazz Piano Melody', platform: 'Instagram', time: '5 hours ago', likes: 67 },
-                { type: 'Code→Music', title: 'React Code to Synth', platform: 'Twitter', time: '1 day ago', likes: 156 },
-                { type: 'Project', title: 'Complete EDM Track', platform: 'YouTube', time: '2 days ago', likes: 89 }
-              ].map((share, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-700/50 rounded">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                      {share.type[0]}
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">{share.title}</div>
-                      <div className="text-sm text-gray-400">
-                        {share.platform} • {share.time}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-green-400 font-medium">{share.likes} likes</div>
-                    <div className="text-sm text-gray-400">+{Math.floor(Math.random() * 50)} views</div>
-                  </div>
-                </div>
-              ))}
+            <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="w-16 h-16 bg-gray-700/30 rounded-full flex items-center justify-center">
+                <Share2 className="h-8 w-8 text-gray-500" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-white font-medium">No Shares Yet</h3>
+                <p className="text-gray-400 text-sm max-w-xs">
+                  Your recent activity will appear here once you start sharing your creations!
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  const element = document.getElementById('quick-share');
+                  element?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              >
+                Make Your First Share
+              </Button>
             </div>
           </CardContent>
         </Card>
