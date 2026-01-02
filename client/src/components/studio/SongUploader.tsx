@@ -23,6 +23,7 @@ import type { ToolRecommendation } from "@/components/studio/effects";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
 import { useTracks } from "@/hooks/useTracks";
 import { Textarea } from "@/components/ui/textarea";
+import { professionalAudio } from "@/lib/professionalAudio";
 
 interface UploadContext {
   name?: string;
@@ -911,6 +912,18 @@ export default function SongUploader() {
       // Set source and load
       audio.src = accessibleURL;
       audio.preload = "metadata";
+      
+      // Initialize/Resume professional audio context
+      await professionalAudio.initialize();
+      const audioCtx = professionalAudio.getAudioContext();
+      const masterBus = professionalAudio.getMasterBus();
+      
+      if (audioCtx && masterBus) {
+        // Create source and connect to professional audio graph
+        const source = audioCtx.createMediaElementSource(audio);
+        source.connect(masterBus);
+        console.log('🎛️ Routed uploaded song through professional master bus');
+      }
       
       // Initialize Tone.js if needed (requires user interaction)
       if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {

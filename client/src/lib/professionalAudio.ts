@@ -445,6 +445,14 @@ export class ProfessionalAudioEngine {
     console.log('🎛️ Spectrum analyzer initialized');
   }
   
+  getMasterBus(): GainNode | null {
+    return this.masterBus;
+  }
+
+  getAudioContext(): AudioContext | null {
+    return this.audioContext;
+  }
+
   // Public API Methods
   
   createMixerChannel(id: string, name: string): MixerChannel {
