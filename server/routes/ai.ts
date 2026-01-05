@@ -61,6 +61,37 @@ export function createAIRoutes() {
   });
 
   // ============================================
+  // CHAT ENDPOINT - Generic AI chat
+  // ============================================
+  router.post("/chat", async (req: Request, res: Response) => {
+    try {
+      const { messages = [], prompt } = req.body || {};
+
+      const aiClient = getAIClient();
+      if (!aiClient) {
+        return res.status(503).json({ error: "No AI provider configured" });
+      }
+
+      const chatMessages =
+        Array.isArray(messages) && messages.length > 0
+          ? messages
+          : [{ role: "user", content: prompt || "Hello" }];
+
+      const completion = await aiClient.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: chatMessages,
+        temperature: 0.7,
+      });
+
+      const content = completion.choices?.[0]?.message?.content || "";
+      return res.json({ response: content });
+    } catch (error) {
+      console.error("AI chat error:", error);
+      res.status(500).json({ error: "AI chat failed" });
+    }
+  });
+
+  // ============================================
   // AI CHORD GENERATION ENDPOINT
   // Secure server-side OpenAI integration
   // ============================================

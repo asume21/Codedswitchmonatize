@@ -873,9 +873,17 @@ Keep responses concise but helpful. Reference their current project when relevan
             </div>
 
             {/* Chat Interface */}
-            <div className="flex-1 overflow-hidden flex flex-col bg-black/40">
+            <div className="flex-none overflow-hidden flex flex-col bg-black/40" style={{ maxHeight: 240 }}>
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-cyan-500/20">
+              <div
+                className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-cyan-500/20 border-b border-cyan-500/10"
+                style={{ minHeight: 140, maxHeight: 200 }}
+              >
+                {messages.length === 0 && (
+                  <div className="text-xs text-cyan-300/60 bg-white/5 border border-cyan-500/20 rounded-lg p-3">
+                    Astutely is ready. Ask a question or type a command.
+                  </div>
+                )}
                 {messages.map((msg, idx) => (
                   <div
                     key={idx}
