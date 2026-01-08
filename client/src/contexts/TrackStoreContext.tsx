@@ -151,11 +151,12 @@ export function TrackStoreProvider({ children }: { children: ReactNode }) {
   const saveTrackToServer = useCallback(async (track: TrackClip): Promise<string | null> => {
     try {
       const payload = track.payload || {};
-      const response = await apiRequest('POST', '/api/tracks', {
+      const trackType = payload.type || (track.kind === 'audio' ? 'audio' : track.kind === 'beat' ? 'beat' : 'midi');
+      
+      const requestBody: any = {
         projectId: state.currentProjectId,
         name: track.name,
-        type: payload.type || (track.kind === 'audio' ? 'audio' : track.kind === 'beat' ? 'beat' : 'midi'),
-        audioUrl: payload.audioUrl || '',
+        type: trackType,
         position: (track.startBar || 0) * 1000,
         duration: (track.lengthBars || 4) * 1000,
         volume: Math.round((payload.volume || 0.8) * 100),
@@ -168,7 +169,14 @@ export function TrackStoreProvider({ children }: { children: ReactNode }) {
           bpm: payload.bpm,
           source: payload.source,
         },
-      });
+      };
+      
+      // Only include audioUrl if it exists (for audio/vocal tracks)
+      if (payload.audioUrl) {
+        requestBody.audioUrl = payload.audioUrl;
+      }
+      
+      const response = await apiRequest('POST', '/api/tracks', requestBody);
       
       const data = await response.json();
       if (data.success && data.track) {

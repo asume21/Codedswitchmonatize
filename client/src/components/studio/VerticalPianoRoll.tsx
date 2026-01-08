@@ -320,7 +320,10 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const isSyncingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingNotesRef = useRef<Note[]>([]);
-  const selectedTrack = (tracks[selectedTrackIndex] || tracks[0] || internalTracks[0]) as Track;
+  const selectedTrack = useMemo(() => 
+    (tracks[selectedTrackIndex] || tracks[0] || internalTracks[0]) as Track,
+    [tracks, selectedTrackIndex, internalTracks]
+  );
   const pianoTrackIdRef = useRef<string>(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `piano-${Date.now()}`);
   const hasRegisteredTrackRef = useRef(false);
   const wavCacheRef = useRef<string | null>(null);

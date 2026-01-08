@@ -4418,8 +4418,13 @@ Return this exact JSON format:
     try {
       const { projectId, name, type, audioUrl, position, duration, volume, pan, color, effects, metadata } = req.body;
       
-      if (!name || !type || !audioUrl) {
-        return sendError(res, 400, "name, type, and audioUrl are required");
+      if (!name || !type) {
+        return sendError(res, 400, "name and type are required");
+      }
+      
+      // audioUrl is only required for audio/vocal/recording tracks
+      if ((type === 'audio' || type === 'vocal' || type === 'recording') && !audioUrl) {
+        return sendError(res, 400, "audioUrl is required for audio tracks");
       }
 
       const track = await storage.createTrack(req.userId!, projectId || null, {
