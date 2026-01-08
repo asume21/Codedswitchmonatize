@@ -1,9 +1,9 @@
+/* Import Astutely Theme - must be first */
+@import './styles/astutely-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import Astutely Theme */
-@import './styles/astutely-theme.css';
 
 /* Screen reader only utility */
 .sr-only {
@@ -1080,6 +1080,7 @@ input:focus, select:focus, textarea:focus {
 .truncate-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1087,6 +1088,7 @@ input:focus, select:focus, textarea:focus {
 .truncate-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

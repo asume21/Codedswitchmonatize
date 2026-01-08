@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, forwardRef, CSSProperties, useState } from 'react';
+import React, { useCallback, useMemo, forwardRef, CSSProperties, useState, useRef, memo } from 'react';
 import { Note, Track, PianoKey } from './types/pianoRollTypes';
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,7 @@ interface StepGridProps {
   onNotesChange?: (notes: Note[]) => void;
 }
 
-export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
+const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
   steps,
   pianoKeys = [],
   selectedTrack,
@@ -93,31 +93,38 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
     } else {
       onStepClick(keyIndex, step);
     }
-  }, [selectedTrack?.notes, pianoKeys, onStepClick, onChordAdd, onNoteRemove, chordMode]);
+  }, [selectedTrack, pianoKeys, onStepClick, onChordAdd, onNoteRemove, chordMode]);
 
   const renderStepHeaders = useMemo(() => {
-    return Array.from({ length: steps }, (_, step) => (
-      <div
-        key={`header-${step}`}
-        className={`flex items-center justify-center text-xs font-mono border-r border-gray-600 cursor-pointer
-          ${currentStep === step ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-600'}
-          ${step % 4 === 0 && currentStep !== step ? 'bg-gray-700' : ''}
-        `}
-        style={{
-          width: `${stepWidth * zoom}px`,
-          minWidth: `${stepWidth * zoom}px`,
-          maxWidth: `${stepWidth * zoom}px`,
-          height: '30px',
-          boxSizing: 'border-box',
-          padding: 0,
-          margin: 0
-        }}
-        onClick={() => onPlayheadClick?.(step)}
-        title={`Click to move playhead to step ${step + 1}`}
-      >
-        {step + 1}
-      </div>
-    ));
+    const headers = [];
+    for (let step = 0; step < steps; step++) {
+      const isCurrentStep = currentStep === step;
+      const isMeasureStart = step % 4 === 0;
+      headers.push(
+        <div
+          key={step}
+          className={cn(
+            "flex items-center justify-center text-xs font-mono border-r border-gray-600 cursor-pointer",
+            isCurrentStep ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-600',
+            isMeasureStart && !isCurrentStep && 'bg-gray-700'
+          )}
+          style={{
+            width: `${stepWidth * zoom}px`,
+            minWidth: `${stepWidth * zoom}px`,
+            maxWidth: `${stepWidth * zoom}px`,
+            height: '30px',
+            boxSizing: 'border-box',
+            padding: 0,
+            margin: 0
+          }}
+          onClick={() => onPlayheadClick?.(step)}
+          title={`Click to move playhead to step ${step + 1}`}
+        >
+          {step + 1}
+        </div>
+      );
+    }
+    return headers;
   }, [steps, currentStep, stepWidth, zoom, onPlayheadClick]);
 
   const gridBackdropStyle = {
@@ -140,6 +147,22 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
     borderBottom: 'none',
     position: 'relative' as const,
   }), [keyHeight]);
+
+  // Simple rAF throttle helper to prevent excessive state churn during drags
+  const useRafThrottle = () => {
+    const ticking = useRef(false);
+    return (fn: () => void) => {
+      if (ticking.current) return;
+      ticking.current = true;
+      requestAnimationFrame(() => {
+        fn();
+        ticking.current = false;
+      });
+    };
+  };
+
+  const throttleMove = useRafThrottle();
+  const throttleResize = useRafThrottle();
 
   return (
     <div 
@@ -208,35 +231,36 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                 />
               ))}
               
-              {/* Ghost Notes from other tracks */}
+              {/* Ghost Notes from other tracks - memoized */}
               {showGhostNotes && tracks && tracks.map((track, trackIdx) => {
                 if (trackIdx === selectedTrackIndex || !track?.notes) return null;
-                return track.notes
-                  .filter(note => note?.note === key.note && note?.octave === key.octave)
-                  .map((note, noteIdx) => (
-                    <div
-                      key={`ghost-${track.id ?? trackIdx}-${note.id ?? 'noid'}-${note.step ?? 0}-${note.length ?? 1}-${noteIdx}`}
-                      className="absolute rounded-sm opacity-20 pointer-events-none border border-white/10"
-                      style={{
-                        left: `${(note.step || 0) * stepWidth * zoom}px`,
-                        width: `${(note.length || 1) * stepWidth * zoom - 2}px`,
-                        height: `${keyHeight - 6}px`,
-                        top: '3px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        zIndex: 2
-                      }}
-                    />
-                  ));
+                const ghostNotes = track.notes.filter(note => note?.note === key.note && note?.octave === key.octave);
+                if (ghostNotes.length === 0) return null;
+                
+                return ghostNotes.map((note) => (
+                  <div
+                    key={`ghost-${track.id}-${note.id}`}
+                    className="absolute rounded-sm opacity-20 pointer-events-none border border-white/10"
+                    style={{
+                      left: `${(note.step || 0) * stepWidth * zoom}px`,
+                      width: `${(note.length || 1) * stepWidth * zoom - 2}px`,
+                      height: `${keyHeight - 6}px`,
+                      top: '3px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      zIndex: 2
+                    }}
+                  />
+                ));
               })}
 
-              {/* Render notes as overlays */}
+              {/* Render notes as overlays - optimized */}
               {selectedTrack?.notes && selectedTrack.notes
                 .filter(note => note?.note === key.note && note?.octave === key.octave)
-                .map((note, noteIdx) => {
+                .map((note) => {
                   const isSelected = selectedNoteIds?.has(note.id);
                   return (
                   <div
-                    key={`${note.id ?? 'noid'}-${note.step}-${note.length ?? 1}-${key.key}-${noteIdx}`}
+                    key={note.id}
                     className={cn(
                       "absolute group rounded-sm border cursor-grab active:cursor-grabbing transition-all",
                       isSelected 
@@ -281,7 +305,9 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
                           hasMoved = true;
                           const newStep = Math.max(0, Math.min(steps - 1, startStep + deltaSteps));
                           const newKeyIndex = Math.max(0, Math.min(pianoKeys.length - 1, startKeyIndex + deltaKeys));
-                          if (!isAltDrag) onNoteMove?.(note.id, newStep, newKeyIndex);
+                          if (!isAltDrag) {
+                            throttleMove(() => onNoteMove?.(note.id, newStep, newKeyIndex));
+                          }
                         }
                       };
                       
@@ -342,5 +368,24 @@ export const StepGrid = forwardRef<HTMLDivElement, StepGridProps>(({
         </div>
       </div>
     </div>
+  );
+});
+
+// Memoize the component with custom comparison to prevent unnecessary re-renders
+export const StepGrid = memo(StepGridComponent, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.steps === nextProps.steps &&
+    prevProps.currentStep === nextProps.currentStep &&
+    prevProps.stepWidth === nextProps.stepWidth &&
+    prevProps.keyHeight === nextProps.keyHeight &&
+    prevProps.zoom === nextProps.zoom &&
+    prevProps.chordMode === nextProps.chordMode &&
+    prevProps.selectedTrackIndex === nextProps.selectedTrackIndex &&
+    prevProps.showGhostNotes === nextProps.showGhostNotes &&
+    prevProps.isSelecting === nextProps.isSelecting &&
+    prevProps.selectedTrack?.notes === nextProps.selectedTrack?.notes &&
+    prevProps.selectedNoteIds === nextProps.selectedNoteIds &&
+    prevProps.pianoKeys === nextProps.pianoKeys
   );
 });

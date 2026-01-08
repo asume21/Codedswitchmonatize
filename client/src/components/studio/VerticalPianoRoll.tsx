@@ -1169,20 +1169,31 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex
-        ? { ...track, notes: track.notes.map(note => 
-            note.id === noteId ? { ...note, length: newLength } : note
-          ) }
-        : track
-    ));
+    setTracks(prev => {
+      const newTracks = [...prev];
+      const track = newTracks[selectedTrackIndex];
+      if (!track) return prev;
+      
+      newTracks[selectedTrackIndex] = {
+        ...track,
+        notes: track.notes.map(note => 
+          note.id === noteId ? { ...note, length: newLength } : note
+        )
+      };
+      return newTracks;
+    });
   }, [selectedTrackIndex]);
 
   const clearAll = useCallback(() => {
     console.log('🗑️ Clear button clicked, clearing track:', selectedTrackIndex);
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex ? { ...track, notes: [] } : track
-    ));
+    setTracks(prev => {
+      const newTracks = [...prev];
+      const track = newTracks[selectedTrackIndex];
+      if (!track) return prev;
+      
+      newTracks[selectedTrackIndex] = { ...track, notes: [] };
+      return newTracks;
+    });
     toast({
       title: "Notes Cleared",
       description: `Cleared all notes from track ${selectedTrackIndex + 1}`,
@@ -1194,28 +1205,36 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const newKey = PIANO_KEYS[newKeyIndex];
     if (!newKey) return;
     
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex
-        ? { 
-            ...track, 
-            notes: track.notes.map(note => 
-              note.id === noteId 
-                ? { ...note, step: newStep, note: newKey.note, octave: newKey.octave }
-                : note
-            ) 
-          }
-        : track
-    ));
+    setTracks(prev => {
+      const newTracks = [...prev];
+      const track = newTracks[selectedTrackIndex];
+      if (!track) return prev;
+      
+      newTracks[selectedTrackIndex] = {
+        ...track,
+        notes: track.notes.map(note => 
+          note.id === noteId 
+            ? { ...note, step: newStep, note: newKey.note, octave: newKey.octave }
+            : note
+        )
+      };
+      return newTracks;
+    });
   }, [selectedTrackIndex]);
 
   // Remove a note from the grid
   const removeNote = useCallback((noteId: string) => {
-    const updatedNotes = selectedTrack.notes.filter((n: Note) => n.id !== noteId);
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
-    ));
-    addToHistory(updatedNotes);
-  }, [selectedTrack, selectedTrackIndex, addToHistory]);
+    setTracks(prev => {
+      const newTracks = [...prev];
+      const track = newTracks[selectedTrackIndex];
+      if (!track) return prev;
+      
+      const updatedNotes = track.notes.filter((n: Note) => n.id !== noteId);
+      newTracks[selectedTrackIndex] = { ...track, notes: updatedNotes };
+      addToHistory(updatedNotes);
+      return newTracks;
+    });
+  }, [selectedTrackIndex, addToHistory]);
 
   // Add a note to the grid (used by PianoKeys and StepGrid)
   const addNote = useCallback((keyIndex: number, step?: number) => {
@@ -1224,49 +1243,52 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     
     const targetStep = step ?? currentStep;
     
-    // Check if note already exists at this position
-    const existingNote = selectedTrack.notes.find(
-      (n: Note) => n.note === pianoKey.note && n.octave === pianoKey.octave && n.step === targetStep
-    );
-    
-    if (existingNote) {
-      // If note exists, remove it (toggle behavior)
-      const updatedNotes = selectedTrack.notes.filter((n: Note) => n.id !== existingNote.id);
-      setTracks(prev => prev.map((track, index) =>
-        index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
-      ));
+    setTracks(prev => {
+      const newTracks = [...prev];
+      const track = newTracks[selectedTrackIndex];
+      if (!track) return prev;
+      
+      // Check if note already exists at this position
+      const existingNote = track.notes.find(
+        (n: Note) => n.note === pianoKey.note && n.octave === pianoKey.octave && n.step === targetStep
+      );
+      
+      if (existingNote) {
+        // If note exists, remove it (toggle behavior)
+        const updatedNotes = track.notes.filter((n: Note) => n.id !== existingNote.id);
+        newTracks[selectedTrackIndex] = { ...track, notes: updatedNotes };
+        addToHistory(updatedNotes);
+        return newTracks;
+      }
+      
+      // Create new note
+      const newNote: Note = {
+        id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        note: pianoKey.note,
+        octave: pianoKey.octave,
+        step: targetStep,
+        velocity: 100,
+        length: 1
+      };
+      
+      // Play the note for audio feedback
+      const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
+      realisticAudio.playNote(
+        pianoKey.note,
+        pianoKey.octave,
+        0.8,
+        track.instrument,
+        track.volume / 100,
+        true,
+        mixerChannel?.input
+      );
+      
+      const updatedNotes = [...track.notes, newNote];
+      newTracks[selectedTrackIndex] = { ...track, notes: updatedNotes };
       addToHistory(updatedNotes);
-      return;
-    }
-    
-    // Create new note
-    const newNote: Note = {
-      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      note: pianoKey.note,
-      octave: pianoKey.octave,
-      step: targetStep,
-      velocity: 100,
-      length: 1
-    };
-    
-    // Play the note for audio feedback
-    const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack.id);
-    realisticAudio.playNote(
-      pianoKey.note,
-      pianoKey.octave,
-      0.8,
-      selectedTrack.instrument,
-      selectedTrack.volume / 100,
-      true,
-      mixerChannel?.input
-    );
-    
-    const updatedNotes = [...selectedTrack.notes, newNote];
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
-    ));
-    addToHistory(updatedNotes);
-  }, [currentStep, selectedTrack, selectedTrackIndex, addToHistory]);
+      return newTracks;
+    });
+  }, [currentStep, selectedTrackIndex, addToHistory]);
 
   // Copy a note to a new position (Alt+drag)
   const copyNote = useCallback((noteId: string, newStep: number, newKeyIndex: number) => {
@@ -1296,18 +1318,21 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
   // Resize multiple notes at once
   const resizeMultipleNotes = useCallback((noteIds: string[], deltaLength: number) => {
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex
-        ? { 
-            ...track, 
-            notes: track.notes.map(note => 
-              noteIds.includes(note.id)
-                ? { ...note, length: Math.max(1, (note.length || 1) + deltaLength) }
-                : note
-            ) 
-          }
-        : track
-    ));
+    setTracks(prev => {
+      const newTracks = [...prev];
+      const track = newTracks[selectedTrackIndex];
+      if (!track) return prev;
+      
+      newTracks[selectedTrackIndex] = {
+        ...track,
+        notes: track.notes.map(note => 
+          noteIds.includes(note.id)
+            ? { ...note, length: Math.max(1, (note.length || 1) + deltaLength) }
+            : note
+        )
+      };
+      return newTracks;
+    });
   }, [selectedTrackIndex]);
 
   // Select/deselect a note
@@ -1544,13 +1569,20 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
   // Update note velocity
   const updateNoteVelocity = useCallback((noteId: string, velocity: number) => {
-    const updatedNotes = selectedTrack.notes.map((n: Note) => 
-      n.id === noteId ? { ...n, velocity: Math.max(1, Math.min(127, velocity)) } : n
-    );
-    setTracks(prev => prev.map((track, index) =>
-      index === selectedTrackIndex ? { ...track, notes: updatedNotes } : track
-    ));
-  }, [selectedTrack, selectedTrackIndex]);
+    setTracks(prev => {
+      const newTracks = [...prev];
+      const track = newTracks[selectedTrackIndex];
+      if (!track) return prev;
+      
+      newTracks[selectedTrackIndex] = {
+        ...track,
+        notes: track.notes.map((n: Note) => 
+          n.id === noteId ? { ...n, velocity: Math.max(1, Math.min(127, velocity)) } : n
+        )
+      };
+      return newTracks;
+    });
+  }, [selectedTrackIndex]);
 
   // ARPEGGIO FUNCTION
   const applyArpeggio = useCallback(() => {

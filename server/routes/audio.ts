@@ -1,8 +1,10 @@
 import { Router, Request, Response } from "express";
+import path from "path";
 import { requireAuth } from "../middleware/auth";
 import { unifiedMusicService } from "../services/unifiedMusicService";
 import { patternGenerator } from "../services/patternGenerator";
 import { generateBassLine } from "../services/bassGenerator";
+import { renderBassToWav } from "../services/bassRenderer";
 import { callAI } from "../services/aiGateway";
 import { requireCredits } from "../middleware/requireCredits";
 import { CREDIT_COSTS } from "../services/credits";
@@ -14,11 +16,53 @@ const sendError = (res: Response, statusCode: number, message: string) => {
   res.status(statusCode).json({ success: false, message });
 };
 
+const nameFromPrompt = (prompt: string, fallback: string) => {
+  const trimmed = (prompt || "").trim();
+  if (!trimmed) return fallback;
+  // Use first 40 chars of prompt, stripped of newlines, as a friendly name
+  return trimmed.replace(/\s+/g, " ").slice(0, 40) || fallback;
+};
+
 export function createAudioRoutes() {
+  const trackFromResult = async ({
+    userId,
+    projectId,
+    name,
+    type,
+    result,
+  }: {
+    userId: string;
+    projectId?: string | null;
+    name: string;
+    type: string;
+    result: any;
+  }) => {
+    const audioUrl = result?.audioUrl || result?.audio_url || result?.song || result?.output;
+    if (!audioUrl) {
+      throw new Error("Missing audio URL from generator result");
+    }
+
+    const durationMs = (result?.metadata?.duration ?? result?.duration ?? 0) * 1000 || null;
+
+    return storage.createTrack(userId, projectId ?? null, {
+      name,
+      type,
+      audioUrl,
+      position: 0,
+      duration: durationMs,
+      volume: 100,
+      pan: 0,
+      muted: false,
+      solo: false,
+      effects: null,
+      metadata: result?.metadata ?? null,
+    });
+  };
+
   // Professional song generation endpoint (Suno via Replicate)
-  router.post("/songs/generate-professional", async (req: Request, res: Response) => {
+  router.post("/songs/generate-professional", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { prompt, genre, mood, duration, style, vocals, bpm, key } = req.body;
+      const { prompt, genre, mood, duration, style, vocals, bpm, key, projectId } = req.body;
       
       if (!prompt) {
         return sendError(res, 400, "Missing prompt");
@@ -36,11 +80,21 @@ export function createAudioRoutes() {
         key: key || 'C Major'
       });
 
+      const track = await trackFromResult({
+        userId: req.userId!,
+        projectId,
+        name: nameFromPrompt(prompt, "Professional Song"),
+        type: "generated",
+        result: song,
+      });
+
       console.log('✅ Professional song generated');
       res.json({
         success: true,
         status: 'success',
-        song: song
+        song: song,
+        trackId: track.id,
+        track,
       });
 
     } catch (error) {
@@ -50,9 +104,9 @@ export function createAudioRoutes() {
   });
 
   // Generate beat and melody (MusicGen via Replicate)
-  router.post("/songs/generate-beat", async (req: Request, res: Response) => {
+  router.post("/songs/generate-beat", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { prompt, genre, duration, style, energy } = req.body;
+      const { prompt, genre, duration, style, energy, projectId } = req.body;
       
       if (!prompt) {
         return sendError(res, 400, "Missing prompt");
@@ -68,10 +122,20 @@ export function createAudioRoutes() {
         energy: energy || 'medium'
       });
 
+      const track = await trackFromResult({
+        userId: req.userId!,
+        projectId,
+        name: nameFromPrompt(prompt, "Beat"),
+        type: "beat",
+        result,
+      });
+
       console.log('✅ Beat and melody generated');
       res.json({
         status: 'success',
-        result: result
+        result: result,
+        trackId: track.id,
+        track,
       });
 
     } catch (error) {
@@ -81,9 +145,9 @@ export function createAudioRoutes() {
   });
 
   // Generate instrumental (MusicGen via Replicate)
-  router.post("/songs/generate-instrumental", async (req: Request, res: Response) => {
+  router.post("/songs/generate-instrumental", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { prompt, genre, duration, instruments, energy } = req.body;
+      const { prompt, genre, duration, instruments, energy, projectId } = req.body;
       
       if (!prompt) {
         return sendError(res, 400, "Missing prompt");
@@ -99,10 +163,20 @@ export function createAudioRoutes() {
         energy: energy || 'medium'
       });
 
+      const track = await trackFromResult({
+        userId: req.userId!,
+        projectId,
+        name: nameFromPrompt(prompt, "Instrumental"),
+        type: "instrumental",
+        result,
+      });
+
       console.log('✅ Instrumental generated');
       res.json({
         status: 'success',
-        result: result
+        result: result,
+        trackId: track.id,
+        track,
       });
 
     } catch (error) {
@@ -112,9 +186,9 @@ export function createAudioRoutes() {
   });
 
   // Genre blending (MusicGen via Replicate)
-  router.post("/songs/blend-genres", async (req: Request, res: Response) => {
+  router.post("/songs/blend-genres", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { primaryGenre, secondaryGenres, prompt } = req.body;
+      const { primaryGenre, secondaryGenres, prompt, projectId } = req.body;
       
       if (!primaryGenre || !secondaryGenres || !prompt) {
         return sendError(res, 400, "Missing required parameters");
@@ -124,10 +198,20 @@ export function createAudioRoutes() {
       
       const result = await unifiedMusicService.blendGenres(primaryGenre, secondaryGenres, prompt);
 
+      const track = await trackFromResult({
+        userId: req.userId!,
+        projectId,
+        name: nameFromPrompt(prompt, "Genre Blend"),
+        type: "instrumental",
+        result,
+      });
+
       console.log('✅ Genres blended');
       res.json({
         status: 'success',
-        result: result
+        result: result,
+        trackId: track.id,
+        track,
       });
 
     } catch (error) {
@@ -166,9 +250,9 @@ export function createAudioRoutes() {
   });
 
   // Generate drum pattern (MusicGen via Replicate)
-  router.post("/songs/generate-drums", async (req: Request, res: Response) => {
+  router.post("/songs/generate-drums", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { prompt, genre, bpm, duration } = req.body;
+      const { prompt, genre, bpm, duration, projectId } = req.body;
       
       if (!prompt) {
         return sendError(res, 400, "Missing prompt");
@@ -183,10 +267,20 @@ export function createAudioRoutes() {
         duration: duration || 30
       });
 
+      const track = await trackFromResult({
+        userId: req.userId!,
+        projectId,
+        name: nameFromPrompt(prompt, "Drums"),
+        type: "drum_pattern",
+        result,
+      });
+
       console.log('✅ Drum pattern generated');
       res.json({
         status: 'success',
-        result: result
+        result: result,
+        trackId: track.id,
+        track,
       });
 
     } catch (error) {
@@ -196,9 +290,9 @@ export function createAudioRoutes() {
   });
 
   // Generate melody (MusicGen via Replicate)
-  router.post("/songs/generate-melody", async (req: Request, res: Response) => {
+  router.post("/songs/generate-melody", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { prompt, genre, key, duration, instrument } = req.body;
+      const { prompt, genre, key, duration, instrument, projectId } = req.body;
       
       if (!prompt) {
         return sendError(res, 400, "Missing prompt");
@@ -214,10 +308,20 @@ export function createAudioRoutes() {
         instrument: instrument || 'piano'
       });
 
+      const track = await trackFromResult({
+        userId: req.userId!,
+        projectId,
+        name: nameFromPrompt(prompt, "Melody"),
+        type: "melody",
+        result,
+      });
+
       console.log('✅ Melody generated');
       res.json({
         status: 'success',
-        result: result
+        result: result,
+        trackId: track.id,
+        track,
       });
 
     } catch (error) {
@@ -396,7 +500,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Generate bass line
-  router.post("/music/generate-bass", async (req: Request, res: Response) => {
+  router.post("/music/generate-bass", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { 
         chordProgression, 
@@ -406,7 +510,9 @@ Create complete lyrics with verses, chorus, and bridge.`;
         groove = 0.5,
         noteLength = 0.75,
         velocity = 0.7,
-        glide = 0
+        glide = 0,
+        projectId,
+        name = "Bass Render"
       } = req.body;
       
       console.log('🎸 Generating bass line with params:', { style, pattern, octave, groove, noteLength, velocity, glide });
@@ -443,11 +549,53 @@ Create complete lyrics with verses, chorus, and bridge.`;
       );
 
       console.log('✅ Bass line generated');
+
+      // Render to WAV server-side and create Track
+      const uploadsDir = path.join(process.cwd(), "server", "uploads");
+      const renderResult = await renderBassToWav(
+        bassNotes.map((n) => ({
+          note: n.note,
+          octave: n.octave,
+          start: n.start,
+          duration: n.duration,
+          velocity: Math.round((n.velocity ?? 0.7) * 127),
+        })),
+        uploadsDir
+      );
+
+      const audioUrl = `/uploads/${renderResult.fileName}`;
+
+      const track = await storage.createTrack(req.userId!, projectId ?? null, {
+        name,
+        type: "bass-render",
+        audioUrl,
+        position: 0,
+        duration: Math.round(renderResult.duration * 1000),
+        volume: 100,
+        pan: 0,
+        muted: false,
+        solo: false,
+        effects: null,
+        metadata: {
+          notes: bassNotes,
+          pattern,
+          style,
+          octave,
+          groove,
+          noteLength,
+          velocity,
+          glide,
+        },
+      });
+
       res.json({
         status: 'success',
         notes: bassNotes,
-        pattern: 'root-fifth',
-        style: style || 'fingerstyle'
+        pattern: pattern || 'root-fifth',
+        style: style || 'fingerstyle',
+        audioUrl,
+        trackId: track.id,
+        track,
       });
 
     } catch (error: any) {

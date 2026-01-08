@@ -786,8 +786,12 @@ export default function SongUploader() {
         studioContext.uploadedSongAudio.src = '';
       }
 
+      // Create fresh audio element and store it immediately so Transport can see it
       const audio = new Audio();
       audio.crossOrigin = "anonymous";
+      audio.autoplay = false;
+      audio.muted = false;
+      audio.volume = 1;
       
       audio.addEventListener('loadedmetadata', () => {
         console.log(`✅ Song loaded: ${song.name}, duration: ${audio.duration}s`);
@@ -911,7 +915,7 @@ export default function SongUploader() {
 
       // Set source and load
       audio.src = accessibleURL;
-      audio.preload = "metadata";
+      audio.preload = "auto";
       
       // Initialize/Resume professional audio context
       await professionalAudio.initialize();
@@ -933,9 +937,20 @@ export default function SongUploader() {
       
       // Store in context for Global Transport to play
       studioContext.setCurrentUploadedSong(song, audio);
+      // Broadcast to Astutely/global listeners so any view can route playback
+      window.dispatchEvent(new CustomEvent('astutely:load', {
+        detail: {
+          song,
+          audio,
+          url: accessibleURL,
+          name: song.name,
+          source: 'song-uploader'
+        }
+      }));
       
       // Start playback immediately
       try {
+        // Ensure the element is ready
         await audio.play();
         console.log('▶️ Playback started for:', song.name);
       } catch (playError) {

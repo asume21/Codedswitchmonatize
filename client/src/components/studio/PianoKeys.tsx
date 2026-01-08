@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, forwardRef, CSSProperties } from 'react';
+import React, { useCallback, useRef, forwardRef, CSSProperties, memo, useMemo } from 'react';
 import { PianoKey, Note, Track, STEPS } from './types/pianoRollTypes';
 import { useAudio } from '@/hooks/use-audio';
 
@@ -19,7 +19,7 @@ interface PianoKeysProps {
   arpEnabled?: boolean;
 }
 
-export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
+const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
   pianoKeys = [],
   selectedTrack,
   onKeyClick,
@@ -88,6 +88,84 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
     }
   }, [chordMode, playNote, selectedTrack?.instrument]);
 
+  // Memoize rendered keys to prevent re-rendering all keys on every update
+  const renderedKeys = useMemo(() => {
+    return pianoKeys.map((key, index) => {
+      const yPosition = index * keyHeight;
+      const isActive = activeKeys.has(index);
+      const whiteKeyStyle: CSSProperties = {
+        position: 'absolute' as const,
+        top: `${yPosition}px`,
+        left: 0,
+        right: 0,
+        height: `${keyHeight}px`,
+        boxSizing: 'border-box',
+        borderBottom: '1px solid rgba(6, 182, 212, 0.1)',
+        backgroundColor: isActive ? 'rgba(6, 182, 212, 0.3)' : 'rgba(255, 255, 255, 0.02)',
+        color: isActive ? '#fff' : 'rgba(6, 182, 212, 0.4)',
+        zIndex: 1,
+        transition: 'all 0.1s ease',
+      };
+
+      const blackKeyStyle: CSSProperties = {
+        position: 'absolute' as const,
+        top: `${yPosition}px`,
+        left: 0,
+        height: `${keyHeight}px`,
+        width: '65%',
+        boxSizing: 'border-box',
+        backgroundColor: isActive ? '#06b6d4' : '#000',
+        border: '1px solid rgba(6, 182, 212, 0.3)',
+        boxShadow: isActive ? '0 0 15px #06b6d4' : 'none',
+        zIndex: 10,
+        transition: 'all 0.1s ease',
+      };
+
+      return (
+        <button
+          key={key.key}
+          className="w-full text-xs font-semibold relative select-none"
+          style={key.isBlack ? blackKeyStyle : whiteKeyStyle}
+          onClick={() => !arpEnabled && handleKeyClick(index)}
+          onMouseDown={() => arpEnabled && handleKeyDown(index)}
+          onMouseUp={() => arpEnabled && handleKeyUp(index)}
+          onMouseLeave={() => arpEnabled && handleKeyUp(index)}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            if (arpEnabled) handleKeyDown(index);
+            else playKeyPreview(key);
+          }}
+          onTouchEnd={() => arpEnabled && handleKeyUp(index)}
+          onMouseEnter={() => !arpEnabled && playKeyPreview(key)}
+          aria-label={`Piano key ${key.note}${key.octave}${isActive ? ' - Active' : ''}`}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleKeyClick(index);
+            }
+          }}
+        >
+          <div className="flex flex-col items-center justify-center h-full">
+            <span
+              className={`${
+                key.isBlack ? 'text-white opacity-90' : 'text-cyan-500 opacity-90'
+              } ${isActive ? 'font-extrabold text-white' : ''}`}
+            >
+              {key.key}
+            </span>
+            {isActive && (
+              <span className="text-[10px] font-extrabold text-white mt-0.5 animate-pulse">
+                ♪
+              </span>
+            )}
+          </div>
+        </button>
+      );
+    });
+  }, [pianoKeys, keyHeight, activeKeys, arpEnabled, handleKeyClick, handleKeyDown, handleKeyUp, playKeyPreview]);
+
   return (
     <div 
       ref={scrollRef || ref}
@@ -99,82 +177,23 @@ export const PianoKeys = forwardRef<HTMLDivElement, PianoKeysProps>(({
       <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-sm border-b border-cyan-500/20" style={{ height: '30px' }} />
       
       <div className="relative" style={{ height: `${pianoKeys.length * keyHeight}px` }}>
-        {pianoKeys.map((key, index) => {
-          const yPosition = index * keyHeight;
-          const isActive = activeKeys.has(index);
-          const whiteKeyStyle: CSSProperties = {
-            position: 'absolute' as const,
-            top: `${yPosition}px`,
-            left: 0,
-            right: 0,
-            height: `${keyHeight}px`,
-            boxSizing: 'border-box',
-            borderBottom: '1px solid rgba(6, 182, 212, 0.1)',
-            backgroundColor: isActive ? 'rgba(6, 182, 212, 0.3)' : 'rgba(255, 255, 255, 0.02)',
-            color: isActive ? '#fff' : 'rgba(6, 182, 212, 0.4)',
-            zIndex: 1,
-            transition: 'all 0.1s ease',
-          };
-
-          const blackKeyStyle: CSSProperties = {
-            position: 'absolute' as const,
-            top: `${yPosition}px`,
-            left: 0,
-            height: `${keyHeight}px`,
-            width: '65%',
-            boxSizing: 'border-box',
-            backgroundColor: isActive ? '#06b6d4' : '#000',
-            border: '1px solid rgba(6, 182, 212, 0.3)',
-            boxShadow: isActive ? '0 0 15px #06b6d4' : 'none',
-            zIndex: 10,
-            transition: 'all 0.1s ease',
-          };
-
-          return (
-            <button
-              key={key.key}
-              className="w-full text-xs font-semibold relative select-none"
-              style={key.isBlack ? blackKeyStyle : whiteKeyStyle}
-              onClick={() => !arpEnabled && handleKeyClick(index)}
-              onMouseDown={() => arpEnabled && handleKeyDown(index)}
-              onMouseUp={() => arpEnabled && handleKeyUp(index)}
-              onMouseLeave={() => arpEnabled && handleKeyUp(index)}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                if (arpEnabled) handleKeyDown(index);
-                else playKeyPreview(key);
-              }}
-              onTouchEnd={() => arpEnabled && handleKeyUp(index)}
-              onMouseEnter={() => !arpEnabled && playKeyPreview(key)}
-              aria-label={`Piano key ${key.note}${key.octave}${isActive ? ' - Active' : ''}`}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleKeyClick(index);
-                }
-              }}
-            >
-              <div className="flex flex-col items-center justify-center h-full">
-                <span
-                  className={`${
-                    key.isBlack ? 'text-white opacity-90' : 'text-cyan-500 opacity-90'
-                  } ${isActive ? 'font-extrabold text-white' : ''}`}
-                >
-                  {key.key}
-                </span>
-                {isActive && (
-                  <span className="text-[10px] font-extrabold text-white mt-0.5 animate-pulse">
-                    ♪
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+        {renderedKeys}
       </div>
     </div>
+  );
+});
+
+// Memoize component to prevent unnecessary re-renders
+export const PianoKeys = memo(PianoKeysComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.keyHeight === nextProps.keyHeight &&
+    prevProps.currentStep === nextProps.currentStep &&
+    prevProps.isPlaying === nextProps.isPlaying &&
+    prevProps.chordMode === nextProps.chordMode &&
+    prevProps.arpEnabled === nextProps.arpEnabled &&
+    prevProps.activeKeys === nextProps.activeKeys &&
+    prevProps.pianoKeys === nextProps.pianoKeys &&
+    prevProps.selectedTrack?.instrument === nextProps.selectedTrack?.instrument
   );
 });
 

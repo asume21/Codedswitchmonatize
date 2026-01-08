@@ -91,11 +91,39 @@ for (let i = 0; i <= 127; i++) {
 
 // Logical drum engine types – expanded so different rows can sound distinct
 type DrumEngineType =
-  | 'kick' | 'snare' | 'clap' | 'hihat' | 'openhat' | 'tom' | 'tom_hi' | 'tom_mid' | 'tom_lo' | 'conga' | 'perc' | 'rim' | 'crash' | 'cowbell' | 'fx';
+  | 'kick' | 'snare' | 'clap' | 'hihat' | 'openhat' | 'ride' | 'tom' | 'tom_hi' | 'tom_mid' | 'tom_lo' | 'conga' | 'perc' | 'rim' | 'crash' | 'cowbell';
 
 // Normalize drum ids to sound engine types
 const DRUM_ID_TO_TYPE: Record<string, DrumEngineType> = {
-  kick: 'kick', '808 kick': 'kick', snare: 'snare', 'trap snare': 'snare', clap: 'clap', vox: 'perc', hihat: 'hihat', 'closed hh': 'hihat', 'soft hat': 'hihat', shaker: 'hihat', openhat: 'openhat', 'open hh': 'openhat', ride: 'crash', crash: 'crash', cowbell: 'cowbell', fx: 'fx', foley: 'fx', bell: 'fx', perc: 'perc', rim: 'rim', tom: 'tom_mid', tom1: 'tom_hi', tom2: 'tom_mid', tom3: 'tom_lo', conga: 'conga', tom_hi: 'tom_hi', tom_mid: 'tom_mid', tom_lo: 'tom_lo',
+  kick: 'kick',
+  '808 kick': 'kick',
+  snare: 'snare',
+  'trap snare': 'snare',
+  clap: 'clap',
+  vox: 'perc',
+  hihat: 'hihat',
+  'closed hh': 'hihat',
+  'soft hat': 'hihat',
+  shaker: 'hihat',
+  openhat: 'openhat',
+  'open hh': 'openhat',
+  ride: 'ride',
+  crash: 'crash',
+  cowbell: 'cowbell',
+  fx: 'perc',
+  foley: 'perc',
+  bell: 'perc',
+  'vinyl fx': 'perc',
+  perc: 'perc',
+  rim: 'rim',
+  tom: 'tom_mid',
+  tom1: 'tom_hi',
+  tom2: 'tom_mid',
+  tom3: 'tom_lo',
+  conga: 'conga',
+  tom_hi: 'tom_hi',
+  tom_mid: 'tom_mid',
+  tom_lo: 'tom_lo',
 };
 
 // Types

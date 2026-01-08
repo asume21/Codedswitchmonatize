@@ -178,12 +178,28 @@ export default function Studio() {
         }
       }));
     }
+
+    // Also start any uploaded song (Astutely/global transport should honor uploaded media)
+    try {
+      if (uploadedSongAudio) {
+        uploadedSongAudio.currentTime = 0;
+        await uploadedSongAudio.play();
+        console.log("▶️ Uploaded song playing via global transport");
+      }
+    } catch (err) {
+      console.warn("⚠️ Unable to auto-play uploaded song", err);
+    }
     
     setIsStudioPlaying(true);
   };
 
   const stopFullSong = () => {
     setIsStudioPlaying(false);
+
+    if (uploadedSongAudio) {
+      uploadedSongAudio.pause();
+      uploadedSongAudio.currentTime = 0;
+    }
   };
 
   const activeTabConfig = getStudioTabById(activeTab);

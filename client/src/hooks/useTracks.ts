@@ -139,7 +139,7 @@ export function useTracks() {
     
     const payload = buildPayload(undefined, trackWithDefaults, true);
 
-    addTrack({
+    const newTrack = {
       id,
       name: track.name ?? 'Track',
       kind: track.kind ?? (track.type === 'audio' ? 'audio' : track.type === 'beat' ? 'beat' : 'piano'),
@@ -148,7 +148,22 @@ export function useTracks() {
       muted: track.muted ?? false,
       solo: track.solo ?? false,
       payload,
-    });
+    };
+
+    addTrack(newTrack);
+
+    // Bridge audio tracks to Astutely: notify when an audio URL is present
+    if (trackWithDefaults.audioUrl) {
+      window.dispatchEvent(new CustomEvent('astutely:load', {
+        detail: {
+          url: trackWithDefaults.audioUrl,
+          name: track.name ?? 'Track',
+          trackId: id,
+          source: track.source ?? 'tracks',
+          type: inferredType,
+        }
+      }));
+    }
 
     return id;
   }, [addTrack]);

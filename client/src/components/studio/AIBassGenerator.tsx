@@ -309,6 +309,8 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
           noteLength: noteLength[0] / 100,
           velocity: velocity[0] / 127,
           glide: glide[0] / 100,
+          projectId,
+          name: `Bass ${patternType}`,
         }),
       });
 
@@ -329,6 +331,25 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
       // Pass bass notes to parent
       if (onBassGenerated) {
         onBassGenerated(bassNotes);
+      }
+
+      // Add returned track if present
+      if (data.track || data.audioUrl) {
+        onAddTrack({
+          id: data.track?.id,
+          name: data.track?.name || `Bass ${patternType}`,
+          type: 'audio',
+          kind: 'audio',
+          audioUrl: data.audioUrl || data.track?.audioUrl,
+          source: 'bass-render',
+          payload: {
+            type: 'audio',
+            audioUrl: data.audioUrl || data.track?.audioUrl,
+            notes: bassNotes,
+            pattern: patternType,
+            instrument: 'bass',
+          },
+        });
       }
 
     } catch (error) {
