@@ -373,8 +373,8 @@ export const tracks = pgTable("tracks", {
   projectId: varchar("project_id").references(() => projects.id),
   songId: varchar("song_id").references(() => songs.id), // optional - if track is from an uploaded song
   name: varchar("name").notNull(),
-  type: varchar("type").notNull(), // 'beat', 'vocal', 'loop', 'recording', 'generated', 'uploaded', 'instrumental'
-  audioUrl: varchar("audio_url").notNull(),
+  type: varchar("type").notNull(), // 'beat', 'vocal', 'loop', 'recording', 'generated', 'uploaded', 'instrumental', 'midi'
+  audioUrl: varchar("audio_url"), // nullable for MIDI/piano tracks
   position: integer("position").default(0), // position in arrangement (in milliseconds)
   duration: integer("duration"), // duration in milliseconds
   volume: integer("volume").default(100), // 0-100
@@ -383,7 +383,7 @@ export const tracks = pgTable("tracks", {
   solo: boolean("solo").default(false),
   color: varchar("color"), // for UI display
   effects: jsonb("effects"), // { reverb: 0-100, delay: 0-100, eq: {...} }
-  metadata: jsonb("metadata"), // additional info like BPM, key, source generator
+  metadata: jsonb("metadata"), // additional info like BPM, key, source generator, notes for MIDI
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
