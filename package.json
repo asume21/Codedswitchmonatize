@@ -9,7 +9,7 @@
     "dev:server": "set PORT=4000 && set NODE_ENV=development && tsx server/index.ts",
     "build": "vite build --config vite.config.prod.ts && node esbuild.config.js",
     "preview": "vite preview --config vite.config.prod.ts --port 4173",
-    "start": "npm run db:push && NODE_ENV=production node dist/index.cjs",
+    "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "check-profit": "tsx scripts/check-profit.ts",
