@@ -87,7 +87,11 @@ export function createAIRoutes() {
       return res.json({ response: content });
     } catch (error) {
       console.error("AI chat error:", error);
-      res.status(500).json({ error: "AI chat failed" });
+      // Return helpful fallback instead of error
+      return res.json({ 
+        response: "I'm having trouble connecting to my AI brain right now. Try commands like 'play', 'stop', 'status', or 'make a beat'!",
+        isFallback: true 
+      });
     }
   });
 
