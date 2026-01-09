@@ -29,7 +29,7 @@ export function createAIRoutes() {
         }
         
         const completion = await aiClient.chat.completions.create({
-          model: 'gpt-4o',
+          model: 'gpt-4',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
         });
@@ -78,7 +78,7 @@ export function createAIRoutes() {
           : [{ role: "user", content: prompt || "Hello" }];
 
       const completion = await aiClient.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4",
         messages: chatMessages,
         temperature: 0.7,
       });

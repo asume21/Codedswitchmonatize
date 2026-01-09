@@ -119,7 +119,7 @@ Requirements:
   const aiTimeoutMs = parseInt(process.env.XAI_TIMEOUT_MS || "28000", 10);
 
   const aiCall = client.chat.completions.create({
-    model: (provider || "").toLowerCase() === "openai" ? "gpt-4o" : "grok-2-1212",
+    model: (provider || "").toLowerCase() === "openai" ? "gpt-4" : "grok-3",
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
