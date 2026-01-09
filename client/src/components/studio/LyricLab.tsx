@@ -669,7 +669,6 @@ export default function LyricLab() {
   };
 
   const highlightedContent = useMemo(() => {
-    if (!rhymeSuggestions.length) return content;
     const escapeHtml = (str: string) =>
       str
         .replace(/&/g, "&amp;")
@@ -677,13 +676,17 @@ export default function LyricLab() {
         .replace(/>/g, "&gt;");
 
     let html = escapeHtml(content);
-    const words = rhymeSuggestions.map((r) => r.word).filter(Boolean);
-    if (!words.length) return content;
-
-    const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-    const regex = new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
-
-    html = html.replace(regex, (match) => `<mark class="bg-blue-900/50 text-white">${match}</mark>`);
+    
+    // Only apply highlighting if we have rhyme suggestions
+    if (rhymeSuggestions.length > 0) {
+      const words = rhymeSuggestions.map((r) => r.word).filter(Boolean);
+      if (words.length > 0) {
+        const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+        const regex = new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
+        html = html.replace(regex, (match) => `<mark class="bg-blue-900/50 text-white">${match}</mark>`);
+      }
+    }
+    
     return html;
   }, [content, rhymeSuggestions]);
 
