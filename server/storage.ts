@@ -997,7 +997,7 @@ export class MemStorage implements IStorage {
       songId: null,
       name: track.name,
       type: track.type,
-      audioUrl: track.audioUrl,
+      audioUrl: track.audioUrl ?? null,
       position: track.position ?? 0,
       duration: track.duration ?? null,
       volume: track.volume ?? 100,

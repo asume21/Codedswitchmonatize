@@ -1203,7 +1203,7 @@ export default function UnifiedStudioWorkspace() {
       const uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       const trackVolume = currentTrack?.volume ?? 0.8;
 
-      const drumMap = { Kick: 'kick', Snare: 'snare', 'Hi-Hat': 'hihat', Tom: 'tom', Cymbal: 'crash', 'Full Kit': 'kick' };
+      const drumMap: Record<string, string> = { Kick: 'kick', Snare: 'snare', 'Hi-Hat': 'hihat', Tom: 'tom', Cymbal: 'crash', 'Full Kit': 'kick' };
       if (drumMap[uiInstrument]) {
         await realisticAudio.playDrumSound(drumMap[uiInstrument], trackVolume);
         return;
@@ -1228,6 +1228,19 @@ export default function UnifiedStudioWorkspace() {
       // TODO: Apply pan using Web Audio API StereoPannerNode
     } catch (error) {
       console.error('Error playing note:', error);
+    }
+  };
+
+  // Stop a note (for note-off events)
+  const playNoteOff = (note: string, octave: number, instrument?: string) => {
+    try {
+      const currentTrack = tracks.find(t => t.id === selectedTrack);
+      const uiInstrument = instrument || currentTrack?.instrument || 'Grand Piano';
+      const looksLikeSoundfontKey = /^[a-z0-9_-]+$/.test(uiInstrument);
+      const midiInstrument = looksLikeSoundfontKey ? uiInstrument : mapInstrumentName(uiInstrument);
+      realisticAudio.noteOff(note, octave, midiInstrument);
+    } catch (error) {
+      console.error('Error stopping note:', error);
     }
   };
 
