@@ -1080,14 +1080,8 @@ export default function LyricLab() {
                 className="mb-4 bg-gray-700 border-gray-600 font-semibold text-lg"
               />
 
-              {/* Editor with highlight overlay */}
+              {/* Editor */}
               <div className="relative">
-                <div
-                  ref={overlayRef}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-white bg-transparent px-3 py-2 overflow-auto rounded-md"
-                  dangerouslySetInnerHTML={{ __html: highlightedContent }}
-                />
                 <Textarea
                   ref={textareaRef}
                   value={content}
@@ -1096,7 +1090,7 @@ export default function LyricLab() {
                   onKeyUp={handleTextareaSelect}
                   onClick={handleTextareaSelect}
                   onScroll={handleTextareaSelect}
-                  className="h-96 bg-transparent border border-gray-700 rounded-md resize-none font-mono text-sm leading-relaxed focus:outline-none text-transparent caret-white px-3 py-2"
+                  className="h-96 bg-gray-900 border border-gray-700 rounded-md resize-none font-mono text-sm leading-relaxed focus:outline-none text-white caret-white px-3 py-2"
                   placeholder="Start writing your lyrics here..."
                   aria-label="Lyric editor"
                   spellCheck
