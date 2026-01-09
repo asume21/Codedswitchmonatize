@@ -39,6 +39,7 @@ import { extractPitch, pitchCorrect, extractMelody, scoreKaraoke, detectEmotion,
 import { mixPreviewService, MixPreviewRequest } from "./services/mixPreview";
 import { jobManager } from "./services/jobManager";
 import multer from "multer";
+import rateLimit from "express-rate-limit";
 
 // Standardized error response helper
 const sendError = (res: Response, statusCode: number, message: string) => {
@@ -48,10 +49,50 @@ const sendError = (res: Response, statusCode: number, message: string) => {
 // Use process.cwd() for __dirname equivalent in bundled CJS
 const __dirname = process.cwd();
 
+// Rate limiter for public endpoints
+const publicApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: { success: false, message: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for upload endpoints
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // Limit each IP to 20 uploads per hour
+  message: { success: false, message: 'Upload limit exceeded. Please try again later.' },
+});
+
+// Secure file upload configuration
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024,
+    fileSize: 25 * 1024 * 1024, // Reduced to 25MB
+    files: 1, // Only allow 1 file per request
+  },
+  fileFilter: (req, file, cb) => {
+    // Whitelist of allowed audio MIME types
+    const allowedMimeTypes = [
+      'audio/mpeg',
+      'audio/mp3',
+      'audio/wav',
+      'audio/wave',
+      'audio/x-wav',
+      'audio/ogg',
+      'audio/mp4',
+      'audio/m4a',
+      'audio/aac',
+      'audio/flac',
+      'audio/webm',
+    ];
+    
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type: ${file.mimetype}. Only audio files are allowed.`));
+    }
   },
 });
 
@@ -415,7 +456,7 @@ Return ONLY valid JSON:
   });
 
   // Upload parameter generation endpoint
-  app.post("/api/objects/upload", async (req, res) => {
+  app.post("/api/objects/upload", uploadLimiter, async (req, res) => {
     try {
       console.log('🎵 Upload parameters requested');
 
@@ -509,7 +550,7 @@ Return ONLY valid JSON:
   }
 
   // Loop Library endpoints - list and serve .wav files from loops folder (including subfolders)
-  app.get("/api/loops", async (_req: Request, res: Response) => {
+  app.get("/api/loops", publicApiLimiter, async (_req: Request, res: Response) => {
     try {
       const wavFiles = await findWavFiles(LOOPS_DIR, LOOPS_DIR);
       console.log(`🎵 Loops scan: base=${LOOPS_DIR} found=${wavFiles.length}`);
@@ -529,7 +570,7 @@ Return ONLY valid JSON:
     }
   });
 
-  app.get("/api/loops/:filename(*)/audio", async (req: Request, res: Response) => {
+  app.get("/api/loops/:filename(*)/audio", publicApiLimiter, async (req: Request, res: Response) => {
     try {
       const raw = decodeURIComponent(req.params.filename);
       if (!raw) {

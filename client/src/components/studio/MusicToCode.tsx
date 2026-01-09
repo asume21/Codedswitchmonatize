@@ -161,35 +161,43 @@ export default function MusicToCode() {
     setUploadedFile(file);
   };
 
+  const [testResults, setTestResults] = useState<{
+    status: 'idle' | 'testing' | 'success' | 'warning' | 'error';
+    messages: string[];
+  }>({ status: 'idle', messages: [] });
+
   const testGeneratedCode = () => {
     const codeString = (generatedCode?.code as string) || "";
-    const testResults = document.getElementById("code-test-results");
 
-    if (!testResults) return;
-
-    testResults.innerHTML =
-      '<span class="text-yellow-600">Testing code...</span>';
+    setTestResults({ status: 'testing', messages: ['Testing code...'] });
 
     try {
       // Basic syntax validation for JavaScript
       if (codeString.includes("class ") && codeString.includes("constructor")) {
         // Simulate code execution test
         setTimeout(() => {
-          testResults.innerHTML = `
-            <div class="text-green-600">✓ Code syntax valid</div>
-            <div class="text-green-600">✓ Class structure detected</div>
-            <div class="text-green-600">✓ Constructor methods found</div>
-            <div class="text-green-600">✓ Functions properly defined</div>
-            <div class="text-blue-600 mt-1">Code appears functional and ready to use!</div>
-          `;
+          setTestResults({
+            status: 'success',
+            messages: [
+              '✓ Code syntax valid',
+              '✓ Class structure detected',
+              '✓ Constructor methods found',
+              '✓ Functions properly defined',
+              'Code appears functional and ready to use!'
+            ]
+          });
         }, 1500);
       } else {
-        testResults.innerHTML =
-          '<div class="text-orange-600">⚠ Code structure may need refinement</div>';
+        setTestResults({
+          status: 'warning',
+          messages: ['⚠ Code structure may need refinement']
+        });
       }
     } catch (error) {
-      testResults.innerHTML =
-        '<div class="text-red-600">✗ Syntax errors detected</div>';
+      setTestResults({
+        status: 'error',
+        messages: ['✗ Syntax errors detected']
+      });
     }
   };
 
@@ -720,13 +728,29 @@ export default function MusicToCode() {
                     </div>
 
                     {/* Test Results Area */}
-                    <div
-                      id="code-test-results"
-                      className="mt-2 p-2 bg-gray-100 rounded text-xs font-mono min-h-[40px]"
-                    >
-                      <span className="text-gray-500">
-                        Click "Test Code" to verify functionality...
-                      </span>
+                    <div className="mt-2 p-2 bg-gray-100 rounded text-xs font-mono min-h-[40px]">
+                      {testResults.status === 'idle' && (
+                        <span className="text-gray-500">
+                          Click "Test Code" to verify functionality...
+                        </span>
+                      )}
+                      {testResults.status === 'testing' && (
+                        <span className="text-yellow-600">{testResults.messages[0]}</span>
+                      )}
+                      {testResults.status === 'success' && (
+                        <div className="space-y-1">
+                          {testResults.messages.slice(0, -1).map((msg, i) => (
+                            <div key={i} className="text-green-600">{msg}</div>
+                          ))}
+                          <div className="text-blue-600 mt-1">{testResults.messages[testResults.messages.length - 1]}</div>
+                        </div>
+                      )}
+                      {testResults.status === 'warning' && (
+                        <div className="text-orange-600">{testResults.messages[0]}</div>
+                      )}
+                      {testResults.status === 'error' && (
+                        <div className="text-red-600">{testResults.messages[0]}</div>
+                      )}
                     </div>
                   </div>
                 </div>
