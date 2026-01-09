@@ -39,19 +39,7 @@ app.set('trust proxy', 1);
 
 // Security headers with helmet
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // unsafe-eval needed for Vite HMR
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://api.openai.com", "https://api.x.ai", "https://api.replicate.com", "wss:", "ws:"],
-      fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'", "blob:", "data:"],
-      frameSrc: ["'self'"],
-    },
-  },
+  contentSecurityPolicy: false, // Disabled temporarily - was blocking stylesheets
   crossOriginEmbedderPolicy: false, // Needed for audio/media playback
   hsts: {
     maxAge: 31536000,
