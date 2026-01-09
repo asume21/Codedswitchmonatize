@@ -2430,7 +2430,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             <div className="flex-1 overflow-y-auto astutely-scrollbar">
               {tracks.map((track, idx) => (
                 <div 
-                  key={`${track.id}-${idx}`}
+                  key={`track-${idx}`}
                   onClick={() => setSelectedTrackIndex(idx)}
                   className={cn(
                     "p-3 border-b border-cyan-500/10 cursor-pointer transition-all",
