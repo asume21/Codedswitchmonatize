@@ -593,49 +593,14 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     return Math.max(...noteEndSteps);
   }, [tracks]);
 
-  useEffect(() => {
-    const syncTrack = async () => {
-      const clipLengthBars = Math.max(1, Math.ceil(patternLengthSteps / 16));
-      const clipPayload = createTrackPayload({
-        type: 'midi',
-        source: 'piano-roll',
-        bpm,
-        notes: tracks.flatMap(t => t.notes),
-        data: {
-          tracks,
-          key: currentKey,
-          progression: selectedProgression,
-        },
-      });
-
-      const clip = {
-        id: pianoTrackIdRef.current,
-        kind: 'piano' as const,
-        name: `Piano Roll - ${selectedTrack?.name ?? 'Track'}`,
-        lengthBars: clipLengthBars,
-        startBar: 0,
-        payload: clipPayload,
-      };
-
-      if (hasRegisteredTrackRef.current) {
-        updateTrackInStore(pianoTrackIdRef.current, clip);
-      } else {
-        await addAndSaveTrack({
-          id: pianoTrackIdRef.current,
-          name: clip.name,
-          type: (clip.kind as any) === 'audio' ? 'audio' : (clip.kind as any) === 'beat' ? 'beat' : 'midi',
-          notes: clip.payload?.notes || [],
-          instrument: clip.payload?.instrument,
-          bpm: clip.payload?.bpm || 120,
-          source: clip.payload?.source || 'piano-roll',
-          color: clip.payload?.color,
-        });
-        hasRegisteredTrackRef.current = true;
-      }
-    };
-
-    syncTrack();
-  }, [tracks, bpm, currentKey, selectedProgression, selectedTrack, addAndSaveTrack, updateTrackInStore, patternLengthSteps]);
+  // NOTE: Auto-sync disabled to prevent duplicate track creation in timeline
+  // Tracks are managed by the parent component (UnifiedStudioWorkspace) instead
+  // useEffect(() => {
+  //   const syncTrack = async () => {
+  //     // ... sync logic removed to prevent duplicates
+  //   };
+  //   syncTrack();
+  // }, [tracks, bpm, currentKey, selectedProgression, selectedTrack, addAndSaveTrack, updateTrackInStore, patternLengthSteps]);
 
   useEffect(() => {
     if (currentSession) {
