@@ -4,9 +4,14 @@ import OpenAI from "openai";
 const xaiApiKey = process.env.XAI_API_KEY?.trim();
 const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
 
+// Debug logging for API key detection
+console.log('🔑 AI API Key Status:');
+console.log(`  XAI_API_KEY: ${xaiApiKey ? `Present (${xaiApiKey.substring(0, 8)}...)` : 'Missing'}`);
+console.log(`  OPENAI_API_KEY: ${openaiApiKey ? `Present (${openaiApiKey.substring(0, 8)}...)` : 'Missing'}`);
+
 // Shared timeout to avoid slow requests blocking the route
-const AI_TIMEOUT_MS = 8000;
-const AI_RESPONSE_DEADLINE_MS = 9000; // hard cap per request before fallback
+const AI_TIMEOUT_MS = 30000; // Increased to 30s for production reliability
+const AI_RESPONSE_DEADLINE_MS = 35000; // hard cap per request before fallback
 
 // Configure Grok (xAI) client
 let grokClient: OpenAI | null = null;
@@ -16,6 +21,9 @@ if (xaiApiKey && xaiApiKey.startsWith('xai-')) {
     apiKey: xaiApiKey,
     timeout: AI_TIMEOUT_MS
   });
+  console.log('✅ Grok (xAI) client initialized');
+} else if (xaiApiKey) {
+  console.warn(`⚠️ XAI_API_KEY present but doesn't start with 'xai-': ${xaiApiKey.substring(0, 8)}...`);
 }
 
 // Configure OpenAI client
@@ -25,11 +33,16 @@ if (openaiApiKey && openaiApiKey.startsWith('sk-')) {
     apiKey: openaiApiKey,
     timeout: AI_TIMEOUT_MS
   });
+  console.log('✅ OpenAI client initialized');
+} else if (openaiApiKey) {
+  console.warn(`⚠️ OPENAI_API_KEY present but doesn't start with 'sk-': ${openaiApiKey.substring(0, 8)}...`);
 }
 
 // Check if we have at least one working AI client
 if (!grokClient && !openaiClient) {
-  console.warn("No AI API keys configured. AI features will use fallback patterns.");
+  console.warn("❌ No AI API keys configured. AI features will use fallback patterns.");
+} else {
+  console.log(`🤖 AI Provider: ${grokClient ? 'Grok (xAI)' : 'OpenAI'} (${openaiClient ? 'OpenAI fallback available' : 'No fallback'})`);
 }
 
 // Determine preferred AI provider
