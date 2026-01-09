@@ -3088,7 +3088,7 @@ export default function UnifiedStudioWorkspace() {
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setTracks(tracks.filter(t => t.id !== track.id));
+                                    removeTrackFromStore(track.id);
                                   }}
                                   className="h-6 w-6 p-0 text-red-500"
                                 >
