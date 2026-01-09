@@ -335,12 +335,22 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                     
                     {(onNoteResize || onMultiNoteResize) && (
                       <div
-                        className="resize-handle absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/30 hover:bg-white/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-r-sm"
+                        className="resize-handle absolute right-0 top-0 bottom-0 w-3 bg-white/30 hover:bg-white/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-r-sm"
+                        style={{ cursor: 'ew-resize', zIndex: 50 }}
+                        draggable={false}
+                        onDragStart={(e) => e.preventDefault()}
                         onMouseDown={(e) => {
                           e.stopPropagation();
+                          e.preventDefault();
                           const startX = e.clientX;
                           const startLength = note.length || 1;
+                          
+                          // Set cursor on body during drag
+                          document.body.style.cursor = 'ew-resize';
+                          document.body.style.userSelect = 'none';
+                          
                           const handleMouseMove = (moveEvent: MouseEvent) => {
+                            moveEvent.preventDefault();
                             const deltaX = moveEvent.clientX - startX;
                             const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
                             if (isSelected && selectedNoteIds && selectedNoteIds.size > 1 && onMultiNoteResize) {
@@ -351,6 +361,8 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                             }
                           };
                           const handleMouseUp = () => {
+                            document.body.style.cursor = '';
+                            document.body.style.userSelect = '';
                             document.removeEventListener('mousemove', handleMouseMove);
                             document.removeEventListener('mouseup', handleMouseUp);
                           };
