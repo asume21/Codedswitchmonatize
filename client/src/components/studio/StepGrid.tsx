@@ -371,39 +371,6 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
   );
 });
 
-// Memoize the component with custom comparison to prevent unnecessary re-renders
-export const StepGrid = memo(StepGridComponent, (prevProps, nextProps) => {
-  // Check if notes have actually changed (deep comparison for note properties)
-  const prevNotes = prevProps.selectedTrack?.notes || [];
-  const nextNotes = nextProps.selectedTrack?.notes || [];
-  
-  // Quick length check first
-  if (prevNotes.length !== nextNotes.length) return false;
-  
-  // Check if any note properties changed (id, step, length, note, octave, velocity)
-  const notesEqual = prevNotes.every((note: any, i: number) => {
-    const nextNote = nextNotes[i];
-    return note.id === nextNote?.id &&
-           note.step === nextNote?.step &&
-           note.length === nextNote?.length &&
-           note.note === nextNote?.note &&
-           note.octave === nextNote?.octave &&
-           note.velocity === nextNote?.velocity;
-  });
-  
-  // Only re-render if these specific props change
-  return (
-    prevProps.steps === nextProps.steps &&
-    prevProps.currentStep === nextProps.currentStep &&
-    prevProps.stepWidth === nextProps.stepWidth &&
-    prevProps.keyHeight === nextProps.keyHeight &&
-    prevProps.zoom === nextProps.zoom &&
-    prevProps.chordMode === nextProps.chordMode &&
-    prevProps.selectedTrackIndex === nextProps.selectedTrackIndex &&
-    prevProps.showGhostNotes === nextProps.showGhostNotes &&
-    prevProps.isSelecting === nextProps.isSelecting &&
-    notesEqual &&
-    prevProps.selectedNoteIds === nextProps.selectedNoteIds &&
-    prevProps.pianoKeys === nextProps.pianoKeys
-  );
-});
+// Export without custom memo comparison - let React handle re-renders naturally
+// The custom memo was causing notes to disappear during resize/drag operations
+export const StepGrid = memo(StepGridComponent);
