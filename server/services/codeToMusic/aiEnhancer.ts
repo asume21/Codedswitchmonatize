@@ -52,7 +52,7 @@ export interface AIEnhancedMusic {
 
 function getClient() {
   if (grokClient) return { client: grokClient, model: "grok-2-1212" };
-  if (openaiClient) return { client: openaiClient, model: "gpt-4o-mini" };
+  if (openaiClient) return { client: openaiClient, model: "gpt-4o" };
   return null;
 }
 
