@@ -122,6 +122,12 @@ export async function runMigrations() {
     `;
     console.log('✅ Migration: jam_likes table ensured');
 
+    // Migration: Make audio_url nullable for MIDI/piano tracks
+    await sql`
+      ALTER TABLE tracks ALTER COLUMN audio_url DROP NOT NULL
+    `;
+    console.log('✅ Migration: audio_url made nullable for MIDI tracks');
+
     console.log('✅ All migrations completed successfully');
   } catch (error) {
     // If columns already exist, that's fine
