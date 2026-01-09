@@ -2285,6 +2285,13 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     }
   }, [onPlayNoteOff, selectedTrack]);
 
+  // Callback for piano key playback - uses current track's instrument
+  const handlePianoKeyPlay = useCallback((note: string, octave: number) => {
+    const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
+    const instrument = selectedTrack?.instrument || 'piano';
+    realisticAudio.playNote(note, octave, 0.5, instrument, 0.8, true, channel?.input);
+  }, [selectedTrack]);
+
   return (
     <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
       {/* Top Professional DAW Toolbar */}
@@ -2429,10 +2436,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             onActiveKeysChange={setActiveKeys}
             scrollRef={pianoKeysRef}
             onScroll={handlePianoScroll}
-            onPlayNote={(note: string, octave: number) => {
-              const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
-              realisticAudio.playNote(note, octave, 0.5, selectedTrack?.instrument || 'piano', 0.8, true, channel?.input);
-            }}
+            onPlayNote={handlePianoKeyPlay}
             onPlayNoteOff={handleNoteOff}
             arpEnabled={liveArpEnabled}
           />
