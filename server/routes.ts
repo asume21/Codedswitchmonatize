@@ -15,6 +15,7 @@ import { createAudioRoutes } from "./routes/audio";
 import { createMixRoutes } from "./routes/mix";
 import { createLyricsRoutes } from "./routes/lyrics";
 import { createAstutelyRoutes } from "./routes/astutely";
+import { createSampleRoutes } from "./routes/samples";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -130,6 +131,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Mount Astutely AI routes
   app.use("/api", createAstutelyRoutes());
+
+  // Mount Sample Library routes
+  app.use("/api/samples", createSampleRoutes());
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation

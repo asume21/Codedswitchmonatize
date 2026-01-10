@@ -220,7 +220,7 @@ export function generateIntelligentPacks(prompt: string, count: number) {
 }
 
 export async function generateSunoPacks(prompt: string, count: number) {
-  if (!process.env.SUNO_API_KEY) {
+  if (!process.env.SUNO_API_KEY && !process.env.SUNO_API_TOKEN) {
     throw new Error("SUNO_API_KEY not configured");
   }
 

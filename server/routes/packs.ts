@@ -5,6 +5,7 @@ import { unifiedMusicService } from "../services/unifiedMusicService";
 import { jascoMusicService } from "../services/jascoMusic";
 import { generateSamplePacksWithGemini } from "../services/gemini";
 import { generateIntelligentPacks, generateSunoPacks } from "../services/packGenerator";
+import { localSampleLibrary } from "../services/localSampleLibrary";
 
 const router = Router();
 
@@ -35,6 +36,40 @@ export function createPackRoutes(_storage: IStorage) {
         let packs;
 
         switch (providerId) {
+          case "local-samples":
+            // Use local sample library - instant, free, no API required
+            const { bpm: localBpm, genre: localGenre } = (req.body || {}) as { bpm?: number; genre?: string };
+            const samplePack = await localSampleLibrary.generatePack({
+              genre: localGenre || prompt,
+              bpm: localBpm || 120,
+              includeLoops: true,
+              sampleCount: packCount * 2 // More samples per pack
+            });
+            
+            // Convert to expected format
+            packs = [{
+              id: samplePack.id,
+              title: samplePack.name,
+              description: samplePack.description,
+              bpm: samplePack.bpm,
+              key: 'C',
+              genre: samplePack.genre || 'Electronic',
+              samples: samplePack.samples.map(s => ({
+                id: s.id,
+                name: s.filename.replace('.wav', ''),
+                type: s.type === 'loop' ? 'loop' : 'oneshot',
+                duration: 1.0,
+                audioUrl: s.url,
+                url: s.url
+              })),
+              metadata: {
+                energy: 75,
+                mood: 'energetic',
+                instruments: samplePack.samples.map(s => s.type),
+                tags: ['local', 'samples', samplePack.genre || 'electronic']
+              }
+            }];
+            break;
           case "structure":
             try {
               packs = await generateSamplePacksWithGemini(prompt, packCount);

@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
 const SUNO_API_BASE = 'https://api.sunoapi.org/api/v1';
-const SUNO_API_KEY = process.env.SUNO_API_KEY;
+const SUNO_API_KEY = process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN;
 
 interface SunoApiResponse {
   code: number;

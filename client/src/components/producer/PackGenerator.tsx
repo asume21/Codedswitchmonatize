@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
 import { packSynthesizer } from "@/lib/packAudioSynthesizer";
 import { professionalAudio } from "@/lib/professionalAudio";
+import { apiRequest } from "@/lib/queryClient";
 
 const PACK_HISTORY_KEY = "pack-generator-history";
 
@@ -58,6 +59,11 @@ const RANDOM_PROMPTS = [
 ];
 
 const PROVIDER_OPTIONS = [
+  {
+    value: "local-samples",
+    label: "💿 Local Samples (Instant & Free)",
+    description: "Professional drum samples from your local library - instant playback, no API costs.",
+  },
   {
     value: "musicgen",
     label: "🎵 MusicGen AI (Audio)",
@@ -240,18 +246,8 @@ export default function PackGenerator() {
 
   const generateMutation = useMutation<GeneratedPack[], Error, { prompt: string; count: number; provider: string }>({
     mutationFn: async (body) => {
-      const response = await fetch("/api/packs/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
-
+      const response = await apiRequest("POST", "/api/packs/generate", body);
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to generate packs");
-      }
-
       return data.packs as GeneratedPack[];
     },
     onSuccess: (packs = []) => {
@@ -270,15 +266,8 @@ export default function PackGenerator() {
 
   const saveMutation = useMutation<{ packId: string }, Error, GeneratedPack>({
     mutationFn: async (pack) => {
-      const response = await fetch("/api/packs/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ pack }),
-      });
-
+      const response = await apiRequest("POST", "/api/packs/save", { pack });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to save pack");
       return data;
     },
     onSuccess: (_data, pack) => {
