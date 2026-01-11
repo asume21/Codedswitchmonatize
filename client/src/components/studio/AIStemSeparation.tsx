@@ -36,6 +36,26 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  // Check for routed song from Song Library/Uploader
+  useEffect(() => {
+    const routedUrl = sessionStorage.getItem('stem_separator_url');
+    const routedName = sessionStorage.getItem('stem_separator_name');
+    
+    if (routedUrl) {
+      setAudioUrl(routedUrl);
+      setUploadedFileName(routedName || 'Routed Song');
+      
+      // Clear sessionStorage
+      sessionStorage.removeItem('stem_separator_url');
+      sessionStorage.removeItem('stem_separator_name');
+      
+      toast({
+        title: "Song Loaded",
+        description: `${routedName || 'Song'} ready for stem separation`,
+      });
+    }
+  }, [toast]);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -192,49 +212,21 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         </p>
 
         <div className="space-y-3">
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">Load Audio</label>
-            
-            {/* File Upload Button */}
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isProcessing}
-                className="flex-1"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {uploadedFileName || 'Upload from Computer'}
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+          {!audioUrl && (
+            <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <p className="text-sm text-blue-300">
+                💡 <strong>Tip:</strong> Upload your song in the <strong>Upload</strong> tab, then click <strong>"Separate Stems"</strong> to route it here automatically.
+              </p>
             </div>
-            
-            {/* OR divider */}
-            <div className="flex items-center gap-2">
-              <div className="flex-1 border-t border-gray-700"></div>
-              <span className="text-xs text-muted-foreground">OR</span>
-              <div className="flex-1 border-t border-gray-700"></div>
+          )}
+          
+          {audioUrl && (
+            <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+              <p className="text-xs text-green-300">
+                ✓ Song loaded: <strong>{uploadedFileName || 'Ready for separation'}</strong>
+              </p>
             </div>
-            
-            {/* URL Input */}
-            <Input
-              data-testid="input-stem-audio-url"
-              placeholder="https://example.com/song.mp3"
-              value={uploadedFileName ? '' : audioUrl}
-              onChange={(e) => {
-                setAudioUrl(e.target.value);
-                setUploadedFileName('');
-              }}
-              disabled={isProcessing || !!uploadedFileName}
-            />
-          </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Stem Count</label>

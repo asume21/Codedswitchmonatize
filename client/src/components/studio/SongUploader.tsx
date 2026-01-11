@@ -16,7 +16,7 @@ import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionCo
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
 import { AudioToolRouter } from "@/components/studio/effects/AudioToolRouter";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
-import { Sparkles, Copy, Plus, Scissors, Mic, FileText, Trash2, Share2, Globe, Lock, Download } from "lucide-react";
+import { Sparkles, Copy, Plus, Scissors, Mic, FileText, Trash2, Share2, Globe, Lock, Download, Wand2 } from "lucide-react";
 import type { Song, Recommendation } from "../../../../shared/schema";
 import { emitEvent } from "@/lib/eventBus";
 import type { ToolRecommendation } from "@/components/studio/effects";
@@ -1734,6 +1734,31 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         >
                           <i className="fas fa-layer-group mr-1"></i>
                           Add to Tracks
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+                            if (audioUrl) {
+                              // Store song info for Stem Separator
+                              sessionStorage.setItem('stem_separator_url', audioUrl);
+                              sessionStorage.setItem('stem_separator_name', song.name || 'Song');
+                              
+                              toast({
+                                title: "Routing to Stem Separator",
+                                description: `Loading "${song.name}" for stem separation`,
+                              });
+                              
+                              // Navigate to AI Studio tab (where Stem Separator is)
+                              window.dispatchEvent(new CustomEvent('navigate-to-stem-separator'));
+                            }
+                          }}
+                          className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
+                          data-testid={`button-separate-stems-${song.id}`}
+                        >
+                          <Scissors className="w-3 h-3 mr-1" />
+                          Separate Stems
                         </Button>
                         
                         <Button
