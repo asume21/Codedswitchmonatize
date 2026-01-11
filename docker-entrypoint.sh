@@ -26,4 +26,4 @@ fi
 
 # Start CodedSwitch
 echo "🎵 Starting CodedSwitch server..."
-exec node dist/index.js
+exec node dist/index.cjs
