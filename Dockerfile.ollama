@@ -1,0 +1,43 @@
+# Dockerfile.ollama
+# Docker container with CodedSwitch + Ollama + Llama 3.1 for Railway deployment
+
+FROM node:20-bullseye
+
+# Install Ollama dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install Node dependencies
+RUN npm ci --only=production
+
+# Copy application code
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# Download Llama model during build (cached by Docker)
+RUN ollama serve & \
+    sleep 5 && \
+    ollama pull llama3.1:8b && \
+    pkill ollama
+
+# Expose ports
+EXPOSE 5000
+
+# Startup script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
