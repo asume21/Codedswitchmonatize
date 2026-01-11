@@ -993,6 +993,21 @@ export default function LyricLab() {
                   Audio Available
                 </Badge>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setCurrentSessionId(null);
+                  toast({
+                    title: "Session Ended",
+                    description: "You can start a new session anytime",
+                  });
+                }}
+                className="border-red-500/50 text-red-300 hover:bg-red-500/20 hover:text-red-200"
+              >
+                <i className="fas fa-times mr-2"></i>
+                End Session
+              </Button>
             </div>
           </div>
         </div>
