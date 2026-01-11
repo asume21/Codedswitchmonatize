@@ -403,6 +403,160 @@ export const genreDatabase: Record<string, GenreSpec> = {
       "Anime-influenced aesthetics"
     ],
     referenceArtists: ["Yoasobi", "Kenshi Yonezu", "Ado"]
+  },
+
+  // ADDITIONAL GENRES FOR MAXIMUM INTELLIGENCE
+
+  "gospel": {
+    name: "Gospel",
+    bpmRange: [70, 120],
+    preferredKeys: ["C", "G", "Bb", "Eb", "Ab"],
+    bassStyle: "Walking bass, gospel runs, Hammond organ bass",
+    drumPattern: "Shuffle feel, gospel groove, tambourine accents",
+    chordStyle: "Extended chords (9ths, 11ths, 13ths), gospel voicings, passing chords",
+    mood: "Uplifting, spiritual, powerful",
+    instruments: ["piano", "organ", "bass", "drums", "choir"],
+    avoidInstruments: ["heavy synths", "electronic sounds"],
+    productionTips: [
+      "Use gospel chord voicings with extensions",
+      "Hammond organ is essential",
+      "Call and response vocal patterns",
+      "Build to powerful climaxes"
+    ],
+    referenceArtists: ["Kirk Franklin", "Tye Tribbett", "Fred Hammond"]
+  },
+
+  "country": {
+    name: "Country",
+    bpmRange: [90, 130],
+    preferredKeys: ["G", "C", "D", "A", "E"],
+    bassStyle: "Root-fifth patterns, walking bass, country shuffle",
+    drumPattern: "Train beat, two-step, country shuffle",
+    chordStyle: "Major triads, I-IV-V progressions, pedal steel bends",
+    mood: "Heartfelt, storytelling, nostalgic",
+    instruments: ["acoustic guitar", "electric guitar", "fiddle", "pedal steel", "bass"],
+    avoidInstruments: ["heavy synths", "electronic drums"],
+    productionTips: [
+      "Acoustic guitar is foundational",
+      "Pedal steel for authentic sound",
+      "Storytelling lyrics",
+      "Nashville number system"
+    ],
+    referenceArtists: ["Luke Combs", "Morgan Wallen", "Chris Stapleton"]
+  },
+
+  "metal": {
+    name: "Metal",
+    bpmRange: [100, 200],
+    preferredKeys: ["E", "D", "C", "B", "A"],
+    bassStyle: "Following guitar riffs, palm-muted, aggressive",
+    drumPattern: "Double bass drums, blast beats, heavy snare",
+    chordStyle: "Power chords, diminished, chromatic riffs",
+    mood: "Aggressive, powerful, intense",
+    instruments: ["distorted guitars", "bass", "drums", "growl vocals"],
+    avoidInstruments: ["soft synths", "acoustic instruments"],
+    productionTips: [
+      "Heavy distortion on guitars",
+      "Double bass drum patterns",
+      "Drop tuning (Drop D, Drop C)",
+      "Tight, precise playing"
+    ],
+    referenceArtists: ["Metallica", "Slipknot", "Avenged Sevenfold"]
+  },
+
+  "jazz": {
+    name: "Jazz",
+    bpmRange: [80, 180],
+    preferredKeys: ["Bb", "Eb", "F", "C", "G"],
+    bassStyle: "Walking bass, jazz lines, chromatic approach notes",
+    drumPattern: "Swing ride pattern, brushes, jazz comping",
+    chordStyle: "7th, 9th, 11th, 13th chords, ii-V-I progressions, tritone substitutions",
+    mood: "Sophisticated, improvisational, smooth",
+    instruments: ["piano", "upright bass", "drums", "saxophone", "trumpet"],
+    avoidInstruments: ["heavy distortion", "electronic sounds"],
+    productionTips: [
+      "Swing feel is essential",
+      "Use jazz voicings (rootless, shell)",
+      "Leave space for improvisation",
+      "ii-V-I is the foundation"
+    ],
+    referenceArtists: ["Miles Davis", "John Coltrane", "Herbie Hancock"]
+  },
+
+  "funk": {
+    name: "Funk",
+    bpmRange: [95, 115],
+    preferredKeys: ["E", "A", "D", "G"],
+    bassStyle: "Slap bass, syncopated, groove-focused, octave jumps",
+    drumPattern: "Syncopated, ghost notes, tight hi-hat, one-drop",
+    chordStyle: "7th and 9th chords, minimal changes, groove-focused",
+    mood: "Groovy, danceable, rhythmic",
+    instruments: ["bass", "drums", "guitar", "horns", "clavinet"],
+    avoidInstruments: ["heavy distortion", "slow pads"],
+    productionTips: [
+      "The ONE is everything",
+      "Syncopation creates the groove",
+      "Slap bass is iconic",
+      "Tight, locked rhythm section"
+    ],
+    referenceArtists: ["James Brown", "Parliament-Funkadelic", "Vulfpeck"]
+  },
+
+  "soul": {
+    name: "Soul",
+    bpmRange: [60, 100],
+    preferredKeys: ["C", "F", "Bb", "Eb", "G"],
+    bassStyle: "Motown bass lines, melodic, supportive",
+    drumPattern: "Motown beat, tambourine, handclaps",
+    chordStyle: "Major and minor 7ths, gospel influences, smooth progressions",
+    mood: "Emotional, warm, heartfelt",
+    instruments: ["piano", "bass", "drums", "horns", "strings"],
+    avoidInstruments: ["heavy synths", "aggressive sounds"],
+    productionTips: [
+      "Warm, analog sound",
+      "Horns for punctuation",
+      "Emotional vocal delivery",
+      "Motown-style arrangements"
+    ],
+    referenceArtists: ["Marvin Gaye", "Aretha Franklin", "Stevie Wonder"]
+  },
+
+  "edm": {
+    name: "EDM",
+    bpmRange: [125, 150],
+    preferredKeys: ["Am", "Cm", "Dm", "Em"],
+    bassStyle: "Sidechain bass, sub-bass drops, pluck bass",
+    drumPattern: "Four-on-the-floor, build-ups, drops",
+    chordStyle: "Supersaw chords, big room stabs, progressive builds",
+    mood: "Energetic, euphoric, festival",
+    instruments: ["synths", "drums", "bass", "risers", "impacts"],
+    avoidInstruments: ["acoustic instruments", "soft sounds"],
+    productionTips: [
+      "Build-up and drop structure",
+      "Heavy sidechain compression",
+      "Supersaw leads",
+      "White noise risers"
+    ],
+    referenceArtists: ["Martin Garrix", "Tiësto", "David Guetta"]
+  },
+
+  "dnb": {
+    name: "Drum and Bass",
+    bpmRange: [160, 180],
+    preferredKeys: ["Am", "Dm", "Em", "Cm"],
+    bassStyle: "Reese bass, sub-bass, wobble, neuro bass",
+    drumPattern: "Breakbeat, amen break, fast hi-hats, syncopated snare",
+    chordStyle: "Minor chords, atmospheric pads, dark progressions",
+    mood: "Intense, energetic, dark",
+    instruments: ["bass", "drums", "synths", "pads", "vocal chops"],
+    avoidInstruments: ["acoustic instruments", "slow elements"],
+    productionTips: [
+      "Fast breakbeat patterns",
+      "Heavy sub-bass",
+      "Amen break variations",
+      "Atmospheric pads for contrast"
+    ],
+    referenceArtists: ["Pendulum", "Chase & Status", "Sub Focus"]
   }
 };
 

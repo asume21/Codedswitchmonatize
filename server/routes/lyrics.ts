@@ -1,26 +1,61 @@
 import { Router, Request, Response } from 'express';
 import { unifiedMusicService } from '../services/unifiedMusicService';
 import { makeAICall } from '../services/grok';
+import { getGenreSpec, getGenresByMood } from '../ai/knowledge/genreDatabase';
+import { getProgressionsForGenre, getScalesForMood } from '../ai/knowledge/musicTheory';
+import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety/aiSafeguards';
 
 const router = Router();
 
-// Generate Lyrics Text
+// Generate Lyrics Text - Enhanced with Genre Database + Music Theory
 router.post('/generate', async (req: Request, res: Response) => {
   try {
     const { theme, genre, mood, complexity } = req.body;
     
     if (!theme) return res.status(400).json({ error: "Theme is required" });
 
+    // Sanitize input for security
+    const safeTheme = sanitizePrompt(theme);
+    
+    // Get genre specifications for authentic lyrics
+    const genreSpec = getGenreSpec(genre || 'pop');
+    const progressions = getProgressionsForGenre(genre || 'pop');
+    
+    // Build enhanced system prompt with genre knowledge
+    let systemPrompt = `You are a professional songwriter with deep knowledge of ${genre || 'pop'} music.`;
+    
+    if (genreSpec) {
+      systemPrompt += `
+
+🎯 GENRE SPECIFICATIONS FOR ${genreSpec.name.toUpperCase()}:
+- Mood: ${genreSpec.mood}
+- Reference Artists: ${genreSpec.referenceArtists.join(', ')}
+- Style: Write lyrics that would fit artists like ${genreSpec.referenceArtists[0]}
+- Avoid themes/language that don't fit ${genreSpec.name}`;
+    }
+    
+    if (progressions.length > 0) {
+      systemPrompt += `
+
+🎼 MUSICAL CONTEXT:
+- Common progressions: ${progressions.slice(0, 2).map(p => p.name).join(', ')}
+- Mood of progressions: ${progressions[0]?.mood || 'emotional'}
+- Write lyrics that flow naturally with these musical structures`;
+    }
+
+    systemPrompt += `
+
+Write complete, authentic ${genre || 'pop'} lyrics. Include [Verse], [Chorus], [Bridge] tags.`;
+
+    console.log(`✨ Enhanced Lyrics: Using ${genreSpec?.name || genre} specifications`);
+
     const response = await makeAICall([
-      {
-        role: "system",
-        content: `You are a professional songwriter. Write complete song lyrics.`
-      },
+      { role: "system", content: systemPrompt },
       {
         role: "user",
-        content: `Write ${genre} lyrics about "${theme}" with a ${mood} mood. Complexity: ${complexity || 5}/10. Include [Verse], [Chorus] tags.`
+        content: `Write ${genre} lyrics about "${safeTheme}" with a ${mood} mood. Complexity: ${complexity || 5}/10.`
       }
-    ], { temperature: 0.8 });
+    ], { temperature: 0.85 });
 
     res.json({ content: response.choices[0].message.content });
   } catch (error: any) {
@@ -85,33 +120,59 @@ router.post('/generate-music', async (req: Request, res: Response) => {
   }
 });
 
-// Generate Beat from Lyrics - Uses Astutely-style AI generation for consistency
+// Generate Beat from Lyrics - Enhanced with FULL Intelligence System
 router.post('/generate-beat', async (req: Request, res: Response) => {
   try {
     const { lyrics, genre } = req.body;
+    const safeGenre = genre || 'pop';
     
-    console.log(`🎵 Lyric Lab: Generating beat pattern for genre: ${genre}`);
+    // Get genre specifications for authentic beat generation
+    const genreSpec = getGenreSpec(safeGenre);
+    const progressions = getProgressionsForGenre(safeGenre);
     
-    // Use same AI approach as Astutely for consistent MIDI output
-    const response = await makeAICall([
-      {
-        role: "system",
-        content: `You are a music producer. Analyze the lyrics mood and generate a matching beat pattern.
+    console.log(`🎵 Lyric Lab: Generating beat with FULL intelligence for: ${genreSpec?.name || safeGenre}`);
+    
+    // Build enhanced system prompt with genre knowledge
+    let systemPrompt = `You are an expert music producer. Analyze the lyrics mood and generate a matching beat pattern.`;
+    
+    if (genreSpec) {
+      systemPrompt += `
+
+🎯 GENRE SPECIFICATIONS FOR ${genreSpec.name.toUpperCase()}:
+- BPM Range: ${genreSpec.bpmRange[0]}-${genreSpec.bpmRange[1]} (MUST be within this range)
+- Preferred Keys: ${genreSpec.preferredKeys.join(', ')}
+- Bass Style: ${genreSpec.bassStyle}
+- Drum Pattern: ${genreSpec.drumPattern}
+- Chord Style: ${genreSpec.chordStyle}
+- Mood: ${genreSpec.mood}`;
+    }
+    
+    if (progressions.length > 0) {
+      systemPrompt += `
+
+🎼 RECOMMENDED CHORD PROGRESSIONS:
+${progressions.slice(0, 2).map(p => `- ${p.name}: ${p.pattern.join(" → ")}`).join('\n')}`;
+    }
+
+    systemPrompt += `
+
 Return ONLY valid JSON:
 {
-  "style": "${genre || 'pop'}",
-  "bpm": 120,
-  "key": "C Minor",
+  "style": "${safeGenre}",
+  "bpm": ${genreSpec?.bpmRange[0] || 120},
+  "key": "${genreSpec?.preferredKeys[0] || 'C Minor'}",
   "drums": [{"step": 0, "type": "kick"}, {"step": 4, "type": "snare"}],
   "bass": [{"step": 0, "note": 36, "duration": 2}],
   "chords": [{"step": 0, "notes": [60, 63, 67], "duration": 16}],
   "melody": [{"step": 0, "note": 72, "duration": 1}]
 }
-Match the beat to the lyrics mood. Use 64 steps (4 bars).`
-      },
+Match the beat to the lyrics mood. Use 64 steps (4 bars). Follow genre specifications EXACTLY.`;
+
+    const response = await makeAICall([
+      { role: "system", content: systemPrompt },
       { 
         role: "user", 
-        content: `Create a ${genre || 'pop'} beat for these lyrics: "${(lyrics || '').substring(0, 100)}..."` 
+        content: `Create a ${safeGenre} beat for these lyrics: "${(lyrics || '').substring(0, 100)}..."` 
       }
     ], {
       response_format: { type: "json_object" },
@@ -122,12 +183,19 @@ Match the beat to the lyrics mood. Use 64 steps (4 bars).`
     let result;
     try {
       result = JSON.parse(content);
+      // Validate and sanitize output
+      const validation = validateAIOutput(result, safeGenre);
+      if (validation.sanitizedOutput) {
+        result = validation.sanitizedOutput;
+      }
     } catch (e) {
-      // Fallback pattern
+      // Genre-aware fallback pattern
+      const fallbackBPM = genreSpec?.bpmRange[0] || 120;
+      const fallbackKey = genreSpec?.preferredKeys[0] || "C Major";
       result = {
-        style: genre || 'pop',
-        bpm: 120,
-        key: "C Major",
+        style: safeGenre,
+        bpm: fallbackBPM,
+        key: fallbackKey,
         drums: [
           { step: 0, type: "kick" }, { step: 4, type: "snare" },
           { step: 8, type: "kick" }, { step: 12, type: "snare" }
