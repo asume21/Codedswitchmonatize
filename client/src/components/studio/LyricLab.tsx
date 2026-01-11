@@ -998,10 +998,10 @@ export default function LyricLab() {
         </div>
       )}
 
-      <ScrollArea className="flex-1 min-h-0 p-6">
-        <div className="grid grid-cols-3 gap-6">
+      <div className="flex-1 min-h-0 p-6 overflow-auto">
+        <div className="grid grid-cols-3 gap-6 h-full">
           {/* Lyric Editor */}
-          <div className="col-span-2 bg-studio-panel border border-gray-600 rounded-lg overflow-hidden">
+          <div className="col-span-2 bg-studio-panel border border-gray-600 rounded-lg overflow-hidden flex flex-col">
             <div className="bg-gray-700 px-4 py-2 border-b border-gray-600 flex items-center justify-between">
               <h3 className="font-medium">Lyric Editor</h3>
               <div className="flex items-center space-x-4">
@@ -1074,16 +1074,16 @@ export default function LyricLab() {
               </div>
             </div>
 
-            <div className="p-4">
+            <div className="p-4 flex-1 flex flex-col min-h-0">
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Song Title"
-                className="mb-4 bg-gray-700 border-gray-600 font-semibold text-lg"
+                className="mb-4 bg-gray-700 border-gray-600 font-semibold text-lg flex-shrink-0"
               />
 
               {/* Editor */}
-              <div className="relative">
+              <div className="relative flex-1 flex flex-col min-h-0">
                 <Textarea
                   ref={textareaRef}
                   value={content}
@@ -1092,7 +1092,7 @@ export default function LyricLab() {
                   onKeyUp={handleTextareaSelect}
                   onClick={handleTextareaSelect}
                   onScroll={handleTextareaSelect}
-                  className="min-h-[500px] max-h-[70vh] bg-gray-900 border border-gray-700 rounded-md resize-y font-mono text-sm leading-relaxed focus:outline-none text-white caret-white px-3 py-2"
+                  className="flex-1 min-h-[400px] bg-gray-900 border border-gray-700 rounded-md resize-none font-mono text-sm leading-relaxed focus:outline-none text-white caret-white px-3 py-2"
                   placeholder="Start writing your lyrics here..."
                   aria-label="Lyric editor"
                   spellCheck
@@ -1590,7 +1590,7 @@ export default function LyricLab() {
 
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Analysis Results Modal */}
       {showAnalysis && analysis && (
