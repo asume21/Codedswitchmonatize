@@ -292,7 +292,7 @@ Return JSON format:
 }`
           }
         ],
-        model: "grok-beta",
+        model: "grok-3",
         response_format: { type: "json_object" },
         temperature: 0.8,
       });
@@ -385,7 +385,7 @@ Return a JSON object with this structure:
 
       const response = await aiClient.chat.completions.create({
         messages: [{ role: "user", content: prompt }],
-        model: "grok-beta",
+        model: "grok-3",
         temperature: 0.7,
       });
 
@@ -596,7 +596,7 @@ Return JSON with these fields (provide SPECIFIC values, not placeholders):
 IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedback. Do NOT mention limitations or suggest enabling anything else.`
           }
         ],
-        model: "grok-beta",
+        model: "grok-3",
         response_format: { type: "json_object" },
         temperature: 0.7,
       });
@@ -680,7 +680,7 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
 
       // Step 1: Analyze the song first
       const analysisResponse = await aiClient.chat.completions.create({
-        model: "grok-beta",
+        model: "grok-3",
         messages: [
           {
             role: "system",
@@ -775,7 +775,7 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
 
       console.log('☁️ Using cloud AI');
       const response = await aiClient.chat.completions.create({
-        model: "grok-beta",
+        model: "grok-3",
         messages: messages,
         temperature: 0.7,
         max_tokens: 800,

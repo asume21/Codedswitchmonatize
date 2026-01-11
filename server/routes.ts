@@ -1350,7 +1350,7 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
         // Use xAI Grok for intelligent mixing suggestions
         try {
           const completion = await aiClient.chat.completions.create({
-            model: "grok-beta",
+            model: "grok-3",
             messages: [
               {
                 role: "system",
@@ -1565,7 +1565,7 @@ Provide mastering recommendations in this exact JSON format:
       if (aiClient) {
         try {
           const completion = await aiClient.chat.completions.create({
-            model: "grok-beta",
+            model: "grok-3",
             messages: [
               { role: "system", content: "You are a Grammy-winning mastering engineer. Provide professional, specific mastering advice in JSON format." },
               { role: "user", content: prompt }
@@ -1720,7 +1720,7 @@ Generate a professional song arrangement in this exact JSON format:
       if (aiClient) {
         try {
           const completion = await aiClient.chat.completions.create({
-            model: "grok-beta",
+            model: "grok-3",
             messages: [
               { role: "system", content: "You are a hit songwriter and producer with expertise in song structure. Create radio-ready arrangements." },
               { role: "user", content: prompt }
@@ -1844,7 +1844,7 @@ Return in this exact JSON format:
       if (aiClient) {
         try {
           const completion = await aiClient.chat.completions.create({
-            model: "grok-beta",
+            model: "grok-3",
             messages: [
               { role: "system", content: "You are a Grammy-winning songwriter who creates memorable vocal melodies. Match melodies perfectly to lyric rhythm." },
               { role: "user", content: prompt }
@@ -2052,7 +2052,7 @@ Return ONLY valid JSON:
       if (aiClient) {
         try {
           const completion = await aiClient.chat.completions.create({
-            model: "grok-beta",
+            model: "grok-3",
             messages: [
               { role: "system", content: "You are a music theory expert and composer. Create emotionally impactful chord progressions." },
               { role: "user", content: prompt }
@@ -2398,7 +2398,7 @@ ${code}
 \`\`\``;
 
       const response = await aiClient.chat.completions.create({
-        model: aiProvider === 'grok' ? 'grok-beta' : 'gpt-4',
+        model: aiProvider === 'grok' ? 'grok-3' : 'gpt-4',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 2000,
         temperature: 0.3,
@@ -3727,7 +3727,7 @@ ${code}
                 Authorization: `Bearer ${XAI_API_KEY}`,
               },
               body: JSON.stringify({
-                model: "grok-beta",
+                model: "grok-3",
                 messages: [
                   {
                     role: "system",
