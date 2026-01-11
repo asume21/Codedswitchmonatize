@@ -442,8 +442,20 @@ export class RealisticAudioEngine {
           this.playSyntheticRide(currentTime, velocity, destination);
           break;
         case 'fx':
-          // FX: use crash with lower velocity so it sits back in the mix
-          this.playSyntheticCrash(currentTime, Math.min(1, velocity * 0.6), destination);
+          this.playSyntheticFX(currentTime, velocity, destination);
+          break;
+        case 'foley':
+          this.playSyntheticFoley(currentTime, velocity, destination);
+          break;
+        case 'bell':
+          this.playSyntheticBell(currentTime, velocity, destination);
+          break;
+        case 'vinyl fx':
+        case 'vinylfx':
+          this.playSyntheticVinylFX(currentTime, velocity, destination);
+          break;
+        case 'shaker':
+          this.playSyntheticShaker(currentTime, velocity, destination);
           break;
         default:
           console.warn(`🎵 Unknown drum type: ${drumType}`);
@@ -1213,6 +1225,251 @@ export class RealisticAudioEngine {
       rideTone.stop(currentTime + 0.15);
     } catch (error) {
       console.error('🎵 Ride cymbal error:', error);
+    }
+  }
+
+  private playSyntheticFX(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // FX: Reverse cymbal / whoosh effect
+      const fxNoise = this.audioContext.createBufferSource();
+      const fxGain = this.audioContext.createGain();
+      const fxFilter = this.audioContext.createBiquadFilter();
+
+      const duration = 0.6;
+      const bufferSize = this.audioContext.sampleRate * duration;
+      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // Generate reverse-envelope noise (builds up)
+      for (let i = 0; i < bufferSize; i++) {
+        const envelope = Math.pow(i / bufferSize, 2); // Reverse envelope
+        data[i] = (Math.random() * 2 - 1) * envelope;
+      }
+
+      fxNoise.buffer = buffer;
+
+      // Sweeping filter
+      fxFilter.type = 'lowpass';
+      fxFilter.frequency.setValueAtTime(200, currentTime);
+      fxFilter.frequency.exponentialRampToValueAtTime(8000, currentTime + duration);
+      fxFilter.Q.setValueAtTime(2, currentTime);
+
+      const fxVol = Math.max(0.001, velocity * 0.7);
+      fxGain.gain.setValueAtTime(0.001, currentTime);
+      fxGain.gain.exponentialRampToValueAtTime(fxVol, currentTime + duration * 0.8);
+      fxGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      fxNoise.connect(fxFilter);
+      fxFilter.connect(fxGain);
+      fxGain.connect(destination || this.audioContext.destination);
+
+      fxNoise.start(currentTime);
+    } catch (error) {
+      console.error('🎵 FX error:', error);
+    }
+  }
+
+  private playSyntheticFoley(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Foley: Random organic sound (like a tap or knock)
+      const foleyOsc = this.audioContext.createOscillator();
+      const foleyNoise = this.audioContext.createBufferSource();
+      const oscGain = this.audioContext.createGain();
+      const noiseGain = this.audioContext.createGain();
+      const foleyFilter = this.audioContext.createBiquadFilter();
+      const masterGain = this.audioContext.createGain();
+
+      // Low thud component
+      foleyOsc.type = 'sine';
+      foleyOsc.frequency.setValueAtTime(120, currentTime);
+      foleyOsc.frequency.exponentialRampToValueAtTime(60, currentTime + 0.1);
+
+      // Noise component for texture
+      const duration = 0.15;
+      const bufferSize = this.audioContext.sampleRate * duration;
+      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < bufferSize; i++) {
+        const envelope = Math.pow(1 - (i / bufferSize), 4);
+        data[i] = (Math.random() * 2 - 1) * envelope * 0.3;
+      }
+
+      foleyNoise.buffer = buffer;
+
+      // Mid-range filter
+      foleyFilter.type = 'bandpass';
+      foleyFilter.frequency.setValueAtTime(400, currentTime);
+      foleyFilter.Q.setValueAtTime(1, currentTime);
+
+      const foleyVol = Math.max(0.001, velocity * 0.9);
+      
+      oscGain.gain.setValueAtTime(foleyVol * 0.6, currentTime);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.1);
+
+      noiseGain.gain.setValueAtTime(foleyVol * 0.4, currentTime);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      masterGain.gain.setValueAtTime(1, currentTime);
+
+      foleyOsc.connect(oscGain);
+      foleyNoise.connect(noiseGain);
+      oscGain.connect(foleyFilter);
+      noiseGain.connect(foleyFilter);
+      foleyFilter.connect(masterGain);
+      masterGain.connect(destination || this.audioContext.destination);
+
+      foleyOsc.start(currentTime);
+      foleyNoise.start(currentTime);
+      foleyOsc.stop(currentTime + 0.1);
+    } catch (error) {
+      console.error('🎵 Foley error:', error);
+    }
+  }
+
+  private playSyntheticBell(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Bell: Bright metallic tone with harmonics
+      const bell1 = this.audioContext.createOscillator();
+      const bell2 = this.audioContext.createOscillator();
+      const bell3 = this.audioContext.createOscillator();
+      const gain1 = this.audioContext.createGain();
+      const gain2 = this.audioContext.createGain();
+      const gain3 = this.audioContext.createGain();
+      const masterGain = this.audioContext.createGain();
+
+      // Bell harmonics (inharmonic ratios for metallic sound)
+      bell1.type = 'sine';
+      bell1.frequency.setValueAtTime(1200, currentTime);
+      
+      bell2.type = 'sine';
+      bell2.frequency.setValueAtTime(1800, currentTime);
+      
+      bell3.type = 'sine';
+      bell3.frequency.setValueAtTime(2400, currentTime);
+
+      const duration = 0.4;
+      const bellVol = Math.max(0.001, velocity * 0.8);
+
+      gain1.gain.setValueAtTime(bellVol, currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      gain2.gain.setValueAtTime(bellVol * 0.6, currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, currentTime + duration * 0.8);
+
+      gain3.gain.setValueAtTime(bellVol * 0.4, currentTime);
+      gain3.gain.exponentialRampToValueAtTime(0.001, currentTime + duration * 0.6);
+
+      masterGain.gain.setValueAtTime(1, currentTime);
+
+      bell1.connect(gain1);
+      bell2.connect(gain2);
+      bell3.connect(gain3);
+      gain1.connect(masterGain);
+      gain2.connect(masterGain);
+      gain3.connect(masterGain);
+      masterGain.connect(destination || this.audioContext.destination);
+
+      bell1.start(currentTime);
+      bell2.start(currentTime);
+      bell3.start(currentTime);
+      bell1.stop(currentTime + duration);
+      bell2.stop(currentTime + duration * 0.8);
+      bell3.stop(currentTime + duration * 0.6);
+    } catch (error) {
+      console.error('🎵 Bell error:', error);
+    }
+  }
+
+  private playSyntheticVinylFX(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Vinyl FX: Crackle and pop sound
+      const vinylNoise = this.audioContext.createBufferSource();
+      const vinylGain = this.audioContext.createGain();
+      const vinylFilter = this.audioContext.createBiquadFilter();
+
+      const duration = 0.2;
+      const bufferSize = this.audioContext.sampleRate * duration;
+      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // Generate vinyl crackle (random pops and noise)
+      for (let i = 0; i < bufferSize; i++) {
+        const envelope = Math.pow(1 - (i / bufferSize), 3);
+        // Random pops mixed with noise
+        const pop = Math.random() > 0.95 ? (Math.random() * 2 - 1) * 2 : 0;
+        const noise = (Math.random() * 2 - 1) * 0.3;
+        data[i] = (pop + noise) * envelope;
+      }
+
+      vinylNoise.buffer = buffer;
+
+      // Mid-high filter for vinyl character
+      vinylFilter.type = 'highpass';
+      vinylFilter.frequency.setValueAtTime(1000, currentTime);
+      vinylFilter.Q.setValueAtTime(0.7, currentTime);
+
+      const vinylVol = Math.max(0.001, velocity * 0.6);
+      vinylGain.gain.setValueAtTime(vinylVol, currentTime);
+      vinylGain.gain.exponentialRampToValueAtTime(vinylVol * 0.5, currentTime + 0.05);
+      vinylGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      vinylNoise.connect(vinylFilter);
+      vinylFilter.connect(vinylGain);
+      vinylGain.connect(destination || this.audioContext.destination);
+
+      vinylNoise.start(currentTime);
+    } catch (error) {
+      console.error('🎵 Vinyl FX error:', error);
+    }
+  }
+
+  private playSyntheticShaker(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Shaker: High-frequency noise burst
+      const shakerNoise = this.audioContext.createBufferSource();
+      const shakerGain = this.audioContext.createGain();
+      const shakerFilter = this.audioContext.createBiquadFilter();
+
+      const duration = 0.12;
+      const bufferSize = this.audioContext.sampleRate * duration;
+      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // Generate shaker noise
+      for (let i = 0; i < bufferSize; i++) {
+        const envelope = Math.sin((i / bufferSize) * Math.PI); // Bell curve
+        data[i] = (Math.random() * 2 - 1) * envelope;
+      }
+
+      shakerNoise.buffer = buffer;
+
+      // High-pass filter for bright shaker sound
+      shakerFilter.type = 'highpass';
+      shakerFilter.frequency.setValueAtTime(4000, currentTime);
+      shakerFilter.Q.setValueAtTime(1, currentTime);
+
+      const shakerVol = Math.max(0.001, velocity * 0.7);
+      shakerGain.gain.setValueAtTime(shakerVol, currentTime);
+      shakerGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      shakerNoise.connect(shakerFilter);
+      shakerFilter.connect(shakerGain);
+      shakerGain.connect(destination || this.audioContext.destination);
+
+      shakerNoise.start(currentTime);
+    } catch (error) {
+      console.error('🎵 Shaker error:', error);
     }
   }
 
