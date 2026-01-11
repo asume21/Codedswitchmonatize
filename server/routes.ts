@@ -2236,9 +2236,9 @@ Return ONLY valid JSON:
   // ============================================
   app.post("/api/code-to-music", async (req: Request, res: Response) => {
     try {
-      const { code, language = 'javascript', variation = 0, genre = 'pop' } = req.body;
+      const { code, language = 'javascript', variation = 0, genre = 'pop', useAI = false } = req.body;
       
-      console.log(`🎵 Code-to-Music: Converting ${language} code (genre: ${genre}, variation: ${variation})`);
+      console.log(`🎵 Code-to-Music: Converting ${language} code (genre: ${genre}, variation: ${variation}, AI: ${useAI})`);
 
       // Use ENHANCED algorithm for richer, more musical output
       const result = await convertCodeToMusicEnhanced({
@@ -2246,6 +2246,7 @@ Return ONLY valid JSON:
         language,
         variation,
         genre,
+        useAI,
       });
 
       if (!result.success) {
