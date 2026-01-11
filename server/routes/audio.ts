@@ -9,6 +9,9 @@ import { callAI } from "../services/aiGateway";
 import { requireCredits } from "../middleware/requireCredits";
 import { CREDIT_COSTS } from "../services/credits";
 import { storage } from "../storage";
+import { aiGenerationLimiter, beatGenerationLimiter, lyricsLimiter } from "../middleware/rateLimiting";
+import { requireTier } from "../middleware/tierEnforcement";
+import { validatePrompt, validateRequired } from "../middleware/inputValidation";
 
 const router = Router();
 
@@ -60,7 +63,13 @@ export function createAudioRoutes() {
   };
 
   // Professional song generation endpoint (Suno via Replicate)
-  router.post("/songs/generate-professional", requireAuth(), async (req: Request, res: Response) => {
+  router.post("/songs/generate-professional", 
+    requireAuth(), 
+    aiGenerationLimiter, 
+    requireTier('pro'), 
+    validatePrompt, 
+    validateRequired('prompt'), 
+    async (req: Request, res: Response) => {
     try {
       const { prompt, genre, mood, duration, style, vocals, bpm, key, projectId } = req.body;
       
@@ -104,7 +113,12 @@ export function createAudioRoutes() {
   });
 
   // Generate beat and melody (MusicGen via Replicate)
-  router.post("/songs/generate-beat", requireAuth(), async (req: Request, res: Response) => {
+  router.post("/songs/generate-beat", 
+    requireAuth(), 
+    beatGenerationLimiter, 
+    validatePrompt, 
+    validateRequired('prompt'), 
+    async (req: Request, res: Response) => {
     try {
       const { prompt, genre, duration, style, energy, projectId } = req.body;
       
@@ -290,7 +304,12 @@ export function createAudioRoutes() {
   });
 
   // Generate melody (MusicGen via Replicate)
-  router.post("/songs/generate-melody", requireAuth(), async (req: Request, res: Response) => {
+  router.post("/songs/generate-melody", 
+    requireAuth(), 
+    beatGenerationLimiter, 
+    validatePrompt, 
+    validateRequired('prompt'), 
+    async (req: Request, res: Response) => {
     try {
       const { prompt, genre, key, duration, instrument, projectId } = req.body;
       
@@ -500,7 +519,10 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Generate bass line
-  router.post("/music/generate-bass", async (req: Request, res: Response) => {
+  router.post("/music/generate-bass", 
+    beatGenerationLimiter, 
+    validateRequired('chordProgression'), 
+    async (req: Request, res: Response) => {
     try {
       const { 
         chordProgression, 

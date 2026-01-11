@@ -9,6 +9,7 @@ import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { currentUser } from "./middleware/auth";
 import { runMigrations } from "./migrations/runMigrations";
 import { ensureDataRoots } from "./services/localStorageService";
+import { globalLimiter } from "./middleware/rateLimiting";
 
 // Load environment variables from .env file
 import { config } from 'dotenv';
@@ -115,9 +116,12 @@ app.use(
   }),
 );
 
-// Standard body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Standard body parsers with size limits
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// Global rate limiting for all API endpoints
+app.use('/api/', globalLimiter);
 
 app.use((req, res, next) => {
   const start = Date.now();

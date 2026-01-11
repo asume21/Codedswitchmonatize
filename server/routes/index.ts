@@ -9,6 +9,8 @@ import { IStorage } from "../storage";
 import { billingRoutes } from "./billing";
 import { requireAuth } from "../middleware/auth";
 import musicRoutes from "./music";
+import { lyricsLimiter } from "../middleware/rateLimiting";
+import { validatePrompt } from "../middleware/inputValidation";
 
 // AI Service imports
 import { generateBeatPattern, generateRandomFallbackPattern } from "../services/grok";
@@ -176,7 +178,7 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
-  app.post("/api/lyrics/generate", async (req, res) => {
+  app.post("/api/lyrics/generate", lyricsLimiter, validatePrompt, async (req, res) => {
     try {
       const { theme, genre, mood, complexity, aiProvider } = req.body;
 
