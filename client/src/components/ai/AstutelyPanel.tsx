@@ -2,11 +2,12 @@
 // ASTUTELY - The AI that makes beats legendary
 
 import { useState, useEffect } from 'react';
-import { Sparkles, X, Loader2, Music, Library, Play, Pause } from 'lucide-react';
+import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2 } from 'lucide-react';
 import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiRequest } from '@/lib/queryClient';
 
 const styles = [
   { name: "Travis Scott rage", icon: "🔥", preview: "808s + dark pads" },
@@ -35,12 +36,17 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const [selectedSongId, setSelectedSongId] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [songAnalysis, setSongAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
   
   // Fetch user's song library
   const { data: songs = [] } = useQuery<any[]>({
     queryKey: ['/api/songs'],
   });
+  
+  // Get selected song object
+  const selectedSong = songs.find(s => s.id.toString() === selectedSongId);
 
   // Handle Escape key
   useEffect(() => {
@@ -61,12 +67,37 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     };
   }, [audioElement]);
   
-  const handleSongSelect = (songId: string) => {
+  const handleSongSelect = async (songId: string) => {
     setSelectedSongId(songId);
+    setSongAnalysis(null);
+    
     // Stop current playback
     if (audioElement) {
       audioElement.pause();
       setIsPlaying(false);
+    }
+    
+    // Auto-analyze the selected song
+    if (songId && songId !== 'none') {
+      const song = songs.find(s => s.id.toString() === songId);
+      if (song) {
+        setIsAnalyzing(true);
+        try {
+          const response = await apiRequest('POST', '/api/songs/analyze', {
+            songId: song.id
+          });
+          const data = await response.json();
+          setSongAnalysis(data);
+          toast({
+            title: '🧠 Song Analyzed',
+            description: `${data.tempo || 'Unknown'} BPM • Key: ${data.key || 'Unknown'}`,
+          });
+        } catch (error) {
+          console.error('Analysis failed:', error);
+        } finally {
+          setIsAnalyzing(false);
+        }
+      }
     }
   };
   
@@ -227,9 +258,69 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
             </button>
           </div>
           {selectedSongId && selectedSongId !== 'none' && (
-            <p className="text-xs text-gray-400 mt-2">
-              💡 Generate beats that match this song's vibe
-            </p>
+            <div className="mt-3 space-y-2">
+              {isAnalyzing ? (
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Analyzing song...
+                </div>
+              ) : songAnalysis ? (
+                <div className="text-xs text-green-400">
+                  ✓ {songAnalysis.tempo || '?'} BPM • {songAnalysis.key || '?'} • {songAnalysis.genre || 'Unknown'}
+                </div>
+              ) : null}
+              
+              {/* Quick Actions */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => {
+                    sessionStorage.setItem('stem_separator_url', selectedSong?.accessibleUrl || selectedSong?.originalUrl || '');
+                    sessionStorage.setItem('stem_separator_name', selectedSong?.name || 'Song');
+                    toast({ title: 'Routing to Stem Separator', description: 'Opening AI Studio...' });
+                    window.dispatchEvent(new CustomEvent('navigate-to-stem-separator'));
+                    onClose();
+                  }}
+                  className="px-2 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
+                  title="Separate Stems"
+                >
+                  <Scissors className="w-3 h-3" />
+                  <span>Stems</span>
+                </button>
+                <button
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
+                      detail: {
+                        name: selectedSong?.name || 'Track',
+                        audioUrl: selectedSong?.accessibleUrl || selectedSong?.originalUrl || ''
+                      }
+                    }));
+                    toast({ title: 'Added to Multi-Track', description: selectedSong?.name });
+                    onClose();
+                  }}
+                  className="px-2 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
+                  title="Add to Multi-Track"
+                >
+                  <Layers className="w-3 h-3" />
+                  <span>Track</span>
+                </button>
+                <button
+                  onClick={() => {
+                    // Store for Astutely mixer
+                    sessionStorage.setItem('astutely_mixer_song', JSON.stringify(selectedSong));
+                    toast({ title: 'Opening Mixer', description: 'Loading song...' });
+                    window.location.href = '/mixer?tab=ai-mix';
+                  }}
+                  className="px-2 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
+                  title="Send to Mixer"
+                >
+                  <Sliders className="w-3 h-3" />
+                  <span>Mix</span>
+                </button>
+              </div>
+              <p className="text-xs text-gray-400">
+                💡 Generate beats that match this song's vibe
+              </p>
+            </div>
           )}
         </div>
 
