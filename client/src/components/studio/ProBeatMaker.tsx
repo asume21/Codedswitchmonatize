@@ -1040,7 +1040,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         }}>
           <Send className="w-5 h-5 mr-3 drop-shadow-[0_0_5px_white]" />DE-MULTIPLEX TO TIMELINE
         </Button>
-        <Button className="h-14 flex-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 font-black uppercase tracking-widest rounded-2xl border-2 border-blue-500/50 transition-all" onClick={() => { setLocation('/mixer'); toast({ title: 'SIGNAL ROUTED', description: 'Monitoring output via Mix Studio' }); }}>
+        <Button className="h-14 flex-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 font-black uppercase tracking-widest rounded-2xl border-2 border-blue-500/50 transition-all" onClick={() => { window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'mixer' })); toast({ title: 'SIGNAL ROUTED', description: 'Monitoring output via Mix Studio' }); }}>
           <RotateCcw className="w-5 h-5 mr-3" />CROSS-ROUTE TO MIXER
         </Button>
       </div>
