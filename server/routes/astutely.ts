@@ -3,6 +3,7 @@ import { unifiedMusicService } from '../services/unifiedMusicService';
 import { makeAICall } from '../services/grok';
 import { getGenreSpec } from '../ai/knowledge/genreDatabase';
 import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety/aiSafeguards';
+import { enhancePromptWithMusicTheory, getProgressionsForGenre } from '../ai/knowledge/musicTheory';
 
 const router = Router();
 
@@ -45,6 +46,26 @@ Generate a full beat arrangement (drums, bass, chords, melody) that is AUTHENTIC
 You MUST follow these specifications exactly to create an authentic ${genreSpec.name} beat.`;
     }
 
+    // Add music theory knowledge
+    const progressions = getProgressionsForGenre(style);
+    if (progressions.length > 0) {
+      console.log(`🎼 Music Theory: Found ${progressions.length} recommended chord progressions for ${style}`);
+      systemPrompt += `
+
+🎼 MUSIC THEORY - RECOMMENDED CHORD PROGRESSIONS:`;
+      progressions.slice(0, 3).forEach(prog => {
+        systemPrompt += `
+- ${prog.name}: ${prog.pattern.join(" → ")}
+  Mood: ${prog.mood}
+  Example: ${prog.examples[0]}`;
+      });
+      
+      systemPrompt += `
+
+Use these proven chord progressions to create musically sophisticated arrangements.
+Apply voice leading principles: move by smallest intervals, resolve leading tones, maintain common tones.`;
+    }
+
     systemPrompt += `
 
 Return ONLY valid JSON matching this structure:
@@ -57,9 +78,9 @@ Return ONLY valid JSON matching this structure:
   "chords": [{"step": 0, "notes": [60, 63, 67], "duration": 16}],
   "melody": [{"step": 0, "note": 72, "duration": 1}]
 }
-Ensure patterns are musical, authentic to the genre, and use 64 steps (4 bars).`;
+Ensure patterns are musical, authentic to the genre, use proper voice leading, and use 64 steps (4 bars).`;
 
-    console.log(`🤖 Astutely generating with enhanced intelligence for: ${style}`);
+    console.log(`🤖 Astutely generating with FULL intelligence (Genre + Music Theory) for: ${style}`);
     
     // Use safe AI generation with failsafes
     const result = await safeAIGeneration(
