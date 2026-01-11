@@ -958,9 +958,19 @@ export default function MasterMultiTrackPlayer() {
     try {
       toast({ title: '⏳ Loading...', description: `Loading ${song.name}...` });
       
+      console.log(`🎵 Multi-track loading: ${song.name} from ${audioUrl}`);
+      
       const response = await fetch(audioUrl);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const arrayBuffer = await response.arrayBuffer();
+      console.log(`✅ Fetched ${arrayBuffer.byteLength} bytes for ${song.name}`);
+      
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      console.log(`✅ Decoded audio: ${audioBuffer.duration.toFixed(2)}s, ${audioBuffer.numberOfChannels} channels`);
 
       const newTrack: AudioTrack = {
         id: `track-${Date.now()}-${song.id}`,
@@ -991,11 +1001,29 @@ export default function MasterMultiTrackPlayer() {
         description: `${song.name} loaded into multi-track`,
       });
     } catch (error) {
-      console.error('Error loading from library:', error);
+      console.error('❌ Multi-track load error:', error);
+      
+      let errorMessage = 'Failed to load song from library';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('HTTP 404')) {
+          errorMessage = 'Song file not found on server';
+        } else if (error.message.includes('HTTP 403')) {
+          errorMessage = 'Access denied - authentication required';
+        } else if (error.message.includes('HTTP')) {
+          errorMessage = `Server error: ${error.message}`;
+        } else if (error.message.includes('decode')) {
+          errorMessage = 'Audio format not supported or file corrupted';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Network error - check your connection';
+        }
+      }
+      
       toast({
-        title: '❌ Error',
-        description: 'Failed to load song from library',
+        title: '❌ Load Failed',
+        description: `${errorMessage}. Check console for details.`,
         variant: 'destructive',
+        duration: 6000,
       });
     }
   };
