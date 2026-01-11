@@ -127,6 +127,12 @@ const TRACK_COLORS = [
 
 const DEFAULT_TRACK_HEIGHT = 80; // px - compact view to fit more tracks on screen
 
+// Helper function to serialize track without circular references (Web Audio nodes)
+const serializeTrack = (track: AudioTrack): AudioTrack => {
+  const { gainNode, panNode, sourceNode, ...serializable } = track;
+  return serializable as AudioTrack;
+};
+
 // Helper function to convert AudioBuffer to WAV Blob
 const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   const numChannels = buffer.numberOfChannels;
@@ -1536,7 +1542,7 @@ export default function MasterMultiTrackPlayer() {
     if (!track) return;
     
     const newTrack: AudioTrack = {
-      ...JSON.parse(JSON.stringify(track)),
+      ...serializeTrack(track),
       id: `${track.id}-copy-${Date.now()}`,
       name: `${track.name} (Copy)`,
       sourceNode: undefined,
@@ -1921,7 +1927,7 @@ export default function MasterMultiTrackPlayer() {
   };
 
   const pushUndo = (nextTracks: AudioTrack[]) => {
-    undoStackRef.current = [...undoStackRef.current, JSON.parse(JSON.stringify(tracks))].slice(-20);
+    undoStackRef.current = [...undoStackRef.current, tracks.map(serializeTrack)].slice(-20);
     redoStackRef.current = [];
     setTracks(nextTracks);
   };
@@ -2200,27 +2206,27 @@ export default function MasterMultiTrackPlayer() {
   const handleUndo = () => {
     const prev = undoStackRef.current.pop();
     if (!prev) return;
-    redoStackRef.current.push(JSON.parse(JSON.stringify(tracks)));
+    redoStackRef.current.push(tracks.map(serializeTrack));
     setTracks(prev);
   };
 
   const handleRedo = () => {
     const next = redoStackRef.current.pop();
     if (!next) return;
-    undoStackRef.current.push(JSON.parse(JSON.stringify(tracks)));
+    undoStackRef.current.push(tracks.map(serializeTrack));
     setTracks(next);
   };
 
   const handleCopy = () => {
     const selected = tracks.filter((t) => selectedTrackIdSet.has(t.id));
-    clipboardTracksRef.current = selected.map((t) => JSON.parse(JSON.stringify(t)));
+    clipboardTracksRef.current = selected.map(serializeTrack);
     toast({ title: 'Copied', description: `${clipboardTracksRef.current.length} region(s)` });
   };
 
   const handleCut = () => {
     const remaining = tracks.filter((t) => !selectedTrackIdSet.has(t.id));
     const selected = tracks.filter((t) => selectedTrackIdSet.has(t.id));
-    clipboardTracksRef.current = selected.map((t) => JSON.parse(JSON.stringify(t)));
+    clipboardTracksRef.current = selected.map(serializeTrack);
     pushUndo(remaining);
     setSelectedRegionIds([]);
     toast({ title: 'Cut', description: `${clipboardTracksRef.current.length} region(s)` });
