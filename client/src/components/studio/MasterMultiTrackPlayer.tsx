@@ -124,7 +124,7 @@ const TRACK_COLORS = [
   '#F97316', // orange
 ];
 
-const DEFAULT_TRACK_HEIGHT = 140; // px - enough for controls row
+const DEFAULT_TRACK_HEIGHT = 80; // px - compact view to fit more tracks on screen
 
 // Helper function to convert AudioBuffer to WAV Blob
 const audioBufferToWav = (buffer: AudioBuffer): Blob => {
@@ -3865,26 +3865,38 @@ export default function MasterMultiTrackPlayer() {
                             </div>
 
                             {/* Fade In/Out */}
-                            <div className="flex items-center gap-2 w-48">
+                            <div className="flex items-center gap-2 w-56">
                               <span className="text-xs text-gray-400 whitespace-nowrap">Fade</span>
-                              <Slider
-                                value={[Math.round((track.fadeInSeconds ?? 0) * 100)]}
-                                onValueChange={(val) =>
-                                  updateTrackFade(track.id, val[0] / 100, track.fadeOutSeconds ?? 0.1)
-                                }
-                                max={200}
-                                min={0}
-                                step={5}
-                              />
-                              <Slider
-                                value={[Math.round((track.fadeOutSeconds ?? 0) * 100)]}
-                                onValueChange={(val) =>
-                                  updateTrackFade(track.id, track.fadeInSeconds ?? 0.05, val[0] / 100)
-                                }
-                                max={200}
-                                min={0}
-                                step={5}
-                              />
+                              <div className="flex flex-col gap-1 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-gray-400">In</span>
+                                  <Slider
+                                    value={[Math.round((track.fadeInSeconds ?? 0) * 100)]}
+                                    onValueChange={(val) =>
+                                      updateTrackFade(track.id, val[0] / 100, track.fadeOutSeconds ?? 0.1)
+                                    }
+                                    max={200}
+                                    min={0}
+                                    step={5}
+                                    className="flex-1"
+                                  />
+                                  <span className="text-[11px] text-gray-300 w-10 text-right">{Math.round((track.fadeInSeconds ?? 0) * 100)}ms</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-gray-400">Out</span>
+                                  <Slider
+                                    value={[Math.round((track.fadeOutSeconds ?? 0) * 100)]}
+                                    onValueChange={(val) =>
+                                      updateTrackFade(track.id, track.fadeInSeconds ?? 0.05, val[0] / 100)
+                                    }
+                                    max={200}
+                                    min={0}
+                                    step={5}
+                                    className="flex-1"
+                                  />
+                                  <span className="text-[11px] text-gray-300 w-10 text-right">{Math.round((track.fadeOutSeconds ?? 0) * 100)}ms</span>
+                                </div>
+                              </div>
                             </div>
 
                             {/* Waveform edit */}
