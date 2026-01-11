@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { unifiedMusicService } from '../services/unifiedMusicService';
 import { makeAICall } from '../services/grok';
+import { localAI, makeLocalAICall } from '../services/localAI';
 import { getGenreSpec } from '../ai/knowledge/genreDatabase';
 import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety/aiSafeguards';
 import { enhancePromptWithMusicTheory, getProgressionsForGenre } from '../ai/knowledge/musicTheory';
@@ -84,18 +85,43 @@ Ensure patterns are musical, authentic to the genre, use proper voice leading, a
     
     // Use safe AI generation with failsafes
     const result = await safeAIGeneration(
-      // AI generation function
+      // AI generation function with local-first, cloud fallback
       async () => {
-        const response = await makeAICall([
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a ${style} beat. ${safePrompt}` }
-        ], {
-          response_format: { type: "json_object" },
-          temperature: 0.8
-        });
+        let response;
+        let usedLocal = false;
+        
+        // Try local AI first
+        try {
+          console.log('🖥️ Attempting local AI generation...');
+          response = await makeLocalAICall([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate a ${style} beat. ${safePrompt}` }
+          ], {
+            format: 'json',
+            temperature: 0.8
+          });
+          usedLocal = true;
+          console.log('✅ Local AI succeeded!');
+        } catch (localError) {
+          console.log('⚠️ Local AI failed, falling back to cloud (Grok)...');
+          // Fallback to cloud API
+          response = await makeAICall([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate a ${style} beat. ${safePrompt}` }
+          ], {
+            response_format: { type: "json_object" },
+            temperature: 0.8
+          });
+          console.log('✅ Cloud AI (Grok) succeeded!');
+        }
         
         const content = response.choices?.[0]?.message?.content || '{}';
-        return JSON.parse(content);
+        const parsed = JSON.parse(content);
+        
+        // Add metadata about which AI was used
+        parsed._aiSource = usedLocal ? 'local' : 'cloud';
+        
+        return parsed;
       },
       
       // Validator
