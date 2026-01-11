@@ -750,11 +750,30 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
     console.log(`💬 AI Chat request with ${messages.length} messages`);
 
     try {
-      const aiClient = getAIClient();
-      if (!aiClient) {
-        return res.status(503).json({ message: "AI service unavailable" });
+      // Try local Ollama first (free, fast, private)
+      try {
+        const { localAI } = await import("../services/localAI");
+        const isAvailable = await localAI.checkAvailability();
+        
+        if (isAvailable) {
+          console.log('🖥️ Using local Ollama (Llama 3.1)');
+          const response = await localAI.chat(messages, {
+            temperature: 0.7
+          });
+          
+          return res.json({ response, provider: 'ollama' });
+        }
+      } catch (localError) {
+        console.log('⚠️ Local AI unavailable, falling back to cloud:', localError);
       }
 
+      // Fallback to cloud AI (Grok or OpenAI)
+      const aiClient = getAIClient();
+      if (!aiClient) {
+        return res.status(503).json({ message: "AI service unavailable - no local or cloud AI configured" });
+      }
+
+      console.log('☁️ Using cloud AI');
       const response = await aiClient.chat.completions.create({
         model: "grok-beta",
         messages: messages,
@@ -764,7 +783,7 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
 
       const assistantResponse = response.choices[0]?.message?.content || "I apologize, I couldn't generate a response.";
 
-      res.json({ response: assistantResponse });
+      res.json({ response: assistantResponse, provider: 'cloud' });
     } catch (error) {
       console.error("❌ AI chat error:", error);
       res.status(500).json({ 
