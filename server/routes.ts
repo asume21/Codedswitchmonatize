@@ -50,6 +50,25 @@ const sendError = (res: Response, statusCode: number, message: string) => {
 // Use process.cwd() for __dirname equivalent in bundled CJS
 const __dirname = process.cwd();
 
+// Helper to safely get client identifier for rate limiting (handles IPv6)
+function getClientKey(req: Request): string {
+  const userId = (req as any).userId;
+  if (userId) return `user:${userId}`;
+  
+  const forwarded = req.headers['x-forwarded-for'];
+  let ip = typeof forwarded === 'string' 
+    ? forwarded.split(',')[0].trim() 
+    : req.ip || req.socket?.remoteAddress || 'unknown';
+  
+  // Normalize IPv6 addresses to prevent bypass
+  if (ip.includes(':')) {
+    const parts = ip.split(':');
+    ip = parts.slice(0, 4).join(':') + '::';
+  }
+  
+  return `ip:${ip}`;
+}
+
 // Rate limiter for public endpoints
 const publicApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -57,6 +76,8 @@ const publicApiLimiter = rateLimit({
   message: { success: false, message: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getClientKey,
+  validate: { xForwardedForHeader: false },
 });
 
 // Rate limiter for upload endpoints
@@ -64,6 +85,8 @@ const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 20, // Limit each IP to 20 uploads per hour
   message: { success: false, message: 'Upload limit exceeded. Please try again later.' },
+  keyGenerator: getClientKey,
+  validate: { xForwardedForHeader: false },
 });
 
 // Secure file upload configuration
