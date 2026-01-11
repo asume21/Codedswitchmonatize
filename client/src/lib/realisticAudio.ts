@@ -440,6 +440,12 @@ export class RealisticAudioEngine {
         case 'crash':
           this.playSyntheticCrash(currentTime, velocity, destination);
           break;
+        case 'cowbell':
+          this.playSyntheticCowbell(currentTime, velocity, destination);
+          break;
+        case 'ride':
+          this.playSyntheticRide(currentTime, velocity, destination);
+          break;
         case 'fx':
           // FX: use crash with lower velocity so it sits back in the mix
           this.playSyntheticCrash(currentTime, Math.min(1, velocity * 0.6), destination);
@@ -973,6 +979,123 @@ export class RealisticAudioEngine {
       bassOsc.stop(currentTime + duration);
     } catch (error) {
       console.error('🎵 Bass drum error:', error);
+    }
+  }
+
+  private playSyntheticCowbell(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Cowbell uses two square waves tuned to specific frequencies
+      const osc1 = this.audioContext.createOscillator();
+      const osc2 = this.audioContext.createOscillator();
+      const gain1 = this.audioContext.createGain();
+      const gain2 = this.audioContext.createGain();
+      const masterGain = this.audioContext.createGain();
+      const filter = this.audioContext.createBiquadFilter();
+
+      // Classic cowbell frequencies (around 540Hz and 800Hz)
+      osc1.type = 'square';
+      osc1.frequency.setValueAtTime(540, currentTime);
+      
+      osc2.type = 'square';
+      osc2.frequency.setValueAtTime(800, currentTime);
+
+      // Bandpass filter for metallic tone
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(800, currentTime);
+      filter.Q.setValueAtTime(1, currentTime);
+
+      // Envelope - short, punchy
+      const duration = 0.25;
+      const cowbellVol = Math.max(0.001, velocity * 0.9);
+      
+      gain1.gain.setValueAtTime(cowbellVol * 0.5, currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+      
+      gain2.gain.setValueAtTime(cowbellVol * 0.3, currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      masterGain.gain.setValueAtTime(1, currentTime);
+
+      // Connect
+      osc1.connect(gain1);
+      osc2.connect(gain2);
+      gain1.connect(filter);
+      gain2.connect(filter);
+      filter.connect(masterGain);
+      masterGain.connect(destination || this.audioContext.destination);
+
+      osc1.start(currentTime);
+      osc2.start(currentTime);
+      osc1.stop(currentTime + duration);
+      osc2.stop(currentTime + duration);
+    } catch (error) {
+      console.error('🎵 Cowbell error:', error);
+    }
+  }
+
+  private playSyntheticRide(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Ride cymbal: metallic noise with a bell-like tone
+      const rideNoise = this.audioContext.createBufferSource();
+      const rideTone = this.audioContext.createOscillator();
+      const noiseGain = this.audioContext.createGain();
+      const toneGain = this.audioContext.createGain();
+      const rideFilter = this.audioContext.createBiquadFilter();
+      const masterGain = this.audioContext.createGain();
+
+      const duration = 0.8; // Medium sustain
+      const bufferSize = this.audioContext.sampleRate * duration;
+      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // Generate metallic noise
+      for (let i = 0; i < bufferSize; i++) {
+        const envelope = Math.pow(1 - (i / bufferSize), 1.5);
+        data[i] = (Math.random() * 2 - 1) * envelope;
+      }
+
+      rideNoise.buffer = buffer;
+
+      // Bell tone component
+      rideTone.type = 'sine';
+      rideTone.frequency.setValueAtTime(3200, currentTime);
+
+      // High-pass filter for bright metallic sound
+      rideFilter.type = 'highpass';
+      rideFilter.frequency.setValueAtTime(5000, currentTime);
+      rideFilter.Q.setValueAtTime(0.5, currentTime);
+
+      // Envelope
+      const rideVol = Math.max(0.001, velocity * 0.8);
+      
+      noiseGain.gain.setValueAtTime(rideVol, currentTime);
+      noiseGain.gain.exponentialRampToValueAtTime(rideVol * 0.3, currentTime + 0.1);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      toneGain.gain.setValueAtTime(rideVol * 0.4, currentTime);
+      toneGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.15);
+
+      masterGain.gain.setValueAtTime(1, currentTime);
+
+      // Connect
+      rideNoise.connect(rideFilter);
+      rideFilter.connect(noiseGain);
+      noiseGain.connect(masterGain);
+      
+      rideTone.connect(toneGain);
+      toneGain.connect(masterGain);
+      
+      masterGain.connect(destination || this.audioContext.destination);
+
+      rideNoise.start(currentTime);
+      rideTone.start(currentTime);
+      rideTone.stop(currentTime + 0.15);
+    } catch (error) {
+      console.error('🎵 Ride cymbal error:', error);
     }
   }
 
