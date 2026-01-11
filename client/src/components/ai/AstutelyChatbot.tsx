@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useQuery } from '@tanstack/react-query';
 import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useTransport } from '@/contexts/TransportContext';
@@ -81,6 +82,12 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   
   // Studio Audio Context - patterns, melodies, lyrics, uploaded songs
   const studioContext = useContext(StudioAudioContext);
+  
+  // Fetch uploaded songs from library
+  const { data: uploadedSongs = [] } = useQuery<any[]>({
+    queryKey: ['/api/songs'],
+    initialData: [],
+  });
   
   // Get current project status for AI context
   const getProjectStatus = (): ProjectStatus => {
@@ -493,6 +500,92 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
         return;
       }
       
+      // SONG LIBRARY COMMANDS
+      if (lowerInput.includes('list songs') || lowerInput.includes('show songs') || lowerInput.includes('my songs') || lowerInput.includes('song library')) {
+        if (uploadedSongs.length === 0) {
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: `📂 **Your Song Library is Empty**
+
+No songs uploaded yet. Say "go to upload" to upload your first song!`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+        } else {
+          const songList = uploadedSongs.slice(0, 10).map((song: any, i: number) => 
+            `  ${i + 1}. **${song.title || song.name || 'Untitled'}**${song.artist ? ` - ${song.artist}` : ''}`
+          ).join('\n');
+          
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: `🎵 **Your Song Library** (${uploadedSongs.length} songs)
+
+${songList}
+${uploadedSongs.length > 10 ? `\n... and ${uploadedSongs.length - 10} more` : ''}
+
+Say "play [song name]" to load and play a song!`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+        }
+        return;
+      }
+      
+      // PLAY UPLOADED SONG COMMAND
+      if (lowerInput.includes('play ') && !lowerInput.includes('play it') && !lowerInput.includes('playback')) {
+        const songQuery = lowerInput.replace(/^play\s+/i, '').trim();
+        const matchedSong = uploadedSongs.find((song: any) => 
+          (song.title || song.name || '').toLowerCase().includes(songQuery) ||
+          (song.artist || '').toLowerCase().includes(songQuery)
+        );
+        
+        if (matchedSong) {
+          // Load the song into the studio context
+          // Create audio element for the song
+          const audio = new Audio();
+          const songUrl = matchedSong.accessibleUrl || matchedSong.originalUrl || matchedSong.songURL || '';
+          
+          if (songUrl) {
+            audio.src = songUrl;
+            audio.load();
+            
+            if (studioContext?.setCurrentUploadedSong) {
+              studioContext.setCurrentUploadedSong(matchedSong, audio);
+            }
+            
+            const assistantMessage: Message = {
+              role: 'assistant',
+              content: `🎵 **Loaded: ${matchedSong.title || matchedSong.name || 'Untitled'}**
+${matchedSong.artist ? `Artist: ${matchedSong.artist}\n` : ''}
+The song is now loaded in your workspace. Say "play" to start playback!`,
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, assistantMessage]);
+            toast({ 
+              title: '🎵 Song Loaded', 
+              description: matchedSong.title || matchedSong.name || 'Untitled'
+            });
+          } else {
+            const assistantMessage: Message = {
+              role: 'assistant',
+              content: `❌ Couldn't load "${matchedSong.title || matchedSong.name}" - no audio URL found.`,
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, assistantMessage]);
+          }
+        } else {
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: `❌ Couldn't find a song matching "${songQuery}".
+
+Say "list songs" to see your uploaded songs.`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+        }
+        return;
+      }
+      
       // STATUS COMMAND
       if (lowerInput === 'status' || lowerInput.includes('project status') || lowerInput.includes('what do i have')) {
         await handleQuickAction('status');
@@ -855,6 +948,95 @@ Keep responses concise but helpful. Reference their current project when relevan
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Multi-Track & Song Library Display */}
+            <div className="px-4 py-3 border-b border-cyan-500/10 bg-black/20">
+              {/* Tracks Section */}
+              {tracks.length > 0 && (
+                <div className="mb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Layers className="w-3 h-3 text-cyan-400" />
+                    <span className="text-[10px] font-bold text-cyan-400/80 uppercase tracking-wider">Active Tracks ({tracks.length})</span>
+                  </div>
+                  <div className="space-y-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/20">
+                    {tracks.slice(0, 5).map((track: any, i: number) => (
+                      <div 
+                        key={track.id}
+                        className="flex items-center gap-2 px-2 py-1 rounded bg-cyan-950/20 border border-cyan-500/10 hover:border-cyan-500/30 transition-colors"
+                      >
+                        <div 
+                          className="w-2 h-2 rounded-full" 
+                          style={{ backgroundColor: track.payload?.color || '#3b82f6' }}
+                        />
+                        <span className="text-[10px] text-white/80 flex-1 truncate">
+                          {track.name || `Track ${i + 1}`}
+                        </span>
+                        <span className="text-[9px] text-cyan-500/60 font-mono">
+                          {track.payload?.notes?.length || 0} notes
+                        </span>
+                      </div>
+                    ))}
+                    {tracks.length > 5 && (
+                      <div className="text-[9px] text-cyan-500/40 text-center py-1">
+                        +{tracks.length - 5} more tracks
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Uploaded Songs Section */}
+              {uploadedSongs.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Music className="w-3 h-3 text-purple-400" />
+                    <span className="text-[10px] font-bold text-purple-400/80 uppercase tracking-wider">Song Library ({uploadedSongs.length})</span>
+                  </div>
+                  <div className="space-y-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/20">
+                    {uploadedSongs.slice(0, 5).map((song: any, i: number) => (
+                      <button
+                        key={song.id}
+                        onClick={() => {
+                          const audio = new Audio();
+                          const songUrl = song.accessibleUrl || song.originalUrl || song.songURL || '';
+                          if (songUrl) {
+                            audio.src = songUrl;
+                            audio.load();
+                            studioContext?.setCurrentUploadedSong?.(song, audio);
+                            toast({ 
+                              title: '🎵 Song Loaded', 
+                              description: song.title || song.name || 'Untitled'
+                            });
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 px-2 py-1 rounded bg-purple-950/20 border border-purple-500/10 hover:border-purple-500/30 hover:bg-purple-950/30 transition-colors text-left"
+                      >
+                        <Play className="w-2.5 h-2.5 text-purple-400/60" />
+                        <span className="text-[10px] text-white/80 flex-1 truncate">
+                          {song.title || song.name || 'Untitled'}
+                        </span>
+                        {song.artist && (
+                          <span className="text-[9px] text-purple-500/60 truncate max-w-[80px]">
+                            {song.artist}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                    {uploadedSongs.length > 5 && (
+                      <div className="text-[9px] text-purple-500/40 text-center py-1">
+                        +{uploadedSongs.length - 5} more songs
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {tracks.length === 0 && uploadedSongs.length === 0 && (
+                <div className="text-center py-2">
+                  <span className="text-[10px] text-cyan-500/40">No tracks or songs loaded yet</span>
+                </div>
+              )}
             </div>
 
             {/* Quick Actions Bar */}
