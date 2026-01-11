@@ -3065,7 +3065,7 @@ export default function UnifiedStudioWorkspace() {
                         >
                           <div className="flex flex-1 overflow-hidden">
                             {/* Track Info Panel */}
-                            <div className="w-48 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0 h-full">
+                            <div className="w-64 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0 h-full">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="font-medium text-sm truncate">{track.name}</span>
                               </div>
