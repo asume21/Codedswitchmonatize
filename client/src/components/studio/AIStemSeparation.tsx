@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2 } from 'lucide-react';
+import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -29,7 +29,9 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const [predictionId, setPredictionId] = useState<string | null>(null);
   const [stems, setStems] = useState<StemResult | null>(null);
   const [playingStem, setPlayingStem] = useState<string | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -70,11 +72,24 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
     };
   }, [predictionId, isProcessing, onStemsReady, toast]);
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setAudioUrl(url);
+      setUploadedFileName(file.name);
+      toast({
+        title: "File Loaded",
+        description: `${file.name} ready for stem separation`,
+      });
+    }
+  };
+
   const startSeparation = async () => {
     if (!audioUrl) {
       toast({
-        title: "URL Required",
-        description: "Please enter an audio URL",
+        title: "Audio Required",
+        description: "Please upload a file or enter an audio URL",
         variant: "destructive"
       });
       return;
@@ -159,14 +174,47 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         </p>
 
         <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Audio URL</label>
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground">Load Audio</label>
+            
+            {/* File Upload Button */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessing}
+                className="flex-1"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {uploadedFileName || 'Upload from Computer'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </div>
+            
+            {/* OR divider */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 border-t border-gray-700"></div>
+              <span className="text-xs text-muted-foreground">OR</span>
+              <div className="flex-1 border-t border-gray-700"></div>
+            </div>
+            
+            {/* URL Input */}
             <Input
               data-testid="input-stem-audio-url"
               placeholder="https://example.com/song.mp3"
-              value={audioUrl}
-              onChange={(e) => setAudioUrl(e.target.value)}
-              disabled={isProcessing}
+              value={uploadedFileName ? '' : audioUrl}
+              onChange={(e) => {
+                setAudioUrl(e.target.value);
+                setUploadedFileName('');
+              }}
+              disabled={isProcessing || !!uploadedFileName}
             />
           </div>
 
