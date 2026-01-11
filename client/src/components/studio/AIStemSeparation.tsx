@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload } from 'lucide-react';
+import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
 
 interface StemResult {
   vocals?: string;
@@ -33,6 +34,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -153,6 +155,22 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
     }
   };
 
+  const sendToAstutely = () => {
+    if (!stems) return;
+    
+    // Store stems in sessionStorage for Astutely to access
+    sessionStorage.setItem('astutely_stems', JSON.stringify(stems));
+    sessionStorage.setItem('astutely_stem_source', uploadedFileName || 'Separated Track');
+    
+    toast({
+      title: "Routing to Astutely",
+      description: `Sending ${Object.keys(stems).length} stems for AI remixing`,
+    });
+    
+    // Navigate to mixer with AI tab active
+    setLocation('/mixer?tab=ai-mix');
+  };
+
   const stemDescriptions: Record<string, string> = {
     '2': 'Vocals + Accompaniment',
     '4': 'Vocals + Drums + Bass + Other',
@@ -258,7 +276,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         </div>
 
         {stems && (
-          <div className="space-y-2 pt-2 border-t">
+          <div className="space-y-3 pt-2 border-t">
             <h4 className="text-sm font-medium">Separated Stems</h4>
             <div className="grid gap-2">
               {Object.entries(stems).map(([name, url]) => (
@@ -292,6 +310,16 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
                 </div>
               ))}
             </div>
+            
+            {/* Send to Astutely Button */}
+            <Button
+              onClick={sendToAstutely}
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
+              data-testid="button-send-to-astutely"
+            >
+              <Wand2 className="w-4 h-4 mr-2" />
+              Send to Astutely for AI Remix
+            </Button>
           </div>
         )}
       </CardContent>

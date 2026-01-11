@@ -16,7 +16,7 @@ import {
   Volume2, VolumeX, Headphones, Settings, 
   Play, Pause, Square, RotateCcw,
   Zap, Waves, Filter, Sliders, 
-  BarChart3, TrendingUp, Radio, Wand2, FileMusic, Sparkles
+  BarChart3, TrendingUp, Radio, Wand2, FileMusic, Sparkles, Upload
 } from 'lucide-react';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { useLocation } from 'wouter';
@@ -46,6 +46,8 @@ export default function ProfessionalMixer() {
   const { currentSession, setCurrentSessionId } = useSongWorkSession();
   const { tracks } = useTracks();
   const [location] = useLocation();
+  const [uploadedStems, setUploadedStems] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mixerState, setMixerState] = useState<MixerState>({
     channels: [],
     sends: [],
@@ -694,10 +696,69 @@ export default function ProfessionalMixer() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-10 space-y-8">
+                  {/* Audio Upload Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <FileMusic className="h-5 w-5 text-purple-400" />
+                      <h4 className="text-sm font-semibold text-white/80 uppercase tracking-wider">Upload Stems (Optional)</h4>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 h-14 bg-black/40 border-white/20 hover:bg-black/60 hover:border-purple-500/50 text-white rounded-xl transition-all"
+                      >
+                        <Upload className="w-5 h-5 mr-2" />
+                        {uploadedStems.length > 0 ? `${uploadedStems.length} Stems Loaded` : 'Upload Separated Stems'}
+                      </Button>
+                      {uploadedStems.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setUploadedStems([])}
+                          className="h-14 px-6 bg-red-500/20 border-red-500/50 hover:bg-red-500/30 text-red-300 rounded-xl"
+                        >
+                          Clear
+                        </Button>
+                      )}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="audio/*"
+                        multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          setUploadedStems(files);
+                          toast({
+                            title: "Stems Loaded",
+                            description: `${files.length} audio files ready for AI remixing`,
+                          });
+                        }}
+                        className="hidden"
+                      />
+                    </div>
+                    {uploadedStems.length > 0 && (
+                      <div className="bg-black/40 rounded-xl p-4 border border-white/10">
+                        <p className="text-xs text-white/60 mb-2 uppercase tracking-wide">Loaded Stems:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {uploadedStems.map((file, i) => (
+                            <Badge key={i} variant="secondary" className="bg-purple-500/20 text-purple-300 border-purple-500/30">
+                              {file.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Text Prompt Section */}
                   <div className="relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-1000"></div>
                     <Textarea
-                      placeholder="Tell Astutely how you want your track to feel... e.g., 'Make it sound like a 1980s synthwave dream with lush reverb and punchy drums'"
+                      placeholder={uploadedStems.length > 0 
+                        ? "Describe how you want to remix these stems... e.g., 'Add heavy reverb to vocals, make drums punchier, boost bass'"
+                        : "Tell Astutely how you want your track to feel... e.g., 'Make it sound like a 1980s synthwave dream with lush reverb and punchy drums'"}
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
                       className="relative min-h-[180px] bg-black/60 border-white/10 rounded-2xl p-6 text-lg font-medium text-white placeholder:text-white/20 focus:ring-purple-500/50 resize-none transition-all"
@@ -717,10 +778,16 @@ export default function ProfessionalMixer() {
                     ) : (
                       <div className="flex items-center gap-3">
                         <Zap className="h-6 w-6 fill-current" />
-                        <span>GENERATE MASTER MIX</span>
+                        <span>{uploadedStems.length > 0 ? 'REMIX STEMS' : 'GENERATE MASTER MIX'}</span>
                       </div>
                     )}
                   </Button>
+                  
+                  {uploadedStems.length > 0 && (
+                    <p className="text-center text-sm text-purple-300/60">
+                      AI will analyze and remix your {uploadedStems.length} uploaded stems
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
