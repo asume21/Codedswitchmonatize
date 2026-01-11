@@ -500,7 +500,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Generate bass line
-  router.post("/music/generate-bass", requireAuth(), async (req: Request, res: Response) => {
+  router.post("/music/generate-bass", async (req: Request, res: Response) => {
     try {
       const { 
         chordProgression, 
