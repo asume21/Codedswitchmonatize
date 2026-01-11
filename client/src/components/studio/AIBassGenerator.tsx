@@ -284,14 +284,15 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
   ];
 
   const generateBassLine = async () => {
-    if (!chordProgression || chordProgression.length === 0) {
-      toast({
-        title: "No Chords Found",
-        description: "Generate a chord progression first!",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Use provided chord progression or default to a common progression
+    const chords = chordProgression && chordProgression.length > 0 
+      ? chordProgression 
+      : [
+          { chord: 'C', duration: 4 },
+          { chord: 'G', duration: 4 },
+          { chord: 'Am', duration: 4 },
+          { chord: 'F', duration: 4 }
+        ];
 
     setIsGenerating(true);
 
@@ -301,7 +302,7 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chordProgression,
+          chordProgression: chords,
           style: bassStyle,
           pattern: patternType,
           octave: octave[0],
@@ -449,7 +450,7 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
 
         <Button
           onClick={generateBassLine}
-          disabled={isGenerating || !chordProgression || chordProgression.length === 0}
+          disabled={isGenerating}
           className="w-full h-14 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98] border border-white/20"
         >
           {isGenerating ? (
