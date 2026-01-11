@@ -2,9 +2,11 @@
 // ASTUTELY - The AI that makes beats legendary
 
 import { useState, useEffect } from 'react';
-import { Sparkles, X, Loader2, Music } from 'lucide-react';
+import { Sparkles, X, Loader2, Music, Library, Play, Pause } from 'lucide-react';
 import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const styles = [
   { name: "Travis Scott rage", icon: "🔥", preview: "808s + dark pads" },
@@ -30,7 +32,15 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const [query, setQuery] = useState('');
   const [progress, setProgress] = useState(0);
   const [generatedResult, setGeneratedResult] = useState<AstutelyResult | null>(null);
+  const [selectedSongId, setSelectedSongId] = useState<string>('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const { toast } = useToast();
+  
+  // Fetch user's song library
+  const { data: songs = [] } = useQuery<any[]>({
+    queryKey: ['/api/songs'],
+  });
 
   // Handle Escape key
   useEffect(() => {
@@ -40,6 +50,76 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
+  
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.src = '';
+      }
+    };
+  }, [audioElement]);
+  
+  const handleSongSelect = (songId: string) => {
+    setSelectedSongId(songId);
+    // Stop current playback
+    if (audioElement) {
+      audioElement.pause();
+      setIsPlaying(false);
+    }
+  };
+  
+  const handlePlayPause = () => {
+    const song = songs.find(s => s.id.toString() === selectedSongId);
+    if (!song) {
+      toast({
+        title: 'No Song Selected',
+        description: 'Please select a song from your library first',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const audioUrl = song.accessibleUrl || song.originalUrl || song.songURL;
+    if (!audioUrl) {
+      toast({
+        title: 'No Audio URL',
+        description: 'This song has no playable audio',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    if (!audioElement) {
+      const audio = new Audio(audioUrl);
+      audio.crossOrigin = 'anonymous';
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => {
+        toast({
+          title: 'Playback Error',
+          description: 'Failed to load audio',
+          variant: 'destructive'
+        });
+        setIsPlaying(false);
+      };
+      setAudioElement(audio);
+      audio.play();
+      setIsPlaying(true);
+      toast({
+        title: '🎵 Now Playing',
+        description: song.name || 'Song'
+      });
+    } else {
+      if (isPlaying) {
+        audioElement.pause();
+        setIsPlaying(false);
+      } else {
+        audioElement.play();
+        setIsPlaying(true);
+      }
+    }
+  };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -107,7 +187,51 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
           </button>
         </div>
 
-        <p className="text-gray-300 mb-6">Transform your loop into a full beat instantly</p>
+        <p className="text-gray-300 mb-4">Transform your loop into a full beat instantly</p>
+        
+        {/* Song Library Selector */}
+        <div className="mb-6 p-4 rounded-xl bg-white/10 border border-white/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Library className="w-4 h-4 text-purple-400" />
+            <span className="text-sm font-semibold text-gray-200">Your Song Library</span>
+          </div>
+          <div className="flex gap-2">
+            <Select value={selectedSongId} onValueChange={handleSongSelect}>
+              <SelectTrigger className="flex-1 bg-white/10 border-white/20 text-white">
+                <SelectValue placeholder="Select a song to play..." />
+              </SelectTrigger>
+              <SelectContent>
+                {songs.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    No songs uploaded yet
+                  </SelectItem>
+                ) : (
+                  songs.map((song) => (
+                    <SelectItem key={song.id} value={song.id.toString()}>
+                      {song.name || `Song ${song.id}`}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            <button
+              onClick={handlePlayPause}
+              disabled={!selectedSongId || selectedSongId === 'none'}
+              className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isPlaying ? (
+                <Pause className="w-5 h-5" />
+              ) : (
+                <Play className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+          {selectedSongId && selectedSongId !== 'none' && (
+            <p className="text-xs text-gray-400 mt-2">
+              💡 Generate beats that match this song's vibe
+            </p>
+          )}
+        </div>
 
         {/* Style Grid with Previews */}
         <div className="grid grid-cols-2 gap-3 mb-6 max-h-[280px] overflow-y-auto pr-1">
