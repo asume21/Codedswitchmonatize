@@ -11,17 +11,32 @@ echo "🖥️ Starting Ollama service..."
 ollama serve &
 OLLAMA_PID=$!
 
-# Wait for Ollama to be ready
+# Wait for Ollama to be ready with health check loop
 echo "⏳ Waiting for Ollama to be ready..."
-sleep 5
+MAX_RETRIES=30
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+        echo "✅ Ollama is ready!"
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo "   Waiting for Ollama... ($RETRY_COUNT/$MAX_RETRIES)"
+    sleep 2
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo "⚠️ Ollama did not start in time, continuing anyway (will use cloud fallback)"
+fi
 
 # Verify model is available
 echo "📦 Verifying Llama 3.1 model..."
-if ollama list | grep -q "llama3.1:8b"; then
+if ollama list 2>/dev/null | grep -q "llama3.1:8b"; then
     echo "✅ Llama 3.1 model is ready"
 else
     echo "⚠️ Model not found, downloading..."
-    ollama pull llama3.1:8b
+    ollama pull llama3.1:8b || echo "⚠️ Model download failed, will use cloud fallback"
 fi
 
 # Start CodedSwitch

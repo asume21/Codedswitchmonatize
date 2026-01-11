@@ -140,7 +140,7 @@ export class LocalAIService {
   }
 
   /**
-   * Generate with chat format (system + user messages)
+   * Generate with chat format using Ollama's native chat API
    */
   async chat(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
@@ -150,20 +150,55 @@ export class LocalAIService {
       temperature?: number;
     } = {}
   ): Promise<string> {
-    // Convert chat messages to single prompt
-    const prompt = messages
-      .map(msg => {
-        if (msg.role === 'system') {
-          return `System: ${msg.content}`;
-        } else if (msg.role === 'user') {
-          return `User: ${msg.content}`;
-        } else {
-          return `Assistant: ${msg.content}`;
-        }
-      })
-      .join('\n\n') + '\n\nAssistant:';
+    const model = options.model || this.defaultModel;
+    
+    // Check availability if not already checked
+    if (this.isAvailable === null) {
+      await this.checkAvailability();
+    }
+    
+    if (this.isAvailable === false) {
+      throw new Error('Local AI not available');
+    }
 
-    return this.generate(prompt, options);
+    try {
+      console.log(`🖥️ Local AI: Chat with ${model}`);
+      
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: false,
+          options: {
+            temperature: options.temperature || 0.7,
+          }
+        }),
+        signal: AbortSignal.timeout(45000) // 45 second timeout for chat
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama chat API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.message?.content || '';
+      
+      if (!content) {
+        throw new Error('Empty response from Ollama chat');
+      }
+
+      console.log(`✅ Local AI: Chat response ${content.length} characters`);
+      return content;
+
+    } catch (error) {
+      console.warn('⚠️ Local AI chat failed:', error);
+      this.isAvailable = false;
+      throw error;
+    }
   }
 
   /**
