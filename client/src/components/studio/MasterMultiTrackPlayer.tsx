@@ -50,6 +50,7 @@ import { useTracks } from '@/hooks/useTracks';
 import { getAudioContext } from '@/lib/audioContext';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { Resizable } from 'react-resizable';
+import 'react-resizable/css/styles.css';
 import { RepeatIcon } from 'lucide-react';
 import WaveformVisualizer from './WaveformVisualizer';
 import { Dialog as BaseDialog, DialogContent as BaseDialogContent, DialogHeader as BaseDialogHeader, DialogTitle as BaseDialogTitle } from '@/components/ui/dialog';
