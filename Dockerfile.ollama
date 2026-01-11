@@ -16,10 +16,10 @@ RUN curl -fsSL https://ollama.com/install.sh | sh
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package*.json npm-shrinkwrap.json ./
 
 # Install Node dependencies
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy application code
 COPY . .
