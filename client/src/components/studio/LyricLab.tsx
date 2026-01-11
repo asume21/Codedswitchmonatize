@@ -1044,13 +1044,18 @@ export default function LyricLab() {
                       variant="ghost"
                       size="sm"
                       className="text-gray-300 hover:text-white"
-                      onClick={() =>
-                        studioSession.createLyricsVersion({
+                      onClick={() => {
+                        const versionId = studioSession.createLyricsVersion({
                           content,
                           source: "manual",
                           label: "Snapshot",
-                        })
-                      }
+                        });
+                        toast({
+                          title: "📸 Snapshot Created",
+                          description: `Version saved with ${wordCount} words. You can switch between versions using the dropdown.`,
+                          duration: 3000,
+                        });
+                      }}
                       title="Create a new version from the current lyrics"
                     >
                       <i className="fas fa-code-branch"></i>
