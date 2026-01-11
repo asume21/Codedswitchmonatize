@@ -273,7 +273,7 @@ export default function LyricLab() {
     const params = new URLSearchParams(search);
     const sessionId = params.get('session');
 
-    if (sessionId) {
+    if (sessionId && sessionId !== currentSessionId) {
       setCurrentSessionId(sessionId);
       toast({
         title: "Session Loaded",
@@ -281,7 +281,7 @@ export default function LyricLab() {
         duration: 3000,
       });
     }
-  }, [currentSession?.songName, setCurrentSessionId, toast]);
+  }, [currentSession?.songName, currentSessionId, setCurrentSessionId, toast]);
 
   // Load lyrics from session when session changes
   useEffect(() => {
