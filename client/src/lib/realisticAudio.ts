@@ -409,33 +409,28 @@ export class RealisticAudioEngine {
           this.playSyntheticOpenHat(currentTime, velocity, kitProfile.openhat, destination);
           break;
         case 'tom':
-          this.playSyntheticTom(currentTime, velocity, kitProfile.tom, destination);
+          this.playSyntheticTom(currentTime, velocity, 180, 110, 0.38, destination);
           break;
         case 'tom_hi':
-          // Slightly higher tom
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.95), kitProfile.tom, destination);
+          this.playSyntheticTom(currentTime, velocity, 240, 160, 0.32, destination);
           break;
         case 'tom_mid':
-          this.playSyntheticTom(currentTime, velocity, kitProfile.tom, destination);
+          this.playSyntheticTom(currentTime, velocity, 200, 130, 0.35, destination);
           break;
         case 'tom_lo':
-          // Slightly deeper, heavier tom
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 1.05), kitProfile.tom, destination);
+          this.playSyntheticTom(currentTime, velocity, 150, 90, 0.42, destination);
           break;
         case 'conga':
-          // Conga-style: reuse tom but a bit brighter
-          this.playSyntheticTom(currentTime, Math.min(1, velocity * 0.9), kitProfile.tom, destination);
+          this.playSyntheticConga(currentTime, velocity, destination);
           break;
         case 'clap':
           this.playSyntheticClap(currentTime, velocity, destination);
           break;
         case 'perc':
-          // Perc: shorter, clickier clap
-          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.8), destination);
+          this.playSyntheticPerc(currentTime, velocity, destination);
           break;
         case 'rim':
-          // Rimshot-ish: also clap-based but quieter
-          this.playSyntheticClap(currentTime, Math.min(1, velocity * 0.7), destination);
+          this.playSyntheticRim(currentTime, velocity, destination);
           break;
         case 'crash':
           this.playSyntheticCrash(currentTime, velocity, destination);
@@ -764,32 +759,33 @@ export class RealisticAudioEngine {
   private playSyntheticTom(
     currentTime: number,
     velocity: number,
-    profile?: { startFreq: number; endFreq: number; filterHz: number; vol: number; decay: number },
+    startFreq: number,
+    endFreq: number,
+    decay: number,
     destination?: AudioNode
   ): void {
     if (!this.audioContext) return;
 
     try {
-      const t = profile || this.drumKitProfiles.default.tom;
       const tomOsc = this.audioContext.createOscillator();
       const tomGain = this.audioContext.createGain();
       const tomFilter = this.audioContext.createBiquadFilter();
 
       // Tom fundamental frequency
       tomOsc.type = 'sine';
-      tomOsc.frequency.setValueAtTime(t.startFreq, currentTime);
-      tomOsc.frequency.exponentialRampToValueAtTime(t.endFreq, currentTime + Math.min(0.3, t.decay * 0.7));
+      tomOsc.frequency.setValueAtTime(startFreq, currentTime);
+      tomOsc.frequency.exponentialRampToValueAtTime(endFreq, currentTime + Math.min(0.3, decay * 0.7));
 
       // Mid-focused filter
       tomFilter.type = 'lowpass';
-      tomFilter.frequency.setValueAtTime(t.filterHz, currentTime);
+      tomFilter.frequency.setValueAtTime(600, currentTime);
       tomFilter.Q.setValueAtTime(3, currentTime);
 
-      // Punchy envelope - BOOSTED VOLUME
-      const tomVol = Math.max(0.001, velocity * t.vol);
+      // Punchy envelope
+      const tomVol = Math.max(0.001, velocity * 1.4);
       tomGain.gain.setValueAtTime(tomVol, currentTime);
       tomGain.gain.exponentialRampToValueAtTime(tomVol * 0.5, currentTime + 0.1);
-      tomGain.gain.exponentialRampToValueAtTime(0.001, currentTime + t.decay);
+      tomGain.gain.exponentialRampToValueAtTime(0.001, currentTime + decay);
 
       // Connect
       tomOsc.connect(tomFilter);
@@ -797,9 +793,130 @@ export class RealisticAudioEngine {
       tomGain.connect(destination || this.audioContext.destination);
 
       tomOsc.start(currentTime);
-      tomOsc.stop(currentTime + t.decay);
+      tomOsc.stop(currentTime + decay);
     } catch (error) {
       console.error('🎵 Tom drum error:', error);
+    }
+  }
+
+  private playSyntheticConga(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Conga: higher pitched tom with sharper attack
+      const congaOsc = this.audioContext.createOscillator();
+      const congaGain = this.audioContext.createGain();
+      const congaFilter = this.audioContext.createBiquadFilter();
+
+      congaOsc.type = 'sine';
+      congaOsc.frequency.setValueAtTime(340, currentTime);
+      congaOsc.frequency.exponentialRampToValueAtTime(160, currentTime + 0.2);
+
+      // Brighter filter for conga
+      congaFilter.type = 'bandpass';
+      congaFilter.frequency.setValueAtTime(800, currentTime);
+      congaFilter.Q.setValueAtTime(2, currentTime);
+
+      const duration = 0.32;
+      const congaVol = Math.max(0.001, velocity * 1.2);
+      congaGain.gain.setValueAtTime(congaVol, currentTime);
+      congaGain.gain.exponentialRampToValueAtTime(congaVol * 0.4, currentTime + 0.08);
+      congaGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      congaOsc.connect(congaFilter);
+      congaFilter.connect(congaGain);
+      congaGain.connect(destination || this.audioContext.destination);
+
+      congaOsc.start(currentTime);
+      congaOsc.stop(currentTime + duration);
+    } catch (error) {
+      console.error('🎵 Conga error:', error);
+    }
+  }
+
+  private playSyntheticPerc(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Perc: short, high-pitched metallic sound
+      const percNoise = this.audioContext.createBufferSource();
+      const percGain = this.audioContext.createGain();
+      const percFilter = this.audioContext.createBiquadFilter();
+
+      const duration = 0.08;
+      const bufferSize = this.audioContext.sampleRate * duration;
+      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // Short burst of filtered noise
+      for (let i = 0; i < bufferSize; i++) {
+        const envelope = Math.pow(1 - (i / bufferSize), 6);
+        data[i] = (Math.random() * 2 - 1) * envelope;
+      }
+
+      percNoise.buffer = buffer;
+
+      // High bandpass for bright, short perc sound
+      percFilter.type = 'bandpass';
+      percFilter.frequency.setValueAtTime(6500, currentTime);
+      percFilter.Q.setValueAtTime(4, currentTime);
+
+      const percVol = Math.max(0.001, velocity * 0.8);
+      percGain.gain.setValueAtTime(percVol, currentTime);
+      percGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      percNoise.connect(percFilter);
+      percFilter.connect(percGain);
+      percGain.connect(destination || this.audioContext.destination);
+
+      percNoise.start(currentTime);
+    } catch (error) {
+      console.error('🎵 Perc error:', error);
+    }
+  }
+
+  private playSyntheticRim(currentTime: number, velocity: number, destination?: AudioNode): void {
+    if (!this.audioContext) return;
+
+    try {
+      // Rimshot: sharp click with brief tone
+      const rimClick = this.audioContext.createOscillator();
+      const rimTone = this.audioContext.createOscillator();
+      const clickGain = this.audioContext.createGain();
+      const toneGain = this.audioContext.createGain();
+      const masterGain = this.audioContext.createGain();
+
+      // Sharp click
+      rimClick.type = 'square';
+      rimClick.frequency.setValueAtTime(1800, currentTime);
+
+      // Brief tone
+      rimTone.type = 'triangle';
+      rimTone.frequency.setValueAtTime(400, currentTime);
+
+      const duration = 0.05;
+      const rimVol = Math.max(0.001, velocity * 0.7);
+
+      clickGain.gain.setValueAtTime(rimVol, currentTime);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.01);
+
+      toneGain.gain.setValueAtTime(rimVol * 0.5, currentTime);
+      toneGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+      masterGain.gain.setValueAtTime(1, currentTime);
+
+      rimClick.connect(clickGain);
+      rimTone.connect(toneGain);
+      clickGain.connect(masterGain);
+      toneGain.connect(masterGain);
+      masterGain.connect(destination || this.audioContext.destination);
+
+      rimClick.start(currentTime);
+      rimTone.start(currentTime);
+      rimClick.stop(currentTime + 0.01);
+      rimTone.stop(currentTime + duration);
+    } catch (error) {
+      console.error('🎵 Rimshot error:', error);
     }
   }
 
