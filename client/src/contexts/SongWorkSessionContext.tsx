@@ -31,7 +31,7 @@ interface SongWorkSessionContextType {
   createSession: (song: { name: string; audioUrl?: string }) => string;
   updateSession: (sessionId: string, updates: Partial<SongWorkSession>) => void;
   getSession: (sessionId: string) => SongWorkSession | null;
-  setCurrentSessionId: (sessionId: string) => void;
+  setCurrentSessionId: (sessionId: string | null) => void;
   deleteSession: (sessionId: string) => void;
   listSessions: () => SongWorkSession[];
   clearSession: () => void;
@@ -70,6 +70,11 @@ export function SongWorkSessionProvider({ children }: { children: ReactNode }) {
   }, [sessions, currentSession]);
 
   const createSession = (song: { name: string; audioUrl?: string }): string => {
+    // Prevent creating sessions with "Unknown Track" - require valid name or empty session
+    if (!song.name || song.name.toLowerCase().includes('unknown')) {
+      throw new Error('Cannot create session without a valid track name. Please load a track first or start an empty session.');
+    }
+    
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newSession: SongWorkSession = {
       sessionId,
@@ -103,7 +108,11 @@ export function SongWorkSessionProvider({ children }: { children: ReactNode }) {
     return sessions.get(sessionId) || null;
   };
 
-  const setCurrentSessionId = (sessionId: string) => {
+  const setCurrentSessionId = (sessionId: string | null) => {
+    if (sessionId === null) {
+      setCurrentSession(null);
+      return;
+    }
     const session = sessions.get(sessionId);
     if (session) {
       setCurrentSession(session);
