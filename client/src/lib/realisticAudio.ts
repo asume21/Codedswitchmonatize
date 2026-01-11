@@ -179,6 +179,43 @@ export class RealisticAudioEngine {
 
   constructor() {
     this.instrumentLibrary = INSTRUMENT_LIBRARY;
+    // Periodic cleanup of finished nodes every 5 seconds
+    setInterval(() => this.cleanupFinishedNodes(), 5000);
+  }
+
+  /**
+   * Clean up audio nodes that have finished playing
+   */
+  private cleanupFinishedNodes() {
+    if (!this.audioContext) return;
+    
+    const currentTime = this.audioContext.currentTime;
+    const keysToDelete: string[] = [];
+    
+    this.activeNotes.forEach((nodes, key) => {
+      // Filter out nodes that should have finished
+      const activeNodes = nodes.filter(node => {
+        // If node has a stop time and it's passed, disconnect it
+        if (node && node.playbackState === 'finished') {
+          try {
+            node.disconnect();
+          } catch (e) {
+            // Already disconnected
+          }
+          return false;
+        }
+        return true;
+      });
+      
+      if (activeNodes.length === 0) {
+        keysToDelete.push(key);
+      } else if (activeNodes.length !== nodes.length) {
+        this.activeNotes.set(key, activeNodes);
+      }
+    });
+    
+    // Remove empty entries
+    keysToDelete.forEach(key => this.activeNotes.delete(key));
   }
 
   async initialize() {
@@ -504,11 +541,30 @@ export class RealisticAudioEngine {
             // Ignore stop errors
           }
         }
+        // Disconnect the node to free resources
+        if (node && typeof node.disconnect === 'function') {
+          try {
+            node.disconnect();
+          } catch (e) {
+            // Ignore disconnect errors
+          }
+        }
       });
     });
     this.activeNotes.clear();
 
-    // 2. Reset local state
+    // 2. Disconnect all loaded instruments to free audio graph resources
+    Object.values(this.instruments).forEach(instrument => {
+      if (instrument && typeof instrument.disconnect === 'function') {
+        try {
+          instrument.disconnect();
+        } catch (e) {
+          // Ignore disconnect errors
+        }
+      }
+    });
+
+    // 3. Reset local state
     // IMPORTANT: Do NOT close() the shared AudioContext.
     this.instruments = {};
     this.instrumentLoadPromises = {};
