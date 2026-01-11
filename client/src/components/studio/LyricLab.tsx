@@ -112,6 +112,7 @@ export default function LyricLab() {
   const selectionTimeout = useRef<number | undefined>(undefined);
 
   const [lastSelection, setLastSelection] = useState<{ start: number; end: number } | null>(null);
+  const [activeSection, setActiveSection] = useState<string>('verse 1');
 
   useEffect(() => {
     return () => {
@@ -691,6 +692,7 @@ export default function LyricLab() {
   }, [content, rhymeSuggestions]);
 
   const goToSection = (section: string) => {
+    setActiveSection(section.toLowerCase());
     if (!textareaRef.current) return;
     const sectionIndex = content.indexOf(`[${section.charAt(0).toUpperCase() + section.slice(1)}]`);
     if (sectionIndex !== -1) {
@@ -1090,7 +1092,7 @@ export default function LyricLab() {
                   onKeyUp={handleTextareaSelect}
                   onClick={handleTextareaSelect}
                   onScroll={handleTextareaSelect}
-                  className="h-96 bg-gray-900 border border-gray-700 rounded-md resize-none font-mono text-sm leading-relaxed focus:outline-none text-white caret-white px-3 py-2"
+                  className="min-h-[500px] max-h-[70vh] bg-gray-900 border border-gray-700 rounded-md resize-y font-mono text-sm leading-relaxed focus:outline-none text-white caret-white px-3 py-2"
                   placeholder="Start writing your lyrics here..."
                   aria-label="Lyric editor"
                   spellCheck
@@ -1142,23 +1144,6 @@ export default function LyricLab() {
                 No rhymes found yet. Try another word or adjust the selection.
               </div>
             )}
-            {rhymeSuggestions.length > 0 && (
-              <div className="mt-2 px-4">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-300">
-                  <span className="text-gray-400">Inline rhymes:</span>
-                  {rhymeSuggestions.slice(0, 6).map((r) => (
-                    <button
-                      key={r.word}
-                      onClick={() => insertRhyme(r.word)}
-                      className="px-2 py-1 rounded bg-blue-700 text-white hover:bg-blue-600 transition-colors"
-                      title={`Insert ${r.word}`}
-                    >
-                      {r.word}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Lyric Tools */}
@@ -1167,21 +1152,29 @@ export default function LyricLab() {
             <div className="bg-studio-panel border border-gray-600 rounded-lg p-4">
               <h3 className="font-medium mb-3">Song Structure</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between p-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600" onClick={() => { goToSection("intro"); }}>
+                <div className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                  activeSection === 'intro' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'
+                }`} onClick={() => goToSection("intro")}>
                   <span>Intro</span>
-                  <span className="text-gray-400">8 bars</span>
+                  <span className={activeSection === 'intro' ? 'text-blue-200' : 'text-gray-400'}>8 bars</span>
                 </div>
-                <div className="flex items-center justify-between p-2 bg-studio-accent bg-opacity-20 rounded cursor-pointer" onClick={() => goToSection("verse 1")}>
+                <div className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                  activeSection === 'verse 1' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'
+                }`} onClick={() => goToSection("verse 1")}>
                   <span>Verse 1</span>
-                  <span className="text-gray-400">16 bars</span>
+                  <span className={activeSection === 'verse 1' ? 'text-blue-200' : 'text-gray-400'}>16 bars</span>
                 </div>
-                <div className="flex items-center justify-between p-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600" onClick={() => goToSection("pre-chorus")}>
+                <div className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                  activeSection === 'pre-chorus' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'
+                }`} onClick={() => goToSection("pre-chorus")}>
                   <span>Pre-Chorus</span>
-                  <span className="text-gray-400">8 bars</span>
+                  <span className={activeSection === 'pre-chorus' ? 'text-blue-200' : 'text-gray-400'}>8 bars</span>
                 </div>
-                <div className="flex items-center justify-between p-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600" onClick={() => goToSection("chorus")}>
+                <div className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                  activeSection === 'chorus' ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'
+                }`} onClick={() => goToSection("chorus")}>
                   <span>Chorus</span>
-                  <span className="text-gray-400">16 bars</span>
+                  <span className={activeSection === 'chorus' ? 'text-blue-200' : 'text-gray-400'}>16 bars</span>
                 </div>
                 <Select onValueChange={(val) => addSection(val)}>
                   <SelectTrigger className="bg-gray-600 border-gray-500 text-gray-300">
