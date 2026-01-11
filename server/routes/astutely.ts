@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { unifiedMusicService } from '../services/unifiedMusicService';
 import { makeAICall } from '../services/grok';
+import { getGenreSpec } from '../ai/knowledge/genreDatabase';
+import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety/aiSafeguards';
 
 const router = Router();
 
@@ -13,76 +15,123 @@ router.post('/astutely', async (req: Request, res: Response) => {
   }
 
   try {
-    // AI Generation via Grok (JSON for MIDI/Timeline)
-    console.log(`🤖 Astutely generating symbolic pattern for: ${style}`);
+    // Sanitize user input for security
+    const safePrompt = sanitizePrompt(prompt);
     
-    const response = await makeAICall([
-      {
-        role: "system",
-        content: `You are Astutely, an expert AI music producer. Generate a full beat arrangement (drums, bass, chords, melody).
+    // Get genre specifications for enhanced intelligence
+    const genreSpec = getGenreSpec(style);
+    
+    // Build enhanced system prompt with genre knowledge
+    let systemPrompt = `You are Astutely, an expert AI music producer with deep knowledge of music theory and production.
+
+Generate a full beat arrangement (drums, bass, chords, melody) that is AUTHENTIC to the genre.`;
+
+    if (genreSpec) {
+      console.log(`✨ Enhanced AI: Using ${genreSpec.name} specifications (${genreSpec.bpmRange[0]}-${genreSpec.bpmRange[1]} BPM)`);
+      systemPrompt += `
+
+🎯 GENRE SPECIFICATIONS FOR ${genreSpec.name.toUpperCase()}:
+- BPM Range: ${genreSpec.bpmRange[0]}-${genreSpec.bpmRange[1]} (MUST be within this range)
+- Preferred Keys: ${genreSpec.preferredKeys.join(', ')}
+- Bass Style: ${genreSpec.bassStyle}
+- Drum Pattern: ${genreSpec.drumPattern}
+- Chord Style: ${genreSpec.chordStyle}
+- Mood: ${genreSpec.mood}
+- Essential Instruments: ${genreSpec.instruments.join(', ')}
+- Avoid: ${genreSpec.avoidInstruments.join(', ')}
+- Production Tips: ${genreSpec.productionTips.join('. ')}
+- Reference Artists: ${genreSpec.referenceArtists.join(', ')}
+
+You MUST follow these specifications exactly to create an authentic ${genreSpec.name} beat.`;
+    }
+
+    systemPrompt += `
+
 Return ONLY valid JSON matching this structure:
 {
   "style": "${style}",
   "bpm": 128,
   "key": "C Minor",
-  "drums": [{"step": 0, "type": "kick"}, {"step": 4, "type": "snare"}], // 0-63 steps
+  "drums": [{"step": 0, "type": "kick"}, {"step": 4, "type": "snare"}],
   "bass": [{"step": 0, "note": 36, "duration": 2}],
   "chords": [{"step": 0, "notes": [60, 63, 67], "duration": 16}],
   "melody": [{"step": 0, "note": 72, "duration": 1}]
 }
-Ensure patterns are musical and fit the "${style}" genre. Use 64 steps (4 bars).`
-      },
-      { 
-        role: "user", 
-        content: `Generate a ${style} beat. ${prompt}` 
-      }
-    ], {
-      response_format: { type: "json_object" },
-      temperature: 0.8
-    });
+Ensure patterns are musical, authentic to the genre, and use 64 steps (4 bars).`;
 
-    const content = response.choices?.[0]?.message?.content || '{}';
-    let result;
-    try {
-      result = JSON.parse(content);
-    } catch (parseError) {
-      console.warn("Astutely JSON parse failed, using fallback pattern");
-      // Fallback: Return a basic editable pattern so user can still work manually
-      result = {
-        style,
-        bpm: 120,
-        key: "C Minor",
-        drums: [
-          { step: 0, type: "kick" }, { step: 4, type: "snare" },
-          { step: 8, type: "kick" }, { step: 12, type: "snare" },
-          { step: 16, type: "kick" }, { step: 20, type: "snare" },
-          { step: 24, type: "kick" }, { step: 28, type: "snare" },
-          { step: 2, type: "hihat" }, { step: 6, type: "hihat" },
-          { step: 10, type: "hihat" }, { step: 14, type: "hihat" }
-        ],
-        bass: [
-          { step: 0, note: 36, duration: 4 },
-          { step: 16, note: 36, duration: 4 },
-          { step: 32, note: 38, duration: 4 },
-          { step: 48, note: 36, duration: 4 }
-        ],
-        chords: [
-          { step: 0, notes: [60, 63, 67], duration: 16 },
-          { step: 16, notes: [58, 62, 65], duration: 16 },
-          { step: 32, notes: [55, 58, 62], duration: 16 },
-          { step: 48, notes: [53, 57, 60], duration: 16 }
-        ],
-        melody: [
-          { step: 0, note: 72, duration: 2 },
-          { step: 4, note: 74, duration: 2 },
-          { step: 8, note: 75, duration: 4 },
-          { step: 16, note: 72, duration: 2 }
-        ],
-        isFallback: true
-      };
+    console.log(`🤖 Astutely generating with enhanced intelligence for: ${style}`);
+    
+    // Use safe AI generation with failsafes
+    const result = await safeAIGeneration(
+      // AI generation function
+      async () => {
+        const response = await makeAICall([
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Generate a ${style} beat. ${safePrompt}` }
+        ], {
+          response_format: { type: "json_object" },
+          temperature: 0.8
+        });
+        
+        const content = response.choices?.[0]?.message?.content || '{}';
+        return JSON.parse(content);
+      },
+      
+      // Validator
+      (output) => validateAIOutput(output, style),
+      
+      // Fallback generator
+      () => {
+        const fallbackBPM = genreSpec ? genreSpec.bpmRange[0] : 120;
+        const fallbackKey = genreSpec ? genreSpec.preferredKeys[0] : "C Minor";
+        
+        return {
+          style,
+          bpm: fallbackBPM,
+          key: fallbackKey,
+          drums: [
+            { step: 0, type: "kick" }, { step: 4, type: "snare" },
+            { step: 8, type: "kick" }, { step: 12, type: "snare" },
+            { step: 16, type: "kick" }, { step: 20, type: "snare" },
+            { step: 24, type: "kick" }, { step: 28, type: "snare" },
+            { step: 2, type: "hihat" }, { step: 6, type: "hihat" },
+            { step: 10, type: "hihat" }, { step: 14, type: "hihat" }
+          ],
+          bass: [
+            { step: 0, note: 36, duration: 4 },
+            { step: 16, note: 36, duration: 4 },
+            { step: 32, note: 38, duration: 4 },
+            { step: 48, note: 36, duration: 4 }
+          ],
+          chords: [
+            { step: 0, notes: [60, 63, 67], duration: 16 },
+            { step: 16, notes: [58, 62, 65], duration: 16 },
+            { step: 32, notes: [55, 58, 62], duration: 16 },
+            { step: 48, notes: [53, 57, 60], duration: 16 }
+          ],
+          melody: [
+            { step: 0, note: 72, duration: 2 },
+            { step: 4, note: 74, duration: 2 },
+            { step: 8, note: 75, duration: 4 },
+            { step: 16, note: 72, duration: 2 }
+          ],
+          isFallback: true
+        };
+      },
+      
+      // Config
+      { maxRetries: 3, fallbackEnabled: true }
+    );
+    
+    // Log results
+    if (result.usedFallback) {
+      console.warn('⚠️ AI generation failed, used fallback');
+    }
+    if (result.warnings.length > 0) {
+      console.warn('⚠️ Warnings:', result.warnings);
     }
     
-    return res.json(result);
+    return res.json(result.output);
 
   } catch (error: any) {
     console.error('Astutely AI error, using fallback:', error);
