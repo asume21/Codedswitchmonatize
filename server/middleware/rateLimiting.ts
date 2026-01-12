@@ -8,27 +8,15 @@ import { Request, Response } from 'express';
 
 /**
  * Helper to safely get client identifier for rate limiting
- * Handles IPv6 addresses properly to prevent bypass attacks
+ * Uses the library's ipKeyGenerator to properly handle IPv6 addresses
  */
 function getClientKey(req: Request): string {
   // Prefer user ID if authenticated
   const userId = (req as any).userId;
   if (userId) return `user:${userId}`;
   
-  // Get IP address, handling proxies
-  const forwarded = req.headers['x-forwarded-for'];
-  let ip = typeof forwarded === 'string' 
-    ? forwarded.split(',')[0].trim() 
-    : req.ip || req.socket?.remoteAddress || 'unknown';
-  
-  // Normalize IPv6 addresses to prevent bypass
-  if (ip.includes(':')) {
-    // For IPv6, use the /64 prefix to group addresses
-    const parts = ip.split(':');
-    ip = parts.slice(0, 4).join(':') + '::';
-  }
-  
-  return `ip:${ip}`;
+  // Use standard IP-based key (library handles IPv6 properly)
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 // Global rate limiter for all API endpoints
@@ -38,8 +26,7 @@ export const globalLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey,
-  validate: { xForwardedForHeader: false }, // Disable IPv6 validation warning
+  keyGenerator: getClientKey
 });
 
 // AI Generation rate limiter - EXPENSIVE endpoints (Suno, MusicGen, Grok)
@@ -64,8 +51,7 @@ export const aiGenerationLimiter = rateLimit({
   message: 'AI generation limit reached. Upgrade your plan for more generations!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey,
-  validate: { xForwardedForHeader: false },
+  keyGenerator: getClientKey
 });
 
 // Lyrics generation rate limiter - MODERATE cost
@@ -89,8 +75,7 @@ export const lyricsLimiter = rateLimit({
   message: 'Lyrics generation limit reached. Upgrade for more!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey,
-  validate: { xForwardedForHeader: false },
+  keyGenerator: getClientKey
 });
 
 // Beat/Melody generation rate limiter - MODERATE cost
@@ -114,8 +99,7 @@ export const beatGenerationLimiter = rateLimit({
   message: 'Beat generation limit reached. Upgrade for unlimited beats!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey,
-  validate: { xForwardedForHeader: false },
+  keyGenerator: getClientKey
 });
 
 // File upload rate limiter
@@ -139,8 +123,7 @@ export const uploadLimiter = rateLimit({
   message: 'Upload limit reached. Upgrade for more uploads!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey,
-  validate: { xForwardedForHeader: false },
+  keyGenerator: getClientKey
 });
 
 // Analysis rate limiter - LOW cost but can be abused
@@ -164,6 +147,5 @@ export const analysisLimiter = rateLimit({
   message: 'Analysis limit reached. Please wait before analyzing more.',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey,
-  validate: { xForwardedForHeader: false },
+  keyGenerator: getClientKey
 });
