@@ -769,9 +769,28 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
             return m;
           });
           
-          const response = await localAI.chat(enhancedMessages, {
+          let response = await localAI.chat(enhancedMessages, {
             temperature: 0.7
           });
+          
+          // Filter out hallucinated error messages
+          const errorPhrases = [
+            'trouble connecting',
+            'having trouble',
+            'cannot connect',
+            'not connected',
+            'connection error',
+            'AI brain'
+          ];
+          
+          const hasHallucinatedError = errorPhrases.some(phrase => 
+            response.toLowerCase().includes(phrase.toLowerCase())
+          );
+          
+          if (hasHallucinatedError) {
+            console.log('⚠️ Detected hallucinated error message, using fallback response');
+            response = "Hey! I'm Astutely, your AI music assistant. I can help you with beat making, music production tips, mixing advice, and more. Try asking me to 'make a trap beat' or ask about music theory!";
+          }
           
           return res.json({ response, provider: 'ollama' });
         }
