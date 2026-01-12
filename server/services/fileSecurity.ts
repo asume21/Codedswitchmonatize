@@ -96,7 +96,7 @@ export class FileSecurityScanner {
   async analyzeFileContentWithAI(filename: string, fileInfo: any): Promise<FileSecurityScan> {
     try {
       const response = await openai.chat.completions.create({
-        model: "grok-2-1212",
+        model: "grok-3",
         messages: [
           {
             role: "system",

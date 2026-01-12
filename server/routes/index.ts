@@ -88,7 +88,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
       }
 
       // Determine model based on provider
-      const model = aiProvider === "openai" ? "gpt-4" : "grok-2-1212";
+      const model = aiProvider === "openai" ? "gpt-4" : "grok-3";
 
       // Create chat completion
       const response = await client.chat.completions.create({

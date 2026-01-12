@@ -122,7 +122,7 @@ export class ProfessionalAudioGenerator {
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        model: "grok-2-1212",
+        model: "grok-3",
         temperature: 0.3,
         max_tokens: 6000,
         response_format: { type: "json_object" }
@@ -268,7 +268,7 @@ export class ProfessionalAudioGenerator {
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        model: "grok-2-1212",
+        model: "grok-3",
         temperature: 0.4,
         max_tokens: 4000,
         response_format: { type: "json_object" }
@@ -320,7 +320,7 @@ export class ProfessionalAudioGenerator {
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        model: "grok-2-1212",
+        model: "grok-3",
         temperature: 0.4,
         max_tokens: 4000,
         response_format: { type: "json_object" }
@@ -355,7 +355,7 @@ export class ProfessionalAudioGenerator {
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        model: "grok-2-1212",
+        model: "grok-3",
         temperature: 0.7,
         max_tokens: 4000,
         response_format: { type: "json_object" }
@@ -391,7 +391,7 @@ export class ProfessionalAudioGenerator {
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        model: "grok-2-1212",
+        model: "grok-3",
         temperature: 0.6,
         max_tokens: 3000,
         response_format: { type: "json_object" }

@@ -195,7 +195,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
           'Authorization': `Bearer ${XAI_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'grok-2-1212',
+          model: 'grok-3',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
         })
@@ -2309,7 +2309,7 @@ Return ONLY valid JSON:
       }
 
       // Determine model based on provider
-      const model = aiProvider === "openai" ? "gpt-4" : "grok-2-1212";
+      const model = aiProvider === "openai" ? "gpt-4" : "grok-3";
 
       // Create chat completion
       const response = await client.chat.completions.create({
