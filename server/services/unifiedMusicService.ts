@@ -2,6 +2,7 @@ import Replicate from "replicate";
 import { randomUUID } from "crypto";
 import { localMusicGenService, LocalMusicGenPack, LocalMusicGenSample } from "./local-musicgen";
 import { ObjectStorageService } from "../objectStorage";
+import { getGenreSpec, enhancePromptWithGenre } from "../ai/knowledge/genreDatabase";
 
 // Replicate client
 const replicate = new Replicate({
@@ -53,6 +54,7 @@ export class UnifiedMusicService {
 
   /**
    * Generate studio-quality full song (Suno/Bark)
+   * Enhanced with genre database intelligence for professional results
    */
   async generateFullSong(prompt: string, options: {
     genre?: string;
@@ -74,11 +76,27 @@ export class UnifiedMusicService {
         key
       } = options;
 
-      console.log('🎵 UnifiedMusic: Generating full song...');
+      console.log('🎵 UnifiedMusic: Generating full song with intelligence...');
 
+      // Get genre-specific intelligence
+      const genreSpec = getGenreSpec(genre);
+      // bpmRange is [min, max] tuple - use average as default
+      const smartBpm = bpm || (genreSpec?.bpmRange ? Math.round((genreSpec.bpmRange[0] + genreSpec.bpmRange[1]) / 2) : 120);
+      const smartKey = key || genreSpec?.preferredKeys?.[0] || 'C Major';
+      const genreMood = mood || genreSpec?.mood || 'energetic';
+      const instruments = genreSpec?.instruments?.slice(0, 3).join(', ') || 'synths, drums';
+      const productionTips = genreSpec?.productionTips?.[0] || 'professional mix';
+      const bassStyle = genreSpec?.bassStyle || 'punchy bass';
+      const drumPattern = genreSpec?.drumPattern || 'driving drums';
+      
+      console.log(`🧠 Song Intelligence: ${genre} → BPM: ${smartBpm}, Key: ${smartKey}, Style: ${genreMood}`);
+
+      // Build rich prompt with genre knowledge
       const musicPrompt = vocals 
-        ? `♪ ${prompt}. ${genre} ${style} song, ${mood} mood${key ? ` in ${key}` : ''}${bpm ? ` at ${bpm} BPM` : ''} ♪`
-        : `♪ ${prompt}. ${genre} ${style} instrumental, ${mood} mood${key ? ` in ${key}` : ''}${bpm ? ` at ${bpm} BPM` : ''} ♪`;
+        ? `♪ ${prompt}. Professional ${genre} ${style} song in ${smartKey} at ${smartBpm} BPM. ${genreMood} mood with ${instruments}. ${bassStyle}, ${drumPattern}. ${productionTips}. Radio-ready mix. ♪`
+        : `♪ ${prompt}. Professional ${genre} ${style} instrumental in ${smartKey} at ${smartBpm} BPM. ${genreMood} mood with ${instruments}. ${bassStyle}, ${drumPattern}. ${productionTips}. ♪`;
+      
+      console.log(`🎵 Enhanced Suno prompt: ${musicPrompt.substring(0, 100)}...`);
 
       const output = await replicate.run(
         "suno-ai/bark:b76242b40d67c76ab6742e987628a2a9ac019e11d56ab96c4e91ce03b79b2787",
@@ -109,6 +127,7 @@ export class UnifiedMusicService {
 
   /**
    * Generate Beat, Melody, or Instrumental (MusicGen)
+   * Enhanced with genre database intelligence for smarter prompts
    */
   async generateTrack(prompt: string, options: {
     type: 'beat' | 'melody' | 'instrumental' | 'drum_pattern';
@@ -124,19 +143,33 @@ export class UnifiedMusicService {
       const { type, genre = "pop", duration = 30, instrument, energy, style, key, bpm } = options;
       console.log(`🎼 UnifiedMusic: Generating ${type}...`);
 
+      // Get genre-specific intelligence from our database
+      const genreSpec = getGenreSpec(genre);
+      // bpmRange is [min, max] tuple - use average as default
+      const smartBpm = bpm || (genreSpec?.bpmRange ? Math.round((genreSpec.bpmRange[0] + genreSpec.bpmRange[1]) / 2) : 120);
+      const smartKey = key || genreSpec?.preferredKeys?.[0] || 'C Minor';
+      const smartInstruments = genreSpec?.instruments?.join(', ') || instrument || 'synths';
+      const genreMood = genreSpec?.mood || 'energetic';
+      const bassStyle = genreSpec?.bassStyle || 'punchy';
+      const drumPattern = genreSpec?.drumPattern || 'standard';
+      
+      console.log(`🧠 Genre Intelligence: ${genre} → BPM: ${smartBpm}, Key: ${smartKey}, Mood: ${genreMood}`);
+
       let fullPrompt = prompt;
       
-      // Construct rich prompt based on type
+      // Construct rich prompt based on type with genre intelligence
       if (type === 'melody') {
-        fullPrompt = `${instrument || 'piano'} melody in ${key || 'C Major'} for ${genre} music. ${prompt}`;
+        fullPrompt = `${instrument || smartInstruments} melody in ${smartKey} for ${genre} music. ${genreMood} mood. ${prompt}`;
       } else if (type === 'drum_pattern') {
-        fullPrompt = `${genre} drum pattern at ${bpm || 120} BPM. Percussion and drums only. ${prompt}`;
+        fullPrompt = `${genre} drum pattern at ${smartBpm} BPM. ${drumPattern} style. Percussion and drums only. ${genreMood} energy. ${prompt}`;
       } else if (type === 'instrumental') {
-        fullPrompt = `Instrumental ${genre} track with ${instrument || 'instruments'}. Energy: ${energy || 'medium'}. No vocals. ${prompt}`;
+        fullPrompt = `Instrumental ${genre} track with ${smartInstruments}. ${smartKey} key, ${smartBpm} BPM. ${bassStyle} bass. Energy: ${energy || genreMood}. No vocals. ${prompt}`;
       } else {
-        // Generic beat/track
-        fullPrompt = `${prompt}. Genre: ${genre}, Energy: ${energy || 'medium'}, Style: ${style || 'modern'}.`;
+        // Generic beat/track - enhanced with full genre knowledge
+        fullPrompt = `${genre} beat at ${smartBpm} BPM in ${smartKey}. ${bassStyle} bass, ${drumPattern} drums. Instruments: ${smartInstruments}. Mood: ${genreMood}. ${prompt}`;
       }
+      
+      console.log(`🎵 Enhanced MusicGen prompt: ${fullPrompt.substring(0, 100)}...`);
 
       const output = await replicate.run(
         "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",
@@ -171,13 +204,36 @@ export class UnifiedMusicService {
   }
 
   /**
-   * Blend Genres (MusicGen)
+   * Blend Genres (MusicGen) - Enhanced with genre intelligence
    */
   async blendGenres(primaryGenre: string, secondaryGenres: string[], prompt: string): Promise<any> {
     try {
-      console.log('🎭 UnifiedMusic: Blending genres...');
+      console.log('🎭 UnifiedMusic: Blending genres with intelligence...');
+      
+      // Get specs for all genres to create intelligent fusion
+      const primarySpec = getGenreSpec(primaryGenre);
+      const secondarySpecs = secondaryGenres.map(g => getGenreSpec(g)).filter(Boolean);
+      
+      // Calculate blended BPM (average of all genres) - bpmRange is [min, max] tuple
+      const getBpmAvg = (range?: [number, number]) => range ? Math.round((range[0] + range[1]) / 2) : null;
+      const allBpms = [getBpmAvg(primarySpec?.bpmRange), ...secondarySpecs.map(s => getBpmAvg(s?.bpmRange))].filter(Boolean) as number[];
+      const blendedBpm = allBpms.length > 0 ? Math.round(allBpms.reduce((a, b) => a + b, 0) / allBpms.length) : 120;
+      
+      // Combine instruments from all genres
+      const allInstruments = new Set<string>();
+      [primarySpec, ...secondarySpecs].forEach(spec => {
+        spec?.instruments?.forEach(i => allInstruments.add(i));
+      });
+      const instrumentList = Array.from(allInstruments).slice(0, 5).join(', ');
+      
+      // Combine moods
+      const moods = [primarySpec?.mood, ...secondarySpecs.map(s => s?.mood)].filter(Boolean);
+      const moodBlend = moods.join(' meets ');
+      
       const genreList = [primaryGenre, ...secondaryGenres].join(" and ");
-      const fullPrompt = `Innovative fusion of ${genreList}. ${prompt}`;
+      const fullPrompt = `Innovative fusion of ${genreList} at ${blendedBpm} BPM. Instruments: ${instrumentList}. Mood: ${moodBlend}. ${prompt}`;
+      
+      console.log(`🧠 Genre Fusion Intelligence: ${genreList} → BPM: ${blendedBpm}, Instruments: ${instrumentList}`);
 
       const output = await replicate.run(
         "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",

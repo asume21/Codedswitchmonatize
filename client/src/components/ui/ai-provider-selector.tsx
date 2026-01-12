@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Sparkles, Zap, FileText, Music } from "lucide-react";
+import { Bot, Sparkles, Zap, FileText, Music, Edit3, Volume2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+
+type OutputType = 'midi' | 'audio' | 'text';
 
 type AIProvider = {
   name: string;
   label: string;
   description: string;
+  outputType: OutputType; // What kind of output this AI produces
   capabilities: {
     fullSongs: boolean;
     beats: boolean;
@@ -27,51 +30,58 @@ interface AIProviderSelectorProps {
 
 const FALLBACK_PROVIDERS: AIProvider[] = [
   {
+    name: 'astutely',
+    label: '✏️ Astutely (Editable)',
+    description: 'AI generates note patterns you can edit in piano roll. Uses Phi3/Grok.',
+    outputType: 'midi',
+    capabilities: { fullSongs: false, beats: true, instrumentals: true, lyrics: false, analysis: false },
+    requiresAuth: false,
+  },
+  {
+    name: 'replicate-musicgen',
+    label: '🔊 MusicGen (Audio)',
+    description: 'Generates audio files directly. Professional quality but not editable.',
+    outputType: 'audio',
+    capabilities: { fullSongs: false, beats: true, instrumentals: true, lyrics: false, analysis: false },
+    requiresAuth: true,
+  },
+  {
     name: 'suno',
-    label: 'Suno (Official API)',
-    description: 'Official Suno API - Professional full-song generation with vocals, up to 4 minutes',
+    label: '🎤 Suno (Full Songs)',
+    description: 'Complete songs with vocals. Audio output, not editable.',
+    outputType: 'audio',
     capabilities: { fullSongs: true, beats: true, instrumentals: true, lyrics: true, analysis: false },
     requiresAuth: true,
   },
   {
     name: 'replicate-suno',
-    label: 'Suno (via Replicate)',
-    description: 'Suno through Replicate - Full-song generation with vocals',
+    label: '🎤 Suno via Replicate',
+    description: 'Full-song generation with vocals through Replicate.',
+    outputType: 'audio',
     capabilities: { fullSongs: true, beats: false, instrumentals: false, lyrics: false, analysis: false },
     requiresAuth: true,
   },
   {
-    name: 'replicate-musicgen',
-    label: 'MusicGen (via Replicate)',
-    description: 'Beats, melodies, and instrumental generation',
-    capabilities: { fullSongs: false, beats: true, instrumentals: true, lyrics: false, analysis: false },
-    requiresAuth: true,
-  },
-  {
     name: 'grok',
-    label: 'Grok (XAI)',
-    description: 'Lyrics generation and analysis',
+    label: '✍️ Grok (Lyrics)',
+    description: 'Lyrics generation and analysis. Text output.',
+    outputType: 'text',
     capabilities: { fullSongs: false, beats: false, instrumentals: false, lyrics: true, analysis: true },
     requiresAuth: true,
   },
   {
     name: 'openai',
-    label: 'OpenAI',
-    description: 'Code translation and text analysis',
+    label: '🤖 OpenAI',
+    description: 'Code translation and text analysis.',
+    outputType: 'text',
     capabilities: { fullSongs: false, beats: false, instrumentals: false, lyrics: false, analysis: true },
     requiresAuth: true,
   },
   {
-    name: 'huggingface',
-    label: 'Hugging Face',
-    description: 'Music generation and audio processing',
-    capabilities: { fullSongs: false, beats: true, instrumentals: true, lyrics: false, analysis: true },
-    requiresAuth: true,
-  },
-  {
     name: 'local',
-    label: 'Local Processing',
-    description: 'Basic analysis without external API',
+    label: '💻 Local (Free)',
+    description: 'Basic analysis without external API. No cost.',
+    outputType: 'text',
     capabilities: { fullSongs: false, beats: false, instrumentals: false, lyrics: false, analysis: true },
     requiresAuth: false,
   },
@@ -197,11 +207,25 @@ export function AIProviderSelector({ value, onValueChange, className, feature }:
                 {provider.description}
               </p>
               <div className="flex flex-wrap gap-1 mt-1">
+                {provider.outputType === 'midi' && (
+                  <Badge className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
+                    <Edit3 className="w-3 h-3 mr-1" />Editable Notes
+                  </Badge>
+                )}
+                {provider.outputType === 'audio' && (
+                  <Badge className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
+                    <Volume2 className="w-3 h-3 mr-1" />Audio File
+                  </Badge>
+                )}
+                {provider.outputType === 'text' && (
+                  <Badge className="text-xs bg-purple-500/20 text-purple-400 border-purple-500/30">
+                    <FileText className="w-3 h-3 mr-1" />Text
+                  </Badge>
+                )}
                 {provider.capabilities.fullSongs && <Badge variant="secondary" className="text-xs">Full Songs</Badge>}
                 {provider.capabilities.beats && <Badge variant="secondary" className="text-xs">Beats</Badge>}
                 {provider.capabilities.instrumentals && <Badge variant="secondary" className="text-xs">Instrumentals</Badge>}
                 {provider.capabilities.lyrics && <Badge variant="secondary" className="text-xs">Lyrics</Badge>}
-                {provider.capabilities.analysis && <Badge variant="secondary" className="text-xs">Analysis</Badge>}
               </div>
             </div>
           </SelectItem>
