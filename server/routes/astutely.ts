@@ -5,6 +5,8 @@ import { localAI, makeLocalAICall } from '../services/localAI';
 import { getGenreSpec } from '../ai/knowledge/genreDatabase';
 import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety/aiSafeguards';
 import { enhancePromptWithMusicTheory, getProgressionsForGenre } from '../ai/knowledge/musicTheory';
+import { orchestrateRequest, executeApprovedAction } from '../ai/orchestrator/astutelyOrchestrator';
+import { SuggestedAction, ProjectState } from '../ai/tools/astutelyTools';
 
 const router = Router();
 
@@ -227,6 +229,111 @@ router.get('/astutely/status/:predictionId', async (req: Request, res: Response)
     success: true, 
     status: 'succeeded', 
     error: null 
+  });
+});
+
+// ============================================
+// AI-FIRST ARCHITECTURE ENDPOINTS
+// User-first design: AI suggests, user approves
+// ============================================
+
+/**
+ * Chat with Astutely - returns suggestions for user to approve
+ * POST /api/astutely/chat
+ */
+router.post('/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, projectState, conversationHistory } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+    
+    // Default project state if not provided
+    const state: ProjectState = projectState || {
+      bpm: 120,
+      key: 'C Major',
+      timeSignature: '4/4',
+      isPlaying: false,
+      currentPosition: 0,
+      tracks: []
+    };
+    
+    const result = await orchestrateRequest({
+      message,
+      projectState: state,
+      conversationHistory: conversationHistory || []
+    });
+    
+    return res.json(result);
+  } catch (error: any) {
+    console.error('Astutely chat error:', error);
+    return res.status(500).json({ 
+      error: 'Chat failed', 
+      message: error.message,
+      success: false 
+    });
+  }
+});
+
+/**
+ * Execute an approved action
+ * POST /api/astutely/execute
+ */
+router.post('/execute', async (req: Request, res: Response) => {
+  try {
+    const { action, projectState } = req.body;
+    
+    if (!action || !action.toolName) {
+      return res.status(400).json({ error: 'Action with toolName is required' });
+    }
+    
+    const state: ProjectState = projectState || {
+      bpm: 120,
+      key: 'C Major',
+      timeSignature: '4/4',
+      isPlaying: false,
+      currentPosition: 0,
+      tracks: []
+    };
+    
+    const result = await executeApprovedAction(action as SuggestedAction, state);
+    
+    return res.json(result);
+  } catch (error: any) {
+    console.error('Astutely execute error:', error);
+    return res.status(500).json({ 
+      error: 'Execution failed', 
+      message: error.message,
+      success: false 
+    });
+  }
+});
+
+/**
+ * Get available tools (for UI to show capabilities)
+ * GET /api/astutely/tools
+ */
+router.get('/tools', async (req: Request, res: Response) => {
+  const { ASTUTELY_TOOLS } = await import('../ai/tools/astutelyTools');
+  
+  // Group tools by category
+  const toolsByCategory: Record<string, any[]> = {};
+  for (const tool of ASTUTELY_TOOLS) {
+    if (!toolsByCategory[tool.category]) {
+      toolsByCategory[tool.category] = [];
+    }
+    toolsByCategory[tool.category].push({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters
+    });
+  }
+  
+  return res.json({
+    categories: Object.keys(toolsByCategory),
+    tools: toolsByCategory,
+    totalTools: ASTUTELY_TOOLS.length
   });
 });
 
