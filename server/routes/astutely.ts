@@ -119,7 +119,13 @@ Ensure patterns are musical, authentic to the genre, use proper voice leading, a
         const parsed = JSON.parse(content);
         
         // Add metadata about which AI was used
-        parsed._aiSource = usedLocal ? 'local' : 'cloud';
+        const aiSource = usedLocal ? 'Phi3 (Local)' : 'Grok-3 (Cloud)';
+        parsed._aiSource = aiSource;
+        
+        // Log prominently which AI was used
+        console.log('═══════════════════════════════════════════════════════');
+        console.log(`🤖 ASTUTELY AI SOURCE: ${aiSource}`);
+        console.log('═══════════════════════════════════════════════════════');
         
         return parsed;
       },

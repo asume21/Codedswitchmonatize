@@ -43,8 +43,12 @@ export class LocalAIService {
       if (response.ok) {
         const data = await response.json();
         this.isAvailable = true;
-        console.log('✅ Local AI (Ollama) is available');
-        console.log(`📦 Available models: ${data.models?.map((m: any) => m.name).join(', ') || 'none'}`);
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('✅ PHI3 LOCAL AI IS AVAILABLE');
+        console.log(`📦 Models: ${data.models?.map((m: any) => m.name).join(', ') || 'none'}`);
+        console.log(`🔗 URL: ${this.baseUrl}`);
+        console.log('🎯 Astutely will use Phi3 (Local) first, Grok-3 (Cloud) as fallback');
+        console.log('═══════════════════════════════════════════════════════');
         return true;
       }
       
@@ -52,7 +56,10 @@ export class LocalAIService {
       return false;
     } catch (error) {
       this.isAvailable = false;
-      console.log('⚠️ Local AI (Ollama) is not available - will use cloud fallback');
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('⚠️ PHI3 LOCAL AI NOT AVAILABLE');
+      console.log('🔄 Astutely will use Grok-3 (Cloud) only');
+      console.log('═══════════════════════════════════════════════════════');
       return false;
     }
   }
