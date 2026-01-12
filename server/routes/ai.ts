@@ -67,10 +67,18 @@ export function createAIRoutes() {
     try {
       const { messages = [], prompt } = req.body || {};
 
+      console.log('💬 AI Chat request received');
+
       const aiClient = getAIClient();
       if (!aiClient) {
-        return res.status(503).json({ error: "No AI provider configured" });
+        console.error('❌ No AI client available - check XAI_API_KEY or OPENAI_API_KEY');
+        return res.status(503).json({ 
+          error: "No AI provider configured",
+          response: "AI is not configured. Please check your API keys."
+        });
       }
+
+      console.log('✅ AI client available, sending request...');
 
       const chatMessages =
         Array.isArray(messages) && messages.length > 0
@@ -78,19 +86,22 @@ export function createAIRoutes() {
           : [{ role: "user", content: prompt || "Hello" }];
 
       const completion = await aiClient.chat.completions.create({
-        model: "gpt-4",
+        model: "grok-3",
         messages: chatMessages,
         temperature: 0.7,
+        max_tokens: 800,
       });
 
       const content = completion.choices?.[0]?.message?.content || "";
+      console.log(`✅ AI response received: ${content.substring(0, 50)}...`);
       return res.json({ response: content });
     } catch (error) {
-      console.error("AI chat error:", error);
-      // Return helpful fallback instead of error
-      return res.json({ 
-        response: "I'm having trouble connecting to my AI brain right now. Try commands like 'play', 'stop', 'status', or 'make a beat'!",
-        isFallback: true 
+      console.error("❌ AI chat error:", error);
+      // Return actual error info for debugging
+      return res.status(500).json({ 
+        error: "AI chat failed",
+        message: error instanceof Error ? error.message : "Unknown error",
+        response: "Sorry, I couldn't process that request. Please try again."
       });
     }
   });
