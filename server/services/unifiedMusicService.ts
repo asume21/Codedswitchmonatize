@@ -281,15 +281,39 @@ export class UnifiedMusicService {
 
       const packs: MusicPack[] = [];
       
+      // Variation descriptors to make each pack unique
+      const variations = [
+        'energetic and driving',
+        'melodic and atmospheric',
+        'heavy and aggressive',
+        'groovy and rhythmic',
+        'dark and moody',
+        'bright and uplifting',
+        'minimal and spacious',
+        'complex and layered'
+      ];
+      
       for (let i = 0; i < packCount; i++) {
+        // Add variation to prompt to ensure different results
+        const variation = variations[i % variations.length];
+        const timestamp = Date.now();
+        const randomSeed = Math.floor(Math.random() * 1000000);
+        const variedPrompt = `${prompt}, ${variation} style, ${bpm} bpm, session ${timestamp}-${randomSeed}`;
+        
+        console.log(`🎵 Pack ${i + 1}: "${variedPrompt}"`);
+        
         const output = await replicate.run(
           "andreasjansson/musicgen-looper:ad041aebc8406f8883e7f28313614c4a11c6e623dd934a54f2bf30127b4bc7a8",
           {
             input: {
-              prompt: `${prompt}, ${bpm} bpm`,
+              prompt: variedPrompt,
               bpm: bpm,
               variations: 4,
-              max_duration: 8
+              max_duration: 8,
+              seed: randomSeed,  // Random seed for variation
+              temperature: 1.0,   // Higher temperature = more variation
+              top_k: 250,         // Sampling diversity
+              top_p: 0.0          // Nucleus sampling disabled for more randomness
             }
           }
         );
