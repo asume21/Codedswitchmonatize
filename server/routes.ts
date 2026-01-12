@@ -1911,8 +1911,25 @@ Return in this exact JSON format:
     try {
       const { audioUrl, stemCount = 2 } = req.body;
 
+      console.log('🎵 Stem separation request:', { audioUrl: audioUrl?.substring(0, 50), stemCount });
+
       if (!audioUrl || typeof audioUrl !== 'string') {
-        return sendError(res, 400, "Audio URL is required");
+        return res.status(400).json({
+          success: false,
+          error: "Audio URL is required",
+          message: "Please provide a valid audio URL"
+        });
+      }
+
+      // Validate URL format
+      try {
+        new URL(audioUrl);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid URL format",
+          message: "The audio URL must be a valid, publicly accessible URL"
+        });
       }
 
       const validStemCounts = [2, 4, 5];
@@ -1920,22 +1937,26 @@ Return in this exact JSON format:
 
       const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
       if (!REPLICATE_API_TOKEN) {
-        return res.json({
+        console.error('❌ REPLICATE_API_TOKEN not configured');
+        return res.status(503).json({
           success: false,
-          message: "Stem separation service not configured",
+          error: "Stem separation service not configured",
+          message: "REPLICATE_API_TOKEN is not set. Please configure it in environment variables.",
           configured: false
         });
       }
 
-      console.log(`Starting stem separation: ${stems} stems from ${audioUrl}`);
+      console.log(`🎵 Starting stem separation: ${stems} stems from ${audioUrl.substring(0, 50)}...`);
 
-      const predictionResponse = await fetch('https://api.replicate.com/v1/models/soykertje/spleeter/predictions', {
+      // Use the predictions endpoint with version hash for reliability
+      const predictionResponse = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
+          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          version: "3df0078aec72e9f395fa257141caf0fcfcf10517b0200842943f356a394c4f32",
           input: {
             audio: audioUrl,
             stems: stems,
@@ -1943,14 +1964,23 @@ Return in this exact JSON format:
         }),
       });
 
+      const responseText = await predictionResponse.text();
+      console.log(`🎵 Replicate response status: ${predictionResponse.status}`);
+      
       if (!predictionResponse.ok) {
-        const error = await predictionResponse.text();
-        console.error('Replicate API error:', error);
-        return sendError(res, 500, "Failed to start stem separation");
+        console.error('❌ Replicate API error:', responseText);
+        return res.status(500).json({
+          success: false,
+          error: "Failed to start stem separation",
+          message: `Replicate API error: ${responseText}`,
+          details: responseText
+        });
       }
 
-      const prediction = await predictionResponse.json() as any;
+      const prediction = JSON.parse(responseText) as any;
       const predictionId = prediction.id;
+
+      console.log(`✅ Stem separation started: ${predictionId}`);
 
       res.json({
         success: true,
@@ -1961,8 +1991,12 @@ Return in this exact JSON format:
       });
 
     } catch (error: any) {
-      console.error("Stem separation error:", error);
-      sendError(res, 500, error.message || "Failed to start stem separation");
+      console.error("❌ Stem separation error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Stem separation failed",
+        message: error.message || "Failed to start stem separation"
+      });
     }
   });
 
