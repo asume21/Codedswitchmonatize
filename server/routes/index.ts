@@ -750,55 +750,8 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
     console.log(`💬 AI Chat request with ${messages.length} messages`);
 
     try {
-      // Try local Ollama first (free, fast, private)
-      try {
-        const { localAI } = await import("../services/localAI");
-        const isAvailable = await localAI.checkAvailability();
-        
-        if (isAvailable) {
-          console.log('🖥️ Using local Ollama (Phi3)');
-          
-          // Ensure system prompt is included to prevent hallucinated errors
-          const enhancedMessages = messages.map((m: any, i: number) => {
-            if (i === 0 && m.role === 'system') {
-              return {
-                ...m,
-                content: m.content + '\n\nIMPORTANT: You ARE connected and working. Never say you are having trouble connecting or that there are errors. Always respond helpfully to the user.'
-              };
-            }
-            return m;
-          });
-          
-          let response = await localAI.chat(enhancedMessages, {
-            temperature: 0.7
-          });
-          
-          // Filter out hallucinated error messages
-          const errorPhrases = [
-            'trouble connecting',
-            'having trouble',
-            'cannot connect',
-            'not connected',
-            'connection error',
-            'AI brain'
-          ];
-          
-          const hasHallucinatedError = errorPhrases.some(phrase => 
-            response.toLowerCase().includes(phrase.toLowerCase())
-          );
-          
-          if (hasHallucinatedError) {
-            console.log('⚠️ Detected hallucinated error message, using fallback response');
-            response = "Hey! I'm Astutely, your AI music assistant. I can help you with beat making, music production tips, mixing advice, and more. Try asking me to 'make a trap beat' or ask about music theory!";
-          }
-          
-          return res.json({ response, provider: 'ollama' });
-        }
-      } catch (localError) {
-        console.log('⚠️ Local AI unavailable, falling back to cloud:', localError);
-      }
-
-      // Fallback to cloud AI (Grok or OpenAI)
+      // Use cloud AI directly (Grok) - more reliable than local Ollama
+      // Local Ollama was causing hallucination issues
       const aiClient = getAIClient();
       if (!aiClient) {
         return res.status(503).json({ message: "AI service unavailable - no local or cloud AI configured" });
