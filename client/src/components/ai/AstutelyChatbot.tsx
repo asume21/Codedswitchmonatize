@@ -719,7 +719,7 @@ Keep responses concise but helpful. Reference their current project when relevan
       console.error('Astutely chat error:', error);
       const errorMessage: Message = {
         role: 'assistant',
-        content: "I had trouble connecting. Try commands like 'play', 'stop', 'status', or 'make a beat'!",
+        content: "Oops! The server didn't respond. Try 'play', 'stop', 'status', or 'make a beat' instead!",
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);

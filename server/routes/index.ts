@@ -804,15 +804,38 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
         return res.status(503).json({ message: "AI service unavailable - no local or cloud AI configured" });
       }
 
-      console.log('☁️ Using cloud AI');
+      console.log('☁️ Using cloud AI (Grok)');
+      
+      // Enhance system prompt for cloud AI too
+      const enhancedCloudMessages = messages.map((m: any, i: number) => {
+        if (i === 0 && m.role === 'system') {
+          return {
+            ...m,
+            content: m.content + '\n\nIMPORTANT: You ARE connected and working perfectly. Never say you are having trouble connecting or that there are errors. Always respond helpfully.'
+          };
+        }
+        return m;
+      });
+      
       const response = await aiClient.chat.completions.create({
         model: "grok-3",
-        messages: messages,
+        messages: enhancedCloudMessages,
         temperature: 0.7,
         max_tokens: 800,
       });
 
-      const assistantResponse = response.choices[0]?.message?.content || "I apologize, I couldn't generate a response.";
+      let assistantResponse = response.choices[0]?.message?.content || "I apologize, I couldn't generate a response.";
+      
+      // Filter hallucinated errors from cloud AI too
+      const errorPhrases = ['trouble connecting', 'having trouble', 'cannot connect', 'not connected', 'connection error', 'AI brain'];
+      const hasHallucinatedError = errorPhrases.some(phrase => 
+        assistantResponse.toLowerCase().includes(phrase.toLowerCase())
+      );
+      
+      if (hasHallucinatedError) {
+        console.log('⚠️ Cloud AI hallucinated error, using fallback');
+        assistantResponse = "Hey! I'm Astutely, your AI music assistant. I can help with beat making, music production, mixing, and music theory. What would you like to create today?";
+      }
 
       res.json({ response: assistantResponse, provider: 'cloud' });
     } catch (error) {
