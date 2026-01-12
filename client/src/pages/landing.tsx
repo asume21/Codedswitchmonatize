@@ -95,6 +95,11 @@ export default function Landing() {
             <a href="#features" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Features</a>
             <a href="#ai" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-purple-400 transition-colors">AI Engine</a>
             <a href="#waitlist" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-emerald-400 transition-colors">Waitlist</a>
+            <Link href="/auth">
+              <Button variant="ghost" className="text-white/80 hover:text-white hover:bg-white/10 uppercase tracking-widest font-bold">
+                Login
+              </Button>
+            </Link>
             <Link href="/studio">
               <Button variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 uppercase tracking-widest font-bold">
                 Launch DAW
