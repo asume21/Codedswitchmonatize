@@ -31,12 +31,12 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
 fi
 
 # Verify model is available
-echo "📦 Verifying Llama 3.1 model..."
-if ollama list 2>/dev/null | grep -q "llama3.1:8b"; then
-    echo "✅ Llama 3.1 model is ready"
+echo "📦 Verifying Phi3 model..."
+if ollama list 2>/dev/null | grep -q "phi3:medium"; then
+    echo "✅ Phi3 model is ready"
 else
     echo "⚠️ Model not found, downloading..."
-    ollama pull llama3.1:8b || echo "⚠️ Model download failed, will use cloud fallback"
+    ollama pull phi3:medium || echo "⚠️ Model download failed, will use cloud fallback"
 fi
 
 # Start CodedSwitch

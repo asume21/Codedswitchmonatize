@@ -756,7 +756,7 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
         const isAvailable = await localAI.checkAvailability();
         
         if (isAvailable) {
-          console.log('🖥️ Using local Ollama (Llama 3.1)');
+          console.log('🖥️ Using local Ollama (Phi3)');
           
           // Ensure system prompt is included to prevent hallucinated errors
           const enhancedMessages = messages.map((m: any, i: number) => {

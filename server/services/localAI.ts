@@ -25,7 +25,7 @@ export class LocalAIService {
   private defaultModel: string;
   private isAvailable: boolean | null = null;
 
-  constructor(baseUrl: string = 'http://localhost:11434', defaultModel: string = 'llama3.1:8b') {
+  constructor(baseUrl: string = 'http://localhost:11434', defaultModel: string = 'phi3:medium') {
     this.baseUrl = baseUrl;
     this.defaultModel = defaultModel;
   }

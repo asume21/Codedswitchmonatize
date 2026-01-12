@@ -1,5 +1,5 @@
 # Dockerfile.ollama
-# Docker container with CodedSwitch + Ollama + Llama 3.1 for Railway deployment
+# Docker container with CodedSwitch + Ollama + Phi3 for Railway deployment
 
 FROM node:20-bullseye
 
@@ -27,10 +27,11 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Download Llama model during build (cached by Docker)
+# Download Phi3 model during build (cached by Docker)
+# Phi3 (Microsoft) has excellent instruction following and less hallucination
 RUN ollama serve & \
     sleep 5 && \
-    ollama pull llama3.1:8b && \
+    ollama pull phi3:medium && \
     pkill ollama
 
 # Expose ports
