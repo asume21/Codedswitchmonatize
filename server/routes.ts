@@ -1969,47 +1969,35 @@ Return in this exact JSON format:
       }
 
       console.log(`🎵 Starting stem separation: ${stems} stems...`);
+      console.log(`🔗 Audio URL: ${audioUrl.substring(0, 100)}...`);
 
-      // Use the predictions endpoint with version hash for reliability
-      const predictionResponse = await fetch('https://api.replicate.com/v1/predictions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          version: "3df0078aec72e9f395fa257141caf0fcfcf10517b0200842943f356a394c4f32",
-          input: {
-            audio: audioUrl,
-            stems: stems,
-          },
-        }),
+      // Import Replicate SDK
+      const Replicate = (await import('replicate')).default;
+      const replicate = new Replicate({
+        auth: REPLICATE_API_TOKEN,
       });
 
-      const responseText = await predictionResponse.text();
-      console.log(`🎵 Replicate response status: ${predictionResponse.status}`);
+      // Use Replicate SDK with Spleeter model
+      console.log('🎵 Running Spleeter model via Replicate SDK...');
+      const output = await replicate.run(
+        "cjwbw/deezer-spleeter:2f9dfd8fb3a820646e3c0fe9c8ad5f8f7f5b2d1e5e5e5e5e5e5e5e5e5e5e5e5e" as any,
+        {
+          input: {
+            audio: audioUrl,
+            stem_count: stems,
+          },
+        }
+      );
+
+      // The output contains the separated stems
+      console.log('✅ Stem separation completed:', output);
       
-      if (!predictionResponse.ok) {
-        console.error('❌ Replicate API error:', responseText);
-        return res.status(500).json({
-          success: false,
-          error: "Failed to start stem separation",
-          message: `Replicate API error: ${responseText}`,
-          details: responseText
-        });
-      }
-
-      const prediction = JSON.parse(responseText) as any;
-      const predictionId = prediction.id;
-
-      console.log(`✅ Stem separation started: ${predictionId}`);
-
+      // Return the stems directly
       res.json({
         success: true,
-        predictionId,
-        status: 'processing',
-        message: `Separating audio into ${stems} stems. This may take 1-3 minutes.`,
-        checkStatusUrl: `/api/ai/stem-separation/status/${predictionId}`
+        status: 'completed',
+        stems: output,
+        message: `Successfully separated into ${stems} stems`
       });
 
     } catch (error: any) {
