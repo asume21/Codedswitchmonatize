@@ -1977,29 +1977,26 @@ Return in this exact JSON format:
         auth: REPLICATE_API_TOKEN,
       });
 
-      // Use Replicate SDK with the ORIGINAL working Spleeter model version
-      console.log('🎵 Running Spleeter model via Replicate SDK...');
+      // Use Replicate Predictions API (async) - the version that was working
+      console.log('🎵 Creating stem separation prediction...');
       
-      // This is the version that was working before - just using replicate.run() instead of raw fetch
-      const output = await replicate.run(
-        "3df0078aec72e9f395fa257141caf0fcfcf10517b0200842943f356a394c4f32" as any,
-        {
-          input: {
-            audio: audioUrl,
-            stems: stems,
-          },
-        }
-      );
+      const prediction = await replicate.predictions.create({
+        version: "3df0078aec72e9f395fa257141caf0fcfcf10517b0200842943f356a394c4f32",
+        input: {
+          audio: audioUrl,
+          stems: stems,
+        },
+      });
 
-      // The output contains the separated stems
-      console.log('✅ Stem separation completed:', output);
+      console.log(`✅ Stem separation started: ${prediction.id}`);
       
-      // Return the stems directly
+      // Return prediction ID for polling
       res.json({
         success: true,
-        status: 'completed',
-        stems: output,
-        message: `Successfully separated into ${stems} stems`
+        predictionId: prediction.id,
+        status: 'processing',
+        message: `Separating audio into ${stems} stems. This may take 1-3 minutes.`,
+        checkStatusUrl: `/api/ai/stem-separation/status/${prediction.id}`
       });
 
     } catch (error: any) {
