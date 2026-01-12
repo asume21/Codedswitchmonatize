@@ -757,7 +757,19 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
         
         if (isAvailable) {
           console.log('🖥️ Using local Ollama (Llama 3.1)');
-          const response = await localAI.chat(messages, {
+          
+          // Ensure system prompt is included to prevent hallucinated errors
+          const enhancedMessages = messages.map((m: any, i: number) => {
+            if (i === 0 && m.role === 'system') {
+              return {
+                ...m,
+                content: m.content + '\n\nIMPORTANT: You ARE connected and working. Never say you are having trouble connecting or that there are errors. Always respond helpfully to the user.'
+              };
+            }
+            return m;
+          });
+          
+          const response = await localAI.chat(enhancedMessages, {
             temperature: 0.7
           });
           
