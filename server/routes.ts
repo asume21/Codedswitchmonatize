@@ -1977,16 +1977,16 @@ Return in this exact JSON format:
         auth: REPLICATE_API_TOKEN,
       });
 
-      // Use Replicate SDK with correct Spleeter model
+      // Use Replicate SDK with the ORIGINAL working Spleeter model version
       console.log('🎵 Running Spleeter model via Replicate SDK...');
       
-      // Use the correct model identifier without version hash
+      // This is the version that was working before - just using replicate.run() instead of raw fetch
       const output = await replicate.run(
-        "cjwbw/deezer-spleeter" as any,
+        "3df0078aec72e9f395fa257141caf0fcfcf10517b0200842943f356a394c4f32" as any,
         {
           input: {
             audio: audioUrl,
-            stem_count: stems,
+            stems: stems,
           },
         }
       );
