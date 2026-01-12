@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import express from "express";
 import { createServer } from "http";
 import type { IStorage } from "./storage";
+import { ObjectStorageService } from "./objectStorage";
 import { requireAuth, requireSubscription } from "./middleware/auth";
 import { requireFeature, checkUsageLimit } from "./middleware/featureGating";
 import { requireCredits } from "./middleware/requireCredits";
@@ -1906,10 +1907,11 @@ Return in this exact JSON format:
   // ============================================
   // AI STEM SEPARATION ENDPOINT
   // Uses Replicate's Spleeter model to separate audio stems
+  // Automatically handles local files from song library by converting to signed URLs
   // ============================================
   app.post("/api/ai/stem-separation", async (req: Request, res: Response) => {
     try {
-      const { audioUrl, stemCount = 2 } = req.body;
+      let { audioUrl, stemCount = 2 } = req.body;
 
       console.log('🎵 Stem separation request:', { audioUrl: audioUrl?.substring(0, 50), stemCount });
 
@@ -1917,11 +1919,31 @@ Return in this exact JSON format:
         return res.status(400).json({
           success: false,
           error: "Audio URL is required",
-          message: "Please provide a valid audio URL"
+          message: "Please provide a valid audio URL or file path"
         });
       }
 
-      // Validate URL format
+      // Handle local file paths from song library (e.g., /objects/.private/audio/uuid)
+      // Convert them to signed public URLs that Replicate can access
+      if (audioUrl.startsWith('/objects/') || audioUrl.startsWith('/api/')) {
+        console.log('🔄 Converting local file path to signed URL...');
+        try {
+          const objectStorage = new ObjectStorageService();
+          // Convert /api/objects/... to /objects/...
+          const objectPath = audioUrl.replace('/api/objects/', '/objects/').replace('/api/', '/objects/');
+          audioUrl = await objectStorage.getSignedPublicUrl(objectPath, 3600); // 1 hour expiry
+          console.log('✅ Converted to signed URL');
+        } catch (err: any) {
+          console.error('❌ Failed to get signed URL:', err);
+          return res.status(400).json({
+            success: false,
+            error: "Could not access file",
+            message: "The audio file could not be found or accessed. Please try uploading again."
+          });
+        }
+      }
+
+      // Validate URL format for external URLs
       try {
         new URL(audioUrl);
       } catch {
@@ -1946,7 +1968,7 @@ Return in this exact JSON format:
         });
       }
 
-      console.log(`🎵 Starting stem separation: ${stems} stems from ${audioUrl.substring(0, 50)}...`);
+      console.log(`🎵 Starting stem separation: ${stems} stems...`);
 
       // Use the predictions endpoint with version hash for reliability
       const predictionResponse = await fetch('https://api.replicate.com/v1/predictions', {

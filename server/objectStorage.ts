@@ -146,6 +146,23 @@ export class ObjectStorageService {
     return `/objects/${entityId}`;
   }
 
+  // Gets a signed public URL for an object (for external services like Replicate)
+  async getSignedPublicUrl(objectPath: string, ttlSec: number = 3600): Promise<string> {
+    const file = await this.getObjectEntityFile(objectPath);
+    const { bucketName, objectName } = parseObjectPath(file.name);
+    
+    // Get a signed URL that external services can access
+    const signedUrl = await signObjectURL({
+      bucketName: file.bucket.name,
+      objectName: file.name,
+      method: 'GET',
+      ttlSec,
+    });
+    
+    console.log(`🔗 Generated signed URL for ${objectPath} (expires in ${ttlSec}s)`);
+    return signedUrl;
+  }
+
   // Downloads an object to the response.
   async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
     try {
