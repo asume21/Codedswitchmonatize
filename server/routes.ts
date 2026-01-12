@@ -1977,10 +1977,12 @@ Return in this exact JSON format:
         auth: REPLICATE_API_TOKEN,
       });
 
-      // Use Replicate SDK with Spleeter model
+      // Use Replicate SDK with correct Spleeter model
       console.log('🎵 Running Spleeter model via Replicate SDK...');
+      
+      // Use the correct model identifier without version hash
       const output = await replicate.run(
-        "cjwbw/deezer-spleeter:2f9dfd8fb3a820646e3c0fe9c8ad5f8f7f5b2d1e5e5e5e5e5e5e5e5e5e5e5e5e" as any,
+        "cjwbw/deezer-spleeter" as any,
         {
           input: {
             audio: audioUrl,
@@ -2002,10 +2004,13 @@ Return in this exact JSON format:
 
     } catch (error: any) {
       console.error("❌ Stem separation error:", error);
+      console.error("❌ Error stack:", error.stack);
+      console.error("❌ Error details:", JSON.stringify(error, null, 2));
       res.status(500).json({
         success: false,
         error: "Stem separation failed",
-        message: error.message || "Failed to start stem separation"
+        message: error.message || "Failed to start stem separation",
+        details: error.stack || error.toString()
       });
     }
   });
