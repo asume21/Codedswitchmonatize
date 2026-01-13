@@ -338,11 +338,14 @@ export async function convertCodeToMusicEnhanced(
   request: CodeToMusicRequest
 ): Promise<CodeToMusicResponse> {
   try {
+    const useAI = request.useAI && isAIAvailable();
+    
     console.log('🎵 Enhanced Code-to-Music: Starting conversion', {
       language: request.language,
       genre: request.genre,
       variation: request.variation,
       codeLength: request.code.length,
+      useAI,
     });
 
     if (!request.code || request.code.trim().length === 0) {
@@ -363,6 +366,121 @@ export async function convertCodeToMusicEnhanced(
     // Calculate optimal BPM based on code characteristics
     const bpm = calculateOptimalBPM(parsedCode, genreConfig.bpm);
     
+    // Try AI-enhanced generation if requested and available
+    if (useAI) {
+      console.log('🤖 Attempting AI-enhanced music generation...');
+      const aiResult = await enhanceCodeToMusic(parsedCode, genreConfig.name, bpm, request.variation);
+      
+      if (aiResult) {
+        console.log('✅ AI enhancement successful!');
+        
+        // Convert AI chords to our format
+        const chords = aiResult.chords.map(c => ({
+          chord: c.chord,
+          notes: chordToNotes(c.chord),
+          start: c.start,
+          duration: c.duration,
+        }));
+        
+        // Convert AI melody to our format
+        const melody = aiResult.melody.map(m => ({
+          note: `${m.note}${m.octave}`,
+          start: m.start,
+          duration: m.duration,
+          velocity: Math.round((m.velocity || 0.8) * 127),
+          instrument: 'synth',
+          source: 'ai-generated',
+        }));
+        
+        // Convert AI bassline to our format
+        const bass = (aiResult.bassline || []).map(b => ({
+          note: `${b.note}${b.octave}`,
+          start: b.start,
+          duration: b.duration,
+          velocity: 100,
+          instrument: 'bass',
+          source: 'ai-generated',
+        }));
+        
+        const allMelody = [...melody, ...bass];
+        
+        // Calculate duration
+        const duration = allMelody.length > 0 
+          ? Math.max(...allMelody.map(n => n.start + n.duration))
+          : 16;
+        
+        // Generate drums (still use advanced generator for drums)
+        const advancedDrums = generateAdvancedDrumPattern(
+          parsedCode,
+          genreConfig.name,
+          bpm,
+          duration
+        );
+        
+        const drumNotes = drumPatternToNotes(advancedDrums);
+        
+        // Build timeline from AI-generated elements
+        const timeline = [
+          ...allMelody.map(note => ({
+            time: note.start,
+            type: 'note' as const,
+            data: {
+              note: note.note,
+              duration: note.duration,
+              velocity: note.velocity,
+              instrument: note.instrument,
+            },
+            source: note.source,
+          })),
+          ...drumNotes.map(drum => ({
+            time: drum.start,
+            type: 'note' as const,
+            data: {
+              note: drum.note,
+              duration: drum.duration,
+              velocity: drum.velocity,
+              instrument: drum.instrument,
+            },
+            source: drum.source,
+          })),
+        ].sort((a, b) => a.time - b.time);
+        
+        const music: MusicData = {
+          timeline,
+          chords,
+          melody: allMelody,
+          drums: advancedDrums.pattern,
+          metadata: {
+            bpm,
+            key: pickKeyForGenre(genreConfig.name, parsedCode.mood || 'neutral'),
+            genre: genreConfig.name,
+            variation: request.variation,
+            duration,
+            generatedAt: new Date().toISOString(),
+            seed: generateSeed(request.code, request.variation || 0),
+            aiEnhanced: true,
+          },
+        };
+        
+        console.log('🎼 AI-enhanced music generated:', {
+          melodyNotes: melody.length,
+          bassNotes: bass.length,
+          drumHits: advancedDrums.hits.length,
+          duration: `${duration.toFixed(1)}s`,
+          bpm,
+        });
+        
+        return {
+          success: true,
+          music,
+          metadata: music.metadata,
+        };
+      } else {
+        console.log('⚠️ AI enhancement failed, falling back to standard generation');
+      }
+    }
+    
+    // Standard generation (fallback or when AI not requested)
     // Generate chord progression first (foundation)
     const { chords } = generateTimeline(parsedCode, genreConfig.name, bpm, request.variation || 0);
     
