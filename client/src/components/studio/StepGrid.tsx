@@ -335,7 +335,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                     
                     {(onNoteResize || onMultiNoteResize) && (
                       <div
-                        className="resize-handle absolute right-0 top-0 bottom-0 w-3 bg-white/30 hover:bg-white/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-r-sm"
+                        className="resize-handle absolute right-0 top-0 bottom-0 w-2 bg-white/40 hover:bg-white/80 hover:w-3 opacity-60 group-hover:opacity-100 transition-all rounded-r-sm border-r-2 border-white/60"
                         style={{ cursor: 'ew-resize', zIndex: 50 }}
                         draggable={false}
                         onDragStart={(e) => e.preventDefault()}
