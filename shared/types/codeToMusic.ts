@@ -117,5 +117,5 @@ export interface ParsedCode {
   language: string;
   totalLines: number;
   complexity: number; // 1-10
-  mood?: 'happy' | 'sad' | 'neutral' | 'energetic';
+  mood?: 'happy' | 'sad' | 'neutral' | 'energetic' | 'chill';
 }

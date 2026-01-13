@@ -1923,14 +1923,47 @@ Return in this exact JSON format:
         });
       }
 
-      // Handle local file paths from song library (e.g., /objects/.private/audio/uuid)
-      // Convert them to signed public URLs that Replicate can access
-      if (audioUrl.startsWith('/objects/') || audioUrl.startsWith('/api/')) {
-        console.log('🔄 Converting local file path to signed URL...');
+      // Replicate cannot access browser-only blob URLs.
+      if (audioUrl.startsWith('blob:')) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid audio URL",
+          message: "This looks like a browser blob URL. Please upload the audio using the Upload tab (Song Library), then click 'Separate Stems' from the library so the server can access it."
+        });
+      }
+
+      // Helper: convert a local relative URL into an absolute URL Replicate can fetch.
+      // Prefer proxy headers when present (Railway/Render/etc.).
+      const toAbsoluteUrl = (relativeUrl: string) => {
+        const forwardedProtoRaw = req.headers['x-forwarded-proto'];
+        const proto = typeof forwardedProtoRaw === 'string'
+          ? forwardedProtoRaw.split(',')[0].trim()
+          : req.protocol;
+
+        const forwardedHostRaw = req.headers['x-forwarded-host'];
+        const host = typeof forwardedHostRaw === 'string'
+          ? forwardedHostRaw.split(',')[0].trim()
+          : req.get('host');
+
+        if (!host) {
+          return relativeUrl;
+        }
+
+        return `${proto}://${host}${relativeUrl}`;
+      };
+
+      // Handle object-storage paths from the song library (e.g. /objects/.private/audio/uuid).
+      // Convert them to signed public URLs that Replicate can access.
+      if (audioUrl.startsWith('/objects/') || audioUrl.startsWith('/api/objects/')) {
+        console.log('🔄 Converting object storage path to signed URL...');
         try {
           const objectStorage = new ObjectStorageService();
+
           // Convert /api/objects/... to /objects/...
-          const objectPath = audioUrl.replace('/api/objects/', '/objects/').replace('/api/', '/objects/');
+          const objectPath = audioUrl.startsWith('/api/objects/')
+            ? audioUrl.replace('/api/objects/', '/objects/')
+            : audioUrl;
+
           audioUrl = await objectStorage.getSignedPublicUrl(objectPath, 3600); // 1 hour expiry
           console.log('✅ Converted to signed URL');
         } catch (err: any) {
@@ -1941,6 +1974,9 @@ Return in this exact JSON format:
             message: "The audio file could not be found or accessed. Please try uploading again."
           });
         }
+      } else if (audioUrl.startsWith('/')) {
+        // Local relative URL (e.g. /api/internal/uploads/...) must be absolute for Replicate.
+        audioUrl = toAbsoluteUrl(audioUrl);
       }
 
       // Validate URL format for external URLs
