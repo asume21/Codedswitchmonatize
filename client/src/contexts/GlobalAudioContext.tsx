@@ -239,13 +239,37 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
 
   const loadAudioUrl = useCallback(async (url: string, name?: string) => {
     const ctx = getAudioContext();
-    const response = await fetch(url);
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = await ctx.decodeAudioData(arrayBuffer);
-    const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, url, name: name || 'Audio' };
-    setPlaylist([src]);
-    setCurrentIndex(0);
-    setSourceFromBuffer(buffer, src, false);
+    
+    try {
+      const response = await fetch(url);
+      
+      // Check if response is OK
+      if (!response.ok) {
+        throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+      }
+      
+      // Check content type
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream')) {
+        console.warn('⚠️ Unexpected content type:', contentType);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      
+      // Check if we got data
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('Audio file is empty');
+      }
+      
+      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, url, name: name || 'Audio' };
+      setPlaylist([src]);
+      setCurrentIndex(0);
+      setSourceFromBuffer(buffer, src, false);
+    } catch (error: any) {
+      console.error('❌ Failed to load audio:', error);
+      throw new Error(`Unable to load audio file: ${error.message || 'Invalid or corrupted audio data'}`);
+    }
   }, [getAudioContext, setSourceFromBuffer]);
 
   const loadAudioBuffer = useCallback((buffer: AudioBuffer, name?: string) => {
@@ -259,19 +283,40 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
 
   const addToPlaylistUrl = useCallback(async (url: string, name?: string, autoplay = false) => {
     const ctx = getAudioContext();
-    const response = await fetch(url);
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = await ctx.decodeAudioData(arrayBuffer);
-    const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, url, name: name || 'Audio' };
-    setPlaylist(prev => {
-      const nextList = [...prev, src];
-      if (autoplay) {
-        const idx = nextList.length - 1;
-        setCurrentIndex(idx);
-        setSourceFromBuffer(buffer, src, true);
+    
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
       }
-      return nextList;
-    });
+      
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream')) {
+        console.warn('⚠️ Unexpected content type:', contentType);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('Audio file is empty');
+      }
+      
+      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, url, name: name || 'Audio' };
+      setPlaylist(prev => {
+        const nextList = [...prev, src];
+        if (autoplay) {
+          const idx = nextList.length - 1;
+          setCurrentIndex(idx);
+          setSourceFromBuffer(buffer, src, true);
+        }
+        return nextList;
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to add audio to playlist:', error);
+      throw new Error(`Unable to load audio file: ${error.message || 'Invalid or corrupted audio data'}`);
+    }
   }, [getAudioContext, setSourceFromBuffer]);
 
   const addToPlaylistBuffer = useCallback((buffer: AudioBuffer, name?: string, autoplay = false) => {
@@ -295,11 +340,22 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       const { name, url, autoplay } = e.detail;
       loadAudioUrl(url, name).then(() => {
         if (autoplay) play();
-      }).catch(err => console.error('Failed to load global audio:', err));
+      }).catch(err => {
+        console.error('Failed to load global audio:', err);
+        // Dispatch error event for UI to handle
+        window.dispatchEvent(new CustomEvent('globalAudio:error', { 
+          detail: { message: err.message || 'Failed to load audio file' }
+        }));
+      });
     };
     const handleAdd = (e: CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>) => {
       const { name, url, autoplay } = e.detail;
-      addToPlaylistUrl(url, name, autoplay).catch(err => console.error('Failed to add global audio:', err));
+      addToPlaylistUrl(url, name, autoplay).catch(err => {
+        console.error('Failed to add global audio:', err);
+        window.dispatchEvent(new CustomEvent('globalAudio:error', { 
+          detail: { message: err.message || 'Failed to add audio to playlist' }
+        }));
+      });
     };
     const handlePlay = () => play();
     const handlePause = () => pause();
