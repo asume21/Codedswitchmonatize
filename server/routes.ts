@@ -61,10 +61,16 @@ function getClientKey(req: Request): string {
     ? forwarded.split(',')[0].trim() 
     : req.ip || req.socket?.remoteAddress || 'unknown';
   
-  // Normalize IPv6 addresses to prevent bypass
+  // For IPv6, normalize to prevent bypass but avoid express-rate-limit helper issues
   if (ip.includes(':')) {
+    // Simple IPv6 normalization - take first 4 segments
     const parts = ip.split(':');
-    ip = parts.slice(0, 4).join(':') + '::';
+    const normalizedParts = parts.slice(0, 4);
+    // Pad with empty segments if needed
+    while (normalizedParts.length < 4) {
+      normalizedParts.push('');
+    }
+    ip = normalizedParts.join(':') + '::';
   }
   
   return `ip:${ip}`;
@@ -1977,6 +1983,22 @@ Return in this exact JSON format:
       } else if (audioUrl.startsWith('/')) {
         // Local relative URL (e.g. /api/internal/uploads/...) must be absolute for Replicate.
         audioUrl = toAbsoluteUrl(audioUrl);
+
+        // If we're running locally, this will typically resolve to localhost which is not reachable
+        // from Replicate's infrastructure.
+        try {
+          const resolved = new URL(audioUrl);
+          const host = resolved.hostname.toLowerCase();
+          if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
+            return res.status(400).json({
+              success: false,
+              error: "Audio URL is not publicly accessible",
+              message: "The audio URL resolves to localhost, which Replicate cannot access. To use stem separation in local development, run the app on a publicly reachable URL (or use a tunnel like ngrok) so Replicate can download the audio."
+            });
+          }
+        } catch {
+          // Ignore and let the global URL validation handle this
+        }
       }
 
       // Validate URL format for external URLs
@@ -2023,6 +2045,15 @@ Return in this exact JSON format:
           stems: stems,
         },
       });
+
+      if (!prediction || !prediction.id) {
+        console.error('❌ Invalid prediction response from Replicate:', prediction);
+        return res.status(500).json({
+          success: false,
+          error: "Invalid response from AI service",
+          message: "Replicate returned an invalid prediction object"
+        });
+      }
 
       console.log(`✅ Stem separation started: ${prediction.id}`);
       
@@ -2075,10 +2106,53 @@ Return in this exact JSON format:
       const status = await statusResponse.json() as any;
 
       if (status.status === 'succeeded') {
+        console.log('✅ Stem separation completed, output:', JSON.stringify(status.output, null, 2));
+        
+        // Validate that output contains valid URLs before returning
+        const output = status.output;
+        if (!output || typeof output !== 'object') {
+          console.error('❌ Invalid output structure from Replicate:', output);
+          return res.json({
+            success: false,
+            status: 'failed',
+            error: 'Invalid output structure from AI service'
+          });
+        }
+        
+        // Check each stem field for valid URL schemes
+        const requiredFields = ['vocals', 'accompaniment'];
+        const invalidFields = [];
+        
+        for (const field of requiredFields) {
+          const value = output[field];
+          if (!value || typeof value !== 'string') {
+            invalidFields.push(field);
+          } else {
+            // Check if it's a valid URL scheme
+            try {
+              const url = new URL(value);
+              if (!['http:', 'https:', 'data:'].includes(url.protocol)) {
+                invalidFields.push(field);
+              }
+            } catch {
+              invalidFields.push(field);
+            }
+          }
+        }
+        
+        if (invalidFields.length > 0) {
+          console.error('❌ Invalid stem URLs for fields:', invalidFields);
+          return res.json({
+            success: false,
+            status: 'failed',
+            error: `Invalid URL scheme for: ${invalidFields.join(', ')}. Expected 'data', 'http', or 'https' URLs.`
+          });
+        }
+        
         res.json({
           success: true,
           status: 'completed',
-          stems: status.output
+          stems: output
         });
       } else if (status.status === 'failed') {
         res.json({

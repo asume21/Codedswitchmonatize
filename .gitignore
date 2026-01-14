@@ -47,5 +47,7 @@ coverage/
 .eslintcache
 *.tsbuildinfo
 
+server/uploads/
+
 # Local patch snapshots
 local-changes-*.patch
