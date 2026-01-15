@@ -128,6 +128,59 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express, storage: IStorage) {
+  app.get("/sitemap.xml", (req: Request, res: Response) => {
+    const escapeXml = (value: string) =>
+      value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+
+    const forwardedProto = req.headers["x-forwarded-proto"];
+    const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol;
+    const host = req.headers.host || "localhost";
+    const baseUrl = `${proto}://${host}`;
+    const now = new Date().toISOString();
+
+    const urls: Array<{ loc: string; changefreq?: string; priority?: string }> = [
+      { loc: "\/", changefreq: "daily", priority: "1.0" },
+      { loc: "\/home", changefreq: "weekly", priority: "0.8" },
+      { loc: "\/login", changefreq: "monthly", priority: "0.3" },
+      { loc: "\/signup", changefreq: "monthly", priority: "0.3" },
+      { loc: "\/activate", changefreq: "monthly", priority: "0.2" },
+      { loc: "\/dashboard", changefreq: "weekly", priority: "0.6" },
+      { loc: "\/studio", changefreq: "weekly", priority: "0.7" },
+      { loc: "\/lyric-lab", changefreq: "weekly", priority: "0.6" },
+      { loc: "\/ai-assistant", changefreq: "weekly", priority: "0.5" },
+      { loc: "\/vulnerability-scanner", changefreq: "weekly", priority: "0.4" },
+      { loc: "\/settings", changefreq: "monthly", priority: "0.2" },
+      { loc: "\/social-hub", changefreq: "weekly", priority: "0.4" },
+      { loc: "\/profile", changefreq: "weekly", priority: "0.4" },
+      { loc: "\/subscribe", changefreq: "monthly", priority: "0.3" },
+      { loc: "\/buy-credits", changefreq: "monthly", priority: "0.3" },
+      { loc: "\/credits", changefreq: "monthly", priority: "0.3" },
+      { loc: "\/billing", changefreq: "monthly", priority: "0.3" },
+      { loc: "\/sitemap", changefreq: "weekly", priority: "0.4" },
+    ];
+
+    const body = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls
+  .map(({ loc, changefreq, priority }) => {
+    const fullLoc = escapeXml(`${baseUrl}${loc}`);
+    const cf = changefreq ? `<changefreq>${escapeXml(changefreq)}</changefreq>` : "";
+    const pr = priority ? `<priority>${escapeXml(priority)}</priority>` : "";
+    return `  <url><loc>${fullLoc}</loc><lastmod>${now}</lastmod>${cf}${pr}</url>`;
+  })
+  .join("\n")}
+</urlset>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.status(200).send(body);
+  });
+
   // Mount auth routes
   app.use("/api/auth", createAuthRoutes(storage));
   

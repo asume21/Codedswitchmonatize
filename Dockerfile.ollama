@@ -28,13 +28,6 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Download Phi3 model during build (cached by Docker)
-# Phi3 (Microsoft) has excellent instruction following and less hallucination
-RUN ollama serve & \
-    sleep 5 && \
-    ollama pull phi3:medium && \
-    pkill ollama
-
 # Expose ports
 EXPOSE 5000
 

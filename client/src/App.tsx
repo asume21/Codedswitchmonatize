@@ -43,6 +43,7 @@ const ActivatePage = React.lazy(() => import("@/pages/activate"));
 const PublicSongPage = React.lazy(() => import("@/pages/public-song"));
 const SocialHub = React.lazy(() => import("@/pages/social-hub"));
 const UserProfilePage = React.lazy(() => import("@/pages/user-profile"));
+const SitemapPage = React.lazy(() => import("@/pages/sitemap-page"));
 
 
 // Loading fallback component
@@ -204,6 +205,9 @@ function App() {
               </Route>
               <Route path="/profile">
                 <AppLayout><UserProfilePage /></AppLayout>
+              </Route>
+              <Route path="/sitemap">
+                <AppLayout><SitemapPage /></AppLayout>
               </Route>
               
               {/* ============================================

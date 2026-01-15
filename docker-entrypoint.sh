@@ -35,8 +35,16 @@ echo "📦 Verifying Phi3 model..."
 if ollama list 2>/dev/null | grep -q "phi3:medium"; then
     echo "✅ Phi3 model is ready"
 else
-    echo "⚠️ Model not found, downloading..."
-    ollama pull phi3:medium || echo "⚠️ Model download failed, will use cloud fallback"
+    echo "⚠️ Model not found. Starting download in background (server will start now; cloud fallback will be used until model is ready)..."
+    (
+      set +e
+      ollama pull phi3:medium
+      if [ $? -eq 0 ]; then
+        echo "✅ Phi3 model downloaded"
+      else
+        echo "⚠️ Phi3 model download failed; cloud fallback will remain in use"
+      fi
+    ) &
 fi
 
 # Start CodedSwitch

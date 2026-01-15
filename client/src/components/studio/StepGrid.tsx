@@ -164,6 +164,16 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
   const throttleMove = useRafThrottle();
   const throttleResize = useRafThrottle();
 
+  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+  const getResizeDeltaSteps = (deltaX: number) => {
+    const baseSteps = deltaX / (stepWidth * zoom);
+    const snap = snapEnabled ? (snapValue || 1) : 1;
+    if (!snap || snap <= 0) return Math.trunc(baseSteps);
+    const snapped = Math.round(baseSteps / snap) * snap;
+    return snapped;
+  };
+
   return (
     <div 
       ref={scrollRef || ref}
@@ -344,6 +354,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                           e.preventDefault();
                           const startX = e.clientX;
                           const startLength = note.length || 1;
+                          const maxLengthForNote = Math.max(1, steps - (note.step || 0));
                           
                           // Set cursor on body during drag
                           document.body.style.cursor = 'ew-resize';
@@ -352,13 +363,21 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                           const handleMouseMove = (moveEvent: MouseEvent) => {
                             moveEvent.preventDefault();
                             const deltaX = moveEvent.clientX - startX;
-                            const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
-                            if (isSelected && selectedNoteIds && selectedNoteIds.size > 1 && onMultiNoteResize) {
-                              onMultiNoteResize(Array.from(selectedNoteIds), deltaSteps);
-                            } else if (onNoteResize) {
-                              const newLength = Math.max(1, startLength + deltaSteps);
-                              onNoteResize(note.id, newLength);
-                            }
+                            const deltaSteps = getResizeDeltaSteps(deltaX);
+
+                            throttleResize(() => {
+                              if (isSelected && selectedNoteIds && selectedNoteIds.size > 1 && onMultiNoteResize) {
+                                // Multi-resize is relative; clamp will be applied in the parent handler.
+                                onMultiNoteResize(Array.from(selectedNoteIds), deltaSteps);
+                                return;
+                              }
+
+                              if (onNoteResize) {
+                                const rawLength = startLength + deltaSteps;
+                                const newLength = clamp(rawLength, 1, maxLengthForNote);
+                                onNoteResize(note.id, newLength);
+                              }
+                            });
                           };
                           const handleMouseUp = () => {
                             document.body.style.cursor = '';
