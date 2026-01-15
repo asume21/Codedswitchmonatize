@@ -2035,14 +2035,22 @@ Return in this exact JSON format:
         auth: REPLICATE_API_TOKEN,
       });
 
-      // Use Replicate Predictions API (async) - the version that was working
-      console.log('🎵 Creating stem separation prediction...');
+      // Use Demucs model (ryan5453/demucs) - more reliable than Spleeter
+      // htdemucs is the base Hybrid Transformer Demucs v4 model
+      console.log('🎵 Creating stem separation prediction with Demucs...');
+      
+      // Map stem count to Demucs model variant
+      // htdemucs: 4 stems (drums, bass, other, vocals)
+      // htdemucs_6s: 6 stems (adds piano and guitar, but piano doesn't work well)
+      const modelVariant = stems === 5 ? 'htdemucs_6s' : 'htdemucs';
       
       const prediction = await replicate.predictions.create({
-        version: "3df0078aec72e9f395fa257141caf0fcfcf10517b0200842943f356a394c4f32",
+        version: "5a7041cc9b82e5a558fea6b3d7b12dea89625e89da33f0447bd727c2d0ab9e77",
         input: {
           audio: audioUrl,
-          stems: stems,
+          model: modelVariant,
+          output_format: "mp3",
+          mp3_bitrate: 320,
         },
       });
 
@@ -2108,7 +2116,9 @@ Return in this exact JSON format:
       if (status.status === 'succeeded') {
         console.log('✅ Stem separation completed, output:', JSON.stringify(status.output, null, 2));
         
-        // Validate that output contains valid URLs before returning
+        // Demucs returns output as an object with stem names as keys
+        // e.g., { vocals: "url", drums: "url", bass: "url", other: "url" }
+        // or for htdemucs_6s: { vocals, drums, bass, other, piano, guitar }
         const output = status.output;
         if (!output || typeof output !== 'object') {
           console.error('❌ Invalid output structure from Replicate:', output);
@@ -2119,19 +2129,20 @@ Return in this exact JSON format:
           });
         }
         
-        // Check each stem field for valid URL schemes
-        const requiredFields = ['vocals', 'accompaniment'];
-        const invalidFields = [];
+        // Demucs outputs: vocals, drums, bass, other (and optionally piano, guitar)
+        // Map to our expected format, creating "accompaniment" from non-vocal stems if needed
+        const stems: Record<string, string> = {};
+        const validStems: string[] = [];
+        const invalidFields: string[] = [];
         
-        for (const field of requiredFields) {
-          const value = output[field];
-          if (!value || typeof value !== 'string') {
-            invalidFields.push(field);
-          } else {
-            // Check if it's a valid URL scheme
+        for (const [field, value] of Object.entries(output)) {
+          if (value && typeof value === 'string') {
             try {
               const url = new URL(value);
-              if (!['http:', 'https:', 'data:'].includes(url.protocol)) {
+              if (['http:', 'https:', 'data:'].includes(url.protocol)) {
+                stems[field] = value;
+                validStems.push(field);
+              } else {
                 invalidFields.push(field);
               }
             } catch {
@@ -2140,19 +2151,22 @@ Return in this exact JSON format:
           }
         }
         
-        if (invalidFields.length > 0) {
-          console.error('❌ Invalid stem URLs for fields:', invalidFields);
+        // If we have no valid stems at all, fail
+        if (validStems.length === 0) {
+          console.error('❌ No valid stem URLs returned:', invalidFields);
           return res.json({
             success: false,
             status: 'failed',
-            error: `Invalid URL scheme for: ${invalidFields.join(', ')}. Expected 'data', 'http', or 'https' URLs.`
+            error: `No valid stems returned. Invalid fields: ${invalidFields.join(', ')}`
           });
         }
+        
+        console.log(`✅ Valid stems: ${validStems.join(', ')}`);
         
         res.json({
           success: true,
           status: 'completed',
-          stems: output
+          stems: stems
         });
       } else if (status.status === 'failed') {
         res.json({
