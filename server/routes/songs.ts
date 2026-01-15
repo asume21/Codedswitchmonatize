@@ -10,6 +10,7 @@ import { parseFile } from "music-metadata";
 import fetch from "node-fetch";
 import { unlink } from "fs/promises";
 import { sunoApi } from "../services/sunoApi";
+import { stemSeparationService } from "../services/stemSeparation";
 import { getGuestUserId } from "../guestUser";
 import { isIP } from "net";
 
@@ -541,7 +542,52 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Separate Vocals - Extract vocals and instrumentals
+  // Separate Vocals - Extract vocals and instrumentals (LOCAL - uses file upload, no URL needed)
+  router.post("/separate", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const { songUrl, stemCount = 2 } = req.body;
+      console.log('🎵 Local Stem Separation:', { songUrl, stemCount });
+
+      if (!songUrl) {
+        return res.status(400).json({ error: "Missing songUrl" });
+      }
+
+      if (!stemSeparationService.isConfigured()) {
+        return res.status(503).json({ 
+          error: "Stem separation not configured",
+          message: "REPLICATE_API_TOKEN is required for stem separation"
+        });
+      }
+
+      // Use the new local file-based separation
+      const result = await stemSeparationService.separateStems(songUrl, stemCount as 2 | 4);
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json({
+        success: true,
+        stems: {
+          vocals: result.vocals,
+          instrumental: result.instrumental,
+          drums: result.drums,
+          bass: result.bass,
+          other: result.other,
+        },
+        jobId: result.jobId
+      });
+    } catch (error) {
+      console.error('Stem separation error:', error);
+      res.status(500).json({ error: "Failed to separate stems" });
+    }
+  });
+
+  // Legacy Suno Separate Vocals endpoint (kept for backward compatibility)
   router.post("/suno/separate", async (req: Request, res: Response) => {
     if (!req.userId) {
       return res.status(401).json({ error: "Please log in" });

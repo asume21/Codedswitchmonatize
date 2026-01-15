@@ -128,20 +128,30 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
 
       const data = await response.json();
 
-      if (data.success && data.predictionId) {
+      // New flow: results come back directly (no polling needed)
+      if (data.success && data.status === 'completed' && data.stems) {
+        setStems(data.stems);
+        setIsProcessing(false);
+        onStemsReady?.(data.stems);
+        toast({
+          title: "Separation Complete",
+          description: data.message || `Successfully separated into stems`,
+        });
+      } else if (data.success && data.predictionId) {
+        // Legacy flow: poll for results
         setPredictionId(data.predictionId);
         toast({
           title: "Processing Started",
           description: data.message,
         });
       } else {
-        throw new Error(data.message || 'Failed to start separation');
+        throw new Error(data.message || data.error || 'Failed to separate stems');
       }
     } catch (error: any) {
       setIsProcessing(false);
       toast({
-        title: "Error",
-        description: error.message || "Failed to start separation",
+        title: "Separation Failed",
+        description: error.message || "Failed to separate stems",
         variant: "destructive"
       });
     }

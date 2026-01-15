@@ -35,6 +35,16 @@ app.use("/data", express.static(dataRoot));
 const assetsRoot = path.resolve(process.cwd(), "server", "Assets");
 app.use("/assets", express.static(assetsRoot));
 
+// Serve stem separation output files
+const stemsRoot = path.resolve(process.cwd(), "objects", "stems");
+app.use("/api/stems", express.static(stemsRoot, {
+  setHeaders: (res) => {
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+  }
+}));
+
 // Trust proxy for secure cookies (Railway, Replit, etc.)
 app.set('trust proxy', 1);
 

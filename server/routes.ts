@@ -1912,12 +1912,12 @@ Return in this exact JSON format:
 
   // ============================================
   // AI STEM SEPARATION ENDPOINT
-  // Uses Replicate's Spleeter model to separate audio stems
-  // Automatically handles local files from song library by converting to signed URLs
+  // Uses Replicate's Demucs model with base64 file upload (no URL callback needed)
+  // This avoids SSL/timeout issues by sending file data directly
   // ============================================
   app.post("/api/ai/stem-separation", async (req: Request, res: Response) => {
     try {
-      let { audioUrl, stemCount = 2 } = req.body;
+      const { audioUrl, stemCount = 2 } = req.body;
 
       console.log('🎵 Stem separation request:', { audioUrl: audioUrl?.substring(0, 50), stemCount });
 
@@ -1938,85 +1938,9 @@ Return in this exact JSON format:
         });
       }
 
-      // Helper: convert a local relative URL into an absolute URL Replicate can fetch.
-      // Prefer proxy headers when present (Railway/Render/etc.).
-      const toAbsoluteUrl = (relativeUrl: string) => {
-        const forwardedProtoRaw = req.headers['x-forwarded-proto'];
-        const proto = typeof forwardedProtoRaw === 'string'
-          ? forwardedProtoRaw.split(',')[0].trim()
-          : req.protocol;
-
-        const forwardedHostRaw = req.headers['x-forwarded-host'];
-        const host = typeof forwardedHostRaw === 'string'
-          ? forwardedHostRaw.split(',')[0].trim()
-          : req.get('host');
-
-        if (!host) {
-          return relativeUrl;
-        }
-
-        return `${proto}://${host}${relativeUrl}`;
-      };
-
-      // Handle object-storage paths from the song library (e.g. /objects/.private/audio/uuid).
-      // Convert them to signed public URLs that Replicate can access.
-      if (audioUrl.startsWith('/objects/') || audioUrl.startsWith('/api/objects/')) {
-        console.log('🔄 Converting object storage path to signed URL...');
-        try {
-          const objectStorage = new ObjectStorageService();
-
-          // Convert /api/objects/... to /objects/...
-          const objectPath = audioUrl.startsWith('/api/objects/')
-            ? audioUrl.replace('/api/objects/', '/objects/')
-            : audioUrl;
-
-          audioUrl = await objectStorage.getSignedPublicUrl(objectPath, 3600); // 1 hour expiry
-          console.log('✅ Converted to signed URL');
-        } catch (err: any) {
-          console.error('❌ Failed to get signed URL:', err);
-          return res.status(400).json({
-            success: false,
-            error: "Could not access file",
-            message: "The audio file could not be found or accessed. Please try uploading again."
-          });
-        }
-      } else if (audioUrl.startsWith('/')) {
-        // Local relative URL (e.g. /api/internal/uploads/...) must be absolute for Replicate.
-        audioUrl = toAbsoluteUrl(audioUrl);
-
-        // If we're running locally, this will typically resolve to localhost which is not reachable
-        // from Replicate's infrastructure.
-        try {
-          const resolved = new URL(audioUrl);
-          const host = resolved.hostname.toLowerCase();
-          if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
-            return res.status(400).json({
-              success: false,
-              error: "Audio URL is not publicly accessible",
-              message: "The audio URL resolves to localhost, which Replicate cannot access. To use stem separation in local development, run the app on a publicly reachable URL (or use a tunnel like ngrok) so Replicate can download the audio."
-            });
-          }
-        } catch {
-          // Ignore and let the global URL validation handle this
-        }
-      }
-
-      // Validate URL format for external URLs
-      try {
-        new URL(audioUrl);
-      } catch {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid URL format",
-          message: "The audio URL must be a valid, publicly accessible URL"
-        });
-      }
-
-      const validStemCounts = [2, 4, 5];
-      const stems = validStemCounts.includes(stemCount) ? stemCount : 2;
-
-      const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
-      if (!REPLICATE_API_TOKEN) {
+      const { stemSeparationService } = await import('./services/stemSeparation');
+      
+      if (!stemSeparationService.isConfigured()) {
         console.error('❌ REPLICATE_API_TOKEN not configured');
         return res.status(503).json({
           success: false,
@@ -2026,58 +1950,47 @@ Return in this exact JSON format:
         });
       }
 
-      console.log(`🎵 Starting stem separation: ${stems} stems...`);
-      console.log(`🔗 Audio URL: ${audioUrl.substring(0, 100)}...`);
+      const validStemCounts = [2, 4];
+      const stems = validStemCounts.includes(stemCount) ? stemCount : 2;
 
-      // Import Replicate SDK
-      const Replicate = (await import('replicate')).default;
-      const replicate = new Replicate({
-        auth: REPLICATE_API_TOKEN,
-      });
+      console.log(`🎵 Starting LOCAL stem separation: ${stems} stems...`);
+      console.log(`📁 Processing file locally (no URL callback needed)`);
 
-      // Use Demucs model (ryan5453/demucs) - more reliable than Spleeter
-      // htdemucs is the base Hybrid Transformer Demucs v4 model
-      console.log('🎵 Creating stem separation prediction with Demucs...');
-      
-      // Map stem count to Demucs model variant
-      // htdemucs: 4 stems (drums, bass, other, vocals)
-      // htdemucs_6s: 6 stems (adds piano and guitar, but piano doesn't work well)
-      const modelVariant = stems === 5 ? 'htdemucs_6s' : 'htdemucs';
-      
-      const prediction = await replicate.predictions.create({
-        version: "5a7041cc9b82e5a558fea6b3d7b12dea89625e89da33f0447bd727c2d0ab9e77",
-        input: {
-          audio: audioUrl,
-          model: modelVariant,
-          output_format: "mp3",
-          mp3_bitrate: 320,
-        },
-      });
+      // Use the new local file-based separation service
+      // This converts the file to base64 and sends it directly to Replicate
+      // No need for public URLs or SSL callbacks!
+      const result = await stemSeparationService.separateStems(audioUrl, stems as 2 | 4);
 
-      if (!prediction || !prediction.id) {
-        console.error('❌ Invalid prediction response from Replicate:', prediction);
+      if (!result.success) {
+        console.error('❌ Stem separation failed:', result.error);
         return res.status(500).json({
           success: false,
-          error: "Invalid response from AI service",
-          message: "Replicate returned an invalid prediction object"
+          error: "Stem separation failed",
+          message: result.error || "Failed to separate stems"
         });
       }
 
-      console.log(`✅ Stem separation started: ${prediction.id}`);
-      
-      // Return prediction ID for polling
+      console.log('✅ Stem separation completed!');
+      console.log('📁 Stems saved locally:', result);
+
+      // Return the results directly (no polling needed!)
       res.json({
         success: true,
-        predictionId: prediction.id,
-        status: 'processing',
-        message: `Separating audio into ${stems} stems. This may take 1-3 minutes.`,
-        checkStatusUrl: `/api/ai/stem-separation/status/${prediction.id}`
+        status: 'completed',
+        stems: {
+          vocals: result.vocals,
+          instrumental: result.instrumental,
+          drums: result.drums,
+          bass: result.bass,
+          other: result.other,
+        },
+        jobId: result.jobId,
+        message: `Successfully separated into ${Object.values(result).filter(v => v && typeof v === 'string' && v.startsWith('/api/')).length} stems`
       });
 
     } catch (error: any) {
       console.error("❌ Stem separation error:", error);
       console.error("❌ Error stack:", error.stack);
-      console.error("❌ Error details:", JSON.stringify(error, null, 2));
       res.status(500).json({
         success: false,
         error: "Stem separation failed",
@@ -2087,7 +2000,7 @@ Return in this exact JSON format:
     }
   });
 
-  // Check stem separation status
+  // Legacy status endpoint (kept for backward compatibility, but new flow doesn't need polling)
   app.get("/api/ai/stem-separation/status/:predictionId", async (req: Request, res: Response) => {
     try {
       const { predictionId } = req.params;
@@ -2096,6 +2009,34 @@ Return in this exact JSON format:
         return sendError(res, 400, "Prediction ID required");
       }
 
+      // The new flow completes synchronously, so this endpoint is mainly for legacy support
+      // Check if we have a local job with this ID
+      const { stemSeparationService } = await import('./services/stemSeparation');
+      const job = stemSeparationService.getJob(predictionId);
+      
+      if (job) {
+        if (job.status === 'completed' && job.result) {
+          return res.json({
+            success: true,
+            status: 'completed',
+            stems: job.result
+          });
+        } else if (job.status === 'failed') {
+          return res.json({
+            success: false,
+            status: 'failed',
+            error: job.error || 'Separation failed'
+          });
+        } else {
+          return res.json({
+            success: true,
+            status: 'processing',
+            message: 'Still processing...'
+          });
+        }
+      }
+
+      // Fallback: check Replicate directly for old predictions
       const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
       if (!REPLICATE_API_TOKEN) {
         return sendError(res, 503, "Stem separation service not configured");
@@ -2116,9 +2057,6 @@ Return in this exact JSON format:
       if (status.status === 'succeeded') {
         console.log('✅ Stem separation completed, output:', JSON.stringify(status.output, null, 2));
         
-        // Demucs returns output as an object with stem names as keys
-        // e.g., { vocals: "url", drums: "url", bass: "url", other: "url" }
-        // or for htdemucs_6s: { vocals, drums, bass, other, piano, guitar }
         const output = status.output;
         if (!output || typeof output !== 'object') {
           console.error('❌ Invalid output structure from Replicate:', output);
@@ -2129,11 +2067,8 @@ Return in this exact JSON format:
           });
         }
         
-        // Demucs outputs: vocals, drums, bass, other (and optionally piano, guitar)
-        // Map to our expected format, creating "accompaniment" from non-vocal stems if needed
         const stems: Record<string, string> = {};
         const validStems: string[] = [];
-        const invalidFields: string[] = [];
         
         for (const [field, value] of Object.entries(output)) {
           if (value && typeof value === 'string') {
@@ -2142,26 +2077,20 @@ Return in this exact JSON format:
               if (['http:', 'https:', 'data:'].includes(url.protocol)) {
                 stems[field] = value;
                 validStems.push(field);
-              } else {
-                invalidFields.push(field);
               }
             } catch {
-              invalidFields.push(field);
+              // Skip invalid URLs
             }
           }
         }
         
-        // If we have no valid stems at all, fail
         if (validStems.length === 0) {
-          console.error('❌ No valid stem URLs returned:', invalidFields);
           return res.json({
             success: false,
             status: 'failed',
-            error: `No valid stems returned. Invalid fields: ${invalidFields.join(', ')}`
+            error: 'No valid stems returned'
           });
         }
-        
-        console.log(`✅ Valid stems: ${validStems.join(', ')}`);
         
         res.json({
           success: true,
