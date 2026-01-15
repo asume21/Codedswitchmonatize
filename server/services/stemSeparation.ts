@@ -143,10 +143,10 @@ export class StemSeparationService {
       console.log(`   Data URI size: ${Math.round(dataUri.length / 1024)}KB`);
 
       // Use Demucs model on Replicate
-      // Model: cjwbw/demucs (most reliable) or similar
+      // Model: cjwbw/demucs - using the model identifier format
       console.log('🚀 Sending to Replicate...');
       
-      const predictionResponse = await fetch(`${this.apiUrl}/predictions`, {
+      const predictionResponse = await fetch(`${this.apiUrl}/models/cjwbw/demucs/predictions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiToken}`,
@@ -154,8 +154,6 @@ export class StemSeparationService {
           'Prefer': 'wait', // Wait for result if quick
         },
         body: JSON.stringify({
-          // Using the most reliable Demucs model
-          version: 'cjwbw/demucs:25a173108cff36ef9f80f854c162d01df9e6528be175794b81571f6e7e89e5a5',
           input: {
             audio: dataUri,
             model: model,
