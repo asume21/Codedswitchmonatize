@@ -38,8 +38,16 @@ app.use("/assets", express.static(assetsRoot));
 // Serve stem separation output files
 const stemsRoot = path.resolve(process.cwd(), "objects", "stems");
 app.use("/api/stems", express.static(stemsRoot, {
-  setHeaders: (res) => {
-    res.setHeader('Content-Type', 'audio/wav');
+  setHeaders: (res, filePath) => {
+    // Set correct content type based on file extension
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.flac': 'audio/flac',
+      '.ogg': 'audio/ogg',
+    };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'audio/mpeg');
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=86400');
   }

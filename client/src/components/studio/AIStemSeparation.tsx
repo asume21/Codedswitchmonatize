@@ -193,12 +193,12 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
     sessionStorage.setItem('astutely_stem_source', uploadedFileName || 'Separated Track');
     
     toast({
-      title: "Routing to Astutely",
-      description: `Sending ${Object.keys(stems).length} stems for AI remixing`,
+      title: "Stems Ready for Mixing",
+      description: `${Object.keys(stems).filter(k => stems[k as keyof typeof stems]).length} stems saved. Use the Professional Mixer tab to mix them.`,
     });
     
-    // Navigate to mixer with AI tab active
-    setLocation('/mixer?tab=ai-mix');
+    // Dispatch event to switch to mixer tab within studio
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'mixer' }));
   };
 
   const stemDescriptions: Record<string, string> = {

@@ -84,10 +84,15 @@ export class StemSeparationService {
     }
     
     const buffer = Buffer.from(await response.arrayBuffer());
-    const filename = `${jobId}-${stemName}.wav`;
+    
+    // Detect file extension from URL or default to mp3 (Replicate returns mp3)
+    const urlPath = new URL(url).pathname;
+    const ext = path.extname(urlPath) || '.mp3';
+    const filename = `${jobId}-${stemName}${ext}`;
     const localPath = path.join(STEMS_STORAGE_DIR, filename);
     
     fs.writeFileSync(localPath, buffer);
+    console.log(`   Downloaded ${stemName}: ${localPath} (${Math.round(buffer.length / 1024)}KB)`);
     
     return `/api/stems/${filename}`;
   }
