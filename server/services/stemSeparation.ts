@@ -45,10 +45,16 @@ export class StemSeparationService {
   private apiUrl = 'https://api.replicate.com/v1';
 
   constructor() {
-    this.apiToken = process.env.REPLICATE_API_TOKEN || '';
+    // Initialize token as empty, will be loaded on first use
+    this.apiToken = '';
+  }
+
+  // Method to get the token with lazy loading
+  private getToken(): string {
     if (!this.apiToken) {
-      console.warn('⚠️ REPLICATE_API_TOKEN not set - Stem separation will use fallback');
+      this.apiToken = process.env.REPLICATE_API_TOKEN || '';
     }
+    return this.apiToken;
   }
 
   /**
@@ -78,12 +84,21 @@ export class StemSeparationService {
   private async downloadStem(url: string, stemName: string, jobId: string): Promise<string> {
     ensureStemsDir();
     
+    console.log(`   ⬇️ Downloading ${stemName} from: ${url.substring(0, 80)}...`);
+    
     const response = await fetch(url);
     if (!response.ok) {
+      console.error(`   ❌ Download failed for ${stemName}: ${response.status} ${response.statusText}`);
       throw new Error(`Failed to download ${stemName}: ${response.statusText}`);
     }
     
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    if (buffer.length === 0) {
+      console.error(`   ❌ Downloaded empty file for ${stemName}`);
+      throw new Error(`Downloaded empty file for ${stemName}`);
+    }
     
     // Detect file extension from URL or default to mp3 (Replicate returns mp3)
     const urlPath = new URL(url).pathname;
@@ -92,7 +107,7 @@ export class StemSeparationService {
     const localPath = path.join(STEMS_STORAGE_DIR, filename);
     
     fs.writeFileSync(localPath, buffer);
-    console.log(`   Downloaded ${stemName}: ${localPath} (${Math.round(buffer.length / 1024)}KB)`);
+    console.log(`   ✅ Downloaded ${stemName}: ${localPath} (${Math.round(buffer.length / 1024)}KB)`);
     
     return `/api/stems/${filename}`;
   }
@@ -128,12 +143,15 @@ export class StemSeparationService {
       };
     }
 
-    if (!this.apiToken) {
+    const token = this.getToken();
+    if (!token) {
+      console.warn('⚠️ REPLICATE_API_TOKEN not set - Stem separation disabled');
       return {
         success: false,
         error: 'REPLICATE_API_TOKEN not configured. Please add your Replicate API token.'
       };
     }
+    console.log('✅ REPLICATE_API_TOKEN loaded successfully');
 
     const jobId = crypto.randomUUID();
     console.log(`🎵 Starting stem separation job ${jobId}`);
@@ -157,7 +175,7 @@ export class StemSeparationService {
       const predictionResponse = await fetch(`${this.apiUrl}/predictions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -349,7 +367,7 @@ export class StemSeparationService {
   }
 
   isConfigured(): boolean {
-    return !!this.apiToken;
+    return !!this.getToken();
   }
 }
 

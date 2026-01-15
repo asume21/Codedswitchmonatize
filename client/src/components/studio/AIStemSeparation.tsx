@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload, Wand2 } from 'lucide-react';
+import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload, Wand2, Square } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useLocation } from 'wouter';
+import { useTracks } from '@/hooks/useTracks';
 
 interface StemResult {
   vocals?: string;
@@ -35,6 +36,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { addTrack } = useTracks();
 
   // Check for routed song from Song Library/Uploader
   useEffect(() => {
@@ -54,7 +56,28 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         description: `${routedName || 'Song'} ready for stem separation`,
       });
     }
+    
+    // Restore previously separated stems from sessionStorage (persistence)
+    const savedStems = sessionStorage.getItem('separated_stems');
+    const savedSource = sessionStorage.getItem('separated_stems_source');
+    if (savedStems) {
+      try {
+        const parsedStems = JSON.parse(savedStems);
+        setStems(parsedStems);
+        if (savedSource) setUploadedFileName(savedSource);
+      } catch (e) {
+        console.error('Failed to restore stems:', e);
+      }
+    }
   }, [toast]);
+  
+  // Persist stems to sessionStorage whenever they change
+  useEffect(() => {
+    if (stems) {
+      sessionStorage.setItem('separated_stems', JSON.stringify(stems));
+      sessionStorage.setItem('separated_stems_source', uploadedFileName);
+    }
+  }, [stems, uploadedFileName]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -158,21 +181,56 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   };
 
   const playStem = (stemName: string, url: string) => {
+    // Stop current audio if playing
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current = null;
     }
     
+    // Toggle off if clicking same stem
     if (playingStem === stemName) {
       setPlayingStem(null);
       return;
     }
 
+    // Create and play new audio
     const audio = new Audio(url);
     audioRef.current = audio;
-    audio.play();
     setPlayingStem(stemName);
     
-    audio.onended = () => setPlayingStem(null);
+    audio.onended = () => {
+      setPlayingStem(null);
+      audioRef.current = null;
+    };
+    
+    audio.onerror = (e) => {
+      console.error('Audio playback error:', e);
+      setPlayingStem(null);
+      audioRef.current = null;
+      toast({
+        title: "Playback Error",
+        description: `Could not play ${stemName}. Try downloading instead.`,
+        variant: "destructive"
+      });
+    };
+    
+    audio.play().catch(err => {
+      console.error('Failed to play audio:', err);
+      setPlayingStem(null);
+      toast({
+        title: "Playback Error",
+        description: "Browser blocked audio playback. Click again to retry.",
+        variant: "destructive"
+      });
+    });
+  };
+  
+  const stopPlayback = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setPlayingStem(null);
   };
 
   const getStemIcon = (stemName: string) => {
@@ -188,13 +246,45 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const sendToAstutely = () => {
     if (!stems) return;
     
-    // Store stems in sessionStorage for Astutely to access
+    // Stop any playing audio first
+    stopPlayback();
+    
+    // Add each stem as a track in the project
+    const stemColors: Record<string, string> = {
+      vocals: '#ec4899',
+      drums: '#f59e0b', 
+      bass: '#8b5cf6',
+      other: '#06b6d4',
+      piano: '#10b981',
+      accompaniment: '#6366f1',
+    };
+    
+    const sourceName = uploadedFileName || 'Separated Track';
+    let addedCount = 0;
+    
+    Object.entries(stems).forEach(([stemName, url]) => {
+      if (url) {
+        addTrack({
+          name: `${sourceName} - ${stemName.charAt(0).toUpperCase() + stemName.slice(1)}`,
+          type: 'audio',
+          kind: 'audio',
+          audioUrl: url as string,
+          source: 'stem-separation',
+          color: stemColors[stemName] || '#64748b',
+          volume: 0.8,
+          pan: 0,
+        });
+        addedCount++;
+      }
+    });
+    
+    // Also store in sessionStorage for other components
     sessionStorage.setItem('astutely_stems', JSON.stringify(stems));
-    sessionStorage.setItem('astutely_stem_source', uploadedFileName || 'Separated Track');
+    sessionStorage.setItem('astutely_stem_source', sourceName);
     
     toast({
-      title: "Stems Ready for Mixing",
-      description: `${Object.keys(stems).filter(k => stems[k as keyof typeof stems]).length} stems saved. Use the Professional Mixer tab to mix them.`,
+      title: "Stems Added to Project",
+      description: `${addedCount} stems added as tracks. Switch to Mixer or Arrangement to see them.`,
     });
     
     // Dispatch event to switch to mixer tab within studio
@@ -297,14 +387,18 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
                       onClick={() => playStem(name, url as string)}
                       data-testid={`button-play-stem-${name}`}
                     >
-                      <Volume2 className={`w-4 h-4 ${playingStem === name ? 'text-primary' : ''}`} />
+                      {playingStem === name ? (
+                        <Square className="w-4 h-4 text-primary fill-primary" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
                       asChild
                     >
-                      <a href={url as string} download={`${name}.wav`} data-testid={`button-download-stem-${name}`}>
+                      <a href={url as string} download={`${name}.mp3`} data-testid={`button-download-stem-${name}`}>
                         <Download className="w-4 h-4" />
                       </a>
                     </Button>
