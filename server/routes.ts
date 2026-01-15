@@ -1991,6 +1991,16 @@ Return in this exact JSON format:
         });
       }
 
+      // Convert relative URLs to absolute URLs
+      let absoluteAudioUrl = audioUrl;
+      if (audioUrl.startsWith('/')) {
+        const forwardedProto = req.headers["x-forwarded-proto"];
+        const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol;
+        const host = req.headers.host || "localhost";
+        absoluteAudioUrl = `${proto}://${host}${audioUrl}`;
+        console.log(`🔄 Converting relative URL to absolute: ${audioUrl} → ${absoluteAudioUrl}`);
+      }
+
       const { stemSeparationService } = await import('./services/stemSeparation');
       
       if (!stemSeparationService.isConfigured()) {
@@ -2012,7 +2022,7 @@ Return in this exact JSON format:
       // Use the new local file-based separation service
       // This converts the file to base64 and sends it directly to Replicate
       // No need for public URLs or SSL callbacks!
-      const result = await stemSeparationService.separateStems(audioUrl, stems as 2 | 4);
+      const result = await stemSeparationService.separateStems(absoluteAudioUrl, stems as 2 | 4);
 
       if (!result.success) {
         console.error('❌ Stem separation failed:', result.error);
