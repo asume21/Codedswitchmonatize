@@ -3,10 +3,11 @@
 
 FROM node:20-bullseye
 
-# Install Ollama dependencies
+# Install Ollama dependencies (including zstd required by Ollama installer)
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
+    zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama
