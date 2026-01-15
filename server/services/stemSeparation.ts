@@ -142,24 +142,29 @@ export class StemSeparationService {
       const dataUri = this.fileToDataUri(filePath);
       console.log(`   Data URI size: ${Math.round(dataUri.length / 1024)}KB`);
 
-      // Use Demucs model on Replicate
-      // Model: cjwbw/demucs - using the model identifier format
+      // Use Demucs model on Replicate (cjwbw/demucs)
+      // Correct API format: POST /v1/predictions with version in body
       console.log('🚀 Sending to Replicate...');
       
-      const predictionResponse = await fetch(`${this.apiUrl}/models/cjwbw/demucs/predictions`, {
+      // Latest working version of cjwbw/demucs (verified working)
+      const DEMUCS_VERSION = '25a173108cff36ef9f80f854c162d01df9e6528be175794b81158fa03836d953';
+      
+      const predictionResponse = await fetch(`${this.apiUrl}/predictions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json',
-          'Prefer': 'wait', // Wait for result if quick
         },
         body: JSON.stringify({
+          version: DEMUCS_VERSION,
           input: {
             audio: dataUri,
-            model: model,
-            stem: twoStems ? 'vocals' : null, // If twoStems, only extract vocals (instrumental is the rest)
+            model_name: model, // API uses model_name not model
+            stem: twoStems ? 'vocals' : undefined, // Only set if 2-stem mode
             clip_mode: 'rescale',
             shifts: 1,
+            output_format: 'mp3',
+            mp3_bitrate: 320,
           },
         }),
       });
