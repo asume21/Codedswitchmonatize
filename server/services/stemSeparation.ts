@@ -45,16 +45,10 @@ export class StemSeparationService {
   private apiUrl = 'https://api.replicate.com/v1';
 
   constructor() {
-    // Initialize token as empty, will be loaded on first use
-    this.apiToken = '';
-  }
-
-  // Method to get the token with lazy loading
-  private getToken(): string {
+    this.apiToken = process.env.REPLICATE_API_TOKEN || '';
     if (!this.apiToken) {
-      this.apiToken = process.env.REPLICATE_API_TOKEN || '';
+      console.warn('⚠️ REPLICATE_API_TOKEN not set - Stem separation will use fallback');
     }
-    return this.apiToken;
   }
 
   /**
@@ -143,15 +137,12 @@ export class StemSeparationService {
       };
     }
 
-    const token = this.getToken();
-    if (!token) {
-      console.warn('⚠️ REPLICATE_API_TOKEN not set - Stem separation disabled');
+    if (!this.apiToken) {
       return {
         success: false,
         error: 'REPLICATE_API_TOKEN not configured. Please add your Replicate API token.'
       };
     }
-    console.log('✅ REPLICATE_API_TOKEN loaded successfully');
 
     const jobId = crypto.randomUUID();
     console.log(`🎵 Starting stem separation job ${jobId}`);
@@ -175,7 +166,7 @@ export class StemSeparationService {
       const predictionResponse = await fetch(`${this.apiUrl}/predictions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -367,7 +358,7 @@ export class StemSeparationService {
   }
 
   isConfigured(): boolean {
-    return !!this.getToken();
+    return !!this.apiToken;
   }
 }
 
