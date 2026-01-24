@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { unifiedMusicService } from "./unifiedMusicService";
+import { logPromptStart, logPromptResult } from "../ai/utils/promptLogger";
 
 // Persistent storage directory for speech correction previews/finals
 const SPEECH_STORAGE_DIR = path.resolve(process.cwd(), "objects", "speech-correction");
@@ -72,6 +73,9 @@ export async function generateSpeechPreview({
   promptParts.push(transcript.trim());
   const prompt = promptParts.filter(Boolean).join(" | ");
 
+  const promptHash = logPromptStart(prompt, { feature: "speech-preview" });
+  const start = Date.now();
+
   const result = await unifiedMusicService.generateTrack(prompt, {
     type: 'melody',
     duration
@@ -80,6 +84,12 @@ export async function generateSpeechPreview({
   if (!result || !result.audio_url) {
     throw new Error("Speech preview generation failed (Replicate returned empty URL)");
   }
+
+  logPromptResult(promptHash, {
+    feature: "speech-preview",
+    provider: result?.metadata?.generator || "unknown",
+    durationMs: Date.now() - start,
+  });
   return result.audio_url;
 }
 

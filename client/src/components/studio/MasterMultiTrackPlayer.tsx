@@ -20,6 +20,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { StudioAudioContext } from '@/pages/studio';
 import { useAudio } from '@/hooks/use-audio';
+import { useTransport } from '@/contexts/TransportContext';
 import { apiRequest } from '@/lib/queryClient';
 import {
   Play,
@@ -46,14 +47,14 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useTracks } from '@/hooks/useTracks';
+import { Dialog as BaseDialog, DialogContent as BaseDialogContent, DialogHeader as BaseDialogHeader, DialogTitle as BaseDialogTitle } from '@/components/ui/dialog';
+import { useTracks, type StudioTrackInput, type StudioTrack } from '@/hooks/useTracks';
 import { getAudioContext } from '@/lib/audioContext';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 import { RepeatIcon } from 'lucide-react';
 import WaveformVisualizer from './WaveformVisualizer';
-import { Dialog as BaseDialog, DialogContent as BaseDialogContent, DialogHeader as BaseDialogHeader, DialogTitle as BaseDialogTitle } from '@/components/ui/dialog';
 import ProfessionalMixer from './ProfessionalMixer';
 import { GridOverlay } from './GridOverlay';
 import { TunerModal } from './TunerModal';
@@ -188,6 +189,9 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 };
+
+const dbToLinear = (db: number) => Math.pow(10, db / 20);
+const linearToDb = (linear: number) => Math.max(-60, 20 * Math.log10(Math.max(linear, 0.001)));
 
 // Inline waveform component for each track
 interface TrackWaveformProps {
@@ -438,8 +442,9 @@ function TrackWaveform({
 export default function MasterMultiTrackPlayer() {
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
-  const { tracks: storeTracks } = useTracks();
+  const { tracks: storeTracks, addTrack: addStoreTrack, updateTrack: updateStoreTrack } = useTracks();
   const { playNote, initialize } = useAudio();
+  const transport = useTransport();
   
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -451,8 +456,8 @@ export default function MasterMultiTrackPlayer() {
     release: 100,
     ceiling: -0.3,
   });
-  const [loop, setLoop] = useState(false);
-  const [tempo, setTempo] = useState(120);
+  const [loop, setLoop] = useState(transport.loop.enabled);
+  const [tempo, setTempo] = useState(transport.tempo);
   const [timeSignature, setTimeSignature] = useState('4/4');
   const [projectKey, setProjectKey] = useState('C');
   const [showLibrary, setShowLibrary] = useState(false);
@@ -518,9 +523,41 @@ export default function MasterMultiTrackPlayer() {
   const clipboardTracksRef = useRef<AudioTrack[]>([]);
   const undoStackRef = useRef<AudioTrack[][]>([]);
   const redoStackRef = useRef<AudioTrack[][]>([]);
+  const transportSyncingRef = useRef(false);
+
+  const updateTempo = useCallback((nextTempo: number) => {
+    const clamped = Math.max(20, Math.min(Number.isFinite(nextTempo) ? nextTempo : 120, 300));
+    setTempo(clamped);
+    transport.setTempo(clamped);
+  }, [transport]);
+
+  const updateLoopEnabled = useCallback((enabled: boolean) => {
+    setLoop(enabled);
+    transport.setLoop({ ...transport.loop, enabled });
+  }, [transport]);
   const regionIdForTrack = (trackId: string, regionIndex = 0) => `${trackId}-region-${regionIndex}`;
   const regionIdToTrackId = (regionId: string) => regionId.split('-region-')[0];
   const selectedTrackIdSet = useMemo(() => new Set(selectedRegionIds.map(regionIdToTrackId)), [selectedRegionIds]);
+
+  const ensureMixerChannel = useCallback((trackId: string, name: string) => {
+    try {
+      const existing = professionalAudio.getChannels();
+      if (!existing.some((ch) => ch.id === trackId)) {
+        professionalAudio.createMixerChannel(trackId, name || trackId);
+      }
+    } catch (error) {
+      console.warn('Failed to ensure mixer channel', trackId, error);
+    }
+  }, []);
+
+  const applySendLevelsToChannel = useCallback((trackId: string, sendA?: number, sendB?: number) => {
+    if (typeof sendA === 'number') {
+      professionalAudio.setSendLevel(trackId, 'hall', dbToLinear(sendA));
+    }
+    if (typeof sendB === 'number') {
+      professionalAudio.setSendLevel(trackId, 'delay', dbToLinear(sendB));
+    }
+  }, []);
 
   const getTrackEffectiveDuration = (track: AudioTrack): number => {
     const full = track.audioBuffer?.duration || 0;
@@ -644,6 +681,8 @@ export default function MasterMultiTrackPlayer() {
         };
         
         setTracks(prev => [...prev, newTrack]);
+      ensureMixerChannel(newTrack.id, newTrack.name);
+      applySendLevelsToChannel(newTrack.id, newTrack.sendA, newTrack.sendB);
         toast({
           title: '✅ Track Imported',
           description: `${newTrack.name} added from ${type}`,
@@ -683,6 +722,10 @@ export default function MasterMultiTrackPlayer() {
     masterGainRef.current = ctx.createGain();
     masterGainRef.current.connect(ctx.destination);
     masterGainRef.current.gain.value = masterVolume / 100;
+
+    professionalAudio.initialize().catch((error) => {
+      console.error('Failed to initialize professional audio engine', error);
+    });
 
     return () => {
       // Don't close shared context here, just disconnect local nodes
@@ -837,6 +880,21 @@ export default function MasterMultiTrackPlayer() {
             ? storeTrack.type 
             : 'audio';
 
+        const payload = storeTrack.payload ?? {};
+        const sendLevels = (payload as any)?.sendLevels as Record<string, number> | undefined;
+        const sendAFromPayload = typeof (payload as any)?.sendA === 'number' ? (payload as any).sendA : undefined;
+        const sendBFromPayload = typeof (payload as any)?.sendB === 'number' ? (payload as any).sendB : undefined;
+        const sendAValue = typeof sendAFromPayload === 'number'
+          ? sendAFromPayload
+          : typeof sendLevels?.hall === 'number'
+          ? linearToDb(sendLevels.hall)
+          : -60;
+        const sendBValue = typeof sendBFromPayload === 'number'
+          ? sendBFromPayload
+          : typeof sendLevels?.delay === 'number'
+          ? linearToDb(sendLevels.delay)
+          : -60;
+
         const mapped: AudioTrack = {
           id: storeTrack.id,
           name: storeTrack.name,
@@ -855,16 +913,19 @@ export default function MasterMultiTrackPlayer() {
           trimEndSeconds: audioBuffer ? audioBuffer.duration : 16,
           midiNotes: isMidiTrack ? midiNotes : undefined,
           instrument: instrumentName,
-          sendA: typeof (storeTrack as any).sendA === 'number' ? (storeTrack as any).sendA : -60,
-          sendB: typeof (storeTrack as any).sendB === 'number' ? (storeTrack as any).sendB : -60,
+          sendA: sendAValue,
+          sendB: sendBValue,
           regionGain: typeof (storeTrack as any).regionGain === 'number' ? (storeTrack as any).regionGain : 0,
         };
 
+        ensureMixerChannel(mapped.id, mapped.name);
+        applySendLevelsToChannel(mapped.id, mapped.sendA, mapped.sendB);
         synced.push(mapped);
       }
 
       if (!cancelled) {
-        setTracks([...manualTracks, ...synced]);
+        const manualWithoutSynced = manualTracks.filter(track => !synced.some(s => s.id === track.id));
+        setTracks([...manualWithoutSynced, ...synced]);
       }
     };
 
@@ -922,6 +983,31 @@ export default function MasterMultiTrackPlayer() {
       };
 
       setTracks(prev => [...prev, newTrack]);
+
+      const storeTrackInput: StudioTrackInput = {
+        id: newTrack.id,
+        name: newTrack.name,
+        type: 'audio',
+        kind: 'audio',
+        audioUrl,
+        volume: newTrack.volume / 100,
+        pan: newTrack.pan / 100,
+        color: newTrack.color,
+        sendA: newTrack.sendA ?? -60,
+        sendB: newTrack.sendB ?? -60,
+        source: 'manual-upload',
+        payload: {
+          type: 'audio',
+          audioUrl,
+          volume: newTrack.volume / 100,
+          pan: newTrack.pan / 100,
+          color: newTrack.color,
+          sendA: newTrack.sendA ?? -60,
+          sendB: newTrack.sendB ?? -60,
+        },
+      };
+      addStoreTrack(storeTrackInput);
+
       toast({
         title: '✅ Track Loaded',
         description: `${newTrack.name} added to project`,
@@ -997,12 +1083,38 @@ export default function MasterMultiTrackPlayer() {
 
       setTracks(prev => [...prev, newTrack]);
       setShowLibrary(false);
-      
+      ensureMixerChannel(newTrack.id, newTrack.name);
+      applySendLevelsToChannel(newTrack.id, newTrack.sendA, newTrack.sendB);
+
+      const storeTrackInput: StudioTrackInput = {
+        id: newTrack.id,
+        name: newTrack.name,
+        type: 'audio',
+        kind: 'audio',
+        audioUrl,
+        volume: newTrack.volume / 100,
+        pan: newTrack.pan / 100,
+        color: newTrack.color,
+        sendA: newTrack.sendA ?? -60,
+        sendB: newTrack.sendB ?? -60,
+        source: 'library-import',
+        payload: {
+          type: 'audio',
+          audioUrl,
+          volume: newTrack.volume / 100,
+          pan: newTrack.pan / 100,
+          color: newTrack.color,
+          sendA: newTrack.sendA ?? -60,
+          sendB: newTrack.sendB ?? -60,
+        },
+      };
+      addStoreTrack(storeTrackInput);
+
       // Also load into global audio player for persistent playback across navigation
       window.dispatchEvent(new CustomEvent('globalAudio:load', {
         detail: { name: song.name, url: audioUrl, type: 'song', autoplay: false }
       }));
-      
+
       toast({
         title: '✅ Track Added!',
         description: `${song.name} loaded into multi-track`,
@@ -1082,6 +1194,32 @@ export default function MasterMultiTrackPlayer() {
             };
 
             setTracks(prev => [...prev, newTrack]);
+            ensureMixerChannel(newTrack.id, newTrack.name);
+            applySendLevelsToChannel(newTrack.id, newTrack.sendA, newTrack.sendB);
+
+            const storeTrackInput: StudioTrackInput = {
+              id: newTrack.id,
+              name: newTrack.name,
+              type: 'audio',
+              kind: 'vocal',
+              audioUrl,
+              volume: newTrack.volume / 100,
+              pan: newTrack.pan / 100,
+              color: newTrack.color,
+              sendA: newTrack.sendA ?? -60,
+              sendB: newTrack.sendB ?? -60,
+              source: 'live-recording',
+              payload: {
+                type: 'audio',
+                audioUrl,
+                volume: newTrack.volume / 100,
+                pan: newTrack.pan / 100,
+                color: newTrack.color,
+                sendA: newTrack.sendA ?? -60,
+                sendB: newTrack.sendB ?? -60,
+              },
+            };
+            addStoreTrack(storeTrackInput);
             toast({
               title: '🎤 Recording Saved!',
               description: `Recording added as new track`,
@@ -1158,6 +1296,8 @@ export default function MasterMultiTrackPlayer() {
 
     setTracks(prev => [...prev, newTrack]);
     setShowAddTrack(false);
+    ensureMixerChannel(newTrack.id, newTrack.name);
+    applySendLevelsToChannel(newTrack.id, newTrack.sendA, newTrack.sendB);
     
     toast({
       title: '✅ Track Created',
@@ -1250,7 +1390,12 @@ export default function MasterMultiTrackPlayer() {
         panNode.connect(mixerChannel.input);
         console.log(`🔊 Track ${track.name} routed to mixer channel: ${mixerChannel.name}`);
       } else {
-        panNode.connect(masterGainRef.current!);
+        const mixerMaster = professionalAudio.getMasterBus();
+        if (mixerMaster) {
+          panNode.connect(mixerMaster);
+        } else if (masterGainRef.current) {
+          panNode.connect(masterGainRef.current);
+        }
       }
 
       // Store references
@@ -1474,6 +1619,31 @@ export default function MasterMultiTrackPlayer() {
           : t
       )
     );
+
+    const storeTrack = storeTracks.find((t) => t.id === trackId);
+    if (updateStoreTrack && storeTrack) {
+      const existingLevels = (storeTrack.payload?.sendLevels as Record<string, number> | undefined) ?? {};
+      const nextLevels: Record<string, number> = { ...existingLevels };
+      if (typeof sendA === 'number') {
+        nextLevels.hall = dbToLinear(sendA);
+      }
+      if (typeof sendB === 'number') {
+        nextLevels.delay = dbToLinear(sendB);
+      }
+
+      const updates: Partial<StudioTrack> = {
+        sendLevels: nextLevels,
+      };
+      if (typeof sendA === 'number') {
+        (updates as any).sendA = sendA;
+      }
+      if (typeof sendB === 'number') {
+        (updates as any).sendB = sendB;
+      }
+      updateStoreTrack(trackId, updates);
+    }
+
+    applySendLevelsToChannel(trackId, sendA, sendB);
   };
 
   const updateRegionGain = (trackId: string, gain: number) => {

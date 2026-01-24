@@ -1,0 +1,348 @@
+{
+  "info": {
+    "name": "CodedSwitch Core API",
+    "description": "Regression requests for authentication, lyrics flows, and AI provider management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "item": [
+    {
+      "name": "Owner Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ownerKey\": \"{{ownerKey}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/owner-login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "owner-login"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Session created\", function () { pm.expect(json).to.have.property('message'); pm.expect(json.message).to.include('Login'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List AI Providers",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-owner-key",
+            "value": "{{ownerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/ai-providers",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ai",
+            "ai-providers"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Providers present\", function () { pm.expect(json).to.have.property('providers'); pm.expect(json.providers.length).to.be.above(0); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Set AI Provider for Lyrics",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-owner-key",
+            "value": "{{ownerKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"feature\": \"lyrics\",\n  \"provider\": \"grok\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/ai-provider/set",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ai",
+            "ai-provider",
+            "set"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Provider saved\", function () { pm.expect(json.provider).to.eql('grok'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get AI Provider for Lyrics",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-owner-key",
+            "value": "{{ownerKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/ai-provider/lyrics",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ai",
+            "ai-provider",
+            "lyrics"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Provider returned\", function () { pm.expect(json.provider).to.be.ok; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Generate Lyrics",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-owner-key",
+            "value": "{{ownerKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"theme\": \"Stardust Dreams\",\n  \"genre\": \"pop\",\n  \"mood\": \"uplifting\",\n  \"complexity\": 6\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/lyrics/generate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "lyrics",
+            "generate"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Lyrics returned\", function () { pm.expect(json).to.have.property('content'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Rhymes",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-owner-key",
+            "value": "{{ownerKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"word\": \"fire\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/lyrics/rhymes",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "lyrics",
+            "rhymes"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Rhymes array\", function () { pm.expect(json).to.have.property('rhymes'); pm.expect(json.rhymes).to.be.an('array'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analyze Lyrics",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-owner-key",
+            "value": "{{ownerKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lyrics\": \"We drift through neon constellations, chasing gravity's soft glow.\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/lyrics/analyze",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "lyrics",
+            "analyze"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Analysis present\", function () { pm.expect(json).to.have.property('analysis'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Generate Beat from Lyrics",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-owner-key",
+            "value": "{{ownerKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lyrics\": \"Our hearts are satellites in sync.\",\n  \"genre\": \"synthwave\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/lyrics/generate-beat",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "lyrics",
+            "generate-beat"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "const json = pm.response.json();",
+              "pm.test(\"Beat payload\", function () { pm.expect(json).to.have.property('bpm'); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

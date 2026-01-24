@@ -7,13 +7,116 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
 import { Wand2, Music, DollarSign, Piano, Play, Pause, Square } from 'lucide-react';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
+import { requestAstutelyPattern, mapGenreToAstutelyStyle } from '@/lib/astutelyBridge';
+import { astutelyToNotes, midiToNoteOctave } from '@/lib/astutelyEngine';
 
 interface MusicGenerationPanelProps {
   onMusicGenerated?: (audioUrl: string, metadata: any) => void;
+}
+
+type PatternNote = {
+  time: number;
+  duration: number;
+  pitch: string;
+  velocity: number;
+};
+
+interface InstrumentPattern {
+  instrument: string;
+  notes: PatternNote[];
+}
+
+interface RealisticPattern {
+  bpm: number;
+  patterns: InstrumentPattern[];
+}
+
+const DRUM_MIDI_TO_NAME: Record<number, string> = {
+  36: 'kick',
+  38: 'snare',
+  42: 'hihat',
+  46: 'openhat',
+  39: 'clap',
+  49: 'crash',
+  51: 'ride',
+  45: 'tom',
+  47: 'tom',
+  48: 'tom',
+  50: 'tom',
+  56: 'cowbell',
+  54: 'perc',
+  57: 'perc',
+};
+
+function mapDrumPitch(pitch: number) {
+  return DRUM_MIDI_TO_NAME[pitch] || 'perc';
+}
+
+const TRACK_TYPE_TO_INSTRUMENT: Record<string, string> = {
+  drums: 'drums',
+  bass: 'synth_bass_1',
+  chords: 'acoustic_grand_piano',
+  melody: 'lead_2_sawtooth',
+};
+
+function getPatternLengthInBeats(pattern: RealisticPattern) {
+  const maxEnd = pattern.patterns.flatMap(p => p.notes.map(n => n.time + n.duration));
+  return maxEnd.length ? Math.max(...maxEnd) : 16;
+}
+
+function astutelyNotesToRealisticPattern(notes: ReturnType<typeof astutelyToNotes>, bpmValue: number): RealisticPattern {
+  const patterns = new Map<string, InstrumentPattern>();
+
+  const ensurePattern = (instrument: string) => {
+    if (!patterns.has(instrument)) {
+      patterns.set(instrument, { instrument, notes: [] });
+    }
+    return patterns.get(instrument)!;
+  };
+
+  notes.forEach((note) => {
+    const time = (note.startStep || 0) / 4;
+    const duration = Math.max(0.25, (note.duration || 1) / 4);
+    const velocity = note.velocity ?? 100;
+
+    if (note.trackType === 'drums') {
+      ensurePattern('drums').notes.push({
+        time,
+        duration,
+        pitch: mapDrumPitch(note.pitch),
+        velocity,
+      });
+      return;
+    }
+
+    const instrument = TRACK_TYPE_TO_INSTRUMENT[note.trackType] || 'acoustic_grand_piano';
+    const { note: noteName, octave } = midiToNoteOctave(note.pitch);
+    ensurePattern(instrument).notes.push({
+      time,
+      duration,
+      pitch: `${noteName}${octave}`,
+      velocity,
+    });
+  });
+
+  return {
+    bpm: bpmValue,
+    patterns: Array.from(patterns.values()),
+  };
+}
+
+type TrackCounts = { drums: number; bass: number; chords: number; melody: number };
+
+function summarizeTrackCounts(notes: ReturnType<typeof astutelyToNotes>): TrackCounts {
+  return notes.reduce<TrackCounts>((acc, note) => {
+    if (note.trackType && acc[note.trackType as keyof TrackCounts] !== undefined) {
+      acc[note.trackType as keyof TrackCounts] += 1;
+    }
+    return acc;
+  }, { drums: 0, bass: 0, chords: 0, melody: 0 });
 }
 
 export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerationPanelProps) {
@@ -25,14 +128,12 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [isGenerating, setIsGenerating] = useState(false);
   const [useRealisticInstruments, setUseRealisticInstruments] = useState(true); // Default to realistic
   const [isPlaying, setIsPlaying] = useState(false);
-  const [_generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null); // For raw audio files
   const { toast } = useToast();
   const [showUpgrade, setShowUpgrade] = useState(false);
   const { requirePro, startUpgrade } = useLicenseGate();
   
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const currentPatternRef = useRef<any>(null);
-  const _audioElementRef = useRef<HTMLAudioElement | null>(null); // For playing raw audio files
+  const currentPatternRef = useRef<RealisticPattern | null>(null);
   
   const providers = {
     musicgen: {
@@ -62,11 +163,11 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   ];
 
   // Play generated pattern through RealisticAudioEngine
-  const playPattern = async (pattern: any) => {
+  const playPattern = async (pattern: RealisticPattern) => {
     await realisticAudio.initialize();
     
     // Load all instruments needed for the pattern
-    const instrumentPromises = pattern.patterns.map((p: any) => 
+    const instrumentPromises = pattern.patterns.map((p) => 
       p.instrument !== 'drums' ? realisticAudio.loadAdditionalInstrument(p.instrument) : null
     ).filter(Boolean);
     
@@ -74,7 +175,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
     
     const msPerBeat = (60 / pattern.bpm) * 1000;
     let currentBeat = 0;
-    const totalBeats = duration[0] * (pattern.bpm / 60); // Convert seconds to beats
+    const totalBeats = getPatternLengthInBeats(pattern);
     
     setIsPlaying(true);
     
@@ -86,12 +187,12 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
       }
       
       // Play notes from all instruments at this beat
-      pattern.patterns.forEach((instrumentPattern: any) => {
-        const notesToPlay = instrumentPattern.notes.filter((note: any) => 
+      pattern.patterns.forEach((instrumentPattern) => {
+        const notesToPlay = instrumentPattern.notes.filter((note) => 
           Math.abs(note.time - currentBeat) < 0.1
         );
         
-        notesToPlay.forEach((note: any) => {
+        notesToPlay.forEach((note) => {
           if (instrumentPattern.instrument === 'drums') {
             // Play drum sounds
             realisticAudio.playDrumSound(note.pitch, note.velocity / 127);
@@ -145,78 +246,44 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
     setIsGenerating(true);
 
     try {
-      if (useRealisticInstruments) {
-        // Generate pattern for realistic instruments
-        toast({
-          title: 'Generating Music Pattern',
-          description: 'Creating a beautiful composition with realistic instruments...',
-        });
-        
-        const response = await apiRequest('POST', '/api/songs/generate-pattern', {
-          prompt: `${genre} ${prompt}`,
-          duration: duration[0],
-          bpm: bpm[0],
-        });
-        
-        const data = await response.json();
-        
-        if (data.success && data.pattern) {
-          currentPatternRef.current = data.pattern;
-          
-          toast({
-            title: 'Music Pattern Generated!',
-            description: `Created ${data.pattern.patterns.length} instrument tracks. Press play to hear your music!`,
-          });
-          
-          // Auto-play the pattern
-          await playPattern(data.pattern);
-        } else {
-          throw new Error('Failed to generate pattern');
-        }
-      } else {
-        // Original raw audio generation
-        toast({
-          title: `${providers[provider].name} Generation Started`,
-          description: 'Your music is being generated. This may take a minute...',
-        });
+      const style = mapGenreToAstutelyStyle(genre);
+      const composedPrompt = `${genre} ${prompt}`.trim();
 
-        const endpoint = provider === 'suno' 
-          ? '/api/songs/generate-professional'
-          : '/api/songs/generate-beat';
+      toast({
+        title: 'Astutely Generating',
+        description: `Creating a ${style} arrangement with ${composedPrompt}`,
+      });
 
-        const response = await apiRequest('POST', endpoint, {
-          prompt: `${genre} ${prompt}`,
-          duration: duration[0],
-          bpm: bpm[0],
+      const { result, notes } = await requestAstutelyPattern({
+        style,
+        prompt: composedPrompt,
+      });
+
+      const pattern = astutelyNotesToRealisticPattern(notes, result.bpm);
+      currentPatternRef.current = pattern;
+      setBpm([result.bpm]);
+
+      const counts = summarizeTrackCounts(notes);
+      toast({
+        title: 'Beat Added To Piano Roll',
+        description: `Drums ${counts.drums} • Bass ${counts.bass} • Chords ${counts.chords} • Melody ${counts.melody}`,
+      });
+
+      if (useRealisticInstruments && pattern.patterns.length > 0) {
+        await playPattern(pattern);
+      }
+
+      if (onMusicGenerated) {
+        onMusicGenerated('', {
+          provider: 'astutely',
+          prompt: composedPrompt,
           genre,
+          bpm: result.bpm,
+          style: result.style,
+          key: result.key,
+          generatedAt: new Date(),
+          pattern,
         });
-
-        const data = await response.json();
-
-        if (data.audioUrl || data.audio_url || data.result?.audioUrl || data.result?.audio_url) {
-          const audioUrl = data.audioUrl || data.audio_url || data.result?.audioUrl || data.result?.audio_url;
-          
-          // Store the audio URL for playback
-          setGeneratedAudioUrl(audioUrl);
-          
-          toast({
-            title: 'Music Generated!',
-            description: `Your ${provider === 'suno' ? 'professional track' : 'beat'} is ready! Click play to listen.`,
-          });
-
-          if (onMusicGenerated) {
-            onMusicGenerated(audioUrl, {
-              provider,
-              prompt,
-              genre,
-              duration: duration[0],
-              bpm: bpm[0],
-              generatedAt: new Date(),
-            });
-          }
-        } else {
-          throw new Error('No audio URL in response');
-        }
       }
     } catch (error) {
       console.error('Generation error:', error);
@@ -270,7 +337,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
           <div className="flex items-center gap-2 p-3 bg-gray-900 rounded-lg">
             {!isPlaying ? (
               <Button
-                onClick={() => playPattern(currentPatternRef.current)}
+                onClick={() => currentPatternRef.current && playPattern(currentPatternRef.current)}
                 size="sm"
                 className="bg-green-600 hover:bg-green-500"
               >
@@ -430,8 +497,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
 
         {/* Info */}
         <div className="text-xs text-gray-500 text-center">
-          {provider === 'musicgen' && 'MusicGen: Fast generation, great for beats and instrumentals'}
-          {provider === 'suno' && 'Suno AI: Premium quality, supports vocals and complex arrangements'}
+          Powered by Astutely intelligence • Auto-loads into Piano Roll
         </div>
       </CardContent>
     </Card>

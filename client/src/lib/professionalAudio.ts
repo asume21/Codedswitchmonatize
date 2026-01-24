@@ -52,6 +52,7 @@ export class ProfessionalAudioEngine {
   private masterCompressor: DynamicsCompressorNode | null = null;
   private masterLimiter: DynamicsCompressorNode | null = null;
   private masterAnalyzer: AnalyserNode | null = null;
+  private masterLevel = 0.8;
   
   private channels: Map<string, MixerChannel> = new Map();
   private sendReturns: Map<string, SendReturn> = new Map();
@@ -67,6 +68,20 @@ export class ProfessionalAudioEngine {
   // Spectrum analysis
   private spectrumAnalyzer: AnalyserNode | null = null;
   private spectrumData: Uint8Array | null = null;
+  private updateSoloMatrix(): void {
+    const soloedChannels = Array.from(this.channels.values()).filter(ch => ch.solo);
+    this.channels.forEach(ch => {
+      if (soloedChannels.length === 0) {
+        ch.output.gain.value = ch.muted ? 0 : ch.volume;
+      } else {
+        ch.output.gain.value = ch.solo && !ch.muted ? ch.volume : 0;
+      }
+    });
+  }
+  private emitMasterLevelChange(level: number): void {
+    if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('professionalAudio:masterLevel', { detail: { level } }));
+  }
   
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
@@ -136,7 +151,7 @@ export class ProfessionalAudioEngine {
     
     // Master gain
     this.masterBus = this.audioContext.createGain();
-    this.masterBus.gain.value = 0.8;
+    this.masterBus.gain.value = this.masterLevel;
     
     // Master compressor (gentle program compression)
     this.masterCompressor = this.audioContext.createDynamicsCompressor();
@@ -453,6 +468,10 @@ export class ProfessionalAudioEngine {
     return this.audioContext;
   }
 
+  getMasterLevel(): number {
+    return this.masterLevel;
+  }
+
   // Public API Methods
   
   createMixerChannel(id: string, name: string): MixerChannel {
@@ -597,13 +616,38 @@ export class ProfessionalAudioEngine {
     
     send.gain.value = Math.max(0, Math.min(1, level));
   }
+
+  setMasterLevel(level: number): void {
+    const safeLevel = Math.max(0, Math.min(1, level));
+    this.masterLevel = safeLevel;
+    if (this.masterBus) {
+      this.masterBus.gain.value = safeLevel;
+    }
+    this.emitMasterLevelChange(safeLevel);
+  }
+
+  setSendReturnReturnLevel(sendId: string, level: number): void {
+    const send = this.sendReturns.get(sendId);
+    if (!send) return;
+    const safeLevel = Math.max(0, Math.min(1, level));
+    send.return = safeLevel;
+    send.output.gain.value = safeLevel;
+  }
+
+  setSendReturnWetLevel(sendId: string, level: number): void {
+    const send = this.sendReturns.get(sendId);
+    if (!send) return;
+    const safeLevel = Math.max(0, Math.min(1, level));
+    send.wetLevel = safeLevel;
+    send.input.gain.value = safeLevel;
+  }
   
   muteChannel(channelId: string, muted: boolean): void {
     const channel = this.channels.get(channelId);
     if (!channel) return;
     
     channel.muted = muted;
-    channel.output.gain.value = muted ? 0 : channel.volume;
+    this.updateSoloMatrix();
   }
   
   soloChannel(channelId: string, solo: boolean): void {
@@ -611,19 +655,32 @@ export class ProfessionalAudioEngine {
     if (!channel) return;
     
     channel.solo = solo;
-    
-    // Handle solo logic
-    const soloedChannels = Array.from(this.channels.values()).filter(ch => ch.solo);
-    
-    Array.from(this.channels.values()).forEach(ch => {
-      if (soloedChannels.length === 0) {
-        // No solo, restore normal volume
-        ch.output.gain.value = ch.muted ? 0 : ch.volume;
-      } else {
-        // Solo active, mute non-soloed channels
-        ch.output.gain.value = (ch.solo && !ch.muted) ? ch.volume : 0;
+    this.updateSoloMatrix();
+  }
+
+  removeMixerChannel(channelId: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel) return;
+
+    try {
+      channel.input.disconnect();
+      channel.output.disconnect();
+      channel.analyzer.disconnect();
+    } catch (error) {
+      console.warn('Failed to disconnect mixer channel', channelId, error);
+    }
+
+    Object.values(channel.sends || {}).forEach(send => {
+      try {
+        send.disconnect();
+      } catch (error) {
+        console.warn('Failed to disconnect channel send', channelId, error);
       }
     });
+
+    this.channels.delete(channelId);
+    this.updateSoloMatrix();
+    console.log(`🎛️ Mixer channel removed: ${channel.name}`);
   }
   
   getChannelMeters(channelId: string): { peak: number; rms: number } {

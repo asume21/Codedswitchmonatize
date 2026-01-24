@@ -171,32 +171,54 @@ export class UnifiedMusicService {
       
       console.log(`🎵 Enhanced MusicGen prompt: ${fullPrompt.substring(0, 100)}...`);
 
-      const output = await replicate.run(
-        "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",
-        {
-          input: {
-            prompt: fullPrompt,
-            duration: Math.min(duration, 30),
-            temperature: 1.0,
-            top_k: 250,
-            top_p: 0.0,
-            cfg_coef: 3.0
+      try {
+        const output = await replicate.run(
+          "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",
+          {
+            input: {
+              prompt: fullPrompt,
+              duration: Math.min(duration, 30),
+              temperature: 1.0,
+              top_k: 250,
+              top_p: 0.0,
+              cfg_coef: 3.0
+            }
           }
-        }
-      );
+        );
 
-      return {
-        status: 'success',
-        audio_url: output,
-        metadata: {
-          type,
-          duration,
-          generator: "musicgen",
-          genre,
-          key,
-          bpm
-        }
-      };
+        return {
+          status: 'success',
+          audio_url: output,
+          metadata: {
+            type,
+            duration,
+            generator: "musicgen",
+            genre,
+            key,
+            bpm
+          }
+        };
+      } catch (err: any) {
+        const message = typeof err?.message === "string" ? err.message : "";
+        console.warn("MusicGen replicate error, attempting local fallback:", message);
+
+        // Fallback to local music generator to avoid hard failure
+        const packs = await localMusicGenService.generateSamplePack(fullPrompt, 1);
+        const firstSample = packs?.[0]?.samples?.[0];
+        if (!firstSample?.audioUrl) throw err;
+        return {
+          status: 'success',
+          audio_url: firstSample.audioUrl,
+          metadata: {
+            type,
+            duration: firstSample.duration ?? duration,
+            generator: "local-musicgen-fallback",
+            genre,
+            key,
+            bpm
+          }
+        };
+      }
     } catch (error) {
       console.error(`${options.type} generation failed:`, error);
       throw error;

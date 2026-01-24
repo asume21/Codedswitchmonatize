@@ -7,7 +7,7 @@ import { sendActivationKeyEmail } from "./email";
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const APP_URL = process.env.APP_URL || "http://localhost:5000";
-const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO || "";
+const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || process.env.STRIPE_PRICE_ID_PRO || "";
 const SUCCESS_URL =
   process.env.STRIPE_SUCCESS_URL || `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
 const CANCEL_URL = process.env.STRIPE_CANCEL_URL || `${APP_URL}/billing/cancel`;

@@ -2,12 +2,13 @@
 // ASTUTELY - The AI that makes beats legendary
 
 import { useState, useEffect } from 'react';
-import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2 } from 'lucide-react';
+import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2, MoveDiagonal2 } from 'lucide-react';
 import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
+import { useTransport } from '@/contexts/TransportContext';
 
 const styles = [
   { name: "Travis Scott rage", icon: "🔥", preview: "808s + dark pads" },
@@ -27,6 +28,13 @@ interface AstutelyPanelProps {
   onGenerated?: (result: AstutelyResult) => void;
 }
 
+const ASTUTELY_CHANNEL_MAPPING: Record<'drums' | 'bass' | 'chords' | 'melody', string> = {
+  drums: 'track-astutely-drums',
+  bass: 'track-astutely-bass',
+  chords: 'track-astutely-chords',
+  melody: 'track-astutely-melody'
+};
+
 export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelProps) {
   const [selectedStyle, setSelectedStyle] = useState(styles[0]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -39,12 +47,46 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const [songAnalysis, setSongAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
-  
+  const { play: playTransport, seek, setTempo: setTransportTempo } = useTransport();
+
+  const focusAstutelyTrack = (notes: ReturnType<typeof astutelyToNotes>) => {
+    const priorityOrder: Array<keyof typeof ASTUTELY_CHANNEL_MAPPING> = ['melody', 'chords', 'bass', 'drums'];
+    const targetType = priorityOrder.find(type => notes.some(n => n.trackType === type));
+    if (!targetType) return;
+
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('studio:focusTrack', {
+        detail: {
+          trackId: ASTUTELY_CHANNEL_MAPPING[targetType],
+          view: 'piano-roll'
+        }
+      }));
+    }, 120);
+  };
+
+  const broadcastAstutelyPattern = (result: AstutelyResult, notes: ReturnType<typeof astutelyToNotes>) => {
+    const payload = {
+      notes,
+      bpm: result.bpm,
+      key: result.key,
+      style: result.style,
+      timestamp: Date.now(),
+      channelMapping: ASTUTELY_CHANNEL_MAPPING
+    };
+
+    window.dispatchEvent(new CustomEvent('astutely:generated', { detail: payload }));
+    try {
+      localStorage.setItem('astutely-generated', JSON.stringify(payload));
+    } catch (error) {
+      console.warn('Unable to persist Astutely payload', error);
+    }
+  };
+
   // Fetch user's song library
   const { data: songs = [] } = useQuery<any[]>({
     queryKey: ['/api/songs'],
   });
-  
+
   // Get selected song object
   const selectedSong = songs.find(s => s.id.toString() === selectedSongId);
 
@@ -56,7 +98,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
-  
+
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
@@ -66,17 +108,17 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       }
     };
   }, [audioElement]);
-  
+
   const handleSongSelect = async (songId: string) => {
     setSelectedSongId(songId);
     setSongAnalysis(null);
-    
+
     // Stop current playback
     if (audioElement) {
       audioElement.pause();
       setIsPlaying(false);
     }
-    
+
     // Auto-analyze the selected song
     if (songId && songId !== 'none') {
       const song = songs.find(s => s.id.toString() === songId);
@@ -100,7 +142,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       }
     }
   };
-  
+
   const handlePlayPause = () => {
     const song = songs.find(s => s.id.toString() === selectedSongId);
     if (!song) {
@@ -111,7 +153,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       });
       return;
     }
-    
+
     const audioUrl = song.accessibleUrl || song.originalUrl || song.songURL;
     if (!audioUrl) {
       toast({
@@ -121,7 +163,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       });
       return;
     }
-    
+
     if (!audioElement) {
       const audio = new Audio(audioUrl);
       audio.crossOrigin = 'anonymous';
@@ -156,35 +198,44 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     setIsGenerating(true);
     setProgress(0);
     toast({ title: '✨ Astutely Activated', description: `Creating ${selectedStyle.name} beat...` });
-    
+
     // Simulate progress for UX
     const interval = setInterval(() => setProgress(p => Math.min(p + 15, 90)), 300);
-    
+
     try {
       const result = await astutelyGenerate(selectedStyle.name);
       clearInterval(interval);
       setProgress(100);
       setGeneratedResult(result);
-      
+
       // Convert to timeline notes
       const notes = astutelyToNotes(result);
+      broadcastAstutelyPattern(result, notes);
+      focusAstutelyTrack(notes);
+      try {
+        setTransportTempo(result.bpm);
+        seek(0);
+        playTransport();
+      } catch (error) {
+        console.warn('Unable to sync transport with Astutely output', error);
+      }
       const drumCount = notes.filter(n => n.trackType === 'drums').length;
       const bassCount = notes.filter(n => n.trackType === 'bass').length;
       const chordCount = notes.filter(n => n.trackType === 'chords').length;
       const melodyCount = notes.filter(n => n.trackType === 'melody').length;
-      
+
       toast({ 
         title: '🔥 Beat Generated & Added to Timeline!', 
         description: `${drumCount} drums, ${bassCount} bass, ${chordCount} chords, ${melodyCount} melody notes` 
       });
-      
+
       if (onGenerated) {
         onGenerated(result);
       }
-      
+
       // Auto-close after success
       setTimeout(() => onClose(), 1500);
-      
+
     } catch (error) {
       clearInterval(interval);
       setProgress(0);
@@ -204,8 +255,16 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       onClick={onClose}
     >
       <div 
-        className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
+        className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-2xl p-8 w-full mx-4 shadow-2xl relative resize overflow-auto"
         onClick={e => e.stopPropagation()}
+        style={{
+          minWidth: '360px',
+          minHeight: '520px',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+          width: '520px',
+          height: '660px'
+        }}
       >
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -410,6 +469,14 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
         <p className="text-xs text-gray-400 mt-4 text-center">
           Press <kbd className="px-1.5 py-0.5 bg-white/20 rounded">Esc</kbd> to close
         </p>
+
+        <button
+          className="absolute bottom-3 right-3 p-2 rounded-lg border border-white/30 bg-black/20 text-xs flex items-center gap-1 cursor-se-resize"
+          title="Drag to resize"
+        >
+          <MoveDiagonal2 className="w-4 h-4" />
+          Resize
+        </button>
       </div>
     </div>
   );

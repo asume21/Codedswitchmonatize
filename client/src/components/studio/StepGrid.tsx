@@ -76,6 +76,12 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
   showGhostNotes,
   onNotesChange,
 }, ref) => {
+  const emitNotesChange = useCallback((producer: (notes: Note[]) => Note[]) => {
+    if (!selectedTrack || !onNotesChange) return;
+    const current = selectedTrack.notes || [];
+    onNotesChange(producer(current));
+  }, [selectedTrack, onNotesChange]);
+
   const handleCellClick = useCallback((keyIndex: number, step: number) => {
     const key = pianoKeys[keyIndex];
     if (!key || !selectedTrack?.notes) return;
@@ -285,11 +291,11 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                      const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
+                      if (multiSelect) {
                         onNoteSelect?.(note.id, true);
-                      } else {
-                        if (!isSelected) onNoteSelect?.(note.id, false);
-                        else onNoteRemove(note.id);
+                      } else if (!isSelected) {
+                        onNoteSelect?.(note.id, false);
                       }
                     }}
                     onMouseDown={(e) => {
@@ -367,16 +373,23 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
 
                             throttleResize(() => {
                               if (isSelected && selectedNoteIds && selectedNoteIds.size > 1 && onMultiNoteResize) {
-                                // Multi-resize is relative; clamp will be applied in the parent handler.
                                 onMultiNoteResize(Array.from(selectedNoteIds), deltaSteps);
+                                emitNotesChange(notes => notes.map(n => {
+                                  if (!selectedNoteIds.has(n.id)) return n;
+                                  const baseLength = n.length || 1;
+                                  const limit = Math.max(1, steps - (n.step || 0));
+                                  const nextLength = clamp(baseLength + deltaSteps, 1, limit);
+                                  return { ...n, length: nextLength };
+                                }));
                                 return;
                               }
 
-                              if (onNoteResize) {
-                                const rawLength = startLength + deltaSteps;
-                                const newLength = clamp(rawLength, 1, maxLengthForNote);
-                                onNoteResize(note.id, newLength);
-                              }
+                              const rawLength = startLength + deltaSteps;
+                              const newLength = clamp(rawLength, 1, maxLengthForNote);
+                              onNoteResize?.(note.id, newLength);
+                              emitNotesChange(notes => notes.map(n => (
+                                n.id === note.id ? { ...n, length: newLength } : n
+                              )));
                             });
                           };
                           const handleMouseUp = () => {

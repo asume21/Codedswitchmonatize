@@ -120,18 +120,56 @@ router.post('/generate-music', async (req: Request, res: Response) => {
   }
 });
 
+function buildBeatFallback(genreKey: string) {
+  const genreSpec = getGenreSpec(genreKey);
+  return {
+    style: genreKey,
+    bpm: genreSpec?.bpmRange?.[0] || 120,
+    key: genreSpec?.preferredKeys?.[0] || 'C Major',
+    drums: [
+      { step: 0, type: 'kick' },
+      { step: 4, type: 'snare' },
+      { step: 8, type: 'kick' },
+      { step: 12, type: 'snare' },
+    ],
+    bass: [{ step: 0, note: 36, duration: 4 }],
+    chords: [{ step: 0, notes: [60, 64, 67], duration: 16 }],
+    melody: [],
+    isFallback: true,
+  };
+}
+
+function buildAnalysisFallback(lyrics: string) {
+  const wordCount = lyrics ? lyrics.split(/\s+/).length : 0;
+  return {
+    analysis: {
+      sentiment: wordCount > 0 ? 'neutral' : 'unknown',
+      themes: wordCount > 0 ? ['inspiration', 'ambition'] : [],
+      suggestions: [
+        'Add more descriptive imagery to strengthen the narrative.',
+        'Introduce a contrasting bridge section to keep listeners engaged.',
+      ],
+      stats: {
+        wordCount,
+        lineCount: lyrics ? lyrics.split(/\n/).length : 0,
+      },
+      isFallback: true,
+    },
+  };
+}
+
 // Generate Beat from Lyrics - Enhanced with FULL Intelligence System
 router.post('/generate-beat', async (req: Request, res: Response) => {
   try {
     const { lyrics, genre } = req.body;
     const safeGenre = genre || 'pop';
-    
+
     // Get genre specifications for authentic beat generation
     const genreSpec = getGenreSpec(safeGenre);
     const progressions = getProgressionsForGenre(safeGenre);
     
     console.log(`🎵 Lyric Lab: Generating beat with FULL intelligence for: ${genreSpec?.name || safeGenre}`);
-    
+
     // Build enhanced system prompt with genre knowledge
     let systemPrompt = `You are an expert music producer. Analyze the lyrics mood and generate a matching beat pattern.`;
     
@@ -168,43 +206,30 @@ Return ONLY valid JSON:
 }
 Match the beat to the lyrics mood. Use 64 steps (4 bars). Follow genre specifications EXACTLY.`;
 
-    const response = await makeAICall([
-      { role: "system", content: systemPrompt },
-      { 
-        role: "user", 
-        content: `Create a ${safeGenre} beat for these lyrics: "${(lyrics || '').substring(0, 100)}..."` 
-      }
-    ], {
-      response_format: { type: "json_object" },
-      temperature: 0.7
-    });
-
-    const content = response.choices?.[0]?.message?.content || '{}';
     let result;
     try {
+      const response = await makeAICall([
+        { role: "system", content: systemPrompt },
+        { 
+          role: "user", 
+          content: `Create a ${safeGenre} beat for these lyrics: "${(lyrics || '').substring(0, 100)}..."` 
+        }
+      ], {
+        response_format: { type: "json_object" },
+        temperature: 0.7
+      });
+
+      const content = response.choices?.[0]?.message?.content || '{}';
       result = JSON.parse(content);
+
       // Validate and sanitize output
       const validation = validateAIOutput(result, safeGenre);
       if (validation.sanitizedOutput) {
         result = validation.sanitizedOutput;
       }
-    } catch (e) {
-      // Genre-aware fallback pattern
-      const fallbackBPM = genreSpec?.bpmRange[0] || 120;
-      const fallbackKey = genreSpec?.preferredKeys[0] || "C Major";
-      result = {
-        style: safeGenre,
-        bpm: fallbackBPM,
-        key: fallbackKey,
-        drums: [
-          { step: 0, type: "kick" }, { step: 4, type: "snare" },
-          { step: 8, type: "kick" }, { step: 12, type: "snare" }
-        ],
-        bass: [{ step: 0, note: 36, duration: 4 }],
-        chords: [{ step: 0, notes: [60, 64, 67], duration: 16 }],
-        melody: [],
-        isFallback: true
-      };
+    } catch (aiError) {
+      console.warn('Beat generation AI unavailable, using fallback:', aiError);
+      result = buildBeatFallback(safeGenre);
     }
 
     res.json({ success: true, ...result });
@@ -217,15 +242,26 @@ Match the beat to the lyrics mood. Use 64 steps (4 bars). Follow genre specifica
 router.post('/analyze', async (req: Request, res: Response) => {
   try {
     const { lyrics } = req.body;
-    const response = await makeAICall([
-      { role: "system", content: "Analyze lyrics. Return JSON with 'sentiment', 'themes', 'suggestions'." },
-      { role: "user", content: `Analyze: ${lyrics}` }
-    ], { response_format: { type: "json_object" } });
-    
-    const analysis = JSON.parse(response.choices[0].message.content || "{}");
+    if (!lyrics || typeof lyrics !== 'string' || !lyrics.trim()) {
+      return res.status(400).json({ error: 'Lyrics are required for analysis' });
+    }
+
+    let analysis;
+    try {
+      const response = await makeAICall([
+        { role: "system", content: "Analyze lyrics. Return JSON with 'sentiment', 'themes', 'suggestions'." },
+        { role: "user", content: `Analyze: ${lyrics}` }
+      ], { response_format: { type: "json_object" } });
+      analysis = JSON.parse(response.choices[0].message.content || "{}");
+    } catch (aiError) {
+      console.warn('Lyric analysis AI unavailable, using fallback:', aiError);
+      return res.json(buildAnalysisFallback(lyrics));
+    }
+
     res.json({ analysis });
   } catch (error) {
-    res.status(500).json({ error: 'Analysis failed' });
+    console.error('Lyric analysis failed:', error);
+    res.json(buildAnalysisFallback(req.body?.lyrics || ''));
   }
 });
 

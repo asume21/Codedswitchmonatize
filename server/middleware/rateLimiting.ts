@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { Request, Response } from 'express';
 
 /**
@@ -11,12 +11,11 @@ import { Request, Response } from 'express';
  * Uses the library's ipKeyGenerator to properly handle IPv6 addresses
  */
 function getClientKey(req: Request): string {
-  // Prefer user ID if authenticated
   const userId = (req as any).userId;
   if (userId) return `user:${userId}`;
-  
-  // Use standard IP-based key (library handles IPv6 properly)
-  return req.ip || req.socket?.remoteAddress || 'unknown';
+
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  return ipKeyGenerator(ip, 64);
 }
 
 // Global rate limiter for all API endpoints
@@ -26,7 +25,8 @@ export const globalLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey
+  keyGenerator: getClientKey,
+  skipFailedRequests: true,
 });
 
 // AI Generation rate limiter - EXPENSIVE endpoints (Suno, MusicGen, Grok)
@@ -51,7 +51,8 @@ export const aiGenerationLimiter = rateLimit({
   message: 'AI generation limit reached. Upgrade your plan for more generations!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey
+  keyGenerator: getClientKey,
+  skipFailedRequests: true,
 });
 
 // Lyrics generation rate limiter - MODERATE cost
@@ -75,7 +76,8 @@ export const lyricsLimiter = rateLimit({
   message: 'Lyrics generation limit reached. Upgrade for more!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey
+  keyGenerator: getClientKey,
+  skipFailedRequests: true,
 });
 
 // Beat/Melody generation rate limiter - MODERATE cost
@@ -99,7 +101,8 @@ export const beatGenerationLimiter = rateLimit({
   message: 'Beat generation limit reached. Upgrade for unlimited beats!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey
+  keyGenerator: getClientKey,
+  skipFailedRequests: true,
 });
 
 // File upload rate limiter
@@ -123,7 +126,8 @@ export const uploadLimiter = rateLimit({
   message: 'Upload limit reached. Upgrade for more uploads!',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey
+  keyGenerator: getClientKey,
+  skipFailedRequests: true,
 });
 
 // Analysis rate limiter - LOW cost but can be abused
@@ -147,5 +151,6 @@ export const analysisLimiter = rateLimit({
   message: 'Analysis limit reached. Please wait before analyzing more.',
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: getClientKey
+  keyGenerator: getClientKey,
+  skipFailedRequests: true,
 });

@@ -81,6 +81,7 @@ export interface MusicMetadata {
   duration: number;
   generatedAt: string;
   seed: number;        // for reproducibility
+  aiEnhanced?: boolean;
 }
 
 export interface GenreConfig {

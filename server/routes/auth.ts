@@ -149,16 +149,32 @@ export function createAuthRoutes(storage: IStorage) {
 
       // Create or get owner user
       const ownerEmail = 'owner@codedswitch.local';
-      let ownerUser = await storage.getUser('owner-user');
-      
+      const ownerUsername = 'codedswitch-owner';
+      let ownerUser = await storage.getUserByEmail(ownerEmail);
+
       if (!ownerUser) {
         // Create owner user if it doesn't exist
         const hashedPassword = await bcrypt.hash(validOwnerKey, 10);
-        ownerUser = await storage.createUser({
-          email: ownerEmail,
-          password: hashedPassword,
-          username: 'CodedSwitch Owner'
-        });
+        try {
+          ownerUser = await storage.createUser({
+            email: ownerEmail,
+            password: hashedPassword,
+            username: ownerUsername
+          });
+        } catch (creationError: unknown) {
+          const message = creationError instanceof Error ? creationError.message : String(creationError);
+
+          // If another process already created the owner (unique constraint), fetch it now.
+          if (message.toLowerCase().includes("duplicate") || message.toLowerCase().includes("unique")) {
+            ownerUser = await storage.getUserByEmail(ownerEmail);
+          } else {
+            throw creationError;
+          }
+        }
+      }
+
+      if (!ownerUser) {
+        throw new Error("Owner user could not be created or loaded");
       }
 
       // Create session
@@ -171,7 +187,7 @@ export function createAuthRoutes(storage: IStorage) {
       res.json({ 
         message: "Login successful",
         user: userWithoutPassword,
-        isOwner: false
+        isOwner: true
       });
     } catch (error) {
       console.error("Special access login error:", error);

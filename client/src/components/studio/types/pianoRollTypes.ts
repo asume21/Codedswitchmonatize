@@ -9,6 +9,7 @@ export interface Note extends TrackNote {
   step: number;
   velocity: number;
   length: number;
+  drumType?: 'kick' | 'snare' | 'hihat' | 'perc';
 }
 
 export interface Track {

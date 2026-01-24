@@ -1,5 +1,6 @@
 import Replicate from "replicate";
 import OpenAI from "openai";
+import { logPromptStart, logPromptResult } from "../ai/utils/promptLogger";
 
 // Replicate client for music generation (reserved for future audio generation)
 const _replicate = new Replicate({
@@ -39,6 +40,8 @@ export class ProfessionalAudioGenerator {
         bpm = 120,
         key = "C Major"
       } = options;
+
+      const startTime = Date.now();
 
       const systemPrompt = `You are a PROFESSIONAL AI music producer competing with Suno AI. 
       Generate STUDIO-QUALITY musical compositions with advanced production techniques.
@@ -117,6 +120,11 @@ export class ProfessionalAudioGenerator {
 
       Create a professional, radio-ready composition that rivals Suno's quality.`;
 
+      const promptHash = logPromptStart(`${systemPrompt}\n${userPrompt}`, {
+        feature: "professional-song",
+        style: genre
+      });
+
       const response = await openai.chat.completions.create({
         messages: [
           { role: "system", content: systemPrompt },
@@ -129,6 +137,13 @@ export class ProfessionalAudioGenerator {
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
+
+      logPromptResult(promptHash, {
+        feature: "professional-song",
+        style: genre,
+        provider: "grok-3",
+        durationMs: Date.now() - startTime
+      });
       
       const enhancedResult = {
         ...result,
@@ -178,6 +193,11 @@ export class ProfessionalAudioGenerator {
       
     } catch (error) {
       console.error("Professional song generation failed:", error);
+      logPromptResult("unknown", {
+        feature: "professional-song",
+        provider: "error",
+        durationMs: 0
+      });
       throw new Error("Failed to generate professional song: " + (error as Error).message);
     }
   }

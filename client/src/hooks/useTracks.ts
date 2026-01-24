@@ -17,6 +17,9 @@ export interface StudioTrack extends TrackClip {
   pan: number;
   bpm: number;
   data: any;
+  sendA: number;
+  sendB: number;
+  sendLevels?: Record<string, number>;
 }
 
 export interface StudioTrackInput {
@@ -33,6 +36,9 @@ export interface StudioTrackInput {
   pan?: number;
   bpm?: number;
   data?: any;
+  sendA?: number;
+  sendB?: number;
+  sendLevels?: Record<string, number>;
   lengthBars?: number;
   startBar?: number;
   muted?: boolean;
@@ -52,6 +58,9 @@ const EXTRA_PAYLOAD_KEYS = [
   'bpm',
   'data',
   'pattern',
+  'sendA',
+  'sendB',
+  'sendLevels',
 ] as const;
 
 function buildPayload(existing: TrackClip | undefined, updates: Partial<StudioTrack>, isNew: boolean = false): TrackPayload {
@@ -111,6 +120,9 @@ export function useTracks() {
         pan: typeof p.pan === 'number' ? p.pan : 0,
         bpm: typeof p.bpm === 'number' ? p.bpm : 120,
         data: p.data ?? p ?? {},
+        sendA: typeof p.sendA === 'number' ? p.sendA : -60,
+        sendB: typeof p.sendB === 'number' ? p.sendB : -60,
+        sendLevels: (p.sendLevels as Record<string, number>) ?? {},
       };
     })
   ), [tracks]);
@@ -131,6 +143,9 @@ export function useTracks() {
       pan: track.pan ?? 0,
       bpm: track.bpm ?? 120,
       data: track.data,
+      sendA: track.sendA ?? -60,
+      sendB: track.sendB ?? -60,
+      sendLevels: track.sendLevels,
     };
     
     if (track.payload) {

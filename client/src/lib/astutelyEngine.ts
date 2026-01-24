@@ -147,14 +147,23 @@ export interface AstutelyResult {
   melody: { step: number; note: number; duration: number }[];
 }
 
-export const astutelyGenerate = async (style: string): Promise<AstutelyResult> => {
-  console.log(`🎵 ASTUTELY: Generating "${style}" beat via Backend API...`);
+export interface AstutelyGenerateOptions {
+  style: string;
+  prompt?: string;
+}
+
+export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerateOptions): Promise<AstutelyResult> => {
+  const options: AstutelyGenerateOptions = typeof styleOrOptions === 'string'
+    ? { style: styleOrOptions }
+    : styleOrOptions;
+
+  console.log(`🎵 ASTUTELY: Generating "${options.style}" beat via Backend API...`);
   
   try {
     const response = await fetch('/api/astutely', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ style })
+      body: JSON.stringify({ style: options.style, prompt: options.prompt })
     });
 
     if (!response.ok) {
@@ -175,7 +184,7 @@ export const astutelyGenerate = async (style: string): Promise<AstutelyResult> =
   } catch (error) {
     console.error("Astutely API error, falling back to local:", error);
     // Fallback to local logic if API fails (copied from previous local implementation for robustness)
-    return generateLocalFallback(style);
+    return generateLocalFallback(options.style);
   }
 };
 
@@ -256,7 +265,7 @@ const generateLocalFallback = (style: string): AstutelyResult => {
 };
 
 // Convert MIDI note number to note name and octave
-function midiToNoteOctave(midi: number): { note: string; octave: number } {
+export function midiToNoteOctave(midi: number): { note: string; octave: number } {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const octave = Math.floor(midi / 12) - 1;
   const noteIndex = midi % 12;

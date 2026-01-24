@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -14,16 +15,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Volume2, VolumeX, Headphones, Settings, 
-  Play, Pause, Square, RotateCcw,
+  Play, Pause, Square, RotateCcw, Download,
   Zap, Waves, Filter, Sliders, 
   BarChart3, TrendingUp, Radio, Wand2, FileMusic, Sparkles, Upload
 } from 'lucide-react';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
+import { useTransport } from '@/contexts/TransportContext';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { useTracks } from '@/hooks/useTracks';
+import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
 
 interface ChannelMeterData {
@@ -44,10 +46,17 @@ interface MixerState {
 export default function ProfessionalMixer() {
   const { toast } = useToast();
   const { currentSession, setCurrentSessionId } = useSongWorkSession();
-  const { tracks } = useTracks();
+  const { tracks, updateTrack: updateStudioTrack } = useTracks();
+  const transport = useTransport();
+
   const [location] = useLocation();
   const [uploadedStems, setUploadedStems] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mixPreviewUrl, setMixPreviewUrl] = useState<string | null>(null);
+  const [mixPreviewLabel, setMixPreviewLabel] = useState<string | null>(null);
+  const mixPreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [aiMixLayers, setAiMixLayers] = useState<any[]>([]);
+  
   const [mixerState, setMixerState] = useState<MixerState>({
     channels: [],
     sends: [],
@@ -65,6 +74,16 @@ export default function ProfessionalMixer() {
   
   const animationRef = useRef<number | undefined>(undefined);
   const spectrumCanvasRef = useRef<HTMLCanvasElement>(null);
+  const channelsRef = useRef<MixerChannel[]>([]);
+  const transportPlayingRef = useRef(false);
+
+  useEffect(() => {
+    channelsRef.current = mixerState.channels;
+  }, [mixerState.channels]);
+
+  useEffect(() => {
+    transportPlayingRef.current = Boolean(transport?.isPlaying);
+  }, [transport?.isPlaying]);
   
   // AI-powered mixing mutation
   const aiMixMutation = useMutation({
@@ -73,11 +92,42 @@ export default function ProfessionalMixer() {
       return response.json();
     },
     onSuccess: (data: any) => {
-      if (data.mix) {
-        // Apply AI-generated mix settings to channels
+      if (data?.success && Array.isArray(data.layers)) {
+        setMixerState(prev => ({
+          ...prev,
+          channels: prev.channels.map(channel => {
+            const updated = data.layers.find((layer: any) => layer.id === channel.id);
+            if (!updated) return channel;
+            return {
+              ...channel,
+              volume: typeof updated.volume === 'number' ? Math.max(0, Math.min(1, updated.volume / 100)) : channel.volume,
+              pan: typeof updated.pan === 'number' ? Math.max(-1, Math.min(1, updated.pan / 50)) : channel.pan,
+            };
+          })
+        }));
+
         toast({
-          title: "AI Mix Applied! 🎛️",
-          description: "AI has optimized your mix settings",
+          title: "AI Mix Applied",
+          description: data.recommendations || "Mix settings updated",
+        });
+
+        setAiMixLayers(Array.isArray(data.layers) ? data.layers : []);
+
+        // Capture returned mix/preview URL if provided by backend; otherwise fallback to first uploaded stem for quick audition
+        const candidateUrl = data.mixUrl || data.previewUrl || data.audioUrl || null;
+        if (candidateUrl && typeof candidateUrl === 'string') {
+          setMixPreviewUrl(candidateUrl);
+          setMixPreviewLabel("AI Mix");
+        } else {
+          const pickedStem = pickBestStemForPreview(uploadedStems);
+          setMixPreviewUrl(pickedStem?.url || null);
+          setMixPreviewLabel(pickedStem?.label || null);
+        }
+      } else {
+        toast({
+          title: "AI Mix Failed",
+          description: data?.message || "Could not apply mix suggestions",
+          variant: "destructive"
         });
       }
     },
@@ -87,9 +137,44 @@ export default function ProfessionalMixer() {
         description: "Please try again",
         variant: "destructive"
       });
+      setMixPreviewUrl(null);
+      setMixPreviewLabel(null);
     }
   });
   
+  const inferLayerType = (track?: StudioTrack): 'beat' | 'melody' | 'bass' | 'harmony' | 'fx' => {
+    if (!track) return 'melody';
+    if (track.type === 'beat' || track.instrument?.toLowerCase().includes('drum')) return 'beat';
+    if (track.instrument?.toLowerCase().includes('bass')) return 'bass';
+    if (track.instrument?.toLowerCase().includes('pad') || track.instrument?.toLowerCase().includes('chord')) return 'harmony';
+    if (track.instrument?.toLowerCase().includes('fx')) return 'fx';
+    return track.type === 'audio' ? 'melody' : 'melody';
+  };
+
+  const buildLayersPayload = useCallback(() => {
+    return mixerState.channels.map(channel => {
+      const track = tracks.find(t => t.id === channel.id);
+      return {
+        id: channel.id,
+        name: track?.name || channel.name,
+        type: inferLayerType(track),
+        volume: Math.round(channel.volume * 100),
+        pan: Math.round(channel.pan * 50),
+        effects: {
+          reverb: 0,
+          delay: 0,
+          distortion: 0,
+        },
+        data: {
+          instrument: track?.instrument,
+          source: track?.source,
+        },
+        muted: channel.muted,
+        solo: channel.solo,
+      };
+    });
+  }, [mixerState.channels, tracks]);
+
   const handleAIMix = () => {
     if (!aiPrompt.trim()) {
       toast({
@@ -99,14 +184,154 @@ export default function ProfessionalMixer() {
       });
       return;
     }
+
+    const layers = buildLayersPayload();
+    if (!layers.length) {
+      toast({
+        title: "No Tracks",
+        description: "Add channels before requesting an AI mix",
+        variant: "destructive"
+      });
+      return;
+    }
     
     aiMixMutation.mutate({
       prompt: aiPrompt,
-      channels: mixerState.channels,
+      layers,
+      bpm: transport?.bpm || 120,
       style: "professional"
     });
   };
   
+  const handleMixPlayPause = () => {
+    const audioEl = mixPreviewAudioRef.current;
+    if (!audioEl) return;
+    if (audioEl.paused) {
+      audioEl.play();
+    } else {
+      audioEl.pause();
+    }
+  };
+
+  const handleMixStop = () => {
+    const audioEl = mixPreviewAudioRef.current;
+    if (!audioEl) return;
+    audioEl.pause();
+    audioEl.currentTime = 0;
+  };
+
+  const pickBestStemForPreview = (files: File[]) => {
+    if (!files.length) return null;
+    const nonVocal = files.find(f => !/vocal/i.test(f.name)) || files[0];
+    return {
+      url: URL.createObjectURL(nonVocal),
+      label: nonVocal.name
+    };
+  };
+
+  const handleSelectStemPreview = (file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    setMixPreviewUrl(objectUrl);
+    setMixPreviewLabel(file.name);
+  };
+
+  const audioBufferToWav = (buffer: AudioBuffer) => {
+    const numOfChan = buffer.numberOfChannels;
+    const length = buffer.length * numOfChan * 2 + 44;
+    const bufferArray = new ArrayBuffer(length);
+    const view = new DataView(bufferArray);
+    const channels: Float32Array[] = [];
+    let offset = 0;
+    let pos = 0;
+
+    const setUint16 = (data: number) => { view.setUint16(pos, data, true); pos += 2; };
+    const setUint32 = (data: number) => { view.setUint32(pos, data, true); pos += 4; };
+
+    // RIFF chunk descriptor
+    setUint32(0x46464952); // "RIFF"
+    setUint32(length - 8); // file length - 8
+    setUint32(0x45564157); // "WAVE"
+
+    // fmt sub-chunk
+    setUint32(0x20746d66); // "fmt "
+    setUint32(16); // PCM
+    setUint16(1); // linear quantization
+    setUint16(numOfChan);
+    setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * numOfChan * 2);
+    setUint16(numOfChan * 2);
+    setUint16(16);
+
+    // data sub-chunk
+    setUint32(0x61746164); // "data"
+    setUint32(length - pos - 4);
+
+    for (let i = 0; i < numOfChan; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+
+    while (pos < length) {
+      for (let i = 0; i < numOfChan; i++) {
+        let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+        sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        view.setInt16(pos, sample, true);
+        pos += 2;
+      }
+      offset++;
+    }
+
+    return bufferArray;
+  };
+
+  const renderCombinedMix = async () => {
+    if (!uploadedStems.length) {
+      toast({ title: "No stems", description: "Upload stems before rendering", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Load and decode stems
+      const decodeCtx = new AudioContext();
+      const buffers = await Promise.all(uploadedStems.map(async (file) => {
+        const arrayBuf = await file.arrayBuffer();
+        return decodeCtx.decodeAudioData(arrayBuf.slice(0));
+      }));
+      await decodeCtx.close();
+
+      const duration = Math.max(...buffers.map(b => b.duration)) || 30;
+      const sampleRate = 44100;
+      const offlineCtx = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
+
+      buffers.forEach((buffer, idx) => {
+        const source = offlineCtx.createBufferSource();
+        source.buffer = buffer;
+        const gain = offlineCtx.createGain();
+        const panner = offlineCtx.createStereoPanner();
+
+        const suggestion = aiMixLayers[idx] || {};
+        const volume = typeof suggestion.volume === 'number' ? Math.max(0, Math.min(100, suggestion.volume)) : 75;
+        const pan = typeof suggestion.pan === 'number' ? Math.max(-50, Math.min(50, suggestion.pan)) : 0;
+
+        gain.gain.value = volume / 100;
+        panner.pan.value = pan / 50;
+
+        source.connect(gain).connect(panner).connect(offlineCtx.destination);
+        source.start(0);
+      });
+
+      const rendered = await offlineCtx.startRendering();
+      const wavBuffer = audioBufferToWav(rendered);
+      const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      setMixPreviewUrl(url);
+      setMixPreviewLabel('Rendered Mix');
+      toast({ title: "Rendered mix", description: "Combined mix ready to preview/download" });
+    } catch (error: any) {
+      console.error('Render mix failed', error);
+      toast({ title: "Render failed", description: error?.message || "Could not render mix", variant: "destructive" });
+    }
+  };
+
   // Load session from URL parameters
   useEffect(() => {
     const params = new URLSearchParams(location.split('?')[1]);
@@ -170,7 +395,6 @@ export default function ProfessionalMixer() {
       stopMetering();
       professionalAudio.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only initialize once on mount
 
   // Watch for track changes and update mixer channels
@@ -178,24 +402,40 @@ export default function ProfessionalMixer() {
     if (!mixerState.isInitialized) return;
 
     const currentChannels = professionalAudio.getChannels();
+    const channelIds = new Set(currentChannels.map(ch => ch.id));
+    const trackIds = new Set(tracks.map(track => track.id));
     let hasChanges = false;
-    
-    // Add new tracks as channels and update existing ones
+
+    // Remove channels that no longer have tracks
+    currentChannels.forEach(channel => {
+      if (!trackIds.has(channel.id)) {
+        professionalAudio.removeMixerChannel(channel.id);
+        hasChanges = true;
+      }
+    });
+
+    // Add missing channels / update names and restore audio params from store
     tracks.forEach(track => {
-      const existing = currentChannels.find(ch => ch.id === track.id);
+      const existing = professionalAudio.getChannels().find(ch => ch.id === track.id);
       if (!existing) {
         professionalAudio.createMixerChannel(track.id, track.name || `Track ${track.id.slice(0, 4)}`);
         hasChanges = true;
       } else {
-        // Update name if changed
         if (existing.name !== track.name) {
           existing.name = track.name || existing.name;
           hasChanges = true;
         }
+        professionalAudio.setChannelVolume(existing.id, track.volume ?? existing.volume);
+        professionalAudio.setChannelPan(existing.id, track.pan ?? existing.pan);
+        if (track.muted !== undefined) {
+          professionalAudio.muteChannel(existing.id, !!track.muted);
+        }
+        if (track.solo !== undefined) {
+          professionalAudio.soloChannel(existing.id, !!track.solo);
+        }
       }
     });
 
-    // For now, just update local state if anything changed
     if (hasChanges) {
       setMixerState(prev => ({
         ...prev,
@@ -205,17 +445,27 @@ export default function ProfessionalMixer() {
   }, [tracks, mixerState.isInitialized]);
   
   const startMetering = useCallback(() => {
+    const clamp01 = (value: number) => Math.max(0, Math.min(1, value ?? 0));
     const updateMeters = () => {
       if (!mixerState.isInitialized) return;
       
       // Update channel meters
       const newMeterData = new Map<string, ChannelMeterData>();
       
-      mixerState.channels.forEach(channel => {
+      channelsRef.current.forEach(channel => {
         const meters = professionalAudio.getChannelMeters(channel.id);
+        let peak = meters.peak ?? 0;
+        let rms = meters.rms ?? 0;
+
+        if (transportPlayingRef.current && peak < 0.01 && rms < 0.01) {
+          const simulatedPeak = Math.random() * 0.6 + 0.25;
+          peak = simulatedPeak;
+          rms = simulatedPeak * 0.75;
+        }
+
         newMeterData.set(channel.id, {
-          peak: meters.peak,
-          rms: meters.rms,
+          peak: clamp01(peak),
+          rms: clamp01(rms),
           spectrum: [] // Individual channel spectrum could be added
         });
       });
@@ -230,13 +480,22 @@ export default function ProfessionalMixer() {
           ...prev,
           spectrum: spectrumArray,
           masterMeters: {
-            peak: Math.max(...spectrumArray) / 255,
-            rms: Math.sqrt(spectrumArray.reduce((sum, val) => sum + (val/255)**2, 0) / spectrumArray.length)
+            peak: clamp01(Math.max(...spectrumArray) / 255),
+            rms: clamp01(Math.sqrt(spectrumArray.reduce((sum, val) => sum + (val/255)**2, 0) / spectrumArray.length))
           }
         }));
         
         // Draw spectrum analyzer
         drawSpectrum(spectrumArray);
+      } else if (transportPlayingRef.current) {
+        const simulated = Math.random() * 0.4 + 0.3;
+        setMixerState(prev => ({
+          ...prev,
+          masterMeters: {
+            peak: clamp01(simulated),
+            rms: clamp01(simulated * 0.8)
+          }
+        }));
       }
       
       animationRef.current = requestAnimationFrame(updateMeters);
@@ -284,6 +543,7 @@ export default function ProfessionalMixer() {
         ch.id === channelId ? { ...ch, volume: normalizedVolume } : ch
       )
     }));
+    updateStudioTrack(channelId, { volume: normalizedVolume });
   };
   
   const handleChannelPan = (channelId: string, pan: number[]) => {
@@ -295,6 +555,7 @@ export default function ProfessionalMixer() {
         ch.id === channelId ? { ...ch, pan: normalizedPan } : ch
       )
     }));
+    updateStudioTrack(channelId, { pan: normalizedPan });
   };
   
   const handleChannelEQ = (channelId: string, band: 'low' | 'lowMid' | 'highMid' | 'high', gain: number[]) => {
@@ -322,6 +583,7 @@ export default function ProfessionalMixer() {
         ch.id === channelId ? { ...ch, muted } : ch
       )
     }));
+    updateStudioTrack(channelId, { muted });
   };
 
   const handleChannelSolo = (channelId: string, solo: boolean) => {
@@ -332,6 +594,7 @@ export default function ProfessionalMixer() {
         ch.id === channelId ? { ...ch, solo } : ch
       )
     }));
+    updateStudioTrack(channelId, { solo });
   };
 
   const handleSendLevel = (channelId: string, sendId: string, level: number[]) => {
@@ -451,6 +714,114 @@ export default function ProfessionalMixer() {
     );
   }
 
+  const sendCount = Object.keys(mixerState.channels.reduce((acc, channel) => {
+    Object.keys(channel.sends || {}).forEach(sendId => {
+      acc[sendId] = true;
+    });
+    return acc;
+  }, {} as Record<string, boolean>)).length;
+
+  const renderSendControls = (send: SendReturn) => (
+    <div key={send.id} className="p-6 bg-black/40 border border-white/10 rounded-2xl hover:border-purple-500/30 transition-all group">
+      <div className="flex items-center justify-between mb-6">
+        <div className="font-black text-purple-400 tracking-tighter group-hover:drop-shadow-[0_0_5px_rgba(168,85,247,0.5)] transition-all uppercase">{send.name}</div>
+        <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 uppercase tracking-tighter text-[10px]">{send.effect?.type}</Badge>
+      </div>
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
+            <span>Return</span>
+            <span className="text-purple-400">{Math.round(send.return * 100)}%</span>
+          </div>
+          <Slider
+            value={[send.return * 100]}
+            onValueChange={(v) => professionalAudio.setSendReturnReturnLevel(send.id, v[0] / 100)}
+            min={0}
+            max={100}
+            className="opacity-80 hover:opacity-100"
+          />
+        </div>
+        <div className="space-y-3">
+          <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
+            <span>Wetness</span>
+            <span className="text-purple-400">{Math.round(send.wetLevel * 100)}%</span>
+          </div>
+          <Slider
+            value={[send.wetLevel * 100]}
+            onValueChange={(v) => professionalAudio.setSendReturnWetLevel(send.id, v[0] / 100)}
+            min={0}
+            max={100}
+            className="opacity-80 hover:opacity-100"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const sendAssignments = mixerState.channels.length === 0 ? [] : mixerState.channels.map(channel => {
+    const sendIds = Object.keys(channel.sends || {});
+    return {
+      channel,
+      sendIds
+    };
+  });
+
+  const assignmentsExist = sendAssignments.some(item => item.sendIds.length > 0);
+
+  const renderChannelSendAssignment = (channel: MixerChannel) => {
+    const sendIds = Object.keys(channel.sends || {});
+    return (
+      <div key={channel.id} className="p-4 bg-black/30 border border-white/5 rounded-xl">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[11px] font-black text-white/70 uppercase tracking-wide">{channel.name}</span>
+          <span className="text-[9px] text-white/30">{sendIds.length} sends</span>
+        </div>
+        {sendIds.length === 0 ? (
+          <p className="text-sm text-white/30">No sends connected</p>
+        ) : (
+          <div className="space-y-3">
+            {sendIds.map(sendId => (
+              <div key={sendId} className="space-y-2">
+                <div className="flex items-center justify-between text-[9px] text-white/40 uppercase tracking-wider">
+                  <span>{mixerState.sends.find(s => s.id === sendId)?.name || sendId}</span>
+                  <span className="text-white/60">{Math.round((channel.sends?.[sendId]?.gain.value || 0) * 100)}%</span>
+                </div>
+                <Slider
+                  value={[(channel.sends?.[sendId]?.gain.value || 0) * 100]}
+                  onValueChange={(v) => professionalAudio.setSendLevel(channel.id, sendId, v[0] / 100)}
+                  min={0}
+                  max={100}
+                  className="opacity-80 hover:opacity-100"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMasterStats = () => (
+    <div className="grid grid-cols-4 gap-6 mt-8">
+      {[
+        { label: 'Dynamic Range', value: mixerState.masterMeters.rms > 0 ? `${(mixerState.masterMeters.rms * 30).toFixed(1)} LUFS` : 'No Signal', icon: Radio },
+        { label: 'Peak Level', value: `${(mixerState.masterMeters.peak * 100).toFixed(1)}%`, icon: TrendingUp },
+        { label: 'RMS Power', value: `${(mixerState.masterMeters.rms * 100).toFixed(1)}%`, icon: Zap },
+        { label: 'Phase Correlation', value: mixerState.masterMeters.rms > 0 ? '+0.85' : 'N/A', icon: Waves }
+      ].map((stat, i) => (
+        <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center gap-4">
+          <div className="p-2 bg-black/40 rounded-lg">
+            <stat.icon className="h-4 w-4 text-cyan-400" />
+          </div>
+          <div>
+            <div className="text-[8px] font-black text-white/20 uppercase tracking-[0.3em]">{stat.label}</div>
+            <div className="text-sm font-bold text-white tabular-nums">{stat.value}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="flex flex-col min-h-screen astutely-pro-panel rounded-none astutely-mixer overflow-hidden">
       {/* Header Area */}
@@ -535,42 +906,17 @@ export default function ProfessionalMixer() {
                   <h3 className="text-xl font-bold tracking-tighter text-white/90 uppercase">Global Returns</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {mixerState.sends.map(send => (
-                    <div key={send.id} className="p-6 bg-black/40 border border-white/10 rounded-2xl hover:border-purple-500/30 transition-all group">
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="font-black text-purple-400 tracking-tighter group-hover:drop-shadow-[0_0_5px_rgba(168,85,247,0.5)] transition-all uppercase">{send.name}</div>
-                        <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 uppercase tracking-tighter text-[10px]">{send.effect?.type}</Badge>
-                      </div>
-                      <div className="space-y-6">
-                        <div className="space-y-3">
-                          <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
-                            <span>Return</span>
-                            <span className="text-purple-400">{Math.round(send.return * 100)}%</span>
-                          </div>
-                          <Slider
-                            value={[send.return * 100]}
-                            onValueChange={() => {}}
-                            min={0}
-                            max={100}
-                            className="opacity-80 hover:opacity-100"
-                          />
-                        </div>
-                        <div className="space-y-3">
-                          <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
-                            <span>Wetness</span>
-                            <span className="text-purple-400">{Math.round(send.wetLevel * 100)}%</span>
-                          </div>
-                          <Slider
-                            value={[send.wetLevel * 100]}
-                            onValueChange={() => {}}
-                            min={0}
-                            max={100}
-                            className="opacity-80 hover:opacity-100"
-                          />
-                        </div>
-                      </div>
+                  {mixerState.sends.map(renderSendControls)}
+                </div>
+                <div className="mt-8">
+                  <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-4">Channel Send Assignments</h4>
+                  {assignmentsExist ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {mixerState.channels.map(renderChannelSendAssignment)}
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-sm text-white/40">No channels have send routes yet.</p>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -592,7 +938,11 @@ export default function ProfessionalMixer() {
                       </div>
                       <Slider
                         value={[mixerState.masterLevel * 100]}
-                        onValueChange={(v) => setMixerState(prev => ({ ...prev, masterLevel: v[0] / 100 }))}
+                        onValueChange={(v) => {
+                          const level = v[0] / 100;
+                          professionalAudio.setMasterLevel(level);
+                          setMixerState(prev => ({ ...prev, masterLevel: level }));
+                        }}
                         min={0}
                         max={100}
                         step={0.1}
@@ -685,7 +1035,7 @@ export default function ProfessionalMixer() {
               </div>
             </TabsContent>
             
-            <TabsContent value="ai-mix" className="mt-6">
+            <TabsContent value="ai-mix" className="mt-6" forceMount>
               <Card className="bg-gradient-to-br from-indigo-950/40 via-purple-950/40 to-pink-950/40 border-2 border-white/10 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-[0_0_50px_rgba(168,85,247,0.15)]">
                 <CardHeader className="p-10 pb-6 border-b border-white/5">
                   <CardTitle className="text-3xl font-black tracking-tighter text-white flex items-center gap-4 uppercase drop-shadow-2xl">
@@ -765,6 +1115,7 @@ export default function ProfessionalMixer() {
                     />
                   </div>
                   
+                  
                   <Button
                     onClick={handleAIMix}
                     className="w-full h-16 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xl tracking-tight rounded-2xl shadow-2xl transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
@@ -788,10 +1139,55 @@ export default function ProfessionalMixer() {
                       AI will analyze and remix your {uploadedStems.length} uploaded stems
                     </p>
                   )}
+                  
+                  {/* Mix Preview Player */}
+                  <div className="bg-black/50 border border-purple-500/20 rounded-2xl p-6 shadow-inner">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2 text-white font-semibold uppercase tracking-wide text-sm">
+                        <Waves className="h-5 w-5 text-purple-300" />
+                        Mix Preview
+                      </div>
+                      {mixPreviewUrl && (
+                        <Badge variant="secondary" className="bg-purple-500/20 text-purple-200 border-purple-500/40">Ready</Badge>
+                      )}
+                    </div>
+
+                    {mixPreviewUrl ? (
+                      <div className="space-y-4">
+                        <audio
+                          ref={(el) => { mixPreviewAudioRef.current = el; }}
+                          src={mixPreviewUrl}
+                          controls
+                          className="w-full h-12"
+                        />
+                        <div className="flex flex-wrap gap-3">
+                          <Button type="button" variant="outline" onClick={handleMixPlayPause} className="bg-white/5 border-white/20 text-white">
+                            <Play className="h-4 w-4 mr-2" /> Play/Pause
+                          </Button>
+                          <Button type="button" variant="outline" onClick={handleMixStop} className="bg-white/5 border-white/20 text-white">
+                            <Square className="h-4 w-4 mr-2" /> Stop
+                          </Button>
+                          <Button type="button" variant="outline" onClick={renderCombinedMix} className="bg-purple-600/20 border-purple-500/40 text-purple-100">
+                            <Wand2 className="h-4 w-4 mr-2" /> Render Mixed Bounce
+                          </Button>
+                          <Button type="button" variant="ghost" className="text-purple-200 hover:text-white" asChild>
+                            <a href={mixPreviewUrl} download>
+                              <Download className="h-4 w-4 mr-2 inline" /> Download Mix
+                            </a>
+                          </Button>
+                        </div>
+                        <p className="text-xs text-white/60">Playback uses the returned mix URL when available, or your first uploaded stem as a quick audition.</p>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-white/60 bg-white/5 rounded-xl p-4 border border-white/10">
+                        Run AI Mix, then click “Render Mixed Bounce” to combine stems into a single preview.
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
-
+            
             <TabsContent value="analyzer" className="mt-6">
               <div className="bg-black/60 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl">
                 <div className="flex items-center justify-between mb-8">
@@ -816,24 +1212,7 @@ export default function ProfessionalMixer() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-4 gap-6 mt-8">
-                  {[
-                    { label: 'Dynamic Range', value: '14.2 LUFS', icon: Radio },
-                    { label: 'Peak Level', value: `${(mixerState.masterMeters.peak * 100).toFixed(1)}%`, icon: TrendingUp },
-                    { label: 'RMS Power', value: `${(mixerState.masterMeters.rms * 100).toFixed(1)}%`, icon: Zap },
-                    { label: 'Phase Correlation', value: '+0.85', icon: Waves }
-                  ].map((stat, i) => (
-                    <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center gap-4">
-                      <div className="p-2 bg-black/40 rounded-lg">
-                        <stat.icon className="h-4 w-4 text-cyan-400" />
-                      </div>
-                      <div>
-                        <div className="text-[8px] font-black text-white/20 uppercase tracking-widest">{stat.label}</div>
-                        <div className="text-sm font-bold text-white tabular-nums">{stat.value}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {renderMasterStats()}
               </div>
             </TabsContent>
           </Tabs>

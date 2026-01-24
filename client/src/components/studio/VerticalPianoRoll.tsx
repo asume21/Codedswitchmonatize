@@ -73,6 +73,13 @@ const KEYBOARD_TO_NOTE: Record<string, { note: string; octave: number }> = {
   '0': { note: 'D#', octave: 5 }, 'p': { note: 'E', octave: 5 },
 };
 
+const DRUM_PITCH_TO_TYPE: Record<number, 'kick' | 'snare' | 'hihat' | 'perc'> = {
+  36: 'kick',
+  38: 'snare',
+  42: 'hihat',
+  46: 'perc',
+};
+
 // Chord progressions
 const CHORD_PROGRESSIONS: ChordProgression[] = [
   { id: 'heartsoul', name: '♥ Heart and Soul (from Big)', chords: ['I', 'vi', 'IV', 'V'], key: 'C' },

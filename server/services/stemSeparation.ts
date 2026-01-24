@@ -45,9 +45,11 @@ export class StemSeparationService {
   private apiUrl = 'https://api.replicate.com/v1';
 
   constructor() {
-    this.apiToken = process.env.REPLICATE_API_TOKEN || '';
+    this.apiToken = (process.env.REPLICATE_API_TOKEN || '').trim();
     if (!this.apiToken) {
-      console.warn('⚠️ REPLICATE_API_TOKEN not set - Stem separation will use fallback');
+      console.warn('⚠️ REPLICATE_API_TOKEN not set - Stem separation disabled');
+    } else {
+      console.log(`🎛️ Stem separation token loaded (${this.apiToken.length} chars)`);
     }
   }
 

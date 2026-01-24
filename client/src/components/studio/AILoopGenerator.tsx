@@ -58,6 +58,71 @@ const GENRES = [
 const KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const SCALES = ['major', 'minor', 'dorian', 'mixolydian', 'pentatonic', 'blues'];
 
+const SCALE_INTERVALS: Record<string, number[]> = {
+  'major': [0, 2, 4, 5, 7, 9, 11],
+  'minor': [0, 2, 3, 5, 7, 8, 10],
+  'dorian': [0, 2, 3, 5, 7, 9, 10],
+  'mixolydian': [0, 2, 4, 5, 7, 9, 10],
+  'pentatonic': [0, 2, 4, 7, 9],
+  'blues': [0, 3, 5, 6, 7, 10],
+};
+
+const GENRE_PROGRESSIONS: Record<string, number[][]> = {
+  'pop': [[1, 5, 6, 4], [1, 4, 5, 6]],
+  'edm': [[1, 5, 6, 5], [6, 4, 1, 5]],
+  'house': [[1, 4, 5, 4], [1, 3, 4, 3]],
+  'trap': [[6, 5, 4, 5], [1, 6, 7, 6]],
+  'lo-fi': [[1, 7, 6, 4], [1, 4, 3, 6]],
+  'hip-hop': [[1, 4, 5, 4], [6, 5, 4, 5]],
+  'r-and-b': [[2, 5, 1, 4], [6, 4, 5, 1]],
+  'jazz': [[2, 5, 1, 4], [1, 6, 2, 5]],
+  'rock': [[1, 4, 5, 4], [1, 5, 4, 5]],
+  'ambient': [[1, 3, 4, 6], [1, 5, 6, 5]],
+};
+
+const GENRE_DRUM_PATTERNS: Record<string, { hats: number[]; kicks: number[]; snares: number[] }> = {
+  'trap': {
+    kicks: [0, 3, 8, 11],
+    snares: [4, 12],
+    hats: Array.from({ length: 16 }, (_, i) => i),
+  },
+  'hip-hop': {
+    kicks: [0, 8],
+    snares: [4, 12],
+    hats: Array.from({ length: 8 }, (_, i) => i * 2),
+  },
+  'house': {
+    kicks: [0, 4, 8, 12],
+    snares: [4, 12],
+    hats: [2, 6, 10, 14],
+  },
+  'edm': {
+    kicks: [0, 4, 8, 12],
+    snares: [4, 12],
+    hats: Array.from({ length: 16 }, (_, i) => (i % 2 === 0 ? i : -1)).filter(i => i >= 0),
+  },
+  'pop': {
+    kicks: [0, 7, 8],
+    snares: [4, 12],
+    hats: Array.from({ length: 8 }, (_, i) => i * 2),
+  },
+  'rock': {
+    kicks: [0, 7, 8, 15],
+    snares: [4, 12],
+    hats: Array.from({ length: 8 }, (_, i) => i * 2),
+  },
+  'lo-fi': {
+    kicks: [0, 9],
+    snares: [4, 12],
+    hats: Array.from({ length: 16 }, (_, i) => (i % 2 === 0 ? i : -1)).filter(i => i >= 0),
+  },
+  'ambient': {
+    kicks: [0],
+    snares: [12],
+    hats: Array.from({ length: 16 }, (_, i) => (i % 4 === 0 ? i : -1)).filter(i => i >= 0),
+  },
+};
+
 export default function AILoopGenerator({ 
   currentBpm = 120, 
   currentKey = 'C',
@@ -268,96 +333,116 @@ export default function AILoopGenerator({
   const generateLocalLoop = (): GeneratedLoop => {
     const notes: GeneratedLoop['notes'] = [];
     const stepsPerBar = 16;
-    const totalSteps = bars * stepsPerBar;
-    
-    // Scale notes for the selected key
-    const scaleIntervals: Record<string, number[]> = {
-      'major': [0, 2, 4, 5, 7, 9, 11],
-      'minor': [0, 2, 3, 5, 7, 8, 10],
-      'dorian': [0, 2, 3, 5, 7, 9, 10],
-      'mixolydian': [0, 2, 4, 5, 7, 9, 10],
-      'pentatonic': [0, 2, 4, 7, 9],
-      'blues': [0, 3, 5, 6, 7, 10],
-    };
-    
     const keyOffset = KEYS.indexOf(key);
-    const intervals = scaleIntervals[scale] || scaleIntervals['minor'];
+    const intervals = SCALE_INTERVALS[scale] || SCALE_INTERVALS['minor'];
     const scaleNotes = intervals.map(i => (keyOffset + i) % 12);
-    
-    // Generate drums
+
+    // Pick a chord progression for the genre
+    const genreKey = GENRE_PROGRESSIONS[genre] ? genre : 'pop';
+    const progressionPool = GENRE_PROGRESSIONS[genreKey];
+    const progression = progressionPool[Math.floor(Math.random() * progressionPool.length)] || [1, 5, 6, 4];
+
+    const humanVel = (base: number, spread = 12) => Math.max(30, Math.min(127, base + Math.floor((Math.random() - 0.5) * spread)));
+
+    // Drums: genre-aware backbeat with ghost hats and fills
     if (includeDrums) {
-      // Kick on 1 and 3
+      const drumPattern = GENRE_DRUM_PATTERNS[genreKey] || GENRE_DRUM_PATTERNS['hip-hop'];
       for (let bar = 0; bar < bars; bar++) {
-        notes.push({ pitch: 36, startStep: bar * 16, duration: 2, velocity: 100, trackType: 'drums' });
-        notes.push({ pitch: 36, startStep: bar * 16 + 8, duration: 2, velocity: 90, trackType: 'drums' });
-        
-        // Snare on 2 and 4
-        notes.push({ pitch: 38, startStep: bar * 16 + 4, duration: 2, velocity: 100, trackType: 'drums' });
-        notes.push({ pitch: 38, startStep: bar * 16 + 12, duration: 2, velocity: 95, trackType: 'drums' });
-        
-        // Hi-hats
-        for (let i = 0; i < 16; i += 2) {
-          notes.push({ pitch: 42, startStep: bar * 16 + i, duration: 1, velocity: 70 + Math.random() * 20, trackType: 'drums' });
+        const offset = bar * stepsPerBar;
+        drumPattern.kicks.forEach(step => {
+          notes.push({ pitch: 36, startStep: offset + step, duration: 2, velocity: humanVel(105, 12), trackType: 'drums' });
+        });
+        drumPattern.snares.forEach(step => {
+          notes.push({ pitch: 38, startStep: offset + step, duration: 2, velocity: humanVel(112, 8), trackType: 'drums' });
+        });
+        drumPattern.hats.forEach(step => {
+          const isAccent = step % 4 === 0;
+          notes.push({ pitch: 42, startStep: offset + step, duration: 1, velocity: humanVel(isAccent ? 82 : 66, 14), trackType: 'drums' });
+          if (!isAccent && Math.random() < 0.2) {
+            notes.push({ pitch: 44, startStep: offset + step + 1, duration: 1, velocity: humanVel(52, 10), trackType: 'drums' });
+          }
+        });
+        // Light fill every 4 bars
+        if ((bar + 1) % 4 === 0) {
+          notes.push({ pitch: 38, startStep: offset + 15, duration: 1, velocity: humanVel(118, 6), trackType: 'drums' });
         }
       }
     }
-    
-    // Generate bass
+
+    // Bass: follow progression with root + approach notes and occasional walk
     if (includeBass) {
       const bassOctave = 2;
       for (let bar = 0; bar < bars; bar++) {
-        const rootNote = scaleNotes[0] + bassOctave * 12 + 12;
-        const fifthNote = scaleNotes[Math.min(4, scaleNotes.length - 1)] + bassOctave * 12 + 12;
-        
-        notes.push({ pitch: rootNote, startStep: bar * 16, duration: 4, velocity: 100, trackType: 'bass' });
-        notes.push({ pitch: rootNote, startStep: bar * 16 + 4, duration: 2, velocity: 85, trackType: 'bass' });
-        notes.push({ pitch: fifthNote, startStep: bar * 16 + 8, duration: 4, velocity: 90, trackType: 'bass' });
-        notes.push({ pitch: rootNote, startStep: bar * 16 + 12, duration: 2, velocity: 80, trackType: 'bass' });
-      }
-    }
-    
-    // Generate chords
-    if (includeChords) {
-      const chordOctave = 4;
-      for (let bar = 0; bar < bars; bar++) {
-        const chordRoot = scaleNotes[bar % scaleNotes.length] + chordOctave * 12 + 12;
-        const chordThird = scaleNotes[(bar + 2) % scaleNotes.length] + chordOctave * 12 + 12;
-        const chordFifth = scaleNotes[(bar + 4) % scaleNotes.length] + chordOctave * 12 + 12;
-        
-        // Chord on beat 1
-        notes.push({ pitch: chordRoot, startStep: bar * 16, duration: 8, velocity: 75, trackType: 'chords' });
-        notes.push({ pitch: chordThird, startStep: bar * 16, duration: 8, velocity: 70, trackType: 'chords' });
-        notes.push({ pitch: chordFifth, startStep: bar * 16, duration: 8, velocity: 70, trackType: 'chords' });
-        
-        // Chord on beat 3
-        notes.push({ pitch: chordRoot, startStep: bar * 16 + 8, duration: 8, velocity: 70, trackType: 'chords' });
-        notes.push({ pitch: chordThird, startStep: bar * 16 + 8, duration: 8, velocity: 65, trackType: 'chords' });
-        notes.push({ pitch: chordFifth, startStep: bar * 16 + 8, duration: 8, velocity: 65, trackType: 'chords' });
-      }
-    }
-    
-    // Generate melody
-    if (includeMelody) {
-      const melodyOctave = 5;
-      for (let bar = 0; bar < bars; bar++) {
-        const notesInBar = 4 + Math.floor(complexity / 25);
-        for (let i = 0; i < notesInBar; i++) {
-          const step = bar * 16 + Math.floor(i * (16 / notesInBar));
-          const noteIndex = Math.floor(Math.random() * scaleNotes.length);
-          const pitch = scaleNotes[noteIndex] + melodyOctave * 12 + 12;
-          const duration = Math.random() > 0.5 ? 2 : 4;
-          
-          notes.push({ 
-            pitch, 
-            startStep: step, 
-            duration, 
-            velocity: 80 + Math.random() * 20, 
-            trackType: 'melody' 
-          });
+        const degree = progression[bar % progression.length];
+        const rootIdx = Math.max(0, degree - 1) % scaleNotes.length;
+        const root = scaleNotes[rootIdx] + bassOctave * 12 + 12;
+        const fifth = scaleNotes[(rootIdx + 4) % scaleNotes.length] + bassOctave * 12 + 12;
+        const walk = scaleNotes[(rootIdx + 5) % scaleNotes.length] + bassOctave * 12 + 12;
+        notes.push({ pitch: root, startStep: bar * stepsPerBar + 0, duration: 4, velocity: humanVel(108, 10), trackType: 'bass' });
+        notes.push({ pitch: root, startStep: bar * stepsPerBar + 4, duration: 2, velocity: humanVel(94, 10), trackType: 'bass' });
+        notes.push({ pitch: fifth, startStep: bar * stepsPerBar + 8, duration: 4, velocity: humanVel(96, 10), trackType: 'bass' });
+        notes.push({ pitch: root, startStep: bar * stepsPerBar + 12, duration: 2, velocity: humanVel(90, 10), trackType: 'bass' });
+        if (Math.random() < 0.35) {
+          notes.push({ pitch: walk, startStep: bar * stepsPerBar + 14, duration: 2, velocity: humanVel(88, 8), trackType: 'bass' });
         }
       }
     }
-    
+
+    // Chords: voiced over progression with 7ths
+    if (includeChords) {
+      const chordOctave = 4;
+      for (let bar = 0; bar < bars; bar++) {
+        const degree = progression[bar % progression.length];
+        const rootIdx = Math.max(0, degree - 1) % scaleNotes.length;
+        const chordRoot = scaleNotes[rootIdx] + chordOctave * 12 + 12;
+        const chordThird = scaleNotes[(rootIdx + 2) % scaleNotes.length] + chordOctave * 12 + 12;
+        const chordFifth = scaleNotes[(rootIdx + 4) % scaleNotes.length] + chordOctave * 12 + 12;
+        const chordSeventh = scaleNotes[(rootIdx + 6) % scaleNotes.length] + chordOctave * 12 + 12;
+
+        [0, 8].forEach(beat => {
+          notes.push({ pitch: chordRoot, startStep: bar * stepsPerBar + beat, duration: 8, velocity: humanVel(78, 8), trackType: 'chords' });
+          notes.push({ pitch: chordThird, startStep: bar * stepsPerBar + beat, duration: 8, velocity: humanVel(74, 8), trackType: 'chords' });
+          notes.push({ pitch: chordFifth, startStep: bar * stepsPerBar + beat, duration: 8, velocity: humanVel(72, 8), trackType: 'chords' });
+          notes.push({ pitch: chordSeventh, startStep: bar * stepsPerBar + beat, duration: 8, velocity: humanVel(70, 8), trackType: 'chords' });
+        });
+      }
+    }
+
+    // Melody: motif-based with arcs and held tones
+    if (includeMelody) {
+      const melodyOctave = 5;
+      const motif = [0, 2, 4, -1];
+      for (let bar = 0; bar < bars; bar++) {
+        const degree = progression[bar % progression.length];
+        const anchorIdx = Math.max(0, degree - 1) % scaleNotes.length;
+        const notesInBar = 3 + Math.floor(complexity / 30);
+        for (let i = 0; i < notesInBar; i++) {
+          const motifStep = motif[i % motif.length];
+          const pitchIdx = (anchorIdx + motifStep + scaleNotes.length) % scaleNotes.length;
+          const pitch = scaleNotes[pitchIdx] + melodyOctave * 12 + 12;
+          const step = bar * stepsPerBar + Math.floor(i * (stepsPerBar / notesInBar));
+          const duration = i === 0 ? 6 : Math.random() > 0.5 ? 4 : 2;
+          notes.push({
+            pitch,
+            startStep: step,
+            duration,
+            velocity: humanVel(86, 16),
+            trackType: 'melody'
+          });
+          if (Math.random() < 0.2) {
+            const gracePitchIdx = (pitchIdx + 1) % scaleNotes.length;
+            notes.push({
+              pitch: scaleNotes[gracePitchIdx] + melodyOctave * 12 + 12,
+              startStep: step + 1,
+              duration: 1,
+              velocity: humanVel(72, 10),
+              trackType: 'melody'
+            });
+          }
+        }
+      }
+    }
+
     return { notes, bpm };
   };
 

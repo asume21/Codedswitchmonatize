@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -10,10 +11,6 @@ import { currentUser } from "./middleware/auth";
 import { runMigrations } from "./migrations/runMigrations";
 import { ensureDataRoots } from "./services/localStorageService";
 import { globalLimiter } from "./middleware/rateLimiting";
-
-// Load environment variables from .env file
-import { config } from 'dotenv';
-config();
 
 const app = express();
 

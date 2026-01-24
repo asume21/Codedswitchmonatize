@@ -14,6 +14,9 @@ export interface TrackPayload {
   color?: string;
   pattern?: unknown;
   data?: unknown;
+  sendA?: number;
+  sendB?: number;
+  sendLevels?: Record<string, number>;
   // Extended properties for various track types
   startTime?: number;
   duration?: number;
@@ -63,6 +66,9 @@ export const DEFAULT_TRACK_PAYLOAD: TrackPayload = {
   pan: 0,
   bpm: 120,
   notes: [],
+  sendA: -60,
+  sendB: -60,
+  sendLevels: {},
 };
 
 export function createTrackPayload(overrides: Partial<TrackPayload> = {}): TrackPayload {

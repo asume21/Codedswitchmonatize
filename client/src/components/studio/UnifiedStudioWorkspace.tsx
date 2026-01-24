@@ -167,6 +167,183 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
   },
 };
 
+type AstutelyTrackType = 'drums' | 'bass' | 'chords' | 'melody';
+
+const ASTUTELY_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+const ASTUTELY_DRUM_PITCH_MAP: Record<number, 'kick' | 'snare' | 'hihat' | 'perc'> = {
+  36: 'kick',
+  38: 'snare',
+  42: 'hihat',
+  46: 'perc'
+};
+
+const ASTUTELY_TRACK_CONFIG: Record<AstutelyTrackType, {
+  id: string;
+  name: string;
+  color: string;
+  instrument: string;
+  kind: StudioTrack['kind'];
+  type: StudioTrack['type'];
+  priority: number;
+}> = {
+  drums: {
+    id: 'track-astutely-drums',
+    name: 'Astutely Drums',
+    color: 'bg-pink-500',
+    instrument: 'drums',
+    kind: 'beat',
+    type: 'beat',
+    priority: 4
+  },
+  bass: {
+    id: 'track-astutely-bass',
+    name: 'Astutely Bass',
+    color: 'bg-green-500',
+    instrument: 'bass-electric',
+    kind: 'midi',
+    type: 'midi',
+    priority: 3
+  },
+  chords: {
+    id: 'track-astutely-chords',
+    name: 'Astutely Chords',
+    color: 'bg-purple-500',
+    instrument: 'piano',
+    kind: 'midi',
+    type: 'midi',
+    priority: 2
+  },
+  melody: {
+    id: 'track-astutely-melody',
+    name: 'Astutely Melody',
+    color: 'bg-blue-500',
+    instrument: 'synth',
+    kind: 'midi',
+    type: 'midi',
+    priority: 1
+  }
+};
+
+function midiToNoteData(midi: number) {
+  const pitch = Number.isFinite(midi) ? midi : 60;
+  const octave = Math.floor(pitch / 12) - 1;
+  const noteIndex = ((pitch % 12) + 12) % 12;
+  return {
+    note: ASTUTELY_NOTE_NAMES[noteIndex],
+    octave
+  };
+}
+
+function convertAstutelyNotes(notes: ReturnType<typeof astutelyToNotes>) {
+  const grouped: Record<AstutelyTrackType, Note[]> = {
+    drums: [],
+    bass: [],
+    chords: [],
+    melody: []
+  };
+
+  notes.forEach((n) => {
+    const trackType = (n.trackType ?? 'melody') as AstutelyTrackType;
+    const { note, octave } = midiToNoteData(n.pitch ?? 60);
+    grouped[trackType].push({
+      id: `astutely-${trackType}-${n.id || `${Date.now()}-${Math.random()}`}`,
+      note,
+      octave,
+      step: n.startStep || 0,
+      length: Math.max(1, n.duration || 1),
+      velocity: n.velocity || 100,
+      drumType: trackType === 'drums' ? (ASTUTELY_DRUM_PITCH_MAP[n.pitch ?? 36] || 'perc') : undefined
+    });
+  });
+
+  return grouped;
+}
+
+function buildAstutelyTrack(
+  existing: StudioTrack | undefined,
+  config: (typeof ASTUTELY_TRACK_CONFIG)[AstutelyTrackType],
+  notes: Note[],
+  bpm: number
+): StudioTrack {
+  const base: StudioTrack = existing || {
+    id: config.id,
+    name: config.name,
+    kind: config.kind,
+    type: config.type,
+    instrument: config.instrument,
+    notes: [],
+    audioUrl: undefined,
+    source: 'astutely',
+    color: config.color,
+    volume: 0.8,
+    pan: 0,
+    muted: false,
+    solo: false,
+    lengthBars: 4,
+    startBar: 0,
+    bpm,
+    data: {},
+    payload: createTrackPayload({
+      type: config.type,
+      instrument: config.instrument,
+      notes: [],
+      source: 'astutely',
+      bpm
+    })
+  };
+
+  return {
+    ...base,
+    notes,
+    bpm,
+    payload: {
+      ...(base.payload ?? createTrackPayload({ type: config.type })),
+      instrument: config.instrument,
+      notes,
+      source: 'astutely',
+      bpm
+    }
+  };
+}
+
+function mergeAstutelyTracks(
+  currentTracks: StudioTrack[],
+  groupedNotes: ReturnType<typeof convertAstutelyNotes>,
+  bpm: number
+) {
+  let next = [...currentTracks];
+
+  (Object.keys(ASTUTELY_TRACK_CONFIG) as AstutelyTrackType[]).forEach((type) => {
+    const noteSet = groupedNotes[type];
+    if (!noteSet.length) return;
+    const config = ASTUTELY_TRACK_CONFIG[type];
+    const existingIndex = next.findIndex((track) => track.id === config.id);
+    const existing = existingIndex !== -1 ? next[existingIndex] : undefined;
+    const updated = buildAstutelyTrack(existing, config, noteSet, bpm);
+    if (existingIndex !== -1) {
+      next[existingIndex] = updated;
+    } else {
+      next = [...next, updated];
+    }
+  });
+
+  return next;
+}
+
+function chooseAstutelyFocusTrack(groupedNotes: ReturnType<typeof convertAstutelyNotes>) {
+  let chosen: string | null = null;
+  (Object.keys(ASTUTELY_TRACK_CONFIG) as AstutelyTrackType[])
+    .sort((a, b) => ASTUTELY_TRACK_CONFIG[a].priority - ASTUTELY_TRACK_CONFIG[b].priority)
+    .forEach((type) => {
+      if (chosen) return;
+      if (groupedNotes[type].length > 0) {
+        chosen = ASTUTELY_TRACK_CONFIG[type].id;
+      }
+    });
+  return chosen;
+}
+
 export default function UnifiedStudioWorkspace() {
   const isMobile = useIsMobile();
   const studioContext = useContext(StudioAudioContext);
@@ -489,6 +666,7 @@ export default function UnifiedStudioWorkspace() {
     return () => window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener);
   }, [toast]);
 
+
   // Arrange / timeline actions
   const getCurrentBar = () => Math.max(1, Math.floor(position / 4) + 1);
 
@@ -698,6 +876,8 @@ export default function UnifiedStudioWorkspace() {
           pan: track.pan ?? 0,
           lengthBars: (track as any).lengthBars ?? 4,
           startBar: (track as any).startBar ?? 0,
+          bpm: track.bpm,
+          data: track.data,
           payload,
         });
       }
@@ -761,6 +941,62 @@ export default function UnifiedStudioWorkspace() {
         : t
     )));
   }, [setTracks, tracks]);
+
+  useEffect(() => {
+    const handleAstutelyGenerated = (event: Event) => {
+      const customEvent = event as CustomEvent<{ notes: ReturnType<typeof astutelyToNotes>; bpm: number; key?: string }>;
+      const detail = customEvent.detail;
+      if (!detail?.notes || detail.notes.length === 0) {
+        console.warn('Astutely payload missing notes');
+        return;
+      }
+
+      const grouped = convertAstutelyNotes(detail.notes);
+      const focusTrackId = chooseAstutelyFocusTrack(grouped);
+
+      setSessionSettings(prev => ({ ...prev, bpm: detail.bpm || prev.bpm }));
+      if (detail.bpm) {
+        setTransportTempo(detail.bpm);
+      }
+
+      setTracks(prev => mergeAstutelyTracks(prev, grouped, detail.bpm || sessionSettings.bpm));
+
+      if (focusTrackId) {
+        setSelectedTrack(focusTrackId);
+        window.dispatchEvent(new CustomEvent('studio:focusTrack', {
+          detail: { trackId: focusTrackId, view: 'piano-roll' }
+        }));
+      }
+
+      setActiveView('piano-roll');
+      setPianoRollExpanded(true);
+      setTransportCollapsed(true);
+
+      toast({
+        title: 'Astutely Pattern Loaded',
+        description: `${detail.notes.length} notes added across AI tracks`
+      });
+    };
+
+    window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+
+    try {
+      const stored = localStorage.getItem('astutely-generated');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          handleAstutelyGenerated(new CustomEvent('astutely:generated', { detail: parsed }));
+        }
+        localStorage.removeItem('astutely-generated');
+      }
+    } catch (error) {
+      console.warn('Failed to hydrate Astutely payload from storage', error);
+    }
+
+    return () => {
+      window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+    };
+  }, [setTracks, setTransportTempo, sessionSettings.bpm, toast]);
 
   const openEffectEditor = useCallback((tool: ToolType) => {
     if (!selectedTrack) {
@@ -3252,15 +3488,19 @@ export default function UnifiedStudioWorkspace() {
                     playNoteOff(note, octave, instrument);
                   }}
                   onNotesChange={(updatedNotes: any[]) => {
-                    if (selectedTrack) {
-                      setTracks(tracks.map(t => 
-                        t.id === selectedTrack 
-                          ? { ...t, notes: updatedNotes }
-                          : t
-                      ));
-                    }
+                    if (!selectedTrack) return;
+                    setTracks(prev => prev.map(track => track.id === selectedTrack
+                      ? {
+                          ...track,
+                          notes: updatedNotes,
+                          payload: track.payload
+                            ? { ...track.payload, notes: updatedNotes }
+                            : track.payload
+                        }
+                      : track
+                    ));
                   }}
- />
+/>
               </div>
             )}
           </div>
@@ -3959,85 +4199,85 @@ export default function UnifiedStudioWorkspace() {
 
             {!transportBarCollapsed && (
               <>
-            {/* Play/Pause */}
-            <Button
-              size="sm"
-              onClick={() => (transportPlaying ? pauseTransport() : startTransport())}
-              className={`rounded-full w-10 h-10 p-0 ${transportPlaying ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}
-            >
-              {transportPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </Button>
-            
-            {/* Stop */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                stopTransport();
-                seek(0);
-              }}
-              className="rounded-full w-10 h-10 p-0"
-            >
-              <Square className="w-4 h-4" />
-            </Button>
+                {/* Play/Pause */}
+                <Button
+                  size="sm"
+                  onClick={() => (transportPlaying ? pauseTransport() : startTransport())}
+                  className={`rounded-full w-10 h-10 p-0 ${transportPlaying ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}
+                >
+                  {transportPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                </Button>
 
-            {/* Position Display */}
-            <div className="px-3 py-1 bg-gray-800 rounded-full text-sm font-mono">
-              <span className="text-white">Bar {Math.max(1, Math.floor(playheadPosition / 16) + 1)}</span>
-              <span className="text-gray-400 mx-1">:</span>
-              <span className="text-gray-300">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
-            </div>
-
-            {/* Loop Toggle */}
-            <Button
-              size="sm"
-              variant={loop.enabled ? 'default' : 'outline'}
-              onClick={() => setLoop({ enabled: !loop.enabled })}
-              className="rounded-full w-10 h-10 p-0"
-              title="Toggle Loop"
-            >
-              <Repeat className="w-4 h-4" />
-            </Button>
-
-            {/* Clear All Tracks */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                stopTransport();
-                seek(0);
-                setTracks([]);
-              }}
-              className="rounded-full px-3 py-1"
-              title="Clear all tracks"
-            >
-              Clear
-            </Button>
-
-            {/* Tempo */}
-            <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full">
-              <span className="text-xs text-gray-400">BPM</span>
-              <span className="text-sm font-bold text-white">{Math.round(tempo)}</span>
-            </div>
-
-            {/* Volume */}
-            <div className="flex items-center gap-1 px-2">
-              <Sliders className="w-3 h-3 text-gray-400" />
-              <div className="w-16">
-                <Slider
-                  value={[masterVolume * 100]}
-                  onValueChange={(value) => {
-                    const newVolume = value[0] / 100;
-                    setMasterVolume(newVolume);
-                    setMIDIMasterVolume(newVolume);
+                {/* Stop */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    stopTransport();
+                    seek(0);
                   }}
-                  max={100}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
-            </div>
+                  className="rounded-full w-10 h-10 p-0"
+                >
+                  <Square className="w-4 h-4" />
+                </Button>
+
+                {/* Position Display */}
+                <div className="px-3 py-1 bg-gray-800 rounded-full text-sm font-mono">
+                  <span className="text-white">Bar {Math.max(1, Math.floor(playheadPosition / 16) + 1)}</span>
+                  <span className="text-gray-400 mx-1">:</span>
+                  <span className="text-gray-300">Beat {Math.max(1, Math.floor(position % 4) + 1)}</span>
+                </div>
+
+                {/* Loop Toggle */}
+                <Button
+                  size="sm"
+                  variant={loop.enabled ? 'default' : 'outline'}
+                  onClick={() => setLoop({ enabled: !loop.enabled })}
+                  className="rounded-full w-10 h-10 p-0"
+                  title="Toggle Loop"
+                >
+                  <Repeat className="w-4 h-4" />
+                </Button>
+
+                {/* Clear All Tracks */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    stopTransport();
+                    seek(0);
+                    setTracks([]);
+                  }}
+                  className="rounded-full px-3 py-1"
+                  title="Clear all tracks"
+                >
+                  Clear
+                </Button>
+
+                {/* Tempo */}
+                <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full">
+                  <span className="text-xs text-gray-400">BPM</span>
+                  <span className="text-sm font-bold text-white">{Math.round(tempo)}</span>
+                </div>
+
+                {/* Volume */}
+                <div className="flex items-center gap-1 px-2">
+                  <Sliders className="w-3 h-3 text-gray-400" />
+                  <div className="w-16">
+                    <Slider
+                      value={[masterVolume * 100]}
+                      onValueChange={(value) => {
+                        const newVolume = value[0] / 100;
+                        setMasterVolume(newVolume);
+                        setMIDIMasterVolume(newVolume);
+                      }}
+                      max={100}
+                      min={0}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
               </>
             )}
           </div>

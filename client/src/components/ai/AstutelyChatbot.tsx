@@ -145,6 +145,10 @@ Try: "play", "make a drill beat", or "analyze my project".`,
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const recognitionRef = useRef<any>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -205,6 +209,73 @@ Try: "play", "make a drill beat", or "analyze my project".`,
       document.removeEventListener('pointerup', handlePointerUp);
     };
   }, [isDragging, dragOffset]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setSpeechError(null);
+    };
+
+    recognition.onerror = (event: any) => {
+      const message = event.error === 'not-allowed'
+        ? 'Microphone access was blocked. Please allow it in your browser permissions.'
+        : 'Voice capture failed. Please try again.';
+      setSpeechError(message);
+      setIsListening(false);
+    };
+
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setInput(prev => {
+        const trimmed = prev.trim();
+        if (!trimmed) return transcript;
+        return `${trimmed} ${transcript}`.trim();
+      });
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    setSpeechSupported(true);
+
+    return () => {
+      recognition.stop();
+      recognitionRef.current = null;
+    };
+  }, []);
+
+  const handleStartListening = () => {
+    if (!speechSupported || !recognitionRef.current) {
+      toast({ title: 'Voice Input Not Supported', description: 'Your browser does not support speech recognition.' });
+      return;
+    }
+    try {
+      recognitionRef.current.start();
+    } catch (error) {
+      setSpeechError('Unable to access your microphone. Please try again.');
+    }
+  };
+
+  const handleStopListening = () => {
+    recognitionRef.current?.stop();
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
   // DAW CONTROL FUNCTIONS - Astutely can control the entire DAW
@@ -1125,7 +1196,20 @@ Be concise, friendly, and direct. Skip formalities.`,
                         className="w-full bg-transparent border-none text-xs text-white placeholder:text-cyan-900 focus:ring-0 min-h-[50px] max-h-[120px] resize-none px-3 pb-2"
                         disabled={isLoading}
                       />
+                      {speechError && (
+                        <div className="px-3 pb-2 text-[10px] text-red-400/80">
+                          {speechError}
+                        </div>
+                      )}
                     </div>
+                    <Button
+                      type="button"
+                      onClick={isListening ? handleStopListening : handleStartListening}
+                      disabled={!speechSupported || isLoading}
+                      className={`h-[50px] w-[50px] border border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-cyan-500/10 transition-all active:scale-95 ${!speechSupported ? 'opacity-40 cursor-not-allowed' : ''} ${isListening ? 'shadow-[0_0_15px_rgba(34,211,238,0.6)] bg-cyan-500/30 text-white' : ''}`}
+                    >
+                      <Mic2 className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
+                    </Button>
                     <Button
                       onClick={handleSend}
                       disabled={isLoading || !input.trim()}

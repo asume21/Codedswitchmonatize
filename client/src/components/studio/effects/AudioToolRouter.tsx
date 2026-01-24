@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
@@ -48,9 +47,12 @@ interface AudioToolRouterProps {
 export function AudioToolRouter({ songUrl, songName, recommendations = [], onAudioLoad }: AudioToolRouterProps) {
   const [activeTool, setActiveTool] = useState<ToolType | null>(null);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const { toast } = useToast();
   const { createSession, updateSession } = useSongWorkSession();
   const [, setLocation] = useLocation();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,6 +63,63 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [], onAud
         title: "Audio Loaded",
         description: `Loaded ${file.name} for processing`,
       });
+    }
+  };
+
+  const triggerFilePicker = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
+  useEffect(() => {
+    if (audioRef.current) {
+      const audioEl = audioRef.current;
+      audioEl.pause();
+      setIsPlaying(false);
+      if (songUrl) {
+        audioEl.src = songUrl;
+        audioEl.load();
+      } else {
+        audioEl.removeAttribute('src');
+      }
+    }
+  }, [songUrl]);
+
+  const handlePlayPause = () => {
+    if (!songUrl || !audioRef.current) {
+      toast({
+        title: "No audio loaded",
+        description: "Select a Studio song or load a file to audition.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.error('Audio playback error:', err);
+          toast({
+            title: "Playback failed",
+            description: "Browser blocked autoplay. Click play again to retry.",
+            variant: "destructive",
+          });
+        });
+    }
+  };
+
+  const handleStop = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlaying(false);
     }
   };
 
@@ -289,6 +348,49 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [], onAud
             "Select a tool to begin processing audio"
           )}
         </p>
+        <div className="mt-4 flex flex-wrap gap-2 items-center">
+          <Button
+            variant="outline"
+            onClick={triggerFilePicker}
+            className="text-xs"
+          >
+            Load audio file
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handlePlayPause}
+            disabled={!songUrl}
+            className="text-xs"
+          >
+            {isPlaying ? 'Pause' : 'Play'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleStop}
+            disabled={!songUrl}
+            className="text-xs"
+          >
+            Stop
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          {songName && (
+            <Badge variant="secondary" className="text-xs">
+              Source: {songUrl?.includes('blob:') ? 'Local File' : 'Studio Library'}
+            </Badge>
+          )}
+          {!songName && (
+            <span className="text-xs text-muted-foreground">
+              Select a Studio song or load a file to begin
+            </span>
+          )}
+          <audio ref={audioRef} className="hidden" />
+        </div>
       </CardHeader>
 
       <CardContent className="px-0">

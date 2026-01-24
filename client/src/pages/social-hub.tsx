@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Share2, Twitter, Facebook, Instagram, Youtube, Users, Trophy, Star } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLocation } from 'wouter';
+import { Share2, Twitter, Facebook, Instagram, Youtube, Users, Trophy, Star, Heart, MessageCircle, TrendingUp, Calendar } from 'lucide-react';
 
 interface SocialFeature {
   id: string;
@@ -12,9 +18,41 @@ interface SocialFeature {
   icon: React.ReactNode;
   enabled: boolean;
   followers: number;
+  connected?: boolean;
+  profileUrl?: string;
+}
+
+interface SocialPost {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatar: string;
+  content: string;
+  type: 'beat' | 'melody' | 'project' | 'share';
+  title: string;
+  url: string;
+  platform: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  createdAt: string;
+  isLiked?: boolean;
+}
+
+interface SocialStats {
+  totalShares: number;
+  totalViews: number;
+  totalLikes: number;
+  totalComments: number;
+  weeklyGrowth: number;
+  topPlatform: string;
 }
 
 export default function SocialHub() {
+  const { toast } = useToast();
+  const auth = useAuth();
+  const [, setLocation] = useLocation();
   const [user, setUser] = useState<any>(null);
   const [socialFeatures, setSocialFeatures] = useState<SocialFeature[]>([
     {
@@ -23,7 +61,9 @@ export default function SocialHub() {
       description: 'Share your beats on Twitter',
       icon: <Twitter className="h-5 w-5" />,
       enabled: false,
-      followers: 0
+      followers: 0,
+      connected: false,
+      profileUrl: ''
     },
     {
       id: 'instagram',
@@ -31,7 +71,9 @@ export default function SocialHub() {
       description: 'Post your music to Instagram',
       icon: <Instagram className="h-5 w-5" />,
       enabled: false,
-      followers: 0
+      followers: 0,
+      connected: false,
+      profileUrl: ''
     },
     {
       id: 'youtube',
@@ -39,7 +81,9 @@ export default function SocialHub() {
       description: 'Upload music videos',
       icon: <Youtube className="h-5 w-5" />,
       enabled: false,
-      followers: 0
+      followers: 0,
+      connected: false,
+      profileUrl: ''
     },
     {
       id: 'facebook',
@@ -47,45 +91,148 @@ export default function SocialHub() {
       description: 'Share with your network',
       icon: <Facebook className="h-5 w-5" />,
       enabled: false,
-      followers: 0
+      followers: 0,
+      connected: false,
+      profileUrl: ''
     }
   ]);
+  const [recentPosts, setRecentPosts] = useState<SocialPost[]>([]);
+  const [stats, setStats] = useState<SocialStats>({
+    totalShares: 0,
+    totalViews: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    weeklyGrowth: 0,
+    topPlatform: 'None'
+  });
 
-  const { toast } = useToast();
+  const isAuthenticated = auth?.isAuthenticated || false;
 
-  const handleShare = (platform: string, content: string) => {
-    try {
-      const shareUrls = {
-        twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(content)}&url=${encodeURIComponent(window.location.href)}`,
-        facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(content)}`,
-        instagram: 'https://www.instagram.com/',
-        youtube: 'https://www.youtube.com/upload'
-      };
+  // Fetch social stats
+  const { data: socialData, refetch: refetchSocial } = useQuery({
+    queryKey: ['/api/social/stats'],
+    queryFn: () => apiRequest('GET', '/api/social/stats').then(res => res.json()),
+    enabled: isAuthenticated,
+  });
 
-      if (shareUrls[platform as keyof typeof shareUrls]) {
-        const url = shareUrls[platform as keyof typeof shareUrls];
-        // Use a safer way to open links
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+  // Fetch recent posts
+  const { data: postsData } = useQuery({
+    queryKey: ['/api/social/posts'],
+    queryFn: () => apiRequest('GET', '/api/social/posts').then(res => res.json()),
+    enabled: isAuthenticated,
+  });
 
-        toast({
-          title: "Shared!",
-          description: `Your creation shared to ${platform}`,
-        });
-      }
-    } catch (error) {
-      console.error('Share error:', error);
+  // Share mutation
+  const shareMutation = useMutation({
+    mutationFn: async (data: { platform: string; content: string; type: string; title: string; url: string }) => {
+      const response = await apiRequest('POST', '/api/social/share', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchSocial();
       toast({
-        title: "Share Error",
-        description: "Unable to share at this time. Please try again.",
-        variant: "destructive",
+        title: 'Shared Successfully!',
+        description: 'Your creation has been shared to your social networks.',
       });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Share Failed',
+        description: error.message || 'Unable to share at this time.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Connect platform mutation
+  const connectMutation = useMutation({
+    mutationFn: async (platform: string) => {
+      const response = await apiRequest('POST', '/api/social/connect', { platform });
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      setSocialFeatures(prev => prev.map(feature => 
+        feature.id === variables 
+          ? { ...feature, connected: true, enabled: true }
+          : feature
+      ));
+      toast({
+        title: 'Platform Connected',
+        description: `${variables} has been connected successfully.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Connection Failed',
+        description: error.message || 'Unable to connect platform.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  useEffect(() => {
+    if (socialData) {
+      setStats(socialData.stats);
+      setRecentPosts(socialData.posts || []);
     }
+  }, [socialData]);
+
+  useEffect(() => {
+    if (postsData) {
+      setRecentPosts(postsData.posts || []);
+    }
+  }, [postsData]);
+
+  const handleShare = async (platform: string, content: string, type: string, title: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Sign In Required',
+        description: 'Please sign in to share your creations.',
+        variant: 'destructive',
+      });
+      setLocation('/login');
+      return;
+    }
+
+    shareMutation.mutate({
+      platform,
+      content,
+      type,
+      title,
+      url: window.location.href,
+    });
+  };
+
+  const handleConnect = (platform: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Sign In Required',
+        description: 'Please sign in to connect social platforms.',
+        variant: 'destructive',
+      });
+      setLocation('/login');
+      return;
+    }
+
+    connectMutation.mutate(platform);
+  };
+
+  const handleLike = (postId: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Sign In Required',
+        description: 'Please sign in to like posts.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Toggle like
+    setRecentPosts(prev => prev.map(post => 
+      post.id === postId 
+        ? { ...post, isLiked: !post.isLiked, likes: post.isLiked ? post.likes - 1 : post.likes + 1 }
+        : post
+    ));
   };
 
   const generateShareContent = (type: string) => {
@@ -97,6 +244,30 @@ export default function SocialHub() {
     };
     return templates[type as keyof typeof templates] || "🎵 Amazing creation made with CodedSwitch!";
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="text-center">
+            <div className="w-24 h-24 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl font-bold mx-auto mb-6">
+              <Share2 className="h-12 w-12" />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-4">Social Hub</h1>
+            <p className="text-gray-300 text-lg mb-8">Share your creations and build your audience</p>
+            <div className="space-x-4">
+              <Button onClick={() => setLocation('/login')} className="bg-blue-600 hover:bg-blue-700">
+                Sign In
+              </Button>
+              <Button onClick={() => setLocation('/signup')} variant="outline" className="bg-gray-700 hover:bg-gray-600">
+                Sign Up
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6">
@@ -114,20 +285,31 @@ export default function SocialHub() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center space-x-4 mb-6">
-            <Badge variant="secondary" className="bg-green-500/20 text-green-400">
-              <Users className="h-3 w-3 mr-1" />
-              0 Followers
-            </Badge>
-            <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-400">
-              <Trophy className="h-3 w-3 mr-1" />
-              New Creator
-            </Badge>
-            <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
-              <Star className="h-3 w-3 mr-1" />
-              0.0 Rating
-            </Badge>
-          </div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-4">
+                    <Badge variant="secondary" className="bg-green-500/20 text-green-400">
+                      <Users className="h-3 w-3 mr-1" />
+                      {stats.totalShares.toLocaleString()} Shares
+                    </Badge>
+                    <Badge variant="secondary" className="bg-blue-500/20 text-blue-400">
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      {stats.weeklyGrowth > 0 ? `+${stats.weeklyGrowth}%` : '0%'} Growth
+                    </Badge>
+                    <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
+                      <Star className="h-3 w-3 mr-1" />
+                      {stats.topPlatform}
+                    </Badge>
+                  </div>
+                  <Button 
+                    onClick={() => refetchSocial()}
+                    variant="outline" 
+                    size="sm"
+                    className="bg-gray-700 hover:bg-gray-600"
+                  >
+                    <Calendar className="h-3 w-3 mr-1" />
+                    Refresh
+                  </Button>
+                </div>
         </div>
 
         {/* Quick Share */}
@@ -148,18 +330,20 @@ export default function SocialHub() {
               ].map((item) => (
                 <div key={item.type} className="space-y-2">
                   <Button
-                    onClick={() => handleShare('twitter', generateShareContent(item.type))}
+                    onClick={() => handleShare('twitter', generateShareContent(item.type), item.type, item.label)}
                     className="w-full bg-blue-500 hover:bg-blue-600"
+                    disabled={shareMutation.isPending}
                   >
                     <Twitter className="h-4 w-4 mr-2" />
-                    {item.icon} {item.label}
+                    {shareMutation.isPending ? 'Sharing...' : `${item.icon} ${item.label}`}
                   </Button>
                   <div className="flex gap-1">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleShare('facebook', generateShareContent(item.type))}
+                      onClick={() => handleShare('facebook', generateShareContent(item.type), item.type, item.label)}
                       className="flex-1"
+                      disabled={shareMutation.isPending}
                     >
                       <Facebook className="h-3 w-3 mr-1" />
                       FB
@@ -167,8 +351,9 @@ export default function SocialHub() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleShare('instagram', generateShareContent(item.type))}
+                      onClick={() => handleShare('instagram', generateShareContent(item.type), item.type, item.label)}
                       className="flex-1"
+                      disabled={shareMutation.isPending}
                     >
                       <Instagram className="h-3 w-3 mr-1" />
                       IG
@@ -190,8 +375,8 @@ export default function SocialHub() {
                     {platform.icon}
                     <span className="ml-2">{platform.name}</span>
                   </div>
-                  <Badge variant={platform.enabled ? "default" : "secondary"}>
-                    {platform.enabled ? 'Connected' : 'Not Connected'}
+                  <Badge variant={platform.connected ? "default" : "secondary"}>
+                    {platform.connected ? 'Connected' : 'Not Connected'}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -203,17 +388,11 @@ export default function SocialHub() {
                   </div>
                   <Button
                     size="sm"
-                    variant={platform.enabled ? "default" : "outline"}
-                    onClick={() => {
-                      if (!platform.enabled) {
-                        toast({
-                          title: "Connect Account",
-                          description: `Connect your ${platform.name} account to start sharing`,
-                        });
-                      }
-                    }}
+                    variant={platform.connected ? "default" : "outline"}
+                    onClick={() => platform.connected ? handleShare(platform.id, 'Check out my latest music creation!', 'share', 'Latest Creation') : handleConnect(platform.id)}
+                    disabled={connectMutation.isPending || shareMutation.isPending}
                   >
-                    {platform.enabled ? 'Share Now' : 'Connect'}
+                    {platform.connected ? 'Share Now' : connectMutation.isPending ? 'Connecting...' : 'Connect'}
                   </Button>
                 </div>
               </CardContent>
@@ -229,20 +408,20 @@ export default function SocialHub() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">0</div>
+                <div className="text-2xl font-bold text-green-400">{stats.totalShares.toLocaleString()}</div>
                 <div className="text-sm text-gray-400">Total Shares</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-400">0</div>
+                <div className="text-2xl font-bold text-blue-400">{stats.totalViews.toLocaleString()}</div>
                 <div className="text-sm text-gray-400">Total Views</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-400">0</div>
-                <div className="text-sm text-gray-400">New Followers</div>
+                <div className="text-2xl font-bold text-purple-400">{stats.totalLikes.toLocaleString()}</div>
+                <div className="text-sm text-gray-400">Total Likes</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">0.0</div>
-                <div className="text-sm text-gray-400">Avg Rating</div>
+                <div className="text-2xl font-bold text-yellow-400">{stats.totalComments.toLocaleString()}</div>
+                <div className="text-sm text-gray-400">Total Comments</div>
               </div>
             </div>
           </CardContent>
@@ -254,27 +433,73 @@ export default function SocialHub() {
             <CardTitle className="text-white">Recent Shares</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-16 h-16 bg-gray-700/30 rounded-full flex items-center justify-center">
-                <Share2 className="h-8 w-8 text-gray-500" />
+            {recentPosts.length > 0 ? (
+              <div className="space-y-4">
+                {recentPosts.slice(0, 5).map((post) => (
+                  <div key={post.id} className="flex items-start justify-between p-4 bg-gray-700/50 rounded-lg">
+                    <div className="flex items-start gap-3 flex-1">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={post.avatar} />
+                        <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm">
+                          {post.displayName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-white font-medium">{post.displayName}</span>
+                          <Badge variant="outline" className="text-xs bg-gray-600 border-gray-500">
+                            {post.platform}
+                          </Badge>
+                        </div>
+                        <div className="text-gray-300 text-sm mb-2">{post.content}</div>
+                        <div className="flex items-center gap-4 text-xs text-gray-400">
+                          <span>{post.createdAt}</span>
+                          <span>•</span>
+                          <span>{post.likes} likes</span>
+                          <span>•</span>
+                          <span>{post.comments} comments</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleLike(post.id)}
+                        className={post.isLiked ? 'text-red-500' : 'text-gray-400'}
+                      >
+                        <Heart className={`h-4 w-4 ${post.isLiked ? 'fill-current' : ''}`} />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-gray-400">
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="space-y-1">
-                <h3 className="text-white font-medium">No Shares Yet</h3>
-                <p className="text-gray-400 text-sm max-w-xs">
-                  Your recent activity will appear here once you start sharing your creations!
-                </p>
+            ) : (
+              <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
+                <div className="w-16 h-16 bg-gray-700/30 rounded-full flex items-center justify-center">
+                  <Share2 className="h-8 w-8 text-gray-500" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-white font-medium">No Recent Activity</h3>
+                  <p className="text-gray-400 text-sm max-w-xs">
+                    Your recent shares will appear here once you start sharing your creations!
+                  </p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    const element = document.getElementById('quick-share');
+                    element?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  Make Your First Share
+                </Button>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  const element = document.getElementById('quick-share');
-                  element?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              >
-                Make Your First Share
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
 

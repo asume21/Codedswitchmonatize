@@ -17,6 +17,9 @@ import { createMixRoutes } from "./routes/mix";
 import { createLyricsRoutes } from "./routes/lyrics";
 import { createAstutelyRoutes } from "./routes/astutely";
 import { createSampleRoutes } from "./routes/samples";
+import { createUserRoutes } from "./routes/user";
+import { createSocialRoutes } from "./routes/social";
+import { createVulnerabilityRoutes } from "./routes/vulnerability";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -41,7 +44,7 @@ import { extractPitch, pitchCorrect, extractMelody, scoreKaraoke, detectEmotion,
 import { mixPreviewService, MixPreviewRequest } from "./services/mixPreview";
 import { jobManager } from "./services/jobManager";
 import multer from "multer";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 // Standardized error response helper
 const sendError = (res: Response, statusCode: number, message: string) => {
@@ -57,23 +60,13 @@ function getClientKey(req: Request): string {
   if (userId) return `user:${userId}`;
   
   const forwarded = req.headers['x-forwarded-for'];
-  let ip = typeof forwarded === 'string' 
-    ? forwarded.split(',')[0].trim() 
+  const ip = typeof forwarded === 'string'
+    ? forwarded.split(',')[0].trim()
     : req.ip || req.socket?.remoteAddress || 'unknown';
-  
-  // For IPv6, normalize to prevent bypass but avoid express-rate-limit helper issues
-  if (ip.includes(':')) {
-    // Simple IPv6 normalization - take first 4 segments
-    const parts = ip.split(':');
-    const normalizedParts = parts.slice(0, 4);
-    // Pad with empty segments if needed
-    while (normalizedParts.length < 4) {
-      normalizedParts.push('');
-    }
-    ip = normalizedParts.join(':') + '::';
-  }
-  
-  return `ip:${ip}`;
+
+  // express-rate-limit requires IPv6 normalization via helper
+  const normalized = ipKeyGenerator(ip, 64);
+  return `ip:${normalized}`;
 }
 
 // Rate limiter for public endpoints
@@ -85,6 +78,7 @@ const publicApiLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: getClientKey,
   validate: { xForwardedForHeader: false },
+  skipFailedRequests: true,
 });
 
 // Rate limiter for upload endpoints
@@ -94,6 +88,7 @@ const uploadLimiter = rateLimit({
   message: { success: false, message: 'Upload limit exceeded. Please try again later.' },
   keyGenerator: getClientKey,
   validate: { xForwardedForHeader: false },
+  skipFailedRequests: true,
 });
 
 // Secure file upload configuration
@@ -216,7 +211,16 @@ ${urls
   app.use("/api", createAstutelyRoutes());
 
   // Mount Sample Library routes
-  app.use("/api/samples", createSampleRoutes());
+  app.use("/api/samples", createSampleRoutes(storage));
+
+  // Mount User profile routes
+  app.use("/api/user", createUserRoutes(storage));
+
+  // Mount Social Hub routes
+  app.use("/api/social", createSocialRoutes(storage));
+
+  // Mount Vulnerability Scanner routes
+  app.use("/api/vulnerability", createVulnerabilityRoutes(storage));
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation
