@@ -480,6 +480,7 @@ export default function MasterMultiTrackPlayer() {
   const [showProjectSettingsModal, setShowProjectSettingsModal] = useState(false);
   const [showMixer, setShowMixer] = useState(false);
   const [tunerFreq, setTunerFreq] = useState(440);
+  const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
   const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ISSUE #1: Drag-and-drop track reordering state
@@ -524,6 +525,7 @@ export default function MasterMultiTrackPlayer() {
   const undoStackRef = useRef<AudioTrack[][]>([]);
   const redoStackRef = useRef<AudioTrack[][]>([]);
   const transportSyncingRef = useRef(false);
+  const meterLoopRef = useRef<number | null>(null);
 
   const updateTempo = useCallback((nextTempo: number) => {
     const clamped = Math.max(20, Math.min(Number.isFinite(nextTempo) ? nextTempo : 120, 300));
@@ -713,6 +715,38 @@ export default function MasterMultiTrackPlayer() {
   // Track manual (locally added) tracks so store sync doesn't overwrite them
   useEffect(() => {
     manualTracksRef.current = tracks.filter(t => t.origin !== 'store');
+  }, [tracks]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const updateMeters = () => {
+      const next: Record<string, { peak: number; rms: number }> = {};
+      tracks.forEach((track) => {
+        try {
+          const meters = professionalAudio.getChannelMeters(track.id);
+          next[track.id] = meters;
+        } catch (error) {
+          // Mixer may not be ready yet
+        }
+      });
+      if (!cancelled) {
+        setChannelMeters(next);
+        meterLoopRef.current = requestAnimationFrame(updateMeters);
+      }
+    };
+
+    if (tracks.length > 0) {
+      meterLoopRef.current = requestAnimationFrame(updateMeters);
+    }
+
+    return () => {
+      cancelled = true;
+      if (meterLoopRef.current) {
+        cancelAnimationFrame(meterLoopRef.current);
+        meterLoopRef.current = null;
+      }
+    };
   }, [tracks]);
 
   // Initialize Audio Context
@@ -1654,6 +1688,33 @@ export default function MasterMultiTrackPlayer() {
     setTracks((prev) => prev.map((t) => (t.id === trackId ? { ...t, volumePoints: points } : t)));
   };
 
+  useEffect(() => {
+    tracks.forEach((track) => {
+      try {
+        professionalAudio.muteChannel(track.id, !!track.muted);
+        professionalAudio.soloChannel(track.id, !!track.solo);
+      } catch (error) {
+        // Mixer may not be ready yet; ignore
+      }
+    });
+  }, [tracks]);
+
+  const toggleSendLevel = useCallback((trackId: string, send: 'A' | 'B') => {
+    const target = tracks.find((t) => t.id === trackId);
+    if (!target) return;
+
+    const defaults = getKindSendDefaults(target.kind);
+    const currentDb = send === 'A' ? (target.sendA ?? -60) : (target.sendB ?? -60);
+    const isActive = currentDb > -50;
+    const nextDb = isActive ? -60 : send === 'A' ? defaults.sendA : defaults.sendB;
+
+    if (send === 'A') {
+      updateTrackSends(trackId, nextDb, undefined);
+    } else {
+      updateTrackSends(trackId, undefined, nextDb);
+    }
+  }, [tracks, updateTrackSends]);
+
   const getAutomationGainAt = (points: { time: number; volume: number }[] | undefined, time: number, clipDuration: number) => {
     if (!points || points.length === 0) return 1;
     const sorted = [...points].sort((a, b) => a.time - b.time);
@@ -1674,10 +1735,46 @@ export default function MasterMultiTrackPlayer() {
     return sorted[sorted.length - 1].volume;
   };
 
+  const syncMuteSoloToMixer = useCallback((trackId: string, updates: { muted?: boolean; solo?: boolean }) => {
+    try {
+      if (typeof updates.muted === 'boolean') {
+        professionalAudio.muteChannel(trackId, updates.muted);
+      }
+      if (typeof updates.solo === 'boolean') {
+        professionalAudio.soloChannel(trackId, updates.solo);
+      }
+    } catch (error) {
+      console.warn('Mixer sync failed', error);
+    }
+
+    if (updates.muted !== undefined || updates.solo !== undefined) {
+      updateStoreTrack(trackId, updates as Partial<StudioTrack>);
+    }
+  }, [updateStoreTrack]);
+
   // Toggle mute
   const toggleMute = (trackId: string) => {
+    const targetTrack = tracks.find((t) => t.id === trackId);
+    if (!targetTrack) return;
+
+    const nextMuted = !targetTrack.muted;
+    const updates: { muted: boolean; solo?: boolean } = { muted: nextMuted };
+    const shouldClearSolo = nextMuted && targetTrack.solo;
+    if (shouldClearSolo) {
+      updates.solo = false;
+    }
+
+    syncMuteSoloToMixer(trackId, updates);
+
     setTracks(prev =>
-      prev.map(t => (t.id === trackId ? { ...t, muted: !t.muted } : t))
+      prev.map(t => {
+        if (t.id !== trackId) return t;
+        return {
+          ...t,
+          muted: nextMuted,
+          solo: shouldClearSolo ? false : t.solo,
+        };
+      })
     );
     if (isPlaying) {
       pausePlayback();
@@ -1687,8 +1784,26 @@ export default function MasterMultiTrackPlayer() {
 
   // Toggle solo
   const toggleSolo = (trackId: string) => {
+    const targetTrack = tracks.find((t) => t.id === trackId);
+    if (!targetTrack) return;
+
+    const nextSolo = !targetTrack.solo;
+    const updates: { solo: boolean; muted?: boolean } = { solo: nextSolo };
+    if (nextSolo && targetTrack.muted) {
+      updates.muted = false;
+    }
+
+    syncMuteSoloToMixer(trackId, updates);
+
     setTracks(prev =>
-      prev.map(t => (t.id === trackId ? { ...t, solo: !t.solo } : t))
+      prev.map(t => {
+        if (t.id !== trackId) return t;
+        return {
+          ...t,
+          solo: nextSolo,
+          muted: nextSolo ? false : t.muted,
+        };
+      })
     );
     if (isPlaying) {
       pausePlayback();
@@ -3599,6 +3714,82 @@ export default function MasterMultiTrackPlayer() {
           </div>
         )}
       </div>
+
+      {tracks.length > 0 && (
+        <div className="px-4 py-3 bg-gray-900 border-b border-gray-800">
+          <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Channel Controls</div>
+          <div className="flex flex-wrap gap-2">
+            {tracks.map((track) => (
+              <div
+                key={`channel-strip-${track.id}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded border ${track.solo ? 'border-yellow-400/70 bg-gray-800' : track.muted ? 'border-red-500/50 bg-gray-850' : 'border-gray-700 bg-gray-850/90'}`}
+                style={{ minWidth: 180 }}
+              >
+                <span className="text-sm font-medium truncate max-w-[110px]" title={track.name}>
+                  {track.name}
+                </span>
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-8 bg-gray-700 rounded relative overflow-hidden">
+                    <div
+                      className="absolute inset-x-0 bottom-0 bg-lime-400"
+                      style={{ height: `${Math.min(100, (channelMeters[track.id]?.rms ?? 0) * 100)}%` }}
+                    />
+                    <div
+                      className="absolute inset-x-0 bottom-0 bg-amber-500/80"
+                      style={{ height: `${Math.min(100, (channelMeters[track.id]?.peak ?? 0) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 w-8 text-right">
+                    {((channelMeters[track.id]?.peak ?? 0) * 0.0 + (channelMeters[track.id]?.peak ?? 0)).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="icon"
+                    variant={track.muted ? 'default' : 'outline'}
+                    className={`w-7 h-7 ${track.muted ? 'bg-red-600 hover:bg-red-500' : ''}`}
+                    onClick={() => toggleMute(track.id)}
+                    aria-pressed={track.muted}
+                    title={track.muted ? 'Unmute' : 'Mute'}
+                  >
+                    {track.muted ? <VolumeX className="w-3 h-3" /> : 'M'}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant={track.solo ? 'default' : 'outline'}
+                    className={`w-7 h-7 ${track.solo ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : ''}`}
+                    onClick={() => toggleSolo(track.id)}
+                    aria-pressed={track.solo}
+                    title={track.solo ? 'Exit Solo' : 'Solo track'}
+                  >
+                    S
+                  </Button>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="icon"
+                    variant={(track.sendA ?? -60) > -50 ? 'default' : 'outline'}
+                    className={`w-7 h-7 ${(track.sendA ?? -60) > -50 ? 'bg-blue-500 hover:bg-blue-400 text-black' : ''}`}
+                    onClick={() => toggleSendLevel(track.id, 'A')}
+                    title="Toggle hall send"
+                  >
+                    A
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant={(track.sendB ?? -60) > -50 ? 'default' : 'outline'}
+                    className={`w-7 h-7 ${(track.sendB ?? -60) > -50 ? 'bg-purple-500 hover:bg-purple-400 text-black' : ''}`}
+                    onClick={() => toggleSendLevel(track.id, 'B')}
+                    title="Toggle delay send"
+                  >
+                    B
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tracks List */}
       <div className="flex-1 overflow-auto min-h-[200px]">

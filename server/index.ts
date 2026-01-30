@@ -53,24 +53,70 @@ app.use("/api/stems", express.static(stemsRoot, {
 // Trust proxy for secure cookies (Railway, Replit, etc.)
 app.set('trust proxy', 1);
 
+const normalizeOrigin = (value: string) => {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value.replace(/\/$/, "");
+  }
+};
+
+const rawAllowedOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(",").map(origin => origin.trim()).filter(Boolean) ?? [];
+const defaultDevOrigins = ["http://localhost:5173", "http://localhost:5000", "http://127.0.0.1:5173", "http://127.0.0.1:5000"];
+const allowedOrigins = (rawAllowedOrigins.length
+  ? rawAllowedOrigins
+  : (isProduction ? [process.env.APP_URL || ""].filter(Boolean) : defaultDevOrigins)
+).map(normalizeOrigin);
+
+const hasWildcardOrigin = allowedOrigins.includes("*");
+
+const isAllowedOrigin = (originHeader?: string) => {
+  if (!originHeader) return false;
+  if (hasWildcardOrigin) return true;
+  const normalized = normalizeOrigin(originHeader);
+  return allowedOrigins.includes(normalized);
+};
+
 // Security headers with helmet
 app.use(helmet({
-  contentSecurityPolicy: false, // Disabled temporarily - was blocking stylesheets
+  contentSecurityPolicy: isProduction ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      fontSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https:", "wss:", process.env.APP_URL || ""].filter(Boolean),
+      mediaSrc: ["'self'", "data:", "blob:", "https:"],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+    },
+  } : false,
   crossOriginEmbedderPolicy: false, // Needed for audio/media playback
-  hsts: {
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  permissionsPolicy: {
+    camera: [],
+    microphone: [],
+    geolocation: [],
+    payment: [],
+  },
+  hsts: isProduction ? {
     maxAge: 31536000,
     includeSubDomains: true,
     preload: true,
-  },
+  } : false,
+  frameguard: { action: "deny" },
+  xssFilter: true,
 }));
 
-// Enable CORS for development (client on different port)
+// Enable CORS (dev allows localhost, prod uses configured list)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('replit'))) {
+  if (origin && isAllowedOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   }
   

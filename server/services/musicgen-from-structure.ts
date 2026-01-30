@@ -117,7 +117,7 @@ Professional ${metadata.genre} production with ${productionNotes.mixing}.`;
       // Use MusicGen model via Replicate
       console.log('🎵 Running MusicGen via Replicate...');
       const output = await replicate.run(
-        "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+        "meta/musicgen:2b5dc5f29cee83fd5cdf8f9c92e555aae7ca2a69b73c5182f3065362b2fa0a45",
         {
           input: {
             prompt: prompt,

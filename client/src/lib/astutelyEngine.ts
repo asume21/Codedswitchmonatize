@@ -141,15 +141,38 @@ export interface AstutelyResult {
   style: string;
   bpm: number;
   key: string;
+  timeSignature?: { numerator: number; denominator: number };
   drums: { step: number; type: 'kick' | 'snare' | 'hihat' | 'perc' }[];
   bass: { step: number; note: number; duration: number }[];
   chords: { step: number; notes: number[]; duration: number }[];
   melody: { step: number; note: number; duration: number }[];
+  isFallback?: boolean;
+  fallbackReason?: string;
+  meta?: {
+    usedFallback?: boolean;
+    warnings?: string[];
+    aiSource?: string;
+    attempts?: number;
+  };
+}
+
+export interface AstutelyTrackSummary {
+  id?: string;
+  name?: string;
+  instrument?: string;
+  type?: string;
+  notes?: number;
+  muted?: boolean;
+  volume?: number;
 }
 
 export interface AstutelyGenerateOptions {
   style: string;
   prompt?: string;
+  tempo?: number;
+  timeSignature?: { numerator: number; denominator: number };
+  key?: string;
+  trackSummaries?: AstutelyTrackSummary[];
 }
 
 export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerateOptions): Promise<AstutelyResult> => {
@@ -163,7 +186,14 @@ export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerate
     const response = await fetch('/api/astutely', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ style: options.style, prompt: options.prompt })
+      body: JSON.stringify({
+        style: options.style,
+        prompt: options.prompt,
+        tempo: options.tempo,
+        timeSignature: options.timeSignature,
+        key: options.key,
+        trackSummaries: options.trackSummaries,
+      })
     });
 
     if (!response.ok) {
@@ -172,6 +202,15 @@ export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerate
 
     const result = await response.json();
     console.log(`✅ ASTUTELY: Received AI generated pattern`);
+    if (result?.meta?.warnings?.length) {
+      console.warn('[Astutely] Warnings from backend:', result.meta.warnings);
+    }
+    if (result?.meta?.usedFallback || result?.isFallback) {
+      console.warn('[Astutely] Using fallback pattern — check AI configuration.', {
+        fallbackReason: result?.fallbackReason,
+        aiSource: result?.meta?.aiSource,
+      });
+    }
     
     // Play preview using realisticAudio
     try {
@@ -184,14 +223,19 @@ export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerate
   } catch (error) {
     console.error("Astutely API error, falling back to local:", error);
     // Fallback to local logic if API fails (copied from previous local implementation for robustness)
-    return generateLocalFallback(options.style);
+    return generateLocalFallback(options.style, {
+      tempo: options.tempo,
+      timeSignature: options.timeSignature,
+      key: options.key,
+    });
   }
 };
 
 // Fallback local generator (original logic)
-const generateLocalFallback = (style: string): AstutelyResult => {
+const generateLocalFallback = (style: string, overrides?: { tempo?: number; timeSignature?: { numerator: number; denominator: number }; key?: string }): AstutelyResult => {
   const config = STYLE_CONFIGS[style] || STYLE_CONFIGS["Travis Scott rage"];
-  const rootNote = NOTES[config.key] || 60;
+  const selectedKey = overrides?.key ?? config.key;
+  const rootNote = NOTES[selectedKey] || NOTES[config.key] || 60;
   const scale = SCALES[config.scale] || SCALES['minor'];
   
   // Get patterns for this style
@@ -202,8 +246,9 @@ const generateLocalFallback = (style: string): AstutelyResult => {
   
   const result: AstutelyResult = {
     style,
-    bpm: config.bpm,
-    key: config.key,
+    bpm: overrides?.tempo ?? config.bpm,
+    key: selectedKey,
+    timeSignature: overrides?.timeSignature ?? { numerator: 4, denominator: 4 },
     drums: [],
     bass: [],
     chords: [],
@@ -338,9 +383,24 @@ export function astutelyToNotes(result: AstutelyResult) {
     velocity: number;
     trackType: 'drums' | 'bass' | 'chords' | 'melody';
   }> = [];
+
+  const safeDrums = Array.isArray(result.drums) ? result.drums : [];
+  const safeBass = Array.isArray(result.bass) ? result.bass : [];
+  const safeChords = Array.isArray(result.chords) ? result.chords : [];
+  const safeMelody = Array.isArray(result.melody) ? result.melody : [];
+
+  if (!Array.isArray(result.drums) || !Array.isArray(result.bass) || !Array.isArray(result.chords) || !Array.isArray(result.melody)) {
+    console.warn('[Astutely] Received malformed pattern payload. Some tracks missing or mis-typed.', {
+      hasDrums: Array.isArray(result.drums),
+      hasBass: Array.isArray(result.bass),
+      hasChords: Array.isArray(result.chords),
+      hasMelody: Array.isArray(result.melody),
+      style: result.style,
+    });
+  }
   
   // Convert drums
-  result.drums.forEach((d, i) => {
+  safeDrums.forEach((d, i) => {
     const pitchMap = { kick: 36, snare: 38, hihat: 42, perc: 46 };
     notes.push({
       id: `astutely-drum-${i}`,
@@ -353,7 +413,7 @@ export function astutelyToNotes(result: AstutelyResult) {
   });
   
   // Convert bass
-  result.bass.forEach((b, i) => {
+  safeBass.forEach((b, i) => {
     notes.push({
       id: `astutely-bass-${i}`,
       pitch: b.note,
@@ -365,7 +425,7 @@ export function astutelyToNotes(result: AstutelyResult) {
   });
   
   // Convert chords (each note in chord)
-  result.chords.forEach((c, i) => {
+  safeChords.forEach((c, i) => {
     c.notes.forEach((note, j) => {
       notes.push({
         id: `astutely-chord-${i}-${j}`,
@@ -379,7 +439,7 @@ export function astutelyToNotes(result: AstutelyResult) {
   });
   
   // Convert melody
-  result.melody.forEach((m, i) => {
+  safeMelody.forEach((m, i) => {
     notes.push({
       id: `astutely-melody-${i}`,
       pitch: m.note,

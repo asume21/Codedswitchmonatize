@@ -1,9 +1,12 @@
 import React, { useCallback, useMemo, forwardRef, CSSProperties, useState, useRef, memo } from 'react';
 import { Note, Track, PianoKey } from './types/pianoRollTypes';
+import type { TimeSignature } from '@/contexts/TransportContext';
 import { cn } from "@/lib/utils";
 
 const KEY_COLUMN_WIDTH = 112; // Matches PianoKeys w-28
 const GRID_SEPARATOR_COLOR = 'rgba(148, 163, 184, 0.35)';
+
+type PianoRollTool = 'draw' | 'select' | 'erase' | 'slice';
 
 interface StepGridProps {
   steps: number;
@@ -34,14 +37,15 @@ interface StepGridProps {
   tracks?: Track[];
   selectedTrackIndex?: number;
   scrollRef?: React.RefObject<HTMLDivElement | null>;
-  tool?: string;
+  tool?: PianoRollTool;
   snapEnabled?: boolean;
   snapValue?: number;
   showGhostNotes?: boolean;
   onNotesChange?: (notes: Note[]) => void;
+  timeSignature?: TimeSignature;
 }
 
-const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
+const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({ 
   steps,
   pianoKeys = [],
   selectedTrack,
@@ -75,12 +79,21 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
   snapValue,
   showGhostNotes,
   onNotesChange,
+  timeSignature,
 }, ref) => {
   const emitNotesChange = useCallback((producer: (notes: Note[]) => Note[]) => {
     if (!selectedTrack || !onNotesChange) return;
     const current = selectedTrack.notes || [];
     onNotesChange(producer(current));
   }, [selectedTrack, onNotesChange]);
+
+  const beatsPerBar = useMemo(() => Math.max(1, timeSignature?.numerator ?? 4), [timeSignature?.numerator]);
+  const stepsPerBeat = useMemo(() => {
+    const denominator = timeSignature?.denominator ?? 4;
+    const rawStepsPerBeat = (4 / denominator) * 4;
+    return Math.max(1, Math.round(rawStepsPerBeat));
+  }, [timeSignature?.denominator]);
+  const stepsPerBarTotal = useMemo(() => Math.max(stepsPerBeat * beatsPerBar, stepsPerBeat), [stepsPerBeat, beatsPerBar]);
 
   const handleCellClick = useCallback((keyIndex: number, step: number) => {
     const key = pianoKeys[keyIndex];
@@ -92,27 +105,45 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
            n?.step === step
     );
 
-    if (note) {
-      onNoteRemove(note.id);
-    } else if (chordMode) {
-      onChordAdd(step);
-    } else {
-      onStepClick(keyIndex, step);
+    switch (tool) {
+      case 'erase':
+        if (note) {
+          onNoteRemove(note.id);
+        }
+        return;
+      case 'select':
+        if (note) {
+          onNoteSelect?.(note.id, false);
+        }
+        return;
+      case 'draw':
+      default:
+        if (note) {
+          onNoteRemove(note.id);
+          return;
+        }
+        if (chordMode) {
+          onChordAdd(step);
+        } else {
+          onStepClick(keyIndex, step);
+        }
+        return;
     }
-  }, [selectedTrack, pianoKeys, onStepClick, onChordAdd, onNoteRemove, chordMode]);
+  }, [selectedTrack, pianoKeys, onStepClick, onChordAdd, onNoteRemove, chordMode, tool, onNoteSelect]);
 
   const renderStepHeaders = useMemo(() => {
     const headers = [];
     for (let step = 0; step < steps; step++) {
       const isCurrentStep = currentStep === step;
-      const isMeasureStart = step % 4 === 0;
+      const isBeatStart = step % stepsPerBeat === 0;
+      const isBarStart = step % stepsPerBarTotal === 0;
       headers.push(
         <div
           key={step}
           className={cn(
             "flex items-center justify-center text-xs font-mono border-r border-gray-600 cursor-pointer",
             isCurrentStep ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-600',
-            isMeasureStart && !isCurrentStep && 'bg-gray-700'
+            isBarStart && !isCurrentStep ? 'bg-cyan-900/40 text-white' : isBeatStart && !isCurrentStep ? 'bg-gray-700/80' : undefined
           )}
           style={{
             width: `${stepWidth * zoom}px`,
@@ -131,7 +162,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
       );
     }
     return headers;
-  }, [steps, currentStep, stepWidth, zoom, onPlayheadClick]);
+  }, [steps, currentStep, stepWidth, zoom, onPlayheadClick, stepsPerBeat, stepsPerBarTotal]);
 
   const gridBackdropStyle = {
     backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.95), rgba(15,23,42,0.75)), linear-gradient(180deg, rgba(59,130,246,0.08) 1px, transparent 1px)`,
@@ -225,13 +256,17 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
               }} />
               
               {/* Grid cells */}
-              {Array.from({ length: steps }, (_, step) => (
+              {Array.from({ length: steps }, (_, step) => {
+                const isBeatStart = step % stepsPerBeat === 0;
+                const isBarStart = step % stepsPerBarTotal === 0;
+                return (
                 <div
                   key={`${key.key}-${step}`}
                   className={cn(
                     "cursor-pointer transition-colors border-r border-cyan-500/10",
                     currentStep === step ? "bg-cyan-500/10" : "hover:bg-cyan-500/5",
-                    step % 4 === 0 && "border-r-cyan-500/30"
+                    isBeatStart && "border-r-cyan-500/30",
+                    isBarStart && "border-r-cyan-400/60"
                   )}
                   style={{
                     width: `${stepWidth * zoom}px`,
@@ -240,12 +275,13 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                   }}
                   onClick={() => handleCellClick(keyIndex, step)}
                   onMouseDown={(e) => {
-                    if (e.button === 0 && onSelectionStart) {
+                    if (tool === 'select' && e.button === 0 && onSelectionStart) {
                       onSelectionStart(e, keyIndex, step);
                     }
                   }}
                 />
-              ))}
+                );
+              })}
               
               {/* Ghost Notes from other tracks - memoized */}
               {showGhostNotes && tracks && tracks.map((track, trackIdx) => {
@@ -299,7 +335,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                       }
                     }}
                     onMouseDown={(e) => {
-                      if (e.button !== 0) return;
+                      if (tool !== 'select') return;
                       const target = e.target as HTMLElement;
                       if (target.classList.contains('resize-handle')) return;
                       

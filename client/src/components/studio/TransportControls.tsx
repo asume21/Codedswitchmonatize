@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Music, ChevronDown, ChevronUp, Pin, PinOff } from "lucide-react";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 import { useTracks } from "@/hooks/useTracks";
+import { useTransport } from "@/contexts/TransportContext";
 
 interface TransportControlsProps {
   currentTool?: string;
@@ -40,6 +41,18 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   const { playPattern, stopPattern } = useSequencer();
   const studioContext = useContext(StudioAudioContext);
   const { addTrack } = useTracks();
+  const {
+    isPlaying: transportIsPlaying,
+    play: startTransport,
+    pause: pauseTransport,
+    stop: stopTransport,
+  } = useTransport();
+
+  useEffect(() => {
+    if (isPlaying !== transportIsPlaying) {
+      setIsPlaying(transportIsPlaying);
+    }
+  }, [transportIsPlaying]);
 
   // Fetch uploaded songs
   const { data: songs = [] } = useQuery<any[]>({
@@ -71,6 +84,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
 
     const handleEnded = () => {
       setIsPlaying(false);
+      stopTransport();
     };
 
     updateDuration();
@@ -93,6 +107,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       if (isPlaying) {
         stopPattern();
         studioContext.stopFullSong();
+        pauseTransport();
         setIsPlaying(false);
         return;
       }
@@ -104,6 +119,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         // Play uploaded song through audio element
         console.log('▶️ Playing uploaded song:', studioContext.currentUploadedSong.name);
         await studioContext.uploadedSongAudio.play();
+        startTransport();
         setIsPlaying(true);
         return;
       }
@@ -121,6 +137,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       // Play full song (includes melody, vocals, etc) if anything is loaded
       if (hasPattern || hasMelody || hasTracks) {
         await studioContext.playFullSong();
+        startTransport();
         setIsPlaying(true);
       } else {
         // Nothing loaded, don't play anything
@@ -142,6 +159,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       studioContext.uploadedSongAudio.currentTime = 0;
     }
     
+    stopTransport();
     setIsPlaying(false);
     setCurrentTime("00:00");
     setPlaybackTimeSeconds(0);

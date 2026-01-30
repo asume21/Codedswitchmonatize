@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import * as Tone from "tone";
 import { audioEngine, InstrumentName } from "../lib/audioEngine";
 import { useToast } from "@/hooks/use-toast";
+import { professionalAudio } from "@/lib/professionalAudio";
 
 export type DrumType = 'kick' | 'snare' | 'hihat' | 'openhat' | 'clap' | 'tom' | 'crash' | 'perc';
 
@@ -76,113 +77,98 @@ interface SequenceStep {
 
 type PatternType = SequenceStep[] | Record<string, boolean[]>;
 
-type TimeoutHandle = ReturnType<typeof setTimeout>;
-
 export function useSequencer() {
   const { playDrum } = useAudio();
-  const sequenceTimeouts = useRef<TimeoutHandle[]>([]);
+  const scheduledIds = useRef<number[]>([]);
   const isPlayingRef = useRef(false);
 
+  const stopPattern = useCallback(() => {
+    isPlayingRef.current = false;
+    scheduledIds.current.forEach((id) => Tone.Transport.clear(id));
+    scheduledIds.current = [];
+    Tone.Transport.stop();
+    Tone.Transport.position = 0;
+  }, []);
+
   const playPattern = useCallback((pattern: PatternType, bpm: number = 120) => {
-    stopPattern(); // Stop any existing pattern
+    stopPattern();
     isPlayingRef.current = true;
 
-    const stepDuration = 60000 / (bpm * 4); // 16th note duration in ms
+    Tone.Transport.bpm.value = bpm;
     const totalSteps = 16;
+    const stepDuration = Tone.Time('16n').toSeconds();
 
     for (let step = 0; step < totalSteps; step++) {
-      const timeout = setTimeout(() => {
+      const id = Tone.Transport.schedule((time) => {
         if (!isPlayingRef.current) return;
-
         Object.entries(pattern).forEach(([trackName, steps]) => {
           if (Array.isArray(steps) && steps[step]) {
             playDrum(trackName as DrumType, 0.7);
           }
         });
-
       }, step * stepDuration);
-      sequenceTimeouts.current.push(timeout);
+      scheduledIds.current.push(id);
     }
-  }, [playDrum]);
 
-  const stopPattern = useCallback(() => {
-    isPlayingRef.current = false;
-    sequenceTimeouts.current.forEach(clearTimeout);
-    sequenceTimeouts.current = [];
-  }, []);
+    Tone.Transport.start();
+  }, [playDrum, stopPattern]);
 
   const isPlaying = useCallback(() => isPlayingRef.current, []);
-  
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      stopPattern();
-    };
-  }, [stopPattern]);
-  
-  return {
-    playPattern,
-    stopPattern,
-    isPlaying
-  };
+
+  useEffect(() => () => stopPattern(), [stopPattern]);
+
+  return { playPattern, stopPattern, isPlaying };
 }
 
 // Melody player hook for playing note sequences
 export function useMelodyPlayer() {
   const { playNote } = useAudio();
-  let melodyTimeouts: TimeoutHandle[] = [];
-  let isPlaying = false;
-  
-  return {
-    playMelody: (notes: any[], bpm: string = '120', tracks?: any[]) => {
-      // Clear any existing timeouts first
-      melodyTimeouts.forEach(timeout => clearTimeout(timeout));
-      melodyTimeouts = [];
-      isPlaying = true;
-      
-      // Group notes by start time for accurate playback
-      const notesByTime = notes.reduce((acc: any, note) => {
-        const startTime = note.start || 0;
-        if (!acc[startTime]) acc[startTime] = [];
-        acc[startTime].push(note);
-        return acc;
-      }, {});
-      
-      // Play notes at their scheduled times
-      Object.entries(notesByTime).forEach(([startTime, notesAtTime]: [string, any]) => {
-        const timeout = setTimeout(() => {
-          if (!isPlaying) return; // Check if still playing
-          
-          (notesAtTime as any[]).forEach(note => {
-            if (note && note.note && note.track) {
-              // Find the correct instrument for this track
-              const trackInfo = tracks?.find(t => t.id === note.track);
-              const instrument = trackInfo?.instrument || 'piano';
-              
-              console.log(`Playing ${instrument}: ${note.note}${note.octave} for ${note.duration}s (track: ${note.track})`);
-              playNote(note.note, note.octave || 4, note.duration || 0.5, instrument);
-            }
-          });
-        }, parseFloat(startTime) * 1000);
-        
-        melodyTimeouts.push(timeout);
-      });
-    },
-    playChord: (notes: any[], instrument: string = 'piano') => {
-      notes.forEach(note => {
-        if (note && note.note) {
-          playNote(note.note, note.octave || 4, note.duration || 1.0, instrument);
-        }
-      });
-    },
-    stopMelody: () => {
-      isPlaying = false;
-      melodyTimeouts.forEach(timeout => clearTimeout(timeout));
-      melodyTimeouts = [];
-      audioEngine.stop();
-      console.log("Melody stopped - all timeouts cleared");
-    }
-  };
+  const scheduledIds = useRef<number[]>([]);
+  const isPlayingRef = useRef(false);
+
+  const stopMelody = useCallback(() => {
+    isPlayingRef.current = false;
+    scheduledIds.current.forEach((id) => Tone.Transport.clear(id));
+    scheduledIds.current = [];
+    Tone.Transport.stop();
+    Tone.Transport.position = 0;
+  }, []);
+
+  const playMelody = useCallback((notes: any[], bpm: string = '120', tracks?: any[]) => {
+    stopMelody();
+    isPlayingRef.current = true;
+
+    const bpmNumber = parseFloat(bpm) || 120;
+    Tone.Transport.bpm.value = bpmNumber;
+
+    notes.forEach((note) => {
+      if (!note || typeof note.startStep === 'undefined') return;
+      const startTime = (note.start || note.startTime || note.startStep) / 4;
+      const duration = note.duration || 0.5;
+      const instrument = tracks?.find((t) => t.id === note.track)?.instrument || 'piano';
+
+      const id = Tone.Transport.schedule(() => {
+        if (!isPlayingRef.current) return;
+        playNote(note.note ?? note.pitch, note.octave || 4, duration, instrument);
+      }, startTime);
+
+      scheduledIds.current.push(id);
+    });
+
+    Tone.Transport.start();
+  }, [playNote, stopMelody]);
+
+  const playChord = useCallback((notes: any[], instrument: string = 'piano') => {
+    notes.forEach(note => {
+      if (note && note.note) {
+        playNote(note.note, note.octave || 4, note.duration || 1.0, instrument);
+      }
+    });
+  }, [playNote]);
+
+  useEffect(() => () => stopMelody(), [stopMelody]);
+
+  return { playMelody, playChord, stopMelody };
 }
 
 export function useAudio(): UseAudioReturn {
@@ -193,6 +179,9 @@ export function useAudio(): UseAudioReturn {
     if (globalAudioInitialized) return;
 
     try {
+      await professionalAudio.initialize();
+      const masterBus = professionalAudio.getMasterBus();
+      audioEngine.setTargetNode(masterBus ?? null);
       await audioEngine.initialize();
       await audioEngine.startAudio(); // Start Tone.js from user interaction
       

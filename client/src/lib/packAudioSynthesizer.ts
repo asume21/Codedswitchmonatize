@@ -106,10 +106,11 @@ export class PackAudioSynthesizer {
   private noiseSynth: Tone.NoiseSynth | null = null;
   private metalSynth: Tone.MetalSynth | null = null;
   private isPlaying = false;
-  private scheduledEvents: number[] = [];
+  private stepLoopId: number | null = null;
   private recorder: MediaRecorder | null = null;
   private recordedChunks: Blob[] = [];
   private targetNode: AudioNode | null = null;
+  private stopListeners = new Set<() => void>();
 
   setTargetNode(node: AudioNode | null) {
     this.targetNode = node;
@@ -211,13 +212,34 @@ export class PackAudioSynthesizer {
 
   stop() {
     this.isPlaying = false;
-    this.scheduledEvents.forEach(id => Tone.Transport.clear(id));
-    this.scheduledEvents = [];
+    if (this.stepLoopId !== null) {
+      Tone.Transport.clear(this.stepLoopId);
+      this.stepLoopId = null;
+    }
     Tone.Transport.stop();
+    Tone.Transport.position = 0;
     Tone.Transport.cancel();
+    this.notifyStop();
   }
 
-  async playPack(pack: GeneratedPack, volume: number = 0.75): Promise<void> {
+  onStop(listener: () => void) {
+    this.stopListeners.add(listener);
+    return () => {
+      this.stopListeners.delete(listener);
+    };
+  }
+
+  private notifyStop() {
+    this.stopListeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        console.error('PackAudioSynthesizer stop listener failed', error);
+      }
+    });
+  }
+
+  async playPack(pack: GeneratedPack, volume: number = 0.75, options: { loop?: boolean; bars?: number } = {}): Promise<void> {
     if (this.isPlaying) {
       this.stop();
       return;
@@ -240,60 +262,49 @@ export class PackAudioSynthesizer {
     const drumPattern = DRUM_PATTERNS[genre] || DRUM_PATTERNS['Electronic'];
     const bassPattern = BASS_PATTERNS[genre] || BASS_PATTERNS['Electronic'];
     
-    const sixteenthNote = Tone.Time('16n').toSeconds();
-    const totalBars = 4;
     const stepsPerBar = 16;
-    const totalSteps = totalBars * stepsPerBar;
+    const maxBars = Math.max(1, options.bars ?? 4);
+    const shouldLoop = options.loop ?? false;
 
-    this.isPlaying = true;
-
-    for (let step = 0; step < totalSteps; step++) {
-      const time = step * sixteenthNote;
-      const patternStep = step % 16;
-
-      if (drumPattern.kick[patternStep] && this.drumSynth) {
-        const id = Tone.Transport.schedule((t) => {
-          this.drumSynth?.triggerAttackRelease('C1', '8n', t);
-        }, time);
-        this.scheduledEvents.push(id);
-      }
-
-      if (drumPattern.snare[patternStep] && this.noiseSynth) {
-        const id = Tone.Transport.schedule((t) => {
-          this.noiseSynth?.triggerAttackRelease('16n', t);
-        }, time);
-        this.scheduledEvents.push(id);
-      }
-
-      if (drumPattern.hat[patternStep] && this.metalSynth) {
-        const id = Tone.Transport.schedule((t) => {
-          this.metalSynth?.triggerAttackRelease('32n', t, 0.3);
-        }, time);
-        this.scheduledEvents.push(id);
-      }
-
-      const bassStep = step % bassPattern.length;
-      if (bassPattern[bassStep] && this.bassSynth) {
-        const id = Tone.Transport.schedule((t) => {
-          this.bassSynth?.triggerAttackRelease(bassNote, '8n', t);
-        }, time);
-        this.scheduledEvents.push(id);
-      }
-
-      if (step % 16 === 0 && this.synth) {
-        const id = Tone.Transport.schedule((t) => {
-          this.synth?.triggerAttackRelease(chordNotes, '2n', t, 0.4);
-        }, time);
-        this.scheduledEvents.push(id);
-      }
+    if (this.stepLoopId !== null) {
+      Tone.Transport.clear(this.stepLoopId);
+      this.stepLoopId = null;
     }
 
-    const totalDuration = totalSteps * sixteenthNote;
-    const stopId = Tone.Transport.schedule(() => {
-      this.stop();
-    }, totalDuration);
-    this.scheduledEvents.push(stopId);
+    this.isPlaying = true;
+    let stepCounter = 0;
 
+    this.stepLoopId = Tone.Transport.scheduleRepeat((time) => {
+      const patternStep = stepCounter % stepsPerBar;
+
+      if (drumPattern.kick[patternStep]) {
+        this.drumSynth?.triggerAttackRelease('C1', '8n', time);
+      }
+
+      if (drumPattern.snare[patternStep]) {
+        this.noiseSynth?.triggerAttackRelease('16n', time);
+      }
+
+      if (drumPattern.hat[patternStep]) {
+        this.metalSynth?.triggerAttackRelease('32n', time, 0.3);
+      }
+
+      const bassStep = stepCounter % bassPattern.length;
+      if (bassPattern[bassStep]) {
+        this.bassSynth?.triggerAttackRelease(bassNote, '8n', time);
+      }
+
+      if (patternStep === 0) {
+        this.synth?.triggerAttackRelease(chordNotes, '2n', time, 0.4);
+      }
+
+      stepCounter += 1;
+      if (!shouldLoop && stepCounter >= maxBars * stepsPerBar) {
+        this.stop();
+      }
+    }, '16n');
+
+    Tone.Transport.position = 0;
     Tone.Transport.start();
   }
 

@@ -2,7 +2,6 @@ import { useState, createContext, useEffect } from "react";
 import { useLocation } from "wouter";
 import Header from "@/components/studio/Header";
 import TransportControls from "@/components/studio/TransportControls";
-import GlobalTransportBar from "@/components/studio/GlobalTransportBar";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import MobileNav from "@/components/studio/MobileNav";
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -10,7 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // PlaylistManager integrated into TransportControls
 import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
-import { TransportProvider } from "@/contexts/TransportContext";
+import { TransportProvider, useTransport } from "@/contexts/TransportContext";
 import {
   DEFAULT_STUDIO_TAB,
   getStudioTabById,
@@ -54,7 +53,7 @@ export const StudioAudioContext = createContext({
   stopFullSong: () => {},
 });
 
-export default function Studio() {
+function StudioLayout() {
   const [location] = useLocation();
 
   const [activeTab, setActiveTab] = useState<StudioTabId>(() =>
@@ -74,10 +73,10 @@ export default function Studio() {
   const [currentUploadedSong, setCurrentUploadedSong] = useState<any>(null);
   const [uploadedSongAudio, setUploadedSongAudio] = useState<HTMLAudioElement | null>(null);
   const [isStudioPlaying, setIsStudioPlaying] = useState(false);
-  const [studioBpm, setStudioBpm] = useState(120);
   const [playMode, setPlayMode] = useState<'current' | 'all'>('current'); // New play mode state
   const [currentPlaylist, setCurrentPlaylist] = useState<any>(null); // Current active playlist
   const [currentPlaylistIndex, setCurrentPlaylistIndex] = useState(0); // Current song in playlist
+  const { tempo, setTempo: setTransportTempo } = useTransport();
   
   // Handler to set uploaded song and audio element
   const handleSetCurrentUploadedSong = (song: any, audio: HTMLAudioElement | null) => {
@@ -174,7 +173,7 @@ export default function Studio() {
           layers: currentLayers,
           playlist: currentPlaylist,
           playlistIndex: currentPlaylistIndex,
-          bpm: studioBpm
+          bpm: tempo
         }
       }));
     }
@@ -215,7 +214,7 @@ export default function Studio() {
     currentUploadedSong,
     uploadedSongAudio,
     isPlaying: isStudioPlaying,
-    bpm: studioBpm,
+    bpm: tempo,
     playMode,
     setPlayMode,
     activeTab,
@@ -230,7 +229,7 @@ export default function Studio() {
     setCurrentLayers,
     setCurrentTracks,
     setCurrentUploadedSong: handleSetCurrentUploadedSong,
-    setBpm: setStudioBpm,
+    setBpm: setTransportTempo,
     setCurrentKey,
     playCurrentAudio,
     stopCurrentAudio,
@@ -259,42 +258,53 @@ export default function Studio() {
   };
 
   return (
+    <StudioAudioContext.Provider value={studioAudioValue}>
+      <div className="studio-container h-screen flex bg-studio-bg text-white pb-16">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header />
+
+          {/* Quick-access transport/navigation for tests and keyboard users */}
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-800 flex-wrap" role="navigation">
+            <button className="px-3 py-2 rounded bg-purple-600 play-button">Play</button>
+            <button className="px-3 py-2 rounded bg-slate-700 stop-button">Stop</button>
+            <button
+              className="px-3 py-2 rounded bg-cyan-700 text-sm hover:bg-cyan-600 transition"
+              data-testid="tab-code-to-music"
+              onClick={() => setActiveTab('codebeat')}
+            >
+              Code to Music
+            </button>
+            <span data-testid="credits-balance" className="text-sm text-slate-300">
+              Credits: 0
+            </span>
+          </div>
+
+          {/* Main content area - add bottom padding for GlobalTransportBar */}
+          <div className="flex-1 overflow-x-auto overflow-y-auto pb-20 md:pb-20 bg-studio-bg">
+            <div className="min-w-[1600px] p-3 md:p-6 studio-content bg-studio-bg">
+              {renderTabContent()}
+            </div>
+          </div>
+
+          <TransportControls currentTool={activeTabConfig?.shortName ?? "Studio"} activeTab={activeTab} />
+        </div>
+
+        {/* Mobile Bottom Navigation */}
+        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {/* iOS Audio Enable Button */}
+        <IOSAudioEnable />
+      </div>
+    </StudioAudioContext.Provider>
+  );
+}
+
+export default function Studio() {
+  const DEFAULT_BPM = 120;
+  return (
     <AIMessageProvider>
-      <TransportProvider initialTempo={studioBpm}>
-        <StudioAudioContext.Provider value={studioAudioValue}>
-          {/* Global Transport Bar - Fixed at bottom, outside main layout */}
-          <GlobalTransportBar />
-          
-          <div className="h-screen flex bg-studio-bg text-white pb-16">
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header />
-            
-            {/* Quick-access transport/navigation for tests and keyboard users */}
-            <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-800" role="navigation">
-              <button className="px-3 py-2 rounded bg-purple-600 play-button">Play</button>
-              <button className="px-3 py-2 rounded bg-slate-700 stop-button">Stop</button>
-              <span data-testid="credits-balance" className="text-sm text-slate-300">
-                Credits: 0
-              </span>
-            </div>
-            
-            {/* Main content area - add bottom padding for GlobalTransportBar */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto pb-20 md:pb-20 bg-studio-bg">
-              <div className="min-w-[1600px] p-3 md:p-6 studio-content bg-studio-bg">
-                {renderTabContent()}
-              </div>
-            </div>
-            
-            <TransportControls currentTool={activeTabConfig?.shortName ?? "Studio"} activeTab={activeTab} />
-          </div>
-          
-          {/* Mobile Bottom Navigation */}
-          <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
-          
-          {/* iOS Audio Enable Button */}
-          <IOSAudioEnable />
-          </div>
-        </StudioAudioContext.Provider>
+      <TransportProvider initialTempo={DEFAULT_BPM}>
+        <StudioLayout />
       </TransportProvider>
     </AIMessageProvider>
   );

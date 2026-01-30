@@ -44,6 +44,8 @@ const DEFAULT_SAFETY_CONFIG: SafetyConfig = {
 /**
  * Validate AI output for correctness and safety
  */
+const MAX_SEQUENCE_STEPS = 64;
+
 export function validateAIOutput(output: any, genre?: string): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -93,18 +95,30 @@ export function validateAIOutput(output: any, genre?: string): ValidationResult 
   }
 
   // 4. Validate Arrays (chords, melody, drums, bass)
-  const arrayFields = ['chords', 'melody', 'drums', 'bass'];
-  arrayFields.forEach(field => {
-    if (output[field] !== undefined) {
-      if (!Array.isArray(output[field])) {
-        errors.push(`${field} must be an array, got ${typeof output[field]}`);
-      } else if (output[field].length === 0) {
-        warnings.push(`${field} array is empty`);
-      } else if (output[field].length > 1000) {
-        warnings.push(`${field} array is very large (${output[field].length} items)`);
-        // Truncate to prevent memory issues
-        sanitizedOutput[field] = output[field].slice(0, 1000);
-      }
+  const sequenceValidations: SequenceValidationConfig[] = [
+    { field: 'drums', minItems: 4, requireType: true },
+    { field: 'bass', minItems: 2, requireNote: true, requireDuration: true },
+    { field: 'chords', minItems: 2, requireNotesArray: true, requireDuration: true },
+    { field: 'melody', minItems: 2, requireNote: true, requireDuration: true },
+  ];
+
+  sequenceValidations.forEach((config) => {
+    const rawValue = (output as any)?.[config.field];
+    const { events, errors: seqErrors, warnings: seqWarnings } = sanitizeSequenceEvents(
+      config.field,
+      rawValue,
+      config,
+    );
+
+    if (seqErrors.length) {
+      errors.push(...seqErrors);
+    }
+    if (seqWarnings.length) {
+      warnings.push(...seqWarnings);
+    }
+
+    if (Array.isArray(events)) {
+      (sanitizedOutput as any)[config.field] = events;
     }
   });
 
@@ -381,4 +395,221 @@ export function detectErraticBehavior(outputs: AIOutput[]): boolean {
   }
 
   return false;
+}
+
+interface SequenceValidationConfig {
+  field: 'drums' | 'bass' | 'chords' | 'melody';
+  minItems?: number;
+  maxStep?: number;
+  requireDuration?: boolean;
+  requireNote?: boolean;
+  requireNotesArray?: boolean;
+  requireType?: boolean;
+}
+
+interface SequenceValidationResult {
+  events: any[];
+  errors: string[];
+  warnings: string[];
+}
+
+function sanitizeSequenceEvents(
+  field: SequenceValidationConfig['field'],
+  value: any,
+  config: SequenceValidationConfig,
+): SequenceValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (value === undefined) {
+    errors.push(`${field} data is missing`);
+    return { events: [], errors, warnings };
+  }
+
+  if (!Array.isArray(value)) {
+    errors.push(`${field} must be an array, got ${typeof value}`);
+    return { events: [], errors, warnings };
+  }
+
+  const sanitized: any[] = [];
+  const maxStep = config.maxStep ?? MAX_SEQUENCE_STEPS;
+
+  value.forEach((event, index) => {
+    const normalized = coerceSequenceEvent(event, field, index, maxStep);
+    if (!normalized) {
+      warnings.push(`${field}[${index}] is not an object, discarding`);
+      return;
+    }
+
+    const sanitizedEvent: any = { ...normalized };
+    const step = Number(sanitizedEvent.step);
+    sanitizedEvent.step = Number.isFinite(step) && step >= 0 && step < maxStep
+      ? Math.floor(step)
+      : defaultStepForIndex(index, maxStep);
+
+    if (config.requireDuration) {
+      const duration = Number(sanitizedEvent.duration);
+      sanitizedEvent.duration = Number.isFinite(duration) && duration > 0
+        ? duration
+        : defaultDurationForField(field);
+    }
+
+    if (config.requireNote) {
+      const note = deriveNoteValue(sanitizedEvent.note);
+      if (note === null) {
+        warnings.push(`${field}[${index}] missing numeric note`);
+        return;
+      }
+      sanitizedEvent.note = note;
+    }
+
+    if (config.requireNotesArray) {
+      const notes = deriveChordNotes(sanitizedEvent.notes, sanitizedEvent.note);
+      if (!notes.length) {
+        warnings.push(`${field}[${index}] missing chord notes`);
+        return;
+      }
+      sanitizedEvent.notes = notes;
+    }
+
+    if (config.requireType) {
+      const type = typeof sanitizedEvent.type === 'string' && sanitizedEvent.type.trim().length
+        ? sanitizedEvent.type.trim()
+        : inferDrumType(field, index);
+      sanitizedEvent.type = type;
+    }
+
+    sanitized.push(sanitizedEvent);
+  });
+
+  if (sanitized.length > 1000) {
+    warnings.push(`${field} array is very large (${sanitized.length} items); truncating to 1000`);
+  }
+
+  const minItems = config.minItems ?? 1;
+  if (sanitized.length < minItems) {
+    errors.push(`${field} needs at least ${minItems} valid events (got ${sanitized.length})`);
+  }
+
+  return {
+    events: sanitized.slice(0, 1000),
+    errors,
+    warnings,
+  };
+}
+
+function coerceSequenceEvent(
+  rawValue: any,
+  field: SequenceValidationConfig['field'],
+  index: number,
+  maxStep: number,
+): Record<string, unknown> | null {
+  if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+    return rawValue;
+  }
+
+  if (Array.isArray(rawValue)) {
+    const [maybeStep, maybeValue, maybeDuration] = rawValue;
+    return {
+      step: Number.isFinite(maybeStep) ? Number(maybeStep) : defaultStepForIndex(index, maxStep),
+      ...(field === 'drums' ? { type: maybeValue } : {}),
+      ...(field === 'chords' ? { notes: Array.isArray(maybeValue) ? maybeValue : [maybeValue] } : { note: maybeValue }),
+      duration: Number.isFinite(maybeDuration) && maybeDuration > 0
+        ? maybeDuration
+        : defaultDurationForField(field),
+    };
+  }
+
+  if (typeof rawValue === 'string') {
+    if (field === 'drums') {
+      return { type: rawValue, step: defaultStepForIndex(index, maxStep), duration: 1 };
+    }
+    const noteValue = field === 'chords' ? parseChordNotes(rawValue) : rawValue;
+    return {
+      step: defaultStepForIndex(index, maxStep),
+      ...(field === 'chords' ? { notes: noteValue } : { note: noteValue }),
+      duration: defaultDurationForField(field),
+    };
+  }
+
+  if (typeof rawValue === 'number' && field !== 'drums') {
+    return {
+      step: defaultStepForIndex(index, maxStep),
+      note: rawValue,
+      duration: defaultDurationForField(field),
+    };
+  }
+
+  return null;
+}
+
+function deriveNoteValue(raw: any): number | null {
+  if (Number.isFinite(raw)) return Math.floor(Number(raw));
+  if (typeof raw === 'string') {
+    const midi = noteNameToMidi(raw);
+    return midi;
+  }
+  return null;
+}
+
+function deriveChordNotes(rawNotes: any, fallbackNote: any): number[] {
+  const source = Array.isArray(rawNotes)
+    ? rawNotes
+    : typeof rawNotes === 'string'
+      ? parseChordNotes(rawNotes)
+      : fallbackNote !== undefined
+        ? [fallbackNote]
+        : [];
+
+  return source
+    .map((value) => {
+      if (Number.isFinite(value)) return Math.floor(Number(value));
+      if (typeof value === 'string') return noteNameToMidi(value);
+      return null;
+    })
+    .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+}
+
+function parseChordNotes(text: string): string[] {
+  return text
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function noteNameToMidi(note: string): number | null {
+  const match = note.trim().match(/^([A-Ga-g])([#b]?)(\d+)?$/);
+  if (!match) return null;
+  const [, letter, accidental, octaveStr] = match;
+  const baseMap: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+  let value = baseMap[letter.toLowerCase()];
+  if (accidental === '#') value += 1;
+  if (accidental === 'b') value -= 1;
+  const octave = Number(octaveStr ?? '4');
+  return 12 * (octave + 1) + value;
+}
+
+function inferDrumType(field: string, index: number): string {
+  if (field !== 'drums') return 'perc';
+  if (index % 16 === 0) return 'kick';
+  if (index % 8 === 4) return 'snare';
+  return 'hihat';
+}
+
+function defaultDurationForField(field: string): number {
+  switch (field) {
+    case 'bass':
+      return 4;
+    case 'chords':
+      return 4;
+    case 'melody':
+      return 1;
+    default:
+      return 1;
+  }
+}
+
+function defaultStepForIndex(index: number, maxStep: number): number {
+  const step = index % maxStep;
+  return step;
 }

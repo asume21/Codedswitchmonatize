@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Sparkles, Dice1, Play, Pause, Download,
   Loader2, Package, Headphones, Music, DatabaseIcon,
@@ -17,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
 import { packSynthesizer } from "@/lib/packAudioSynthesizer";
 import { professionalAudio } from "@/lib/professionalAudio";
+import { getAudioContext } from "@/lib/audioContext";
 import { apiRequest } from "@/lib/queryClient";
 
 const PACK_HISTORY_KEY = "pack-generator-history";
@@ -48,6 +50,101 @@ interface GeneratedPack {
     instruments: string[];
     tags: string[];
   };
+}
+
+async function renderPremixedPackAudio(urls: string[]): Promise<string> {
+  if (!urls.length) throw new Error('No audio urls to premix');
+  const sharedCtx = getAudioContext();
+  const buffers = [] as AudioBuffer[];
+  for (const url of urls) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sample ${url}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const decoded = await sharedCtx.decodeAudioData(arrayBuffer.slice(0));
+    buffers.push(decoded);
+  }
+
+  if (!buffers.length) {
+    throw new Error('No buffers decoded for premix');
+  }
+
+  const baseSampleRate = buffers[0].sampleRate;
+  const maxFrames = Math.max(...buffers.map((buffer) => buffer.length));
+  const offline = new OfflineAudioContext(2, maxFrames, baseSampleRate);
+
+  buffers.forEach((buffer) => {
+    const source = offline.createBufferSource();
+    const stereoBuffer = ensureStereoBuffer(buffer, offline);
+    source.buffer = stereoBuffer;
+    source.connect(offline.destination);
+    source.start(0);
+  });
+
+  const mixed = await offline.startRendering();
+  const wavBlob = audioBufferToWav(mixed);
+  return URL.createObjectURL(wavBlob);
+}
+
+function ensureStereoBuffer(buffer: AudioBuffer, context: OfflineAudioContext): AudioBuffer {
+  if (buffer.numberOfChannels >= 2) {
+    return buffer;
+  }
+  const stereo = context.createBuffer(2, buffer.length, buffer.sampleRate);
+  const monoData = buffer.getChannelData(0);
+  stereo.copyToChannel(monoData, 0);
+  stereo.copyToChannel(monoData, 1);
+  return stereo;
+}
+
+function audioBufferToWav(buffer: AudioBuffer): Blob {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataLength = buffer.length * blockAlign;
+  const bufferLength = 44 + dataLength;
+  const arrayBuffer = new ArrayBuffer(bufferLength);
+  const view = new DataView(arrayBuffer);
+
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  let offset = 44;
+  const channelData: Float32Array[] = [];
+  for (let channel = 0; channel < numChannels; channel++) {
+    channelData[channel] = buffer.getChannelData(channel);
+  }
+
+  for (let i = 0; i < buffer.length; i++) {
+    for (let channel = 0; channel < numChannels; channel++) {
+      const sample = Math.max(-1, Math.min(1, channelData[channel][i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += bytesPerSample;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
+
+function writeString(view: DataView, offset: number, text: string) {
+  for (let i = 0; i < text.length; i++) {
+    view.setUint8(offset + i, text.charCodeAt(i));
+  }
 }
 
 const RANDOM_PROMPTS = [
@@ -124,6 +221,9 @@ export default function PackGenerator() {
   const { toast } = useToast();
   const { addTrack } = useTracks();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playlistRef = useRef<{ urls: string[]; index: number } | null>(null);
+  const premixCacheRef = useRef<Map<string, string>>(new Map());
+  const premixInFlightRef = useRef<Map<string, Promise<string>>>(new Map());
   
   const [packHistory, setPackHistory] = useState<GeneratedPack[]>(() => {
     if (typeof window !== 'undefined') {
@@ -156,6 +256,31 @@ export default function PackGenerator() {
       localStorage.setItem(PACK_HISTORY_KEY, JSON.stringify(updated));
     }
   }, [packHistory]);
+
+  const getPremixedPackUrl = useCallback(async (packId: string, urls: string[]) => {
+    if (!urls.length) return null;
+    const cacheKey = `${packId}:${urls.join('|')}`;
+    const cached = premixCacheRef.current.get(cacheKey);
+    if (cached) return cached;
+
+    const inFlight = premixInFlightRef.current.get(cacheKey);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const premixPromise = (async () => {
+      const url = await renderPremixedPackAudio(urls);
+      premixCacheRef.current.set(cacheKey, url);
+      premixInFlightRef.current.delete(cacheKey);
+      return url;
+    })().catch((error) => {
+      premixInFlightRef.current.delete(cacheKey);
+      throw error;
+    });
+
+    premixInFlightRef.current.set(cacheKey, premixPromise);
+    return premixPromise;
+  }, []);
   
   const toggleFavorite = (packId: string) => {
     setFavorites(prev => {
@@ -230,9 +355,11 @@ export default function PackGenerator() {
 
   const stopPreview = () => {
     if (audioRef.current) {
+      audioRef.current.onended = null;
       audioRef.current.pause();
       audioRef.current = null;
     }
+    playlistRef.current = null;
     packSynthesizer.stop();
     setPlayingPack(null);
   };
@@ -241,6 +368,8 @@ export default function PackGenerator() {
     return () => {
       stopPreview();
       packSynthesizer.dispose();
+      premixCacheRef.current.forEach((url) => URL.revokeObjectURL(url));
+      premixCacheRef.current.clear();
     };
   }, []);
 
@@ -299,6 +428,40 @@ export default function PackGenerator() {
     toast({ title: "Sent to timeline" });
   };
 
+  const startSamplePlaylist = (urls: string[], volume: number, onFallback: () => void) => {
+    if (!urls.length) return false;
+
+    const playAt = (index: number) => {
+      if (!playlistRef.current) return;
+      const clampedIndex = index % urls.length;
+      const nextAudio = new Audio(urls[clampedIndex]);
+      nextAudio.volume = volume;
+      nextAudio.loop = urls.length === 1;
+      nextAudio.onended = () => {
+        if (!playlistRef.current) return;
+        playAt((clampedIndex + 1) % urls.length);
+      };
+      nextAudio.onerror = () => {
+        if (!playlistRef.current) return;
+        if (clampedIndex === (playlistRef.current?.index ?? 0)) {
+          onFallback();
+        } else {
+          playAt((clampedIndex + 1) % urls.length);
+        }
+      };
+      audioRef.current = nextAudio;
+      playlistRef.current.index = clampedIndex;
+      nextAudio.play().catch(() => {
+        if (!playlistRef.current) return;
+        playAt((clampedIndex + 1) % urls.length);
+      });
+    };
+
+    playlistRef.current = { urls, index: 0 };
+    playAt(0);
+    return true;
+  };
+
   const handlePlayPack = async (pack: GeneratedPack) => {
     if (playingPack === pack.id) {
       stopPreview();
@@ -311,16 +474,35 @@ export default function PackGenerator() {
     const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === 'instruments' || ch.name.toLowerCase() === 'instruments');
     packSynthesizer.setTargetNode(mixerChannel?.input || null);
 
-    const sampleWithAudio = pack.samples.find((sample) => sample.audioUrl);
-    if (sampleWithAudio?.audioUrl) {
-      const audio = new Audio(sampleWithAudio.audioUrl);
-      audio.volume = (previewVolume[0] ?? 75) / 100;
-      audioRef.current = audio;
-      audio.onended = () => stopPreview();
-      audio.play().catch(() => packSynthesizer.playPack(pack, (previewVolume[0] ?? 75) / 100));
-    } else {
-      await packSynthesizer.playPack(pack, (previewVolume[0] ?? 75) / 100);
+    const audioUrls = pack.samples.map((sample) => sample.audioUrl).filter((url): url is string => Boolean(url));
+    const volume = (previewVolume[0] ?? 75) / 100;
+
+    if (audioUrls.length) {
+      try {
+        const premixUrl = await getPremixedPackUrl(pack.id, audioUrls);
+        if (premixUrl) {
+          const audio = new Audio(premixUrl);
+          audio.loop = true;
+          audio.volume = volume;
+          audioRef.current = audio;
+          audio.play().catch(() => {
+            playlistRef.current = null;
+            packSynthesizer.playPack(pack, volume, { loop: true }).catch(() => stopPreview());
+          });
+          return;
+        }
+      } catch (premixError) {
+        console.warn('Premix generation failed, falling back to playlist preview', premixError);
+      }
+
+      const started = startSamplePlaylist(audioUrls, volume, () => {
+        playlistRef.current = null;
+        packSynthesizer.playPack(pack, volume, { loop: true }).catch(() => stopPreview());
+      });
+      if (started) return;
     }
+
+    await packSynthesizer.playPack(pack, volume, { loop: true });
   };
 
   const handleDownloadPack = (pack: GeneratedPack) => {

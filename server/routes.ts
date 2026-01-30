@@ -856,7 +856,7 @@ Return ONLY valid JSON:
           "Authorization": `Token ${token}`,
         },
         body: JSON.stringify({
-          version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+          version: "2b5dc5f29cee83fd5cdf8f9c92e555aae7ca2a69b73c5182f3065362b2fa0a45",
           input: {
             prompt: prompt,
             duration: Math.min(duration, 30),
@@ -1119,7 +1119,7 @@ Return ONLY valid JSON:
           "Authorization": `Token ${token}`,
         },
         body: JSON.stringify({
-          version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
+          version: "2b5dc5f29cee83fd5cdf8f9c92e555aae7ca2a69b73c5182f3065362b2fa0a45",
           input: {
             prompt: prompt,
             duration: 15,

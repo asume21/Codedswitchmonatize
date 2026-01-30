@@ -1,7 +1,7 @@
 // client/src/components/ai/AstutelyPanel.tsx
 // ASTUTELY - The AI that makes beats legendary
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
 import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2, MoveDiagonal2 } from 'lucide-react';
 import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +9,10 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useTransport } from '@/contexts/TransportContext';
+import { StudioAudioContext } from '@/pages/studio';
+import { AudioPremixCache } from '@/lib/audioPremix';
+import { professionalAudio } from '@/lib/professionalAudio';
+import type { Song } from '../../../../shared/schema';
 
 const styles = [
   { name: "Travis Scott rage", icon: "🔥", preview: "808s + dark pads" },
@@ -47,7 +51,48 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const [songAnalysis, setSongAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
-  const { play: playTransport, seek, setTempo: setTransportTempo } = useTransport();
+  const { play: playTransport, seek, setTempo: setTransportTempo, timeSignature, tempo: transportTempo } = useTransport();
+  const studioContext = useContext(StudioAudioContext);
+
+  const currentKey = studioContext?.currentKey ?? 'C';
+  const premixCacheRef = useRef(new AudioPremixCache());
+  const inFlightPremixRef = useRef<Map<string, Promise<string | null>>>(new Map());
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  const trackSummaries = useMemo(() => {
+    if (!studioContext || !Array.isArray(studioContext.currentTracks)) {
+      return [] as {
+        id?: string;
+        name?: string;
+        instrument?: string;
+        type?: string;
+        notes?: number;
+        muted?: boolean;
+        volume?: number;
+      }[];
+    }
+
+    return studioContext.currentTracks.slice(0, 12).map((track: any) => {
+      const payload = track?.payload ?? {};
+      const notesLength = Array.isArray(track?.notes)
+        ? track.notes.length
+        : Array.isArray(payload?.notes)
+          ? payload.notes.length
+          : undefined;
+
+      return {
+        id: track?.id ?? payload?.id,
+        name: track?.name ?? payload?.name,
+        instrument: track?.instrument ?? payload?.instrument,
+        type: track?.type ?? payload?.type ?? track?.kind,
+        notes: typeof notesLength === 'number' ? notesLength : undefined,
+        muted: typeof track?.muted === 'boolean' ? track.muted : undefined,
+        volume: typeof track?.volume === 'number'
+          ? track.volume
+          : (typeof payload?.volume === 'number' ? payload.volume : undefined),
+      };
+    }).filter(summary => summary.name || summary.instrument || summary.type);
+  }, [studioContext]);
 
   const focusAstutelyTrack = (notes: ReturnType<typeof astutelyToNotes>) => {
     const priorityOrder: Array<keyof typeof ASTUTELY_CHANNEL_MAPPING> = ['melody', 'chords', 'bass', 'drums'];
@@ -86,9 +131,6 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const { data: songs = [] } = useQuery<any[]>({
     queryKey: ['/api/songs'],
   });
-
-  // Get selected song object
-  const selectedSong = songs.find(s => s.id.toString() === selectedSongId);
 
   // Handle Escape key
   useEffect(() => {
@@ -143,8 +185,54 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     }
   };
 
-  const handlePlayPause = () => {
-    const song = songs.find(s => s.id.toString() === selectedSongId);
+  const resolvePlaybackUrl = useCallback(async (song: Song, baseUrl: string) => {
+    const separatedStemsStorage = sessionStorage.getItem('separated_stems');
+    const routedStemSource = sessionStorage.getItem('separated_stems_source');
+    const stemSourceMatchesSelection = routedStemSource && (routedStemSource === song.name || routedStemSource === song.id?.toString());
+    const stemUrls: string[] = [];
+
+    if (separatedStemsStorage && stemSourceMatchesSelection) {
+      try {
+        const parsed = JSON.parse(separatedStemsStorage);
+        Object.values(parsed).forEach((url) => {
+          if (typeof url === 'string' && url.length) {
+            stemUrls.push(url);
+          }
+        });
+      } catch (error) {
+        console.warn('Failed to parse cached stems for Astutely song playback', error);
+      }
+    }
+
+    const targetUrls = stemUrls.length ? stemUrls : [baseUrl];
+    const cacheKey = `${song.id ?? baseUrl}:${targetUrls.join('|')}`;
+
+    if (!inFlightPremixRef.current.has(cacheKey)) {
+      inFlightPremixRef.current.set(
+        cacheKey,
+        premixCacheRef.current
+          .getOrCreate(cacheKey, targetUrls)
+          .catch((err: unknown) => {
+            console.warn('Astutely song premix failed', err);
+            return null;
+          })
+      );
+    }
+
+    const premixed = await inFlightPremixRef.current.get(cacheKey)!;
+    inFlightPremixRef.current.delete(cacheKey);
+    return premixed ?? baseUrl;
+  }, []);
+
+  const selectedSong = useMemo(() => {
+    if (!Array.isArray(songs) || !selectedSongId || selectedSongId === 'none') {
+      return undefined;
+    }
+    return songs.find((s) => s.id?.toString() === selectedSongId);
+  }, [songs, selectedSongId]);
+
+  const handlePlayPause = useCallback(async () => {
+    const song = selectedSong as Song | undefined;
     if (!song) {
       toast({
         title: 'No Song Selected',
@@ -154,7 +242,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       return;
     }
 
-    const audioUrl = song.accessibleUrl || song.originalUrl || song.songURL;
+    const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
     if (!audioUrl) {
       toast({
         title: 'No Audio URL',
@@ -164,9 +252,17 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       return;
     }
 
-    if (!audioElement) {
-      const audio = new Audio(audioUrl);
+    if (audioElement && isPlaying) {
+      audioElement.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    let targetAudio = audioElement;
+    if (!targetAudio) {
+      const audio = new Audio();
       audio.crossOrigin = 'anonymous';
+      audio.preload = 'auto';
       audio.onended = () => setIsPlaying(false);
       audio.onerror = () => {
         toast({
@@ -177,22 +273,41 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
         setIsPlaying(false);
       };
       setAudioElement(audio);
-      audio.play();
+      targetAudio = audio;
+    }
+
+    try {
+      const playbackUrl = await resolvePlaybackUrl(song, audioUrl);
+      targetAudio.pause();
+      targetAudio.src = playbackUrl;
+      targetAudio.currentTime = 0;
+
+      if (!audioSourceRef.current) {
+        await professionalAudio.initialize();
+        const audioCtx = professionalAudio.getAudioContext();
+        const masterBus = professionalAudio.getMasterBus();
+        if (audioCtx && masterBus) {
+          audioSourceRef.current = audioCtx.createMediaElementSource(targetAudio);
+          audioSourceRef.current.connect(masterBus);
+        }
+      }
+
+      await targetAudio.play();
       setIsPlaying(true);
       toast({
         title: '🎵 Now Playing',
         description: song.name || 'Song'
       });
-    } else {
-      if (isPlaying) {
-        audioElement.pause();
-        setIsPlaying(false);
-      } else {
-        audioElement.play();
-        setIsPlaying(true);
-      }
+    } catch (error) {
+      console.error('Astutely playback failed', error);
+      setIsPlaying(false);
+      toast({
+        title: 'Playback Error',
+        description: 'Failed to start audio playback',
+        variant: 'destructive'
+      });
     }
-  };
+  }, [audioElement, isPlaying, resolvePlaybackUrl, selectedSong, toast]);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -203,10 +318,26 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     const interval = setInterval(() => setProgress(p => Math.min(p + 15, 90)), 300);
 
     try {
-      const result = await astutelyGenerate(selectedStyle.name);
+      const trimmedPrompt = query.trim();
+      const result = await astutelyGenerate({
+        style: selectedStyle.name,
+        prompt: trimmedPrompt.length ? trimmedPrompt : undefined,
+        tempo: transportTempo,
+        timeSignature,
+        key: currentKey,
+        trackSummaries,
+      });
       clearInterval(interval);
       setProgress(100);
       setGeneratedResult(result);
+
+      if (result.meta?.usedFallback || result.isFallback) {
+        toast({
+          title: '⚠️ Using Offline Template',
+          description: 'Astutely could not reach the live AI provider and returned a safety pattern. Start the local Phi3 server or add your XAI/OpenAI keys for fresh generations.',
+          variant: 'destructive',
+        });
+      }
 
       // Convert to timeline notes
       const notes = astutelyToNotes(result);

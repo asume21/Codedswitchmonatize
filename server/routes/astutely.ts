@@ -1,29 +1,58 @@
 import { Router, Request, Response } from 'express';
 import { unifiedMusicService } from '../services/unifiedMusicService';
-import { makeAICall } from '../services/grok';
+import { makeAICall, getAIProviderStatus, performAIProviderSelfTest } from '../services/grok';
 import { localAI, makeLocalAICall } from '../services/localAI';
 import { getGenreSpec } from '../ai/knowledge/genreDatabase';
 import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety/aiSafeguards';
 import { enhancePromptWithMusicTheory, getProgressionsForGenre } from '../ai/knowledge/musicTheory';
 import { buildAstutelyPrompt } from '../ai/prompts/astutelyPrompt';
 import { logPromptStart, logPromptResult } from '../ai/utils/promptLogger';
+import { generateAstutelyFallback } from '../../shared/astutelyFallback';
 
 const router = Router();
 
 // Astutely — the real AI music generation endpoint
 router.post('/astutely', async (req: Request, res: Response) => {
-  const { style, prompt = '' } = req.body;
+  const { style, prompt = '', tempo, timeSignature, key, trackSummaries } = req.body;
 
   if (!style) {
     return res.status(400).json({ error: 'Style is required' });
   }
+
+  const normalizedTimeSignature = timeSignature && typeof timeSignature === 'object'
+    ? {
+        numerator: Math.max(1, Math.min(16, Number(timeSignature.numerator) || 4)),
+        denominator: Math.max(1, Math.min(16, Number(timeSignature.denominator) || 4)),
+      }
+    : undefined;
+
+  const normalizedTempo = typeof tempo === 'number' && Number.isFinite(tempo) ? tempo : undefined;
+  const normalizedKey = typeof key === 'string' && key.trim().length > 0 ? key.trim() : undefined;
+  const normalizedTracks = Array.isArray(trackSummaries)
+    ? trackSummaries
+        .filter((track) => track && typeof track === 'object')
+        .map((track) => ({
+          id: typeof track.id === 'string' ? track.id : undefined,
+          name: typeof track.name === 'string' ? track.name : undefined,
+          instrument: typeof track.instrument === 'string' ? track.instrument : undefined,
+          type: typeof track.type === 'string' ? track.type : undefined,
+          notes: typeof track.notes === 'number' ? track.notes : undefined,
+          muted: typeof track.muted === 'boolean' ? track.muted : undefined,
+          volume: typeof track.volume === 'number' ? track.volume : undefined,
+        }))
+    : undefined;
 
   try {
     // Sanitize user input for security
     const safePrompt = sanitizePrompt(prompt);
     
     // Build enhanced prompt package (genre + insights + theory)
-    const promptPackage = buildAstutelyPrompt(style, safePrompt);
+    const promptPackage = buildAstutelyPrompt(style, safePrompt, {
+      tempo: normalizedTempo,
+      timeSignature: normalizedTimeSignature,
+      key: normalizedKey,
+      tracks: normalizedTracks,
+    });
     const { systemPrompt, userPrompt, metadata } = promptPackage;
     const genreSpec = getGenreSpec(style);
     const progressions = getProgressionsForGenre(style);
@@ -76,6 +105,12 @@ router.post('/astutely', async (req: Request, res: Response) => {
         
         const content = response.choices?.[0]?.message?.content || '{}';
         const parsed = JSON.parse(content);
+        if (!parsed.timeSignature && normalizedTimeSignature) {
+          parsed.timeSignature = normalizedTimeSignature;
+        }
+        if (!parsed.bpm && normalizedTempo) {
+          parsed.bpm = normalizedTempo;
+        }
         const duration = Date.now() - startTime;
         logPromptResult(promptHash, {
           feature: 'astutely-beat',
@@ -100,43 +135,12 @@ router.post('/astutely', async (req: Request, res: Response) => {
       (output) => validateAIOutput(output, style),
       
       // Fallback generator
-      () => {
-        const fallbackBPM = genreSpec ? genreSpec.bpmRange[0] : 120;
-        const fallbackKey = genreSpec ? genreSpec.preferredKeys[0] : "C Minor";
-        
-        return {
-          style,
-          bpm: fallbackBPM,
-          key: fallbackKey,
-          drums: [
-            { step: 0, type: "kick" }, { step: 4, type: "snare" },
-            { step: 8, type: "kick" }, { step: 12, type: "snare" },
-            { step: 16, type: "kick" }, { step: 20, type: "snare" },
-            { step: 24, type: "kick" }, { step: 28, type: "snare" },
-            { step: 2, type: "hihat" }, { step: 6, type: "hihat" },
-            { step: 10, type: "hihat" }, { step: 14, type: "hihat" }
-          ],
-          bass: [
-            { step: 0, note: 36, duration: 4 },
-            { step: 16, note: 36, duration: 4 },
-            { step: 32, note: 38, duration: 4 },
-            { step: 48, note: 36, duration: 4 }
-          ],
-          chords: [
-            { step: 0, notes: [60, 63, 67], duration: 16 },
-            { step: 16, notes: [58, 62, 65], duration: 16 },
-            { step: 32, notes: [55, 58, 62], duration: 16 },
-            { step: 48, notes: [53, 57, 60], duration: 16 }
-          ],
-          melody: [
-            { step: 0, note: 72, duration: 2 },
-            { step: 4, note: 74, duration: 2 },
-            { step: 8, note: 75, duration: 4 },
-            { step: 16, note: 72, duration: 2 }
-          ],
-          isFallback: true
-        };
-      },
+      () => generateAstutelyFallback(style, {
+        tempo: normalizedTempo ?? genreSpec?.bpmRange?.[0],
+        key: normalizedKey ?? genreSpec?.preferredKeys?.[0],
+        timeSignature: normalizedTimeSignature ?? { numerator: 4, denominator: 4 },
+        fallbackReason: 'ai_generation_failed'
+      }),
       
       // Config
       { maxRetries: 3, fallbackEnabled: true }
@@ -157,7 +161,25 @@ router.post('/astutely', async (req: Request, res: Response) => {
       console.warn('⚠️ Warnings:', result.warnings);
     }
     
-    return res.json(result.output);
+    const output = {
+      ...result.output,
+      bpm: result.output.bpm ?? normalizedTempo ?? metadata.tempo ?? (genreSpec ? genreSpec.bpmRange[0] : 120),
+      timeSignature: result.output.timeSignature ?? normalizedTimeSignature ?? metadata.timeSignature ?? { numerator: 4, denominator: 4 },
+      key: result.output.key ?? normalizedKey ?? metadata.key ?? (genreSpec ? genreSpec.preferredKeys[0] : 'C Minor'),
+      trackSummaries: normalizedTracks ?? result.output.trackSummaries,
+    } as any;
+
+    const mergedMeta = {
+      ...(output.meta ?? {}),
+      usedFallback: result.usedFallback || output.isFallback || output.meta?.usedFallback,
+      warnings: [...new Set([...(output.meta?.warnings ?? []), ...(result.warnings ?? [])])],
+      aiSource: output.meta?.aiSource || output._aiSource || (result.usedFallback ? 'astutely-fallback' : 'astutely-ai'),
+      attempts: result.attempts,
+    };
+
+    output.meta = mergedMeta;
+
+    return res.json(output);
 
   } catch (error: any) {
     console.error('Astutely AI error, using fallback:', error);
@@ -169,39 +191,12 @@ router.post('/astutely', async (req: Request, res: Response) => {
       warnings: [error.message]
     });
     // Return fallback pattern instead of error - Astutely should always work
-    const fallbackResult = {
-      style,
-      bpm: 120,
-      key: "C Minor",
-      drums: [
-        { step: 0, type: "kick" }, { step: 4, type: "snare" },
-        { step: 8, type: "kick" }, { step: 12, type: "snare" },
-        { step: 16, type: "kick" }, { step: 20, type: "snare" },
-        { step: 24, type: "kick" }, { step: 28, type: "snare" },
-        { step: 2, type: "hihat" }, { step: 6, type: "hihat" },
-        { step: 10, type: "hihat" }, { step: 14, type: "hihat" }
-      ],
-      bass: [
-        { step: 0, note: 36, duration: 4 },
-        { step: 16, note: 36, duration: 4 },
-        { step: 32, note: 38, duration: 4 },
-        { step: 48, note: 36, duration: 4 }
-      ],
-      chords: [
-        { step: 0, notes: [60, 63, 67], duration: 16 },
-        { step: 16, notes: [58, 62, 65], duration: 16 },
-        { step: 32, notes: [55, 58, 62], duration: 16 },
-        { step: 48, notes: [53, 57, 60], duration: 16 }
-      ],
-      melody: [
-        { step: 0, note: 72, duration: 2 },
-        { step: 4, note: 74, duration: 2 },
-        { step: 8, note: 75, duration: 4 },
-        { step: 16, note: 72, duration: 2 }
-      ],
-      isFallback: true,
-      fallbackReason: error.message
-    };
+    const fallbackResult = generateAstutelyFallback(style, {
+      tempo: normalizedTempo,
+      key: normalizedKey,
+      timeSignature: normalizedTimeSignature,
+      fallbackReason: error.message ?? 'astutely_route_error'
+    });
     
     return res.json(fallbackResult);
   }
@@ -214,6 +209,56 @@ router.get('/astutely/status/:predictionId', async (req: Request, res: Response)
     status: 'succeeded', 
     error: null 
   });
+});
+
+router.get('/astutely/provider-status', async (_req: Request, res: Response) => {
+  try {
+    const providerStatus = getAIProviderStatus();
+    let localAvailable: boolean | null = null;
+    try {
+      localAvailable = await localAI.checkAvailability();
+    } catch (error) {
+      console.warn('Local AI availability check failed:', error);
+      localAvailable = false;
+    }
+
+    return res.json({
+      success: true,
+      providers: providerStatus,
+      localAI: {
+        available: localAvailable,
+      }
+    });
+  } catch (error: any) {
+    console.error('Provider status error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/astutely/self-test', async (_req: Request, res: Response) => {
+  try {
+    const localAvailable = await localAI.checkAvailability().catch((error) => {
+      console.warn('Local AI self-test failed:', error);
+      return false;
+    });
+    let cloudResult: any = null;
+    try {
+      cloudResult = await performAIProviderSelfTest();
+    } catch (error: any) {
+      cloudResult = { error: error.message };
+    }
+
+    return res.json({
+      success: true,
+      localAI: {
+        available: localAvailable,
+      },
+      cloud: cloudResult,
+    });
+  } catch (error: any) {
+    console.error('Astutely self-test failed:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 export function createAstutelyRoutes() {

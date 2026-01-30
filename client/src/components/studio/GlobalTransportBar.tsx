@@ -25,12 +25,19 @@ interface TrackChannel {
   color: string;
 }
 
-export default function GlobalTransportBar() {
+interface GlobalTransportBarProps {
+  variant?: 'fixed' | 'inline';
+}
+
+export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTransportBarProps) {
+  const isInline = variant === 'inline';
   const studioContext = useContext(StudioAudioContext);
   const { 
     tempo, setTempo, position, isPlaying: transportPlaying, 
     play: startTransport, pause: pauseTransport, stop: stopTransport, 
-    loop, setLoop, seek 
+    loop, setLoop, seek,
+    timeSignature,
+    setTimeSignature,
   } = useTransport();
   const { initialize, isInitialized, playNote, playDrum, setMasterVolume } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
@@ -60,10 +67,11 @@ export default function GlobalTransportBar() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
   };
 
-  // Format bar/beat display
+  // Format bar/beat display respecting time signature
   const formatBarBeat = (beats: number) => {
-    const bar = Math.floor(beats / 4) + 1;
-    const beat = Math.floor(beats % 4) + 1;
+    const beatsPerBar = Math.max(1, timeSignature.numerator);
+    const bar = Math.floor(beats / beatsPerBar) + 1;
+    const beat = Math.floor(beats % beatsPerBar) + 1;
     return `${bar}.${beat}`;
   };
 
@@ -210,21 +218,32 @@ export default function GlobalTransportBar() {
     (studioContext.currentTracks && studioContext.currentTracks.length > 0) ||
     (studioContext.currentUploadedSong);
 
+  const containerClasses = cn(
+    "bg-gray-900/95 backdrop-blur-md border-gray-700 transition-all duration-300",
+    isInline
+      ? "relative w-full rounded-lg border px-4 py-3 flex flex-col gap-3"
+      : "fixed bottom-0 left-0 right-0 z-50 border-t",
+  );
+
+  const mainRowClasses = cn(
+    "flex items-center gap-4",
+    isInline ? "flex-wrap" : "h-16 px-4"
+  );
+
   return (
-    <div className={cn(
-      "fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-md border-t border-gray-700 transition-all duration-300",
-      expanded ? "h-48" : "h-16"
-    )}>
+    <div className={containerClasses}>
       {/* Expand/Collapse Handle */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 border border-gray-700 border-b-0 rounded-t-lg px-4 py-1 hover:bg-gray-700 transition-colors"
-      >
-        {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-      </button>
+      {!isInline && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 border border-gray-700 border-b-0 rounded-t-lg px-4 py-1 hover:bg-gray-700 transition-colors"
+        >
+          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+        </button>
+      )}
 
       {/* Main Transport Bar */}
-      <div className="h-16 px-4 flex items-center gap-4">
+      <div className={mainRowClasses}>
         {/* Time Display */}
         <div className="flex flex-col items-center min-w-[100px] bg-gray-800 rounded px-3 py-1">
           <span className="text-lg font-mono text-green-400">{formatTime(position)}</span>
@@ -313,6 +332,28 @@ export default function GlobalTransportBar() {
           />
         </div>
 
+        {/* Time Signature */}
+        <div className="flex items-center gap-2 border-l border-gray-700 pl-4">
+          <span className="text-xs text-gray-400">Time Sig</span>
+          <input
+            type="number"
+            min={1}
+            max={16}
+            value={timeSignature.numerator}
+            onChange={(e) => handleTimeSignatureChange('numerator', e.target.value)}
+            className="w-12 h-8 bg-gray-800 border border-gray-700 rounded text-center text-sm"
+          />
+          <span className="text-xs text-gray-500">/</span>
+          <input
+            type="number"
+            min={1}
+            max={16}
+            value={timeSignature.denominator}
+            onChange={(e) => handleTimeSignatureChange('denominator', e.target.value)}
+            className="w-12 h-8 bg-gray-800 border border-gray-700 rounded text-center text-sm"
+          />
+        </div>
+
         {/* Master Volume */}
         <div className="flex items-center gap-2 border-l border-gray-700 pl-4 ml-auto">
           <Button size="sm" variant="ghost" onClick={handleToggleMute} className="h-8 w-8 p-0">
@@ -326,6 +367,11 @@ export default function GlobalTransportBar() {
             className="w-24"
           />
           <span className="text-xs text-gray-400 w-8">{isMuted ? 0 : masterVolume}%</span>
+          {isInline && (
+            <Button size="sm" variant="outline" onClick={() => setExpanded(!expanded)}>
+              {expanded ? 'Hide Mixer' : 'Show Mixer'}
+            </Button>
+          )}
         </div>
 
         {/* Content Indicator */}
@@ -344,7 +390,10 @@ export default function GlobalTransportBar() {
 
       {/* Expanded Channel Mixer */}
       {expanded && (
-        <div className="h-32 px-4 py-2 border-t border-gray-800">
+        <div className={cn(
+          "px-4 py-2 border-t border-gray-800",
+          isInline ? "rounded-b-lg bg-gray-900/80" : "h-32"
+        )}>
           <div className="flex items-end gap-4 h-full">
             {channels.map((channel) => (
               <div key={channel.id} className="flex flex-col items-center gap-1 w-16">

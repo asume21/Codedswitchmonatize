@@ -6,11 +6,17 @@ export interface LoopRegion {
   end: number;
 }
 
+export interface TimeSignature {
+  numerator: number;
+  denominator: number;
+}
+
 export interface TransportContextValue {
   tempo: number;
   isPlaying: boolean;
   position: number; // measured in beats
   loop: LoopRegion;
+  timeSignature: TimeSignature;
   play: () => void;
   pause: () => void;
   stop: () => void;
@@ -18,6 +24,7 @@ export interface TransportContextValue {
   seek: (nextPosition: number) => void;
   setLoop: (loopConfig: Partial<LoopRegion>) => void;
   clearLoop: () => void;
+  setTimeSignature: (signature: Partial<TimeSignature>) => void;
 }
 
 const TransportContext = createContext<TransportContextValue | undefined>(undefined);
@@ -38,6 +45,7 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   const [position, setPosition] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loop, setLoopState] = useState<LoopRegion>(DEFAULT_LOOP);
+  const [timeSignature, setTimeSignatureState] = useState<TimeSignature>({ numerator: 4, denominator: 4 });
 
   const rafRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number | null>(null);
@@ -118,6 +126,13 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     setLoopState(DEFAULT_LOOP);
   }, []);
 
+  const setTimeSignature = useCallback((signature: Partial<TimeSignature>) => {
+    setTimeSignatureState((prev) => ({
+      numerator: signature.numerator && signature.numerator > 0 ? signature.numerator : prev.numerator,
+      denominator: signature.denominator && signature.denominator > 0 ? signature.denominator : prev.denominator,
+    }));
+  }, []);
+
   useEffect(() => {
     if (isPlaying) {
       advancePosition();
@@ -135,6 +150,7 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     isPlaying,
     position,
     loop,
+    timeSignature,
     play,
     pause,
     stop,
@@ -142,7 +158,8 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     seek,
     setLoop,
     clearLoop,
-  }), [tempo, isPlaying, position, loop, play, pause, stop, setTempo, seek, setLoop, clearLoop]);
+    setTimeSignature,
+  }), [tempo, isPlaying, position, loop, timeSignature, play, pause, stop, setTempo, seek, setLoop, clearLoop, setTimeSignature]);
 
   return (
     <TransportContext.Provider value={value}>

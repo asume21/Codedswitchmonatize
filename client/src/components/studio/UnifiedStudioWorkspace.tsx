@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
+import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
 import AudioAnalysisPanel from './AudioAnalysisPanel';
 import AudioToolsPage from './AudioToolsPage';
@@ -51,6 +52,7 @@ import AudioDetector from './AudioDetector';
 import AstutelyChatbot from '../ai/AstutelyChatbot';
 import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { Zap, Sparkles } from 'lucide-react';
+import { professionalAudio } from '@/lib/professionalAudio';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
@@ -170,6 +172,34 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
 type AstutelyTrackType = 'drums' | 'bass' | 'chords' | 'melody';
 
 const ASTUTELY_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+const dbToLinear = (db: number) => Math.pow(10, db / 20);
+const linearToDb = (linear: number) => Math.max(-60, 20 * Math.log10(Math.max(linear, 0.0001)));
+
+const clampTimelineVolume = (value?: number) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0.8;
+  return Math.min(1, Math.max(0, value));
+};
+
+const getKindSendDefaults = (kind?: string) => {
+  switch ((kind || '').toLowerCase()) {
+    case 'vocal':
+      return { hall: -14, delay: -12 };
+    case 'drums':
+      return { hall: -18, delay: -24 };
+    case 'bass':
+      return { hall: -24, delay: -40 };
+    case 'synth':
+    case 'keys':
+      return { hall: -16, delay: -18 };
+    case 'guitar':
+      return { hall: -18, delay: -16 };
+    case 'fx':
+      return { hall: -12, delay: -12 };
+    default:
+      return { hall: -20, delay: -22 };
+  }
+};
 
 const ASTUTELY_DRUM_PITCH_MAP: Record<number, 'kick' | 'snare' | 'hihat' | 'perc'> = {
   36: 'kick',
@@ -370,6 +400,324 @@ export default function UnifiedStudioWorkspace() {
     isLoading: tracksLoading,
     isSynced: tracksSynced,
   } = useTracks();
+
+  const setTracks = useCallback((next: StudioTrack[] | ((prev: StudioTrack[]) => StudioTrack[])) => {
+    if (!undoManagerRef.current) {
+      undoManagerRef.current = new UndoManager<StudioTrack[]>();
+    }
+
+    let nextTracks: StudioTrack[];
+    if (typeof next === 'function') {
+      nextTracks = (next as (prev: StudioTrack[]) => StudioTrack[])(tracks as StudioTrack[]);
+    } else {
+      nextTracks = next;
+    }
+
+    if (!isRestoringTracksRef.current) {
+      undoManagerRef.current.record(tracks.map(t => ({ ...t })));
+    } else {
+      isRestoringTracksRef.current = false;
+    }
+
+    const nextIds = new Set(nextTracks.map((t) => t.id));
+
+    tracks.forEach((track) => {
+      if (!nextIds.has(track.id)) {
+        removeTrackFromStore(track.id);
+      }
+    });
+
+    nextTracks.forEach((track) => {
+      const payload = {
+        ...(track as any).payload,
+        type: track.type ?? 'midi',
+        instrument: track.instrument,
+        notes: track.notes,
+        audioUrl: track.audioUrl,
+        volume: track.volume ?? 0.8,
+        pan: track.pan ?? 0,
+        data: track.data,
+      };
+
+      if (tracks.some((existing) => existing.id === track.id)) {
+        updateTrackInStore(track.id, {
+          name: track.name,
+          muted: track.muted,
+          solo: track.solo,
+          payload,
+          type: track.type,
+          instrument: track.instrument,
+          notes: track.notes,
+          audioUrl: track.audioUrl,
+          volume: track.volume,
+          pan: track.pan,
+        });
+      } else {
+        addTrackToStore({
+          id: track.id,
+          name: track.name,
+          type: (track.type ?? 'midi') as any,
+          instrument: track.instrument,
+          notes: track.notes,
+          audioUrl: track.audioUrl,
+          muted: track.muted,
+          solo: track.solo,
+          volume: track.volume ?? 0.8,
+          pan: track.pan ?? 0,
+          lengthBars: (track as any).lengthBars ?? 4,
+          startBar: (track as any).startBar ?? 0,
+          bpm: track.bpm,
+          data: track.data,
+          payload,
+        });
+      }
+    });
+  }, [tracks, addTrackToStore, updateTrackInStore, removeTrackFromStore]);
+
+  const timelineAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const timelinePremixCacheRef = useRef(new AudioPremixCache());
+  const [timelinePlayingTrack, setTimelinePlayingTrack] = useState<string | null>(null);
+  const timelinePlayingTrackRef = useRef<string | null>(null);
+  const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
+
+  useEffect(() => {
+    timelinePlayingTrackRef.current = timelinePlayingTrack;
+  }, [timelinePlayingTrack]);
+
+  const stopTimelineAudio = useCallback((trackId?: string) => {
+    const activeId = trackId ?? timelinePlayingTrackRef.current;
+    if (!activeId) return;
+    const audio = timelineAudioRefs.current.get(activeId);
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    setTimelinePlayingTrack(prev => (prev === activeId ? null : prev));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let raf: number | null = null;
+
+    const updateMeters = () => {
+      const next: Record<string, { peak: number; rms: number }> = {};
+      tracks.forEach((track) => {
+        try {
+          next[track.id] = professionalAudio.getChannelMeters(track.id);
+        } catch {
+          // mixer may not be ready yet
+        }
+      });
+      if (!cancelled) {
+        setChannelMeters(next);
+        raf = requestAnimationFrame(updateMeters);
+      }
+    };
+
+    if (tracks.length > 0) {
+      raf = requestAnimationFrame(updateMeters);
+    }
+
+    return () => {
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [tracks]);
+
+  const toggleTrackMute = useCallback((trackId: string) => {
+    const target = tracks.find((t) => t.id === trackId);
+    if (!target) return;
+    const nextMuted = !target.muted;
+    const shouldClearSolo = nextMuted && target.solo;
+    try {
+      professionalAudio.muteChannel(trackId, nextMuted);
+      if (shouldClearSolo) {
+        professionalAudio.soloChannel(trackId, false);
+      }
+    } catch {
+      // mixer may not be initialized yet
+    }
+    setTracks((prev) => prev.map((track) => {
+      if (track.id !== trackId) return track;
+      return {
+        ...track,
+        muted: nextMuted,
+        solo: shouldClearSolo ? false : track.solo,
+      };
+    }));
+  }, [tracks, setTracks]);
+
+  const toggleTrackSolo = useCallback((trackId: string) => {
+    const target = tracks.find((t) => t.id === trackId);
+    if (!target) return;
+    const nextSolo = !target.solo;
+    try {
+      professionalAudio.soloChannel(trackId, nextSolo);
+      if (nextSolo && target.muted) {
+        professionalAudio.muteChannel(trackId, false);
+      }
+    } catch {
+      // mixer may not be initialized yet
+    }
+    setTracks((prev) => prev.map((track) => {
+      if (track.id !== trackId) return track;
+      return {
+        ...track,
+        solo: nextSolo,
+        muted: nextSolo ? false : track.muted,
+      };
+    }));
+  }, [tracks, setTracks]);
+
+  const getTrackSendDb = useCallback((track: StudioTrack, send: 'hall' | 'delay') => {
+    const payload = track.payload as any;
+    if (send === 'hall') {
+      if (typeof (track as any).sendA === 'number') return (track as any).sendA;
+      if (typeof payload?.sendA === 'number') return payload.sendA;
+      if (typeof payload?.sendLevels?.hall === 'number') return linearToDb(payload.sendLevels.hall);
+    } else {
+      if (typeof (track as any).sendB === 'number') return (track as any).sendB;
+      if (typeof payload?.sendB === 'number') return payload.sendB;
+      if (typeof payload?.sendLevels?.delay === 'number') return linearToDb(payload.sendLevels.delay);
+    }
+    return -60;
+  }, []);
+
+  const toggleTrackSend = useCallback((trackId: string, send: 'hall' | 'delay') => {
+    const target = tracks.find((t) => t.id === trackId);
+    if (!target) return;
+    const defaults = getKindSendDefaults(target.kind);
+    const currentDb = getTrackSendDb(target, send);
+    const isActive = currentDb > -50;
+    const nextDb = isActive ? -60 : (send === 'hall' ? defaults.hall : defaults.delay);
+
+    try {
+      professionalAudio.setSendLevel(trackId, send === 'hall' ? 'hall' : 'delay', dbToLinear(nextDb));
+    } catch {
+      // mixer may not be ready yet
+    }
+
+    setTracks((prev) => prev.map((track) => {
+      if (track.id !== trackId) return track;
+      const payload = track.payload ? { ...track.payload } : undefined;
+      const sendLevels = { ...(payload?.sendLevels as Record<string, number> | undefined) };
+      if (send === 'hall') {
+        if (payload) {
+          (payload as any).sendA = nextDb;
+        }
+        sendLevels.hall = dbToLinear(nextDb);
+        return {
+          ...track,
+          sendA: nextDb,
+          payload: payload ? { ...payload, sendLevels } : { sendA: nextDb, sendLevels },
+        } as StudioTrack;
+      }
+      if (payload) {
+        (payload as any).sendB = nextDb;
+      }
+      sendLevels.delay = dbToLinear(nextDb);
+      return {
+        ...track,
+        sendB: nextDb,
+        payload: payload ? { ...payload, sendLevels } : { sendB: nextDb, sendLevels },
+      } as StudioTrack;
+    }));
+  }, [tracks, setTracks, getTrackSendDb]);
+
+  const formatMeterDb = useCallback((value?: number) => {
+    if (typeof value !== 'number' || value <= 0) return '-inf dB';
+    const db = linearToDb(value);
+    return `${db.toFixed(1)} dB`;
+  }, []);
+
+  const handleTimelineTrackPlay = useCallback(async (track: StudioTrack) => {
+    const payloadAudioUrl = typeof track.payload === 'object' ? (track.payload as any)?.audioUrl : undefined;
+    const audioUrl = track.audioUrl || payloadAudioUrl;
+    if (!audioUrl) {
+      toast({ title: 'Missing audio', description: 'This track does not have an audio file to preview.', variant: 'destructive' });
+      return;
+    }
+
+    if (timelinePlayingTrackRef.current === track.id) {
+      stopTimelineAudio(track.id);
+      return;
+    }
+
+    stopTimelineAudio();
+
+    const sampleUrls = Array.isArray((track.payload as any)?.samples)
+      ? ((track.payload as any)?.samples as any[])
+          .map((sample) => sample.audioUrl || sample.url)
+          .filter(Boolean)
+      : [];
+
+    const targetUrls = sampleUrls.length ? sampleUrls : [audioUrl];
+    const cacheKey = `${track.id}:${targetUrls.join('|')}`;
+
+    try {
+      const premixUrl = await timelinePremixCacheRef.current.getOrCreate(cacheKey, targetUrls);
+      const playbackUrl = premixUrl ?? audioUrl;
+
+      let audio = timelineAudioRefs.current.get(track.id);
+      if (!audio) {
+        audio = new Audio();
+        audio.preload = 'auto';
+        audio.crossOrigin = 'anonymous';
+        timelineAudioRefs.current.set(track.id, audio);
+      }
+
+      audio.src = playbackUrl;
+      audio.loop = false;
+      audio.currentTime = 0;
+      audio.volume = clampTimelineVolume(track.volume);
+      audio.onended = () => {
+        setTimelinePlayingTrack(prev => (prev === track.id ? null : prev));
+      };
+
+      await audio.play();
+      setTimelinePlayingTrack(track.id);
+    } catch (error) {
+      console.error('Timeline premix/playback failed:', error);
+      toast({ title: 'Playback failed', description: 'Could not play this track. Please try again.', variant: 'destructive' });
+      stopTimelineAudio(track.id);
+    }
+  }, [stopTimelineAudio, toast]);
+
+  useEffect(() => {
+    return () => {
+      timelineAudioRefs.current.forEach((audio) => {
+        audio.pause();
+        audio.src = '';
+      });
+      timelineAudioRefs.current.clear();
+      timelinePremixCacheRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const existingIds = new Set(tracks.map((track) => track.id));
+    timelineAudioRefs.current.forEach((audio, id) => {
+      if (!existingIds.has(id)) {
+        audio.pause();
+        audio.src = '';
+        timelineAudioRefs.current.delete(id);
+        setTimelinePlayingTrack(prev => (prev === id ? null : prev));
+      }
+    });
+
+    tracks.forEach((track) => {
+      const audio = timelineAudioRefs.current.get(track.id);
+      if (audio) {
+        audio.volume = clampTimelineVolume(track.volume);
+      }
+    });
+  }, [tracks]);
+
+  useEffect(() => {
+    if (transportPlaying && timelinePlayingTrackRef.current) {
+      stopTimelineAudio();
+    }
+  }, [transportPlaying, stopTimelineAudio]);
   
   // MIDI Controller Integration
   const { 
@@ -810,79 +1158,6 @@ export default function UnifiedStudioWorkspace() {
   // Workflow Selector State
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
-  const setTracks = useCallback((next: StudioTrack[] | ((prev: StudioTrack[]) => StudioTrack[])) => {
-    if (!undoManagerRef.current) {
-      undoManagerRef.current = new UndoManager<StudioTrack[]>();
-    }
-
-    let nextTracks: StudioTrack[];
-    if (typeof next === 'function') {
-      nextTracks = (next as (prev: StudioTrack[]) => StudioTrack[])(tracks as StudioTrack[]);
-    } else {
-      nextTracks = next;
-    }
-
-    if (!isRestoringTracksRef.current) {
-      // Record current state for undo; clone to avoid future mutation issues
-      undoManagerRef.current.record(tracks.map(t => ({ ...t })));
-    } else {
-      isRestoringTracksRef.current = false;
-    }
-    
-    const nextIds = new Set(nextTracks.map((t) => t.id));
-
-    tracks.forEach((track) => {
-      if (!nextIds.has(track.id)) {
-        removeTrackFromStore(track.id);
-      }
-    });
-
-    nextTracks.forEach((track) => {
-      const payload = {
-        ...(track as any).payload,
-        type: track.type ?? 'midi',
-        instrument: track.instrument,
-        notes: track.notes,
-        audioUrl: track.audioUrl,
-        volume: track.volume ?? 0.8,
-        pan: track.pan ?? 0,
-        data: track.data,
-      };
-
-      if (tracks.some((existing) => existing.id === track.id)) {
-        updateTrackInStore(track.id, {
-          name: track.name,
-          muted: track.muted,
-          solo: track.solo,
-          payload,
-          type: track.type,
-          instrument: track.instrument,
-          notes: track.notes,
-          audioUrl: track.audioUrl,
-          volume: track.volume,
-          pan: track.pan,
-        });
-      } else {
-        addTrackToStore({
-          id: track.id,
-          name: track.name,
-          type: (track.type ?? 'midi') as any,
-          instrument: track.instrument,
-          notes: track.notes,
-          audioUrl: track.audioUrl,
-          muted: track.muted,
-          solo: track.solo,
-          volume: track.volume ?? 0.8,
-          pan: track.pan ?? 0,
-          lengthBars: (track as any).lengthBars ?? 4,
-          startBar: (track as any).startBar ?? 0,
-          bpm: track.bpm,
-          data: track.data,
-          payload,
-        });
-      }
-    });
-  }, [tracks, addTrackToStore, updateTrackInStore, removeTrackFromStore]);
 
   // Handle audio import events from other tools (e.g., Audio Tools router)
   useEffect(() => {
@@ -3311,9 +3586,7 @@ export default function UnifiedStudioWorkspace() {
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setTracks(tracks.map(t =>
-                                      t.id === track.id ? { ...t, muted: !t.muted } : t
-                                    ));
+                                    toggleTrackMute(track.id);
                                   }}
                                   className={`h-6 w-6 p-0 ${track.muted ? 'bg-red-600 text-white' : 'text-gray-400'}`}
                                 >
@@ -3324,9 +3597,7 @@ export default function UnifiedStudioWorkspace() {
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setTracks(tracks.map(t =>
-                                      t.id === track.id ? { ...t, solo: !t.solo } : t
-                                    ));
+                                    toggleTrackSolo(track.id);
                                   }}
                                   className={`h-6 w-6 p-0 ${track.solo ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
                                 >
@@ -3347,6 +3618,46 @@ export default function UnifiedStudioWorkspace() {
                               <div className="text-xs space-y-1">
                                 <div className="text-gray-400">Type: <span className="text-gray-200">{track.type.toUpperCase()}</span></div>
                                 {track.instrument && <div className="text-gray-400">Inst: <span className="text-gray-200">{track.instrument}</span></div>}
+                                <div className="flex items-center gap-2 py-1">
+                                  <div className="relative w-1 h-10 bg-gray-700 rounded overflow-hidden">
+                                    <div
+                                      className="absolute inset-x-0 bottom-0 bg-lime-400"
+                                      style={{ height: `${Math.min(100, (channelMeters[track.id]?.rms ?? 0) * 100)}%` }}
+                                    />
+                                    <div
+                                      className="absolute inset-x-0 bottom-0 bg-amber-500/80"
+                                      style={{ height: `${Math.min(100, (channelMeters[track.id]?.peak ?? 0) * 100)}%` }}
+                                    />
+                                  </div>
+                                  <div className="flex flex-col text-[10px] text-gray-400">
+                                    <span>Peak {formatMeterDb(channelMeters[track.id]?.peak)}</span>
+                                    <span>RMS {formatMeterDb(channelMeters[track.id]?.rms)}</span>
+                                  </div>
+                                  <div className="flex gap-1 ml-auto">
+                                    <Button
+                                      variant={(getTrackSendDb(track, 'hall')) > -50 ? 'default' : 'outline'}
+                                      size="sm"
+                                      className={`h-6 px-2 text-[10px] ${(getTrackSendDb(track, 'hall')) > -50 ? 'bg-blue-500 text-black' : ''}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleTrackSend(track.id, 'hall');
+                                      }}
+                                    >
+                                      Hall
+                                    </Button>
+                                    <Button
+                                      variant={(getTrackSendDb(track, 'delay')) > -50 ? 'default' : 'outline'}
+                                      size="sm"
+                                      className={`h-6 px-2 text-[10px] ${(getTrackSendDb(track, 'delay')) > -50 ? 'bg-purple-500 text-black' : ''}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleTrackSend(track.id, 'delay');
+                                      }}
+                                    >
+                                      Dly
+                                    </Button>
+                                  </div>
+                                </div>
                                 <div className="mt-2">
                                   <div className="text-gray-400 mb-1">Vol: {Math.round(track.volume * 100)}%</div>
                                   <Slider
@@ -3407,19 +3718,18 @@ export default function UnifiedStudioWorkspace() {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-8 px-3 bg-green-600 border-green-500 hover:bg-green-500"
+                                      className={`h-8 px-3 text-white ${timelinePlayingTrack === track.id ? 'bg-red-600 border-red-500 hover:bg-red-500' : 'bg-green-600 border-green-500 hover:bg-green-500'}`}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        const url = (track as any).audioUrl || (track.payload as any)?.audioUrl;
-                                        if (url) {
-                                          const audio = new Audio(url);
-                                          audio.play();
-                                          toast({ title: "Playing", description: track.name });
-                                        }
+                                        handleTimelineTrackPlay(track);
                                       }}
                                     >
-                                      <Play className="w-3 h-3 mr-1" />
-                                      Play
+                                      {timelinePlayingTrack === track.id ? (
+                                        <Square className="w-3 h-3 mr-1" />
+                                      ) : (
+                                        <Play className="w-3 h-3 mr-1" />
+                                      )}
+                                      {timelinePlayingTrack === track.id ? 'Stop' : 'Play'}
                                     </Button>
                                     <Button
                                       size="sm"
@@ -3427,6 +3737,7 @@ export default function UnifiedStudioWorkspace() {
                                       className="h-8 px-3"
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        stopTimelineAudio();
                                         setActiveView('multitrack');
                                         toast({ title: "Opening Multi-Track", description: "Track sent to multi-track player" });
                                       }}

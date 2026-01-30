@@ -10,10 +10,29 @@ export interface AstutelyPrompt {
     genreName?: string;
     hasInsights: boolean;
     progressionCount: number;
+    tempo?: number;
+    timeSignature?: { numerator: number; denominator: number };
+    key?: string;
+    trackSummaryCount?: number;
   };
 }
 
-export function buildAstutelyPrompt(style: string, safePrompt: string): AstutelyPrompt {
+interface BuildPromptOptions {
+  tempo?: number;
+  timeSignature?: { numerator: number; denominator: number };
+  key?: string;
+  tracks?: Array<{
+    id?: string;
+    name?: string;
+    instrument?: string;
+    type?: string;
+    notes?: number;
+    muted?: boolean;
+    volume?: number;
+  }>;
+}
+
+export function buildAstutelyPrompt(style: string, safePrompt: string, options: BuildPromptOptions = {}): AstutelyPrompt {
   const genreSpec = getGenreSpec(style);
   const insights = getGenreInsights(style);
   const progressions = getProgressionsForGenre(style).slice(0, 3);
@@ -49,10 +68,51 @@ ${progressions.map(p => `${p.name}: ${p.pattern.join(' → ')} (Mood: ${p.mood})
 Use tight voice leading.`;
   }
 
-  systemPrompt += `\n📦 OUTPUT FORMAT
-Return JSON only with fields: style, bpm, key, drums[], bass[], chords[], melody[]. Use 64 steps. No commentary.`;
+  if (options.tempo) {
+    systemPrompt += `\n⏱️ TEMPO: Lock the groove at exactly ${options.tempo} BPM.`;
+  }
 
-  const userPrompt = `Generate a ${style} beat. ${safePrompt}`;
+  if (options.timeSignature) {
+    systemPrompt += `\n📐 TIME SIGNATURE: Compose strictly in ${options.timeSignature.numerator}/${options.timeSignature.denominator}.`;
+  }
+
+  if (options.key) {
+    systemPrompt += `\n🔑 KEY CONTEXT: Stay locked to the key of ${options.key}.`;
+  }
+
+  if (options.tracks && options.tracks.length) {
+    const summarizedTracks = options.tracks
+      .slice(0, 12)
+      .map((track, idx) => {
+        const parts: string[] = [];
+        parts.push(`${idx + 1}. ${track.name ?? track.type ?? 'Track'}`);
+        if (track.instrument) {
+          parts.push(`Instrument: ${track.instrument}`);
+        }
+        if (typeof track.notes === 'number') {
+          parts.push(`Notes: ${track.notes}`);
+        }
+        if (typeof track.volume === 'number') {
+          parts.push(`Vol: ${track.volume}`);
+        }
+        if (typeof track.muted === 'boolean' && track.muted) {
+          parts.push('Muted');
+        }
+        return parts.join(' | ');
+      })
+      .join('\n');
+
+    systemPrompt += `\n🎚️ CURRENT STUDIO CONTEXT\n${summarizedTracks}\nEnsure the new material complements these tracks without clashing.`;
+  }
+
+  systemPrompt += `\n📦 OUTPUT FORMAT
+Return JSON only with fields: style, bpm, key, timeSignature, drums[], bass[], chords[], melody[]. Use 64 steps. No commentary.`;
+
+  const timeSigLine = options.timeSignature
+    ? ` Keep the rhythm feeling ${options.timeSignature.numerator}/${options.timeSignature.denominator}.`
+    : '';
+  const tempoLine = options.tempo ? ` Match the exact tempo ${options.tempo} BPM.` : '';
+  const userPrompt = `Generate a ${style} beat.${tempoLine}${timeSigLine} ${safePrompt}`.trim();
 
   return {
     systemPrompt,
@@ -62,6 +122,10 @@ Return JSON only with fields: style, bpm, key, drums[], bass[], chords[], melody
       genreName: genreSpec?.name,
       hasInsights: Boolean(insights),
       progressionCount: progressions.length,
+      tempo: options.tempo,
+      timeSignature: options.timeSignature,
+      key: options.key,
+      trackSummaryCount: options.tracks?.length,
     },
   };
 }

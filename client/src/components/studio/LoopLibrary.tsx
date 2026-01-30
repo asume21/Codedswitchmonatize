@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { useTracks } from "@/hooks/useTracks";
 import { Waves, Music, PlusCircle, Play, Pause } from "lucide-react";
 import { professionalAudio } from "@/lib/professionalAudio";
 import { getAudioContext } from "@/lib/audioContext";
+import { AudioPremixCache } from "@/lib/audioPremix";
 
 interface LoopInfo {
   id: string;
@@ -25,6 +26,27 @@ export default function LoopLibrary() {
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const premixCacheRef = useRef(new AudioPremixCache());
+  const inFlightPremixRef = useRef<Map<string, Promise<string | null>>>(new Map());
+
+  const resolvePlaybackUrl = useCallback(async (loop: LoopInfo) => {
+    const cacheKey = `${loop.id}:${loop.audioUrl}`;
+    if (!inFlightPremixRef.current.has(cacheKey)) {
+      inFlightPremixRef.current.set(
+        cacheKey,
+        premixCacheRef.current
+          .getOrCreate(cacheKey, [loop.audioUrl])
+          .catch((error) => {
+            console.warn('Loop premix failed', { loopId: loop.id, error });
+            return null;
+          })
+      );
+    }
+
+    const premixed = await inFlightPremixRef.current.get(cacheKey)!;
+    inFlightPremixRef.current.delete(cacheKey);
+    return premixed ?? loop.audioUrl;
+  }, []);
 
   useEffect(() => {
     const fetchLoops = async () => {
@@ -80,14 +102,23 @@ export default function LoopLibrary() {
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.crossOrigin = "anonymous";
+      audioRef.current.preload = "auto";
     }
 
-    audioRef.current.src = loop.audioUrl;
+    let playbackUrl = loop.audioUrl;
+    try {
+      playbackUrl = await resolvePlaybackUrl(loop);
+    } catch (error) {
+      console.warn('Loop premix resolution failed, falling back to raw URL', error);
+    }
+
+    audioRef.current.src = playbackUrl;
     
     // Connect to mixer if not already connected
     if (!sourceNodeRef.current && audioRef.current) {
       try {
-        const ctx = getAudioContext();
+        await professionalAudio.initialize();
+        const ctx = professionalAudio.getAudioContext() || getAudioContext();
         sourceNodeRef.current = ctx.createMediaElementSource(audioRef.current);
         
         // Find 'instruments' or 'other' channel

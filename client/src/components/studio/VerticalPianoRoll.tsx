@@ -26,6 +26,7 @@ import AILoopGenerator from "./AILoopGenerator";
 import { PlaybackControls } from "./PlaybackControls";
 import { KeyScaleSelector } from "./KeyScaleSelector";
 import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
+import GlobalTransportBar from "./GlobalTransportBar";
 import { duplicateTrackData } from "@/lib/trackClone";
 import { apiRequest } from "@/lib/queryClient";
 import { 
@@ -160,7 +161,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   onNotesChange
 }) => {
   // Get transport state from context for sync with floating transport
-  const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx } = useTransport();
+  const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx, timeSignature } = useTransport();
   
   // Get global instrument context for unified MIDI/piano roll sync
   const globalInstrument = useInstrumentOptional();
@@ -2302,75 +2303,66 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   return (
     <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
       {/* Top Professional DAW Toolbar */}
-      <div className="flex items-center justify-between p-2 border-b border-cyan-500/30 astutely-header">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30">
-            <Piano className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-black tracking-widest uppercase">Astutely Piano Roll</span>
+      <div className="flex flex-col gap-2 p-2 border-b border-cyan-500/30 astutely-header">
+        <GlobalTransportBar variant="inline" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30">
+              <Piano className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-black tracking-widest uppercase">Astutely Piano Roll</span>
+            </div>
+            <div className="h-6 w-px bg-cyan-500/20" />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPianoRollTool('draw')}
+                className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'draw' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPianoRollTool('select')}
+                className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'select' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
+              >
+                <MousePointer2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPianoRollTool('erase')}
+                className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'erase' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
+              >
+                <Eraser className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
-          
-          <div className="h-6 w-px bg-cyan-500/20" />
-          
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPianoRollTool('draw')}
-              className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'draw' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
-            >
-              <Pencil className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPianoRollTool('select')}
-              className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'select' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
-            >
-              <MousePointer2 className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPianoRollTool('erase')}
-              className={cn("h-8 w-8 p-0 rounded-none", pianoRollTool === 'erase' ? "bg-cyan-500 text-white shadow-glow-cyan" : "text-cyan-500/60")}
-            >
-              <Eraser className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-cyan-500/30">
-            <div className={cn("w-2 h-2 rounded-full", isPlaying ? "bg-cyan-500 animate-pulse shadow-glow-cyan" : "bg-cyan-950")} />
-            <span className="text-[10px] font-black tabular-nums tracking-widest uppercase">
-              {currentKey} {selectedProgression.name}
-            </span>
-          </div>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={isPlaying ? handleStop : handlePlay}
-            className={cn("h-8 px-4 rounded-none font-black tracking-widest", isPlaying ? "bg-red-500/20 text-red-400 border-red-500 shadow-glow-red" : "bg-cyan-500/20 text-cyan-400 border-cyan-500 shadow-glow-cyan")}
-          >
-            {isPlaying ? <Square className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-            {isPlaying ? 'STOP' : 'START'}
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-cyan-500/30">
+              <div className={cn("w-2 h-2 rounded-full", isPlaying ? "bg-cyan-500 animate-pulse shadow-glow-cyan" : "bg-cyan-950")} />
+              <span className="text-[10px] font-black tabular-nums tracking-widest uppercase">
+                {currentKey} {selectedProgression.name}
+              </span>
+            </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAILoopGenerator(v => !v)}
-            className={cn(
-              "h-8 px-4 rounded-none font-black tracking-widest",
-              showAILoopGenerator
-                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                : "bg-black/60 text-cyan-500/60 border border-cyan-500/30"
-            )}
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            LOOP
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAILoopGenerator(v => !v)}
+              className={cn(
+                "h-8 px-4 rounded-none font-black tracking-widest",
+                showAILoopGenerator
+                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                  : "bg-black/60 text-cyan-500/60 border border-cyan-500/30"
+              )}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              LOOP
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -2483,6 +2475,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             onNotesChange={(newNotes: any[]) => {
               setTracks(prev => prev.map((t, i) => i === selectedTrackIndex ? { ...t, notes: newNotes } : t));
             }}
+            timeSignature={timeSignature}
           />
         </div>
       </div>

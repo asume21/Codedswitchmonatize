@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useCallback } from "react";
+import { useState, useContext, useEffect, useCallback, useMemo, useRef } from "react";
 import * as Tone from "tone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,7 @@ import { RecommendationList } from "@/components/studio/RecommendationCard";
 import { useTracks } from "@/hooks/useTracks";
 import { Textarea } from "@/components/ui/textarea";
 import { professionalAudio } from "@/lib/professionalAudio";
+import { AudioPremixCache } from "@/lib/audioPremix";
 
 interface UploadContext {
   name?: string;
@@ -72,6 +73,8 @@ export default function SongUploader() {
   const addMessage = aiContext?.addMessage || (() => {});
   const { createSession, updateSession } = useSongWorkSession();
   const { addTrack, tracks } = useTracks();
+  const premixCacheRef = useRef(new AudioPremixCache());
+  const inFlightPremixRef = useRef<Map<string, Promise<string | null>>>(new Map());
 
   const transcribeSong = async (song: Song): Promise<string | null> => {
     const songId = song.id.toString();
@@ -786,6 +789,41 @@ export default function SongUploader() {
         studioContext.uploadedSongAudio.src = '';
       }
 
+      // Prepare candidate URLs for premixing (primary source + any separated stems stored in session)
+      const separatedStemsStorage = sessionStorage.getItem('separated_stems');
+      const routedStemSource = sessionStorage.getItem('separated_stems_source');
+      const stemSourceMatchesSelection = routedStemSource && (routedStemSource === song.name || routedStemSource === song.id?.toString());
+      const stemUrls: string[] = [];
+      if (separatedStemsStorage && stemSourceMatchesSelection) {
+        try {
+          const parsed = JSON.parse(separatedStemsStorage);
+          Object.values(parsed).forEach((url) => {
+            if (typeof url === 'string' && url.length) {
+              stemUrls.push(url);
+            }
+          });
+        } catch (error) {
+          console.warn('Failed to parse cached stems', error);
+        }
+      }
+
+      const targetUrls = stemUrls.length ? stemUrls : [accessibleURL];
+      const premixKey = `${song.id ?? accessibleURL}:${targetUrls.join('|')}`;
+      let premixedUrl: string | null = null;
+      if (!inFlightPremixRef.current.has(premixKey)) {
+        inFlightPremixRef.current.set(
+          premixKey,
+          premixCacheRef.current
+            .getOrCreate(premixKey, targetUrls)
+            .catch((err: unknown) => {
+              console.warn('Premix failed for uploaded song', err);
+              return null;
+            })
+        );
+      }
+      premixedUrl = await inFlightPremixRef.current.get(premixKey)!;
+      inFlightPremixRef.current.delete(premixKey);
+
       // Create fresh audio element and store it immediately so Transport can see it
       const audio = new Audio();
       audio.crossOrigin = "anonymous";
@@ -914,7 +952,7 @@ export default function SongUploader() {
       });
 
       // Set source and load
-      audio.src = accessibleURL;
+      audio.src = premixedUrl ?? accessibleURL;
       audio.preload = "auto";
       
       // Initialize/Resume professional audio context

@@ -173,7 +173,7 @@ export class UnifiedMusicService {
 
       try {
         const output = await replicate.run(
-          "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",
+          "meta/musicgen:2b5dc5f29cee83fd5cdf8f9c92e555aae7ca2a69b73c5182f3065362b2fa0a45",
           {
             input: {
               prompt: fullPrompt,
@@ -202,22 +202,33 @@ export class UnifiedMusicService {
         const message = typeof err?.message === "string" ? err.message : "";
         console.warn("MusicGen replicate error, attempting local fallback:", message);
 
-        // Fallback to local music generator to avoid hard failure
-        const packs = await localMusicGenService.generateSamplePack(fullPrompt, 1);
-        const firstSample = packs?.[0]?.samples?.[0];
-        if (!firstSample?.audioUrl) throw err;
-        return {
-          status: 'success',
-          audio_url: firstSample.audioUrl,
-          metadata: {
-            type,
-            duration: firstSample.duration ?? duration,
-            generator: "local-musicgen-fallback",
-            genre,
-            key,
-            bpm
+        if (!process.env.PRIVATE_OBJECT_DIR) {
+          throw new Error("Music provider temporarily unavailable. Please configure PRIVATE_OBJECT_DIR to enable fallback.");
+        }
+
+        try {
+          // Fallback to local music generator to avoid hard failure
+          const packs = await localMusicGenService.generateSamplePack(fullPrompt, 1);
+          const firstSample = packs?.[0]?.samples?.[0];
+          if (!firstSample?.audioUrl) {
+            throw new Error("Local fallback did not return audio");
           }
-        };
+          return {
+            status: 'success',
+            audio_url: firstSample.audioUrl,
+            metadata: {
+              type,
+              duration: firstSample.duration ?? duration,
+              generator: "local-musicgen-fallback",
+              genre,
+              key,
+              bpm
+            }
+          };
+        } catch (fallbackError: any) {
+          console.error("Local MusicGen fallback failed:", fallbackError);
+          throw new Error("Music provider temporarily unavailable. Please try again shortly.");
+        }
       }
     } catch (error) {
       console.error(`${options.type} generation failed:`, error);
@@ -258,7 +269,7 @@ export class UnifiedMusicService {
       console.log(`🧠 Genre Fusion Intelligence: ${genreList} → BPM: ${blendedBpm}, Instruments: ${instrumentList}`);
 
       const output = await replicate.run(
-        "facebook/musicgen:7a76a8258b23fae65c5a22debb8f7c8aad349f462d4b3d50105d5fda6b033ea3",
+        "meta/musicgen:2b5dc5f29cee83fd5cdf8f9c92e555aae7ca2a69b73c5182f3065362b2fa0a45",
         {
           input: {
             prompt: fullPrompt,

@@ -14,6 +14,9 @@ export interface AstutelyPatternPayload {
   style: string;
   timestamp: number;
   channelMapping: Record<string, string>;
+  meta?: AstutelyResult['meta'];
+  isFallback?: boolean;
+  fallbackReason?: string;
 }
 
 export async function requestAstutelyPattern(options: AstutelyGenerateOptions) {
@@ -25,7 +28,10 @@ export async function requestAstutelyPattern(options: AstutelyGenerateOptions) {
     key: result.key,
     style: result.style,
     timestamp: Date.now(),
-    channelMapping: ASTUTELY_CHANNEL_MAPPING
+    channelMapping: ASTUTELY_CHANNEL_MAPPING,
+    meta: result.meta,
+    isFallback: result.isFallback,
+    fallbackReason: result.fallbackReason,
   };
 
   broadcastAstutelyPattern(payload);

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 
 // Load API keys (server-only)
 const xaiApiKey = process.env.XAI_API_KEY?.trim();
@@ -24,6 +25,40 @@ if (xaiApiKey && xaiApiKey.startsWith('xai-')) {
   console.log('✅ Grok (xAI) client initialized');
 } else if (xaiApiKey) {
   console.warn(`⚠️ XAI_API_KEY present but doesn't start with 'xai-': ${xaiApiKey.substring(0, 8)}...`);
+}
+
+export async function performAIProviderSelfTest() {
+  const preferred = getPreferredClient();
+  if (!preferred) {
+    throw new Error('No AI API keys configured');
+  }
+
+  const { client, model, provider } = preferred;
+  const payload = buildRequestPayload(
+    model,
+    [
+      { role: 'system', content: 'You are a health-check daemon. Reply with a tiny JSON object.' },
+      { role: 'user', content: 'Respond with {"status":"ok"} and nothing else.' }
+    ],
+    {
+      response_format: { type: 'json_object' },
+      temperature: 0,
+      max_tokens: 32
+    },
+    provider as 'grok' | 'openai'
+  );
+
+  const start = Date.now();
+  const response = await client.chat.completions.create(payload);
+  const latencyMs = Date.now() - start;
+  const content = response.choices?.[0]?.message?.content || '{}';
+
+  return {
+    provider,
+    model,
+    latencyMs,
+    raw: content
+  };
 }
 
 // Configure OpenAI client
@@ -53,6 +88,81 @@ function getPreferredClient() {
   return null;
 }
 
+export function getAIProviderStatus() {
+  return {
+    grok: {
+      configured: Boolean(xaiApiKey),
+      clientReady: Boolean(grokClient),
+      note: xaiApiKey ? 'Key detected' : 'Missing XAI_API_KEY'
+    },
+    openai: {
+      configured: Boolean(openaiApiKey),
+      clientReady: Boolean(openaiClient),
+      note: openaiApiKey ? 'Key detected' : 'Missing OPENAI_API_KEY'
+    }
+  };
+}
+
+function modelSupportsStructuredOutput(model?: string) {
+  if (!model) return false;
+  const normalized = model.toLowerCase();
+  // OpenAI only supports response_format on new 4.1 / 4o style models.
+  return normalized.includes('gpt-4.1') || normalized.includes('gpt-4o') || normalized.includes('o4');
+}
+
+function buildRequestPayload(
+  model: string,
+  messages: ChatCompletionCreateParamsNonStreaming['messages'],
+  options: any,
+  provider: 'grok' | 'openai'
+): ChatCompletionCreateParamsNonStreaming {
+  const payload: ChatCompletionCreateParamsNonStreaming = {
+    model,
+    messages,
+    temperature: options.temperature ?? 0.6,
+    max_tokens: options.max_tokens ?? 3000,
+  };
+
+  if (options.top_p !== undefined) {
+    payload.top_p = options.top_p;
+  }
+
+  if (options.stop) {
+    payload.stop = options.stop;
+  }
+
+  if (options.response_format) {
+    const canUseStructured = provider === 'grok' || modelSupportsStructuredOutput(model);
+    if (canUseStructured) {
+      payload.response_format = options.response_format;
+    } else {
+      console.warn(
+        `⚠️ Model ${model} (${provider}) does not support response_format; falling back to prompt instructions.`
+      );
+    }
+  }
+
+  if (options.stream) {
+    payload.stream = options.stream;
+  }
+
+  return payload;
+}
+
+function handleAuthFailure(provider: 'grok' | 'openai', error: any) {
+  const status = error?.status || error?.statusCode;
+  const message = String(error?.error || error?.message || '').toLowerCase();
+  if ([400, 401, 403].includes(status) && message.includes('api key')) {
+    if (provider === 'grok') {
+      console.warn('⚠️ Disabling Grok client after authentication error. Falling back to OpenAI only.');
+      grokClient = null;
+    } else {
+      console.warn('⚠️ Disabling OpenAI client after authentication error.');
+      openaiClient = null;
+    }
+  }
+}
+
 // Helper function to make AI calls with fallback
 export async function makeAICall(messages: any[], options: any = {}) {
   const preferred = getPreferredClient();
@@ -66,37 +176,39 @@ export async function makeAICall(messages: any[], options: any = {}) {
   try {
     console.log(`🤖 Making ${provider} API call with model ${model}`);
 
-    const response = await client.chat.completions.create({
-      model: model,
-      messages: messages,
-      temperature: options.temperature || 0.6,
-      max_tokens: options.max_tokens || 3000,
-      response_format: options.response_format
-    });
+    const requestPayload: ChatCompletionCreateParamsNonStreaming = buildRequestPayload(
+      model,
+      messages,
+      options,
+      provider as 'grok' | 'openai'
+    );
+    const response = await client.chat.completions.create(requestPayload);
 
     console.log(`✅ ${provider} API call successful`);
     return response;
 
   } catch (error) {
     console.error(`❌ ${provider} API call failed:`, error);
+    handleAuthFailure(provider as 'grok' | 'openai', error);
 
     // If Grok failed and we have OpenAI, try OpenAI as fallback
     if (provider === "grok" && openaiClient) {
       console.log("🔄 Falling back to OpenAI...");
       try {
-        const fallbackResponse = await openaiClient.chat.completions.create({
-          model: "gpt-4",
-          messages: messages,
-          temperature: options.temperature || 0.6,
-          max_tokens: options.max_tokens || 3000,
-          response_format: options.response_format
-        });
+        const fallbackPayload: ChatCompletionCreateParamsNonStreaming = buildRequestPayload(
+          "gpt-4.1-mini",
+          messages,
+          options,
+          'openai'
+        );
+        const fallbackResponse = await openaiClient.chat.completions.create(fallbackPayload);
 
         console.log("✅ OpenAI fallback successful");
         return fallbackResponse;
 
       } catch (fallbackError) {
         console.error("❌ OpenAI fallback also failed:", fallbackError);
+        handleAuthFailure('openai', fallbackError);
         throw new Error("Both Grok and OpenAI APIs failed");
       }
     }
@@ -105,19 +217,20 @@ export async function makeAICall(messages: any[], options: any = {}) {
     if (provider === "openai" && grokClient) {
       console.log("🔄 Falling back to Grok...");
       try {
-        const fallbackResponse = await grokClient.chat.completions.create({
-          model: "grok-3",
-          messages: messages,
-          temperature: options.temperature || 0.6,
-          max_tokens: options.max_tokens || 3000,
-          response_format: options.response_format
-        });
+        const fallbackPayload: ChatCompletionCreateParamsNonStreaming = buildRequestPayload(
+          "grok-3",
+          messages,
+          options,
+          'grok'
+        );
+        const fallbackResponse = await grokClient.chat.completions.create(fallbackPayload);
 
         console.log("✅ Grok fallback successful");
         return fallbackResponse;
 
       } catch (fallbackError) {
         console.error("❌ Grok fallback also failed:", fallbackError);
+        handleAuthFailure('grok', fallbackError);
         throw new Error("Both OpenAI and Grok APIs failed");
       }
     }
