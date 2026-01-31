@@ -256,6 +256,7 @@ router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
     return res.json({
       success: true,
       audioUrl: result.audioUrl,
+      streamUrl: result.streamUrl,
       duration: result.duration,
       provider: 'suno',
       style,

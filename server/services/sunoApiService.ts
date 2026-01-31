@@ -1,39 +1,60 @@
 // server/services/sunoApiService.ts
 // Suno API Integration for AI Music Generation
 // API Base: https://api.sunoapi.org
+// Documentation: https://docs.sunoapi.org
 
 import fetch from 'node-fetch';
 
 const SUNO_API_BASE = 'https://api.sunoapi.org';
 
+// Model versions available
+type SunoModel = 'V4' | 'V4_5' | 'V4_5PLUS' | 'V4_5ALL' | 'V5';
+
 interface SunoGenerateParams {
   prompt: string;
   style?: string;
   title?: string;
-  make_instrumental?: boolean;
-  wait_audio?: boolean;
+  customMode: boolean;
+  instrumental: boolean;
+  model?: SunoModel;
+  negativeTags?: string;
+  vocalGender?: 'm' | 'f';
+  callBackUrl?: string;
 }
 
-interface SunoGenerateResponse {
-  id: string;
-  status: string;
-  audio_url?: string;
-  video_url?: string;
-  title?: string;
-  duration?: number;
-  created_at?: string;
-  model_name?: string;
-  error?: string;
+interface SunoApiResponse {
+  code: number;
+  msg: string;
+  data?: {
+    taskId: string;
+  };
 }
 
-interface SunoTaskResponse {
+interface SunoTrackData {
   id: string;
-  status: 'pending' | 'processing' | 'complete' | 'error';
-  audio_url?: string;
-  video_url?: string;
-  title?: string;
-  duration?: number;
-  error?: string;
+  audio_url: string;
+  source_audio_url: string;
+  stream_audio_url: string;
+  source_stream_audio_url: string;
+  image_url: string;
+  source_image_url: string;
+  prompt: string;
+  model_name: string;
+  title: string;
+  tags: string;
+  createTime: string;
+  duration: number;
+}
+
+interface SunoTaskStatusResponse {
+  code: number;
+  msg: string;
+  data?: {
+    taskId: string;
+    status: 'pending' | 'text' | 'first' | 'complete' | 'error';
+    data?: SunoTrackData[];
+    errorMessage?: string;
+  };
 }
 
 class SunoApiService {
@@ -62,86 +83,141 @@ class SunoApiService {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[SunoAPI] Error ${response.status}:`, errorText);
-      throw new Error(`Suno API error: ${response.status} - ${errorText}`);
+    const result = await response.json() as T & { code?: number; msg?: string };
+    
+    // Check for API-level errors
+    if (result.code && result.code !== 200) {
+      console.error(`[SunoAPI] API Error ${result.code}:`, result.msg);
+      throw new Error(`Suno API error: ${result.code} - ${result.msg}`);
     }
 
-    return response.json() as Promise<T>;
-  }
-
-  /**
-   * Generate music with custom lyrics/prompt
-   */
-  async generateMusic(params: SunoGenerateParams): Promise<SunoGenerateResponse> {
-    console.log('[SunoAPI] Generating music with prompt:', params.prompt?.substring(0, 50) + '...');
-    
-    const result = await this.makeRequest<SunoGenerateResponse>('/api/v1/generate', 'POST', {
-      prompt: params.prompt,
-      style: params.style || 'pop',
-      title: params.title || 'AI Generated Track',
-      make_instrumental: params.make_instrumental ?? false,
-      wait_audio: params.wait_audio ?? true, // Wait for audio to be ready
-    });
-
-    console.log('[SunoAPI] Generation result:', { id: result.id, status: result.status });
     return result;
   }
 
   /**
-   * Generate instrumental music (no vocals)
+   * Generate music using the official Suno API
+   * Endpoint: POST /api/v1/generate
+   * Returns 2 songs per request
    */
-  async generateInstrumental(prompt: string, style?: string): Promise<SunoGenerateResponse> {
-    return this.generateMusic({
-      prompt,
-      style,
-      make_instrumental: true,
-      wait_audio: true,
+  async generateMusic(params: SunoGenerateParams): Promise<{ taskId: string }> {
+    console.log('[SunoAPI] Generating music:', {
+      style: params.style,
+      instrumental: params.instrumental,
+      model: params.model || 'V4_5ALL',
     });
-  }
+    
+    const requestBody: Record<string, unknown> = {
+      customMode: params.customMode,
+      instrumental: params.instrumental,
+      model: params.model || 'V4_5ALL',
+      callBackUrl: params.callBackUrl || '',
+    };
 
-  /**
-   * Generate a full song with lyrics
-   */
-  async generateSong(lyrics: string, style: string, title?: string): Promise<SunoGenerateResponse> {
-    return this.generateMusic({
-      prompt: lyrics,
-      style,
-      title,
-      make_instrumental: false,
-      wait_audio: true,
-    });
+    // Custom mode requires style and title
+    if (params.customMode) {
+      requestBody.style = params.style || 'instrumental';
+      requestBody.title = params.title || 'AI Generated Beat';
+      if (!params.instrumental) {
+        requestBody.prompt = params.prompt;
+      }
+    } else {
+      // Non-custom mode only needs prompt (max 500 chars)
+      requestBody.prompt = params.prompt.substring(0, 500);
+    }
+
+    if (params.negativeTags) {
+      requestBody.negativeTags = params.negativeTags;
+    }
+    if (params.vocalGender) {
+      requestBody.vocalGender = params.vocalGender;
+    }
+
+    const result = await this.makeRequest<SunoApiResponse>('/api/v1/generate', 'POST', requestBody);
+    
+    if (!result.data?.taskId) {
+      throw new Error('No taskId returned from Suno API');
+    }
+
+    console.log('[SunoAPI] Task created:', result.data.taskId);
+    return { taskId: result.data.taskId };
   }
 
   /**
    * Check the status of a generation task
+   * Endpoint: GET /api/v1/generate/record-info?taskId=xxx
    */
-  async checkTaskStatus(taskId: string): Promise<SunoTaskResponse> {
+  async checkTaskStatus(taskId: string): Promise<SunoTaskStatusResponse['data']> {
     console.log('[SunoAPI] Checking task status:', taskId);
-    return this.makeRequest<SunoTaskResponse>(`/api/v1/task/${taskId}`);
+    
+    const result = await this.makeRequest<SunoTaskStatusResponse>(
+      `/api/v1/generate/record-info?taskId=${encodeURIComponent(taskId)}`
+    );
+    
+    return result.data;
   }
 
   /**
-   * Poll for task completion
+   * Poll for task completion with streaming URL (available in 30-40 seconds)
    */
-  async waitForCompletion(taskId: string, maxWaitMs: number = 120000): Promise<SunoTaskResponse> {
+  async waitForStreamUrl(taskId: string, maxWaitMs: number = 60000): Promise<SunoTrackData> {
     const startTime = Date.now();
-    const pollInterval = 3000; // 3 seconds
+    const pollInterval = 5000; // 5 seconds
 
     while (Date.now() - startTime < maxWaitMs) {
       const status = await this.checkTaskStatus(taskId);
       
-      if (status.status === 'complete') {
-        console.log('[SunoAPI] Task completed:', taskId);
-        return status;
+      if (!status) {
+        throw new Error('Failed to get task status');
+      }
+
+      // Check if we have at least one track with a stream URL
+      if (status.status === 'first' || status.status === 'complete') {
+        if (status.data && status.data.length > 0) {
+          const track = status.data[0];
+          if (track.stream_audio_url || track.audio_url) {
+            console.log('[SunoAPI] Track ready:', track.title);
+            return track;
+          }
+        }
       }
       
       if (status.status === 'error') {
-        throw new Error(`Suno generation failed: ${status.error || 'Unknown error'}`);
+        throw new Error(`Suno generation failed: ${status.errorMessage || 'Unknown error'}`);
       }
 
       console.log(`[SunoAPI] Task ${taskId} status: ${status.status}, waiting...`);
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    throw new Error('Suno generation timed out waiting for stream URL');
+  }
+
+  /**
+   * Poll for full completion (downloadable URL ready in 2-3 minutes)
+   */
+  async waitForCompletion(taskId: string, maxWaitMs: number = 180000): Promise<SunoTrackData[]> {
+    const startTime = Date.now();
+    const pollInterval = 5000; // 5 seconds
+
+    while (Date.now() - startTime < maxWaitMs) {
+      const status = await this.checkTaskStatus(taskId);
+      
+      if (!status) {
+        throw new Error('Failed to get task status');
+      }
+
+      if (status.status === 'complete') {
+        if (status.data && status.data.length > 0) {
+          console.log('[SunoAPI] All tracks complete:', status.data.length);
+          return status.data;
+        }
+      }
+      
+      if (status.status === 'error') {
+        throw new Error(`Suno generation failed: ${status.errorMessage || 'Unknown error'}`);
+      }
+
+      console.log(`[SunoAPI] Task ${taskId} status: ${status.status}, waiting for completion...`);
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
 
@@ -150,62 +226,114 @@ class SunoApiService {
 
   /**
    * Generate a beat/instrumental for Astutely
+   * Uses custom mode with instrumental=true
    */
-  async generateBeat(style: string, bpm?: number, key?: string): Promise<{ audioUrl: string; duration: number }> {
-    const prompt = this.buildBeatPrompt(style, bpm, key);
+  async generateBeat(style: string, bpm?: number, key?: string): Promise<{ audioUrl: string; duration: number; streamUrl: string }> {
+    const styleDescription = this.buildStyleDescription(style, bpm, key);
     
-    const result = await this.generateInstrumental(prompt, style);
+    // Use custom mode for instrumentals
+    const { taskId } = await this.generateMusic({
+      prompt: '', // Not needed for instrumental in custom mode
+      style: styleDescription,
+      title: `${style} Beat`,
+      customMode: true,
+      instrumental: true,
+      model: 'V4_5ALL', // Best for song structure
+      negativeTags: 'vocals, singing, voice',
+    });
     
-    if (!result.audio_url) {
-      // If not immediately ready, poll for completion
-      if (result.id) {
-        const completed = await this.waitForCompletion(result.id);
-        if (completed.audio_url) {
-          return {
-            audioUrl: completed.audio_url,
-            duration: completed.duration || 30,
-          };
-        }
-      }
-      throw new Error('Failed to generate beat - no audio URL returned');
-    }
-
+    // Wait for stream URL (faster, available in 30-40 seconds)
+    const track = await this.waitForStreamUrl(taskId);
+    
     return {
-      audioUrl: result.audio_url,
-      duration: result.duration || 30,
+      audioUrl: track.audio_url || track.stream_audio_url,
+      streamUrl: track.stream_audio_url || track.audio_url,
+      duration: track.duration || 30,
     };
   }
 
-  private buildBeatPrompt(style: string, bpm?: number, key?: string): string {
-    const parts: string[] = [];
+  /**
+   * Generate a full song with lyrics
+   */
+  async generateSong(lyrics: string, style: string, title?: string): Promise<{ audioUrl: string; duration: number; tracks: SunoTrackData[] }> {
+    const { taskId } = await this.generateMusic({
+      prompt: lyrics,
+      style,
+      title: title || 'AI Generated Song',
+      customMode: true,
+      instrumental: false,
+      model: 'V4_5PLUS', // Best for vocals
+    });
     
-    // Style mapping for better prompts
+    // Wait for full completion
+    const tracks = await this.waitForCompletion(taskId);
+    
+    return {
+      audioUrl: tracks[0].audio_url,
+      duration: tracks[0].duration,
+      tracks,
+    };
+  }
+
+  /**
+   * Quick generation using non-custom mode (simpler, auto-generates lyrics)
+   */
+  async quickGenerate(prompt: string, instrumental: boolean = true): Promise<{ audioUrl: string; duration: number }> {
+    const { taskId } = await this.generateMusic({
+      prompt: prompt.substring(0, 500), // Max 500 chars for non-custom mode
+      customMode: false,
+      instrumental,
+      model: 'V4_5ALL',
+    });
+    
+    const track = await this.waitForStreamUrl(taskId);
+    
+    return {
+      audioUrl: track.stream_audio_url || track.audio_url,
+      duration: track.duration || 30,
+    };
+  }
+
+  /**
+   * Get remaining API credits
+   */
+  async getCredits(): Promise<{ credits: number }> {
+    const result = await this.makeRequest<{ code: number; data: { credits: number } }>('/api/v1/account/credits');
+    return { credits: result.data?.credits || 0 };
+  }
+
+  private buildStyleDescription(style: string, bpm?: number, key?: string): string {
+    // Style mapping for better Suno prompts
     const stylePrompts: Record<string, string> = {
-      'Travis Scott rage': 'dark trap beat, heavy 808s, aggressive synths, rage style',
-      'The Weeknd dark': 'dark R&B instrumental, synth wave, moody atmosphere',
-      'Drake smooth': 'smooth trap beat, melodic 808s, ambient pads',
-      'K-pop cute': 'bright K-pop instrumental, energetic synths, catchy melody',
-      'Phonk drift': 'phonk beat, cowbell, distorted 808s, Memphis style',
-      'Future bass': 'future bass drop, supersaws, energetic EDM',
-      'Lo-fi chill': 'lo-fi hip hop beat, dusty drums, jazz chords, relaxing',
-      'Hyperpop glitch': 'hyperpop instrumental, glitchy, detuned synths, chaotic',
-      'Afrobeats bounce': 'afrobeats instrumental, log drums, guitar stabs, bouncy',
-      'Latin trap': 'dembow beat, reggaeton style, Latin trap instrumental',
+      'Travis Scott rage': 'dark trap, heavy 808 bass, aggressive synths, rage beat, distorted, hard-hitting',
+      'The Weeknd dark': 'dark R&B, synth wave, moody atmosphere, 80s inspired, emotional',
+      'Drake smooth': 'smooth trap, melodic 808s, ambient pads, chill vibes, Toronto sound',
+      'K-pop cute': 'bright K-pop, energetic synths, catchy melody, upbeat, dance pop',
+      'Phonk drift': 'phonk, cowbell, distorted 808s, Memphis style, drift music, aggressive',
+      'Future bass': 'future bass, supersaws, energetic EDM, festival, euphoric drops',
+      'Lo-fi chill': 'lo-fi hip hop, dusty drums, jazz chords, relaxing, study music, vinyl crackle',
+      'Hyperpop glitch': 'hyperpop, glitchy, detuned synths, chaotic, experimental, maximalist',
+      'Afrobeats bounce': 'afrobeats, log drums, guitar stabs, bouncy, danceable, African rhythm',
+      'Latin trap': 'dembow, reggaeton, Latin trap, perreo, Caribbean vibes',
+      'Boom bap': 'boom bap, classic hip hop, vinyl samples, hard drums, 90s style',
+      'Drill UK': 'UK drill, sliding 808s, dark melodies, aggressive, London sound',
+      'House deep': 'deep house, four on the floor, warm bass, club music, groovy',
+      'Synthwave retro': 'synthwave, 80s retro, neon, outrun, nostalgic, electronic',
     };
 
-    parts.push(stylePrompts[style] || `${style} instrumental beat`);
+    let description = stylePrompts[style] || `${style} instrumental`;
     
     if (bpm) {
-      parts.push(`${bpm} BPM`);
+      description += `, ${bpm} BPM`;
     }
     
     if (key) {
-      parts.push(`key of ${key}`);
+      description += `, ${key}`;
     }
 
-    parts.push('high quality production, professional mix');
+    description += ', professional production, high quality mix';
 
-    return parts.join(', ');
+    return description;
   }
 
   /**
@@ -218,10 +346,11 @@ class SunoApiService {
   /**
    * Get API status
    */
-  getStatus(): { configured: boolean; apiBase: string } {
+  getStatus(): { configured: boolean; apiBase: string; model: string } {
     return {
       configured: this.isConfigured(),
       apiBase: SUNO_API_BASE,
+      model: 'V4_5ALL',
     };
   }
 }
