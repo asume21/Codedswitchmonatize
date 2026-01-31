@@ -29,6 +29,7 @@ import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
 import GlobalTransportBar from "./GlobalTransportBar";
 import { duplicateTrackData } from "@/lib/trackClone";
 import { apiRequest } from "@/lib/queryClient";
+import { useMIDI } from "@/hooks/use-midi";
 import { 
   Note, 
   Track, 
@@ -165,6 +166,13 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   
   // Get global instrument context for unified MIDI/piano roll sync
   const globalInstrument = useInstrumentOptional();
+  
+  // Get MIDI hook for recording from MIDI controller
+  const { 
+    isConnected: midiConnected, 
+    activeNotes: midiActiveNotes,
+    lastNote: midiLastNote 
+  } = useMIDI();
   
   // State - sync with transport context
   const [internalIsPlaying, setInternalIsPlaying] = useState(false);
@@ -369,6 +377,51 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // Use ref to avoid stale closure issues
   const toastRef = useRef(toast);
   toastRef.current = toast;
+
+  // 🎹 MIDI RECORDING - Capture notes from MIDI controller when recording
+  useEffect(() => {
+    if (!midiLastNote || !isRecording) return;
+    
+    const { note: midiNote, velocity } = midiLastNote;
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(midiNote / 12) - 1;
+    const noteIndex = midiNote % 12;
+    const noteName = noteNames[noteIndex];
+    
+    const now = Date.now();
+    
+    // Start timer on first note
+    let actualStartTime = recordingStartTime;
+    if (actualStartTime === 0) {
+      actualStartTime = now;
+      setRecordingStartTime(now);
+      toast({
+        title: "🎵 MIDI Recording Started!",
+        description: "Timer started - keep playing!",
+        duration: 1500,
+      });
+    }
+    
+    // Calculate step position based on elapsed time
+    const elapsedMs = now - actualStartTime;
+    const msPerBeat = 60000 / bpm;
+    const msPerStep = msPerBeat / 4; // 16th notes
+    const step = Math.round(elapsedMs / msPerStep);
+    
+    const newNote: Note = {
+      id: `midi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      note: noteName,
+      octave,
+      step,
+      velocity: Math.round((velocity / 127) * 127),
+      length: 1
+    };
+    
+    recordingNotesRef.current.push(newNote);
+    setCurrentStep(step);
+    
+    console.log(`🎹 MIDI Recorded: ${noteName}${octave} at step ${step}`);
+  }, [midiLastNote, isRecording, recordingStartTime, bpm, toast]);
   
   useEffect(() => {
     const handleAstutelyGenerated = (e: CustomEvent<{ notes: any[]; bpm: number; channelMapping?: Record<string, string> }>) => {
