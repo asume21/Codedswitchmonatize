@@ -520,20 +520,21 @@ export default function UnifiedStudioWorkspace() {
   const [waveformTrimStart, setWaveformTrimStart] = useState(0);
   const [waveformTrimEnd, setWaveformTrimEnd] = useState(100);
   const [playheadPosition, setPlayheadPosition] = useState(0);
-  const [midiConnected, setMidiConnected] = useState(false);
-  const [midiDevices, setMidiDevices] = useState<any[]>([]);
-  const [midiActiveNotes, setMidiActiveNotes] = useState<Set<string>>(new Set());
-  const [midiSettings, setMidiSettings] = useState<{
-    channel: number;
-    velocity: number;
-    midiVolume?: number;
-    currentInstrument?: string;
-    sustainPedal?: boolean;
-    pitchBend?: boolean;
-    modulation?: boolean;
-    autoConnect?: boolean;
-  }>({ channel: 0, velocity: 127, midiVolume: 0.3, currentInstrument: 'piano', sustainPedal: true, pitchBend: true, modulation: true, autoConnect: true });
-  const [midiSupported, setMidiSupported] = useState(false);
+  // Use the MIDI hook for real MIDI functionality
+  const {
+    isSupported: midiSupported,
+    isConnected: midiConnected,
+    connectedDevices: midiDevices,
+    activeNotes: midiActiveNotesSet,
+    initializeMIDI,
+    refreshDevices: refreshMIDIDevices,
+    settings: midiSettings,
+    updateSettings: updateMIDISettings,
+    setMasterVolume: setMIDIMasterVolume,
+  } = useMIDI();
+  
+  // Convert Set<number> to Set<string> for display
+  const midiActiveNotes = new Set(Array.from(midiActiveNotesSet).map(n => String(n)));
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const trackListRef = useRef<HTMLDivElement>(null);
@@ -576,22 +577,6 @@ export default function UnifiedStudioWorkspace() {
   };
   
   const stopTimelineAudio = () => {
-    // Placeholder implementation
-  };
-  
-  const initializeMIDI = () => {
-    // Placeholder implementation
-  };
-  
-  const refreshMIDIDevices = () => {
-    // Placeholder implementation
-  };
-  
-  const updateMIDISettings = (settings: any) => {
-    // Placeholder implementation
-  };
-  
-  const setMIDIMasterVolume = (volume: number) => {
     // Placeholder implementation
   };
 
