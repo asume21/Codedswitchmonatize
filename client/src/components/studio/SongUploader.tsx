@@ -61,6 +61,7 @@ export default function SongUploader() {
   const [speechWords, setSpeechWords] = useState<Array<{ start: number; end: number; text: string }>>([]);
   const [speechPreviewUrl, setSpeechPreviewUrl] = useState<string | null>(null);
   const [speechPreviewId, setSpeechPreviewId] = useState<string | null>(null);
+  const [speechVoiceId, setSpeechVoiceId] = useState<string | null>(null); // Voice ID for cloning
   const [speechLoading, setSpeechLoading] = useState<{ transcribe: boolean; preview: boolean; commit: boolean }>({
     transcribe: false,
     preview: false,
@@ -312,6 +313,7 @@ export default function SongUploader() {
       setSpeechWords([]);
       setSpeechPreviewUrl(null);
       setSpeechPreviewId(null);
+      setSpeechVoiceId(null);
       return;
     }
     const existing = transcriptions.get(speechSongId);
@@ -412,6 +414,17 @@ export default function SongUploader() {
     setSpeechLoading((p) => ({ ...p, transcribe: true }));
 
     try {
+      // First, create a voiceprint from the original audio for voice cloning
+      const voiceprintResponse = await apiRequest("POST", "/api/speech-correction/voiceprint", {
+        fileUrl: audioUrl,
+      });
+      const voiceprintData = await voiceprintResponse.json();
+      if (voiceprintData.voiceId) {
+        setSpeechVoiceId(voiceprintData.voiceId);
+        console.log('🎤 Voice ID created:', voiceprintData.voiceId);
+      }
+
+      // Then transcribe the audio
       const response = await apiRequest("POST", "/api/speech-correction/transcribe", {
         fileId: song.id,
         fileUrl: audioUrl,
@@ -425,7 +438,7 @@ export default function SongUploader() {
       }
       toast({
         title: "Speech transcript ready",
-        description: "Word-level transcript loaded for editing.",
+        description: "Word-level transcript loaded for editing. Voice sample captured for cloning.",
       });
     } catch (error) {
       console.error("Speech correction transcribe error:", error);
@@ -465,6 +478,7 @@ export default function SongUploader() {
         wordTiming: speechWords,
         guideAudioId: song.id,
         keepTiming: true,
+        voiceId: speechVoiceId, // Pass voice ID for cloning
       });
       const data = await response.json();
       setSpeechPreviewUrl(data.previewUrl || data.url || null);
@@ -474,7 +488,9 @@ export default function SongUploader() {
       }
       toast({
         title: "Preview ready",
-        description: "Listen and compare with the original.",
+        description: speechVoiceId 
+          ? "Voice cloned and regenerated with your edits." 
+          : "Listen and compare with the original.",
       });
     } catch (error) {
       console.error("Speech correction preview error:", error);

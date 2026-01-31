@@ -2999,15 +2999,19 @@ ${code}
         const { duration, stylePrompt, wordTiming, voiceId } = req.body;
         if (!transcript) return sendError(res, 400, "Missing transcript");
 
-        let url = await generateSpeechPreview({
-          transcript,
-          duration: duration ?? 15,
-          stylePrompt,
-        });
+        let url: string;
 
-        // Apply voice conversion if voiceId provided
+        // If voiceId provided, use XTTS voice cloning directly
         if (voiceId) {
-          url = await applyVoiceConversion(url, voiceId);
+          console.log(`🎤 Using voice cloning with voiceId: ${voiceId}`);
+          url = await applyVoiceConversion(transcript, voiceId, { language: "en" });
+        } else {
+          // No voice sample - use Bark TTS
+          url = await generateSpeechPreview({
+            transcript,
+            duration: duration ?? 15,
+            stylePrompt,
+          });
         }
 
         const previewId = crypto.randomUUID();
