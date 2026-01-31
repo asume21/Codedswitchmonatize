@@ -462,13 +462,41 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     
     switch (drumType) {
       case 'kick': {
-        const o = ctx.createOscillator();
-        o.frequency.setValueAtTime(60, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.1);
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(0.8, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        o.connect(g); g.connect(gain); o.start(); o.stop(ctx.currentTime + 0.3);
+        const now = ctx.currentTime;
+        
+        // Body oscillator - deep sine
+        const bodyOsc = ctx.createOscillator();
+        bodyOsc.type = 'sine';
+        bodyOsc.frequency.setValueAtTime(65, now);
+        bodyOsc.frequency.exponentialRampToValueAtTime(35, now + 0.12);
+        
+        const bodyGain = ctx.createGain();
+        bodyGain.gain.setValueAtTime(0.001, now);
+        bodyGain.gain.linearRampToValueAtTime(0.9, now + 0.005);
+        bodyGain.gain.exponentialRampToValueAtTime(0.5, now + 0.06);
+        bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        
+        // Punch layer - adds attack definition
+        const punchOsc = ctx.createOscillator();
+        punchOsc.type = 'sine';
+        punchOsc.frequency.setValueAtTime(150, now);
+        punchOsc.frequency.exponentialRampToValueAtTime(50, now + 0.03);
+        
+        const punchGain = ctx.createGain();
+        punchGain.gain.setValueAtTime(0.001, now);
+        punchGain.gain.linearRampToValueAtTime(0.4, now + 0.003);
+        punchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        
+        // Connect
+        bodyOsc.connect(bodyGain);
+        bodyGain.connect(gain);
+        punchOsc.connect(punchGain);
+        punchGain.connect(gain);
+        
+        bodyOsc.start(now);
+        punchOsc.start(now);
+        bodyOsc.stop(now + 0.4);
+        punchOsc.stop(now + 0.05);
         break;
       }
       case 'snare':

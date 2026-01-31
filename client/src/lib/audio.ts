@@ -1734,129 +1734,115 @@ export class AudioEngine {
     if (this.isDisposed || !this.audioContext || !this.masterGain) return;
 
     try {
-      // PROFESSIONAL 808-STYLE KICK DRUM - Deep, punchy, realistic
-      const kickOsc = this.audioContext.createOscillator();
-      const subKick = this.audioContext.createOscillator();
-      const clickOsc = this.audioContext.createOscillator();
-      const noiseSource = this.audioContext.createBufferSource();
-
-      const kickGain = this.audioContext.createGain();
-      const subGain = this.audioContext.createGain();
-      const clickGain = this.audioContext.createGain();
-      const noiseGain = this.audioContext.createGain();
-
-      const kickFilter = this.audioContext.createBiquadFilter();
-      const subFilter = this.audioContext.createBiquadFilter();
-      const clickFilter = this.audioContext.createBiquadFilter();
-      const noiseFilter = this.audioContext.createBiquadFilter();
-
-      // Main kick fundamental - deep sine wave with pitch sweep
-      kickOsc.type = "sine";
-      kickOsc.frequency.setValueAtTime(60, currentTime);
-      kickOsc.frequency.exponentialRampToValueAtTime(45, currentTime + 0.05);
-      kickOsc.frequency.exponentialRampToValueAtTime(30, currentTime + 0.2);
-
-      // Sub bass component - even deeper
-      subKick.type = "sine";
-      subKick.frequency.setValueAtTime(35, currentTime);
-      subKick.frequency.exponentialRampToValueAtTime(25, currentTime + 0.15);
-
-      // Beater click/attack
-      clickOsc.type = "square";
-      clickOsc.frequency.setValueAtTime(800, currentTime);
-      clickOsc.frequency.exponentialRampToValueAtTime(200, currentTime + 0.02);
-
-      // Realistic kick noise (beater hitting drumhead)
-      const noiseLength = Math.floor(this.audioContext.sampleRate * 0.08);
-      const noiseBuffer = this.audioContext.createBuffer(
-        1,
-        noiseLength,
-        this.audioContext.sampleRate,
-      );
-      const noiseData = noiseBuffer.getChannelData(0);
-
-      for (let i = 0; i < noiseLength; i++) {
-        const envelope = Math.pow(1 - i / noiseLength, 4);
-        noiseData[i] = (Math.random() * 2 - 1) * envelope * 0.8;
-      }
-      noiseSource.buffer = noiseBuffer;
-
-      // Professional filtering
-      kickFilter.type = "lowpass";
-      kickFilter.frequency.setValueAtTime(100, currentTime);
-      kickFilter.Q.setValueAtTime(1.2, currentTime);
-
+      const ctx = this.audioContext;
+      
+      // === MAIN BODY - Deep sine with pitch sweep ===
+      const bodyOsc = ctx.createOscillator();
+      const bodyGain = ctx.createGain();
+      const bodyFilter = ctx.createBiquadFilter();
+      
+      bodyOsc.type = "sine";
+      bodyOsc.frequency.setValueAtTime(65, currentTime);
+      bodyOsc.frequency.exponentialRampToValueAtTime(40, currentTime + 0.08);
+      bodyOsc.frequency.exponentialRampToValueAtTime(32, currentTime + 0.2);
+      
+      bodyFilter.type = "lowpass";
+      bodyFilter.frequency.setValueAtTime(120, currentTime);
+      bodyFilter.Q.setValueAtTime(1, currentTime);
+      
+      // Smooth attack to avoid clicks
+      const bodyVol = Math.max(0.001, velocity * 0.95);
+      bodyGain.gain.setValueAtTime(0.001, currentTime);
+      bodyGain.gain.linearRampToValueAtTime(bodyVol, currentTime + 0.004);
+      bodyGain.gain.exponentialRampToValueAtTime(bodyVol * 0.65, currentTime + 0.06);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.4);
+      
+      // === SUB BASS - Adds weight ===
+      const subOsc = ctx.createOscillator();
+      const subGain = ctx.createGain();
+      const subFilter = ctx.createBiquadFilter();
+      
+      subOsc.type = "sine";
+      subOsc.frequency.setValueAtTime(40, currentTime);
+      subOsc.frequency.exponentialRampToValueAtTime(28, currentTime + 0.15);
+      
       subFilter.type = "lowpass";
-      subFilter.frequency.setValueAtTime(60, currentTime);
-      subFilter.Q.setValueAtTime(0.8, currentTime);
-
-      clickFilter.type = "bandpass";
-      clickFilter.frequency.setValueAtTime(1500, currentTime);
-      clickFilter.Q.setValueAtTime(3, currentTime);
-
+      subFilter.frequency.setValueAtTime(80, currentTime);
+      subFilter.Q.setValueAtTime(0.7, currentTime);
+      
+      const subVol = Math.max(0.001, velocity * 0.7);
+      subGain.gain.setValueAtTime(0.001, currentTime);
+      subGain.gain.linearRampToValueAtTime(subVol, currentTime + 0.006);
+      subGain.gain.exponentialRampToValueAtTime(subVol * 0.5, currentTime + 0.1);
+      subGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.35);
+      
+      // === PUNCH LAYER - Soft sine for attack definition (NOT harsh square) ===
+      const punchOsc = ctx.createOscillator();
+      const punchGain = ctx.createGain();
+      const punchFilter = ctx.createBiquadFilter();
+      
+      punchOsc.type = "sine"; // Sine instead of square for smoother sound
+      punchOsc.frequency.setValueAtTime(160, currentTime);
+      punchOsc.frequency.exponentialRampToValueAtTime(55, currentTime + 0.025);
+      
+      punchFilter.type = "bandpass";
+      punchFilter.frequency.setValueAtTime(120, currentTime);
+      punchFilter.Q.setValueAtTime(1.2, currentTime);
+      
+      const punchVol = Math.max(0.001, velocity * 0.35);
+      punchGain.gain.setValueAtTime(0.001, currentTime);
+      punchGain.gain.linearRampToValueAtTime(punchVol, currentTime + 0.002);
+      punchGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.04);
+      
+      // === TRANSIENT NOISE - Subtle beater texture ===
+      const noiseLength = Math.floor(ctx.sampleRate * 0.025);
+      const noiseBuffer = ctx.createBuffer(1, noiseLength, ctx.sampleRate);
+      const noiseData = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < noiseLength; i++) {
+        const env = Math.exp(-i / (ctx.sampleRate * 0.004));
+        noiseData[i] = (Math.random() * 2 - 1) * env * 0.5;
+      }
+      
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = noiseBuffer;
+      const noiseGain = ctx.createGain();
+      const noiseFilter = ctx.createBiquadFilter();
+      
       noiseFilter.type = "bandpass";
-      noiseFilter.frequency.setValueAtTime(800, currentTime);
-      noiseFilter.Q.setValueAtTime(2, currentTime);
-
-      // Realistic kick envelope - punchy attack, controlled decay
-      const kickVol = Math.max(0.001, velocity * 1.0);
-      kickGain.gain.setValueAtTime(kickVol, currentTime);
-      kickGain.gain.exponentialRampToValueAtTime(
-        kickVol * 0.7,
-        currentTime + 0.05,
-      );
-      kickGain.gain.exponentialRampToValueAtTime(
-        kickVol * 0.3,
-        currentTime + 0.15,
-      );
-      kickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.5);
-
-      // Sub bass envelope - longer sustain for body
-      const subVol = Math.max(0.001, velocity * 0.8);
-      subGain.gain.setValueAtTime(subVol, currentTime);
-      subGain.gain.exponentialRampToValueAtTime(
-        subVol * 0.6,
-        currentTime + 0.08,
-      );
-      subGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.4);
-
-      // Click envelope - sharp attack
-      const clickVol = Math.max(0.001, velocity * 0.4);
-      clickGain.gain.setValueAtTime(clickVol, currentTime);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.025);
-
-      // Noise envelope - very brief attack texture
-      const noiseVol = Math.max(0.001, velocity * 0.6);
+      noiseFilter.frequency.setValueAtTime(350, currentTime);
+      noiseFilter.Q.setValueAtTime(1.5, currentTime);
+      
+      const noiseVol = velocity * 0.12;
       noiseGain.gain.setValueAtTime(noiseVol, currentTime);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.08);
-
-      // Connect all components
-      kickOsc.connect(kickFilter);
-      kickFilter.connect(kickGain);
-      kickGain.connect(this.masterGain);
-
-      subKick.connect(subFilter);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.02);
+      
+      // === CONNECT ALL LAYERS ===
+      bodyOsc.connect(bodyFilter);
+      bodyFilter.connect(bodyGain);
+      bodyGain.connect(this.masterGain);
+      
+      subOsc.connect(subFilter);
       subFilter.connect(subGain);
       subGain.connect(this.masterGain);
-
-      clickOsc.connect(clickFilter);
-      clickFilter.connect(clickGain);
-      clickGain.connect(this.masterGain);
-
+      
+      punchOsc.connect(punchFilter);
+      punchFilter.connect(punchGain);
+      punchGain.connect(this.masterGain);
+      
       noiseSource.connect(noiseFilter);
       noiseFilter.connect(noiseGain);
       noiseGain.connect(this.masterGain);
-
-      // Start all components
-      kickOsc.start(currentTime);
-      subKick.start(currentTime);
-      clickOsc.start(currentTime);
+      
+      // === START AND STOP ===
+      bodyOsc.start(currentTime);
+      subOsc.start(currentTime);
+      punchOsc.start(currentTime);
       noiseSource.start(currentTime);
-
-      // Stop all components
-      kickOsc.stop(currentTime + 0.5);
-      subKick.stop(currentTime + 0.4);
-      clickOsc.stop(currentTime + 0.025);
+      
+      bodyOsc.stop(currentTime + 0.45);
+      subOsc.stop(currentTime + 0.4);
+      punchOsc.stop(currentTime + 0.05);
+      
     } catch (error) {
       console.error("🎵 Kick drum error:", error);
     }

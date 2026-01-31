@@ -624,51 +624,92 @@ export class RealisticAudioEngine {
 
     try {
       const k = profile || this.drumKitProfiles.default.kick;
-      const kickOsc = this.audioContext.createOscillator();
-      const kickClickOsc = this.audioContext.createOscillator();
-      const kickGain = this.audioContext.createGain();
-      const kickClickGain = this.audioContext.createGain();
-      const kickFilter = this.audioContext.createBiquadFilter();
-
-      // Main kick - deep sine wave
-      kickOsc.type = 'sine';
-      kickOsc.frequency.setValueAtTime(k.pitchStart, currentTime);
-      kickOsc.frequency.exponentialRampToValueAtTime(k.pitchEnd, currentTime + k.pitchSweep);
-
-      // Click/beater attack
-      kickClickOsc.type = 'triangle';
-      kickClickOsc.frequency.setValueAtTime(1200, currentTime);
-      kickClickOsc.frequency.exponentialRampToValueAtTime(800, currentTime + 0.01);
-
-      // Tight filter for definition
-      kickFilter.type = 'lowpass';
-      kickFilter.frequency.setValueAtTime(k.filterHz, currentTime);
-      kickFilter.Q.setValueAtTime(k.filterQ, currentTime);
-
-      // Main kick envelope - punchy decay - BOOSTED VOLUME
-      const kickVol = Math.max(0.001, velocity * k.bodyGain);
-      kickGain.gain.setValueAtTime(kickVol, currentTime);
-      kickGain.gain.exponentialRampToValueAtTime(kickVol * 0.6, currentTime + Math.min(0.08, k.bodyDecay * 0.35));
-      kickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + k.bodyDecay);
-
-      // Softer click envelope - reduced volume and smoother attack to eliminate harsh clicking
-      const clickVol = Math.max(0.001, velocity * k.clickVol); // Kit-shaped click
-      kickClickGain.gain.setValueAtTime(0.001, currentTime); // Start from zero to smooth attack
-      kickClickGain.gain.exponentialRampToValueAtTime(clickVol, currentTime + 0.003); // Gentle rise
-      kickClickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.02); // Slightly longer decay
-
-      // Connect
-      kickOsc.connect(kickFilter);
-      kickFilter.connect(kickGain);
-      kickGain.connect(destination || this.audioContext.destination);
-
-      kickClickOsc.connect(kickClickGain);
-      kickClickGain.connect(destination || this.audioContext.destination);
-
-      kickOsc.start(currentTime);
-      kickClickOsc.start(currentTime);
-      kickOsc.stop(currentTime + k.bodyDecay);
-      kickClickOsc.stop(currentTime + 0.015);
+      const ctx = this.audioContext;
+      const dest = destination || ctx.destination;
+      
+      // === MAIN BODY OSCILLATOR (deep sine) ===
+      const bodyOsc = ctx.createOscillator();
+      const bodyGain = ctx.createGain();
+      const bodyFilter = ctx.createBiquadFilter();
+      
+      // Sub-bass body - pure sine for clean low end
+      bodyOsc.type = 'sine';
+      bodyOsc.frequency.setValueAtTime(k.pitchStart, currentTime);
+      bodyOsc.frequency.exponentialRampToValueAtTime(Math.max(20, k.pitchEnd), currentTime + k.pitchSweep);
+      
+      // Gentle lowpass to remove any harmonics
+      bodyFilter.type = 'lowpass';
+      bodyFilter.frequency.setValueAtTime(Math.max(80, k.filterHz), currentTime);
+      bodyFilter.Q.setValueAtTime(Math.min(k.filterQ, 4), currentTime); // Limit Q to prevent ringing
+      
+      // Smooth envelope with proper attack
+      const bodyVol = Math.max(0.001, velocity * k.bodyGain * 0.9);
+      bodyGain.gain.setValueAtTime(0.001, currentTime);
+      bodyGain.gain.linearRampToValueAtTime(bodyVol, currentTime + 0.005); // 5ms attack
+      bodyGain.gain.exponentialRampToValueAtTime(bodyVol * 0.7, currentTime + 0.05);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, currentTime + k.bodyDecay);
+      
+      // === PUNCH/CLICK LAYER (softer, lower frequency) ===
+      const clickOsc = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      const clickFilter = ctx.createBiquadFilter();
+      
+      // Use a lower frequency sine for punch instead of harsh triangle
+      clickOsc.type = 'sine';
+      clickOsc.frequency.setValueAtTime(180, currentTime); // Much lower than before (was 1200)
+      clickOsc.frequency.exponentialRampToValueAtTime(60, currentTime + 0.025);
+      
+      // Bandpass to shape the click
+      clickFilter.type = 'bandpass';
+      clickFilter.frequency.setValueAtTime(150, currentTime);
+      clickFilter.Q.setValueAtTime(1.5, currentTime);
+      
+      // Very short click envelope
+      const clickVol = Math.max(0.001, velocity * k.clickVol * 0.6);
+      clickGain.gain.setValueAtTime(0.001, currentTime);
+      clickGain.gain.linearRampToValueAtTime(clickVol, currentTime + 0.002);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.035);
+      
+      // === TRANSIENT NOISE LAYER (adds realistic attack) ===
+      const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.02, ctx.sampleRate);
+      const noiseData = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < noiseData.length; i++) {
+        noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.003));
+      }
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = noiseBuffer;
+      
+      const noiseGain = ctx.createGain();
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.setValueAtTime(400, currentTime);
+      noiseFilter.Q.setValueAtTime(2, currentTime);
+      
+      const noiseVol = velocity * k.clickVol * 0.15;
+      noiseGain.gain.setValueAtTime(noiseVol, currentTime);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.015);
+      
+      // === CONNECT ALL LAYERS ===
+      bodyOsc.connect(bodyFilter);
+      bodyFilter.connect(bodyGain);
+      bodyGain.connect(dest);
+      
+      clickOsc.connect(clickFilter);
+      clickFilter.connect(clickGain);
+      clickGain.connect(dest);
+      
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(dest);
+      
+      // === START AND STOP ===
+      bodyOsc.start(currentTime);
+      clickOsc.start(currentTime);
+      noiseSource.start(currentTime);
+      
+      bodyOsc.stop(currentTime + k.bodyDecay + 0.05);
+      clickOsc.stop(currentTime + 0.04);
+      
     } catch (error) {
       console.error('🎵 Kick drum error:', error);
     }
