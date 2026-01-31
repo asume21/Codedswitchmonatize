@@ -2,9 +2,10 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
-import { Waves, Music, PlusCircle, Play, Pause } from "lucide-react";
+import { Waves, Music, PlusCircle, Play, Pause, Piano, Drum, ChevronDown, Layers } from "lucide-react";
 import { professionalAudio } from "@/lib/professionalAudio";
 import { getAudioContext } from "@/lib/audioContext";
 import { AudioPremixCache } from "@/lib/audioPremix";
@@ -13,6 +14,9 @@ interface LoopInfo {
   id: string;
   name: string;
   audioUrl: string;
+  bpm?: number;
+  key?: string;
+  type?: 'melodic' | 'drums' | 'bass' | 'other';
 }
 
 export default function LoopLibrary() {
@@ -162,6 +166,43 @@ export default function LoopLibrary() {
     });
   };
 
+  // Load loop into Piano Roll as MIDI notes (dispatches event for Piano Roll to handle)
+  const handleLoadToPianoRoll = (loop: LoopInfo) => {
+    // Dispatch event for Piano Roll to load this loop
+    window.dispatchEvent(new CustomEvent('load-loop-to-piano-roll', {
+      detail: {
+        loopId: loop.id,
+        name: loop.name,
+        audioUrl: loop.audioUrl,
+        bpm: loop.bpm,
+        key: loop.key,
+      }
+    }));
+    
+    toast({
+      title: "🎹 Loop sent to Piano Roll",
+      description: `${loop.name} - Open Piano Roll to see the notes`,
+    });
+  };
+
+  // Load loop into Beat Lab step sequencer
+  const handleLoadToBeatLab = (loop: LoopInfo) => {
+    // Dispatch event for Beat Lab to load this loop
+    window.dispatchEvent(new CustomEvent('load-loop-to-beat-lab', {
+      detail: {
+        loopId: loop.id,
+        name: loop.name,
+        audioUrl: loop.audioUrl,
+        bpm: loop.bpm,
+      }
+    }));
+    
+    toast({
+      title: "🥁 Loop sent to Beat Lab",
+      description: `${loop.name} - Open Beat Lab to see the pattern`,
+    });
+  };
+
   return (
     <Card className="bg-gray-900 border border-gray-700">
       <CardHeader className="flex items-center justify-between gap-2">
@@ -206,14 +247,41 @@ export default function LoopLibrary() {
                     {previewUrl === loop.audioUrl && isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                     {previewUrl === loop.audioUrl && isPlaying ? 'Stop' : 'Preview'}
                   </Button>
-                  <Button
-                    size="sm"
-                    className="flex items-center gap-1 bg-blue-600 hover:bg-blue-500 h-8 px-2"
-                    onClick={() => handleAddToTracks(loop)}
-                  >
-                    <PlusCircle className="w-3 h-3" />
-                    Add
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="sm"
+                        className="flex items-center gap-1 bg-blue-600 hover:bg-blue-500 h-8 px-2"
+                      >
+                        <PlusCircle className="w-3 h-3" />
+                        Add
+                        <ChevronDown className="w-3 h-3 ml-1" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-gray-800 border-gray-700">
+                      <DropdownMenuItem 
+                        onClick={() => handleAddToTracks(loop)}
+                        className="flex items-center gap-2 text-white hover:bg-gray-700 cursor-pointer"
+                      >
+                        <Layers className="w-4 h-4 text-blue-400" />
+                        Add to Timeline
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleLoadToPianoRoll(loop)}
+                        className="flex items-center gap-2 text-white hover:bg-gray-700 cursor-pointer"
+                      >
+                        <Piano className="w-4 h-4 text-green-400" />
+                        Load in Piano Roll
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleLoadToBeatLab(loop)}
+                        className="flex items-center gap-2 text-white hover:bg-gray-700 cursor-pointer"
+                      >
+                        <Drum className="w-4 h-4 text-orange-400" />
+                        Load in Beat Lab
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             ))}

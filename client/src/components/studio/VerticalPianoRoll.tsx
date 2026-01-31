@@ -423,6 +423,46 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     
     console.log(`🎹 MIDI Recorded: ${noteName}${octave} at step ${step}`);
   }, [midiLastNote, isRecording, recordingStartTime, bpm, toast]);
+
+  // 🔄 Listen for loop loading from Loop Library
+  useEffect(() => {
+    const handleLoadLoop = (e: CustomEvent<{ loopId: string; name: string; audioUrl: string; bpm?: number; key?: string }>) => {
+      const { name, audioUrl, bpm: loopBpm, key } = e.detail;
+      
+      // Update BPM if provided
+      if (loopBpm) {
+        setBpm(loopBpm);
+      }
+      
+      // Update key if provided
+      if (key) {
+        setCurrentKey(key);
+      }
+      
+      // Create a new track for the loop with placeholder notes
+      // In a real implementation, you'd analyze the audio to extract notes
+      const loopTrack: Track = {
+        id: `loop-${Date.now()}`,
+        name: name,
+        color: 'bg-purple-500',
+        notes: [],
+        muted: false,
+        volume: 80,
+        instrument: 'piano'
+      };
+      
+      setTracks(prev => [...prev, loopTrack]);
+      setSelectedTrackIndex(tracks.length); // Select the new track
+      
+      toast({
+        title: "🎵 Loop Loaded",
+        description: `${name} added as new track. Add notes manually or use AI to generate.`,
+      });
+    };
+    
+    window.addEventListener('load-loop-to-piano-roll', handleLoadLoop as EventListener);
+    return () => window.removeEventListener('load-loop-to-piano-roll', handleLoadLoop as EventListener);
+  }, [tracks.length, toast]);
   
   useEffect(() => {
     const handleAstutelyGenerated = (e: CustomEvent<{ notes: any[]; bpm: number; channelMapping?: Record<string, string> }>) => {

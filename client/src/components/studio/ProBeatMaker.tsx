@@ -362,6 +362,48 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     setDrumMode(true);
     return () => setDrumMode(false);
   }, [setDrumMode]);
+
+  // 🔄 Listen for loop loading from Loop Library
+  useEffect(() => {
+    const handleLoadLoop = (e: CustomEvent<{ loopId: string; name: string; audioUrl: string; bpm?: number }>) => {
+      const { name, bpm: loopBpm } = e.detail;
+      
+      // Update BPM if provided
+      if (loopBpm) {
+        setBpm(loopBpm);
+      }
+      
+      // Generate a random pattern based on the loop name
+      // In a real implementation, you'd analyze the audio
+      const isKick = name.toLowerCase().includes('kick') || name.toLowerCase().includes('bass');
+      const isSnare = name.toLowerCase().includes('snare') || name.toLowerCase().includes('clap');
+      const isHihat = name.toLowerCase().includes('hat') || name.toLowerCase().includes('hi-hat');
+      
+      setTracks(prev => prev.map(track => {
+        // Auto-activate steps based on loop type
+        if ((isKick && track.id === 'kick') || 
+            (isSnare && track.id === 'snare') || 
+            (isHihat && track.id === 'hihat')) {
+          return {
+            ...track,
+            pattern: track.pattern.map((step, i) => ({
+              ...step,
+              active: i % 4 === 0 || (track.id === 'hihat' && i % 2 === 0),
+            })),
+          };
+        }
+        return track;
+      }));
+      
+      toast({ 
+        title: "🥁 Loop Pattern Applied", 
+        description: `${name} pattern loaded into Beat Lab` 
+      });
+    };
+    
+    window.addEventListener('load-loop-to-beat-lab', handleLoadLoop as EventListener);
+    return () => window.removeEventListener('load-loop-to-beat-lab', handleLoadLoop as EventListener);
+  }, [toast]);
   
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
     const initial = initTracks(16);
