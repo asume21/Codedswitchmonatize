@@ -112,6 +112,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         setTimeout(() => play(), 10);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -142,6 +143,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         setCurrentTime(0);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, getAudioContext, playlist.length]);
 
   const pause = useCallback(() => {
@@ -266,9 +268,10 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       setPlaylist([src]);
       setCurrentIndex(0);
       setSourceFromBuffer(buffer, src, false);
-    } catch (error: any) {
-      console.error('❌ Failed to load audio:', error);
-      throw new Error(`Unable to load audio file: ${error.message || 'Invalid or corrupted audio data'}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('❌ Failed to load audio:', err);
+      throw new Error(`Unable to load audio file: ${err.message || 'Invalid or corrupted audio data'}`);
     }
   }, [getAudioContext, setSourceFromBuffer]);
 
@@ -313,9 +316,10 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         }
         return nextList;
       });
-    } catch (error: any) {
-      console.error('❌ Failed to add audio to playlist:', error);
-      throw new Error(`Unable to load audio file: ${error.message || 'Invalid or corrupted audio data'}`);
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('❌ Failed to add audio to playlist:', err);
+      throw new Error(`Unable to load audio file: ${err.message || 'Invalid or corrupted audio data'}`);
     }
   }, [getAudioContext, setSourceFromBuffer]);
 
