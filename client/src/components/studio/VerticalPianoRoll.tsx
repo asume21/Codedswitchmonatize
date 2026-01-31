@@ -332,6 +332,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // Use useTracks hook for persistence
   const { tracks: registeredClips, addAndSaveTrack, updateTrack: updateTrackInStore, removeTrack } = useTracks();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const tracksRef = useRef<Track[]>([]); // Ref to always have latest tracks for playback
   const pianoKeysRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
@@ -341,6 +342,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     (tracks[selectedTrackIndex] || tracks[0] || internalTracks[0]) as Track,
     [tracks, selectedTrackIndex, internalTracks]
   );
+  
+  // Keep tracksRef updated with latest tracks for playback interval
+  useEffect(() => {
+    tracksRef.current = tracks;
+  }, [tracks]);
   const pianoTrackIdRef = useRef<string>(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `piano-${Date.now()}`);
   const hasRegisteredTrackRef = useRef(false);
   const wavCacheRef = useRef<string | null>(null);
@@ -791,12 +797,15 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         setCurrentStep(prev => {
           const nextStep = (prev + 1) % STEPS;
           
+          // Use tracksRef.current to always get latest tracks (not stale closure)
+          const currentTracks = tracksRef.current;
+          
           // Play notes at the current step
-          tracks.forEach(track => {
+          currentTracks.forEach(track => {
             if (!track.muted) {
               const notesAtStep = track.notes.filter((note: Note) => note.step === nextStep);
               if (notesAtStep.length > 0) {
-                console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes`, notesAtStep);
+                console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes from ${track.name}`, notesAtStep);
               }
               notesAtStep.forEach((note: Note) => {
                 const noteDuration = (note.length * stepDuration) / 1000;
@@ -821,7 +830,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         });
       }, stepDuration);
     }
-  }, [isPlaying, bpm, tracks, playTransport, pauseTransport, isExternallyControlled]);
+  }, [isPlaying, bpm, playTransport, pauseTransport, isExternallyControlled]);
 
   const handleStop = useCallback(() => {
     if (intervalRef.current) {

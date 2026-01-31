@@ -221,12 +221,14 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     }
   };
 
-  // Check if we have content to play
+  // Check if we have content to play - always allow play for Piano Roll internal playback
   const hasContent = 
     (studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0) ||
     (studioContext.currentMelody && studioContext.currentMelody.length > 0) ||
     (studioContext.currentTracks && studioContext.currentTracks.length > 0) ||
-    (studioContext.currentUploadedSong);
+    (studioContext.currentUploadedSong) ||
+    (storeTracks && storeTracks.length > 0) ||
+    true; // Always enable play - Piano Roll handles its own playback
 
   const containerClasses = cn(
     "bg-gray-900/95 backdrop-blur-md border-gray-700 transition-all duration-300",
