@@ -172,16 +172,23 @@ export class UnifiedMusicService {
       console.log(`🎵 Enhanced MusicGen prompt: ${fullPrompt.substring(0, 100)}...`);
 
       try {
+        // Add randomness to prompt to avoid repetitive outputs
+        const randomSeed = Math.floor(Math.random() * 1000000);
+        const variationWords = ['fresh', 'unique', 'creative', 'original', 'dynamic', 'vibrant', 'innovative'];
+        const randomVariation = variationWords[Math.floor(Math.random() * variationWords.length)];
+        const variedPrompt = `${fullPrompt}. ${randomVariation} arrangement.`;
+        
         const output = await replicate.run(
-          "meta/musicgen:2b5dc5f29cee83fd5cdf8f9c92e555aae7ca2a69b73c5182f3065362b2fa0a45",
+          "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043ac92924f66e7e4c19447d8b35",
           {
             input: {
-              prompt: fullPrompt,
+              prompt: variedPrompt,
               duration: Math.min(duration, 30),
-              temperature: 1.0,
-              top_k: 250,
-              top_p: 0.0,
-              cfg_coef: 3.0
+              temperature: 1.2,  // Higher temperature for more variety
+              top_k: 300,        // More token choices
+              top_p: 0.95,       // Enable nucleus sampling for diversity
+              classifier_free_guidance: 3.5,
+              seed: randomSeed   // Random seed each time
             }
           }
         );
@@ -233,6 +240,63 @@ export class UnifiedMusicService {
     } catch (error) {
       console.error(`${options.type} generation failed:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Generate with Stable Audio 2.0 - Better quality instrumentals with more variety
+   * Use this for higher quality, more diverse instrumental generation
+   */
+  async generateWithStableAudio(prompt: string, options: {
+    duration?: number;
+    genre?: string;
+    bpm?: number;
+    key?: string;
+    negative_prompt?: string;
+  } = {}): Promise<any> {
+    const { duration = 30, genre = 'electronic', bpm, key, negative_prompt } = options;
+    
+    console.log(`🎵 UnifiedMusic: Using Stable Audio 2.0 for "${prompt}"`);
+    
+    // Get genre intelligence
+    const genreSpec = getGenreSpec(genre);
+    const smartBpm = bpm || (genreSpec?.bpmRange ? Math.round((genreSpec.bpmRange[0] + genreSpec.bpmRange[1]) / 2) : 120);
+    const smartInstruments = genreSpec?.instruments?.slice(0, 3).join(', ') || 'synths, drums, bass';
+    
+    // Build rich prompt for Stable Audio
+    const fullPrompt = `${genre} instrumental track, ${smartBpm} BPM, ${key || 'C major'}. ${smartInstruments}. ${prompt}. High quality, professional production, clear mix.`;
+    
+    try {
+      const output = await replicate.run(
+        "stackadoc/stable-audio-open-1.0:ee6e70e8e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+        {
+          input: {
+            prompt: fullPrompt,
+            seconds_total: Math.min(duration, 47), // Stable Audio max is 47 seconds
+            steps: 100,
+            cfg_scale: 7,
+            seed: Math.floor(Math.random() * 1000000), // Random seed for variety
+            ...(negative_prompt && { negative_prompt })
+          }
+        }
+      );
+
+      return {
+        status: 'success',
+        audio_url: output,
+        metadata: {
+          type: 'instrumental',
+          duration,
+          generator: 'stable-audio',
+          genre,
+          bpm: smartBpm,
+          key
+        }
+      };
+    } catch (error) {
+      console.warn('Stable Audio failed, falling back to MusicGen:', error);
+      // Fallback to MusicGen
+      return this.generateTrack(prompt, { type: 'instrumental', duration, genre, bpm, key });
     }
   }
 

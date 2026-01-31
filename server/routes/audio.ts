@@ -158,24 +158,37 @@ export function createAudioRoutes() {
     }
   });
 
-  // Generate instrumental (MusicGen via Replicate)
+  // Generate instrumental (Stable Audio or MusicGen via Replicate)
+  // Use useStableAudio=true for better quality and more variety
   router.post("/songs/generate-instrumental", requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { prompt, genre, duration, instruments, energy, projectId } = req.body;
+      const { prompt, genre, duration, instruments, energy, projectId, useStableAudio, bpm, key } = req.body;
       
       if (!prompt) {
         return sendError(res, 400, "Missing prompt");
       }
 
-      console.log('🎹 Generating instrumental with MusicGen via Replicate...');
+      let result;
       
-      const result = await unifiedMusicService.generateTrack(prompt, {
-        type: 'instrumental',
-        instrument: (instruments || ['piano', 'guitar', 'bass', 'drums']).join(', '),
-        genre: genre || 'pop',
-        duration: duration || 60,
-        energy: energy || 'medium'
-      });
+      // Use Stable Audio for better quality if requested (or by default for instrumentals)
+      if (useStableAudio !== false) {
+        console.log('🎹 Generating instrumental with Stable Audio 2.0 via Replicate...');
+        result = await unifiedMusicService.generateWithStableAudio(prompt, {
+          genre: genre || 'pop',
+          duration: duration || 30,
+          bpm: bpm,
+          key: key,
+        });
+      } else {
+        console.log('🎹 Generating instrumental with MusicGen via Replicate...');
+        result = await unifiedMusicService.generateTrack(prompt, {
+          type: 'instrumental',
+          instrument: (instruments || ['piano', 'guitar', 'bass', 'drums']).join(', '),
+          genre: genre || 'pop',
+          duration: duration || 60,
+          energy: energy || 'medium'
+        });
+      }
 
       const track = await trackFromResult({
         userId: req.userId!,
