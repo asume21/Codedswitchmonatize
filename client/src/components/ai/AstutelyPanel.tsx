@@ -58,6 +58,20 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const premixCacheRef = useRef(new AudioPremixCache());
   const inFlightPremixRef = useRef<Map<string, Promise<string | null>>>(new Map());
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [panelSize, setPanelSize] = useState({ width: 520, height: 660 });
+  const [showResizeGuide, setShowResizeGuide] = useState(true);
+  const resizeStateRef = useRef({
+    startX: 0,
+    startY: 0,
+    startWidth: 520,
+    startHeight: 660,
+  });
+  const resizingRef = useRef(false);
+  const MIN_WIDTH = 420;
+  const MAX_WIDTH = 900;
+  const MIN_HEIGHT = 520;
+  const MAX_HEIGHT = 860;
 
   const trackSummaries = useMemo(() => {
     if (!studioContext || !Array.isArray(studioContext.currentTracks)) {
@@ -141,6 +155,54 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
+  const detachResizeListeners = useCallback(() => {
+    document.removeEventListener('pointermove', handlePointerMove);
+    document.removeEventListener('pointerup', handlePointerUp);
+    resizingRef.current = false;
+  }, []);
+
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+  const handlePointerMove = useCallback((event: PointerEvent) => {
+    if (!resizingRef.current) return;
+    const { startX, startY, startWidth, startHeight } = resizeStateRef.current;
+    const deltaX = event.clientX - startX;
+    const deltaY = event.clientY - startY;
+    setPanelSize({
+      width: clamp(startWidth + deltaX, MIN_WIDTH, MAX_WIDTH),
+      height: clamp(startHeight + deltaY, MIN_HEIGHT, MAX_HEIGHT),
+    });
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    detachResizeListeners();
+  }, [detachResizeListeners]);
+
+  const handleResizeStart = useCallback((event: React.PointerEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = panelRef.current?.getBoundingClientRect();
+    resizeStateRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: rect?.width ?? panelSize.width,
+      startHeight: rect?.height ?? panelSize.height,
+    };
+    resizingRef.current = true;
+    setShowResizeGuide(false);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+  }, [handlePointerMove, handlePointerUp, panelSize.width, panelSize.height]);
+
+  const handleContentWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    if (event.ctrlKey) return;
+    event.preventDefault();
+    event.currentTarget.scrollBy({
+      top: event.deltaY * 0.65,
+      behavior: 'auto',
+    });
+  }, []);
+
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
@@ -148,8 +210,15 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
         audioElement.pause();
         audioElement.src = '';
       }
+      detachResizeListeners();
     };
-  }, [audioElement]);
+  }, [audioElement, detachResizeListeners]);
+
+  useEffect(() => {
+    if (!showResizeGuide) return;
+    const timer = setTimeout(() => setShowResizeGuide(false), 6000);
+    return () => clearTimeout(timer);
+  }, [showResizeGuide]);
 
   const handleSongSelect = async (songId: string) => {
     setSelectedSongId(songId);
@@ -381,233 +450,250 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm" 
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div 
-        className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-2xl p-8 w-full mx-4 shadow-2xl relative resize overflow-auto"
+      <div
+        ref={panelRef}
+        className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-2xl w-full mx-4 shadow-2xl relative flex flex-col border border-white/10"
         onClick={e => e.stopPropagation()}
         style={{
-          minWidth: '360px',
-          minHeight: '520px',
-          maxWidth: '90vw',
-          maxHeight: '90vh',
-          width: '520px',
-          height: '660px'
+          minWidth: `${MIN_WIDTH}px`,
+          minHeight: `${MIN_HEIGHT}px`,
+          maxWidth: `${MAX_WIDTH}px`,
+          maxHeight: `${MAX_HEIGHT}px`,
+          width: `${panelSize.width}px`,
+          height: `${panelSize.height}px`,
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-bold flex items-center gap-3">
-            <Sparkles className="w-10 h-10 text-yellow-400" />
-            Astutely
-          </h2>
+        <div className="flex justify-between items-center px-8 pt-8 pb-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-pink-200/80">Astutely</p>
+            <h2 className="text-3xl font-bold flex items-center gap-3 text-white">
+              <Sparkles className="w-10 h-10 text-yellow-300" />
+              Legendary Beat Architect
+            </h2>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-all">
-            <X className="w-6 h-6" />
+            <X className="w-6 h-6 text-white" />
           </button>
         </div>
 
-        <p className="text-gray-300 mb-4">Transform your loop into a full beat instantly</p>
-        
-        {/* Song Library Selector */}
-        <div className="mb-6 p-4 rounded-xl bg-white/10 border border-white/20">
-          <div className="flex items-center gap-2 mb-3">
-            <Library className="w-4 h-4 text-purple-400" />
-            <span className="text-sm font-semibold text-gray-200">Your Song Library</span>
-          </div>
-          <div className="flex gap-2">
-            <Select value={selectedSongId} onValueChange={handleSongSelect}>
-              <SelectTrigger className="flex-1 bg-white/10 border-white/20 text-white">
-                <SelectValue placeholder="Select a song to play..." />
-              </SelectTrigger>
-              <SelectContent>
-                {songs.length === 0 ? (
-                  <SelectItem value="none" disabled>
-                    No songs uploaded yet
-                  </SelectItem>
-                ) : (
-                  songs.map((song) => (
-                    <SelectItem key={song.id} value={song.id.toString()}>
-                      {song.name || `Song ${song.id}`}
+        <div className="px-8 text-gray-300 pb-4">Transform your loop into a full beat instantly</div>
+
+        <div
+          className="flex-1 px-8 pb-8 overflow-y-auto"
+          onWheel={handleContentWheel}
+          style={{ scrollBehavior: 'smooth' }}
+        >
+          {/* Song Library Selector */}
+          <div className="mb-6 p-4 rounded-xl bg-white/10 border border-white/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Library className="w-4 h-4 text-purple-400" />
+              <span className="text-sm font-semibold text-gray-200">Your Song Library</span>
+            </div>
+            <div className="flex gap-2">
+              <Select value={selectedSongId} onValueChange={handleSongSelect}>
+                <SelectTrigger className="flex-1 bg-white/10 border-white/20 text-white">
+                  <SelectValue placeholder="Select a song to play..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {songs.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No songs uploaded yet
                     </SelectItem>
-                  ))
+                  ) : (
+                    songs.map((song) => (
+                      <SelectItem key={song.id} value={song.id.toString()}>
+                        {song.name || `Song ${song.id}`}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <button
+                onClick={handlePlayPause}
+                disabled={!selectedSongId || selectedSongId === 'none'}
+                className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPlaying ? (
+                  <Pause className="w-5 h-5" />
+                ) : (
+                  <Play className="w-5 h-5" />
                 )}
-              </SelectContent>
-            </Select>
-            <button
-              onClick={handlePlayPause}
-              disabled={!selectedSongId || selectedSongId === 'none'}
-              className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isPlaying ? (
-                <Pause className="w-5 h-5" />
-              ) : (
-                <Play className="w-5 h-5" />
-              )}
-            </button>
-          </div>
-          {selectedSongId && selectedSongId !== 'none' && (
-            <div className="mt-3 space-y-2">
-              {isAnalyzing ? (
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Analyzing song...
+              </button>
+            </div>
+            {selectedSongId && selectedSongId !== 'none' && (
+              <div className="mt-3 space-y-2">
+                {isAnalyzing ? (
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Analyzing song...
+                  </div>
+                ) : songAnalysis ? (
+                  <div className="text-xs text-green-400">
+                    ✓ {songAnalysis.tempo || '?'} BPM • {songAnalysis.key || '?'} • {songAnalysis.genre || 'Unknown'}
+                  </div>
+                ) : null}
+
+                {/* Quick Actions */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => {
+                      sessionStorage.setItem('stem_separator_url', selectedSong?.accessibleUrl || selectedSong?.originalUrl || '');
+                      sessionStorage.setItem('stem_separator_name', selectedSong?.name || 'Song');
+                      toast({ title: 'Routing to Stem Separator', description: 'Opening AI Studio...' });
+                      window.dispatchEvent(new CustomEvent('navigate-to-stem-separator'));
+                      onClose();
+                    }}
+                    className="px-2 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
+                    title="Separate Stems"
+                  >
+                    <Scissors className="w-3 h-3" />
+                    <span>Stems</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
+                        detail: {
+                          name: selectedSong?.name || 'Track',
+                          audioUrl: selectedSong?.accessibleUrl || selectedSong?.originalUrl || ''
+                        }
+                      }));
+                      toast({ title: 'Added to Multi-Track', description: selectedSong?.name });
+                      onClose();
+                    }}
+                    className="px-2 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
+                    title="Add to Multi-Track"
+                  >
+                    <Layers className="w-3 h-3" />
+                    <span>Track</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      sessionStorage.setItem('astutely_mixer_song', JSON.stringify(selectedSong));
+                      toast({ title: 'Opening Mixer', description: 'Loading song...' });
+                      window.location.href = '/mixer?tab=ai-mix';
+                    }}
+                    className="px-2 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
+                    title="Send to Mixer"
+                  >
+                    <Sliders className="w-3 h-3" />
+                    <span>Mix</span>
+                  </button>
                 </div>
-              ) : songAnalysis ? (
-                <div className="text-xs text-green-400">
-                  ✓ {songAnalysis.tempo || '?'} BPM • {songAnalysis.key || '?'} • {songAnalysis.genre || 'Unknown'}
-                </div>
-              ) : null}
-              
-              {/* Quick Actions */}
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => {
-                    sessionStorage.setItem('stem_separator_url', selectedSong?.accessibleUrl || selectedSong?.originalUrl || '');
-                    sessionStorage.setItem('stem_separator_name', selectedSong?.name || 'Song');
-                    toast({ title: 'Routing to Stem Separator', description: 'Opening AI Studio...' });
-                    window.dispatchEvent(new CustomEvent('navigate-to-stem-separator'));
-                    onClose();
-                  }}
-                  className="px-2 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
-                  title="Separate Stems"
-                >
-                  <Scissors className="w-3 h-3" />
-                  <span>Stems</span>
-                </button>
-                <button
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
-                      detail: {
-                        name: selectedSong?.name || 'Track',
-                        audioUrl: selectedSong?.accessibleUrl || selectedSong?.originalUrl || ''
-                      }
-                    }));
-                    toast({ title: 'Added to Multi-Track', description: selectedSong?.name });
-                    onClose();
-                  }}
-                  className="px-2 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
-                  title="Add to Multi-Track"
-                >
-                  <Layers className="w-3 h-3" />
-                  <span>Track</span>
-                </button>
-                <button
-                  onClick={() => {
-                    // Store for Astutely mixer
-                    sessionStorage.setItem('astutely_mixer_song', JSON.stringify(selectedSong));
-                    toast({ title: 'Opening Mixer', description: 'Loading song...' });
-                    window.location.href = '/mixer?tab=ai-mix';
-                  }}
-                  className="px-2 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 rounded text-xs flex items-center justify-center gap-1 transition-all"
-                  title="Send to Mixer"
-                >
-                  <Sliders className="w-3 h-3" />
-                  <span>Mix</span>
-                </button>
+                <p className="text-xs text-gray-400">
+                  💡 Generate beats that match this song's vibe
+                </p>
               </div>
-              <p className="text-xs text-gray-400">
-                💡 Generate beats that match this song's vibe
+            )}
+          </div>
+
+          {/* Style Grid with Previews */}
+          <div className="grid grid-cols-2 gap-3 mb-6 max-h-[280px] overflow-y-auto pr-1">
+            {styles.map(style => (
+              <button
+                key={style.name}
+                onClick={() => setSelectedStyle(style)}
+                disabled={isGenerating}
+                className={`p-4 rounded-xl font-medium transition-all text-left ${
+                  selectedStyle.name === style.name
+                    ? 'bg-white text-black shadow-lg scale-105'
+                    : 'bg-white/10 hover:bg-white/20'
+                }`}
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="text-xl">{style.icon}</span>
+                  <span className="text-sm font-semibold">{style.name}</span>
+                  <span className={`text-xs ${selectedStyle.name === style.name ? 'text-gray-600' : 'text-gray-400'}`}>
+                    {style.preview}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Freeform Prompt */}
+          <div className="mb-6">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g. 'Add 808 slides and dark pads'"
+              className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-400"
+              disabled={isGenerating}
+            />
+          </div>
+
+          {/* Progress Bar */}
+          {isGenerating && (
+            <div className="mb-4">
+              <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-center text-sm text-gray-300 mt-2">
+                {progress < 100 ? `Generating... ${progress}%` : 'Adding to timeline...'}
               </p>
             </div>
           )}
-        </div>
 
-        {/* Style Grid with Previews */}
-        <div className="grid grid-cols-2 gap-3 mb-6 max-h-[280px] overflow-y-auto pr-1">
-          {styles.map(style => (
-            <button
-              key={style.name}
-              onClick={() => setSelectedStyle(style)}
-              disabled={isGenerating}
-              className={`p-4 rounded-xl font-medium transition-all text-left ${
-                selectedStyle.name === style.name
-                  ? 'bg-white text-black shadow-lg scale-105'
-                  : 'bg-white/10 hover:bg-white/20'
-              }`}
-            >
-              <div className="flex flex-col gap-1">
-                <span className="text-xl">{style.icon}</span>
-                <span className="text-sm font-semibold">{style.name}</span>
-                <span className={`text-xs ${selectedStyle.name === style.name ? 'text-gray-600' : 'text-gray-400'}`}>
-                  {style.preview}
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* Freeform Prompt */}
-        <div className="mb-6">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. 'Add 808 slides and dark pads'"
-            className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-400"
+          {/* Generate Button */}
+          <button
+            onClick={handleGenerate}
             disabled={isGenerating}
-          />
-        </div>
+            className="w-full py-5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-xl hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+          >
+            {isGenerating ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span>Creating Magic...</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <Music className="w-6 h-6" />
+                <span>Make It Bang 🔥</span>
+              </div>
+            )}
+          </button>
 
-        {/* Progress Bar */}
-        {isGenerating && (
-          <div className="mb-4">
-            <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-center text-sm text-gray-300 mt-2">
-              {progress < 100 ? `Generating... ${progress}%` : 'Adding to timeline...'}
-            </p>
-          </div>
-        )}
-
-        {/* Generate Button */}
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className="w-full py-5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-xl hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
-        >
-          {isGenerating ? (
-            <div className="flex items-center justify-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin" />
-              <span>Creating Magic...</span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-2">
-              <Music className="w-6 h-6" />
-              <span>Make It Bang 🔥</span>
+          {/* Result Preview */}
+          {generatedResult && (
+            <div className="mt-4 p-4 rounded-xl bg-green-500/20 border border-green-500/40">
+              <p className="text-green-400 font-semibold flex items-center gap-2">
+                ✅ Added to Timeline!
+              </p>
+              <p className="text-gray-300 text-sm mt-1">
+                {generatedResult.bpm} BPM • Key of {generatedResult.key} • {generatedResult.style}
+              </p>
             </div>
           )}
-        </button>
 
-        {/* Result Preview */}
-        {generatedResult && (
-          <div className="mt-4 p-4 rounded-xl bg-green-500/20 border border-green-500/40">
-            <p className="text-green-400 font-semibold flex items-center gap-2">
-              ✅ Added to Timeline!
-            </p>
-            <p className="text-gray-300 text-sm mt-1">
-              {generatedResult.bpm} BPM • Key of {generatedResult.key} • {generatedResult.style}
-            </p>
-          </div>
-        )}
+          {/* Keyboard hint */}
+          <p className="text-xs text-gray-400 mt-4 text-center">
+            Press <kbd className="px-1.5 py-0.5 bg-white/20 rounded">Esc</kbd> to close
+          </p>
+        </div>
 
-        {/* Keyboard hint */}
-        <p className="text-xs text-gray-400 mt-4 text-center">
-          Press <kbd className="px-1.5 py-0.5 bg-white/20 rounded">Esc</kbd> to close
-        </p>
-
-        <button
-          className="absolute bottom-3 right-3 p-2 rounded-lg border border-white/30 bg-black/20 text-xs flex items-center gap-1 cursor-se-resize"
-          title="Drag to resize"
-        >
-          <MoveDiagonal2 className="w-4 h-4" />
-          Resize
-        </button>
+        <div className="absolute bottom-3 right-3 flex items-end gap-2">
+          {showResizeGuide && (
+            <div className="px-3 py-2 rounded-lg bg-black/50 text-white text-xs border border-white/30 shadow-lg">
+              Drag corner to resize
+            </div>
+          )}
+          <button
+            type="button"
+            aria-label="Resize Astutely panel"
+            onPointerDown={handleResizeStart}
+            className="h-10 w-10 rounded-full bg-white/15 border border-white/30 text-white flex items-center justify-center hover:bg-white/25 transition-colors cursor-se-resize"
+          >
+            <MoveDiagonal2 className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </div>
   );

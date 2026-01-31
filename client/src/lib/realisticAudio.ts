@@ -204,6 +204,23 @@ export class RealisticAudioEngine {
           }
           return false;
         }
+        
+        // Additional cleanup: remove nodes that have been playing too long (potential memory leaks)
+        if (node && (node as any).startTime) {
+          const playDuration = currentTime - (node as any).startTime;
+          if (playDuration > 10) { // 10 seconds max play time
+            try {
+              if (typeof node.stop === 'function') {
+                node.stop(currentTime);
+              }
+              node.disconnect();
+            } catch (e) {
+              // Ignore errors during cleanup
+            }
+            return false;
+          }
+        }
+        
         return true;
       });
       
@@ -216,6 +233,11 @@ export class RealisticAudioEngine {
     
     // Remove empty entries
     keysToDelete.forEach(key => this.activeNotes.delete(key));
+    
+    // Log cleanup activity for debugging
+    if (keysToDelete.length > 0) {
+      console.log(`🔊 Cleaned up ${keysToDelete.length} finished audio nodes`);
+    }
   }
 
   async initialize() {
@@ -330,6 +352,9 @@ export class RealisticAudioEngine {
         );
 
         if (audioNode) {
+          // Track start time for cleanup
+          (audioNode as any).startTime = this.audioContext.currentTime;
+
           // Track active node for cleanup/noteOff
           const noteKey = `${realInstrument}:${noteName}`;
           if (!this.activeNotes.has(noteKey)) {

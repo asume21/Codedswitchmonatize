@@ -3,12 +3,12 @@
 // A conversational AI assistant that can chat, generate beats, analyze audio, and CONTROL THE ENTIRE DAW
 // Connected to: TrackStore, Transport, SongWorkSession, StudioAudio, GlobalSystems
 
-import { useState, useRef, useEffect, useLayoutEffect, useContext } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useContext, useCallback } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search } from 'lucide-react';
+import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search, MoveDiagonal2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
@@ -47,6 +47,10 @@ interface ProjectStatus {
 const STORAGE_KEY = 'astutelyChatbot';
 const DEFAULT_WIDTH = 420; // Increased for HUD
 const DEFAULT_HEIGHT = 650; // Increased for HUD
+const MIN_WIDTH = 360;
+const MAX_WIDTH = 860;
+const MIN_HEIGHT = 420;
+const MAX_HEIGHT = 960;
 
 const clampPosition = (x: number, y: number, width: number, height: number) => {
   const padding = 24;
@@ -109,26 +113,43 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   };
 
   const getSavedState = () => {
+    const fallback = {
+      x: typeof window !== 'undefined' ? window.innerWidth - DEFAULT_WIDTH - 24 : 100,
+      y: 80,
+      isMinimized: false,
+      width: DEFAULT_WIDTH,
+      height: DEFAULT_HEIGHT,
+    };
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const { x, y, isMinimized } = JSON.parse(saved);
-        const clamped = clampPosition(x, y, DEFAULT_WIDTH, DEFAULT_HEIGHT);
-        return { x: clamped.x, y: clamped.y, isMinimized };
+        const parsed = JSON.parse(saved);
+        const width = Math.min(Math.max(parsed.width ?? DEFAULT_WIDTH, MIN_WIDTH), MAX_WIDTH);
+        const height = Math.min(Math.max(parsed.height ?? DEFAULT_HEIGHT, MIN_HEIGHT), MAX_HEIGHT);
+        const clamped = clampPosition(parsed.x ?? fallback.x, parsed.y ?? fallback.y, width, height);
+        return {
+          x: clamped.x,
+          y: clamped.y,
+          isMinimized: Boolean(parsed.isMinimized),
+          width,
+          height,
+        };
       }
     } catch (e) {
       console.error('Failed to load Astutely state:', e);
     }
-    return {
-      x: window.innerWidth - DEFAULT_WIDTH - 24,
-      y: 80,
-      isMinimized: false,
-    };
+
+    return fallback;
   };
 
   const savedState = getSavedState();
   const [isMinimized, setIsMinimized] = useState(savedState.isMinimized);
   const [position, setPosition] = useState({ x: savedState.x, y: savedState.y });
+  const [panelSize, setPanelSize] = useState<{ width: number; height: number }>({ width: savedState.width, height: savedState.height });
+  const [showResizeGuide, setShowResizeGuide] = useState(true);
+  const resizeStateRef = useRef({ startX: 0, startY: 0, startWidth: DEFAULT_WIDTH, startHeight: DEFAULT_HEIGHT });
+  const resizingRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [messages, setMessages] = useState<Message[]>([
@@ -160,19 +181,25 @@ Try: "play", "make a drill beat", or "analyze my project".`,
         x: position.x,
         y: position.y,
         isMinimized,
+        width: panelSize.width,
+        height: panelSize.height,
       }));
     } catch (e) {
       console.error('Failed to save Astutely state:', e);
     }
-  }, [position, isMinimized]);
+  }, [position, isMinimized, panelSize.width, panelSize.height]);
 
   useLayoutEffect(() => {
     const handleResize = () => {
-      setPosition(prev => clampPosition(prev.x, prev.y, DEFAULT_WIDTH, DEFAULT_HEIGHT));
+      setPosition(prev => clampPosition(prev.x, prev.y, panelSize.width, panelSize.height));
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [panelSize.width, panelSize.height]);
+
+  useEffect(() => {
+    setPosition(prev => clampPosition(prev.x, prev.y, panelSize.width, panelSize.height));
+  }, [panelSize.width, panelSize.height]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -191,8 +218,8 @@ Try: "play", "make a drill beat", or "analyze my project".`,
       const newPos = clampPosition(
         e.clientX - dragOffset.x,
         e.clientY - dragOffset.y,
-        DEFAULT_WIDTH,
-        DEFAULT_HEIGHT
+        panelSize.width,
+        panelSize.height
       );
       setPosition(newPos);
     };
@@ -208,7 +235,52 @@ Try: "play", "make a drill beat", or "analyze my project".`,
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [isDragging, dragOffset]);
+  }, [isDragging, dragOffset, panelSize.width, panelSize.height]);
+
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+  const handleResizePointerMove = useCallback((event: PointerEvent) => {
+    if (!resizingRef.current) return;
+    const { startX, startY, startWidth, startHeight } = resizeStateRef.current;
+    const deltaX = event.clientX - startX;
+    const deltaY = event.clientY - startY;
+    setPanelSize({
+      width: clamp(startWidth + deltaX, MIN_WIDTH, MAX_WIDTH),
+      height: clamp(startHeight + deltaY, MIN_HEIGHT, MAX_HEIGHT),
+    });
+  }, []);
+
+  const handleResizePointerUp = useCallback(() => {
+    document.removeEventListener('pointermove', handleResizePointerMove);
+    document.removeEventListener('pointerup', handleResizePointerUp);
+    resizingRef.current = false;
+  }, [handleResizePointerMove]);
+
+  const handleResizeStart = useCallback((event: React.PointerEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    resizeStateRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: panelSize.width,
+      startHeight: panelSize.height,
+    };
+    resizingRef.current = true;
+    setShowResizeGuide(false);
+    document.addEventListener('pointermove', handleResizePointerMove);
+    document.addEventListener('pointerup', handleResizePointerUp);
+  }, [panelSize.width, panelSize.height, handleResizePointerMove, handleResizePointerUp]);
+
+  useEffect(() => () => {
+    document.removeEventListener('pointermove', handleResizePointerMove);
+    document.removeEventListener('pointerup', handleResizePointerUp);
+  }, [handleResizePointerMove, handleResizePointerUp]);
+
+  useEffect(() => {
+    if (!showResizeGuide) return;
+    const timer = setTimeout(() => setShowResizeGuide(false), 5000);
+    return () => clearTimeout(timer);
+  }, [showResizeGuide]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -398,8 +470,7 @@ Your project now has **${status.trackCount + 4} tracks**. Say "play" to hear it!
 
 ${status.trackCount} tracks • ${status.totalNotes} notes
 ${status.songName ? `🎵 "${status.songName}"` : ''}
-
-Say "stop" or "pause" to stop playback.`
+The song is now playing. Say "stop" or "pause" to stop playback.`
             : `⏸️ **Paused** at position ${status.currentPosition.toFixed(1)} beats
 
 Say "play" to resume or "stop" to reset.`,
@@ -835,8 +906,8 @@ Be concise, friendly, and direct. Skip formalities.`,
         position: 'fixed',
         left: `${position.x}px`,
         top: `${position.y}px`,
-        width: `${DEFAULT_WIDTH}px`,
-        maxHeight: `${DEFAULT_HEIGHT}px`,
+        width: `${panelSize.width}px`,
+        height: `${panelSize.height}px`,
         zIndex: 9999,
       }}
       className="animate-in fade-in zoom-in duration-300"
@@ -900,7 +971,7 @@ Be concise, friendly, and direct. Skip formalities.`,
             </div>
           </CardHeader>
 
-          <CardContent className="p-0 flex flex-col" style={{ height: `${DEFAULT_HEIGHT - 85}px` }}>
+          <CardContent className="p-0 flex flex-col" style={{ height: `${Math.max(panelSize.height - 85, MIN_HEIGHT - 85)}px` }}>
             {/* HOLOGRAPHIC ASTRO-HUD */}
             <div className="p-5 bg-gradient-to-b from-cyan-950/30 to-transparent relative overflow-hidden group/hud">
               {/* Dynamic Grid Background for HUD area */}
@@ -1222,6 +1293,22 @@ Be concise, friendly, and direct. Skip formalities.`,
               </div>
             </div>
           </CardContent>
+
+          <div className="absolute bottom-3 right-3 flex items-end gap-2">
+            {showResizeGuide && (
+              <div className="px-3 py-2 rounded-lg bg-black/60 text-white text-xs border border-cyan-500/40 shadow-xl">
+                Drag to resize
+              </div>
+            )}
+            <button
+              type="button"
+              aria-label="Resize Astutely core panel"
+              onPointerDown={handleResizeStart}
+              className="h-10 w-10 rounded-full bg-white/10 border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-colors cursor-se-resize"
+            >
+              <MoveDiagonal2 className="w-5 h-5" />
+            </button>
+          </div>
         </Card>
       </div>
     </div>
