@@ -55,6 +55,9 @@ import AstutelyChatbot from '../ai/AstutelyChatbot';
 import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { Zap, Sparkles } from 'lucide-react';
 import { professionalAudio } from '@/lib/professionalAudio';
+import SampleBrowser from './SampleBrowser';
+import InspectorPanel from './InspectorPanel';
+import InstrumentLibrary from './InstrumentLibrary';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
@@ -3281,6 +3284,26 @@ export default function UnifiedStudioWorkspace() {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Left Panel - Instrument Library */}
+        {instrumentsExpanded && (
+          <InstrumentLibrary 
+            onClose={() => setInstrumentsExpanded(false)}
+            onInstrumentSelect={(instrument) => {
+              toast({ title: 'Instrument Loaded', description: instrument.name });
+            }}
+          />
+        )}
+
+        {/* Left Panel - Sample Browser */}
+        {showSampleBrowser && (
+          <SampleBrowser 
+            onClose={() => setShowSampleBrowser(false)}
+            onSampleSelect={(sample) => {
+              toast({ title: 'Sample Selected', description: sample.filename });
+            }}
+          />
+        )}
+
         {/* Center: Main Workspace with Tab Views */}
         <div className="flex-1 flex flex-col overflow-auto relative">
           
@@ -3952,6 +3975,14 @@ export default function UnifiedStudioWorkspace() {
             </div>
           )}
         </div>
+
+        {/* Right Panel - Inspector */}
+        {showInspector && (
+          <InspectorPanel 
+            onClose={() => setShowInspector(false)}
+            selectedTrackId={selectedTrack}
+          />
+        )}
 
       {/* Floating/Overlay Components */}
       {/* TEMPORARILY DISABLED - React hooks error on mobile
