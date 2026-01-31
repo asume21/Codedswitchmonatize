@@ -524,39 +524,38 @@ export default function UnifiedStudioWorkspace() {
   const trackListRef = useRef<HTMLDivElement>(null);
   const waveformCacheRef = useRef<Map<string, any>>(new Map());
 
-  // Missing function stubs to prevent ReferenceError
-  const setTransportCollapsed = (collapsed: boolean) => {
-    // Placeholder implementation
-  };
-  
-  const getTrackEffectsChain = (trackId: string) => {
-    return [];
-  };
-  
-  const setTrackEffectsChain = (trackId: string, chain: string[]) => {
-    // Placeholder implementation
-  };
-  
-  const toggleTrackMute = (trackId: string) => {
-    // Placeholder implementation
-  };
-  
-  const toggleTrackSolo = (trackId: string) => {
-    // Placeholder implementation
-  };
-  
-  const toggleTrackSend = (trackId: string, send: string) => {
-    // Placeholder implementation
-  };
-  
-  const getTrackSendDb = (trackId: string, send: string) => {
-    return 0;
-  };
-  
-  const formatMeterDb = (db: number) => {
+  // Track control helpers
+  const toggleTrackMute = useCallback((trackId: string) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, muted: !t.muted } : t));
+  }, [setTracks]);
+
+  const toggleTrackSolo = useCallback((trackId: string) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? { ...t, solo: !t.solo } : t));
+  }, [setTracks]);
+
+  const toggleTrackSend = useCallback((trackId: string, send: string) => {
+    setTracks(prev => prev.map(t => {
+      if (t.id !== trackId) return t;
+      const sends = (t.data as any)?.sends || {};
+      const currentDb = sends[send] ?? -60;
+      const newDb = currentDb > -50 ? -60 : 0;
+      return { ...t, data: { ...(t.data ?? {}), sends: { ...sends, [send]: newDb } } };
+    }));
+  }, [setTracks]);
+
+  const getTrackSendDb = useCallback((track: StudioTrack, send: string): number => {
+    const sends = (track.data as any)?.sends;
+    if (!sends) return -60;
+    return sends[send] ?? -60;
+  }, []);
+
+  const formatMeterDb = (value: number | undefined): string => {
+    if (value == null || value <= 0) return '-∞ dB';
+    const db = 20 * Math.log10(value);
+    if (!Number.isFinite(db) || db < -60) return '-∞ dB';
     return `${db.toFixed(1)} dB`;
   };
-  
+
   const handleTimelineTrackPlay = (trackId: string) => {
     // Placeholder implementation
   };
