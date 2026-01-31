@@ -183,6 +183,16 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     ));
   };
 
+  // Time signature change handler
+  const handleTimeSignatureChange = (part: 'numerator' | 'denominator', value: string) => {
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) || numValue < 1 || numValue > 16) return;
+    setTimeSignature({
+      ...timeSignature,
+      [part]: numValue,
+    });
+  };
+
   // Quick play modes
   const playBeatOnly = async () => {
     await ensureAudioInit();

@@ -1,6 +1,6 @@
 /**
  * Social Hub API Routes
- * Handles social media integration, sharing, and analytics
+ * Handles user follows and project sharing
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -12,7 +12,7 @@ export function createSocialRoutes(storage: IStorage) {
 
   /**
    * GET /api/social/stats
-   * Get user's social media statistics
+   * Get user's social statistics (followers, following, shared projects)
    */
   router.get('/stats', async (req: Request, res: Response) => {
     try {
@@ -25,10 +25,15 @@ export function createSocialRoutes(storage: IStorage) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      // Get user's social media stats
-      const stats = await calculateSocialStats(req.userId, storage);
+      const followers = await storage.getUserFollowersCount(req.userId);
+      const following = await storage.getUserFollowingCount(req.userId);
+      const sharedProjects = await storage.getUserSharedProjects(req.userId);
 
-      res.json(stats);
+      res.json({
+        followers,
+        following,
+        sharedProjectsCount: sharedProjects.length,
+      });
     } catch (error) {
       console.error('Get social stats error:', error);
       res.status(500).json({ error: 'Failed to fetch social stats' });
@@ -36,162 +41,117 @@ export function createSocialRoutes(storage: IStorage) {
   });
 
   /**
-   * GET /api/social/posts
-   * Get recent social media posts
+   * GET /api/social/profile
+   * Get user's social profile
    */
-  router.get('/posts', async (req: Request, res: Response) => {
+  router.get('/profile', async (req: Request, res: Response) => {
     try {
       if (!req.userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const limit = parseInt(req.query.limit as string) || 10;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const profile = await storage.getUserProfile(req.userId);
+      if (!profile) {
+        return res.json({ profile: null });
+      }
 
-      // Get recent posts
-      const posts = await getRecentPosts(req.userId, storage, limit, offset);
-
-      res.json({ posts });
+      res.json({ profile });
     } catch (error) {
-      console.error('Get social posts error:', error);
-      res.status(500).json({ error: 'Failed to fetch posts' });
+      console.error('Get profile error:', error);
+      res.status(500).json({ error: 'Failed to fetch profile' });
     }
   });
 
   /**
-   * POST /api/social/share
-   * Share content to social media platforms
+   * PUT /api/social/profile
+   * Update user's social profile
    */
-  router.post('/share', async (req: Request, res: Response) => {
+  router.put('/profile', async (req: Request, res: Response) => {
     try {
       if (!req.userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
       const schema = z.object({
-        platform: z.enum(['twitter', 'facebook', 'instagram', 'youtube']),
-        content: z.string().min(1).max(280),
-        type: z.enum(['beat', 'melody', 'project', 'share']),
-        title: z.string().min(1).max(100),
-        url: z.string().url(),
+        displayName: z.string().max(100).optional(),
+        bio: z.string().max(500).optional(),
+        avatarUrl: z.string().url().optional(),
+        websiteUrl: z.string().url().optional(),
+        location: z.string().max(100).optional(),
+        socialLinks: z.record(z.string()).optional(),
       });
 
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ 
-          error: 'Invalid input', 
-          details: parsed.error.errors 
-        });
+        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
       }
 
-      const { platform, content, type, title, url } = parsed.data;
+      let profile = await storage.getUserProfile(req.userId);
+      if (!profile) {
+        profile = await storage.createUserProfile(req.userId, parsed.data);
+      } else {
+        profile = await storage.updateUserProfile(req.userId, parsed.data);
+      }
 
-      // Create social share record
-      const share = await storage.createSocialShare({
-        userId: req.userId,
-        platform,
-        content,
-        type,
-        title,
-        url,
-        createdAt: new Date(),
-      });
-
-      // Update user stats
-      await updateUserSocialStats(req.userId, storage, platform);
-
-      res.json({
-        message: 'Content shared successfully',
-        share: {
-          id: share.id,
-          platform,
-          content,
-          createdAt: share.createdAt,
-        }
-      });
+      res.json({ profile });
     } catch (error) {
-      console.error('Social share error:', error);
-      res.status(500).json({ error: 'Failed to share content' });
+      console.error('Update profile error:', error);
+      res.status(500).json({ error: 'Failed to update profile' });
     }
   });
 
   /**
-   * POST /api/social/connect
-   * Connect social media platform
+   * POST /api/social/share-project
+   * Share a project with another user
    */
-  router.post('/connect', async (req: Request, res: Response) => {
+  router.post('/share-project', async (req: Request, res: Response) => {
     try {
       if (!req.userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
       const schema = z.object({
-        platform: z.enum(['twitter', 'facebook', 'instagram', 'youtube']),
+        projectId: z.string(),
+        sharedWithUserId: z.string(),
+        permission: z.enum(['view', 'edit', 'admin']).optional(),
       });
 
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ 
-          error: 'Invalid input', 
-          details: parsed.error.errors 
-        });
+        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
       }
 
-      const { platform } = parsed.data;
+      const { projectId, sharedWithUserId, permission } = parsed.data;
 
-      // In a real implementation, this would handle OAuth flow
-      // For now, we'll simulate a successful connection
-      const connection = await storage.createSocialConnection({
-        userId: req.userId,
-        platform,
-        connected: true,
-        connectedAt: new Date(),
-        profileUrl: `https://${platform}.com/user/${req.userId}`,
-      });
+      const share = await storage.createProjectShare(
+        projectId,
+        req.userId,
+        sharedWithUserId,
+        permission || 'view'
+      );
 
-      res.json({
-        message: `${platform} connected successfully`,
-        connection: {
-          id: connection.id,
-          platform,
-          connected: true,
-          profileUrl: connection.profileUrl,
-        }
-      });
+      res.json({ message: 'Project shared successfully', share });
     } catch (error) {
-      console.error('Social connect error:', error);
-      res.status(500).json({ error: 'Failed to connect platform' });
+      console.error('Share project error:', error);
+      res.status(500).json({ error: 'Failed to share project' });
     }
   });
 
   /**
-   * POST /api/social/like/:postId
-   * Like/unlike a social post
+   * GET /api/social/shared-with-me
+   * Get projects shared with the current user
    */
-  router.post('/like/:postId', async (req: Request, res: Response) => {
+  router.get('/shared-with-me', async (req: Request, res: Response) => {
     try {
       if (!req.userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const postId = req.params.postId;
-      const { liked } = req.body;
-
-      // Update post likes
-      const post = await storage.updateSocialPostLikes(postId, req.userId, liked);
-
-      if (!post) {
-        return res.status(404).json({ error: 'Post not found' });
-      }
-
-      res.json({
-        message: liked ? 'Post liked' : 'Post unliked',
-        likes: post.likes,
-        isLiked: liked,
-      });
+      const shares = await storage.getUserSharedProjects(req.userId);
+      res.json({ shares });
     } catch (error) {
-      console.error('Social like error:', error);
-      res.status(500).json({ error: 'Failed to update like status' });
+      console.error('Get shared projects error:', error);
+      res.status(500).json({ error: 'Failed to fetch shared projects' });
     }
   });
 
@@ -210,9 +170,17 @@ export function createSocialRoutes(storage: IStorage) {
         return res.status(400).json({ error: 'Cannot follow yourself' });
       }
 
-      // Follow user
-      await storage.followUser(req.userId, targetUserId);
+      const targetUser = await storage.getUser(targetUserId);
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
 
+      const alreadyFollowing = await storage.isUserFollowing(req.userId, targetUserId);
+      if (alreadyFollowing) {
+        return res.status(400).json({ error: 'Already following this user' });
+      }
+
+      await storage.followUser(req.userId, targetUserId);
       res.json({ message: 'User followed successfully' });
     } catch (error) {
       console.error('Social follow error:', error);
@@ -231,10 +199,7 @@ export function createSocialRoutes(storage: IStorage) {
       }
 
       const targetUserId = req.params.userId;
-
-      // Unfollow user
       await storage.unfollowUser(req.userId, targetUserId);
-
       res.json({ message: 'User unfollowed successfully' });
     } catch (error) {
       console.error('Social unfollow error:', error);
@@ -242,119 +207,24 @@ export function createSocialRoutes(storage: IStorage) {
     }
   });
 
-  return router;
-}
+  /**
+   * GET /api/social/is-following/:userId
+   * Check if current user is following another user
+   */
+  router.get('/is-following/:userId', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
 
-// Helper functions
-
-async function calculateSocialStats(userId: string, storage: IStorage) {
-  try {
-    // Get user's social shares
-    const shares = await storage.getUserSocialShares(userId, 1000, 0);
-    
-    // Calculate stats
-    const totalShares = shares.length;
-    const totalViews = shares.reduce((sum, share) => sum + (share.views || 0), 0);
-    const totalLikes = shares.reduce((sum, share) => sum + (share.likes || 0), 0);
-    const totalComments = shares.reduce((sum, share) => sum + (share.comments || 0), 0);
-    
-    // Calculate weekly growth (simplified)
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const weeklyShares = shares.filter(share => new Date(share.createdAt) > oneWeekAgo);
-    const weeklyGrowth = totalShares > 0 ? Math.round((weeklyShares.length / totalShares) * 100) : 0;
-    
-    // Find top platform
-    const platformCounts = shares.reduce((acc, share) => {
-      acc[share.platform] = (acc[share.platform] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const topPlatform = Object.entries(platformCounts)
-      .sort(([, a], [, b]) => b - a)[0]?.[0] || 'None';
-
-    return {
-      totalShares,
-      totalViews,
-      totalLikes,
-      totalComments,
-      weeklyGrowth,
-      topPlatform,
-    };
-  } catch (error) {
-    console.error('Calculate social stats error:', error);
-    return {
-      totalShares: 0,
-      totalViews: 0,
-      totalLikes: 0,
-      totalComments: 0,
-      weeklyGrowth: 0,
-      topPlatform: 'None',
-    };
-  }
-}
-
-async function getRecentPosts(userId: string, storage: IStorage, limit: number, offset: number) {
-  try {
-    // Get user's recent social shares
-    const shares = await storage.getUserSocialShares(userId, limit, offset);
-    
-    // Format as posts
-    const posts = shares.map(share => ({
-      id: share.id,
-      userId: share.userId,
-      username: share.username || 'user',
-      displayName: share.displayName || 'User',
-      avatar: share.avatar || '',
-      content: share.content,
-      type: share.type,
-      title: share.title,
-      url: share.url,
-      platform: share.platform,
-      likes: share.likes || 0,
-      comments: share.comments || 0,
-      shares: 0, // Not tracked in this simple implementation
-      createdAt: formatTimeAgo(share.createdAt),
-      isLiked: false, // Would be determined by checking user's likes
-    }));
-
-    return posts;
-  } catch (error) {
-    console.error('Get recent posts error:', error);
-    return [];
-  }
-}
-
-async function updateUserSocialStats(userId: string, storage: IStorage, platform: string) {
-  try {
-    // Update user's social stats for the platform
-    // This would typically involve API calls to the social media platform
-    // For now, we'll just increment a counter
-    const user = await storage.getUser(userId);
-    if (user) {
-      const socialStats = user.socialStats || {};
-      socialStats[platform] = (socialStats[platform] || 0) + 1;
-      await storage.updateUser(userId, { socialStats });
+      const targetUserId = req.params.userId;
+      const isFollowing = await storage.isUserFollowing(req.userId, targetUserId);
+      res.json({ isFollowing });
+    } catch (error) {
+      console.error('Check following error:', error);
+      res.status(500).json({ error: 'Failed to check following status' });
     }
-  } catch (error) {
-    console.error('Update user social stats error:', error);
-  }
-}
+  });
 
-function formatTimeAgo(date: Date | string | undefined): string {
-  if (!date) return 'Unknown';
-  
-  const now = new Date();
-  const past = new Date(date);
-  const diffMs = now.getTime() - past.getTime();
-  
-  const diffMinutes = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-  
-  if (diffMinutes < 1) return 'Just now';
-  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  
-  return past.toLocaleDateString();
+  return router;
 }

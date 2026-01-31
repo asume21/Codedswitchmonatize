@@ -198,7 +198,7 @@ export default function ProfessionalMixer() {
     aiMixMutation.mutate({
       prompt: aiPrompt,
       layers,
-      bpm: transport?.bpm || 120,
+      bpm: transport?.tempo || 120,
       style: "professional"
     });
   };

@@ -211,7 +211,7 @@ ${urls
   app.use("/api", createAstutelyRoutes());
 
   // Mount Sample Library routes
-  app.use("/api/samples", createSampleRoutes(storage));
+  app.use("/api/samples", createSampleRoutes());
 
   // Mount User profile routes
   app.use("/api/user", createUserRoutes(storage));

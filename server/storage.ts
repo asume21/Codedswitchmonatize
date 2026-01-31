@@ -35,6 +35,9 @@ import {
   type JamContribution,
   type InsertJamContribution,
   type JamLike,
+  type UserProfile,
+  type UserFollow,
+  type ProjectShare,
   users,
   userSubscriptions,
   projects,
@@ -54,6 +57,9 @@ import {
   jamSessions,
   jamContributions,
   jamLikes,
+  userProfiles,
+  userFollows,
+  projectShares,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -216,6 +222,23 @@ export interface IStorage {
   // Jam Likes
   addJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<JamLike>;
   removeJamLike(sessionId: string, contributionId: string | null, userId: string): Promise<void>;
+
+  // Social Features - User Profiles
+  getUserProfile(userId: string): Promise<UserProfile | undefined>;
+  createUserProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile>;
+  updateUserProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile>;
+
+  // Social Features - Follows
+  followUser(followerId: string, followingId: string): Promise<UserFollow>;
+  unfollowUser(followerId: string, followingId: string): Promise<void>;
+  isUserFollowing(followerId: string, followingId: string): Promise<boolean>;
+  getUserFollowersCount(userId: string): Promise<number>;
+  getUserFollowingCount(userId: string): Promise<number>;
+
+  // Social Features - Project Shares
+  createProjectShare(projectId: string, sharedByUserId: string, sharedWithUserId: string, permission?: string): Promise<ProjectShare>;
+  getProjectShares(projectId: string): Promise<ProjectShare[]>;
+  getUserSharedProjects(userId: string): Promise<ProjectShare[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -1104,6 +1127,19 @@ export class MemStorage implements IStorage {
       }
     }
   }
+
+  // Social Features - MemStorage stubs (DatabaseStorage is used in production)
+  async getUserProfile(_userId: string): Promise<UserProfile | undefined> { return undefined; }
+  async createUserProfile(_userId: string, _data: Partial<UserProfile>): Promise<UserProfile> { throw new Error("Not implemented in MemStorage"); }
+  async updateUserProfile(_userId: string, _data: Partial<UserProfile>): Promise<UserProfile> { throw new Error("Not implemented in MemStorage"); }
+  async followUser(_followerId: string, _followingId: string): Promise<UserFollow> { throw new Error("Not implemented in MemStorage"); }
+  async unfollowUser(_followerId: string, _followingId: string): Promise<void> { }
+  async isUserFollowing(_followerId: string, _followingId: string): Promise<boolean> { return false; }
+  async getUserFollowersCount(_userId: string): Promise<number> { return 0; }
+  async getUserFollowingCount(_userId: string): Promise<number> { return 0; }
+  async createProjectShare(_projectId: string, _sharedByUserId: string, _sharedWithUserId: string, _permission?: string): Promise<ProjectShare> { throw new Error("Not implemented in MemStorage"); }
+  async getProjectShares(_projectId: string): Promise<ProjectShare[]> { return []; }
+  async getUserSharedProjects(_userId: string): Promise<ProjectShare[]> { return []; }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1940,6 +1976,107 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
+  }
+
+  // ============ SOCIAL FEATURES - USER PROFILES ============
+  async getUserProfile(userId: string): Promise<UserProfile | undefined> {
+    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+    return profile;
+  }
+
+  async createUserProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile> {
+    const [profile] = await db
+      .insert(userProfiles)
+      .values({
+        userId,
+        displayName: data.displayName,
+        bio: data.bio,
+        avatarUrl: data.avatarUrl,
+        websiteUrl: data.websiteUrl,
+        socialLinks: data.socialLinks,
+        location: data.location,
+        favoriteGenres: data.favoriteGenres,
+        instruments: data.instruments,
+        skillLevel: data.skillLevel,
+      })
+      .returning();
+    return profile;
+  }
+
+  async updateUserProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile> {
+    const [updated] = await db
+      .update(userProfiles)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(userProfiles.userId, userId))
+      .returning();
+    if (!updated) throw new Error("User profile not found");
+    return updated;
+  }
+
+  // ============ SOCIAL FEATURES - FOLLOWS ============
+  async followUser(followerId: string, followingId: string): Promise<UserFollow> {
+    const [follow] = await db
+      .insert(userFollows)
+      .values({
+        followerId,
+        followingId,
+      })
+      .returning();
+    return follow;
+  }
+
+  async unfollowUser(followerId: string, followingId: string): Promise<void> {
+    await db.delete(userFollows).where(
+      and(
+        eq(userFollows.followerId, followerId),
+        eq(userFollows.followingId, followingId)
+      )
+    );
+  }
+
+  async isUserFollowing(followerId: string, followingId: string): Promise<boolean> {
+    const [follow] = await db.select().from(userFollows).where(
+      and(
+        eq(userFollows.followerId, followerId),
+        eq(userFollows.followingId, followingId)
+      )
+    );
+    return !!follow;
+  }
+
+  async getUserFollowersCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(userFollows).where(eq(userFollows.followingId, userId));
+    return result[0]?.count || 0;
+  }
+
+  async getUserFollowingCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(userFollows).where(eq(userFollows.followerId, userId));
+    return result[0]?.count || 0;
+  }
+
+  // ============ SOCIAL FEATURES - PROJECT SHARES ============
+  async createProjectShare(projectId: string, sharedByUserId: string, sharedWithUserId: string, permission = "view"): Promise<ProjectShare> {
+    const [share] = await db
+      .insert(projectShares)
+      .values({
+        projectId,
+        sharedByUserId,
+        sharedWithUserId,
+        permission,
+      })
+      .returning();
+    return share;
+  }
+
+  async getProjectShares(projectId: string): Promise<ProjectShare[]> {
+    return db.select().from(projectShares).where(eq(projectShares.projectId, projectId));
+  }
+
+  async getUserSharedProjects(userId: string): Promise<ProjectShare[]> {
+    return db.select().from(projectShares).where(eq(projectShares.sharedWithUserId, userId));
   }
 }
 

@@ -33,27 +33,28 @@ export function createUserRoutes(storage: IStorage) {
       // Get user's subscription info
       const subscription = await storage.getUserSubscription(req.userId);
 
-      // Calculate user stats
-      const userStats = await calculateUserStats(req.userId, storage);
+      // Get user profile from userProfiles table
+      const userProfile = await storage.getUserProfile(req.userId);
+
+      // Get follower/following counts
+      const followers = await storage.getUserFollowersCount(req.userId);
+      const following = await storage.getUserFollowingCount(req.userId);
 
       // Build profile response
       const profile = {
         id: user.id,
         username: user.username,
-        displayName: user.displayName || user.username,
+        displayName: userProfile?.displayName || user.username,
         email: user.email,
-        bio: user.bio || 'Music creator using CodedSwitch AI tools',
-        avatar: user.avatar || '',
-        followers: userStats.followers,
-        following: userStats.following,
-        totalShares: userStats.totalShares,
-        totalViews: userStats.totalViews,
-        rating: userStats.rating,
-        level: calculateUserLevel(userStats.totalShares, userStats.totalViews),
-        achievements: getUserAchievements(userStats),
-        socialLinks: user.socialLinks || {},
+        bio: userProfile?.bio || 'Music creator using CodedSwitch AI tools',
+        avatar: userProfile?.avatarUrl || '',
+        followers,
+        following,
+        level: calculateUserLevel(followers),
+        achievements: getUserAchievements({ followers, following }),
+        socialLinks: (userProfile?.socialLinks as Record<string, string>) || {},
         subscription: subscription ? {
-          tier: subscription.tier || 'free',
+          tier: user.subscriptionTier || 'free',
           hasActiveSubscription: subscription.status === 'active' || subscription.status === 'trialing',
           lastUsageReset: subscription.currentPeriodEnd?.toISOString(),
         } : undefined,
@@ -99,20 +100,29 @@ export function createUserRoutes(storage: IStorage) {
 
       const updates = parsed.data;
 
-      // Update user profile
-      const updatedUser = await storage.updateUser(req.userId, updates);
-
-      if (!updatedUser) {
-        return res.status(404).json({ error: 'User not found' });
+      // Update user profile in userProfiles table
+      let userProfile = await storage.getUserProfile(req.userId);
+      if (!userProfile) {
+        userProfile = await storage.createUserProfile(req.userId, {
+          displayName: updates.displayName,
+          bio: updates.bio,
+          socialLinks: updates.socialLinks,
+        });
+      } else {
+        userProfile = await storage.updateUserProfile(req.userId, {
+          displayName: updates.displayName,
+          bio: updates.bio,
+          socialLinks: updates.socialLinks,
+        });
       }
 
       res.json({
         message: 'Profile updated successfully',
         user: {
-          id: updatedUser.id,
-          displayName: updatedUser.displayName,
-          bio: updatedUser.bio,
-          socialLinks: updatedUser.socialLinks,
+          id: req.userId,
+          displayName: userProfile.displayName,
+          bio: userProfile.bio,
+          socialLinks: userProfile.socialLinks,
         }
       });
     } catch (error) {
@@ -131,13 +141,17 @@ export function createUserRoutes(storage: IStorage) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const stats = await calculateUserStats(req.userId, storage);
+      const followers = await storage.getUserFollowersCount(req.userId);
+      const following = await storage.getUserFollowingCount(req.userId);
       const creditBalance = await creditService.getBalance(req.userId);
+      const songs = await storage.getUserSongs(req.userId);
 
       res.json({
-        ...stats,
+        followers,
+        following,
+        totalSongs: songs.length,
         credits: creditBalance,
-        level: calculateUserLevel(stats.totalShares, stats.totalViews),
+        level: calculateUserLevel(followers),
       });
     } catch (error) {
       console.error('Get stats error:', error);
@@ -226,101 +240,48 @@ export function createUserRoutes(storage: IStorage) {
 
 // Helper functions
 
-async function calculateUserStats(userId: string, storage: IStorage) {
-  try {
-    // Get user's songs/projects
-    const songs = await storage.getUserSongs(userId, 1000, 0);
-    
-    // Calculate stats
-    const totalShares = songs.reduce((sum, song) => sum + (song.shares || 0), 0);
-    const totalViews = songs.reduce((sum, song) => sum + (song.views || 0), 0);
-    
-    // Get followers/following counts
-    const followers = await storage.getUserFollowersCount(userId);
-    const following = await storage.getUserFollowingCount(userId);
-    
-    // Calculate average rating
-    const ratedSongs = songs.filter(song => song.rating && song.rating > 0);
-    const rating = ratedSongs.length > 0 
-      ? ratedSongs.reduce((sum, song) => sum + song.rating, 0) / ratedSongs.length 
-      : 0;
-
-    return {
-      totalShares,
-      totalViews,
-      followers,
-      following,
-      rating: Math.round(rating * 10) / 10, // Round to 1 decimal
-      totalSongs: songs.length,
-    };
-  } catch (error) {
-    console.error('Calculate user stats error:', error);
-    return {
-      totalShares: 0,
-      totalViews: 0,
-      followers: 0,
-      following: 0,
-      rating: 0,
-      totalSongs: 0,
-    };
-  }
-}
-
-function calculateUserLevel(totalShares: number, totalViews: number): number {
-  // Level calculation based on engagement
-  const engagementScore = totalShares * 10 + totalViews;
-  
-  if (engagementScore >= 100000) return 20;
-  if (engagementScore >= 50000) return 15;
-  if (engagementScore >= 20000) return 12;
-  if (engagementScore >= 10000) return 10;
-  if (engagementScore >= 5000) return 8;
-  if (engagementScore >= 2000) return 6;
-  if (engagementScore >= 1000) return 5;
-  if (engagementScore >= 500) return 4;
-  if (engagementScore >= 100) return 3;
-  if (engagementScore >= 50) return 2;
+function calculateUserLevel(followers: number): number {
+  if (followers >= 10000) return 20;
+  if (followers >= 5000) return 15;
+  if (followers >= 2000) return 12;
+  if (followers >= 1000) return 10;
+  if (followers >= 500) return 8;
+  if (followers >= 200) return 6;
+  if (followers >= 100) return 5;
+  if (followers >= 50) return 4;
+  if (followers >= 20) return 3;
+  if (followers >= 10) return 2;
   return 1;
 }
 
-function getUserAchievements(stats: any): string[] {
-  const achievements = [];
+function getUserAchievements(stats: { followers: number; following: number }): string[] {
+  const achievements: string[] = [];
   
-  if (stats.totalShares >= 1000) achievements.push('Social Star');
-  if (stats.totalShares >= 500) achievements.push('Sharing Master');
-  if (stats.totalViews >= 10000) achievements.push('Viral Creator');
-  if (stats.totalViews >= 5000) achievements.push('Rising Star');
-  if (stats.totalSongs >= 50) achievements.push('Prolific Creator');
-  if (stats.totalSongs >= 25) achievements.push('Beat Master');
-  if (stats.totalSongs >= 10) achievements.push('Code Composer');
-  if (stats.rating >= 4.5) achievements.push('Top Rated');
   if (stats.followers >= 1000) achievements.push('Influencer');
   if (stats.followers >= 500) achievements.push('Community Leader');
   if (stats.followers >= 100) achievements.push('People\'s Choice');
+  if (stats.followers >= 50) achievements.push('Rising Star');
+  if (stats.following >= 100) achievements.push('Social Butterfly');
   
   return achievements;
 }
 
 async function getUserActivity(userId: string, storage: IStorage, limit: number, offset: number) {
   try {
-    // Get user's recent songs
-    const songs = await storage.getUserSongs(userId, limit, offset);
+    const songs = await storage.getUserSongs(userId);
+    const paginatedSongs = songs.slice(offset, offset + limit);
     
-    // Format activity items
-    const activity = songs.map(song => ({
+    const activity = paginatedSongs.map(song => ({
       id: song.id,
-      type: getContentType(song.type),
-      title: song.title || 'Untitled',
-      time: formatTimeAgo(song.createdAt),
-      plays: song.views || 0,
-      shares: song.shares || 0,
-      rating: song.rating || 0,
+      type: 'Creation',
+      title: song.name || 'Untitled',
+      time: formatTimeAgo(song.uploadDate ?? undefined),
       url: `/studio/${song.id}`,
     }));
 
     return {
       activity,
-      hasMore: songs.length === limit,
+      hasMore: paginatedSongs.length === limit,
     };
   } catch (error) {
     console.error('Get user activity error:', error);
@@ -328,17 +289,6 @@ async function getUserActivity(userId: string, storage: IStorage, limit: number,
       activity: [],
       hasMore: false,
     };
-  }
-}
-
-function getContentType(type: string): string {
-  switch (type) {
-    case 'beat': return 'Beat';
-    case 'melody': return 'Melody';
-    case 'full-song': return 'Full Song';
-    case 'code-music': return 'Code→Music';
-    case 'instrumental': return 'Instrumental';
-    default: return 'Creation';
   }
 }
 

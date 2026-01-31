@@ -341,7 +341,7 @@ export default function UserProfile() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {profile.achievements.map((achievement, index) => (
+              {profile.achievements.map((achievement: string, index: number) => (
                 <div key={index} className="text-center p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-lg border border-yellow-500/20">
                   <Trophy className="h-8 w-8 text-yellow-400 mx-auto mb-2" />
                   <div className="text-white font-medium">{achievement}</div>

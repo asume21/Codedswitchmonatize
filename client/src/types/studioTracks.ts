@@ -1,4 +1,4 @@
-export type TrackKind = 'beat' | 'piano' | 'midi' | 'audio' | 'aux';
+export type TrackKind = 'beat' | 'piano' | 'midi' | 'audio' | 'aux' | 'vocal';
 
 export type TrackType = 'audio' | 'midi' | 'beat' | 'aux' | 'lyrics';
 
