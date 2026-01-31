@@ -12,7 +12,7 @@ import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Se
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
+import { astutelyGenerate, astutelyToNotes, astutelyGenerateAudio, astutelyPlayAudio, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
@@ -400,7 +400,10 @@ Try: "play", "make a drill beat", or "analyze my project".`,
     try {
       if (action === 'beat') {
         const status = getProjectStatus();
-        const result = await astutelyGenerate('Travis Scott rage');
+        const style = 'Travis Scott rage';
+        
+        // Generate MIDI pattern for tracks
+        const result = await astutelyGenerate(style);
         const notes = astutelyToNotes(result);
         
         // Update BPM to match generated beat
@@ -440,24 +443,62 @@ Try: "play", "make a drill beat", or "analyze my project".`,
           detail: { notes, bpm: result.bpm } 
         }));
 
+        // Also generate REAL AUDIO and play it immediately
+        let audioInfo = { provider: 'synth', audioUrl: '' };
+        try {
+          toast({ title: '🎵 Generating audio...', description: 'Creating real audio with AI' });
+          const audioResult = await astutelyGenerateAudio(style, { bpm: result.bpm, key: result.key });
+          audioInfo = audioResult;
+          
+          // Play the generated audio
+          await astutelyPlayAudio(audioResult.audioUrl);
+          
+          // Also add as an audio track
+          const audioTrack: any = {
+            id: `ai-audio-${Date.now()}`,
+            name: `Astutely Audio (${style})`,
+            kind: 'audio',
+            lengthBars: Math.ceil(audioResult.duration / (60 / result.bpm) / 4),
+            startBar: 0,
+            payload: {
+              type: 'audio',
+              audioUrl: audioResult.audioUrl,
+              duration: audioResult.duration,
+              bpm: result.bpm,
+              source: 'astutely-audio',
+              provider: audioResult.provider,
+              color: '#10b981',
+              volume: 0.9,
+              pan: 0,
+            }
+          };
+          addTrack(audioTrack);
+          await saveTrackToServer(audioTrack);
+        } catch (audioError) {
+          console.warn('Audio generation failed, using synth preview:', audioError);
+        }
+
         const assistantMessage: Message = {
           role: 'assistant',
-          content: `🔥 Beat generated and loaded!
+          content: `🔥 Beat generated and playing!
 
 **${result.style}** at **${result.bpm} BPM** in **${result.key}**
+
+${audioInfo.audioUrl ? `🔊 **Real audio generated** via ${audioInfo.provider}!` : '🎹 Playing synthesized preview'}
 
 Added to your project:
 • 🥁 Drums: ${notes.filter(n => n.trackType === 'drums').length} hits
 • 🎸 Bass: ${notes.filter(n => n.trackType === 'bass').length} notes
 • 🎹 Chords: ${notes.filter(n => n.trackType === 'chords').length} notes
 • 🎵 Melody: ${notes.filter(n => n.trackType === 'melody').length} notes
+${audioInfo.audioUrl ? '• 🔊 Audio Track: AI-generated audio' : ''}
 
-Your project now has **${status.trackCount + 4} tracks**. Say "play" to hear it!`,
+Your project now has **${status.trackCount + (audioInfo.audioUrl ? 5 : 4)} tracks**.`,
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, assistantMessage]);
         
-        toast({ title: '🔥 Beat Generated!', description: `${result.style} at ${result.bpm} BPM` });
+        toast({ title: '🔥 Beat Generated!', description: `${result.style} at ${result.bpm} BPM${audioInfo.audioUrl ? ' - Audio playing!' : ''}` });
 
       } else if (action === 'play') {
         const state = handlePlayPause();

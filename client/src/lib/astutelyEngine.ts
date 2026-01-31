@@ -309,6 +309,75 @@ const generateLocalFallback = (style: string, overrides?: { tempo?: number; time
   return result;
 };
 
+/**
+ * Generate actual audio using Suno API or MusicGen fallback
+ * This produces real audio files that can be played, not just MIDI patterns
+ */
+export async function astutelyGenerateAudio(style: string, options?: {
+  prompt?: string;
+  bpm?: number;
+  key?: string;
+}): Promise<{ audioUrl: string; duration: number; provider: string }> {
+  console.log(`🎵 ASTUTELY: Generating REAL AUDIO for "${style}"...`);
+  
+  try {
+    const response = await fetch('/api/astutely/generate-audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        style,
+        prompt: options?.prompt,
+        bpm: options?.bpm,
+        key: options?.key,
+        instrumental: true,
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || `API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.success || !result.audioUrl) {
+      throw new Error('No audio URL returned from generation');
+    }
+
+    console.log(`✅ ASTUTELY: Audio generated via ${result.provider}!`);
+    console.log(`🔊 Audio URL: ${result.audioUrl}`);
+    
+    return {
+      audioUrl: result.audioUrl,
+      duration: result.duration || 30,
+      provider: result.provider,
+    };
+  } catch (error) {
+    console.error('❌ ASTUTELY: Audio generation failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Play generated audio directly
+ */
+export async function astutelyPlayAudio(audioUrl: string): Promise<HTMLAudioElement> {
+  console.log(`🔊 ASTUTELY: Playing audio: ${audioUrl}`);
+  
+  const audio = new Audio(audioUrl);
+  audio.crossOrigin = 'anonymous';
+  
+  return new Promise((resolve, reject) => {
+    audio.oncanplaythrough = () => {
+      audio.play()
+        .then(() => resolve(audio))
+        .catch(reject);
+    };
+    audio.onerror = () => reject(new Error('Failed to load audio'));
+    audio.load();
+  });
+}
+
 // Convert MIDI note number to note name and octave
 export function midiToNoteOctave(midi: number): { note: string; octave: number } {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];

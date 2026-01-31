@@ -8,6 +8,7 @@ import { enhancePromptWithMusicTheory, getProgressionsForGenre } from '../ai/kno
 import { buildAstutelyPrompt } from '../ai/prompts/astutelyPrompt';
 import { logPromptStart, logPromptResult } from '../ai/utils/promptLogger';
 import { generateAstutelyFallback } from '../../shared/astutelyFallback';
+import { sunoApiService } from '../services/sunoApiService';
 
 const router = Router();
 
@@ -209,6 +210,103 @@ router.get('/astutely/status/:predictionId', async (req: Request, res: Response)
     status: 'succeeded', 
     error: null 
   });
+});
+
+// Generate actual audio using Suno API
+router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
+  const { style, prompt, bpm, key, instrumental = true } = req.body;
+
+  if (!style && !prompt) {
+    return res.status(400).json({ error: 'Style or prompt is required' });
+  }
+
+  try {
+    // Check if Suno API is configured
+    if (!sunoApiService.isConfigured()) {
+      console.log('[Astutely] Suno API not configured, falling back to MusicGen via Replicate');
+      
+      // Fallback to MusicGen via unifiedMusicService
+      const musicPrompt = prompt || `${style} instrumental beat, ${bpm || 120} BPM, professional quality`;
+      const result = await unifiedMusicService.generateTrack(musicPrompt, {
+        type: 'beat',
+        duration: 30,
+      });
+
+      if (result?.audio_url) {
+        return res.json({
+          success: true,
+          audioUrl: result.audio_url,
+          duration: 30,
+          provider: 'musicgen',
+          style,
+          bpm: bpm || 120,
+        });
+      }
+      
+      return res.status(500).json({ 
+        error: 'Music generation failed',
+        details: 'Neither Suno API nor MusicGen returned audio'
+      });
+    }
+
+    console.log(`[Astutely] Generating audio with Suno API: ${style}`);
+    
+    const result = await sunoApiService.generateBeat(style, bpm, key);
+    
+    return res.json({
+      success: true,
+      audioUrl: result.audioUrl,
+      duration: result.duration,
+      provider: 'suno',
+      style,
+      bpm: bpm || 120,
+      key,
+    });
+
+  } catch (error: any) {
+    console.error('[Astutely] Audio generation error:', error);
+    
+    // Try MusicGen as fallback
+    try {
+      console.log('[Astutely] Trying MusicGen fallback...');
+      const musicPrompt = prompt || `${style} instrumental beat, ${bpm || 120} BPM, professional quality`;
+      const result = await unifiedMusicService.generateTrack(musicPrompt, {
+        type: 'beat',
+        duration: 30,
+      });
+
+      if (result?.audio_url) {
+        return res.json({
+          success: true,
+          audioUrl: result.audio_url,
+          duration: 30,
+          provider: 'musicgen-fallback',
+          style,
+          bpm: bpm || 120,
+        });
+      }
+    } catch (fallbackError) {
+      console.error('[Astutely] MusicGen fallback also failed:', fallbackError);
+    }
+
+    return res.status(500).json({ 
+      error: 'Audio generation failed',
+      details: error.message 
+    });
+  }
+});
+
+// Check Suno API status
+router.get('/astutely/suno-status', async (_req: Request, res: Response) => {
+  try {
+    const status = sunoApiService.getStatus();
+    return res.json({
+      success: true,
+      ...status,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 router.get('/astutely/provider-status', async (_req: Request, res: Response) => {
