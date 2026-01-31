@@ -45,6 +45,7 @@ import {
   Flag,
   ZoomIn,
   ZoomOut,
+  Sliders,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Dialog as BaseDialog, DialogContent as BaseDialogContent, DialogHeader as BaseDialogHeader, DialogTitle as BaseDialogTitle } from '@/components/ui/dialog';
@@ -480,6 +481,16 @@ export default function MasterMultiTrackPlayer() {
   const [showProjectSettingsModal, setShowProjectSettingsModal] = useState(false);
   const [showMixer, setShowMixer] = useState(false);
   const [tunerFreq, setTunerFreq] = useState(440);
+  
+  // View Settings for testing different layouts
+  const [viewSettings, setViewSettings] = useState({
+    compactMode: false,        // Minimal track headers
+    collapsedHeaders: false,   // Hide channel controls strip
+    trackHeight: 80,           // Default track height (40-200)
+    showWaveformOnly: false,   // Hide controls, show only waveforms
+    horizontalLayout: false,   // Side-by-side tracks (experimental)
+    showViewSettings: false,   // Toggle settings panel visibility
+  });
   const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
   const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -3713,9 +3724,95 @@ export default function MasterMultiTrackPlayer() {
             <audio controls src={previewUrl} className="w-64" />
           </div>
         )}
+        <Button
+          size="sm"
+          variant={viewSettings.showViewSettings ? 'default' : 'outline'}
+          onClick={() => setViewSettings(v => ({ ...v, showViewSettings: !v.showViewSettings }))}
+          className="ml-auto"
+        >
+          <Sliders className="w-4 h-4 mr-1" />
+          View
+        </Button>
       </div>
 
-      {tracks.length > 0 && (
+      {/* View Settings Panel - Test Different Layouts */}
+      {viewSettings.showViewSettings && (
+        <div className="px-4 py-3 bg-gray-800 border-b border-gray-700 flex flex-wrap items-center gap-4">
+          <div className="text-xs uppercase tracking-wide text-cyan-400 font-semibold">View Settings</div>
+          
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={viewSettings.compactMode}
+              onChange={(e) => setViewSettings(v => ({ ...v, compactMode: e.target.checked }))}
+              className="w-4 h-4 accent-cyan-500"
+            />
+            <span className="text-sm text-gray-300">Compact Mode</span>
+          </label>
+          
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={viewSettings.collapsedHeaders}
+              onChange={(e) => setViewSettings(v => ({ ...v, collapsedHeaders: e.target.checked }))}
+              className="w-4 h-4 accent-cyan-500"
+            />
+            <span className="text-sm text-gray-300">Hide Channel Strip</span>
+          </label>
+          
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={viewSettings.showWaveformOnly}
+              onChange={(e) => setViewSettings(v => ({ ...v, showWaveformOnly: e.target.checked }))}
+              className="w-4 h-4 accent-cyan-500"
+            />
+            <span className="text-sm text-gray-300">Waveform Only</span>
+          </label>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">Track Height:</span>
+            <Slider
+              value={[viewSettings.trackHeight]}
+              onValueChange={([v]) => setViewSettings(vs => ({ ...vs, trackHeight: v }))}
+              min={40}
+              max={200}
+              step={10}
+              className="w-32"
+            />
+            <span className="text-xs text-gray-300 w-10">{viewSettings.trackHeight}px</span>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 40, compactMode: true, showWaveformOnly: true }))}
+              className="text-xs"
+            >
+              Mini
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 80, compactMode: false, showWaveformOnly: false }))}
+              className="text-xs"
+            >
+              Normal
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 150, compactMode: false, showWaveformOnly: false }))}
+              className="text-xs"
+            >
+              Large
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {tracks.length > 0 && !viewSettings.collapsedHeaders && (
         <div className="px-4 py-3 bg-gray-900 border-b border-gray-800">
           <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Channel Controls</div>
           <div className="flex flex-wrap gap-2">
@@ -3822,18 +3919,19 @@ export default function MasterMultiTrackPlayer() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3 relative z-10 pt-8">
+            <div className={`${viewSettings.compactMode ? 'space-y-1' : 'space-y-3'} relative z-10 pt-8`}>
             {tracks.map((track, index) => {
               const regionId = regionIdForTrack(track.id);
               const isRegionSelected = selectedRegionIds.includes(regionId);
               const clipDuration = Math.max(getTrackEffectiveDuration(track), baseDurationSeconds / 2);
               const regionWidth = Math.max(clipDuration * pxPerSecond, 220);
               const laneWidth = Math.max(timelineWidth, regionWidth);
+              const effectiveHeight = track.height ?? viewSettings.trackHeight;
               return (
                 <Resizable
                   key={track.id}
                   axis="y"
-                  height={track.height ?? DEFAULT_TRACK_HEIGHT}
+                  height={effectiveHeight}
                   width={0}
                   minConstraints={[0, 40]}
                   maxConstraints={[0, 300]}
@@ -3845,10 +3943,10 @@ export default function MasterMultiTrackPlayer() {
                       )
                     );
                   }}
-                  resizeHandles={['s']}
+                  resizeHandles={viewSettings.showWaveformOnly ? [] : ['s']}
                 >
                   <div 
-                    style={{ height: (track.height ?? DEFAULT_TRACK_HEIGHT) + 32, minWidth: `${laneWidth}px` }}
+                    style={{ height: effectiveHeight + (viewSettings.compactMode ? 8 : 32), minWidth: `${laneWidth}px` }}
                     draggable
                     onDragStart={(e) => handleTrackDragStart(e, track.id)}
                     onDragOver={(e) => handleTrackDragOver(e, track.id)}
@@ -3859,26 +3957,30 @@ export default function MasterMultiTrackPlayer() {
                     <Card
                       className={`bg-gray-800 border ${isRegionSelected ? 'border-blue-500 ring-2 ring-blue-400' : dragOverTrackId === track.id ? 'border-green-500 ring-2 ring-green-400' : 'border-gray-700'} ${draggedTrackId === track.id ? 'opacity-50' : ''} relative overflow-hidden h-full transition-all`}
                     >
-                    <CardContent className="p-4 h-full flex flex-col">
+                    <CardContent className={`${viewSettings.compactMode ? 'p-2' : 'p-4'} h-full flex flex-col`}>
                       <div className="flex items-center gap-4 flex-1">
-                        {/* ISSUE #1: Drag handle for track reordering */}
-                        <div
-                          className="w-6 h-full flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-gray-700/50 rounded transition-colors"
-                          title="Drag to reorder track"
-                        >
-                          <GripVertical className="w-4 h-4 text-gray-500" />
-                        </div>
+                        {/* Drag handle for track reordering */}
+                        {!viewSettings.showWaveformOnly && (
+                          <div
+                            className="w-6 h-full flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-gray-700/50 rounded transition-colors"
+                            title="Drag to reorder track"
+                          >
+                            <GripVertical className="w-4 h-4 text-gray-500" />
+                          </div>
+                        )}
                         {/* Track color stripe */}
                         <div
-                          className="w-2 h-full rounded"
+                          className={`${viewSettings.showWaveformOnly ? 'w-1' : 'w-2'} h-full rounded`}
                           style={{ backgroundColor: track.color }}
                         />
 
                         <div className="flex-1 flex flex-col gap-2">
-                          {/* Header with name + delete */}
-                          <div className="flex items-center justify-between mb-2">
+                          {/* Header with name + delete - hidden in waveform-only mode */}
+                          {!viewSettings.showWaveformOnly && (
+                          <div className={`flex items-center justify-between ${viewSettings.compactMode ? 'mb-1' : 'mb-2'}`}>
                             <div className="flex items-center gap-2">
-                              <h4 className="font-semibold cursor-pointer" onClick={() => toggleRegionSelection(track.id)}>{track.name}</h4>
+                              <h4 className={`${viewSettings.compactMode ? 'text-xs' : 'font-semibold'} cursor-pointer`} onClick={() => toggleRegionSelection(track.id)}>{track.name}</h4>
+                              {!viewSettings.compactMode && (
                               <Select
                                 value={track.kind || ''}
                                 onValueChange={(v) => updateTrackKind(track.id, v)}
@@ -3892,8 +3994,11 @@ export default function MasterMultiTrackPlayer() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              )}
                             </div>
-                            {/* ISSUE #4: Split button */}
+                            {!viewSettings.compactMode && (
+                            <>
+                            {/* Split button */}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -3927,16 +4032,20 @@ export default function MasterMultiTrackPlayer() {
                               className="w-6 h-6 rounded cursor-pointer border-0"
                               title="Change track color"
                             />
+                            </>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
                               onClick={() => deleteTrack(track.id)}
+                              className={viewSettings.compactMode ? 'h-6 w-6 p-0' : ''}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className={viewSettings.compactMode ? 'w-3 h-3' : 'w-4 h-4'} />
                             </Button>
                           </div>
+                          )}
 
-                          {/* Waveform, MIDI notes, or empty state - ISSUE #2: positioned with startTimeSeconds */}
+                          {/* Waveform, MIDI notes, or empty state - positioned with startTimeSeconds */}
                           {track.audioBuffer ? (
                             <div 
                               className="relative" 
