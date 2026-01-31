@@ -316,6 +316,8 @@ function buildAstutelyTrack(
     startBar: 0,
     bpm,
     data: {},
+    sendA: -60,
+    sendB: -60,
     payload: createTrackPayload({
       type: config.type,
       instrument: config.instrument,
@@ -507,6 +509,7 @@ export default function UnifiedStudioWorkspace() {
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [beatLabTab, setBeatLabTab] = useState('drums');
+  const [pianoRollTool, setPianoRollTool] = useState<'select' | 'draw' | 'erase'>('draw');
   const [zoom, setZoom] = useState(1);
   const [trackListWidth, setTrackListWidth] = useState(200);
   const [trackHeights, setTrackHeights] = useState<Record<string, number>>({});
@@ -605,11 +608,6 @@ export default function UnifiedStudioWorkspace() {
       duration: 5000,
     });
   }, [setTransportTempo, setActiveView, toast]);
-  useEffect(() => {
-    if (activeView === 'piano-roll') {
-      setTransportBarCollapsed(true);
-    }
-  }, [activeView, setTransportBarCollapsed]);
   // Clips, markers, and session/grid state
   const [clips, setClips] = useState<TrackClip[]>([]);
   const [markers, setMarkers] = useState<Marker[]>([]);
@@ -644,6 +642,14 @@ export default function UnifiedStudioWorkspace() {
   // Master Volume Control
   const [masterVolume, setMasterVolume] = useState(0.7); // Default 70%
   const [transportBarCollapsed, setTransportBarCollapsed] = useState(false);
+  
+  // Auto-collapse transport bar when entering piano-roll view
+  useEffect(() => {
+    if (activeView === 'piano-roll') {
+      setTransportBarCollapsed(true);
+    }
+  }, [activeView]);
+
   const [transportBarPos, setTransportBarPos] = useState<{ x: number; y: number }>(() => {
     if (typeof window === 'undefined') return { x: 0, y: 0 };
     try {
@@ -970,6 +976,8 @@ export default function UnifiedStudioWorkspace() {
         payload: createTrackPayload({ type: 'audio', audioUrl: detail.audioUrl }),
         audioUrl: detail.audioUrl,
         data: {},
+        sendA: -60,
+        sendB: -60,
       };
 
       setTracks([...tracks, newTrack]);
@@ -1031,7 +1039,7 @@ export default function UnifiedStudioWorkspace() {
 
       setActiveView('piano-roll');
       setPianoRollExpanded(true);
-      setTransportCollapsed(true);
+      setTransportBarCollapsed(true);
 
       toast({
         title: 'Astutely Pattern Loaded',
@@ -1117,6 +1125,8 @@ export default function UnifiedStudioWorkspace() {
         source: 'default',
         bpm: 120,
         payload: createTrackPayload({ type: 'midi' }),
+        sendA: -60,
+        sendB: -60,
       };
       setTracks([defaultTrack]);
       setSelectedTrack(defaultTrack.id);
@@ -1405,6 +1415,8 @@ export default function UnifiedStudioWorkspace() {
       source: 'user-created',
       bpm: 120,
       payload: createTrackPayload({ type: 'midi' }),
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -1879,6 +1891,8 @@ export default function UnifiedStudioWorkspace() {
       bpm: 120,
       payload: createTrackPayload({ type: 'midi' }),
       data: {},
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -1903,6 +1917,8 @@ export default function UnifiedStudioWorkspace() {
       bpm: 120,
       payload: createTrackPayload({ type: 'audio' }),
       data: {},
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -1927,6 +1943,8 @@ export default function UnifiedStudioWorkspace() {
       bpm: 120,
       payload: createTrackPayload({ type: 'midi', instrument: 'piano' }),
       data: {},
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -1951,6 +1969,8 @@ export default function UnifiedStudioWorkspace() {
       bpm: sessionSettings.bpm,
       payload: createTrackPayload({ type: 'aux' as any }),
       data: { returns: true },
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -2249,6 +2269,8 @@ export default function UnifiedStudioWorkspace() {
       source: 'ai-generated',
       bpm: metadata.bpm || 120,
       payload: createTrackPayload({ type: 'audio' }),
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
@@ -2279,6 +2301,8 @@ export default function UnifiedStudioWorkspace() {
         source: 'lyrics',
         bpm: 120,
         payload: createTrackPayload({ type: 'lyrics' }),
+        sendA: -60,
+        sendB: -60,
       };
       setTracks([...tracks, newTrack]);
     }
