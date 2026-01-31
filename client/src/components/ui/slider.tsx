@@ -6,13 +6,18 @@ import { cn } from "@/lib/utils"
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, orientation = "horizontal", ...props }, ref) => {
+>(({ className, orientation = "horizontal", value, defaultValue, ...props }, ref) => {
   const isVertical = orientation === "vertical";
+  // Normalize value/defaultValue to arrays for Radix Slider
+  const normalizedValue = Array.isArray(value) ? value : value != null ? [value] : undefined;
+  const normalizedDefaultValue = Array.isArray(defaultValue) ? defaultValue : defaultValue != null ? [defaultValue] : undefined;
   
   return (
     <SliderPrimitive.Root
       ref={ref}
       orientation={orientation}
+      value={normalizedValue}
+      defaultValue={normalizedDefaultValue}
       className={cn(
         "astutely-slider relative flex touch-none select-none items-center",
         isVertical ? "h-full w-3 flex-col" : "w-full",

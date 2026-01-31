@@ -508,7 +508,7 @@ export default function UnifiedStudioWorkspace() {
   const [showGrid, setShowGrid] = useState(true);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
-  const [beatLabTab, setBeatLabTab] = useState('drums');
+  const [beatLabTab, setBeatLabTab] = useState<'pro' | 'bass-studio' | 'loop-library' | 'pack-generator'>('pro');
   const [pianoRollTool, setPianoRollTool] = useState<'select' | 'draw' | 'erase'>('draw');
   const [zoom, setZoom] = useState(1);
   const [trackListWidth, setTrackListWidth] = useState(200);
@@ -520,7 +520,16 @@ export default function UnifiedStudioWorkspace() {
   const [midiConnected, setMidiConnected] = useState(false);
   const [midiDevices, setMidiDevices] = useState<any[]>([]);
   const [midiActiveNotes, setMidiActiveNotes] = useState<Set<string>>(new Set());
-  const [midiSettings, setMidiSettings] = useState({ channel: 0, velocity: 127 });
+  const [midiSettings, setMidiSettings] = useState<{
+    channel: number;
+    velocity: number;
+    midiVolume?: number;
+    currentInstrument?: string;
+    sustainPedal?: boolean;
+    pitchBend?: boolean;
+    modulation?: boolean;
+    autoConnect?: boolean;
+  }>({ channel: 0, velocity: 127, midiVolume: 0.3, currentInstrument: 'piano', sustainPedal: true, pitchBend: true, modulation: true, autoConnect: true });
   const [midiSupported, setMidiSupported] = useState(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -2017,6 +2026,8 @@ export default function UnifiedStudioWorkspace() {
       bpm: sessionSettings.bpm,
       payload: createTrackPayload({ type: 'aux' as any }),
       data: { send: true },
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, sendTrack]);
     if (selectedTrack) {
@@ -2043,6 +2054,8 @@ export default function UnifiedStudioWorkspace() {
       bpm: sessionSettings.bpm,
       payload: createTrackPayload({ type: 'aux' as any }),
       data: { bus: true },
+      sendA: -60,
+      sendB: -60,
     };
     setTracks([...tracks, busTrack]);
     toast({ title: "Bus Created", description: busTrack.name });
@@ -2196,15 +2209,15 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleZoomIn = () => {
-    setZoom(([z]) => [Math.min(100, z + 5)]);
+    setZoom(z => Math.min(100, z + 5));
   };
 
   const handleZoomOut = () => {
-    setZoom(([z]) => [Math.max(10, z - 5)]);
+    setZoom(z => Math.max(10, z - 5));
   };
 
   const handleZoomToFit = () => {
-    setZoom([50]);
+    setZoom(50);
   };
 
   const handleToggleFullScreen = async () => {
@@ -3349,15 +3362,15 @@ export default function UnifiedStudioWorkspace() {
                 <div className="flex items-center space-x-2 text-sm text-cyan-400">
                   <span>Zoom:</span>
                   <Slider
-                    value={zoom}
-                    onValueChange={setZoom}
+                    value={[zoom]}
+                    onValueChange={([v]) => setZoom(v)}
                     max={100}
                     min={10}
                     step={1}
                     className="w-24 astutely-slider"
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <span>{zoom[0]}%</span>
+                  <span>{zoom}%</span>
                 </div>
               </div>
             </div>
@@ -3544,7 +3557,7 @@ export default function UnifiedStudioWorkspace() {
                                       className={`h-8 px-3 text-white ${timelinePlayingTrack === track.id ? 'bg-red-600 border-red-500 hover:bg-red-500' : 'bg-green-600 border-green-500 hover:bg-green-500'}`}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleTimelineTrackPlay(track);
+                                        handleTimelineTrackPlay(track.id);
                                       }}
                                     >
                                       {timelinePlayingTrack === track.id ? (
