@@ -2402,7 +2402,7 @@ export default function UnifiedStudioWorkspace() {
           <div className="flex space-x-0.5">
             <div className="relative group">
               <Button variant="ghost" size="sm" className="astutely-button">File ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
                 <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New Project</span>
                   <span className="text-xs text-cyan-400">Ctrl+N</span>
@@ -2430,7 +2430,7 @@ export default function UnifiedStudioWorkspace() {
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm" className="astutely-button">Edit ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
                 <button onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Undo</span>
                   <span className="text-xs text-cyan-400">Ctrl+Z</span>
@@ -2465,7 +2465,7 @@ export default function UnifiedStudioWorkspace() {
             </div>
             <div className="relative group">
               <Button variant="ghost" size="sm" className="astutely-button">View ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
                 <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
                   <span className="text-xs text-cyan-400">F1</span>
@@ -2544,7 +2544,7 @@ export default function UnifiedStudioWorkspace() {
             {/* CREATE Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm" className="astutely-button">Create ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
                 <button onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New MIDI Track</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+T</span>
@@ -2590,7 +2590,7 @@ export default function UnifiedStudioWorkspace() {
             {/* ARRANGE Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm" className="astutely-button">Arrange ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
                 <button onClick={() => { setTimeDialogMode('insert'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Insert Time...</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+I</span>
@@ -2647,7 +2647,7 @@ export default function UnifiedStudioWorkspace() {
             {/* MIX Menu */}
             <div className="relative group">
               <Button variant="ghost" size="sm" className="astutely-button">Mix ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
                 <button onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Normalize</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+N</span>
@@ -2708,7 +2708,7 @@ export default function UnifiedStudioWorkspace() {
             {/* MORE Menu - Groups Tools, Window, Help */}
             <div className="relative group">
               <Button variant="ghost" size="sm" className="astutely-button">More ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[100] astutely-panel">
+              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
                 {/* Tools Submenu */}
                 <div className="relative group/tools">
                   <div className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between text-cyan-100 astutely-menu-item">
@@ -3081,7 +3081,7 @@ export default function UnifiedStudioWorkspace() {
       </div>
 
       {/* DAW-Style Tab Bar - All tabs together */}
-      <div className="bg-black/60 border-b border-cyan-500/40 px-2 py-2 flex flex-wrap items-center justify-between gap-2 astutely-panel">
+      <div className="bg-black/60 border-b border-cyan-500/40 px-2 py-2 flex flex-wrap items-center justify-between gap-2 astutely-panel relative z-10">
         {/* All Tabs - Left Side */}
         <div className="flex flex-wrap items-center gap-1">
           <Button
