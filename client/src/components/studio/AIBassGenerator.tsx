@@ -9,6 +9,7 @@ import { Loader2, Music2, Zap, Piano, Volume2, Save, RotateCcw, Download, Trash2
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { professionalAudio } from '@/lib/professionalAudio';
+import { useMIDI } from '@/hooks/use-midi';
 
 interface BassGeneratorProps {
   chordProgression?: Array<{ chord: string; duration: number }>;
@@ -35,11 +36,31 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
   const playbackRef = useRef<NodeJS.Timeout | null>(null);
   const recordStartTimeRef = useRef<number>(0);
   const { toast } = useToast();
+  
+  // Get MIDI hook to set bass instrument
+  const { updateSettings: updateMIDISettings, lastNote: midiLastNote } = useMIDI();
 
-  // Initialize audio on mount
+  // Initialize audio on mount and set MIDI instrument to bass
   useEffect(() => {
     realisticAudio.initialize().catch(console.error);
-  }, []);
+    // Set MIDI keyboard to bass instrument when Bass Studio opens
+    updateMIDISettings({ currentInstrument: 'bass' });
+    toast({ title: '🎸 Bass Mode Active', description: 'MIDI keyboard set to bass instrument' });
+  }, [updateMIDISettings, toast]);
+  
+  // Handle MIDI input for bass playing
+  useEffect(() => {
+    if (!midiLastNote) return;
+    
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const midiOctave = Math.floor(midiLastNote.note / 12) - 1;
+    const noteIndex = midiLastNote.note % 12;
+    const noteName = noteNames[noteIndex];
+    
+    // Play bass note from MIDI input (use bass octave range)
+    const bassOctave = Math.min(Math.max(midiOctave, 1), 3); // Clamp to bass range
+    playBassNote(noteName, bassOctave);
+  }, [midiLastNote]);
 
   // Play a single bass note (and record if in recording mode)
   const playBassNote = useCallback(async (note: string, oct: number = octave[0]) => {

@@ -171,7 +171,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const { 
     isConnected: midiConnected, 
     activeNotes: midiActiveNotes,
-    lastNote: midiLastNote 
+    lastNote: midiLastNote,
+    updateSettings: updateMIDISettings
   } = useMIDI();
   
   // State - sync with transport context
@@ -1491,6 +1492,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       globalInstrument.setCurrentInstrument(instrument);
     }
     
+    // 🎹 Sync MIDI keyboard instrument with Piano Roll selection
+    updateMIDISettings({ currentInstrument: instrument });
+    
     // Pre-load the instrument
     realisticAudio.loadAdditionalInstrument(instrument).then(() => {
       toast({
@@ -1498,7 +1502,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         description: `Changed track instrument to ${AVAILABLE_INSTRUMENTS.find(i => i.value === instrument)?.label}`,
       });
     });
-  }, [toast, globalInstrument, propTracks, updateTrackInStore]);
+  }, [toast, globalInstrument, propTracks, updateTrackInStore, updateMIDISettings]);
 
   const handleKeyChange = useCallback((key: string) => {
     // Save current scale state before switching
