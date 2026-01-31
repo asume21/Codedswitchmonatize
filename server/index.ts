@@ -4,6 +4,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import helmet from "helmet";
 import path from "path";
+import fs from "fs";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
@@ -11,6 +12,20 @@ import { currentUser } from "./middleware/auth";
 import { runMigrations } from "./migrations/runMigrations";
 import { ensureDataRoots } from "./services/localStorageService";
 import { globalLimiter } from "./middleware/rateLimiting";
+
+// Set LOCAL_OBJECTS_DIR early so all routes use consistent paths
+// Use /data if available (Railway persistent volume), otherwise use local objects
+const LOCAL_OBJECTS_DIR = fs.existsSync('/data') 
+  ? path.resolve('/data', 'objects')
+  : path.resolve(process.cwd(), 'objects');
+process.env.LOCAL_OBJECTS_DIR = LOCAL_OBJECTS_DIR;
+console.log('📁 LOCAL_OBJECTS_DIR set to:', LOCAL_OBJECTS_DIR);
+
+// Ensure the directory exists
+try {
+  fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
+  fs.mkdirSync(path.join(LOCAL_OBJECTS_DIR, 'converted'), { recursive: true });
+} catch {}
 
 const app = express();
 
