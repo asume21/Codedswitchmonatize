@@ -999,6 +999,94 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         <Button variant="ghost" onClick={() => setShowMidiMappingPanel(prev => !prev)} className={`h-12 px-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 ${showMidiMappingPanel ? 'bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-white/5 border-white/10 text-white/40 hover:text-white'}`}><Music className="w-4 h-4 mr-2" />MIDI Interface</Button>
       </div>
 
+      {/* MIDI Interface Panel */}
+      {showMidiMappingPanel && (
+        <div className="mb-8 p-5 bg-black/60 backdrop-blur-2xl rounded-3xl border border-blue-500/30 shadow-2xl relative z-10 animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-black text-white uppercase tracking-[0.2em]">MIDI Interface</h3>
+              <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${midiConnected ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-red-500/20 text-red-400 border border-red-500/50'}`}>
+                {midiConnected ? '● Connected' : '○ Disconnected'}
+              </div>
+            </div>
+            <Button variant="ghost" onClick={() => setShowMidiMappingPanel(false)} className="h-8 w-8 p-0 text-white/20 hover:text-white bg-white/5 rounded-lg border border-white/10"><X className="w-4 h-4" /></Button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* MIDI Learn Section */}
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest">MIDI Learn Mode</h4>
+              <p className="text-[10px] text-white/40">Click a drum below, then press a key on your MIDI controller to map it.</p>
+              <div className="grid grid-cols-4 gap-2">
+                {tracks.map(track => (
+                  <Button
+                    key={track.id}
+                    onClick={() => {
+                      setMidiLearnMode(true);
+                      setMidiLearnTarget(track.id);
+                      toast({ title: 'MIDI Learn Active', description: `Press a key to map to ${track.name}` });
+                    }}
+                    className={`h-12 rounded-xl font-black uppercase text-[8px] tracking-widest transition-all border-2 ${
+                      midiLearnMode && midiLearnTarget === track.id 
+                        ? 'bg-blue-500/30 border-blue-500 text-blue-300 animate-pulse' 
+                        : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:border-white/30'
+                    }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${track.color} mr-2`} />
+                    {track.name}
+                  </Button>
+                ))}
+              </div>
+              {midiLearnMode && (
+                <Button 
+                  onClick={() => { setMidiLearnMode(false); setMidiLearnTarget(null); }}
+                  className="w-full h-10 bg-red-500/20 border border-red-500/50 text-red-400 rounded-xl font-black uppercase text-[10px]"
+                >
+                  Cancel Learn Mode
+                </Button>
+              )}
+            </div>
+            
+            {/* Current Mappings */}
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black text-purple-300/60 uppercase tracking-widest">Current Mappings</h4>
+              <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                {Object.entries(midiDrumMapping).slice(0, 12).map(([noteNum, drumId]) => {
+                  const track = tracks.find(t => t.id === drumId);
+                  if (!track) return null;
+                  return (
+                    <div key={noteNum} className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-cyan-400 bg-cyan-500/20 px-2 py-0.5 rounded">{MIDI_NOTE_NAMES[Number(noteNum)]}</span>
+                        <span className="text-[10px] text-white/40">→</span>
+                        <div className={`w-2 h-2 rounded-full ${track.color}`} />
+                        <span className="text-[10px] font-black text-white/80">{track.name}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          
+          {/* Active Notes Display */}
+          {activeNotes.size > 0 && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-green-300/60 uppercase tracking-widest">Active Notes:</span>
+                <div className="flex gap-1 flex-wrap">
+                  {Array.from(activeNotes).map(note => (
+                    <span key={note} className="px-2 py-0.5 bg-green-500/20 text-green-400 text-[10px] font-black rounded border border-green-500/50">
+                      {MIDI_NOTE_NAMES[note]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Selected Step Editor Popup */}
       {selectedStep && (
         <div className="mb-8 p-5 bg-black/60 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-2xl relative z-10 animate-in zoom-in-95 duration-200">
