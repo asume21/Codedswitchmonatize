@@ -335,20 +335,24 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   }, [getAudioContext, setSourceFromBuffer]);
 
   useEffect(() => {
-    const handleVolumeChange = (e: CustomEvent<{ volume: number }>) => setVolume(e.detail.volume);
-    const handleLoad = (e: CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>) => {
+    const handleVolumeChange = (event: Event) => {
+      const e = event as CustomEvent<{ volume: number }>;
+      setVolume(e.detail.volume);
+    };
+    const handleLoad = (event: Event) => {
+      const e = event as CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>;
       const { name, url, autoplay } = e.detail;
       loadAudioUrl(url, name).then(() => {
         if (autoplay) play();
       }).catch(err => {
         console.error('Failed to load global audio:', err);
-        // Dispatch error event for UI to handle
         window.dispatchEvent(new CustomEvent('globalAudio:error', { 
           detail: { message: err.message || 'Failed to load audio file' }
         }));
       });
     };
-    const handleAdd = (e: CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>) => {
+    const handleAdd = (event: Event) => {
+      const e = event as CustomEvent<{ name: string; url: string; type?: string; autoplay?: boolean }>;
       const { name, url, autoplay } = e.detail;
       addToPlaylistUrl(url, name, autoplay).catch(err => {
         console.error('Failed to add global audio:', err);
@@ -362,7 +366,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     const handleStop = () => stop();
     const handleNext = () => next();
     const handlePrev = () => previous();
-    const handleSetElement: EventListener = (event) => {
+    const handleSetElement = (event: Event) => {
       const e = event as CustomEvent<{ element: HTMLAudioElement; name: string }>;
       if (!e.detail?.element) return;
       (async () => {
@@ -382,25 +386,25 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       })();
     };
 
-    window.addEventListener('globalAudio:volume', handleVolumeChange as EventListener);
-    window.addEventListener('globalAudio:load', handleLoad as EventListener);
-    window.addEventListener('globalAudio:addToPlaylist', handleAdd as EventListener);
-    window.addEventListener('globalAudio:play', handlePlay as EventListener);
-    window.addEventListener('globalAudio:pause', handlePause as EventListener);
-    window.addEventListener('globalAudio:stop', handleStop as EventListener);
-    window.addEventListener('globalAudio:next', handleNext as EventListener);
-    window.addEventListener('globalAudio:prev', handlePrev as EventListener);
+    window.addEventListener('globalAudio:volume', handleVolumeChange);
+    window.addEventListener('globalAudio:load', handleLoad);
+    window.addEventListener('globalAudio:addToPlaylist', handleAdd);
+    window.addEventListener('globalAudio:play', handlePlay);
+    window.addEventListener('globalAudio:pause', handlePause);
+    window.addEventListener('globalAudio:stop', handleStop);
+    window.addEventListener('globalAudio:next', handleNext);
+    window.addEventListener('globalAudio:prev', handlePrev);
     window.addEventListener('globalAudio:setElement', handleSetElement);
 
     return () => {
-      window.removeEventListener('globalAudio:volume', handleVolumeChange as EventListener);
-      window.removeEventListener('globalAudio:load', handleLoad as EventListener);
-      window.removeEventListener('globalAudio:addToPlaylist', handleAdd as EventListener);
-      window.removeEventListener('globalAudio:play', handlePlay as EventListener);
-      window.removeEventListener('globalAudio:pause', handlePause as EventListener);
-      window.removeEventListener('globalAudio:stop', handleStop as EventListener);
-      window.removeEventListener('globalAudio:next', handleNext as EventListener);
-      window.removeEventListener('globalAudio:prev', handlePrev as EventListener);
+      window.removeEventListener('globalAudio:volume', handleVolumeChange);
+      window.removeEventListener('globalAudio:load', handleLoad);
+      window.removeEventListener('globalAudio:addToPlaylist', handleAdd);
+      window.removeEventListener('globalAudio:play', handlePlay);
+      window.removeEventListener('globalAudio:pause', handlePause);
+      window.removeEventListener('globalAudio:stop', handleStop);
+      window.removeEventListener('globalAudio:next', handleNext);
+      window.removeEventListener('globalAudio:prev', handlePrev);
       window.removeEventListener('globalAudio:setElement', handleSetElement);
     };
   }, [addToPlaylistUrl, getAudioContext, loadAudioUrl, next, pause, play, previous, setVolume, stop, setSourceFromBuffer]);

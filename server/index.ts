@@ -109,12 +109,6 @@ app.use(helmet({
   } : false,
   crossOriginEmbedderPolicy: false, // Needed for audio/media playback
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-  permissionsPolicy: {
-    camera: [],
-    microphone: [],
-    geolocation: [],
-    payment: [],
-  },
   hsts: isProduction ? {
     maxAge: 31536000,
     includeSubDomains: true,
