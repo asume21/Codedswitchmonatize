@@ -12,6 +12,7 @@ import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: any) => children })));
@@ -78,22 +79,25 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 function StudioProviders({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <TransportProvider>
-        <GlobalAudioProvider>
-          <InstrumentProvider>
-            <TrackStoreProvider>
-              <StudioSessionProvider>
-                <SongWorkSessionProvider>
-                  <SessionDestinationProvider>
-                    <GlobalAudioPlayer />
-                    {children}
-                  </SessionDestinationProvider>
-                </SongWorkSessionProvider>
-              </StudioSessionProvider>
-            </TrackStoreProvider>
-          </InstrumentProvider>
-        </GlobalAudioProvider>
-      </TransportProvider>
+      <PresenceProvider>
+        <TransportProvider>
+          <GlobalAudioProvider>
+            <InstrumentProvider>
+              <TrackStoreProvider>
+                <StudioSessionProvider>
+                  <SongWorkSessionProvider>
+                    <SessionDestinationProvider>
+                      <GlobalAudioPlayer />
+                      <GlobalLivingGlyph position="bottom-right" size={48} />
+                      {children}
+                    </SessionDestinationProvider>
+                  </SongWorkSessionProvider>
+                </StudioSessionProvider>
+              </TrackStoreProvider>
+            </InstrumentProvider>
+          </GlobalAudioProvider>
+        </TransportProvider>
+      </PresenceProvider>
     </Suspense>
   );
 }

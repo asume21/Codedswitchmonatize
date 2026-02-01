@@ -13,6 +13,7 @@ import { StudioAudioContext } from '@/pages/studio';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { professionalAudio } from '@/lib/professionalAudio';
 import type { Song } from '../../../../shared/schema';
+import { dispatchAstutelyEvent } from '@/components/presence';
 
 const styles = [
   { name: "Travis Scott rage", icon: "🔥", preview: "808s + dark pads" },
@@ -146,7 +147,14 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     queryKey: ['/api/songs'],
   });
 
-  // Handle Escape key
+  // Emit panel opened event for Presence Engine
+  useEffect(() => {
+    dispatchAstutelyEvent('panel-opened');
+    
+    return () => {
+      dispatchAstutelyEvent('panel-closed');
+    };
+  }, []);
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -223,6 +231,11 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const handleSongSelect = async (songId: string) => {
     setSelectedSongId(songId);
     setSongAnalysis(null);
+    
+    // Emit analysis started event
+    if (songId && songId !== 'none') {
+      dispatchAstutelyEvent('analysis-started', { songId });
+    }
 
     // Stop current playback
     if (audioElement) {
@@ -241,6 +254,10 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
           });
           const data = await response.json();
           setSongAnalysis(data);
+          
+          // Emit analysis completed event
+          dispatchAstutelyEvent('analysis-completed', { songId: song.id, success: true });
+          
           toast({
             title: '🧠 Song Analyzed',
             description: `${data.tempo || 'Unknown'} BPM • Key: ${data.key || 'Unknown'}`,
@@ -381,10 +398,27 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const handleGenerate = async () => {
     setIsGenerating(true);
     setProgress(0);
+    
+    // Emit generation started event
+    dispatchAstutelyEvent('generation-started', { style: selectedStyle.name });
+    
     toast({ title: '✨ Astutely Activated', description: `Creating ${selectedStyle.name} beat...` });
 
     // Simulate progress for UX
-    const interval = setInterval(() => setProgress(p => Math.min(p + 15, 90)), 300);
+    const interval = setInterval(() => {
+      setProgress(p => {
+        const newProgress = Math.min(p + 15, 90);
+        // Emit progress events
+        if (newProgress < 30) {
+          dispatchAstutelyEvent('generation-progress', { step: 'planning', progress: newProgress });
+        } else if (newProgress < 70) {
+          dispatchAstutelyEvent('generation-progress', { step: 'generating', progress: newProgress });
+        } else {
+          dispatchAstutelyEvent('generation-progress', { step: 'post-processing', progress: newProgress });
+        }
+        return newProgress;
+      });
+    }, 300);
 
     try {
       const trimmedPrompt = query.trim();
@@ -399,6 +433,9 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       clearInterval(interval);
       setProgress(100);
       setGeneratedResult(result);
+      
+      // Emit generation completed event
+      dispatchAstutelyEvent('generation-completed', { style: selectedStyle.name, success: true });
 
       if (result.meta?.usedFallback || result.isFallback) {
         toast({
@@ -439,6 +476,13 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     } catch (error) {
       clearInterval(interval);
       setProgress(0);
+      
+      // Emit generation error event
+      dispatchAstutelyEvent('generation-error', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        style: selectedStyle.name 
+      });
+      
       toast({ 
         title: '❌ Generation Failed', 
         description: 'Astutely encountered an error. Try again!',
