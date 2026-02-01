@@ -99,6 +99,10 @@ export class SunoApiService {
     title?: string;       // Required if customMode=true
     callBackUrl?: string;
   }) {
+    // Suno API requires callBackUrl - use a placeholder if not provided
+    // The API will still work, it just won't send webhooks
+    const callBackUrl = params.callBackUrl || 'https://codedswitch.com/api/suno/callback';
+    
     return this.makeRequest('/generate', 'POST', {
       prompt: params.prompt,
       customMode: params.customMode ?? false,
@@ -106,7 +110,7 @@ export class SunoApiService {
       model: params.model || 'V4_5',
       style: params.style,
       title: params.title,
-      callBackUrl: params.callBackUrl
+      callBackUrl
     });
   }
 
