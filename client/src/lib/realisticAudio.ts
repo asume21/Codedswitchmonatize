@@ -98,6 +98,11 @@ export class RealisticAudioEngine {
   private audioContext: AudioContext | null = getAudioContext();
   private isInitialized = false;
   private isLoading = false;
+  
+  // Voice limiting to prevent audio crackling
+  private maxPolyphony = 32; // Maximum simultaneous voices
+  private totalActiveVoices = 0;
+  private voiceQueue: Array<{ node: any; startTime: number; key: string }> = [];
   private initPromise: Promise<void> | null = null;
   public bassDrumDuration = 0.8;
   private instrumentLibrary: { [key: string]: string };
@@ -179,8 +184,71 @@ export class RealisticAudioEngine {
 
   constructor() {
     this.instrumentLibrary = INSTRUMENT_LIBRARY;
-    // Periodic cleanup of finished nodes every 5 seconds
-    setInterval(() => this.cleanupFinishedNodes(), 5000);
+    // Periodic cleanup of finished nodes every 2 seconds (more frequent for better performance)
+    setInterval(() => this.cleanupFinishedNodes(), 2000);
+  }
+
+  /**
+   * Voice stealing - remove oldest voices when we exceed max polyphony
+   */
+  private stealOldestVoices(count: number = 1) {
+    if (!this.audioContext || this.voiceQueue.length === 0) return;
+    
+    // Sort by start time (oldest first)
+    this.voiceQueue.sort((a, b) => a.startTime - b.startTime);
+    
+    // Remove oldest voices
+    const toRemove = this.voiceQueue.splice(0, count);
+    toRemove.forEach(voice => {
+      try {
+        if (voice.node) {
+          if (typeof voice.node.stop === 'function') {
+            voice.node.stop(this.audioContext!.currentTime + 0.01);
+          }
+          voice.node.disconnect();
+        }
+        // Remove from activeNotes map
+        const nodes = this.activeNotes.get(voice.key);
+        if (nodes) {
+          const idx = nodes.indexOf(voice.node);
+          if (idx > -1) nodes.splice(idx, 1);
+          if (nodes.length === 0) this.activeNotes.delete(voice.key);
+        }
+        this.totalActiveVoices = Math.max(0, this.totalActiveVoices - 1);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    });
+  }
+
+  /**
+   * Track a new voice for polyphony management
+   */
+  private trackVoice(node: any, key: string) {
+    if (!this.audioContext) return;
+    
+    // If we're at max polyphony, steal oldest voice
+    if (this.totalActiveVoices >= this.maxPolyphony) {
+      this.stealOldestVoices(Math.ceil(this.maxPolyphony * 0.25)); // Remove 25% of voices
+    }
+    
+    this.voiceQueue.push({
+      node,
+      startTime: this.audioContext.currentTime,
+      key
+    });
+    this.totalActiveVoices++;
+  }
+
+  /**
+   * Remove a voice from tracking
+   */
+  private untrackVoice(node: any) {
+    const idx = this.voiceQueue.findIndex(v => v.node === node);
+    if (idx > -1) {
+      this.voiceQueue.splice(idx, 1);
+      this.totalActiveVoices = Math.max(0, this.totalActiveVoices - 1);
+    }
   }
 
   /**
@@ -361,6 +429,9 @@ export class RealisticAudioEngine {
             this.activeNotes.set(noteKey, []);
           }
           this.activeNotes.get(noteKey)?.push(audioNode);
+          
+          // Track for polyphony management
+          this.trackVoice(audioNode, noteKey);
 
           // If duration is provided, automatically schedule removal from tracking
           if (duration > 0) {
@@ -371,6 +442,7 @@ export class RealisticAudioEngine {
                 if (index > -1) nodes.splice(index, 1);
                 if (nodes.length === 0) this.activeNotes.delete(noteKey);
               }
+              this.untrackVoice(audioNode);
             }, duration * 1000 + 100);
           }
           return;
