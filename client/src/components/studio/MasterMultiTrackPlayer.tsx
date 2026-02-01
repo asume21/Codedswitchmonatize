@@ -60,6 +60,7 @@ import ProfessionalMixer from './ProfessionalMixer';
 import { GridOverlay } from './GridOverlay';
 import { TunerModal } from './TunerModal';
 import { MTPHeaderContainer } from './MTPHeaderContainer';
+import { getMixEngine, MixEngineState } from '@/lib/mixEngine';
 
 interface MidiNote {
   id: string;
@@ -2131,35 +2132,89 @@ export default function MasterMultiTrackPlayer() {
 
   const handleMixPreview = async () => {
     try {
-      setPreviewStatus('starting');
+      setPreviewStatus('loading');
       setPreviewProgress(0);
-      setPreviewUrl(null);
-      const payload = {
-        session: buildSessionPayload(),
-        renderQuality,
-        format: 'mp3',
-      };
-      const res = await apiRequest('POST', '/api/mix/preview', payload);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || 'Preview start failed');
+      
+      // Get tracks with audio URLs
+      const tracksWithAudio = tracks.filter(t => t.audioUrl);
+      
+      if (tracksWithAudio.length === 0) {
+        toast({
+          title: 'No tracks to preview',
+          description: 'Add audio tracks to the timeline first',
+          variant: 'destructive',
+        });
+        setPreviewStatus(null);
+        return;
       }
-      const jobId = data.jobId || data.id;
-      if (!jobId) {
-        throw new Error('No job id returned');
+      
+      // Initialize mix engine
+      const mixEngine = getMixEngine();
+      await mixEngine.initialize();
+      
+      // Clear any existing tracks
+      mixEngine.clearTracks();
+      
+      // Set master volume
+      mixEngine.setMasterVolume(masterVolume / 100);
+      
+      // Set up state callback
+      mixEngine.onStateChange((state: MixEngineState) => {
+        setPreviewProgress(state.loadingProgress);
+        if (state.isPlaying) {
+          setPreviewStatus('playing');
+        } else if (state.loadingProgress < 100) {
+          setPreviewStatus('loading');
+        } else {
+          setPreviewStatus('ready');
+        }
+      });
+      
+      // Add all tracks to mix engine
+      for (const track of tracksWithAudio) {
+        await mixEngine.addTrack({
+          id: track.id,
+          name: track.name,
+          audioUrl: track.audioUrl,
+          volume: track.volume ?? 80,
+          pan: track.pan ?? 0,
+          muted: track.muted ?? false,
+          solo: track.solo ?? false,
+        });
       }
-      setPreviewJobId(jobId);
-      setPreviewStatus('queued');
-      pollJob(jobId, 'mp3');
-      toast({ title: 'Mix preview started', description: `Job ${jobId}` });
+      
+      // Start playback
+      await mixEngine.play();
+      
+      toast({ 
+        title: '🎵 Mix Preview Playing', 
+        description: `Playing ${tracksWithAudio.length} tracks with proper mixing` 
+      });
+      
     } catch (error: any) {
       console.error('Mix preview error', error);
       toast({
-        title: 'Mix preview failed to start',
+        title: 'Mix preview failed',
         description: error?.message || 'Unknown error',
         variant: 'destructive',
       });
+      setPreviewStatus(null);
     }
+  };
+  
+  // Stop mix preview
+  const stopMixPreview = () => {
+    const mixEngine = getMixEngine();
+    mixEngine.stop();
+    setPreviewStatus(null);
+    setPreviewProgress(0);
+  };
+  
+  // Pause mix preview
+  const pauseMixPreview = () => {
+    const mixEngine = getMixEngine();
+    mixEngine.pause();
+    setPreviewStatus('paused');
   };
 
   useEffect(() => () => stopPreviewPolling(), []);
@@ -3665,10 +3720,36 @@ export default function MasterMultiTrackPlayer() {
 
       {/* Mix Preview & Master - Compact bar */}
       <div className="px-4 py-2 bg-gray-900 border-t border-b border-gray-800 flex flex-wrap items-center gap-3">
-        <Button className="bg-blue-600 hover:bg-blue-500" onClick={handleMixPreview}>
-          <Wand2 className="w-4 h-4 mr-2" />
-          Mix Preview
-        </Button>
+        {previewStatus === 'playing' ? (
+          <div className="flex items-center gap-1">
+            <Button className="bg-orange-600 hover:bg-orange-500" onClick={pauseMixPreview}>
+              <Pause className="w-4 h-4 mr-2" />
+              Pause
+            </Button>
+            <Button className="bg-red-600 hover:bg-red-500" onClick={stopMixPreview}>
+              <Square className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : previewStatus === 'paused' ? (
+          <div className="flex items-center gap-1">
+            <Button className="bg-green-600 hover:bg-green-500" onClick={handleMixPreview}>
+              <Play className="w-4 h-4 mr-2" />
+              Resume
+            </Button>
+            <Button className="bg-red-600 hover:bg-red-500" onClick={stopMixPreview}>
+              <Square className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button 
+            className="bg-blue-600 hover:bg-blue-500" 
+            onClick={handleMixPreview}
+            disabled={previewStatus === 'loading'}
+          >
+            <Wand2 className="w-4 h-4 mr-2" />
+            {previewStatus === 'loading' ? 'Loading...' : 'Mix Preview'}
+          </Button>
+        )}
         <Button className="bg-green-600 hover:bg-green-500" onClick={exportProjectToWav}>
           <Music className="w-4 h-4 mr-2" />
           Export WAV
