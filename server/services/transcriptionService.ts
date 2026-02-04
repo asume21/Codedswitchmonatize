@@ -28,6 +28,7 @@ export interface TranscriptionResult {
   language?: string;
   duration?: number;
   segments?: any[];
+  words?: any[]; // Word-level timestamps
 }
 
 /**
@@ -51,16 +52,20 @@ export async function transcribeAudio(filePath: string): Promise<TranscriptionRe
       file: fs.createReadStream(filePath),
       model: "whisper-1",
       response_format: "verbose_json",
-      timestamp_granularities: ["segment"]
+      timestamp_granularities: ["word", "segment"]
     });
 
     console.log(`✅ Transcription successful. Length: ${response.text.length} chars`);
+    if (response.words) {
+      console.log(`📝 Word-level timestamps: ${response.words.length} words`);
+    }
 
     return {
       text: response.text,
       language: response.language,
       duration: response.duration,
-      segments: response.segments
+      segments: response.segments,
+      words: response.words // Word-level timestamps
     };
 
   } catch (error) {

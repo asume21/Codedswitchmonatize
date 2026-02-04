@@ -2955,7 +2955,19 @@ ${code}
 
         const result = await transcribeAudio(targetPath);
         const transcriptText = typeof result === "string" ? result : result?.text || "";
-        const wordSegments =
+        
+        // Word-level timestamps (individual words with start/end times)
+        const wordLevelTimestamps =
+          Array.isArray((result as any)?.words) && (result as any).words.length
+            ? (result as any).words.map((w: any) => ({
+                start: w.start,
+                end: w.end,
+                word: w.word,
+              }))
+            : [];
+        
+        // Segment-level timestamps (phrase-level for fallback)
+        const segmentTimestamps =
           Array.isArray((result as any)?.segments) && (result as any).segments.length
             ? (result as any).segments.map((s: any) => ({
                 start: s.start,
@@ -2963,6 +2975,7 @@ ${code}
                 text: s.text,
               }))
             : [];
+        
         if (songId && req.userId) {
           try {
             await storage.updateSongTranscription(songId, req.userId, {
@@ -2977,7 +2990,8 @@ ${code}
         res.json({
           success: true,
           transcript: transcriptText,
-          words: wordSegments,
+          words: wordLevelTimestamps, // Word-level (individual words)
+          segments: segmentTimestamps, // Segment-level (phrases)
           raw: result,
         });
       } catch (error: any) {
