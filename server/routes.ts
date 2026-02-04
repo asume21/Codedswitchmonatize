@@ -2941,6 +2941,24 @@ ${code}
           const fileId = fileUrl.split("/api/songs/converted/")[1];
           const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
           targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+          
+          // If converted file doesn't exist, try to find original from song record
+          if (!fs.existsSync(targetPath) && songId) {
+            console.log(`⚠️  Converted file not found, looking for original upload...`);
+            try {
+              const song = await storage.getSong(songId, req.userId!);
+              if (song?.originalUrl && song.originalUrl.includes("/api/internal/uploads/")) {
+                const origKey = song.originalUrl.split("/api/internal/uploads/")[1];
+                const origPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(origKey));
+                if (fs.existsSync(origPath)) {
+                  console.log(`✅ Using original file: ${origPath}`);
+                  targetPath = origPath;
+                }
+              }
+            } catch (err) {
+              console.warn("Could not fetch original file:", err);
+            }
+          }
         } else if (fileUrl) {
           // Download external URL to temp file for transcription
           // Convert relative URLs to absolute
