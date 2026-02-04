@@ -3120,8 +3120,19 @@ ${code}
           const fullUrl = fileUrl.startsWith('http') 
             ? fileUrl 
             : `http://localhost:4000${fileUrl.startsWith('/') ? fileUrl : '/' + fileUrl}`;
-          console.log(`📥 Downloading URL for voiceprint: ${fullUrl}`);
+          console.log(`📥 Checking URL for voiceprint: ${fullUrl}`);
           const axios = (await import('axios')).default;
+          
+          // Check if URL exists first with HEAD request
+          try {
+            await axios.head(fullUrl);
+          } catch (headError: any) {
+            if (headError.response?.status === 404) {
+              return sendError(res, 404, "Audio file not found - converted file missing. Upload original audio file.");
+            }
+            throw headError;
+          }
+          
           const response = await axios.get(fullUrl, { responseType: 'arraybuffer' });
           
           // Create temp file
