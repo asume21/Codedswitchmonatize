@@ -2943,9 +2943,13 @@ ${code}
           targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
         } else if (fileUrl) {
           // Download external URL to temp file for transcription
-          console.log(`📥 Downloading external URL for transcription: ${fileUrl}`);
+          // Convert relative URLs to absolute
+          const fullUrl = fileUrl.startsWith('http') 
+            ? fileUrl 
+            : `http://localhost:4000${fileUrl.startsWith('/') ? fileUrl : '/' + fileUrl}`;
+          console.log(`📥 Downloading URL for transcription: ${fullUrl}`);
           const axios = (await import('axios')).default;
-          const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+          const response = await axios.get(fullUrl, { responseType: 'arraybuffer' });
           
           const tempFileName = `transcribe-${crypto.randomUUID()}.mp3`;
           targetPath = path.join(LOCAL_OBJECTS_DIR, tempFileName);
@@ -3112,9 +3116,13 @@ ${code}
           targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
         } else if (fileUrl) {
           // Handle external URLs by downloading to temp file
-          console.log(`📥 Downloading external URL for voiceprint: ${fileUrl}`);
+          // Convert relative URLs to absolute
+          const fullUrl = fileUrl.startsWith('http') 
+            ? fileUrl 
+            : `http://localhost:4000${fileUrl.startsWith('/') ? fileUrl : '/' + fileUrl}`;
+          console.log(`📥 Downloading URL for voiceprint: ${fullUrl}`);
           const axios = (await import('axios')).default;
-          const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+          const response = await axios.get(fullUrl, { responseType: 'arraybuffer' });
           
           // Create temp file
           const tempFileName = `voiceprint-${crypto.randomUUID()}.wav`;
