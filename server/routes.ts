@@ -2941,8 +2941,18 @@ ${code}
           const fileId = fileUrl.split("/api/songs/converted/")[1];
           const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
           targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+        } else if (fileUrl) {
+          // Download external URL to temp file for transcription
+          console.log(`📥 Downloading external URL for transcription: ${fileUrl}`);
+          const axios = (await import('axios')).default;
+          const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+          
+          const tempFileName = `transcribe-${crypto.randomUUID()}.mp3`;
+          targetPath = path.join(LOCAL_OBJECTS_DIR, tempFileName);
+          fs.writeFileSync(targetPath, Buffer.from(response.data));
+          console.log(`✅ Downloaded to: ${targetPath}`);
         } else {
-          return sendError(res, 400, "External URLs not supported for speech-correction transcription");
+          return sendError(res, 400, "Missing valid audio file URL");
         }
 
         const resolvedPath = path.resolve(targetPath);
