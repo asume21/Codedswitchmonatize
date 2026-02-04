@@ -12,6 +12,8 @@ import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PresenceProvider } from "@/components/presence";
+import { GlobalLivingGlyph } from "@/components/presence/GlobalLivingGlyph";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: any) => children })));
@@ -169,10 +171,13 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <PresenceProvider>
           <TooltipProvider>
             <Toaster />
             {/* GLOBAL NAVIGATION - Available on ALL pages */}
             <GlobalNav className="fixed top-4 left-4 z-[9999]" />
+            {/* LIVING GLYPH - Visual presence indicator */}
+            <GlobalLivingGlyph position="top-right" showDebug={false} />
             <Suspense fallback={<LoadingFallback />}>
               <Switch>
               {/* ============================================
@@ -276,6 +281,7 @@ function App() {
               </Switch>
             </Suspense>
           </TooltipProvider>
+          </PresenceProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

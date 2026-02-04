@@ -1,6 +1,9 @@
 /* Import Astutely Theme - must be first */
 @import './styles/astutely-theme.css';
 
+/* Living Glyph Presence Engine styles */
+@import './components/presence/LivingGlyph.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
