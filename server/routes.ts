@@ -2995,9 +2995,17 @@ ${code}
     requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
     async (req: Request, res: Response) => {
       try {
-        const transcript = (req.body.transcriptEdits || req.body.transcript || "").trim();
+        let transcript = (req.body.transcriptEdits || req.body.transcript || "").trim();
         const { duration, stylePrompt, wordTiming, voiceId } = req.body;
         if (!transcript) return sendError(res, 400, "Missing transcript");
+
+        // XTTS has a 400 token limit - truncate if needed
+        const words = transcript.split(/\s+/);
+        const maxWords = 350; // Conservative limit to stay under 400 tokens
+        if (words.length > maxWords) {
+          console.warn(`⚠️ Transcript too long (${words.length} words), truncating to ${maxWords} words`);
+          transcript = words.slice(0, maxWords).join(' ') + '...';
+        }
 
         let url: string;
 
@@ -3071,11 +3079,25 @@ ${code}
         if (!objectKey && !fileUrl) return sendError(res, 400, "Missing objectKey or fileUrl");
 
         let targetPath: string;
+        let tempFile = false;
+
         if (objectKey) {
           targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
         } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
           const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
           targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+        } else if (fileUrl) {
+          // Handle external URLs by downloading to temp file
+          console.log(`📥 Downloading external URL for voiceprint: ${fileUrl}`);
+          const axios = (await import('axios')).default;
+          const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+          
+          // Create temp file
+          const tempFileName = `voiceprint-${crypto.randomUUID()}.wav`;
+          targetPath = path.join(LOCAL_OBJECTS_DIR, tempFileName);
+          fs.writeFileSync(targetPath, Buffer.from(response.data));
+          tempFile = true;
+          console.log(`✅ Downloaded to temp file: ${targetPath}`);
         } else {
           return sendError(res, 400, "Unsupported fileUrl for voiceprint");
         }
@@ -3089,6 +3111,12 @@ ${code}
         }
 
         const voice = createVoiceIdForFile(targetPath);
+        
+        // Clean up temp file if we created one
+        if (tempFile && fs.existsSync(targetPath)) {
+          fs.unlinkSync(targetPath);
+        }
+        
         res.json({ success: true, ...voice });
       } catch (error: any) {
         console.error("Speech-correction voiceprint error:", error);
