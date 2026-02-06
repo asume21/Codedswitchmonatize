@@ -1,0 +1,432 @@
+/**
+ * LIVING GLYPH STYLES
+ * 
+ * CSS animations and styles for the Living Glyph component.
+ * Import this file in your main CSS or component.
+ */
+
+/* ============================================================================
+   BASE GLYPH STYLES
+   ============================================================================ */
+
+.living-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.living-glyph:hover .glyph-tooltip {
+  opacity: 1 !important;
+}
+
+.glyph-svg {
+  display: block;
+  overflow: visible;
+  transition: transform 0.15s ease-out;
+}
+
+.glyph-svg.transitioning {
+  animation: state-transition 0.15s ease-out;
+}
+
+/* ============================================================================
+   STATE-SPECIFIC STYLES
+   ============================================================================ */
+
+/* Wave State - soft shimmer */
+.living-glyph--wave .glyph-svg {
+  animation: wave-drift 8s ease-in-out infinite;
+}
+
+@keyframes wave-drift {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(2deg) scale(1.02);
+  }
+  50% {
+    transform: rotate(0deg) scale(1);
+  }
+  75% {
+    transform: rotate(-2deg) scale(0.98);
+  }
+}
+
+/* Quasicrystal Heart - crystal pulse */
+.living-glyph--quasicrystal .glyph-svg {
+  animation: crystal-breathe 3s ease-in-out infinite;
+}
+
+@keyframes crystal-breathe {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 20px currentColor);
+  }
+}
+
+@keyframes crystal-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* Breathing Torus - rhythmic expansion */
+.living-glyph--breathing-torus .glyph-svg {
+  animation: torus-breathe 4s ease-in-out infinite;
+}
+
+@keyframes torus-breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+/* Spiral Helix - energetic rotation */
+.living-glyph--spiral-helix .glyph-svg {
+  animation: helix-spin 2s linear infinite;
+}
+
+@keyframes helix-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Superposition - uncertain, shifting */
+.living-glyph--superposition .glyph-svg {
+  animation: superposition-shift 5s ease-in-out infinite;
+}
+
+@keyframes superposition-shift {
+  0%, 100% {
+    filter: blur(0px);
+    opacity: 0.8;
+  }
+  33% {
+    filter: blur(1px);
+    opacity: 0.6;
+  }
+  66% {
+    filter: blur(0.5px);
+    opacity: 0.9;
+  }
+}
+
+@keyframes pulse-opacity {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Honeycomb - connected pulses */
+.living-glyph--honeycomb .glyph-svg {
+  animation: honeycomb-glow 3s ease-in-out infinite;
+}
+
+@keyframes honeycomb-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 15px currentColor);
+  }
+}
+
+/* Distortion Light - deep, stable glow */
+.living-glyph--distortion-light .glyph-svg {
+  animation: distortion-pulse 6s ease-in-out infinite;
+}
+
+@keyframes distortion-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 30px currentColor);
+  }
+}
+
+/* ============================================================================
+   AI OVERLAY ANIMATIONS
+   ============================================================================ */
+
+@keyframes micro-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* AI Generating - center brightens */
+.ai-overlay-generating {
+  animation: ai-generating 0.2s ease-in-out infinite;
+}
+
+@keyframes ai-generating {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.3);
+  }
+}
+
+/* AI Analyzing - refractive distortion */
+.ai-overlay-analyzing {
+  animation: ai-analyzing 1s ease-in-out infinite;
+}
+
+@keyframes ai-analyzing {
+  0%, 100% {
+    filter: hue-rotate(0deg) brightness(1);
+  }
+  50% {
+    filter: hue-rotate(10deg) brightness(1.1);
+  }
+}
+
+/* ============================================================================
+   PULSE MODE ANIMATIONS
+   ============================================================================ */
+
+/* Slow pulse - calm */
+.pulse-mode-slow .glyph-svg {
+  animation-duration: 4s;
+}
+
+/* Medium pulse - flow */
+.pulse-mode-medium .glyph-svg {
+  animation-duration: 2s;
+}
+
+/* Fast pulse - intense creation */
+.pulse-mode-fast .glyph-svg {
+  animation-duration: 0.8s;
+}
+
+/* Subtle pulse - deep stillness */
+.pulse-mode-subtle .glyph-svg {
+  animation-duration: 8s;
+}
+
+/* Erratic pulse - AI generating */
+.pulse-mode-erratic .glyph-svg {
+  animation: erratic-pulse 0.1s ease-in-out infinite;
+}
+
+@keyframes erratic-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  25% {
+    transform: scale(1.02);
+    filter: brightness(1.1);
+  }
+  50% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  75% {
+    transform: scale(1.01);
+    filter: brightness(1.05);
+  }
+}
+
+/* ============================================================================
+   STATE TRANSITION ANIMATIONS
+   ============================================================================ */
+
+@keyframes state-transition {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Wave → Collapse: Geometry stabilizes, glow increases */
+@keyframes wave-to-collapse {
+  0% {
+    filter: blur(2px);
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+  100% {
+    filter: blur(0px);
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Collapse → Collapse: Morph with distortion ripple */
+@keyframes collapse-to-collapse {
+  0% {
+    filter: blur(0px) brightness(1);
+  }
+  50% {
+    filter: blur(1px) brightness(1.2);
+    transform: scale(1.05);
+  }
+  100% {
+    filter: blur(0px) brightness(1);
+    transform: scale(1);
+  }
+}
+
+/* Collapse → Wave: Edges soften, glow diffuses */
+@keyframes collapse-to-wave {
+  0% {
+    filter: blur(0px);
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    filter: blur(2px);
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+}
+
+/* ============================================================================
+   VARIANT STYLES
+   ============================================================================ */
+
+/* Global variant - larger, more prominent */
+.living-glyph--global {
+  position: fixed;
+  z-index: 1000;
+}
+
+.living-glyph--global .glyph-tooltip {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+/* Module variant - smaller, contextual */
+.living-glyph--module {
+  position: relative;
+}
+
+.living-glyph--module .glyph-svg {
+  transform: scale(0.75);
+}
+
+/* ============================================================================
+   DEBUG STYLES
+   ============================================================================ */
+
+.glyph-debug {
+  background: rgba(0, 0, 0, 0.8);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================================
+   RESPONSIVE STYLES
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .living-glyph--global {
+    /* Smaller on mobile */
+    transform: scale(0.75);
+  }
+  
+  .glyph-debug {
+    font-size: 8px;
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .living-glyph,
+  .living-glyph * {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  .glyph-svg {
+    transform: none !important;
+  }
+}
+
+/* ============================================================================
+   IDLE MODE STYLES
+   ============================================================================ */
+
+.living-glyph--idle {
+  animation: idle-drift 10s ease-in-out infinite;
+}
+
+@keyframes idle-drift {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(2px, -2px);
+  }
+  50% {
+    transform: translate(0, 0);
+  }
+  75% {
+    transform: translate(-2px, 2px);
+  }
+}
+
+/* Occasional soft pulse in idle mode */
+.living-glyph--idle .glyph-svg {
+  animation: idle-soft-pulse 6s ease-in-out infinite;
+}
+
+@keyframes idle-soft-pulse {
+  0%, 90%, 100% {
+    opacity: 0.6;
+  }
+  95% {
+    opacity: 0.8;
+  }
+}

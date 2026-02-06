@@ -8855,9 +8855,9 @@
       }
     },
     "node_modules/caniuse-lite": {
-      "version": "1.0.30001737",
-      "resolved": "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001737.tgz",
-      "integrity": "sha512-BiloLiXtQNrY5UyF0+1nSJLXUENuhka2pzy2Fx5pGxqavdrxSCW4U6Pn/PoG3Efspi2frRbHpBV2XsrPE6EDlw==",
+      "version": "1.0.30001767",
+      "resolved": "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001767.tgz",
+      "integrity": "sha512-34+zUAMhSH+r+9eKmYG+k2Rpt8XttfE4yXAjoZvkAPs15xcYQhyBYdalJ65BzivAvGRMViEjy6oKr/S91loekQ==",
       "funding": [
         {
           "type": "opencollective",
