@@ -156,7 +156,7 @@ export class SunoApiService {
     prompt?: string;
     callBackUrl?: string;
   }) {
-    return this.makeRequest('/generate/upload-and-cover', 'POST', params);
+    return this.makeRequest('/generate/upload-cover', 'POST', params);
   }
 
   /**
