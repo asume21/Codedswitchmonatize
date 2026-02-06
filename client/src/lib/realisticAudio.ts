@@ -409,11 +409,10 @@ export class RealisticAudioEngine {
         const noteName = `${note}${octave}`;
         const destination = targetNode || this.audioContext.destination;
 
-        // Add 50ms lookahead for smooth scheduling (prevents crackling from instant playback)
-        const scheduleTime = this.audioContext.currentTime + 0.05;
+        // Play immediately - soundfont library handles its own scheduling
         const audioNode = this.instruments[realInstrument].play(
           noteName,
-          scheduleTime,
+          this.audioContext.currentTime,
           {
             duration: duration > 0 ? duration : undefined,
             gain: velocity,
