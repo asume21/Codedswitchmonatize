@@ -12,16 +12,17 @@ import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
 
 // Lazy load heavy audio providers - only needed for studio routes
-const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })));
-const TrackStoreProvider = React.lazy(() => import("@/contexts/TrackStoreContext").then(m => ({ default: m.TrackStoreProvider })));
-const InstrumentProvider = React.lazy(() => import("@/contexts/InstrumentContext").then(m => ({ default: m.InstrumentProvider })));
-const GlobalAudioProvider = React.lazy(() => import("@/contexts/GlobalAudioContext").then(m => ({ default: m.GlobalAudioProvider })));
-const StudioSessionProvider = React.lazy(() => import("@/contexts/StudioSessionContext").then(m => ({ default: m.StudioSessionProvider })));
-const SongWorkSessionProvider = React.lazy(() => import("@/contexts/SongWorkSessionContext").then(m => ({ default: m.SongWorkSessionProvider })));
-const SessionDestinationProvider = React.lazy(() => import("@/contexts/SessionDestinationContext").then(m => ({ default: m.SessionDestinationProvider })));
-const GlobalAudioPlayer = React.lazy(() => import("@/components/GlobalAudioPlayer").then(m => ({ default: m.GlobalAudioPlayer })));
+const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const TrackStoreProvider = React.lazy(() => import("@/contexts/TrackStoreContext").then(m => ({ default: m.TrackStoreProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const InstrumentProvider = React.lazy(() => import("@/contexts/InstrumentContext").then(m => ({ default: m.InstrumentProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const GlobalAudioProvider = React.lazy(() => import("@/contexts/GlobalAudioContext").then(m => ({ default: m.GlobalAudioProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const StudioSessionProvider = React.lazy(() => import("@/contexts/StudioSessionContext").then(m => ({ default: m.StudioSessionProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const SongWorkSessionProvider = React.lazy(() => import("@/contexts/SongWorkSessionContext").then(m => ({ default: m.SongWorkSessionProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const SessionDestinationProvider = React.lazy(() => import("@/contexts/SessionDestinationContext").then(m => ({ default: m.SessionDestinationProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const GlobalAudioPlayer = React.lazy(() => import("@/components/GlobalAudioPlayer").then(m => ({ default: m.GlobalAudioPlayer })).catch(() => ({ default: () => null })));
 
 // Eagerly loaded pages (small, frequently accessed) - FAST INITIAL LOAD
 import Landing from "@/pages/landing";
@@ -30,20 +31,20 @@ import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
 // Lazy loaded pages - only load when needed
-const Dashboard = React.lazy(() => import("@/pages/dashboard"));
-const UnifiedStudioWorkspace = React.lazy(() => import("@/components/studio/UnifiedStudioWorkspace"));
-const Settings = React.lazy(() => import("@/pages/settings"));
-const Subscribe = React.lazy(() => import("@/pages/Subscribe"));
-const AIAssistantPage = React.lazy(() => import("@/pages/ai-assistant"));
-const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner"));
-const BuyCreditsPage = React.lazy(() => import("@/pages/buy-credits"));
-const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success"));
-const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel"));
-const ActivatePage = React.lazy(() => import("@/pages/activate"));
-const PublicSongPage = React.lazy(() => import("@/pages/public-song"));
-const SocialHub = React.lazy(() => import("@/pages/social-hub"));
-const UserProfilePage = React.lazy(() => import("@/pages/user-profile"));
-const SitemapPage = React.lazy(() => import("@/pages/sitemap-page"));
+const Dashboard = React.lazy(() => import("@/pages/dashboard").catch(() => ({ default: () => <NotFound /> })));
+const UnifiedStudioWorkspace = React.lazy(() => import("@/components/studio/UnifiedStudioWorkspace").catch(() => ({ default: () => <NotFound /> })));
+const Settings = React.lazy(() => import("@/pages/settings").catch(() => ({ default: () => <NotFound /> })));
+const Subscribe = React.lazy(() => import("@/pages/Subscribe").catch(() => ({ default: () => <NotFound /> })));
+const AIAssistantPage = React.lazy(() => import("@/pages/ai-assistant").catch(() => ({ default: () => <NotFound /> })));
+const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner").catch(() => ({ default: () => <NotFound /> })));
+const BuyCreditsPage = React.lazy(() => import("@/pages/buy-credits").catch(() => ({ default: () => <NotFound /> })));
+const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success").catch(() => ({ default: () => <NotFound /> })));
+const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel").catch(() => ({ default: () => <NotFound /> })));
+const ActivatePage = React.lazy(() => import("@/pages/activate").catch(() => ({ default: () => <NotFound /> })));
+const PublicSongPage = React.lazy(() => import("@/pages/public-song").catch(() => ({ default: () => <NotFound /> })));
+const SocialHub = React.lazy(() => import("@/pages/social-hub").catch(() => ({ default: () => <NotFound /> })));
+const UserProfilePage = React.lazy(() => import("@/pages/user-profile").catch(() => ({ default: () => <NotFound /> })));
+const SitemapPage = React.lazy(() => import("@/pages/sitemap-page").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -78,22 +79,25 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 function StudioProviders({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <TransportProvider>
-        <GlobalAudioProvider>
-          <InstrumentProvider>
-            <TrackStoreProvider>
-              <StudioSessionProvider>
-                <SongWorkSessionProvider>
-                  <SessionDestinationProvider>
-                    <GlobalAudioPlayer />
-                    {children}
-                  </SessionDestinationProvider>
-                </SongWorkSessionProvider>
-              </StudioSessionProvider>
-            </TrackStoreProvider>
-          </InstrumentProvider>
-        </GlobalAudioProvider>
-      </TransportProvider>
+      <PresenceProvider>
+        <TransportProvider>
+          <GlobalAudioProvider>
+            <InstrumentProvider>
+              <TrackStoreProvider>
+                <StudioSessionProvider>
+                  <SongWorkSessionProvider>
+                    <SessionDestinationProvider>
+                      <GlobalAudioPlayer />
+                      <GlobalLivingGlyph position="bottom-right" size={48} />
+                      {children}
+                    </SessionDestinationProvider>
+                  </SongWorkSessionProvider>
+                </StudioSessionProvider>
+              </TrackStoreProvider>
+            </InstrumentProvider>
+          </GlobalAudioProvider>
+        </TransportProvider>
+      </PresenceProvider>
     </Suspense>
   );
 }

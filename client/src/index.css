@@ -1,5 +1,6 @@
 /* Import Astutely Theme - must be first */
 @import './styles/astutely-theme.css';
+@import './components/presence/LivingGlyph.css';
 
 /* Living Glyph Presence Engine styles */
 @import './components/presence/LivingGlyph.css';
