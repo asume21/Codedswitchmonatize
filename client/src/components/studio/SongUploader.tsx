@@ -416,7 +416,7 @@ export default function SongUploader() {
     try {
       // First, create a voiceprint from the original audio for voice cloning
       const voiceprintResponse = await apiRequest("POST", "/api/speech-correction/voiceprint", {
-        fileUrl: audioUrl,
+        songId: song.id,
       });
       const voiceprintData = await voiceprintResponse.json();
       if (voiceprintData.voiceId) {
@@ -426,8 +426,7 @@ export default function SongUploader() {
 
       // Then transcribe the audio
       const response = await apiRequest("POST", "/api/speech-correction/transcribe", {
-        fileId: song.id,
-        fileUrl: audioUrl,
+        songId: song.id,
       });
       const data = await response.json();
       if (data.transcript) {

@@ -250,26 +250,62 @@ export async function applyVoiceConversion(
     const mimeType = ext === '.wav' ? 'audio/wav' : ext === '.mp3' ? 'audio/mpeg' : 'audio/wav';
     const voiceDataUri = `data:${mimeType};base64,${voiceData.toString('base64')}`;
     
-    // Use XTTS model for voice cloning
-    const output = await replicate.run(
-      "lucataco/xtts-v2:684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e",
-      {
-        input: {
-          text: text.trim(),
-          speaker: voiceDataUri,
-          language,
-        }
-      }
-    );
-
-    const audioUrl = typeof output === 'string' ? output : (output as any)?.audio_url || (output as any)?.[0];
+    // Split text into chunks if it's too long (XTTS has ~400 token limit)
+    // 400 tokens ≈ 100-150 words ≈ 500-600 chars, so use 400 chars to be very safe
+    const maxChunkLength = 400; // characters, roughly 80-100 words
+    const textTrimmed = text.trim();
+    console.log(`📏 Text length: ${textTrimmed.length} chars, ${textTrimmed.split(/\s+/).length} words`);
     
-    if (!audioUrl) {
-      throw new Error("XTTS voice conversion returned no audio URL");
-    }
+    if (textTrimmed.length <= maxChunkLength) {
+      // Single chunk - process normally
+      const output = await replicate.run(
+        "lucataco/xtts-v2:684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e",
+        {
+          input: {
+            text: textTrimmed,
+            speaker: voiceDataUri,
+            language,
+          }
+        }
+      );
 
-    console.log(`✅ Voice conversion complete: ${audioUrl}`);
-    return audioUrl;
+      console.log(`🔍 XTTS output type: ${typeof output}`);
+      console.log(`🔍 XTTS output:`, JSON.stringify(output, null, 2));
+      
+      const audioUrl = typeof output === 'string' ? output : (output as any)?.audio_url || (output as any)?.[0];
+      
+      if (!audioUrl) {
+        console.error(`❌ Could not extract audio URL from output:`, output);
+        throw new Error("XTTS voice conversion returned no audio URL");
+      }
+
+      console.log(`✅ Voice conversion complete: ${audioUrl}`);
+      return audioUrl;
+    } else {
+      // Multiple chunks - split by sentences and process first chunk only for preview
+      console.log(`⚠️ Text too long (${textTrimmed.length} chars), using first ${maxChunkLength} chars for preview`);
+      const previewText = textTrimmed.substring(0, maxChunkLength);
+      
+      const output = await replicate.run(
+        "lucataco/xtts-v2:684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e",
+        {
+          input: {
+            text: previewText,
+            speaker: voiceDataUri,
+            language,
+          }
+        }
+      );
+
+      const audioUrl = typeof output === 'string' ? output : (output as any)?.audio_url || (output as any)?.[0];
+      
+      if (!audioUrl) {
+        throw new Error("XTTS voice conversion returned no audio URL");
+      }
+
+      console.log(`✅ Voice conversion complete (preview only): ${audioUrl}`);
+      return audioUrl;
+    }
 
   } catch (error) {
     console.error(`[VC] Voice conversion error:`, error);

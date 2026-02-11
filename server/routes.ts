@@ -2929,20 +2929,55 @@ ${code}
       // Delegate to existing /api/transcribe logic but return direct result
       try {
         const { objectKey, fileUrl, songId } = req.body;
-        if (!objectKey && !fileUrl) return sendError(res, 400, "Missing objectKey or fileUrl");
+        if (!objectKey && !fileUrl && !songId) return sendError(res, 400, "Missing objectKey, fileUrl, or songId");
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
-          const fileId = fileUrl.split("/api/songs/converted/")[1];
-          const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
-          targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
-        } else {
-          return sendError(res, 400, "External URLs not supported for speech-correction transcription");
+        let targetPath: string | null = null;
+        
+        // Try to get file from database if songId provided
+        if (songId) {
+          try {
+            const song = await storage.getSong(songId);
+            if (song?.audioUrl) {
+              console.log(`🎵 Found song for transcription: ${song.title || songId}, audioUrl: ${song.audioUrl}`);
+              if (song.audioUrl.includes("/api/internal/uploads/")) {
+                const extractedKey = song.audioUrl.split("/api/internal/uploads/")[1];
+                targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+              }
+            } else if (song) {
+              // Song exists but has no audioUrl - check accessibleUrl for converted file
+              console.log(`⚠️ Song ${songId} has no audioUrl for transcription, checking accessibleUrl: ${song.accessibleUrl}`);
+              if (song.accessibleUrl && song.accessibleUrl.includes("/api/songs/converted/")) {
+                const fileId = song.accessibleUrl.split("/api/songs/converted/")[1];
+                const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
+                targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+                console.log(`✅ Using converted file for transcription: ${targetPath}`);
+              } else {
+                console.warn(`❌ Song ${songId} has no audioUrl and accessibleUrl doesn't point to converted file`);
+              }
+            }
+          } catch (dbError) {
+            console.warn("Could not fetch song from database for transcription:", dbError);
+          }
+        }
+        
+        // Fallback to objectKey or fileUrl
+        if (!targetPath) {
+          if (objectKey) {
+            targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+          } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+            const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+            targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+          } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
+            const fileId = fileUrl.split("/api/songs/converted/")[1];
+            const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
+            targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+          } else if (fileUrl) {
+            return sendError(res, 400, "External URLs not supported for speech-correction transcription");
+          }
+        }
+        
+        if (!targetPath) {
+          return sendError(res, 404, "Could not locate audio file for transcription");
         }
 
         const resolvedPath = path.resolve(targetPath);
@@ -2950,19 +2985,24 @@ ${code}
           return sendError(res, 403, "Access denied");
         }
         if (!fs.existsSync(targetPath)) {
+          console.error(`❌ Transcription file not found: ${targetPath}`);
           return sendError(res, 404, "Audio file not found on server");
         }
 
         const result = await transcribeAudio(targetPath);
         const transcriptText = typeof result === "string" ? result : result?.text || "";
+        
+        // Extract word-level timestamps (not segments)
         const wordSegments =
-          Array.isArray((result as any)?.segments) && (result as any).segments.length
-            ? (result as any).segments.map((s: any) => ({
-                start: s.start,
-                end: s.end,
-                text: s.text,
+          Array.isArray((result as any)?.words) && (result as any).words.length
+            ? (result as any).words.map((w: any) => ({
+                start: w.start,
+                end: w.end,
+                text: w.word || w.text,
               }))
             : [];
+        
+        console.log(`📝 Extracted ${wordSegments.length} word-level timestamps`);
         if (songId && req.userId) {
           try {
             await storage.updateSongTranscription(songId, req.userId, {
@@ -2998,6 +3038,11 @@ ${code}
         const transcript = (req.body.transcriptEdits || req.body.transcript || "").trim();
         const { duration, stylePrompt, wordTiming, voiceId } = req.body;
         if (!transcript) return sendError(res, 400, "Missing transcript");
+
+        // Log text stats for debugging
+        const wordCount = transcript.split(/\s+/).length;
+        const charCount = transcript.length;
+        console.log(`📊 Preview text stats: ${wordCount} words, ${charCount} characters`);
 
         let url: string;
 
@@ -3067,17 +3112,53 @@ ${code}
     requireAuth(),
     async (req: Request, res: Response) => {
       try {
-        const { objectKey, fileUrl } = req.body;
-        if (!objectKey && !fileUrl) return sendError(res, 400, "Missing objectKey or fileUrl");
+        const { objectKey, fileUrl, songId } = req.body;
+        if (!objectKey && !fileUrl && !songId) return sendError(res, 400, "Missing objectKey, fileUrl, or songId");
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "Unsupported fileUrl for voiceprint");
+        let targetPath: string | null = null;
+        
+        // Try to get file from database if songId provided
+        if (songId) {
+          try {
+            const song = await storage.getSong(songId);
+            if (song?.audioUrl) {
+              console.log(`🎵 Found song in DB: ${song.title || songId}, audioUrl: ${song.audioUrl}`);
+              // Extract path from audio_url
+              if (song.audioUrl.includes("/api/internal/uploads/")) {
+                const extractedKey = song.audioUrl.split("/api/internal/uploads/")[1];
+                targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+                console.log(`📁 Extracted target path: ${targetPath}`);
+              }
+            } else if (song) {
+              // Song exists but has no audioUrl - check accessibleUrl for converted file
+              console.log(`⚠️ Song ${songId} has no audioUrl, checking accessibleUrl: ${song.accessibleUrl}`);
+              if (song.accessibleUrl && song.accessibleUrl.includes("/api/songs/converted/")) {
+                const fileId = song.accessibleUrl.split("/api/songs/converted/")[1];
+                const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
+                targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+                console.log(`✅ Using converted file from accessibleUrl: ${targetPath}`);
+              } else {
+                console.warn(`❌ Song ${songId} has no audioUrl and accessibleUrl doesn't point to converted file`);
+              }
+            }
+          } catch (dbError) {
+            console.warn("Could not fetch song from database:", dbError);
+          }
+        }
+        
+        // Fallback to objectKey or fileUrl
+        if (!targetPath) {
+          if (objectKey) {
+            targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+          } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
+            const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
+            targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+          } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
+            // Skip converted files - they may not exist yet
+            return sendError(res, 400, "Cannot create voiceprint from converted file URL. Use original audio.");
+          } else {
+            return sendError(res, 400, "Unsupported fileUrl for voiceprint");
+          }
         }
 
         const resolvedPath = path.resolve(targetPath);
@@ -3085,6 +3166,7 @@ ${code}
           return sendError(res, 403, "Access denied");
         }
         if (!fs.existsSync(targetPath)) {
+          console.error(`❌ Voiceprint file not found: ${targetPath}`);
           return sendError(res, 404, "Audio file not found on server");
         }
 
