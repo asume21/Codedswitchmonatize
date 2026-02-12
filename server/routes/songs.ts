@@ -486,6 +486,72 @@ export function createSongRoutes(storage: IStorage) {
 
   // ===== SUNO API ENDPOINTS =====
 
+  // Generate Music from Scratch with Suno
+  router.post("/suno/generate", async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Please log in" });
+    }
+
+    try {
+      const {
+        prompt,
+        style,
+        title,
+        customMode = true,
+        instrumental = false,
+        model = 'V4_5',
+        negativeTags,
+        vocalGender,
+        waitForResult = false,
+      } = req.body;
+
+      if (!prompt && !style) {
+        return res.status(400).json({ error: "Either prompt or style is required" });
+      }
+
+      console.log('🎵 Suno Generate:', { prompt: prompt?.substring(0, 50), style, model, instrumental });
+
+      const result = await sunoApi.generateMusic({
+        prompt: prompt || '',
+        customMode,
+        instrumental,
+        model,
+        style,
+        title: title || 'AI Generated Track',
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      if (waitForResult && result.taskId) {
+        console.log(`⏳ Waiting for Suno task ${result.taskId} to complete...`);
+        const completed = await sunoApi.waitForCompletion(result.taskId);
+
+        if (!completed.success) {
+          return res.status(500).json({ error: completed.error || 'Generation timed out' });
+        }
+
+        return res.json({
+          success: true,
+          taskId: result.taskId,
+          status: 'complete',
+          tracks: completed.data,
+        });
+      }
+
+      res.json({
+        success: true,
+        taskId: result.taskId,
+        status: 'pending',
+        message: 'Generation started. Poll /api/songs/suno/status with the taskId to check progress.',
+      });
+    } catch (error: any) {
+      console.error('Suno generate error:', error);
+      res.status(500).json({ error: error.message || "Failed to generate with Suno" });
+    }
+  });
+
   // Upload and Cover - Transform song with different style
   router.post("/suno/cover", async (req: Request, res: Response) => {
     if (!req.userId) {

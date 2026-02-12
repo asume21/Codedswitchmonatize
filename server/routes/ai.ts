@@ -236,6 +236,7 @@ export function createAIRoutes() {
     try {
       const providerStatus = getAIProviderStatus();
       const replicateConfigured = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
+      const sunoConfigured = Boolean(process.env.SUNO_API_KEY?.trim() && process.env.SUNO_API_KEY !== 'YOUR_API_KEY');
 
       const anyCloudAI = providerStatus.grok.clientReady || providerStatus.openai.clientReady;
 
@@ -254,12 +255,29 @@ export function createAIRoutes() {
             ? 'AI writes original lyrics with genre awareness and music theory'
             : 'Lyrics generation requires XAI_API_KEY or OPENAI_API_KEY',
         },
+        sunoMusicGeneration: {
+          status: sunoConfigured ? 'ai' : 'unavailable',
+          provider: sunoConfigured ? 'Suno API (V4/V4.5/V5)' : 'None',
+          description: sunoConfigured
+            ? 'Full song generation, covers, extensions, vocal separation, and add vocals/instrumentals via Suno'
+            : 'Suno features require SUNO_API_KEY — get one at sunoapi.org',
+          endpoints: [
+            'POST /api/songs/suno/generate — Generate music from scratch',
+            'POST /api/songs/suno/cover — Restyle existing audio',
+            'POST /api/songs/suno/extend — Extend a track',
+            'POST /api/songs/suno/separate-vocals — Vocal/instrumental separation',
+            'POST /api/songs/suno/add-vocals — Add vocals to instrumental',
+            'POST /api/songs/suno/add-instrumental — Add instrumental to vocals',
+            'POST /api/songs/suno/status — Check task progress',
+            'GET /api/songs/suno/credits — Check remaining credits',
+          ],
+        },
         audioGeneration: {
           status: replicateConfigured ? 'ai' : 'unavailable',
-          provider: replicateConfigured ? 'Replicate (MusicGen / Suno)' : 'None',
+          provider: replicateConfigured ? 'Replicate (MusicGen)' : 'None',
           description: replicateConfigured
-            ? 'Real audio generation via MusicGen and Suno models'
-            : 'Audio generation requires REPLICATE_API_TOKEN',
+            ? 'Beat and melody generation via MusicGen models on Replicate'
+            : 'MusicGen audio generation requires REPLICATE_API_TOKEN',
         },
         lyricsAnalysis: {
           status: 'ai',
@@ -288,6 +306,7 @@ export function createAIRoutes() {
         },
         providers: providerStatus,
         replicateConfigured,
+        sunoConfigured,
         services,
       });
     } catch (error: any) {
