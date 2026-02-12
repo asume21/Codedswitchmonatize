@@ -232,7 +232,7 @@ export function createAIRoutes() {
   });
 
   // Comprehensive AI status — tells the frontend exactly what's working
-  router.get("/ai/status", async (_req: Request, res: Response) => {
+  router.get("/status", async (_req: Request, res: Response) => {
     try {
       const providerStatus = getAIProviderStatus();
       const replicateConfigured = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
