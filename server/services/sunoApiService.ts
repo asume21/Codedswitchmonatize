@@ -61,7 +61,7 @@ class SunoApiService {
   private apiKey: string | null = null;
 
   constructor() {
-    this.apiKey = process.env.SUNO_API_KEY || null;
+    this.apiKey = process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN || null;
   }
 
   private getApiKey(): string {

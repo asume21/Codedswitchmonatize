@@ -236,7 +236,8 @@ export function createAIRoutes() {
     try {
       const providerStatus = getAIProviderStatus();
       const replicateConfigured = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
-      const sunoConfigured = Boolean(process.env.SUNO_API_KEY?.trim() && process.env.SUNO_API_KEY !== 'YOUR_API_KEY');
+      const sunoKey = (process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN || '').trim();
+      const sunoConfigured = Boolean(sunoKey && sunoKey !== 'YOUR_API_KEY');
 
       const anyCloudAI = providerStatus.grok.clientReady || providerStatus.openai.clientReady;
 
