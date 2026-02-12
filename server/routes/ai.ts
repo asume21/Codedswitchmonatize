@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
-import { getAIClient } from "../services/grok";
+import { getAIClient, getAIProviderStatus } from "../services/grok";
 import { aiProviderManager } from "../services/aiProviderManager";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
@@ -228,6 +228,71 @@ export function createAIRoutes() {
     } catch (error) {
       console.error('❌ Error setting provider:', error);
       res.status(500).json({ success: false, message: "Failed to set AI provider" });
+    }
+  });
+
+  // Comprehensive AI status — tells the frontend exactly what's working
+  router.get("/ai/status", async (_req: Request, res: Response) => {
+    try {
+      const providerStatus = getAIProviderStatus();
+      const replicateConfigured = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
+
+      const anyCloudAI = providerStatus.grok.clientReady || providerStatus.openai.clientReady;
+
+      const services = {
+        patternGeneration: {
+          status: anyCloudAI ? 'ai' : 'fallback',
+          provider: providerStatus.grok.clientReady ? 'Grok (XAI)' : providerStatus.openai.clientReady ? 'OpenAI' : 'Algorithmic Fallback',
+          description: anyCloudAI
+            ? 'AI generates unique beats, bass, drums, and melodies per request'
+            : 'Using pre-built genre templates — set XAI_API_KEY or OPENAI_API_KEY for real AI',
+        },
+        lyricsGeneration: {
+          status: anyCloudAI ? 'ai' : 'unavailable',
+          provider: providerStatus.grok.clientReady ? 'Grok (XAI)' : providerStatus.openai.clientReady ? 'OpenAI' : 'None',
+          description: anyCloudAI
+            ? 'AI writes original lyrics with genre awareness and music theory'
+            : 'Lyrics generation requires XAI_API_KEY or OPENAI_API_KEY',
+        },
+        audioGeneration: {
+          status: replicateConfigured ? 'ai' : 'unavailable',
+          provider: replicateConfigured ? 'Replicate (MusicGen / Suno)' : 'None',
+          description: replicateConfigured
+            ? 'Real audio generation via MusicGen and Suno models'
+            : 'Audio generation requires REPLICATE_API_TOKEN',
+        },
+        lyricsAnalysis: {
+          status: 'ai',
+          provider: anyCloudAI ? 'Local NLP + Grok AI insights' : 'Local NLP only',
+          description: 'Rhyme detection, sentiment, themes, and quality scoring always work locally',
+        },
+        voiceConversion: {
+          status: replicateConfigured ? 'ai' : 'unavailable',
+          provider: replicateConfigured ? 'Replicate (XTTS-v2)' : 'None',
+          description: replicateConfigured
+            ? 'AI voice cloning and text-to-speech'
+            : 'Voice conversion requires REPLICATE_API_TOKEN',
+        },
+      };
+
+      const aiActiveCount = Object.values(services).filter(s => s.status === 'ai').length;
+      const totalServices = Object.keys(services).length;
+
+      res.json({
+        success: true,
+        summary: {
+          aiActive: aiActiveCount,
+          total: totalServices,
+          percentage: Math.round((aiActiveCount / totalServices) * 100),
+          overallStatus: aiActiveCount === totalServices ? 'fully-ai' : aiActiveCount > 0 ? 'partial-ai' : 'no-ai',
+        },
+        providers: providerStatus,
+        replicateConfigured,
+        services,
+      });
+    } catch (error: any) {
+      console.error('AI status check error:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 

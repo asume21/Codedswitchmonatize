@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import { createServer } from "http";
+import fs from "fs";
+import path from "path";
 import { requireAuth } from "../middleware/auth";
 import { mixPreviewService, MixPreviewRequest } from "../services/mixPreview";
 import { jobManager } from "../services/jobManager";
@@ -117,18 +119,34 @@ export function createMixRoutes() {
         return sendError(res, 400, `Preview not ready. Status: ${job.status}, Progress: ${job.progress}%`);
       }
 
-      // In production, this would serve the actual rendered file
-      // For now, return a placeholder response
-      res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : 'audio/wav');
-      res.setHeader('Content-Disposition', `attachment; filename="mix-preview-${jobId}.${format}"`);
-      
-      // Placeholder: In production, stream the actual file
-      return res.status(200).json({
-        message: "Audio file would be streamed here in production",
-        jobId,
-        format,
-        result: job.result,
-      });
+      const resultData = job.result as any;
+      const audioFilePath = resultData?.filePath || resultData?.audioPath || resultData?.outputPath;
+
+      if (audioFilePath && fs.existsSync(audioFilePath)) {
+        const resolvedPath = path.resolve(audioFilePath);
+        const stat = fs.statSync(resolvedPath);
+        const mimeType = format === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Length', stat.size);
+        res.setHeader('Content-Disposition', `attachment; filename="mix-preview-${jobId}.${format}"`);
+
+        const stream = fs.createReadStream(resolvedPath);
+        return stream.pipe(res);
+      }
+
+      const audioUrl = resultData?.audioUrl || resultData?.url;
+      if (audioUrl) {
+        return res.json({
+          success: true,
+          jobId,
+          format,
+          audioUrl,
+          result: job.result,
+        });
+      }
+
+      return sendError(res, 404, "Rendered audio file not found for this job. The mix preview may still be processing or the output was not saved.");
     } catch (error: any) {
       console.error("❌ Preview audio error:", error);
       sendError(res, 500, error?.message || "Failed to serve preview audio");

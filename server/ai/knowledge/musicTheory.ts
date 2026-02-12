@@ -414,13 +414,31 @@ export function validateChordProgression(chords: string[]): { valid: boolean; is
  * Suggest next chord based on current chord and key
  */
 export function suggestNextChord(currentChord: string, key: string): string[] {
-  // Simplified version - real implementation would use more complex logic
-  const commonProgressions = [
-    ["I", "IV"], ["I", "V"], ["I", "vi"],
-    ["IV", "I"], ["IV", "V"], ["IV", "ii"],
-    ["V", "I"], ["V", "vi"],
-    ["vi", "IV"], ["vi", "V"], ["vi", "ii"]
-  ];
-  
-  return ["I", "IV", "V", "vi"]; // Placeholder
+  const progressionMap: Record<string, string[]> = {
+    "I":   ["IV", "V", "vi", "ii", "iii"],
+    "ii":  ["V", "vii°", "IV", "I"],
+    "iii": ["vi", "IV", "ii"],
+    "IV":  ["V", "I", "ii", "vii°"],
+    "V":   ["I", "vi", "IV", "iii"],
+    "vi":  ["IV", "V", "ii", "I", "iii"],
+    "vii°":["I", "iii", "vi"],
+    "i":   ["iv", "V", "VI", "III", "ii°"],
+    "ii°": ["V", "VII", "iv"],
+    "III": ["VI", "iv", "V", "i"],
+    "iv":  ["V", "i", "VI", "VII"],
+    "VI":  ["III", "iv", "V", "VII"],
+    "VII": ["III", "i", "VI"],
+  };
+
+  const normalized = currentChord.trim();
+  const suggestions = progressionMap[normalized];
+  if (suggestions) return suggestions;
+
+  for (const [chord, nexts] of Object.entries(progressionMap)) {
+    if (chord.toLowerCase() === normalized.toLowerCase()) return nexts;
+  }
+
+  return key.toLowerCase().includes("minor")
+    ? ["i", "iv", "V", "VI", "III"]
+    : ["I", "IV", "V", "vi", "ii"];
 }

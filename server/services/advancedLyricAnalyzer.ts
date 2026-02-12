@@ -280,7 +280,11 @@ class AdvancedLyricAnalyzer {
 
     // TextBlob-style sentiment (simplified)
     const textblobPolarity = vaderCompound;
-    const textblobSubjectivity = Math.random() * 0.5 + 0.3; // Placeholder
+    const subjectiveWords = ['feel', 'think', 'believe', 'love', 'hate', 'want', 'wish', 'hope', 'dream', 'fear',
+      'amazing', 'terrible', 'beautiful', 'ugly', 'wonderful', 'horrible', 'best', 'worst', 'great', 'awful',
+      'my', 'me', 'i', 'personally', 'opinion', 'maybe', 'probably', 'seems', 'always', 'never'];
+    const subjectiveCount = tokens.filter((word: string) => subjectiveWords.includes(word)).length;
+    const textblobSubjectivity = totalWords > 0 ? Math.min(1, subjectiveCount / (totalWords * 0.15)) : 0.5;
 
     return {
       vader_compound: vaderCompound,

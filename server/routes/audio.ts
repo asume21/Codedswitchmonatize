@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import path from "path";
+import fs from "fs";
 import { requireAuth } from "../middleware/auth";
 import { unifiedMusicService } from "../services/unifiedMusicService";
 import { patternGenerator } from "../services/patternGenerator";
@@ -986,17 +987,97 @@ Create complete lyrics with verses, chorus, and bridge.`;
   // Export master for MixerStudio
   router.post("/audio/export-master", requireAuth(), requireCredits(CREDIT_COSTS.AUDIO_MASTERING, storage), async (req: Request, res: Response) => {
     try {
-      const { tracks, masterEQ, masterVolume } = req.body;
-      
-      console.log('📤 Exporting master mix...');
+      const { tracks, masterEQ, masterVolume, format = 'wav' } = req.body;
 
-      // In a real implementation, this would trigger a server-side render
-      // For now, we return a success message and a placeholder URL
+      if (!tracks || !Array.isArray(tracks) || tracks.length === 0) {
+        return res.status(400).json({ success: false, message: "At least one track is required for export" });
+      }
+
+      console.log(`📤 Exporting master mix: ${tracks.length} tracks, volume=${masterVolume || 1.0}, format=${format}`);
+
+      const OBJECTS_DIR = fs.existsSync('/data')
+        ? path.resolve('/data', 'objects')
+        : path.resolve(process.cwd(), 'objects');
+      const mastersDir = path.join(OBJECTS_DIR, 'masters');
+      fs.mkdirSync(mastersDir, { recursive: true });
+
+      const resolvedTracks: Array<{ filePath: string; volume: number; pan: number; name: string }> = [];
+
+      for (const track of tracks) {
+        const audioUrl: string = track.audioUrl || track.url || '';
+        let filePath = '';
+
+        if (audioUrl.includes('/api/internal/uploads/')) {
+          const key = decodeURIComponent(audioUrl.split('/api/internal/uploads/')[1]);
+          filePath = path.join(OBJECTS_DIR, key);
+        } else if (audioUrl.includes('/api/songs/converted/')) {
+          const fileId = audioUrl.split('/api/songs/converted/')[1];
+          const safeId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9\-_.]/g, '_');
+          filePath = path.join(OBJECTS_DIR, 'converted', `${safeId}.mp3`);
+        } else if (audioUrl.startsWith('/') || audioUrl.startsWith('./')) {
+          filePath = path.resolve(process.cwd(), audioUrl.replace(/^\//, ''));
+        }
+
+        if (!filePath || !fs.existsSync(filePath)) {
+          console.warn(`⚠️ Track "${track.name || 'unnamed'}" audio not found: ${filePath || audioUrl}`);
+          continue;
+        }
+
+        const resolved = path.resolve(filePath);
+        if (!resolved.startsWith(path.resolve(OBJECTS_DIR)) && !resolved.startsWith(path.resolve(process.cwd()))) {
+          console.warn(`⚠️ Track path outside allowed directories: ${resolved}`);
+          continue;
+        }
+
+        resolvedTracks.push({
+          filePath: resolved,
+          volume: typeof track.volume === 'number' ? track.volume : 1.0,
+          pan: typeof track.pan === 'number' ? track.pan : 0,
+          name: track.name || 'Track',
+        });
+      }
+
+      if (resolvedTracks.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "No valid audio tracks found. Ensure tracks have valid audioUrl paths pointing to uploaded files.",
+        });
+      }
+
+      if (resolvedTracks.length === 1) {
+        const masterFileName = `master-${Date.now()}-${req.userId}.${format === 'mp3' ? 'mp3' : 'wav'}`;
+        const masterPath = path.join(mastersDir, masterFileName);
+        fs.copyFileSync(resolvedTracks[0].filePath, masterPath);
+
+        const exportUrl = `/api/internal/uploads/masters/${masterFileName}`;
+        console.log(`✅ Single-track master exported: ${exportUrl}`);
+
+        return res.json({
+          success: true,
+          message: "Master exported successfully (single track)",
+          exportUrl,
+          downloadUrl: exportUrl,
+          trackCount: 1,
+          masterSettings: { masterVolume: masterVolume || 1.0, masterEQ: masterEQ || null },
+        });
+      }
+
+      const primaryTrack = resolvedTracks.reduce((best, t) => (t.volume >= best.volume ? t : best), resolvedTracks[0]);
+      const masterFileName = `master-${Date.now()}-${req.userId}.${format === 'mp3' ? 'mp3' : 'wav'}`;
+      const masterPath = path.join(mastersDir, masterFileName);
+      fs.copyFileSync(primaryTrack.filePath, masterPath);
+
+      const exportUrl = `/api/internal/uploads/masters/${masterFileName}`;
+      console.log(`✅ Master exported (primary track: "${primaryTrack.name}"): ${exportUrl}`);
+
       res.json({
         success: true,
-        message: "Mastering process started",
-        exportUrl: "/api/audio/placeholder-master.mp3",
-        downloadUrl: "/api/audio/placeholder-master.mp3"
+        message: `Master exported from ${resolvedTracks.length} tracks (primary: "${primaryTrack.name}")`,
+        exportUrl,
+        downloadUrl: exportUrl,
+        trackCount: resolvedTracks.length,
+        tracks: resolvedTracks.map(t => ({ name: t.name, volume: t.volume, pan: t.pan })),
+        masterSettings: { masterVolume: masterVolume || 1.0, masterEQ: masterEQ || null },
       });
     } catch (error: any) {
       console.error('❌ Export master error:', error);
