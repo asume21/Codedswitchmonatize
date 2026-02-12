@@ -112,6 +112,12 @@ export default function SongUploader() {
         // Store in AI context
         addMessage(`📝 **Transcribed Lyrics for ${song.name}:**\n\n${text}`, 'transcription');
 
+        // Auto-send to Lyrics tab so user can find them immediately
+        if (studioContext?.setCurrentLyrics) {
+          studioContext.setCurrentLyrics(text);
+        }
+        window.dispatchEvent(new CustomEvent('lyrics:load', { detail: { lyrics: text, songName: song.name } }));
+
         return text;
       }
       return null;
@@ -2007,7 +2013,54 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         </div>
                       </div>
 
-                      
+                      {/* Standalone Transcribed Lyrics (always visible when available) */}
+                      {transcriptions.get(song.id.toString()) && (
+                        <div className="mt-4 border border-orange-500/30 rounded-md bg-orange-950/20 p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm font-semibold text-orange-300 flex items-center gap-2">
+                              <FileText className="w-4 h-4" />
+                              Transcribed Lyrics
+                            </h4>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs text-orange-300 hover:text-orange-200"
+                                onClick={() => {
+                                  const text = transcriptions.get(song.id.toString()) || '';
+                                  navigator.clipboard.writeText(text);
+                                  toast({ title: "Copied!", description: "Lyrics copied to clipboard." });
+                                }}
+                              >
+                                <Copy className="w-3 h-3 mr-1" />
+                                Copy
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs text-cyan-300 hover:text-cyan-200"
+                                onClick={() => {
+                                  const text = transcriptions.get(song.id.toString()) || '';
+                                  if (studioContext?.setCurrentLyrics) {
+                                    studioContext.setCurrentLyrics(text);
+                                    toast({ title: "Sent to Lyrics Tab", description: "Transcribed lyrics loaded into Lyric Lab." });
+                                  } else {
+                                    window.dispatchEvent(new CustomEvent('lyrics:load', { detail: { lyrics: text, songName: song.name } }));
+                                    toast({ title: "Sent to Lyrics Tab", description: "Transcribed lyrics dispatched to Lyric Lab." });
+                                  }
+                                }}
+                              >
+                                <Wand2 className="w-3 h-3 mr-1" />
+                                Send to Lyrics Tab
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-300 whitespace-pre-wrap max-h-48 overflow-y-auto pr-2 font-mono leading-relaxed">
+                            {transcriptions.get(song.id.toString())}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Inline Analysis Results */}
                       {songAnalyses.get(song.id) && (
                         <div className="mt-4 border border-purple-500/30 rounded-md bg-purple-950/20 p-4">

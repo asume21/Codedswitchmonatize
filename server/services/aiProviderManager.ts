@@ -167,6 +167,10 @@ export class AIProviderManager {
     const config = AI_PROVIDERS[provider];
     if (!config.requiresAuth) return true;
     if (!config.envVar) return false;
+    // Suno accepts both SUNO_API_KEY and SUNO_API_TOKEN
+    if (config.envVar === 'SUNO_API_KEY') {
+      return !!(process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN);
+    }
     return !!process.env[config.envVar];
   }
 

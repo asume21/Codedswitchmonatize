@@ -2937,10 +2937,11 @@ ${code}
         if (songId) {
           try {
             const song = await storage.getSong(songId);
-            if (song?.audioUrl) {
-              console.log(`🎵 Found song for transcription: ${song.title || songId}, audioUrl: ${song.audioUrl}`);
-              if (song.audioUrl.includes("/api/internal/uploads/")) {
-                const extractedKey = song.audioUrl.split("/api/internal/uploads/")[1];
+            const songAudioUrl = (song as any)?.audioUrl || song?.accessibleUrl || song?.originalUrl;
+            if (songAudioUrl) {
+              console.log(`🎵 Found song for transcription: ${song?.name || songId}, audioUrl: ${songAudioUrl}`);
+              if (songAudioUrl.includes("/api/internal/uploads/")) {
+                const extractedKey = songAudioUrl.split("/api/internal/uploads/")[1];
                 targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
               }
             } else if (song) {
@@ -3121,11 +3122,12 @@ ${code}
         if (songId) {
           try {
             const song = await storage.getSong(songId);
-            if (song?.audioUrl) {
-              console.log(`🎵 Found song in DB: ${song.title || songId}, audioUrl: ${song.audioUrl}`);
+            const songAudioUrl2 = (song as any)?.audioUrl || song?.accessibleUrl || song?.originalUrl;
+            if (songAudioUrl2) {
+              console.log(`🎵 Found song in DB: ${song?.name || songId}, audioUrl: ${songAudioUrl2}`);
               // Extract path from audio_url
-              if (song.audioUrl.includes("/api/internal/uploads/")) {
-                const extractedKey = song.audioUrl.split("/api/internal/uploads/")[1];
+              if (songAudioUrl2.includes("/api/internal/uploads/")) {
+                const extractedKey = songAudioUrl2.split("/api/internal/uploads/")[1];
                 targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
                 console.log(`📁 Extracted target path: ${targetPath}`);
               }

@@ -3583,10 +3583,8 @@ export default function MasterMultiTrackPlayer() {
         menuHandlers={menuHandlers}
       />
 
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-
-      {/* Transport Controls */}
-      <div className="bg-gray-850 border-b border-gray-700 px-4 py-2">
+      {/* Transport Controls - pinned above scrollable area */}
+      <div className="bg-gray-850 border-b border-gray-700 px-4 py-2 flex-shrink-0">
         <div className="flex items-center justify-between gap-4">
           {/* Playback Controls */}
           <div className="flex items-center gap-2">
@@ -3717,6 +3715,8 @@ export default function MasterMultiTrackPlayer() {
           </div>
         </div>
       </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
 
       {/* Mix Preview & Master - Compact bar */}
       <div className="px-4 py-2 bg-gray-900 border-t border-b border-gray-800 flex flex-wrap items-center gap-3">

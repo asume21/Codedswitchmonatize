@@ -58,6 +58,11 @@ function getClosestBpm(targetBpm: number): number {
   );
 }
 
+// Pick a random element from an array using crypto-secure randomness
+function randomPick<T>(arr: T[]): T {
+  return arr[Math.floor(secureRandom() * arr.length)];
+}
+
 function generateSamples(genre: string, instruments: string[], packIndex: number, bpm?: number) {
   const sampleTypes = ['loop', 'oneshot', 'midi'];
   const sampleNames: Record<string, string[]> = {
@@ -74,57 +79,59 @@ function generateSamples(genre: string, instruments: string[], packIndex: number
   const closestBpm = getClosestBpm(bpm || 95);
   const loops = LOOP_LIBRARY[closestBpm];
   
+  // Generate a unique run-id so the same packIndex doesn't always pick the same files
+  const uid = Date.now().toString(36) + packIndex;
   const samples = [];
   
-  // Add kick drum loop with real audio
+  // Add kick drum loop with RANDOM selection from available loops
   samples.push({
-    id: `sample-${packIndex}-kick`,
+    id: `sample-${uid}-kick`,
     name: 'Kick Loop',
     type: 'loop' as const,
     duration: 4,
-    audioUrl: loops.bd[packIndex % loops.bd.length],
+    audioUrl: randomPick(loops.bd),
   });
   
   // Add hi-hat loop
   samples.push({
-    id: `sample-${packIndex}-hats`,
+    id: `sample-${uid}-hats`,
     name: 'Hi-Hat Loop',
     type: 'loop' as const,
     duration: 4,
-    audioUrl: loops.hats[packIndex % loops.hats.length],
+    audioUrl: randomPick(loops.hats),
   });
   
   // Add snare loop
   samples.push({
-    id: `sample-${packIndex}-snare`,
+    id: `sample-${uid}-snare`,
     name: 'Snare Loop',
     type: 'loop' as const,
     duration: 4,
-    audioUrl: loops.sd[packIndex % loops.sd.length],
+    audioUrl: randomPick(loops.sd),
   });
   
   // Add percussion loop
   samples.push({
-    id: `sample-${packIndex}-perc`,
+    id: `sample-${uid}-perc`,
     name: 'Percussion Loop',
     type: 'loop' as const,
     duration: 4,
-    audioUrl: loops.perc[packIndex % loops.perc.length],
+    audioUrl: randomPick(loops.perc),
   });
   
   // Add toms loop
   samples.push({
-    id: `sample-${packIndex}-toms`,
+    id: `sample-${uid}-toms`,
     name: 'Toms Loop',
     type: 'loop' as const,
     duration: 4,
-    audioUrl: loops.toms[packIndex % loops.toms.length],
+    audioUrl: randomPick(loops.toms),
   });
   
   // Add additional metadata samples without audio
   for (let i = 5; i < 8 + packIndex; i++) {
     samples.push({
-      id: `sample-${packIndex}-${i}`,
+      id: `sample-${uid}-${i}`,
       name: names[i % names.length] + ` ${Math.floor(i / names.length) + 1}`,
       type: sampleTypes[i % sampleTypes.length] as 'loop' | 'oneshot' | 'midi',
       duration: 1.5 + (secureRandom() * 3),
@@ -221,114 +228,131 @@ export function generateIntelligentPacks(prompt: string, count: number) {
 
 export async function generateSunoPacks(prompt: string, count: number) {
   if (!process.env.SUNO_API_KEY && !process.env.SUNO_API_TOKEN) {
-    throw new Error("SUNO_API_KEY not configured");
+    throw new Error("SUNO_API_KEY or SUNO_API_TOKEN not configured. Set one in your environment variables.");
   }
 
   const packs = [] as any[];
 
   for (let i = 0; i < count; i++) {
-    const variationPrompt = `${prompt} (instrumental focus ${i + 1})`;
+    const variationPrompt = `${prompt} (variation ${i + 1}, instrumental focus)`;
     console.log(`🎵 Suno: Generating pack ${i + 1}/${count}: "${variationPrompt}"`);
     
-    // Step 1: Start the generation task
-    const response = await sunoApi.generateMusic({
-      prompt: variationPrompt,
-      instrumental: true,
-      model: "V4_5",
-    });
+    try {
+      // Step 1: Start the generation task
+      const response = await sunoApi.generateMusic({
+        prompt: variationPrompt,
+        instrumental: true,
+        model: "V4_5",
+      });
 
-    if (!response.success) {
-      console.warn("⚠️ Suno generation failed", response.error);
-      continue;
-    }
-
-    const taskId = response.taskId || response.data?.taskId;
-    if (!taskId) {
-      console.warn("⚠️ Suno response missing taskId", response);
-      continue;
-    }
-
-    console.log(`🎵 Suno: Task started with ID: ${taskId}`);
-
-    // Step 2: Poll for completion (max 2 minutes per track)
-    const maxAttempts = 24; // 24 * 5 seconds = 2 minutes
-    const pollInterval = 5000; // 5 seconds
-    let track = null;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-      
-      const statusResponse = await sunoApi.getTaskStatus(taskId);
-      
-      if (!statusResponse.success) {
-        console.warn(`⚠️ Suno status check failed (attempt ${attempt + 1}):`, statusResponse.error);
+      if (!response.success) {
+        console.warn(`⚠️ Suno generation failed for pack ${i + 1}:`, response.error);
         continue;
       }
 
-      const statusData = statusResponse.data;
-      const tracks = Array.isArray(statusData) ? statusData : statusData?.data || [];
-      
-      // Check if any track has audio ready
-      const readyTrack = tracks.find((t: any) => 
-        t.audio_url || t.audioUrl || t.stream_audio_url
+      // Extract taskId from various possible response shapes
+      const taskId = response.taskId
+        || response.data?.taskId
+        || response.data?.task_id
+        || (typeof response.data === 'string' ? response.data : null);
+
+      if (!taskId) {
+        console.warn("⚠️ Suno response missing taskId. Full response:", JSON.stringify(response).substring(0, 500));
+        // If the response itself contains audio directly (some API versions), try to use it
+        const directAudio = response.data?.audio_url || response.data?.audioUrl;
+        if (directAudio) {
+          console.log(`✅ Suno: Got direct audio URL (no polling needed)`);
+          packs.push({
+            id: `suno-pack-${Date.now()}-${i}`,
+            title: response.data?.title || `Suno Instrumental #${i + 1}`,
+            description: `Suno AI instrumental generated from "${variationPrompt}"`,
+            bpm: response.data?.bpm || 120,
+            key: 'C',
+            genre: 'AI Generated',
+            samples: [{
+              id: `sample-suno-${Date.now()}-${i}`,
+              name: 'Full Track',
+              type: 'loop' as const,
+              duration: response.data?.duration || 120,
+              url: directAudio,
+              audioUrl: directAudio
+            }],
+            metadata: {
+              energy: 80,
+              mood: 'Generated',
+              instruments: ['AI Orchestra'],
+              tags: ['Suno', 'AI', 'Generative']
+            }
+          });
+          continue;
+        }
+        continue;
+      }
+
+      console.log(`🎵 Suno: Task started with ID: ${taskId}`);
+
+      // Step 2: Use the built-in waitForCompletion with generous timeout
+      const completionResult = await sunoApi.waitForCompletion(taskId, 180000, 8000);
+
+      if (!completionResult.success) {
+        console.warn(`⚠️ Suno: Completion failed for pack ${i + 1}:`, completionResult.error);
+        continue;
+      }
+
+      // Step 3: Extract audio from the completed result
+      // The response can be an array of tracks or a single object
+      const resultData = completionResult.data;
+      const tracks = Array.isArray(resultData) ? resultData
+        : resultData?.data ? (Array.isArray(resultData.data) ? resultData.data : [resultData.data])
+        : resultData?.response?.data ? (Array.isArray(resultData.response.data) ? resultData.response.data : [resultData.response.data])
+        : [resultData];
+
+      // Find the first track with audio
+      const track = tracks.find((t: any) =>
+        t && (t.audio_url || t.audioUrl || t.stream_audio_url)
       );
 
-      if (readyTrack) {
-        track = readyTrack;
-        console.log(`✅ Suno: Track ready after ${(attempt + 1) * 5} seconds`);
-        break;
+      if (!track) {
+        console.warn(`⚠️ Suno: No audio URL in completed result. Data shape:`, JSON.stringify(resultData).substring(0, 500));
+        continue;
       }
 
-      // Check for failure status
-      const failedTrack = tracks.find((t: any) => 
-        t.status === 'error' || t.status === 'failed'
-      );
-      if (failedTrack) {
-        console.warn(`⚠️ Suno: Generation failed:`, failedTrack.errorMessage || 'Unknown error');
-        break;
-      }
+      const audioUrl = track.audio_url || track.audioUrl || track.stream_audio_url;
 
-      console.log(`⏳ Suno: Waiting for track... (attempt ${attempt + 1}/${maxAttempts})`);
-    }
+      packs.push({
+        id: `suno-pack-${Date.now()}-${i}`,
+        title: track.title || `Suno Instrumental #${i + 1}`,
+        description: track.description || `Suno AI instrumental generated from "${variationPrompt}"`,
+        bpm: track.bpm || 122,
+        key: 'C',
+        genre: 'AI Generated',
+        samples: [{
+          id: `sample-suno-${Date.now()}-${i}`,
+          name: 'Full Track',
+          type: 'loop' as const,
+          duration: track.duration || 120,
+          url: audioUrl,
+          audioUrl: audioUrl
+        }],
+        metadata: {
+          energy: 80,
+          mood: 'Generated',
+          instruments: ['AI Orchestra'],
+          tags: ['Suno', 'AI', 'Generative']
+        }
+      });
 
-    if (!track) {
-      console.warn("⚠️ Suno: Timed out waiting for track");
+      console.log(`✅ Suno: Pack ${i + 1} complete with audio: ${audioUrl.substring(0, 80)}...`);
+    } catch (packError: any) {
+      console.error(`❌ Suno: Error generating pack ${i + 1}:`, packError?.message || packError);
       continue;
     }
-
-    const audioUrl = track.audio_url || track.audioUrl || track.stream_audio_url;
-
-    if (!audioUrl) {
-      console.warn("⚠️ Suno response missing audio URL", track);
-      continue;
-    }
-
-    packs.push({
-      id: `suno-pack-${Date.now()}-${i}`,
-      title: track.title || `Suno Instrumental #${i + 1}`,
-      description: track.description || `Suno AI instrumental generated from "${variationPrompt}"`,
-      bpm: track.bpm || 122,
-      key: 'C',
-      genre: 'AI Generated',
-      samples: [{
-        id: `sample-suno-${i}`,
-        name: 'Full Track',
-        type: 'full_track',
-        duration: track.duration || 120,
-        url: audioUrl,
-        audioUrl: audioUrl
-      }],
-      metadata: {
-        energy: 80,
-        mood: 'Generated',
-        instruments: ['AI Orchestra'],
-        tags: ['Suno', 'AI', 'Generative']
-      }
-    });
-
-    console.log(`✅ Suno: Pack ${i + 1} complete with audio: ${audioUrl.substring(0, 50)}...`);
   }
   
+  if (packs.length === 0) {
+    throw new Error(`Suno generation produced 0 packs out of ${count} requested. Check your SUNO_API_KEY/SUNO_API_TOKEN and account credits.`);
+  }
+
   console.log(`🎵 Suno: Generated ${packs.length}/${count} packs successfully`);
   return packs;
 }

@@ -3955,7 +3955,7 @@ export default function UnifiedStudioWorkspace() {
 
           {/* MULTI-TRACK PLAYER */}
           {activeView === 'multitrack' && (
-            <div className="flex-1 overflow-hidden bg-gray-900 h-full">
+            <div className="flex-1 overflow-hidden bg-gray-900 h-full pt-14">
               <MasterMultiTrackPlayer />
             </div>
           )}

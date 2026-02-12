@@ -252,6 +252,20 @@ export default function LyricLab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
 
+  // Pick up transcribed lyrics pushed into studioContext from SongUploader
+  React.useEffect(() => {
+    const incoming = studioContext.currentLyrics;
+    if (incoming && incoming !== content) {
+      setContent(incoming);
+      studioSession.setLyrics(incoming);
+      try {
+        localStorage.setItem('lyricLabCurrentLyrics', incoming);
+      } catch { /* ignore */ }
+    }
+    // Only react to external changes in currentLyrics, not our own edits
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studioContext.currentLyrics]);
+
   // Update studio context and localStorage whenever lyrics content changes
   React.useEffect(() => {
     if (studioContext.currentLyrics !== content) {
