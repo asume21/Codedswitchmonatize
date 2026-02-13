@@ -386,58 +386,96 @@ export function midiToNoteOctave(midi: number): { note: string; octave: number }
   return { note: noteNames[noteIndex], octave };
 }
 
-// Play a quick preview of the generated beat
+// Active preview timeout IDs so we can cancel playback
+let activePreviewTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+/** Stop any currently playing Astutely preview */
+export function stopAstutelyPreview() {
+  activePreviewTimeouts.forEach(id => clearTimeout(id));
+  activePreviewTimeouts = [];
+}
+
+// Play the full generated beat (all bars, not just 1)
 async function playAstutelyPreview(result: AstutelyResult) {
+  stopAstutelyPreview();
+
   const stepDuration = 60 / result.bpm / 4; // Duration of one 16th note in seconds
   
   // Initialize audio engine
   await realisticAudio.initialize();
+
+  // Find the maximum step across all parts to play everything
+  const maxStep = Math.max(
+    ...result.drums.map(d => d.step),
+    ...result.bass.map(b => b.step),
+    ...result.chords.map(c => c.step),
+    ...result.melody.map(m => m.step),
+    0
+  ) + 1;
   
-  // Play first 16 steps as preview
-  for (let step = 0; step < 16; step++) {
+  // Play ALL steps (typically 64 = 4 bars)
+  for (let step = 0; step < maxStep; step++) {
     const currentTime = step * stepDuration;
     
     // Schedule drums
     result.drums
       .filter(d => d.step === step)
       .forEach(d => {
-        setTimeout(() => {
+        const tid = setTimeout(() => {
           try {
             realisticAudio.playDrumSound(d.type, 0.8);
           } catch (e) {
             console.log(`Drum: ${d.type}`);
           }
         }, currentTime * 1000);
+        activePreviewTimeouts.push(tid);
       });
     
     // Schedule bass
     result.bass
       .filter(b => b.step === step)
       .forEach(b => {
-        setTimeout(() => {
+        const tid = setTimeout(() => {
           try {
             const { note, octave } = midiToNoteOctave(b.note);
-            // Use 'synth_bass_1' which is a valid instrument in the library
             realisticAudio.playNote(note, octave, stepDuration * b.duration, 'synth_bass_1', 0.8);
           } catch (e) {
             console.log(`Bass: ${b.note}`);
           }
         }, currentTime * 1000);
+        activePreviewTimeouts.push(tid);
+      });
+
+    // Schedule chords
+    result.chords
+      .filter(c => c.step === step)
+      .forEach(c => {
+        c.notes.forEach(chordNote => {
+          const tid = setTimeout(() => {
+            try {
+              const { note, octave } = midiToNoteOctave(chordNote);
+              realisticAudio.playNote(note, octave, stepDuration * c.duration, 'acoustic_grand_piano', 0.45);
+            } catch (e) {
+              console.log(`Chord: ${chordNote}`);
+            }
+          }, currentTime * 1000);
+          activePreviewTimeouts.push(tid);
+        });
       });
     
     // Schedule melody
     result.melody
       .filter(m => m.step === step)
       .forEach(m => {
-        setTimeout(() => {
+        const tid = setTimeout(() => {
           try {
             const { note, octave } = midiToNoteOctave(m.note);
-            // Use 'acoustic_grand_piano' which is a valid instrument in the library
             realisticAudio.playNote(note, octave, stepDuration * m.duration, 'acoustic_grand_piano', 0.6);
           } catch (e) {
             console.log(`Melody: ${m.note}`);
           }
         }, currentTime * 1000);
+        activePreviewTimeouts.push(tid);
       });
   }
 }

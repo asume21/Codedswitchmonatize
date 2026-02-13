@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
@@ -491,6 +491,7 @@ export default function UnifiedStudioWorkspace() {
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [showAstutely, setShowAstutely] = useState(false);
   const [showAstutelyArchitect, setShowAstutelyArchitect] = useState(false);
+  const [showAIArrange, setShowAIArrange] = useState(false);
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showLyricsFocus, setShowLyricsFocus] = useState(false);
@@ -3358,10 +3359,7 @@ export default function UnifiedStudioWorkspace() {
                   variant="default"
                   onClick={(e) => {
                     e.stopPropagation();
-                    toast({
-                      title: "🪄 AI Arrangement",
-                      description: "AI will suggest optimal track arrangement, structure, and transitions"
-                    });
+                    setShowAIArrange(true);
                   }}
                   className="text-xs bg-gradient-to-r from-cyan-600 to-blue-600 astutely-button"
                 >
@@ -4490,6 +4488,26 @@ export default function UnifiedStudioWorkspace() {
         onClose={() => setShowAstutely(false)}
         onBeatGenerated={handleAstutelyResult}
       />,
+      document.body
+    )}
+
+    {/* AI Arrangement Builder Overlay */}
+    {showAIArrange && createPortal(
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setShowAIArrange(false)}>
+        <div className="w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAIArrange(false)}
+              className="absolute -top-10 right-0 text-white/70 hover:text-white z-10"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+            <AIArrangementBuilder currentBpm={tempo} currentKey="C" />
+          </div>
+        </div>
+      </div>,
       document.body
     )}
 
