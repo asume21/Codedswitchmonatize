@@ -247,7 +247,7 @@ export const LivingGlyph: React.FC<LivingGlyphProps> = ({
 
   // QUASICRYSTAL HEART: Exploration - crystalline, faceted
   const renderQuasicrystalGeometry = (center: number, radius: number) => {
-    const polygons: JSX.Element[] = [];
+    const polygons: React.ReactElement[] = [];
     const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5 degrees
     const numPetals = 8;
     
@@ -351,7 +351,7 @@ export const LivingGlyph: React.FC<LivingGlyphProps> = ({
 
   // SPIRAL-HELIX: Momentum - energetic, swirling
   const renderSpiralHelixGeometry = (center: number, radius: number) => {
-    const spirals: JSX.Element[] = [];
+    const spirals: React.ReactElement[] = [];
     const numArms = 3;
     const rotationSpeed = pulseParams.frequency * 0.5;
     
@@ -442,7 +442,7 @@ export const LivingGlyph: React.FC<LivingGlyphProps> = ({
 
   // HONEYCOMB SINGULARITY: Collaboration - interconnected hexagons
   const renderHoneycombGeometry = (center: number, radius: number) => {
-    const hexagons: JSX.Element[] = [];
+    const hexagons: React.ReactElement[] = [];
     const hexRadius = radius * 0.25;
     
     // Central hexagon
@@ -464,7 +464,7 @@ export const LivingGlyph: React.FC<LivingGlyphProps> = ({
     }
     
     // Connection lines
-    const lines: JSX.Element[] = [];
+    const lines: React.ReactElement[] = [];
     // Add subtle connection lines between hexagons
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2;

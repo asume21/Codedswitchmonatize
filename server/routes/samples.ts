@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { localSampleLibrary } from "../services/localSampleLibrary";
 import { createReadStream, existsSync } from "fs";
+import { validateFilename } from "../utils/security";
 
 const router = Router();
 
@@ -75,8 +76,9 @@ router.get("/:filename", async (req: Request, res: Response) => {
   try {
     const { filename } = req.params;
     
-    // Validate filename (security)
-    if (!filename.endsWith('.wav') || filename.includes('..') || filename.includes('/')) {
+    // Validate filename (security - prevent path traversal)
+    const safeFilename = validateFilename(filename);
+    if (!safeFilename || !safeFilename.endsWith('.wav')) {
       return res.status(400).json({ success: false, message: "Invalid filename" });
     }
     

@@ -1,14 +1,47 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { currentUser } from "./middleware/auth";
+import { globalLimiter } from "./middleware/rateLimiting";
 import path from "path";
 import fs from "fs";
 import { ensureDataRoots } from "./services/localStorageService";
 
+// Require SESSION_SECRET in production
+if (!process.env.SESSION_SECRET) {
+  console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
+  process.exit(1);
+}
+
 const app = express();
+
+// Trust proxy for secure cookies behind Railway/load balancers
+app.set('trust proxy', 1);
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      fontSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https:", "wss:", process.env.APP_URL || ""].filter(Boolean),
+      mediaSrc: ["'self'", "data:", "blob:", "https:"],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  frameguard: { action: "deny" },
+  xssFilter: true,
+}));
 
 const dataRoot = path.resolve("data");
 ensureDataRoots(dataRoot);
@@ -50,22 +83,28 @@ if (hasDatabase) {
 app.use(
   session({
     store: sessionStore,
-    secret: process.env.SESSION_SECRET || "prod_session_secret",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    proxy: true,
+    name: 'codedswitch.sid',
     cookie: {
-      sameSite: "lax",
+      sameSite: "none" as const,
+      httpOnly: true,
       maxAge: 30 * 24 * 60 * 60 * 1000,
-      secure: process.env.NODE_ENV === 'production'
+      secure: true,
     },
   }),
 );
 
 console.log(sessionStore ? '✅ Session middleware: PostgreSQL' : '⚠️ Session middleware: MemoryStore (temporary)');
 
-// Standard body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Standard body parsers with size limits
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// Global rate limiting for all API endpoints
+app.use('/api/', globalLimiter);
 
 // Logging middleware
 app.use((req, res, next) => {

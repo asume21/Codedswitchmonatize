@@ -13,6 +13,8 @@ import { sunoApi } from "../services/sunoApi";
 import { stemSeparationService } from "../services/stemSeparation";
 import { getGuestUserId } from "../guestUser";
 import { isIP } from "net";
+import { sanitizePath, isAllowedUrl } from "../utils/security";
+import { analysisLimiter } from "../middleware/rateLimiting";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
@@ -248,7 +250,7 @@ export function createSongRoutes(storage: IStorage) {
   });
 
   // Analyze song endpoint - REAL ANALYSIS with AI
-  router.post("/analyze", async (req: Request, res: Response) => {
+  router.post("/analyze", analysisLimiter, async (req: Request, res: Response) => {
     // Use guest user for anonymous analysis (same as upload)
     if (!req.userId) {
       if (!allowGuestUploads) {
@@ -418,7 +420,7 @@ export function createSongRoutes(storage: IStorage) {
   });
 
   // Convert M4A to MP3 on-demand and serve immediately
-  router.get("/convert-and-play/:fileId(*)", async (req: Request, res: Response) => {
+  router.get("/convert-and-play/:fileId(*)", analysisLimiter, async (req: Request, res: Response) => {
     try {
       const fileId = decodeURIComponent(req.params.fileId);
       console.log(`🔄 Convert-and-play request for: ${fileId}`);
@@ -1078,18 +1080,21 @@ async function downloadAudioFile(url: string, filename: string): Promise<string>
   // Handle both internal and external URLs
   let fileURL = url;
   if (url.startsWith('/api/internal/')) {
-    // Internal URL - need to read from local filesystem instead
-    // Get the file path from the URL
+    // Internal URL - read from local filesystem with path traversal protection
     const relativePath = decodeURIComponent(url.replace('/api/internal/uploads/', ''));
     const LOCAL_OBJECTS_DIR = existsSync('/data/objects') 
       ? resolve('/data', 'objects')
       : resolve(process.cwd(), "objects");
-    const sourcePath = join(LOCAL_OBJECTS_DIR, relativePath);
+    const sourcePath = sanitizePath(relativePath, LOCAL_OBJECTS_DIR);
+    
+    if (!sourcePath) {
+      throw new Error('Invalid file path - access denied');
+    }
     
     console.log('📂 Reading from local file:', sourcePath);
     
     if (!existsSync(sourcePath)) {
-      throw new Error(`Audio file not found at: ${sourcePath}`);
+      throw new Error(`Audio file not found`);
     }
     
     // Copy file to temp location
@@ -1098,23 +1103,13 @@ async function downloadAudioFile(url: string, filename: string): Promise<string>
     return tempFilePath;
   }
 
-  // External URL - download it with basic SSRF protections
-  let parsed: URL;
-  try {
-    parsed = new URL(fileURL);
-  } catch (err) {
-    throw new Error(`Invalid audio URL: ${fileURL}`);
+  // External URL - download with SSRF protection
+  const urlCheck = isAllowedUrl(fileURL);
+  if (!urlCheck.valid || !urlCheck.parsed) {
+    throw new Error(urlCheck.error || "URL not allowed");
   }
 
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error("Only http/https URLs are allowed for audio analysis");
-  }
-
-  if (!parsed.hostname || isBlockedHost(parsed.hostname)) {
-    throw new Error("Audio URL host is not allowed");
-  }
-
-  const response = await fetch(parsed.toString());
+  const response = await fetch(urlCheck.parsed.toString());
   if (!response.ok) {
     throw new Error(`Failed to download audio file: ${response.statusText}`);
   }

@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import type { IStorage } from "../storage";
 import { requireAuth } from "../middleware/auth";
 import { generateActivationKey, generateActivationKeys, validateKeyFormat } from "../services/keyGenerator";
@@ -36,9 +38,11 @@ export function createKeyRoutes(storage: IStorage) {
         // Create or get owner user
         let ownerUser = await storage.getUser('owner-user');
         if (!ownerUser) {
+          const randomPass = crypto.randomBytes(32).toString('hex');
+          const hashedPass = await bcrypt.hash(randomPass, 10);
           ownerUser = await storage.createUser({
             email: 'owner@codedswitch.local',
-            password: 'owner-key-auth',
+            password: hashedPass,
             username: 'CodedSwitch Owner'
           });
         }

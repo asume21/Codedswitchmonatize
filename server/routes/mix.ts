@@ -5,6 +5,7 @@ import path from "path";
 import { requireAuth } from "../middleware/auth";
 import { mixPreviewService, MixPreviewRequest } from "../services/mixPreview";
 import { jobManager } from "../services/jobManager";
+import { sanitizePath } from "../utils/security";
 
 const router = Router();
 
@@ -124,6 +125,11 @@ export function createMixRoutes() {
 
       if (audioFilePath && fs.existsSync(audioFilePath)) {
         const resolvedPath = path.resolve(audioFilePath);
+        // Ensure the file is within the project directory (prevent path traversal)
+        const projectRoot = path.resolve(process.cwd());
+        if (!resolvedPath.startsWith(projectRoot + path.sep) && !resolvedPath.startsWith('/tmp') && !resolvedPath.startsWith('/data')) {
+          return sendError(res, 403, "Access denied");
+        }
         const stat = fs.statSync(resolvedPath);
         const mimeType = format === 'mp3' ? 'audio/mpeg' : 'audio/wav';
 

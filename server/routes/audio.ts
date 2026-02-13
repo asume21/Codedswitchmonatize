@@ -10,9 +10,10 @@ import { callAI } from "../services/aiGateway";
 import { requireCredits } from "../middleware/requireCredits";
 import { CREDIT_COSTS } from "../services/credits";
 import { storage } from "../storage";
-import { aiGenerationLimiter, beatGenerationLimiter, lyricsLimiter } from "../middleware/rateLimiting";
+import { aiGenerationLimiter, beatGenerationLimiter, lyricsLimiter, analysisLimiter } from "../middleware/rateLimiting";
 import { requireTier } from "../middleware/tierEnforcement";
 import { validatePrompt, validateRequired } from "../middleware/inputValidation";
+import { sanitizePath } from "../utils/security";
 
 const router = Router();
 
@@ -985,7 +986,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Export master for MixerStudio
-  router.post("/audio/export-master", requireAuth(), requireCredits(CREDIT_COSTS.AUDIO_MASTERING, storage), async (req: Request, res: Response) => {
+  router.post("/audio/export-master", requireAuth(), analysisLimiter, requireCredits(CREDIT_COSTS.AUDIO_MASTERING, storage), async (req: Request, res: Response) => {
     try {
       const { tracks, masterEQ, masterVolume, format = 'wav' } = req.body;
 
@@ -1008,29 +1009,39 @@ Create complete lyrics with verses, chorus, and bridge.`;
         let filePath = '';
 
         if (audioUrl.includes('/api/internal/uploads/')) {
-          const key = decodeURIComponent(audioUrl.split('/api/internal/uploads/')[1]);
-          filePath = path.join(OBJECTS_DIR, key);
+          const key = audioUrl.split('/api/internal/uploads/')[1];
+          const safePath = sanitizePath(decodeURIComponent(key), OBJECTS_DIR);
+          if (!safePath) {
+            console.warn(`⚠️ Track "${track.name || 'unnamed'}" rejected: path traversal attempt`);
+            continue;
+          }
+          filePath = safePath;
         } else if (audioUrl.includes('/api/songs/converted/')) {
           const fileId = audioUrl.split('/api/songs/converted/')[1];
           const safeId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9\-_.]/g, '_');
-          filePath = path.join(OBJECTS_DIR, 'converted', `${safeId}.mp3`);
-        } else if (audioUrl.startsWith('/') || audioUrl.startsWith('./')) {
-          filePath = path.resolve(process.cwd(), audioUrl.replace(/^\//, ''));
+          const safePath = sanitizePath(path.join('converted', `${safeId}.mp3`), OBJECTS_DIR);
+          if (!safePath) {
+            console.warn(`⚠️ Track "${track.name || 'unnamed'}" rejected: invalid converted path`);
+            continue;
+          }
+          filePath = safePath;
+        } else if (audioUrl.startsWith('/assets/') || audioUrl.startsWith('./assets/')) {
+          // Only allow assets directory for relative paths
+          const safePath = sanitizePath(audioUrl.replace(/^\.?\//, ''), process.cwd());
+          if (!safePath) {
+            console.warn(`⚠️ Track "${track.name || 'unnamed'}" rejected: invalid relative path`);
+            continue;
+          }
+          filePath = safePath;
         }
 
         if (!filePath || !fs.existsSync(filePath)) {
-          console.warn(`⚠️ Track "${track.name || 'unnamed'}" audio not found: ${filePath || audioUrl}`);
-          continue;
-        }
-
-        const resolved = path.resolve(filePath);
-        if (!resolved.startsWith(path.resolve(OBJECTS_DIR)) && !resolved.startsWith(path.resolve(process.cwd()))) {
-          console.warn(`⚠️ Track path outside allowed directories: ${resolved}`);
+          console.warn(`⚠️ Track "${track.name || 'unnamed'}" audio not found: ${audioUrl}`);
           continue;
         }
 
         resolvedTracks.push({
-          filePath: resolved,
+          filePath,
           volume: typeof track.volume === 'number' ? track.volume : 1.0,
           pan: typeof track.pan === 'number' ? track.pan : 0,
           name: track.name || 'Track',

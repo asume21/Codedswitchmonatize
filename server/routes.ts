@@ -35,7 +35,7 @@ import { aiCache, withCache } from "./services/aiCache";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID } from "./utils/security";
+import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID, resolveAudioPath } from "./utils/security";
 import { insertPlaylistSchema } from "@shared/schema";
 import { z } from "zod";
 import { generateSpeechPreview, createVoiceIdForFile, storePreview, getPreview, applyVoiceConversion } from "./services/speechCorrection";
@@ -2942,7 +2942,7 @@ ${code}
               console.log(`🎵 Found song for transcription: ${song?.name || songId}, audioUrl: ${songAudioUrl}`);
               if (songAudioUrl.includes("/api/internal/uploads/")) {
                 const extractedKey = songAudioUrl.split("/api/internal/uploads/")[1];
-                targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+                targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
               }
             } else if (song) {
               // Song exists but has no audioUrl - check accessibleUrl for converted file
@@ -2950,7 +2950,7 @@ ${code}
               if (song.accessibleUrl && song.accessibleUrl.includes("/api/songs/converted/")) {
                 const fileId = song.accessibleUrl.split("/api/songs/converted/")[1];
                 const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
-                targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+                targetPath = sanitizePath(path.join("converted", `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
                 console.log(`✅ Using converted file for transcription: ${targetPath}`);
               } else {
                 console.warn(`❌ Song ${songId} has no audioUrl and accessibleUrl doesn't point to converted file`);
@@ -2964,14 +2964,14 @@ ${code}
         // Fallback to objectKey or fileUrl
         if (!targetPath) {
           if (objectKey) {
-            targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
+            targetPath = sanitizePath(objectKey, LOCAL_OBJECTS_DIR) || '';
           } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
             const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-            targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
+            targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
           } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
             const fileId = fileUrl.split("/api/songs/converted/")[1];
             const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
-            targetPath = path.join(LOCAL_OBJECTS_DIR, "converted", `${safeFileId}.mp3`);
+            targetPath = sanitizePath(path.join("converted", `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
           } else if (fileUrl) {
             return sendError(res, 400, "External URLs not supported for speech-correction transcription");
           }
@@ -2981,10 +2981,6 @@ ${code}
           return sendError(res, 404, "Could not locate audio file for transcription");
         }
 
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
-        }
         if (!fs.existsSync(targetPath)) {
           console.error(`❌ Transcription file not found: ${targetPath}`);
           return sendError(res, 404, "Audio file not found on server");
@@ -3243,19 +3239,9 @@ ${code}
           return sendError(res, 400, "objectKey or fileUrl required");
         }
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "Unsupported fileUrl format");
-        }
-
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
+        const targetPath = resolveAudioPath({ objectKey, fileUrl }, LOCAL_OBJECTS_DIR);
+        if (!targetPath) {
+          return sendError(res, 400, "Invalid or missing objectKey/fileUrl");
         }
         if (!fs.existsSync(targetPath)) {
           return sendError(res, 404, "Audio file not found");
@@ -3357,19 +3343,9 @@ ${code}
       try {
         const { objectKey, fileUrl } = req.body;
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "objectKey or fileUrl required");
-        }
-
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
+        const targetPath = resolveAudioPath({ objectKey, fileUrl }, LOCAL_OBJECTS_DIR);
+        if (!targetPath) {
+          return sendError(res, 400, "Invalid or missing objectKey/fileUrl");
         }
         if (!fs.existsSync(targetPath)) {
           return sendError(res, 404, "Audio file not found");
@@ -3397,19 +3373,9 @@ ${code}
       try {
         const { objectKey, fileUrl, scale, root, correctionStrength } = req.body;
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "objectKey or fileUrl required");
-        }
-
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
+        const targetPath = resolveAudioPath({ objectKey, fileUrl }, LOCAL_OBJECTS_DIR);
+        if (!targetPath) {
+          return sendError(res, 400, "Invalid or missing objectKey/fileUrl");
         }
         if (!fs.existsSync(targetPath)) {
           return sendError(res, 404, "Audio file not found");
@@ -3436,19 +3402,9 @@ ${code}
       try {
         const { objectKey, fileUrl, minNoteDuration } = req.body;
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "objectKey or fileUrl required");
-        }
-
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
+        const targetPath = resolveAudioPath({ objectKey, fileUrl }, LOCAL_OBJECTS_DIR);
+        if (!targetPath) {
+          return sendError(res, 400, "Invalid or missing objectKey/fileUrl");
         }
         if (!fs.existsSync(targetPath)) {
           return sendError(res, 404, "Audio file not found");
@@ -3479,19 +3435,9 @@ ${code}
           return sendError(res, 400, "referenceNotes array required");
         }
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "objectKey or fileUrl required");
-        }
-
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
+        const targetPath = resolveAudioPath({ objectKey, fileUrl }, LOCAL_OBJECTS_DIR);
+        if (!targetPath) {
+          return sendError(res, 400, "Invalid or missing objectKey/fileUrl");
         }
         if (!fs.existsSync(targetPath)) {
           return sendError(res, 404, "Audio file not found");
@@ -3518,19 +3464,9 @@ ${code}
       try {
         const { objectKey, fileUrl } = req.body;
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "objectKey or fileUrl required");
-        }
-
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
+        const targetPath = resolveAudioPath({ objectKey, fileUrl }, LOCAL_OBJECTS_DIR);
+        if (!targetPath) {
+          return sendError(res, 400, "Invalid or missing objectKey/fileUrl");
         }
         if (!fs.existsSync(targetPath)) {
           return sendError(res, 404, "Audio file not found");
@@ -3557,19 +3493,9 @@ ${code}
       try {
         const { objectKey, fileUrl } = req.body;
 
-        let targetPath: string;
-        if (objectKey) {
-          targetPath = path.join(LOCAL_OBJECTS_DIR, objectKey);
-        } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-          const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-          targetPath = path.join(LOCAL_OBJECTS_DIR, decodeURIComponent(extractedKey));
-        } else {
-          return sendError(res, 400, "objectKey or fileUrl required");
-        }
-
-        const resolvedPath = path.resolve(targetPath);
-        if (!resolvedPath.startsWith(path.resolve(LOCAL_OBJECTS_DIR))) {
-          return sendError(res, 403, "Access denied");
+        const targetPath = resolveAudioPath({ objectKey, fileUrl }, LOCAL_OBJECTS_DIR);
+        if (!targetPath) {
+          return sendError(res, 400, "Invalid or missing objectKey/fileUrl");
         }
         if (!fs.existsSync(targetPath)) {
           return sendError(res, 404, "Audio file not found");
