@@ -22,9 +22,40 @@
   --astutely-amber-500: #f59e0b;
   --astutely-amber-glow: 0 0 22px rgba(245, 158, 11, 0.25);
 
-  --astutely-neon-mix-glow: 0 0 22px rgba(6, 182, 212, 0.22), 0 0 18px rgba(217, 70, 239, 0.14), 0 0 16px rgba(245, 158, 11, 0.12);
-  --astutely-neon-mix-glow-strong: 0 0 40px rgba(6, 182, 212, 0.35), 0 0 30px rgba(217, 70, 239, 0.22), 0 0 26px rgba(245, 158, 11, 0.18);
-  --astutely-neon-conic: conic-gradient(from 180deg, rgba(6,182,212,0.95), rgba(217,70,239,0.9), rgba(245,158,11,0.9), rgba(6,182,212,0.95));
+  /* Accent Palette: Yellow */
+  --astutely-yellow-500: #eab308;
+  --astutely-yellow-glow: 0 0 20px rgba(234, 179, 8, 0.3);
+  --astutely-yellow-border: rgba(234, 179, 8, 0.4);
+
+  /* Accent Palette: Orange */
+  --astutely-orange-500: #f97316;
+  --astutely-orange-glow: 0 0 20px rgba(249, 115, 22, 0.3);
+  --astutely-orange-border: rgba(249, 115, 22, 0.4);
+
+  /* Accent Palette: Green */
+  --astutely-green-500: #22c55e;
+  --astutely-green-glow: 0 0 20px rgba(34, 197, 94, 0.3);
+  --astutely-green-border: rgba(34, 197, 94, 0.4);
+
+  /* Presence-Driven Ambient Light (defaults — overridden by PresenceAmbientLight.tsx) */
+  --presence-warm-hue: 45;
+  --presence-warm-sat: 90%;
+  --presence-warm-light: 55%;
+  --presence-glow-intensity: 0.3;
+  --presence-glow-opacity: 0.036;
+  --presence-border-opacity: 0.15;
+  --presence-inset-opacity: 0.024;
+  --presence-grid-opacity: 0.058;
+  --presence-secondary-hue: 30;
+  --presence-pulse-speed: 0.8s;
+  --presence-warm-glow: hsla(45, 90%, 55%, 0.09);
+  --presence-warm-border: hsla(45, 90%, 55%, 0.15);
+  --presence-warm-inset: hsla(45, 90%, 55%, 0.018);
+  --presence-warm-grid: hsla(45, 90%, 55%, 0.045);
+
+  --astutely-neon-mix-glow: 0 0 22px rgba(6, 182, 212, 0.22), 0 0 18px rgba(217, 70, 239, 0.14), 0 0 16px rgba(234, 179, 8, 0.16);
+  --astutely-neon-mix-glow-strong: 0 0 40px rgba(6, 182, 212, 0.35), 0 0 30px rgba(217, 70, 239, 0.22), 0 0 26px rgba(234, 179, 8, 0.22);
+  --astutely-neon-conic: conic-gradient(from 180deg, rgba(6,182,212,0.95), rgba(234,179,8,0.7), rgba(217,70,239,0.9), rgba(249,115,22,0.7), rgba(6,182,212,0.95));
   
   /* Background Colors */
   --astutely-bg-dark: #020617;
@@ -94,7 +125,7 @@ body::after {
   background-size: 100% 2px, 3px 100%;
 }
 
-/* Force global grid pattern */
+/* Force global grid pattern — presence-driven warm yellow-cyan blend */
 body::before {
   content: '';
   position: fixed;
@@ -104,10 +135,34 @@ body::before {
   bottom: 0;
   pointer-events: none;
   z-index: 9998;
-  opacity: 0.05;
-  background-image: linear-gradient(rgba(6, 182, 212, 0.1) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(6, 182, 212, 0.1) 1px, transparent 1px);
-  background-size: 30px 30px;
+  opacity: var(--presence-grid-opacity);
+  background-image: 
+    linear-gradient(var(--presence-warm-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--presence-warm-grid) 1px, transparent 1px),
+    linear-gradient(rgba(6, 182, 212, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.06) 1px, transparent 1px);
+  background-size: 30px 30px, 30px 30px, 30px 30px, 30px 30px;
+  transition: opacity 1.5s ease;
+}
+
+/* Ambient warm light — presence-driven, radiates from nowhere and everywhere */
+.astutely-app::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: var(--presence-glow-intensity);
+  background:
+    radial-gradient(ellipse 80% 50% at 25% 20%, var(--presence-warm-glow) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 75% 60%, hsla(var(--presence-secondary-hue), 90%, 50%, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 50% 90%, var(--presence-warm-glow) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 30% at 10% 70%, rgba(34, 197, 94, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 40% at 90% 15%, rgba(217, 70, 239, 0.03) 0%, transparent 50%);
+  transition: opacity 2s ease;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -119,13 +174,14 @@ div:not(.absolute):not(.relative):not(.flex):not(.flex-col):not(.flex-row) {
   border-color: rgba(6, 182, 212, 0.2);
 }
 
-/* CARDS - Global Override */
+/* CARDS - Global Override — presence-driven warm inner glow */
 [class*="Card"], .card, section, article {
   background: rgba(2, 6, 23, 0.85) !important;
   border: 1px solid rgba(6, 182, 212, 0.4) !important;
   backdrop-filter: blur(20px) !important;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(6, 182, 212, 0.1) !important;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), inset 0 0 30px var(--presence-warm-inset), inset 0 0 15px rgba(6, 182, 212, 0.08) !important;
   border-radius: 4px !important;
+  transition: box-shadow 2s ease !important;
 }
 
 /* BUTTONS - Global Override */
@@ -199,9 +255,14 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
   height: 16px !important;
 }
 
-/* BORDERS - Global Force */
-.border, .border-t, .border-b, .border-l, .border-r {
+/* BORDERS - Global Force — presence-driven warm light bleeds through horizontal borders */
+.border, .border-l, .border-r {
   border-color: rgba(6, 182, 212, 0.3) !important;
+}
+.border-t, .border-b {
+  border-color: rgba(6, 182, 212, 0.2) !important;
+  border-image: linear-gradient(90deg, rgba(6, 182, 212, 0.15), var(--presence-warm-border) 30%, var(--presence-warm-border) 50%, var(--presence-warm-border) 70%, rgba(6, 182, 212, 0.15)) 1 !important;
+  transition: border-image 2s ease !important;
 }
 
 /* SCROLLBARS */
@@ -231,14 +292,17 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
 /* ─────────────────────────────────────────────────────────────────────────────
    ASTUTELY CORE HUD COMPONENTS
    ───────────────────────────────────────────────────────────────────────────── */
+/* Panel headers — presence-driven warm accent stripe on the left */
 .astutely-panel-header {
-  background: linear-gradient(90deg, rgba(6, 182, 212, 0.2) 0%, transparent 100%) !important;
-  border-left: 4px solid var(--astutely-cyan-500) !important;
+  background: linear-gradient(90deg, var(--presence-warm-glow) 0%, rgba(6, 182, 212, 0.1) 20%, transparent 100%) !important;
+  border-left: 4px solid var(--presence-warm-border) !important;
   padding: 0.75rem 1.25rem !important;
   font-family: 'Inter', sans-serif !important;
   font-weight: 900 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.2em !important;
+  box-shadow: inset 6px 0 25px var(--presence-warm-inset) !important;
+  transition: border-left-color 2s ease, box-shadow 2s ease !important;
 }
 
 
@@ -271,11 +335,14 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
 /* ─────────────────────────────────────────────────────────────────────────────
    GRID BACKGROUND PATTERN
    ───────────────────────────────────────────────────────────────────────────── */
+/* Grid background — presence-driven warm-cyan blend for that lit-from-within feel */
 .astutely-grid-bg {
   background-image: 
-    linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
-  background-size: 30px 30px;
+    linear-gradient(var(--presence-warm-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--presence-warm-grid) 1px, transparent 1px),
+    linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+  background-size: 30px 30px, 30px 30px, 30px 30px, 30px 30px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -348,23 +415,29 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
 /* ─────────────────────────────────────────────────────────────────────────────
    HEADER STYLES
    ───────────────────────────────────────────────────────────────────────────── */
+/* Header — presence-driven warm light bleeds down from the header edge */
 .astutely-header {
-  background: linear-gradient(90deg, rgba(6, 182, 212, 0.15) 0%, rgba(6, 30, 40, 0.8) 50%, rgba(6, 182, 212, 0.15) 100%);
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.15) 0%, var(--presence-warm-inset) 30%, rgba(6, 30, 40, 0.8) 50%, var(--presence-warm-inset) 70%, rgba(6, 182, 212, 0.15) 100%);
   border-bottom: 1px solid var(--astutely-border);
-  box-shadow: 0 4px 30px rgba(6, 182, 212, 0.15);
+  box-shadow: 0 4px 40px var(--presence-warm-inset), 0 2px 20px rgba(6, 182, 212, 0.12);
+  transition: box-shadow 2s ease, background 2s ease;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SECTION HEADERS
    ───────────────────────────────────────────────────────────────────────────── */
+/* Section headers — presence-driven warm accent glow on the left edge */
 .astutely-section-header {
-  background: linear-gradient(90deg, rgba(6, 182, 212, 0.1) 0%, rgba(6, 30, 40, 0.6) 100%);
+  background: linear-gradient(90deg, var(--presence-warm-inset) 0%, rgba(6, 182, 212, 0.06) 15%, rgba(6, 30, 40, 0.6) 100%);
   border-bottom: 1px solid var(--astutely-border);
+  border-left: 3px solid var(--presence-warm-border);
   color: var(--astutely-cyan-500);
   text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  box-shadow: inset 4px 0 20px var(--presence-warm-inset);
+  transition: border-left-color 2s ease, box-shadow 2s ease;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -509,8 +582,9 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
   text-shadow: 0 0 10px rgba(6, 182, 212, 0.5), 0 0 20px rgba(6, 182, 212, 0.3);
 }
 
+/* Gradient text — warm yellow accent mixed in */
 .astutely-gradient-text {
-  background: linear-gradient(90deg, #fff, #67e8f9, #06b6d4);
+  background: linear-gradient(90deg, #fff, #fde68a, #67e8f9, #06b6d4);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -540,6 +614,108 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
 
 .astutely-animate-glow {
   animation: astutely-glow 2s infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACCENT COLOR BUTTON VARIANTS
+   ───────────────────────────────────────────────────────────────────────────── */
+.astutely-btn-yellow {
+  background: rgba(234, 179, 8, 0.1) !important;
+  border: 1px solid var(--astutely-yellow-border) !important;
+  color: var(--astutely-yellow-500) !important;
+}
+.astutely-btn-yellow:hover {
+  background: rgba(234, 179, 8, 0.25) !important;
+  border-color: var(--astutely-yellow-500) !important;
+  box-shadow: var(--astutely-yellow-glow) !important;
+  color: #fff !important;
+}
+
+.astutely-btn-orange {
+  background: rgba(249, 115, 22, 0.1) !important;
+  border: 1px solid var(--astutely-orange-border) !important;
+  color: var(--astutely-orange-500) !important;
+}
+.astutely-btn-orange:hover {
+  background: rgba(249, 115, 22, 0.25) !important;
+  border-color: var(--astutely-orange-500) !important;
+  box-shadow: var(--astutely-orange-glow) !important;
+  color: #fff !important;
+}
+
+.astutely-btn-green {
+  background: rgba(34, 197, 94, 0.1) !important;
+  border: 1px solid var(--astutely-green-border) !important;
+  color: var(--astutely-green-500) !important;
+}
+.astutely-btn-green:hover {
+  background: rgba(34, 197, 94, 0.25) !important;
+  border-color: var(--astutely-green-500) !important;
+  box-shadow: var(--astutely-green-glow) !important;
+  color: #fff !important;
+}
+
+.astutely-btn-magenta {
+  background: rgba(217, 70, 239, 0.1) !important;
+  border: 1px solid rgba(217, 70, 239, 0.4) !important;
+  color: var(--astutely-magenta-500) !important;
+}
+.astutely-btn-magenta:hover {
+  background: rgba(217, 70, 239, 0.25) !important;
+  border-color: var(--astutely-magenta-500) !important;
+  box-shadow: var(--astutely-magenta-glow) !important;
+  color: #fff !important;
+}
+
+/* Active state overrides for colored buttons */
+.astutely-btn-yellow[data-state="active"], .astutely-btn-yellow.active {
+  background: rgba(234, 179, 8, 0.3) !important;
+  border-color: var(--astutely-yellow-500) !important;
+  color: #fff !important;
+  box-shadow: var(--astutely-yellow-glow) !important;
+}
+.astutely-btn-orange[data-state="active"], .astutely-btn-orange.active {
+  background: rgba(249, 115, 22, 0.3) !important;
+  border-color: var(--astutely-orange-500) !important;
+  color: #fff !important;
+  box-shadow: var(--astutely-orange-glow) !important;
+}
+.astutely-btn-green[data-state="active"], .astutely-btn-green.active {
+  background: rgba(34, 197, 94, 0.3) !important;
+  border-color: var(--astutely-green-500) !important;
+  color: #fff !important;
+  box-shadow: var(--astutely-green-glow) !important;
+}
+.astutely-btn-magenta[data-state="active"], .astutely-btn-magenta.active {
+  background: rgba(217, 70, 239, 0.3) !important;
+  border-color: var(--astutely-magenta-500) !important;
+  color: #fff !important;
+  box-shadow: var(--astutely-magenta-glow) !important;
+}
+
+/* Colored divider accents */
+.astutely-divider-yellow { background: var(--astutely-yellow-border) !important; }
+.astutely-divider-orange { background: var(--astutely-orange-border) !important; }
+.astutely-divider-green { background: var(--astutely-green-border) !important; }
+
+/* Colored glow text */
+.astutely-glow-yellow { color: var(--astutely-yellow-500) !important; text-shadow: 0 0 10px rgba(234, 179, 8, 0.5) !important; }
+.astutely-glow-orange { color: var(--astutely-orange-500) !important; text-shadow: 0 0 10px rgba(249, 115, 22, 0.5) !important; }
+.astutely-glow-green { color: var(--astutely-green-500) !important; text-shadow: 0 0 10px rgba(34, 197, 94, 0.5) !important; }
+.astutely-glow-magenta { color: var(--astutely-magenta-500) !important; text-shadow: 0 0 10px rgba(217, 70, 239, 0.5) !important; }
+
+/* Colored glow keyframes */
+@keyframes astutely-glow-yellow {
+  0%, 100% { box-shadow: 0 0 10px rgba(234, 179, 8, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(234, 179, 8, 0.5); }
+}
+@keyframes astutely-glow-orange {
+  0%, 100% { box-shadow: 0 0 10px rgba(249, 115, 22, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(249, 115, 22, 0.5); }
+}
+@keyframes astutely-glow-green {
+  0%, 100% { box-shadow: 0 0 10px rgba(34, 197, 94, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(34, 197, 94, 0.5); }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -586,21 +762,24 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
 /* ─────────────────────────────────────────────────────────────────────────────
    TRACK LANE STYLES
    ───────────────────────────────────────────────────────────────────────────── */
+/* Track lanes — presence-driven warm ambient glow between lanes */
 .astutely-track-lane {
   background: rgba(6, 182, 212, 0.03);
   border: 1px solid var(--astutely-border);
-  transition: all 0.2s ease;
+  transition: all 0.4s ease;
+  box-shadow: inset 0 1px 0 var(--presence-warm-inset), inset 0 -1px 0 var(--presence-warm-inset);
 }
 
 .astutely-track-lane:hover {
-  background: rgba(6, 182, 212, 0.08);
-  border-color: var(--astutely-border-hover);
+  background: var(--presence-warm-inset);
+  border-color: var(--presence-warm-border);
+  box-shadow: inset 0 0 20px var(--presence-warm-inset);
 }
 
 .astutely-track-lane-selected {
-  background: rgba(6, 182, 212, 0.1);
-  border-color: var(--astutely-cyan-500);
-  box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.1);
+  background: var(--presence-warm-inset);
+  border-color: var(--presence-warm-border);
+  box-shadow: inset 0 0 30px var(--presence-warm-inset), 0 0 15px var(--presence-warm-glow);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

@@ -41,6 +41,7 @@ import AIArrangementBuilder from './AIArrangementBuilder';
 import AIVocalMelody from './AIVocalMelody';
 import AIStemSeparation from './AIStemSeparation';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { PresenceAmbientLight } from '@/components/presence';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
@@ -2368,21 +2369,29 @@ export default function UnifiedStudioWorkspace() {
               <h2 className="text-xl font-bold">Welcome to Studio</h2>
               <p className="text-gray-400 text-sm">Select a tab below to get started</p>
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setActiveView('piano-roll')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                  <Piano className="w-8 h-8 text-purple-400" />
+                <button onClick={() => setActiveView('piano-roll')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-cyan-500/30 hover:border-cyan-400/60 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                  <Piano className="w-8 h-8 text-cyan-400" />
                   <span className="text-sm font-medium">Piano Roll</span>
                 </button>
-                <button onClick={() => setActiveView('beat-lab')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                  <Layers className="w-8 h-8 text-blue-400" />
+                <button onClick={() => setActiveView('beat-lab')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-cyan-500/30 hover:border-cyan-400/60 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                  <Layers className="w-8 h-8 text-cyan-400" />
                   <span className="text-sm font-medium">Beat Lab</span>
                 </button>
-                <button onClick={() => setActiveView('lyrics')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                <button onClick={() => setActiveView('lyrics')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-green-500/30 hover:border-green-400/60 hover:shadow-[0_0_15px_rgba(34,197,94,0.2)]">
                   <FileText className="w-8 h-8 text-green-400" />
                   <span className="text-sm font-medium">Lyrics</span>
                 </button>
-                <button onClick={() => setActiveView('ai-studio')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform">
+                <button onClick={() => setActiveView('ai-studio')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-yellow-500/30 hover:border-yellow-400/60 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)]">
                   <Wand2 className="w-8 h-8 text-yellow-400" />
                   <span className="text-sm font-medium">AI Studio</span>
+                </button>
+                <button onClick={() => setActiveView('audio-tools')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-orange-500/30 hover:border-orange-400/60 hover:shadow-[0_0_15px_rgba(249,115,22,0.2)]">
+                  <Wrench className="w-8 h-8 text-orange-400" />
+                  <span className="text-sm font-medium">Tools</span>
+                </button>
+                <button onClick={() => setActiveView('mixer')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-fuchsia-500/30 hover:border-fuchsia-400/60 hover:shadow-[0_0_15px_rgba(217,70,239,0.2)]">
+                  <Sliders className="w-8 h-8 text-fuchsia-400" />
+                  <span className="text-sm font-medium">Mixer</span>
                 </button>
               </div>
             </div>
@@ -2395,6 +2404,8 @@ export default function UnifiedStudioWorkspace() {
   // Desktop Layout - Full featured UI
   return (
     <div className="h-full w-full flex flex-col bg-black astutely-app astutely-scanlines astutely-grid-bg astutely-scrollbar overflow-visible">
+      {/* Presence-driven ambient light — syncs CSS vars to Living Glyph state */}
+      <PresenceAmbientLight />
       {/* Top Bar */}
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-4">
@@ -3145,12 +3156,12 @@ export default function UnifiedStudioWorkspace() {
             <Layers className="w-3 h-3 mr-1" />
             Multi-Track
           </Button>
-          <div className="w-px h-5 bg-cyan-500/40 mx-1" />
+          <div className="w-px h-5 astutely-divider-yellow mx-1" />
           <Button
             variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('ai-studio')}
-            className="h-8 px-3 text-xs astutely-button"
+            className={`h-8 px-3 text-xs ${activeView === 'ai-studio' ? 'astutely-btn-yellow active' : 'astutely-btn-yellow'}`}
           >
             <Wand2 className="w-3 h-3 mr-1" />
             AI Studio
@@ -3159,26 +3170,28 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('code-to-music')}
-            className="h-8 px-3 text-xs astutely-button"
+            className={`h-8 px-3 text-xs ${activeView === 'code-to-music' ? 'astutely-btn-yellow active' : 'astutely-btn-yellow'}`}
             data-testid="tab-code-to-music"
           >
             <Wand2 className="w-3 h-3 mr-1" />
             Code to Music
           </Button>
+          <div className="w-px h-5 astutely-divider-green mx-1" />
           <Button
             variant={activeView === 'lyrics' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('lyrics')}
-            className="h-8 px-3 text-xs astutely-button"
+            className={`h-8 px-3 text-xs ${activeView === 'lyrics' ? 'astutely-btn-green active' : 'astutely-btn-green'}`}
           >
             <Mic2 className="w-3 h-3 mr-1" />
             Lyrics
           </Button>
+          <div className="w-px h-5 astutely-divider-orange mx-1" />
           <Button
             variant={activeView === 'audio-tools' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('audio-tools')}
-            className="h-8 px-3 text-xs astutely-button"
+            className={`h-8 px-3 text-xs ${activeView === 'audio-tools' ? 'astutely-btn-orange active' : 'astutely-btn-orange'}`}
           >
             <Wrench className="w-3 h-3 mr-1" />
             Tools
@@ -3187,7 +3200,7 @@ export default function UnifiedStudioWorkspace() {
             variant={activeView === 'song-uploader' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setActiveView('song-uploader')}
-            className="h-8 px-3 text-xs astutely-button"
+            className={`h-8 px-3 text-xs ${activeView === 'song-uploader' ? 'astutely-btn-magenta active' : 'astutely-btn-magenta'}`}
           >
             <Upload className="w-3 h-3 mr-1" />
             Upload

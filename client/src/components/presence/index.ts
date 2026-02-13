@@ -43,6 +43,7 @@ export { AIBridge, getAIBridge, resetAIBridge, dispatchAstutelyEvent } from './a
 // React components and hooks
 export { LivingGlyph } from './LivingGlyph';
 export { GlobalLivingGlyph } from './GlobalLivingGlyph';
+export { PresenceAmbientLight } from './PresenceAmbientLight';
 export {
   StudioPresenceWrapper,
   useStudioPresence,
