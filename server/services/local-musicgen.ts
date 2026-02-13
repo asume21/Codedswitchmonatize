@@ -458,7 +458,8 @@ export class LocalMusicGenService {
    * Get frequencies for musical key
    */
   private getFrequenciesForKey(key: string, instrumentType: string): number[] {
-    const baseFrequencies: { [key: string]: number[] } = {
+    // Major scale frequencies (7 notes)
+    const majorFrequencies: { [key: string]: number[] } = {
       'C': [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88],
       'D': [293.66, 329.63, 369.99, 392.00, 440.00, 493.88, 554.37],
       'E': [329.63, 369.99, 415.30, 440.00, 493.88, 554.37, 622.25],
@@ -468,7 +469,29 @@ export class LocalMusicGenService {
       'B': [493.88, 554.37, 622.25, 659.25, 739.99, 830.61, 932.33]
     };
 
-    let frequencies = baseFrequencies[key.charAt(0)] || baseFrequencies['C'];
+    // Natural minor scale frequencies (W-H-W-W-H-W-W pattern)
+    const minorFrequencies: { [key: string]: number[] } = {
+      'A': [440.00, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99],
+      'B': [493.88, 554.37, 587.33, 659.25, 739.99, 783.99, 880.00],
+      'C': [261.63, 293.66, 311.13, 349.23, 392.00, 415.30, 466.16],
+      'D': [293.66, 329.63, 349.23, 392.00, 440.00, 466.16, 523.25],
+      'E': [329.63, 369.99, 392.00, 440.00, 493.88, 523.25, 587.33],
+      'F': [349.23, 392.00, 415.30, 466.16, 523.25, 554.37, 622.25],
+      'G': [392.00, 440.00, 466.16, 523.25, 587.33, 622.25, 698.46],
+    };
+
+    // Parse key: "Am" → root=A, minor=true; "C" → root=C, minor=false
+    const isMinor = key.includes('m') && !key.includes('maj');
+    const rootNote = key.charAt(0).toUpperCase();
+    // Handle sharps/flats by falling back to closest natural note
+    const cleanRoot = rootNote === '#' || rootNote === 'B' ? rootNote : rootNote;
+
+    let frequencies: number[];
+    if (isMinor) {
+      frequencies = minorFrequencies[cleanRoot] || minorFrequencies['A'];
+    } else {
+      frequencies = majorFrequencies[cleanRoot] || majorFrequencies['C'];
+    }
 
     // Adjust for instrument type
     if (instrumentType === 'bass') {
@@ -565,31 +588,76 @@ export class LocalMusicGenService {
     }
   }
 
-  // Helper methods
   private capitalizeFirst(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   private getBpmForGenre(genre: string): number {
-    if (genre.includes('hip hop') || genre.includes('trap')) return 140;
-    if (genre.includes('house') || genre.includes('techno')) return 128;
-    if (genre.includes('drum') && genre.includes('bass')) return 174;
-    if (genre.includes('ambient') || genre.includes('chill')) return 80;
+    const bpmMap: Record<string, number> = {
+      'hip hop': 90, 'boom bap': 90, 'trap': 145, 'drill': 145,
+      'house': 125, 'deep house': 122, 'techno': 132,
+      'lo-fi': 80, 'lofi': 80, 'jazz': 110,
+      'ambient': 75, 'chill': 80,
+      'rock': 130, 'pop': 115,
+      'r&b': 70, 'rnb': 70, 'soul': 80,
+      'country': 115, 'reggae': 75, 'reggaeton': 95,
+      'funk': 110, 'afrobeat': 110,
+      'drum and bass': 174, 'dnb': 174, 'dubstep': 140,
+      'latin': 105,
+    };
+    for (const [key, bpm] of Object.entries(bpmMap)) {
+      if (genre.includes(key)) return bpm;
+    }
     return 120;
   }
 
   private getKeyForGenre(genre: string): string {
-    const keys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-    return keys[Math.floor(Math.random() * keys.length)];
+    // Genre-appropriate key selection using a hash of the genre string for determinism
+    const keyMap: Record<string, string[]> = {
+      'hip hop': ['Cm', 'Fm', 'Gm', 'Am'],
+      'trap': ['Cm', 'F#m', 'Am', 'Dm'],
+      'house': ['Am', 'Dm', 'Em', 'Gm'],
+      'techno': ['Am', 'Fm', 'Cm', 'Gm'],
+      'lo-fi': ['C', 'Am', 'F', 'Dm'],
+      'jazz': ['Dm', 'G', 'C', 'Am'],
+      'ambient': ['C', 'Am', 'Em', 'Dm'],
+      'rock': ['E', 'A', 'D', 'G'],
+      'pop': ['C', 'G', 'Am', 'F'],
+      'r&b': ['Dm', 'Gm', 'Am', 'Cm'],
+      'country': ['G', 'C', 'D', 'A'],
+      'funk': ['Em', 'Am', 'Dm', 'Gm'],
+      'reggae': ['Am', 'Dm', 'Em', 'G'],
+      'drum and bass': ['Am', 'Fm', 'Cm', 'Dm'],
+      'dubstep': ['Fm', 'Cm', 'Gm', 'Dm'],
+    };
+    // Find matching genre keys
+    for (const [key, keys] of Object.entries(keyMap)) {
+      if (genre.includes(key)) {
+        // Use a simple hash of the genre + timestamp for variety without Math.random
+        const hash = genre.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+        return keys[hash % keys.length];
+      }
+    }
+    return 'Am'; // Default to A minor — more musical than always C major
   }
 
   private detectGenre(prompt: string): string {
-    if (prompt.includes('hip hop')) return 'Hip Hop';
-    if (prompt.includes('trap')) return 'Trap';
-    if (prompt.includes('house')) return 'House';
-    if (prompt.includes('techno')) return 'Techno';
-    if (prompt.includes('ambient')) return 'Ambient';
-    if (prompt.includes('drum') && prompt.includes('bass')) return 'Drum & Bass';
+    const genrePatterns: [string, string][] = [
+      ['drum and bass', 'Drum & Bass'], ['drum & bass', 'Drum & Bass'], ['dnb', 'Drum & Bass'],
+      ['deep house', 'Deep House'], ['boom bap', 'Boom Bap'],
+      ['hip hop', 'Hip Hop'], ['hiphop', 'Hip Hop'],
+      ['trap', 'Trap'], ['drill', 'Drill'],
+      ['house', 'House'], ['techno', 'Techno'],
+      ['ambient', 'Ambient'], ['lo-fi', 'Lo-Fi'], ['lofi', 'Lo-Fi'],
+      ['jazz', 'Jazz'], ['rock', 'Rock'], ['pop', 'Pop'],
+      ['r&b', 'R&B'], ['rnb', 'R&B'], ['soul', 'Soul'],
+      ['country', 'Country'], ['reggae', 'Reggae'], ['reggaeton', 'Reggaeton'],
+      ['funk', 'Funk'], ['afrobeat', 'Afrobeat'], ['latin', 'Latin'],
+      ['dubstep', 'Dubstep'], ['edm', 'EDM'],
+    ];
+    for (const [pattern, name] of genrePatterns) {
+      if (prompt.includes(pattern)) return name;
+    }
     return 'Electronic';
   }
 
@@ -597,6 +665,7 @@ export class LocalMusicGenService {
     const instruments = samples.map(s => s.instrument);
     return Array.from(new Set(instruments));
   }
+
 }
 
 export const localMusicGenService = new LocalMusicGenService();

@@ -172,11 +172,22 @@ export class UnifiedMusicService {
       console.log(`🎵 Enhanced MusicGen prompt: ${fullPrompt.substring(0, 100)}...`);
 
       try {
-        // Add randomness to prompt to avoid repetitive outputs
+        // Add genre-specific musical variation descriptors instead of random English words
         const randomSeed = Math.floor(Math.random() * 1000000);
-        const variationWords = ['fresh', 'unique', 'creative', 'original', 'dynamic', 'vibrant', 'innovative'];
-        const randomVariation = variationWords[Math.floor(Math.random() * variationWords.length)];
-        const variedPrompt = `${fullPrompt}. ${randomVariation} arrangement.`;
+        const genreVariations: Record<string, string[]> = {
+          pop: ['catchy hook', 'radio-ready mix', 'polished production', 'bright arrangement'],
+          rock: ['driving guitars', 'powerful dynamics', 'raw energy', 'tight rhythm section'],
+          hiphop: ['hard-hitting 808s', 'crisp snares', 'deep groove', 'head-nodding rhythm'],
+          trap: ['rolling hi-hats', 'heavy 808 bass', 'dark atmosphere', 'punchy kicks'],
+          house: ['four-on-the-floor', 'deep bassline', 'filtered synths', 'building energy'],
+          techno: ['hypnotic rhythm', 'industrial textures', 'relentless drive', 'minimal arrangement'],
+          jazz: ['swinging rhythm', 'rich harmonies', 'improvisational feel', 'warm tones'],
+          ambient: ['spacious reverb', 'evolving textures', 'atmospheric depth', 'gentle movement'],
+          electronic: ['synthesized textures', 'digital precision', 'layered production', 'modern sound'],
+        };
+        const variations = genreVariations[genre] || genreVariations['electronic'];
+        const variation = variations[randomSeed % variations.length];
+        const variedPrompt = `${fullPrompt}. ${variation}.`;
         
         const output = await replicate.run(
           "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043ac92924f66e7e4c19447d8b35",
@@ -429,19 +440,23 @@ export class UnifiedMusicService {
               bpm
             }));
 
+          // Detect genre and key from prompt for accurate metadata
+          const detectedGenre = this.detectGenreFromPrompt(prompt);
+          const detectedKey = this.pickKeyForGenre(detectedGenre);
+
           packs.push({
             id: `pack_${randomUUID()}`,
             title: `${prompt} AI Pack ${i + 1}`,
-            description: `AI generated loop pack`,
+            description: `AI generated ${detectedGenre.toLowerCase()} loop pack: ${variation}`,
             bpm,
-            key: 'C',
-            genre: 'electronic',
+            key: detectedKey,
+            genre: detectedGenre,
             samples,
             metadata: {
               energy: 0.8,
-              mood: 'generated',
+              mood: variation,
               instruments: ['mixed'],
-              tags: ['ai', 'replicate']
+              tags: ['ai', 'replicate', detectedGenre.toLowerCase()]
             }
           });
         }
@@ -464,6 +479,59 @@ export class UnifiedMusicService {
         }))
       }));
     }
+  }
+
+  private detectGenreFromPrompt(prompt: string): string {
+    const p = prompt.toLowerCase();
+    const genrePatterns: [string, string][] = [
+      ['drum and bass', 'Drum & Bass'], ['drum & bass', 'Drum & Bass'], ['dnb', 'Drum & Bass'],
+      ['deep house', 'Deep House'], ['boom bap', 'Boom Bap'],
+      ['hip hop', 'Hip Hop'], ['hiphop', 'Hip Hop'],
+      ['trap', 'Trap'], ['drill', 'Drill'],
+      ['house', 'House'], ['techno', 'Techno'],
+      ['ambient', 'Ambient'], ['lo-fi', 'Lo-Fi'], ['lofi', 'Lo-Fi'],
+      ['jazz', 'Jazz'], ['rock', 'Rock'], ['pop', 'Pop'],
+      ['r&b', 'R&B'], ['rnb', 'R&B'], ['soul', 'Soul'],
+      ['country', 'Country'], ['reggae', 'Reggae'], ['reggaeton', 'Reggaeton'],
+      ['funk', 'Funk'], ['afrobeat', 'Afrobeat'], ['latin', 'Latin'],
+      ['dubstep', 'Dubstep'], ['edm', 'EDM'],
+    ];
+    for (const [pattern, name] of genrePatterns) {
+      if (p.includes(pattern)) return name;
+    }
+    return 'Electronic';
+  }
+
+  private pickKeyForGenre(genre: string): string {
+    const keyMap: Record<string, string[]> = {
+      'Hip Hop': ['Cm', 'Fm', 'Gm', 'Am'],
+      'Boom Bap': ['Am', 'Dm', 'Em', 'Cm'],
+      'Trap': ['Cm', 'F#m', 'Am', 'Dm'],
+      'Drill': ['Cm', 'Gm', 'Fm', 'Bbm'],
+      'House': ['Am', 'Dm', 'Em', 'Gm'],
+      'Deep House': ['Am', 'Dm', 'Cm', 'Fm'],
+      'Techno': ['Am', 'Fm', 'Cm', 'Gm'],
+      'Lo-Fi': ['C', 'Am', 'F', 'Dm'],
+      'Jazz': ['Dm', 'G', 'C', 'Am'],
+      'Ambient': ['C', 'Am', 'Em', 'Dm'],
+      'Rock': ['E', 'A', 'D', 'G'],
+      'Pop': ['C', 'G', 'Am', 'F'],
+      'R&B': ['Dm', 'Gm', 'Am', 'Cm'],
+      'Soul': ['Dm', 'Am', 'Gm', 'Cm'],
+      'Country': ['G', 'C', 'D', 'A'],
+      'Reggae': ['Am', 'Dm', 'Em', 'G'],
+      'Reggaeton': ['Am', 'Dm', 'Gm', 'Cm'],
+      'Funk': ['Em', 'Am', 'Dm', 'Gm'],
+      'Afrobeat': ['Am', 'Dm', 'Em', 'Gm'],
+      'Latin': ['Am', 'Dm', 'Em', 'G'],
+      'Drum & Bass': ['Am', 'Fm', 'Cm', 'Dm'],
+      'Dubstep': ['Fm', 'Cm', 'Gm', 'Dm'],
+      'EDM': ['Am', 'Dm', 'Fm', 'Cm'],
+      'Electronic': ['Am', 'Dm', 'Fm', 'C'],
+    };
+    const keys = keyMap[genre] || keyMap['Electronic'];
+    const hash = genre.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    return keys[hash % keys.length];
   }
 
   // Helper for direct raw access if needed

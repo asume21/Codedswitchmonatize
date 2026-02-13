@@ -3707,16 +3707,17 @@ ${code}
     async (req: Request, res: Response) => {
       try {
         const schema = z.object({
-          songDescription: z.string().min(1, "songDescription is required"),
+          songDescription: z.string().min(1, "songDescription is required").max(2000, "Description too long (max 2000 chars)"),
           genre: z.string().optional(),
           mood: z.string().optional(),
-          duration: z.number().optional(),
+          duration: z.number().min(5).max(300).optional(),
           includeVocals: z.boolean().optional(),
         });
 
         const parsed = schema.safeParse(req.body || {});
         if (!parsed.success) {
-          return res.status(400).json({ message: "Invalid payload" });
+          const errorMsg = parsed.error.issues.map(i => i.message).join(', ');
+          return res.status(400).json({ message: errorMsg || "Invalid payload" });
         }
 
         const {
@@ -3727,12 +3728,39 @@ ${code}
           includeVocals = true,
         } = parsed.data;
 
-        // Build prompt for Suno AI
+        // Genre-aware prompt building for better AI output
+        const genreBpmMap: Record<string, { bpm: number; instruments: string; style: string }> = {
+          'pop': { bpm: 115, instruments: 'synths, acoustic guitar, piano', style: 'polished radio-ready' },
+          'rock': { bpm: 130, instruments: 'electric guitar, bass, drums', style: 'driving and powerful' },
+          'hip hop': { bpm: 90, instruments: '808 bass, hi-hats, synth pads', style: 'rhythmic and groovy' },
+          'trap': { bpm: 145, instruments: '808 bass, rolling hi-hats, dark synths', style: 'hard-hitting and atmospheric' },
+          'house': { bpm: 125, instruments: 'synth bass, claps, filtered pads', style: 'four-on-the-floor dance' },
+          'r&b': { bpm: 70, instruments: 'rhodes, warm bass, soft drums', style: 'smooth and soulful' },
+          'jazz': { bpm: 110, instruments: 'piano, upright bass, brushed drums', style: 'sophisticated and improvisational' },
+          'country': { bpm: 115, instruments: 'acoustic guitar, fiddle, pedal steel', style: 'warm and storytelling' },
+          'electronic': { bpm: 128, instruments: 'synthesizers, drum machine, bass', style: 'modern and layered' },
+          'lo-fi': { bpm: 80, instruments: 'vinyl piano, soft drums, tape hiss', style: 'warm and nostalgic' },
+          'ambient': { bpm: 75, instruments: 'pads, reverb textures, gentle tones', style: 'spacious and ethereal' },
+          'reggae': { bpm: 75, instruments: 'offbeat guitar, bass, organ', style: 'laid-back island groove' },
+          'funk': { bpm: 110, instruments: 'slap bass, clavinet, tight drums', style: 'groovy and rhythmic' },
+        };
+
+        const genreLower = (genre || '').toLowerCase();
+        const genreInfo = genreBpmMap[genreLower] || null;
+
         const promptParts = [songDescription];
-        if (genre) promptParts.push(`Genre: ${genre}`);
+        if (genre) {
+          if (genreInfo) {
+            promptParts.push(`${genre} style at ${genreInfo.bpm} BPM`);
+            promptParts.push(`Instruments: ${genreInfo.instruments}`);
+            promptParts.push(`${genreInfo.style} production`);
+          } else {
+            promptParts.push(`Genre: ${genre}`);
+          }
+        }
         if (mood) promptParts.push(`Mood: ${mood}`);
-        if (!includeVocals) promptParts.push("Instrumental only");
-        const prompt = promptParts.join(", ");
+        if (!includeVocals) promptParts.push("Instrumental only, no vocals");
+        const prompt = promptParts.join(". ");
 
         console.log(`🎵 Generating complete song with Suno AI: "${prompt}"`);
 

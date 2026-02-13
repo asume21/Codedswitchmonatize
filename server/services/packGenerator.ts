@@ -162,45 +162,68 @@ function generateTags(prompt: string, genre: string, mood: string) {
 export function generateIntelligentPacks(prompt: string, count: number) {
   const promptLower = prompt.toLowerCase();
   
-  // Analyze prompt for musical characteristics
+  // Expanded genre map with accurate BPM ranges and key signatures
   const genreMap: Record<string, { genre: string, bpmRange: number[], keys: string[] }> = {
-    'hip hop': { genre: 'Hip Hop', bpmRange: [70, 90], keys: ['C', 'F', 'G', 'Bb'] },
-    'trap': { genre: 'Trap', bpmRange: [140, 170], keys: ['C', 'F#', 'A', 'D'] },
+    'hip hop': { genre: 'Hip Hop', bpmRange: [80, 100], keys: ['Cm', 'Fm', 'Gm', 'Bb'] },
+    'boom bap': { genre: 'Hip Hop', bpmRange: [85, 95], keys: ['Am', 'Dm', 'Em', 'Cm'] },
+    'trap': { genre: 'Trap', bpmRange: [130, 170], keys: ['Cm', 'F#m', 'Am', 'Dm'] },
+    'drill': { genre: 'Drill', bpmRange: [140, 150], keys: ['Cm', 'Gm', 'Fm', 'Bbm'] },
     'house': { genre: 'House', bpmRange: [120, 130], keys: ['Am', 'Dm', 'Em', 'Gm'] },
-    'techno': { genre: 'Techno', bpmRange: [120, 140], keys: ['Am', 'Fm', 'Cm', 'Gm'] },
-    'lo-fi': { genre: 'Lo-Fi', bpmRange: [70, 90], keys: ['C', 'Am', 'F', 'G'] },
-    'jazz': { genre: 'Jazz', bpmRange: [80, 120], keys: ['Dm7', 'G7', 'Cmaj7', 'Am7'] },
-    'electronic': { genre: 'Electronic', bpmRange: [100, 140], keys: ['C', 'D', 'F', 'G'] },
+    'deep house': { genre: 'Deep House', bpmRange: [118, 125], keys: ['Am', 'Dm', 'Cm', 'Fm'] },
+    'techno': { genre: 'Techno', bpmRange: [125, 145], keys: ['Am', 'Fm', 'Cm', 'Gm'] },
+    'lo-fi': { genre: 'Lo-Fi', bpmRange: [70, 90], keys: ['C', 'Am', 'F', 'Dm'] },
+    'lofi': { genre: 'Lo-Fi', bpmRange: [70, 90], keys: ['C', 'Am', 'F', 'Dm'] },
+    'jazz': { genre: 'Jazz', bpmRange: [80, 140], keys: ['Dm7', 'G7', 'Cmaj7', 'Am7'] },
+    'electronic': { genre: 'Electronic', bpmRange: [110, 140], keys: ['Am', 'Dm', 'Fm', 'Cm'] },
     'ambient': { genre: 'Ambient', bpmRange: [60, 90], keys: ['C', 'Am', 'Em', 'Dm'] },
-    'rock': { genre: 'Rock', bpmRange: [100, 140], keys: ['E', 'A', 'D', 'G'] },
-    'pop': { genre: 'Pop', bpmRange: [100, 130], keys: ['C', 'G', 'Am', 'F'] }
+    'rock': { genre: 'Rock', bpmRange: [110, 150], keys: ['E', 'A', 'D', 'G'] },
+    'pop': { genre: 'Pop', bpmRange: [100, 130], keys: ['C', 'G', 'Am', 'F'] },
+    'r&b': { genre: 'R&B', bpmRange: [60, 80], keys: ['Dm', 'Gm', 'Am', 'Cm'] },
+    'rnb': { genre: 'R&B', bpmRange: [60, 80], keys: ['Dm', 'Gm', 'Am', 'Cm'] },
+    'country': { genre: 'Country', bpmRange: [100, 130], keys: ['G', 'C', 'D', 'A'] },
+    'reggae': { genre: 'Reggae', bpmRange: [60, 90], keys: ['Am', 'Dm', 'Em', 'G'] },
+    'reggaeton': { genre: 'Reggaeton', bpmRange: [88, 100], keys: ['Am', 'Dm', 'Gm', 'Cm'] },
+    'funk': { genre: 'Funk', bpmRange: [100, 130], keys: ['Em', 'Am', 'Dm', 'Gm'] },
+    'soul': { genre: 'Soul', bpmRange: [70, 100], keys: ['Dm', 'Am', 'Gm', 'Cm'] },
+    'drum and bass': { genre: 'Drum & Bass', bpmRange: [160, 180], keys: ['Am', 'Fm', 'Cm', 'Dm'] },
+    'dnb': { genre: 'Drum & Bass', bpmRange: [160, 180], keys: ['Am', 'Fm', 'Cm', 'Dm'] },
+    'dubstep': { genre: 'Dubstep', bpmRange: [138, 142], keys: ['Fm', 'Cm', 'Gm', 'Dm'] },
+    'afrobeat': { genre: 'Afrobeat', bpmRange: [100, 120], keys: ['Am', 'Dm', 'Em', 'Gm'] },
+    'latin': { genre: 'Latin', bpmRange: [90, 130], keys: ['Am', 'Dm', 'Em', 'G'] },
   };
 
-  // Detect genre from prompt
-  let selectedGenre = { genre: 'Electronic', bpmRange: [100, 130], keys: ['C', 'G', 'Am', 'F'] };
-  for (const [key, value] of Object.entries(genreMap)) {
+  // Detect genre from prompt — check longer phrases first for accuracy
+  const sortedGenreKeys = Object.keys(genreMap).sort((a, b) => b.length - a.length);
+  let selectedGenre = { genre: 'Electronic', bpmRange: [110, 130], keys: ['Am', 'Dm', 'Fm', 'C'] };
+  for (const key of sortedGenreKeys) {
     if (promptLower.includes(key)) {
-      selectedGenre = value;
+      selectedGenre = genreMap[key];
       break;
     }
   }
 
-  // Detect mood and energy
-  const moodMap: Record<string, { energy: number, mood: string, instruments: string[] }> = {
-    'dark': { energy: 70, mood: 'Dark', instruments: ['Bass', 'Synth Pad', 'Deep Drums'] },
-    'chill': { energy: 30, mood: 'Chill', instruments: ['Piano', 'Soft Synth', 'Light Drums'] },
-    'energetic': { energy: 90, mood: 'Energetic', instruments: ['Lead Synth', 'Heavy Drums', 'Bass'] },
-    'dreamy': { energy: 40, mood: 'Dreamy', instruments: ['Pad', 'Reverb Guitar', 'Soft Drums'] },
-    'intense': { energy: 95, mood: 'Intense', instruments: ['Heavy Bass', 'Percussion', 'Distorted Synth'] },
-    'warm': { energy: 50, mood: 'Warm', instruments: ['Rhodes', 'Vinyl', 'Jazz Drums'] },
-    'cinematic': { energy: 80, mood: 'Cinematic', instruments: ['Strings', 'Brass', 'Orchestra Drums'] }
+  // Weighted mood detection — score all moods, pick highest
+  const moodMap: Record<string, { energy: number, mood: string, instruments: string[], keywords: string[] }> = {
+    'dark': { energy: 70, mood: 'Dark', instruments: ['Bass', 'Synth Pad', 'Deep Drums'], keywords: ['dark', 'evil', 'sinister', 'menacing', 'gritty', 'noir'] },
+    'chill': { energy: 30, mood: 'Chill', instruments: ['Piano', 'Soft Synth', 'Light Drums'], keywords: ['chill', 'relax', 'calm', 'mellow', 'smooth', 'easy', 'laid back'] },
+    'energetic': { energy: 90, mood: 'Energetic', instruments: ['Lead Synth', 'Heavy Drums', 'Bass'], keywords: ['energetic', 'hype', 'pump', 'power', 'fire', 'lit', 'turnt'] },
+    'dreamy': { energy: 40, mood: 'Dreamy', instruments: ['Pad', 'Reverb Guitar', 'Soft Drums'], keywords: ['dreamy', 'ethereal', 'floating', 'spacey', 'airy', 'celestial'] },
+    'intense': { energy: 95, mood: 'Intense', instruments: ['Heavy Bass', 'Percussion', 'Distorted Synth'], keywords: ['intense', 'aggressive', 'hard', 'heavy', 'brutal', 'rage'] },
+    'warm': { energy: 50, mood: 'Warm', instruments: ['Rhodes', 'Vinyl', 'Jazz Drums'], keywords: ['warm', 'cozy', 'soft', 'gentle', 'tender', 'soothing'] },
+    'cinematic': { energy: 80, mood: 'Cinematic', instruments: ['Strings', 'Brass', 'Orchestra Drums'], keywords: ['cinematic', 'epic', 'film', 'movie', 'orchestral', 'dramatic'] },
+    'melancholy': { energy: 35, mood: 'Melancholy', instruments: ['Piano', 'Strings', 'Soft Pad'], keywords: ['sad', 'melancholy', 'emotional', 'heartbreak', 'lonely', 'somber'] },
+    'uplifting': { energy: 85, mood: 'Uplifting', instruments: ['Bright Synth', 'Piano', 'Driving Drums'], keywords: ['uplifting', 'happy', 'bright', 'joyful', 'positive', 'euphoric'] },
+    'groovy': { energy: 70, mood: 'Groovy', instruments: ['Funk Bass', 'Clav', 'Tight Drums'], keywords: ['groovy', 'funky', 'bounce', 'groove', 'swing', 'pocket'] },
   };
 
+  // Score each mood by counting keyword matches in the prompt
+  let bestMoodScore = 0;
   let selectedMood = { energy: 60, mood: 'Balanced', instruments: ['Synth', 'Drums', 'Bass'] };
-  for (const [key, value] of Object.entries(moodMap)) {
-    if (promptLower.includes(key)) {
-      selectedMood = value;
-      break;
+  for (const [, value] of Object.entries(moodMap)) {
+    const score = value.keywords.filter(kw => promptLower.includes(kw)).length;
+    if (score > bestMoodScore) {
+      bestMoodScore = score;
+      selectedMood = { energy: value.energy, mood: value.mood, instruments: value.instruments };
     }
   }
 
