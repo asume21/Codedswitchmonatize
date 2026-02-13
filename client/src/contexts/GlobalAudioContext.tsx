@@ -198,13 +198,25 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         setSourceFromBuffer(target.buffer, target, autoplay);
       } else if (target.url) {
         void (async () => {
-          const ctx = getAudioContext();
-          const res = await fetch(target.url!);
-          const arr = await res.arrayBuffer();
-          const buf = await ctx.decodeAudioData(arr);
-          const updated = { ...target, buffer: buf, type: 'buffer' as const };
-          setPlaylist(prev => prev.map((p, i) => (i === idx ? updated : p)));
-          setSourceFromBuffer(buf, updated, autoplay);
+          try {
+            const ctx = getAudioContext();
+            const res = await fetch(target.url!);
+            if (!res.ok) {
+              console.warn(`⚠️ Audio fetch failed (${res.status}) for: ${target.url}`);
+              return;
+            }
+            const arr = await res.arrayBuffer();
+            if (arr.byteLength === 0) {
+              console.warn('⚠️ Audio file is empty:', target.url);
+              return;
+            }
+            const buf = await ctx.decodeAudioData(arr);
+            const updated = { ...target, buffer: buf, type: 'buffer' as const };
+            setPlaylist(prev => prev.map((p, i) => (i === idx ? updated : p)));
+            setSourceFromBuffer(buf, updated, autoplay);
+          } catch (err) {
+            console.warn('⚠️ Failed to load playlist audio:', target.url, err);
+          }
         })();
       }
     },
@@ -378,14 +390,22 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
           const audioEl = e.detail.element;
           const ctx = getAudioContext();
           const response = await fetch(audioEl.src);
+          if (!response.ok) {
+            console.warn(`⚠️ Audio element fetch failed (${response.status}) for: ${audioEl.src}`);
+            return;
+          }
           const arrayBuffer = await response.arrayBuffer();
+          if (arrayBuffer.byteLength === 0) {
+            console.warn('⚠️ Audio element file is empty:', audioEl.src);
+            return;
+          }
           const buffer = await ctx.decodeAudioData(arrayBuffer);
           const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: e.detail.name };
           setPlaylist([src]);
           setCurrentIndex(0);
           setSourceFromBuffer(buffer, src, false);
         } catch (err) {
-          console.error('Failed to set element for global audio:', err);
+          console.warn('⚠️ Failed to set element for global audio:', err);
         }
       })();
     };

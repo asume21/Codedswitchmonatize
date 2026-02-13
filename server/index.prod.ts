@@ -32,6 +32,7 @@ app.use(helmet({
       fontSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "https:", "wss:", process.env.APP_URL || ""].filter(Boolean),
       mediaSrc: ["'self'", "data:", "blob:", "https:"],
+      workerSrc: ["'self'", "blob:"],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"],
     },
