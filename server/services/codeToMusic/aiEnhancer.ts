@@ -64,7 +64,8 @@ export async function enhanceCodeToMusic(
   parsedCode: ParsedCode,
   genre: string,
   bpm: number,
-  variation: number = 1
+  variation: number = 1,
+  qualityMode: 'creative' | 'stable' = 'stable'
 ): Promise<AIEnhancedMusic | null> {
   const clientInfo = getClient();
   if (!clientInfo) {
@@ -74,65 +75,81 @@ export async function enhanceCodeToMusic(
 
   const { client, model } = clientInfo;
   
+  const elementTypes = parsedCode.elements.map(e => e.type);
+  const typeDistribution = {
+    classes: elementTypes.filter(t => t === 'class').length,
+    functions: elementTypes.filter(t => t === 'function').length,
+    loops: elementTypes.filter(t => t === 'loop').length,
+    conditionals: elementTypes.filter(t => t === 'conditional').length,
+    variables: elementTypes.filter(t => t === 'variable').length,
+    imports: elementTypes.filter(t => t === 'import').length,
+  };
+
   const codeAnalysis = {
     complexity: parsedCode.complexity,
     mood: parsedCode.mood || 'neutral',
     elementCount: parsedCode.elements.length,
-    hasLoops: parsedCode.elements.some(e => e.type === 'loop'),
-    hasFunctions: parsedCode.elements.some(e => e.type === 'function'),
-    hasConditionals: parsedCode.elements.some(e => e.type === 'conditional'),
-    hasClasses: parsedCode.elements.some(e => e.type === 'class'),
+    typeDistribution,
     nestingDepth: Math.max(...parsedCode.elements.map(e => e.nestingLevel), 0),
   };
 
-  const prompt = `You are a professional music composer. Analyze this code structure and generate musical elements that reflect its patterns.
+  // Calculate beat duration for timing guidance
+  const beatDuration = 60 / bpm;
+  const barDuration = beatDuration * 4;
+  const totalBars = 4;
+  const totalDuration = barDuration * totalBars;
 
-CODE ANALYSIS:
+  const prompt = `You are a professional music composer specializing in ${genre}. Convert code structure analysis into a musical composition.
+
+CODE STRUCTURE:
 - Complexity: ${codeAnalysis.complexity}/10
-- Mood: ${codeAnalysis.mood}
-- Elements: ${codeAnalysis.elementCount}
-- Has loops: ${codeAnalysis.hasLoops} (suggests repetitive musical patterns)
-- Has functions: ${codeAnalysis.hasFunctions} (suggests distinct musical sections)
-- Has conditionals: ${codeAnalysis.hasConditionals} (suggests tension/resolution)
-- Has classes: ${codeAnalysis.hasClasses} (suggests layered orchestration)
-- Nesting depth: ${codeAnalysis.nestingDepth} (deeper = more complex harmonies)
+- Mood detected: ${codeAnalysis.mood}
+- Total elements: ${codeAnalysis.elementCount}
+- Classes: ${typeDistribution.classes} (→ layered orchestration, new sections)
+- Functions: ${typeDistribution.functions} (→ distinct melodic phrases)
+- Loops: ${typeDistribution.loops} (→ repetitive/ostinato patterns)
+- Conditionals: ${typeDistribution.conditionals} (→ tension/resolution, call-and-response)
+- Variables: ${typeDistribution.variables} (→ harmonic color changes)
+- Nesting depth: ${codeAnalysis.nestingDepth} (→ harmonic complexity level)
 
-MUSICAL PARAMETERS:
+MUSICAL CONSTRAINTS:
 - Genre: ${genre}
-- BPM: ${bpm}
-- Variation: ${variation}
-- Duration: 16 beats (4 bars)
+- BPM: ${bpm} (beat = ${beatDuration.toFixed(3)}s, bar = ${barDuration.toFixed(3)}s)
+- Total duration: ${totalDuration.toFixed(1)}s (${totalBars} bars)
+- Variation seed: ${variation}
 
-Generate a JSON response with:
-1. "chords": Array of 4-8 chords with { "chord": "Am7", "duration": 4, "start": 0 }
-   - Use jazz extensions for complex code (7ths, 9ths, 11ths)
-   - Use simple triads for simple code
-   - Match mood: sad=minor progressions, happy=major progressions
-   
-2. "melody": Array of 8-16 notes with { "note": "C", "octave": 4, "start": 0, "duration": 0.5, "velocity": 0.8 }
-   - Higher complexity = more notes and variations
-   - Loops in code = melodic repetition
-   - Match the chord tones
-   
-3. "bassline": Array of 8-16 bass notes with { "note": "C", "octave": 2, "start": 0, "duration": 1 }
-   - Follow chord roots
-   - More active for high-energy code
-   
+COMPOSITION RULES:
+1. Chords MUST align to bar boundaries (start at multiples of ${barDuration.toFixed(3)})
+2. Melody notes MUST land on chord tones on strong beats (beats 1 and 3)
+3. Passing tones allowed on weak beats (beats 2 and 4)
+4. Bass follows chord roots with genre-appropriate rhythm
+5. Complexity ${codeAnalysis.complexity}/10 → ${codeAnalysis.complexity <= 3 ? 'simple triads, stepwise melody' : codeAnalysis.complexity <= 6 ? '7th chords, moderate leaps' : 'extended chords (9ths/11ths), wide intervals, chromatic passing tones'}
+6. Mood "${codeAnalysis.mood}" → ${codeAnalysis.mood === 'happy' ? 'major keys, ascending phrases' : codeAnalysis.mood === 'sad' ? 'minor keys, descending phrases, slower rhythm' : codeAnalysis.mood === 'energetic' ? 'driving rhythm, syncopation, wider range' : 'balanced dynamics, moderate movement'}
+
+Generate JSON with:
+1. "chords": Array of ${totalBars}-8 chords: { "chord": "Am7", "duration": ${barDuration.toFixed(3)}, "start": 0.0 }
+2. "melody": Array of ${Math.max(8, codeAnalysis.elementCount)}-${Math.min(32, codeAnalysis.elementCount * 3)} notes: { "note": "C", "octave": 4, "start": 0.0, "duration": ${(beatDuration * 0.5).toFixed(3)}, "velocity": 0.8 }
+3. "bassline": Array of ${totalBars * 2}-${totalBars * 4} bass notes: { "note": "C", "octave": 2, "start": 0.0, "duration": ${beatDuration.toFixed(3)} }
 4. "suggestions": { "mood": "description", "energy": "low/medium/high", "musicalStyle": "description" }
 
-Return ONLY valid JSON, no markdown or explanation.`;
+Return ONLY valid JSON.`;
+
+  // Temperature: stable mode = tighter, creative mode = more variation
+  const temperature = qualityMode === 'creative'
+    ? Math.min(1.2, 0.8 + (variation * 0.1))
+    : Math.min(0.8, 0.5 + (variation * 0.05));
 
   try {
-    console.log(`🎵 AI enhancing code-to-music: ${genre} at ${bpm} BPM`);
+    console.log(`🎵 AI enhancing code-to-music: ${genre} at ${bpm} BPM (${qualityMode} mode)`);
     
     const response = await client.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: "You are a music theory expert. Return only valid JSON." },
+        { role: "system", content: "You are a music theory expert and professional composer. Return only valid JSON. All timing values must be in seconds. Ensure chord tones align with melody on strong beats." },
         { role: "user", content: prompt }
       ],
-      temperature: 0.7 + (variation * 0.1),
-      max_tokens: 2000,
+      temperature,
+      max_tokens: 3000,
       response_format: { type: "json_object" }
     });
 

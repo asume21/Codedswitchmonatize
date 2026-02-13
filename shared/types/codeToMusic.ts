@@ -7,8 +7,9 @@ export interface CodeToMusicRequest {
   code: string;
   language: string;
   variation: number; // 0-9
-  genre: string;     // pop, rock, hiphop, edm, rnb, country
+  genre: string;     // pop, rock, hiphop, edm, rnb, country, jazz, lofi, classical
   useAI?: boolean;   // Use AI for enhanced music generation (optional, defaults to false)
+  qualityMode?: 'creative' | 'stable'; // creative = more variation, stable = more consistent
 }
 
 export interface CodeToMusicResponse {
@@ -21,6 +22,13 @@ export interface CodeToMusicResponse {
     bpm: number;
     key: string;
     duration: number;
+  };
+  codeAnalysis?: {
+    mood: string;
+    complexity: number;
+    totalElements: number;
+    totalLines: number;
+    elementBreakdown: Record<string, number>;
   };
 }
 

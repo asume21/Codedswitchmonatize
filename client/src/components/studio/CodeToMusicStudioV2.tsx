@@ -12,7 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Music, Code, Wand2, Play, Download, RefreshCw, Info, Sparkles } from 'lucide-react';
+import { Music, Code, Wand2, Play, Download, RefreshCw, Info, Sparkles, Zap, Shield, Brain } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useAudio } from '@/hooks/use-audio';
 import type { MusicData as CodeToMusicData } from '../../../../shared/types/codeToMusic';
@@ -72,6 +72,14 @@ export default function CodeToMusicStudioV2() {
   const [musicData, setMusicData] = useState<CodeToMusicData | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [useAI, setUseAI] = useState(false);
+  const [qualityMode, setQualityMode] = useState<'stable' | 'creative'>('stable');
+  const [codeAnalysis, setCodeAnalysis] = useState<{
+    mood: string;
+    complexity: number;
+    totalElements: number;
+    totalLines: number;
+    elementBreakdown: Record<string, number>;
+  } | null>(null);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const { toast } = useToast();
   const { playNote, initialize, isInitialized } = useAudio();
@@ -94,6 +102,7 @@ export default function CodeToMusicStudioV2() {
         genre,
         variation: variation[0],
         useAI,
+        qualityMode,
       });
 
       if (!response.ok) {
@@ -105,9 +114,12 @@ export default function CodeToMusicStudioV2() {
       
       if (data.success) {
         setMusicData(data.music);
+        if (data.codeAnalysis) {
+          setCodeAnalysis(data.codeAnalysis);
+        }
         toast({
           title: 'Music Generated! 🎵',
-          description: `Created ${data.music.melody.length} notes in ${data.metadata.genre} style`,
+          description: `Created ${data.music.melody.length} notes in ${data.metadata.genre} style (${data.codeAnalysis?.mood || 'neutral'} mood)`,
         });
       } else {
         throw new Error(data.error || 'Generation failed');
@@ -357,6 +369,31 @@ export default function CodeToMusicStudioV2() {
               />
             </div>
 
+            {/* Quality Mode Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-cyan-500/20">
+              <div className="flex items-center gap-2">
+                {qualityMode === 'creative' ? (
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                ) : (
+                  <Shield className="w-4 h-4 text-cyan-400" />
+                )}
+                <div>
+                  <label className="text-sm font-medium text-gray-200">
+                    {qualityMode === 'creative' ? 'Creative Mode' : 'Stable Mode'}
+                  </label>
+                  <p className="text-xs text-gray-500">
+                    {qualityMode === 'creative'
+                      ? 'More variation and surprises'
+                      : 'Consistent, reliable output'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={qualityMode === 'creative'}
+                onCheckedChange={(checked) => setQualityMode(checked ? 'creative' : 'stable')}
+              />
+            </div>
+
             {/* Code Editor */}
             <div className="flex-1 flex flex-col">
               <Textarea
@@ -437,6 +474,45 @@ export default function CodeToMusicStudioV2() {
                     </div>
                   </div>
                 </div>
+
+                {/* Code Analysis Preview */}
+                {codeAnalysis && (
+                  <div className="bg-slate-950 p-4 rounded-lg border border-cyan-500/30 space-y-2">
+                    <div className="text-sm font-medium text-cyan-400 flex items-center gap-2">
+                      <Brain className="w-4 h-4" />
+                      Code Analysis
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-400">Mood:</span>
+                        <span className="ml-2 text-yellow-400 capitalize">{codeAnalysis.mood}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Complexity:</span>
+                        <span className="ml-2 text-orange-400">{codeAnalysis.complexity}/10</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Lines:</span>
+                        <span className="ml-2 text-gray-300">{codeAnalysis.totalLines}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Elements:</span>
+                        <span className="ml-2 text-gray-300">{codeAnalysis.totalElements}</span>
+                      </div>
+                    </div>
+                    {codeAnalysis.elementBreakdown && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {Object.entries(codeAnalysis.elementBreakdown)
+                          .filter(([, count]) => count > 0)
+                          .map(([type, count]) => (
+                            <Badge key={type} variant="outline" className="text-xs border-slate-600 text-gray-400">
+                              {type}: {count}
+                            </Badge>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Music Stats */}
                 <div className="bg-slate-950 p-4 rounded-lg border border-slate-700 space-y-2">

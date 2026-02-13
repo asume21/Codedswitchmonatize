@@ -50,6 +50,7 @@ interface MelodyConfig {
   contourPattern: number[];
   velocityRange: [number, number];
   octaveRange: [number, number];
+  bpm: number;
 }
 
 /**
@@ -166,7 +167,7 @@ export function generatePhraseFromElement(
   for (let i = 0; i < phraseLength; i++) {
     // Get rhythm duration
     const rhythmIndex = (phraseIndex + i) % config.rhythmPattern.length;
-    const duration = config.rhythmPattern[rhythmIndex] * (60 / 120); // Convert to seconds at 120 BPM base
+    const duration = config.rhythmPattern[rhythmIndex] * (60 / config.bpm); // Convert to seconds at actual BPM
     
     // Get contour movement
     const contourIndex = (hash + i) % config.contourPattern.length;
@@ -328,10 +329,17 @@ export function addOrnaments(
   if (complexity < 5) return melody; // No ornaments for simple code
   
   const ornamentedMelody: MelodyNote[] = [];
+  // Use seeded random for reproducibility (same code = same ornaments)
+  const seedValue = rootNote * 1000 + complexity * 100 + melody.length;
+  let rngState = seedValue;
+  const seededRng = () => {
+    rngState = (rngState * 9301 + 49297) % 233280;
+    return rngState / 233280;
+  };
   
   melody.forEach((note, index) => {
     // Add grace note before important notes (10% chance based on complexity)
-    if (complexity > 7 && index > 0 && Math.random() < 0.1) {
+    if (complexity > 7 && index > 0 && seededRng() < 0.1) {
       const graceNoteMidi = NOTE_NAMES.indexOf(note.note.replace(/\d/, ''));
       const graceMidi = graceNoteMidi > 0 ? graceNoteMidi - 1 : graceNoteMidi + 1;
       const graceOctave = parseInt(note.note.match(/\d/)?.[0] || '4');
@@ -371,7 +379,11 @@ export function generateAdvancedMelody(
   const contourPattern = getContourPattern(parsedCode);
   
   // Root note based on key (default C4 = 60)
-  const rootNote = 60 + (variation % 12); // Transpose based on variation
+  // Use musically consonant intervals for variation transposition
+  // 0=unison, 1=P4 up, 2=P5 up, 3=m3 up, 4=M3 up, 5=M2 up, 6=m7 up, 7=M6 up, 8=m2 up, 9=tritone
+  const MUSICAL_INTERVALS = [0, 5, 7, 3, 4, 2, 10, 9, 1, 6];
+  const transposition = MUSICAL_INTERVALS[variation % MUSICAL_INTERVALS.length];
+  const rootNote = 60 + transposition;
   
   const config: MelodyConfig = {
     scale,
@@ -380,6 +392,7 @@ export function generateAdvancedMelody(
     contourPattern,
     velocityRange: [70, 110],
     octaveRange: [3, 6],
+    bpm,
   };
   
   // Generate melody from code elements

@@ -25,12 +25,14 @@ export async function convertCodeToMusic(
 ): Promise<CodeToMusicResponse> {
   try {
     const useAI = request.useAI && isAIAvailable();
+    const qualityMode = request.qualityMode || 'stable';
     
     console.log('🎵 Code-to-Music: Starting conversion', {
       language: request.language,
       genre: request.genre,
       variation: request.variation,
       codeLength: request.code.length,
+      qualityMode,
       useAI,
     });
 
@@ -42,11 +44,29 @@ export async function convertCodeToMusic(
       };
     }
 
+    // Input length validation
+    const MAX_CODE_LENGTH = 50000; // 50KB limit
+    if (request.code.length > MAX_CODE_LENGTH) {
+      return {
+        success: false,
+        error: `Code is too long (${request.code.length} chars). Maximum is ${MAX_CODE_LENGTH} characters.`,
+      };
+    }
+
+    // Minimum meaningful code check
+    const trimmedLines = request.code.split('\n').filter(l => l.trim().length > 0);
+    if (trimmedLines.length < 2) {
+      return {
+        success: false,
+        error: 'Code must have at least 2 non-empty lines for meaningful music generation.',
+      };
+    }
+
     // Get genre configuration
     const genreConfig = getGenreConfig(request.genre || DEFAULT_GENRE);
     console.log('🎸 Using genre:', genreConfig.displayName);
 
-    // Parse code structure (Step 3 - COMPLETE)
+    // Parse code structure
     const parsedCode = parseCodeStructure(request.code, request.language);
     const stats = getCodeStatistics(parsedCode);
     
@@ -56,6 +76,22 @@ export async function convertCodeToMusic(
       mood: parsedCode.mood,
       stats,
     });
+
+    // Build code analysis preview for the response
+    const codeAnalysis = {
+      mood: parsedCode.mood || 'neutral',
+      complexity: parsedCode.complexity,
+      totalElements: parsedCode.elements.length,
+      totalLines: parsedCode.totalLines,
+      elementBreakdown: {
+        classes: stats.classes,
+        functions: stats.functions,
+        variables: stats.variables,
+        loops: stats.loops,
+        conditionals: stats.conditionals,
+        imports: stats.imports,
+      },
+    };
 
     // Calculate optimal BPM
     const bpm = calculateOptimalBPM(parsedCode, genreConfig.bpm);
@@ -69,7 +105,7 @@ export async function convertCodeToMusic(
     // Try AI-enhanced generation if requested
     if (useAI) {
       console.log('🤖 Attempting AI-enhanced music generation...');
-      const aiResult = await enhanceCodeToMusic(parsedCode, genreConfig.name, bpm, request.variation);
+      const aiResult = await enhanceCodeToMusic(parsedCode, genreConfig.name, bpm, request.variation, qualityMode);
       
       if (aiResult) {
         aiEnhanced = true;
@@ -156,6 +192,7 @@ export async function convertCodeToMusic(
       success: true,
       music,
       metadata: music.metadata,
+      codeAnalysis,
     };
   } catch (error) {
     console.error('❌ Code-to-Music error:', error);
@@ -186,15 +223,20 @@ function generateSeed(code: string, variation: number): number {
  * Pick a key based on genre/mood to avoid everything being C major.
  */
 function pickKeyForGenre(genre: string, mood: string): string {
-  const keyMap: Record<string, string> = {
-    pop: mood === 'sad' ? 'A Minor' : 'C Major',
-    rock: 'G Major',
-    hiphop: 'A Minor',
-    edm: 'D Minor',
-    rnb: 'F Major',
-    country: 'D Major',
+  const keyMap: Record<string, Record<string, string>> = {
+    pop: { happy: 'C Major', sad: 'A Minor', energetic: 'G Major', neutral: 'C Major' },
+    rock: { happy: 'G Major', sad: 'E Minor', energetic: 'A Major', neutral: 'G Major' },
+    hiphop: { happy: 'F Major', sad: 'A Minor', energetic: 'G Minor', neutral: 'A Minor' },
+    edm: { happy: 'C Minor', sad: 'D Minor', energetic: 'A Minor', neutral: 'D Minor' },
+    rnb: { happy: 'F Major', sad: 'D Minor', energetic: 'G Major', neutral: 'F Major' },
+    country: { happy: 'D Major', sad: 'A Minor', energetic: 'G Major', neutral: 'D Major' },
+    jazz: { happy: 'C Major', sad: 'D Minor', energetic: 'Bb Major', neutral: 'F Major' },
+    lofi: { happy: 'F Major', sad: 'A Minor', energetic: 'D Minor', neutral: 'A Minor' },
+    classical: { happy: 'C Major', sad: 'A Minor', energetic: 'D Major', neutral: 'C Major' },
   };
-  return keyMap[genre] || 'C Major';
+  const genreKeys = keyMap[genre];
+  if (!genreKeys) return 'C Major';
+  return genreKeys[mood] || genreKeys.neutral || 'C Major';
 }
 
 /**
@@ -339,17 +381,36 @@ export async function convertCodeToMusicEnhanced(
 ): Promise<CodeToMusicResponse> {
   try {
     const useAI = request.useAI && isAIAvailable();
+    const qualityMode = request.qualityMode || 'stable';
     
     console.log('🎵 Enhanced Code-to-Music: Starting conversion', {
       language: request.language,
       genre: request.genre,
       variation: request.variation,
       codeLength: request.code.length,
+      qualityMode,
       useAI,
     });
 
     if (!request.code || request.code.trim().length === 0) {
       return { success: false, error: 'Code cannot be empty' };
+    }
+
+    // Input length validation
+    const MAX_CODE_LENGTH = 50000;
+    if (request.code.length > MAX_CODE_LENGTH) {
+      return {
+        success: false,
+        error: `Code is too long (${request.code.length} chars). Maximum is ${MAX_CODE_LENGTH} characters.`,
+      };
+    }
+
+    const trimmedLines = request.code.split('\n').filter(l => l.trim().length > 0);
+    if (trimmedLines.length < 2) {
+      return {
+        success: false,
+        error: 'Code must have at least 2 non-empty lines for meaningful music generation.',
+      };
     }
 
     const genreConfig = getGenreConfig(request.genre || DEFAULT_GENRE);
@@ -363,13 +424,29 @@ export async function convertCodeToMusicEnhanced(
       stats,
     });
 
+    // Build code analysis preview for the response
+    const codeAnalysis = {
+      mood: parsedCode.mood || 'neutral',
+      complexity: parsedCode.complexity,
+      totalElements: parsedCode.elements.length,
+      totalLines: parsedCode.totalLines,
+      elementBreakdown: {
+        classes: stats.classes,
+        functions: stats.functions,
+        variables: stats.variables,
+        loops: stats.loops,
+        conditionals: stats.conditionals,
+        imports: stats.imports,
+      },
+    };
+
     // Calculate optimal BPM based on code characteristics
     const bpm = calculateOptimalBPM(parsedCode, genreConfig.bpm);
     
     // Try AI-enhanced generation if requested and available
     if (useAI) {
       console.log('🤖 Attempting AI-enhanced music generation...');
-      const aiResult = await enhanceCodeToMusic(parsedCode, genreConfig.name, bpm, request.variation);
+      const aiResult = await enhanceCodeToMusic(parsedCode, genreConfig.name, bpm, request.variation, qualityMode);
       
       if (aiResult) {
         console.log('✅ AI enhancement successful!');
@@ -474,6 +551,7 @@ export async function convertCodeToMusicEnhanced(
           success: true,
           music,
           metadata: music.metadata,
+          codeAnalysis,
         };
       } else {
         console.log('⚠️ AI enhancement failed, falling back to standard generation');
@@ -573,6 +651,7 @@ export async function convertCodeToMusicEnhanced(
       success: true,
       music,
       metadata: music.metadata,
+      codeAnalysis,
     };
   } catch (error) {
     console.error('❌ Enhanced Code-to-Music error:', error);

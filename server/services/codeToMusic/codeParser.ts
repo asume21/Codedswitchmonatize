@@ -107,13 +107,44 @@ function calculateNestingLevel(line: string): number {
 }
 
 /**
+ * Pre-process code: strip comments, normalize whitespace, clean input
+ */
+function preprocessCode(code: string, language: string): string {
+  let cleaned = code;
+
+  // Remove block comments (/* ... */ and """ ... """)
+  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
+  cleaned = cleaned.replace(/"""[\s\S]*?"""/g, '');
+  cleaned = cleaned.replace(/'''[\s\S]*?'''/g, '');
+
+  // Remove single-line comments but preserve the line structure
+  cleaned = cleaned.replace(/\/\/.*$/gm, '');
+  if (['python', 'py', 'ruby'].includes(language.toLowerCase())) {
+    cleaned = cleaned.replace(/#.*$/gm, '');
+  }
+
+  // Normalize tabs to spaces
+  cleaned = cleaned.replace(/\t/g, '  ');
+
+  // Remove trailing whitespace per line
+  cleaned = cleaned.replace(/[ \t]+$/gm, '');
+
+  // Collapse multiple blank lines into one
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  return cleaned.trim();
+}
+
+/**
  * Parse code structure and extract elements
  */
 export function parseCodeStructure(code: string, language: string): ParsedCode {
   const normalizedLang = normalizeLanguage(language);
   const patterns = LANGUAGE_PATTERNS[normalizedLang];
   
-  const lines = code.split('\n');
+  // Pre-process code before parsing
+  const cleanedCode = preprocessCode(code, language);
+  const lines = cleanedCode.split('\n');
   const elements: CodeElement[] = [];
   
   lines.forEach((line, index) => {
@@ -148,8 +179,8 @@ export function parseCodeStructure(code: string, language: string): ParsedCode {
   // Calculate complexity (simple heuristic)
   const complexity = Math.min(10, Math.max(1, Math.floor(elements.length / 3) + 1));
   
-  // Detect mood based on keywords
-  const mood = detectMood(code);
+  // Detect mood based on keywords (use cleaned code for better accuracy)
+  const mood = detectMood(cleanedCode);
   
   return {
     elements,
@@ -166,22 +197,79 @@ export function parseCodeStructure(code: string, language: string): ParsedCode {
 function detectMood(code: string): 'happy' | 'sad' | 'neutral' | 'energetic' {
   const codeLower = code.toLowerCase();
   
-  // Happy keywords
-  const happyKeywords = ['success', 'win', 'complete', 'done', 'yes', 'true', 'ok', 'valid'];
-  const happyCount = happyKeywords.filter(k => codeLower.includes(k)).length;
-  
-  // Sad keywords
-  const sadKeywords = ['error', 'fail', 'exception', 'crash', 'bug', 'false', 'invalid'];
-  const sadCount = sadKeywords.filter(k => codeLower.includes(k)).length;
-  
-  // Energetic keywords
-  const energeticKeywords = ['fast', 'quick', 'speed', 'run', 'go', 'async', 'parallel'];
-  const energeticCount = energeticKeywords.filter(k => codeLower.includes(k)).length;
-  
-  // Determine mood
-  if (energeticCount > happyCount && energeticCount > sadCount) return 'energetic';
-  if (happyCount > sadCount) return 'happy';
-  if (sadCount > happyCount) return 'sad';
+  // Count occurrences of each keyword (frequency-based, not just presence)
+  const countOccurrences = (text: string, keyword: string): number => {
+    let count = 0;
+    let pos = 0;
+    while ((pos = text.indexOf(keyword, pos)) !== -1) {
+      count++;
+      pos += keyword.length;
+    }
+    return count;
+  };
+
+  // Weighted keyword maps: [keyword, weight]
+  const happyKeywords: [string, number][] = [
+    ['success', 3], ['win', 2], ['complete', 2], ['done', 2], ['resolve', 2],
+    ['true', 1], ['ok', 1], ['valid', 2], ['approve', 3], ['accept', 2],
+    ['create', 1], ['build', 1], ['new', 1], ['start', 1], ['open', 1],
+    ['enable', 2], ['allow', 1], ['grant', 2], ['welcome', 3], ['celebrate', 3],
+  ];
+
+  const sadKeywords: [string, number][] = [
+    ['error', 3], ['fail', 3], ['exception', 3], ['crash', 3], ['bug', 2],
+    ['false', 1], ['invalid', 2], ['reject', 2], ['deny', 2], ['block', 2],
+    ['delete', 1], ['remove', 1], ['destroy', 2], ['kill', 2], ['abort', 3],
+    ['deprecated', 2], ['broken', 3], ['missing', 2], ['null', 1], ['undefined', 1],
+    ['throw', 2], ['catch', 1], ['warn', 1], ['fatal', 3], ['panic', 3],
+  ];
+
+  const energeticKeywords: [string, number][] = [
+    ['fast', 2], ['quick', 2], ['speed', 2], ['run', 1], ['go', 1],
+    ['async', 2], ['parallel', 3], ['concurrent', 3], ['stream', 2], ['emit', 2],
+    ['loop', 2], ['iterate', 2], ['recursive', 3], ['while', 1], ['for', 1],
+    ['spawn', 2], ['thread', 3], ['worker', 2], ['batch', 2], ['queue', 2],
+    ['realtime', 3], ['instant', 2], ['trigger', 2], ['fire', 2], ['dispatch', 2],
+  ];
+
+  // Calculate weighted scores
+  let happyScore = 0;
+  let sadScore = 0;
+  let energeticScore = 0;
+
+  for (const [keyword, weight] of happyKeywords) {
+    happyScore += countOccurrences(codeLower, keyword) * weight;
+  }
+  for (const [keyword, weight] of sadKeywords) {
+    sadScore += countOccurrences(codeLower, keyword) * weight;
+  }
+  for (const [keyword, weight] of energeticKeywords) {
+    energeticScore += countOccurrences(codeLower, keyword) * weight;
+  }
+
+  // Structural analysis boosts
+  const lines = code.split('\n');
+  const loopCount = lines.filter(l => /\b(for|while|do)\b/.test(l)).length;
+  const condCount = lines.filter(l => /\b(if|switch|case)\b/.test(l)).length;
+  const funcCount = lines.filter(l => /\b(function|def|fn|func)\b/.test(l)).length;
+
+  // Many loops → energetic; many conditionals → complex/sad; many functions → structured/happy
+  energeticScore += loopCount * 2;
+  sadScore += Math.max(0, condCount - 3); // Only sad if lots of branching
+  happyScore += Math.max(0, funcCount - 2); // Well-structured code feels positive
+
+  // Normalize by code length to avoid bias toward longer code
+  const normalizer = Math.max(1, lines.length / 20);
+  happyScore /= normalizer;
+  sadScore /= normalizer;
+  energeticScore /= normalizer;
+
+  // Determine mood with minimum threshold
+  const maxScore = Math.max(happyScore, sadScore, energeticScore);
+  if (maxScore < 1) return 'neutral';
+  if (energeticScore === maxScore) return 'energetic';
+  if (happyScore === maxScore) return 'happy';
+  if (sadScore === maxScore) return 'sad';
   return 'neutral';
 }
 
