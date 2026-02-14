@@ -1,5 +1,4 @@
 import { useState, useContext, useEffect, useCallback, useMemo, useRef } from "react";
-import * as Tone from "tone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -828,22 +827,25 @@ export default function SongUploader() {
         }
       }
 
-      const targetUrls = stemUrls.length ? stemUrls : [accessibleURL];
-      const premixKey = `${song.id ?? accessibleURL}:${targetUrls.join('|')}`;
+      // Only premix when we have multiple stem URLs; skip for single-file playback
       let premixedUrl: string | null = null;
-      if (!inFlightPremixRef.current.has(premixKey)) {
-        inFlightPremixRef.current.set(
-          premixKey,
-          premixCacheRef.current
-            .getOrCreate(premixKey, targetUrls)
-            .catch((err: unknown) => {
-              console.warn('Premix failed for uploaded song', err);
-              return null;
-            })
-        );
+      if (stemUrls.length > 1) {
+        const targetUrls = stemUrls;
+        const premixKey = `${song.id ?? accessibleURL}:${targetUrls.join('|')}`;
+        if (!inFlightPremixRef.current.has(premixKey)) {
+          inFlightPremixRef.current.set(
+            premixKey,
+            premixCacheRef.current
+              .getOrCreate(premixKey, targetUrls)
+              .catch((err: unknown) => {
+                console.warn('Premix failed for uploaded song', err);
+                return null;
+              })
+          );
+        }
+        premixedUrl = await inFlightPremixRef.current.get(premixKey)!;
+        inFlightPremixRef.current.delete(premixKey);
       }
-      premixedUrl = await inFlightPremixRef.current.get(premixKey)!;
-      inFlightPremixRef.current.delete(premixKey);
 
       // Create fresh audio element and store it immediately so Transport can see it
       const audio = new Audio();
@@ -976,26 +978,9 @@ export default function SongUploader() {
       audio.src = premixedUrl ?? accessibleURL;
       audio.preload = "auto";
       
-      // Initialize/Resume professional audio context
-      await professionalAudio.initialize();
-      const audioCtx = professionalAudio.getAudioContext();
-      const masterBus = professionalAudio.getMasterBus();
-      
-      if (audioCtx && masterBus) {
-        // Create source and connect to professional audio graph
-        const source = audioCtx.createMediaElementSource(audio);
-        source.connect(masterBus);
-        console.log('🎛️ Routed uploaded song through professional master bus');
-      }
-      
-      // Initialize Tone.js if needed (requires user interaction)
-      if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-        await Tone.start();
-        console.log('🎵 Tone.js AudioContext started');
-      }
-      
       // Store in context for Global Transport to play
       studioContext.setCurrentUploadedSong(song, audio);
+
       // Broadcast to Astutely/global listeners so any view can route playback
       window.dispatchEvent(new CustomEvent('astutely:load', {
         detail: {
@@ -1006,20 +991,32 @@ export default function SongUploader() {
           source: 'song-uploader'
         }
       }));
-      
-      // Start playback immediately
+
+      // Start playback immediately — do this BEFORE pro audio routing
+      // so the user hears something even if the routing step fails
       try {
-        // Ensure the element is ready
         await audio.play();
         console.log('▶️ Playback started for:', song.name);
       } catch (playError) {
         console.warn('⚠️ Auto-play blocked, user interaction required:', playError);
       }
-      
-      // Also load into global audio player for persistent playback across navigation
-      window.dispatchEvent(new CustomEvent('globalAudio:load', {
-        detail: { name: song.name, url: accessibleURL, type: 'song', autoplay: true }
-      }));
+
+      // Optionally route through professional audio graph for EQ/compression
+      // This is wrapped in try/catch so playback still works if routing fails
+      try {
+        await professionalAudio.initialize();
+        const audioCtx = professionalAudio.getAudioContext();
+        const masterBus = professionalAudio.getMasterBus();
+        
+        if (audioCtx && masterBus && audioCtx.state === 'running') {
+          const source = audioCtx.createMediaElementSource(audio);
+          source.connect(masterBus);
+          console.log('🎛️ Routed uploaded song through professional master bus');
+        }
+      } catch (routingError) {
+        // Audio is already playing through default output — this is fine
+        console.warn('⚠️ Pro audio routing skipped (audio still playing):', routingError);
+      }
       
       toast({
         title: "Song Playing",
