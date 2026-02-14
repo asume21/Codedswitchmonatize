@@ -107,6 +107,12 @@ export class RealisticAudioEngine {
   public bassDrumDuration = 0.8;
   private instrumentLibrary: { [key: string]: string };
 
+  // Pre-allocated noise buffers to avoid creating them on every drum hit
+  // (creating AudioBuffers on the main thread is expensive and causes crackling)
+  private noiseBufferShort: AudioBuffer | null = null;  // ~20ms for kick transients
+  private noiseBufferMedium: AudioBuffer | null = null;  // ~50ms for snare
+  private noiseBufferLong: AudioBuffer | null = null;    // ~150ms for claps/crashes
+
   // Drum kit voicing profiles
   private drumKitAliases: Record<string, string> = {
     trap: '808',
@@ -186,6 +192,44 @@ export class RealisticAudioEngine {
     this.instrumentLibrary = INSTRUMENT_LIBRARY;
     // Periodic cleanup of finished nodes every 2 seconds (more frequent for better performance)
     setInterval(() => this.cleanupFinishedNodes(), 2000);
+    // Pre-allocate noise buffers once so drum hits don't create them on every trigger
+    this.initNoiseBuffers();
+  }
+
+  /**
+   * Pre-allocate reusable noise buffers for drum synthesis.
+   * Creating AudioBuffers with Math.random() loops on every drum hit
+   * is expensive and blocks the main thread, causing crackling.
+   */
+  private initNoiseBuffers() {
+    const ctx = this.audioContext;
+    if (!ctx) return;
+
+    const rate = ctx.sampleRate;
+
+    // Short noise (~20ms) for kick transients
+    const shortLen = Math.ceil(rate * 0.02);
+    this.noiseBufferShort = ctx.createBuffer(1, shortLen, rate);
+    const shortData = this.noiseBufferShort.getChannelData(0);
+    for (let i = 0; i < shortLen; i++) {
+      shortData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (rate * 0.003));
+    }
+
+    // Medium noise (~150ms) for snare
+    const medLen = Math.ceil(rate * 0.15);
+    this.noiseBufferMedium = ctx.createBuffer(1, medLen, rate);
+    const medData = this.noiseBufferMedium.getChannelData(0);
+    for (let i = 0; i < medLen; i++) {
+      medData[i] = Math.random() * 2 - 1;
+    }
+
+    // Long noise (~400ms) for claps, crashes, shakers
+    const longLen = Math.ceil(rate * 0.4);
+    this.noiseBufferLong = ctx.createBuffer(1, longLen, rate);
+    const longData = this.noiseBufferLong.getChannelData(0);
+    for (let i = 0; i < longLen; i++) {
+      longData[i] = Math.random() * 2 - 1;
+    }
   }
 
   /**
@@ -742,14 +786,9 @@ export class RealisticAudioEngine {
       clickGain.gain.linearRampToValueAtTime(clickVol, currentTime + 0.002);
       clickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.035);
       
-      // === TRANSIENT NOISE LAYER (adds realistic attack) ===
-      const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.02, ctx.sampleRate);
-      const noiseData = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < noiseData.length; i++) {
-        noiseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.003));
-      }
+      // === TRANSIENT NOISE LAYER (uses pre-allocated buffer) ===
       const noiseSource = ctx.createBufferSource();
-      noiseSource.buffer = noiseBuffer;
+      noiseSource.buffer = this.noiseBufferShort!;
       
       const noiseGain = ctx.createGain();
       const noiseFilter = ctx.createBiquadFilter();
@@ -812,17 +851,8 @@ export class RealisticAudioEngine {
       const snareToneGain = this.audioContext.createGain();
       const snareFilter = this.audioContext.createBiquadFilter();
 
-      // Generate proper snare noise
-      const bufferSize = this.audioContext.sampleRate * s.noiseDecay;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
-
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 2);
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      snareNoise.buffer = buffer;
+      // Use pre-allocated medium noise buffer (envelope is shaped by gain node instead)
+      snareNoise.buffer = this.noiseBufferMedium!;
 
       // Snare fundamental
       snareTone.type = 'triangle';
@@ -874,17 +904,9 @@ export class RealisticAudioEngine {
       const hihatFilter = this.audioContext.createBiquadFilter();
 
       const duration = h.decay;
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate hi-hat noise with proper envelope
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 4);
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      hihatNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      hihatNoise.buffer = this.noiseBufferMedium!;
 
       // High-pass for metallic character
       hihatFilter.type = 'highpass';
@@ -994,17 +1016,9 @@ export class RealisticAudioEngine {
       const percFilter = this.audioContext.createBiquadFilter();
 
       const duration = 0.08;
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Short burst of filtered noise
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 6);
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      percNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      percNoise.buffer = this.noiseBufferShort!;
 
       // High bandpass for bright, short perc sound
       percFilter.type = 'bandpass';
@@ -1085,17 +1099,9 @@ export class RealisticAudioEngine {
       const openhatFilter = this.audioContext.createBiquadFilter();
 
       const duration = h.decay; // Longer than closed hi-hat
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate open hi-hat noise with slower envelope
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 2); // Slower decay than closed hat
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      openhatNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      openhatNoise.buffer = this.noiseBufferMedium!;
 
       // High-pass for metallic character
       openhatFilter.type = 'highpass';
@@ -1128,17 +1134,9 @@ export class RealisticAudioEngine {
       const clapFilter2 = this.audioContext.createBiquadFilter();
 
       const duration = 0.08;
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate tight clap noise with sharp attack
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = i < bufferSize * 0.1 ? 1 : Math.pow(1 - ((i - bufferSize * 0.1) / (bufferSize * 0.9)), 4);
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      clapNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      clapNoise.buffer = this.noiseBufferMedium!;
 
       // Two-stage filtering for crisp clap sound
       clapFilter.type = 'highpass';
@@ -1177,17 +1175,9 @@ export class RealisticAudioEngine {
       const crashFilter = this.audioContext.createBiquadFilter();
 
       const duration = 1.2; // Shorter than UFO version but still long crash
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate crash noise with natural decay
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 0.3); // Natural crash decay
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      crashNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      crashNoise.buffer = this.noiseBufferLong!;
 
       // High-pass filter for bright metallic crash
       crashFilter.type = 'highpass';
@@ -1315,17 +1305,9 @@ export class RealisticAudioEngine {
       const masterGain = this.audioContext.createGain();
 
       const duration = 0.8; // Medium sustain
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate metallic noise
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 1.5);
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      rideNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      rideNoise.buffer = this.noiseBufferLong!;
 
       // Bell tone component
       rideTone.type = 'sine';
@@ -1376,17 +1358,9 @@ export class RealisticAudioEngine {
       const fxFilter = this.audioContext.createBiquadFilter();
 
       const duration = 0.6;
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate reverse-envelope noise (builds up)
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(i / bufferSize, 2); // Reverse envelope
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      fxNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      fxNoise.buffer = this.noiseBufferLong!;
 
       // Sweeping filter
       fxFilter.type = 'lowpass';
@@ -1428,16 +1402,9 @@ export class RealisticAudioEngine {
 
       // Noise component for texture
       const duration = 0.15;
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 4);
-        data[i] = (Math.random() * 2 - 1) * envelope * 0.3;
-      }
-
-      foleyNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      foleyNoise.buffer = this.noiseBufferShort!;
 
       // Mid-range filter
       foleyFilter.type = 'bandpass';
@@ -1535,20 +1502,9 @@ export class RealisticAudioEngine {
       const vinylFilter = this.audioContext.createBiquadFilter();
 
       const duration = 0.2;
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate vinyl crackle (random pops and noise)
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.pow(1 - (i / bufferSize), 3);
-        // Random pops mixed with noise
-        const pop = Math.random() > 0.95 ? (Math.random() * 2 - 1) * 2 : 0;
-        const noise = (Math.random() * 2 - 1) * 0.3;
-        data[i] = (pop + noise) * envelope;
-      }
-
-      vinylNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      vinylNoise.buffer = this.noiseBufferMedium!;
 
       // Mid-high filter for vinyl character
       vinylFilter.type = 'highpass';
@@ -1580,17 +1536,9 @@ export class RealisticAudioEngine {
       const shakerFilter = this.audioContext.createBiquadFilter();
 
       const duration = 0.12;
-      const bufferSize = this.audioContext.sampleRate * duration;
-      const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
 
-      // Generate shaker noise
-      for (let i = 0; i < bufferSize; i++) {
-        const envelope = Math.sin((i / bufferSize) * Math.PI); // Bell curve
-        data[i] = (Math.random() * 2 - 1) * envelope;
-      }
-
-      shakerNoise.buffer = buffer;
+      // Use pre-allocated noise buffer (envelope shaped by gain node)
+      shakerNoise.buffer = this.noiseBufferMedium!;
 
       // High-pass filter for bright shaker sound
       shakerFilter.type = 'highpass';

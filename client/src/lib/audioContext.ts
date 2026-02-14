@@ -12,21 +12,17 @@ const MAX_RESUME_ATTEMPTS = 3;
 
 export function getAudioContext(): AudioContext {
   if (!sharedContext) {
-    // If Tone.js is already running, use its context
-    if (Tone.context && Tone.context.rawContext) {
-      sharedContext = Tone.context.rawContext as AudioContext;
-    } else {
-      // Create a new one with optimized settings for production
-      sharedContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      // Optimize audio context for production to reduce crackling
-      if (sharedContext.sampleRate > 48000) {
-        console.warn(`🔊 High sample rate detected: ${sharedContext.sampleRate}Hz. This may cause performance issues.`);
-      }
-      
-      // Inform Tone.js to use this context
-      Tone.setContext(new Tone.Context(sharedContext));
-    }
+    // ALWAYS create our own context first with a larger buffer to prevent crackling.
+    // 'playback' latencyHint tells the browser to use a bigger audio buffer
+    // (~1024-2048 samples instead of ~128-256), which prevents audio glitches
+    // when the main thread is busy processing mouse/keyboard UI events.
+    sharedContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+      latencyHint: 'playback',
+      sampleRate: 44100,
+    });
+
+    // Force Tone.js to use OUR context (not its own default small-buffer one)
+    Tone.setContext(new Tone.Context(sharedContext));
     
     // Add error handling for audio context
     sharedContext.addEventListener('statechange', handleContextStateChange);
