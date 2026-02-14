@@ -303,16 +303,13 @@ export class RealisticAudioEngine {
     keysToDelete.forEach(key => this.activeNotes.delete(key));
     
     // Log cleanup activity for debugging
-    if (keysToDelete.length > 0) {
-      console.log(`🔊 Cleaned up ${keysToDelete.length} finished audio nodes`);
-    }
+    // Cleanup complete
   }
 
   async initialize() {
     if (this.isInitialized && this.audioContext?.state === 'running') return;
     this.audioContext = getAudioContext();
     this.isInitialized = true;
-    console.log('🎹 RealisticAudioEngine initialized');
   }
 
   /**
@@ -341,16 +338,15 @@ export class RealisticAudioEngine {
     if (existingPromise) return existingPromise;
 
     // 3. Start loading
-    console.log(`📡 Loading instrument: ${key}...`);
+    // Loading instrument
     const loadPromise = (async () => {
       try {
         if (!this.audioContext) await this.initialize();
         const instrument = await Soundfont.instrument(this.audioContext!, key as any);
         this.instruments[key] = instrument;
-        console.log(`✅ Instrument loaded: ${key}`);
         return instrument;
       } catch (error) {
-        console.error(`❌ Failed to load instrument ${key}:`, error);
+        // Failed to load instrument
         delete this.instrumentLoadPromises[key];
         throw error;
       }
@@ -376,15 +372,11 @@ export class RealisticAudioEngine {
     isMidi: boolean = false,
     targetNode?: AudioNode
   ): Promise<void> {
-    console.log(`🎵 playNote: ${note}${octave} on ${instrument}`);
-
     if (!this.isInitialized) {
-      console.log('🎵 Audio not initialized, initializing...');
       await this.initialize();
     }
 
     if (!this.audioContext) {
-      console.warn('🎵 Audio context not available, skipping playback');
       return;
     }
 
@@ -393,7 +385,7 @@ export class RealisticAudioEngine {
       try {
         await this.audioContext.resume();
       } catch (e) {
-        console.warn('🎵 Failed to resume audio context:', e);
+        // ignore
       }
     }
 
@@ -452,7 +444,7 @@ export class RealisticAudioEngine {
       // Fallback to synthetic if soundfont fails or is missing
       await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || this.audioContext.destination);
     } catch (error) {
-      console.warn(`⚠️ Soundfont play failed for ${realInstrument}, using synthetic fallback`);
+      // Soundfont play failed, using synthetic fallback
       await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || this.audioContext.destination);
     }
   }
@@ -467,11 +459,7 @@ export class RealisticAudioEngine {
     const mappedKey = this.drumKitAliases[kitKey] || kitKey;
     const kitProfile = this.drumKitProfiles[mappedKey] || this.drumKitProfiles.default;
 
-    // Use synthetic drum engine for "realistic" mode since soundfonts are broken
-    console.log(`Playing synthetic drum in realistic mode: ${drumType}`);
-    
     if (!this.audioContext) {
-      console.error('AudioContext not available for synthetic drums');
       return;
     }
     
@@ -480,7 +468,7 @@ export class RealisticAudioEngine {
       try {
         await this.audioContext.resume();
       } catch (e) {
-        console.warn('🎵 Failed to resume audio context for drums:', e);
+        // ignore
       }
     }
 
@@ -555,10 +543,10 @@ export class RealisticAudioEngine {
           this.playSyntheticShaker(currentTime, velocity, destination);
           break;
         default:
-          console.warn(`🎵 Unknown drum type: ${drumType}`);
+          break;
       }
     } catch (error) {
-      console.error('🎵 Drum sound error:', error);
+      // Drum sound error - silent fail
     }
   }
 
@@ -783,7 +771,7 @@ export class RealisticAudioEngine {
       clickOsc.stop(currentTime + 0.04);
       
     } catch (error) {
-      console.error('🎵 Kick drum error:', error);
+      // Kick drum error - silent fail
     }
   }
 

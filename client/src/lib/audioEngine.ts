@@ -159,7 +159,6 @@ class AudioEngine {
       
       // Use RealisticAudioEngine for high-quality playback with optional routing
       realisticAudio.playNote(noteName, octave, durationSec, realInstrument, velocity, true, targetNode);
-      console.log(`🎹 Playing ${instrument} via RealisticAudioEngine: ${note} (duration: ${durationSec}s, velocity: ${velocity})`);
       return;
     }
     
@@ -167,12 +166,11 @@ class AudioEngine {
     const synth = this.synths[instrument];
     if (synth) {
       synth.triggerAttackRelease(note, duration, undefined, velocity);
-      console.log(`🎹 Playing ${instrument} via Tone.js fallback: ${note}`);
       return;
     }
 
     // Last resort: use piano synth
-    console.warn(`No instrument found for "${instrument}", using piano fallback`);
+    // No instrument found, using piano fallback
     this.synths.piano?.triggerAttackRelease(note, duration, undefined, velocity);
   }
 

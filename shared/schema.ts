@@ -204,6 +204,9 @@ export const songs = pgTable("songs", {
   analyzedAt: timestamp("analyzed_at"),
   // Social sharing
   isPublic: boolean("is_public").default(false),
+  // Persistent audio storage (base64-encoded) — survives ephemeral disk wipes
+  audioData: text("audio_data"), // base64-encoded audio binary
+  mimeType: varchar("mime_type"), // e.g. audio/mpeg, audio/wav
   // Transcription data
   transcription: text("transcription"), // Full transcription text
   transcriptionStatus: varchar("transcription_status"), // pending, processing, completed, failed

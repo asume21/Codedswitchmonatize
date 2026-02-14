@@ -101,6 +101,43 @@ export function createSongRoutes(storage: IStorage) {
       // Increment upload count for usage tracking
       await storage.incrementUserUsage(req.userId!, 'uploads');
 
+      // Persist audio bytes into the database so they survive ephemeral disk wipes
+      try {
+        const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+        // Resolve the on-disk path from the stored URL
+        let diskPath = '';
+        const urlForDisk = finalURL || songURL;
+        if (urlForDisk.includes('/api/internal/uploads/')) {
+          const key = decodeURIComponent(urlForDisk.split('/api/internal/uploads/')[1]?.split('?')[0] || '');
+          if (key) diskPath = join(objectsDir, key);
+        } else if (urlForDisk.startsWith('/objects/')) {
+          diskPath = join(objectsDir, urlForDisk.replace('/objects/', ''));
+        }
+
+        if (diskPath && existsSync(diskPath)) {
+          const audioBuffer = readFileSync(diskPath);
+          const base64Audio = audioBuffer.toString('base64');
+          const ext = (format || '').toLowerCase();
+          let mime = 'application/octet-stream';
+          if (ext === 'mp3') mime = 'audio/mpeg';
+          else if (ext === 'wav') mime = 'audio/wav';
+          else if (ext === 'm4a' || ext === 'mp4' || ext === 'aac') mime = 'audio/mp4';
+          else if (ext === 'ogg') mime = 'audio/ogg';
+          else if (ext === 'flac') mime = 'audio/flac';
+
+          await storage.updateSong(newSong.id, {
+            audioData: base64Audio,
+            mimeType: mime,
+          } as any);
+          console.log(`💾 Audio bytes persisted to DB for song ${newSong.id} (${(audioBuffer.length / 1024 / 1024).toFixed(1)} MB)`);
+        } else {
+          console.warn(`⚠️ Could not persist audio to DB — disk file not found: ${diskPath}`);
+        }
+      } catch (persistErr) {
+        // Non-fatal: song metadata is saved, audio just won't survive redeploy
+        console.warn('⚠️ Failed to persist audio bytes to DB:', persistErr);
+      }
+
       console.log('✅ Song saved successfully:', newSong.id);
 
       res.json(newSong);
@@ -346,6 +383,78 @@ export function createSongRoutes(storage: IStorage) {
         error: "Failed to analyze song",
         message: error instanceof Error ? error.message : "Unknown error"
       });
+    }
+  });
+
+  // Serve song audio — tries disk first, falls back to DB-persisted audio_data
+  router.get("/:id/audio", async (req: Request, res: Response) => {
+    try {
+      const songId = req.params.id;
+      const song = await storage.getSong(songId);
+      if (!song) {
+        return res.status(404).json({ error: "Song not found" });
+      }
+
+      const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
+
+      // Try to serve from disk first (fastest)
+      const urlForDisk = song.accessibleUrl || song.originalUrl;
+      let diskPath = '';
+      if (urlForDisk.includes('/api/internal/uploads/')) {
+        const key = decodeURIComponent(urlForDisk.split('/api/internal/uploads/')[1]?.split('?')[0] || '');
+        if (key) diskPath = join(objectsDir, key);
+      } else if (urlForDisk.startsWith('/objects/')) {
+        diskPath = join(objectsDir, urlForDisk.replace('/objects/', ''));
+      }
+
+      if (diskPath && existsSync(diskPath)) {
+        const ext = (song.format || '').toLowerCase();
+        let mime = song.mimeType || 'application/octet-stream';
+        if (!song.mimeType) {
+          if (ext === 'mp3') mime = 'audio/mpeg';
+          else if (ext === 'wav') mime = 'audio/wav';
+          else if (ext === 'm4a' || ext === 'mp4' || ext === 'aac') mime = 'audio/mp4';
+          else if (ext === 'ogg') mime = 'audio/ogg';
+          else if (ext === 'flac') mime = 'audio/flac';
+        }
+        const stat = statSync(diskPath);
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Content-Length', stat.size);
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return createReadStream(diskPath).pipe(res);
+      }
+
+      // Disk file gone (ephemeral storage wiped) — serve from DB
+      if (song.audioData) {
+        const audioBuffer = Buffer.from(song.audioData, 'base64');
+        const mime = song.mimeType || 'audio/mpeg';
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Content-Length', audioBuffer.length);
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+
+        // Also restore to disk so subsequent requests are fast
+        if (diskPath) {
+          try {
+            mkdirSync(join(diskPath, '..'), { recursive: true });
+            const fs = await import('fs');
+            fs.writeFileSync(diskPath, audioBuffer);
+            console.log(`♻️ Restored audio to disk from DB: ${diskPath}`);
+          } catch (restoreErr) {
+            console.warn('⚠️ Could not restore audio to disk:', restoreErr);
+          }
+        }
+
+        return res.end(audioBuffer);
+      }
+
+      // No audio anywhere
+      console.error(`❌ No audio available for song ${songId} — not on disk or in DB`);
+      res.status(404).json({ error: "Audio file no longer available. Please re-upload the song." });
+    } catch (error) {
+      console.error('Error serving song audio:', error);
+      res.status(500).json({ error: "Failed to serve audio" });
     }
   });
 

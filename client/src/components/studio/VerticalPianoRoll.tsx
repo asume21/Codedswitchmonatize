@@ -783,11 +783,6 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       pauseTransport(); // Sync with transport context
     } else {
       // Play
-      console.log('▶️ Starting playback...');
-      tracks.forEach((track, idx) => {
-        console.log(`Track ${idx} (${track.name}): ${track.notes.length} notes`, track.notes);
-      });
-      
       setIsPlaying(true);
       playTransport(); // Sync with transport context
       
@@ -804,9 +799,6 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           currentTracks.forEach(track => {
             if (!track.muted) {
               const notesAtStep = track.notes.filter((note: Note) => note.step === nextStep);
-              if (notesAtStep.length > 0) {
-                console.log(`🎵 Step ${nextStep}: Playing ${notesAtStep.length} notes from ${track.name}`, notesAtStep);
-              }
               notesAtStep.forEach((note: Note) => {
                 const noteDuration = (note.length * stepDuration) / 1000;
                 

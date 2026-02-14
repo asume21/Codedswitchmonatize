@@ -3598,14 +3598,55 @@ ${code}
       console.log('📂 File exists?', fileExists);
       
       if (!fileExists) {
-        // List files in the directory for debugging
+        // Disk file gone (Railway ephemeral storage wiped) — try serving from DB
+        console.log('📂 Disk file missing, checking DB for audio_data...');
         try {
-          const files = fs.readdirSync(LOCAL_OBJECTS_DIR);
-          console.log('📂 Files in LOCAL_OBJECTS_DIR:', files.slice(0, 10));
-        } catch (e) {
-          console.error('❌ Could not list directory:', e);
+          const requestUrl = `/api/internal/uploads/${objectKey}`;
+          // Find the song whose accessibleUrl or originalUrl matches this request
+          const { songs: songsTable } = await import("@shared/schema");
+          const { db } = await import("./db");
+          const { or, eq, like } = await import("drizzle-orm");
+          const matchingSongs = await db.select({
+            audioData: songsTable.audioData,
+            mimeType: songsTable.mimeType,
+            format: songsTable.format,
+            accessibleUrl: songsTable.accessibleUrl,
+            originalUrl: songsTable.originalUrl,
+          }).from(songsTable).where(
+            or(
+              like(songsTable.accessibleUrl, `%${sanitizedKey}%`),
+              like(songsTable.originalUrl, `%${sanitizedKey}%`)
+            )
+          ).limit(1);
+
+          const match = matchingSongs[0];
+          if (match?.audioData) {
+            console.log('💾 Serving audio from DB (disk file was missing)');
+            const audioBuffer = Buffer.from(match.audioData, 'base64');
+            const mime = match.mimeType || 'audio/mpeg';
+            res.setHeader('Content-Type', mime);
+            res.setHeader('Content-Length', audioBuffer.length);
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+
+            // Restore to disk for faster subsequent requests
+            try {
+              const dir = path.dirname(fullPath);
+              fs.mkdirSync(dir, { recursive: true });
+              fs.writeFileSync(fullPath, audioBuffer);
+              console.log(`♻️ Restored audio to disk from DB: ${fullPath}`);
+            } catch (restoreErr) {
+              console.warn('⚠️ Could not restore to disk:', restoreErr);
+            }
+
+            return res.end(audioBuffer);
+          }
+        } catch (dbErr) {
+          console.warn('⚠️ DB fallback lookup failed:', dbErr);
         }
-        console.error('❌ File not found:', fullPath);
+
+        console.error('❌ File not found on disk or in DB:', fullPath);
         return res.status(404).send("Not found");
       }
       
