@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, forwardRef, CSSProperties, memo, useMemo } from 'react';
-import { PianoKey, Note, Track, STEPS } from './types/pianoRollTypes';
+import { PianoKey, Track } from './types/pianoRollTypes';
 import { useAudio } from '@/hooks/use-audio';
 
 interface PianoKeysProps {
@@ -35,7 +35,8 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
   onPlayNoteOff,
   arpEnabled = false
 }, ref) => {
-  const sustainedNotesRef = useRef<Map<number, any>>(new Map());
+  const isMouseDownRef = useRef(false);
+  const lastPressedKeyRef = useRef<number | null>(null);
   const { playNote } = useAudio();
 
   const handleKeyDown = useCallback((keyIndex: number) => {
@@ -75,18 +76,41 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
     }
   }, [arpEnabled, activeKeys, onActiveKeysChange, onPlayNoteOff, pianoKeys]);
 
-  const handleKeyClick = useCallback((keyIndex: number) => {
-    if (!arpEnabled) {
-      handleKeyDown(keyIndex);
-    }
-  }, [arpEnabled, handleKeyDown]);
+  const handleMouseDownKey = useCallback((keyIndex: number) => {
+    isMouseDownRef.current = true;
 
-  const playKeyPreview = useCallback((key: PianoKey) => {
-    // Only preview on hover if not in chord mode
-    if (!chordMode) {
-      playNote(key.note, key.octave, 0.5, selectedTrack?.instrument || 'piano', 0.6);
+    const previousKey = lastPressedKeyRef.current;
+    if (previousKey !== null && previousKey !== keyIndex) {
+      handleKeyUp(previousKey);
     }
-  }, [chordMode, playNote, selectedTrack?.instrument]);
+
+    handleKeyDown(keyIndex);
+    lastPressedKeyRef.current = keyIndex;
+  }, [handleKeyDown, handleKeyUp]);
+
+  const handleMouseEnterKey = useCallback((keyIndex: number) => {
+    if (!isMouseDownRef.current) return;
+
+    const previousKey = lastPressedKeyRef.current;
+    if (previousKey === keyIndex) return;
+
+    if (previousKey !== null) {
+      handleKeyUp(previousKey);
+    }
+
+    handleKeyDown(keyIndex);
+    lastPressedKeyRef.current = keyIndex;
+  }, [handleKeyDown, handleKeyUp]);
+
+  const handleMouseRelease = useCallback(() => {
+    isMouseDownRef.current = false;
+
+    const previousKey = lastPressedKeyRef.current;
+    if (previousKey !== null) {
+      handleKeyUp(previousKey);
+      lastPressedKeyRef.current = null;
+    }
+  }, [handleKeyUp]);
 
   // Memoize rendered keys to prevent re-rendering all keys on every update
   const renderedKeys = useMemo(() => {
@@ -126,24 +150,27 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
           key={key.key}
           className="w-full text-xs font-semibold relative select-none"
           style={key.isBlack ? blackKeyStyle : whiteKeyStyle}
-          onClick={() => !arpEnabled && handleKeyClick(index)}
-          onMouseDown={() => arpEnabled && handleKeyDown(index)}
-          onMouseUp={() => arpEnabled && handleKeyUp(index)}
-          onMouseLeave={() => arpEnabled && handleKeyUp(index)}
+          onClick={() => {
+            // Prevent duplicate playback from click after mouse down/up sequence
+          }}
+          onMouseDown={() => handleMouseDownKey(index)}
+          onMouseUp={handleMouseRelease}
+          onMouseLeave={() => {
+            if (arpEnabled) handleMouseRelease();
+          }}
           onTouchStart={(e) => {
             e.preventDefault();
-            if (arpEnabled) handleKeyDown(index);
-            else playKeyPreview(key);
+            handleMouseDownKey(index);
           }}
-          onTouchEnd={() => arpEnabled && handleKeyUp(index)}
-          onMouseEnter={() => !arpEnabled && playKeyPreview(key)}
+          onTouchEnd={handleMouseRelease}
+          onMouseEnter={() => handleMouseEnterKey(index)}
           aria-label={`Piano key ${key.note}${key.octave}${isActive ? ' - Active' : ''}`}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              handleKeyClick(index);
+              handleKeyDown(index);
             }
           }}
         >
@@ -164,7 +191,7 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
         </button>
       );
     });
-  }, [pianoKeys, keyHeight, activeKeys, arpEnabled, handleKeyClick, handleKeyDown, handleKeyUp, playKeyPreview]);
+  }, [pianoKeys, keyHeight, activeKeys, arpEnabled, handleKeyDown, handleMouseDownKey, handleMouseEnterKey, handleMouseRelease]);
 
   return (
     <div 

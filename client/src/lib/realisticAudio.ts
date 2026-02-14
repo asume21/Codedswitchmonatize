@@ -619,7 +619,19 @@ export class RealisticAudioEngine {
     if (nodes && nodes.length > 0) {
       const node = nodes.shift();
       if (node && typeof node.stop === 'function') {
-        node.stop(this.audioContext?.currentTime || 0);
+        try {
+          const now = this.audioContext?.currentTime || 0;
+          node.stop(now + 0.008);
+        } catch {
+          // Ignore stop errors for already-stopped nodes
+        }
+      }
+      if (node && typeof (node as any).disconnect === 'function') {
+        try {
+          (node as any).disconnect();
+        } catch {
+          // Ignore disconnect errors
+        }
       }
       if (nodes.length === 0) {
         this.activeNotes.delete(noteKey);
