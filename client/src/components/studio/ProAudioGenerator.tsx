@@ -11,25 +11,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+// Tabs removed — results view now uses audio player instead of JSON tabs
 import { useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Music, Loader2, Sparkles, Zap } from 'lucide-react';
 
 interface GeneratedSong {
-  id: string;
+  success: boolean;
+  audioUrl: string;
   title: string;
   description: string;
-  structure: any;
-  metadata: {
-    duration: number;
-    key: string;
-    bpm: number;
-    format: string;
-  };
-  chordProgression: string[];
-  productionNotes: any;
-  audioFeatures: any;
+  genre: string;
+  prompt: string;
+  provider: string;
 }
 
 export function ProAudioGenerator() {
@@ -61,6 +55,12 @@ export function ProAudioGenerator() {
   // Generated song state
   const [generatedSong, setGeneratedSong] = useState<GeneratedSong | null>(null);
   
+  // Audio player state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
   const examplePrompts = [
     "An uplifting pop anthem about conquering challenges",
     "A moody synthwave track for late-night coding", 
@@ -123,6 +123,89 @@ export function ProAudioGenerator() {
       ...prev,
       [instrument]: checked
     }));
+  };
+
+  const togglePlayback = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleTimeUpdate = () => {
+    if (!audioRef.current) return;
+    setCurrentTime(audioRef.current.currentTime);
+  };
+
+  const handleLoadedMetadata = () => {
+    if (!audioRef.current) return;
+    setAudioDuration(audioRef.current.duration);
+  };
+
+  const handleSeek = (value: number[]) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = value[0];
+    setCurrentTime(value[0]);
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+  };
+
+  const handleDownload = async () => {
+    if (!generatedSong?.audioUrl) return;
+    try {
+      const response = await fetch(generatedSong.audioUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${generatedSong.title || 'generated-song'}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: 'Download Started', description: 'Your song is downloading...' });
+    } catch {
+      toast({ title: 'Download Failed', description: 'Could not download the audio file.', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (!generatedSong) return;
+    try {
+      await apiRequest('POST', '/api/songs/upload', {
+        title: generatedSong.title,
+        genre: generatedSong.genre,
+        songURL: generatedSong.audioUrl,
+        description: generatedSong.description,
+      });
+      toast({ title: 'Saved to Library', description: 'Song added to your library.' });
+    } catch {
+      toast({ title: 'Save Failed', description: 'Could not save to library.', variant: 'destructive' });
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (!isFinite(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleNewGeneration = () => {
+    setGeneratedSong(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setAudioDuration(0);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
   };
   
   return (
@@ -325,9 +408,19 @@ export function ProAudioGenerator() {
             </div>
           </div>
         ) : (
-          /* Generated Song Display - Enhanced with both approaches */
+          /* Generated Song Display — Audio Player + Actions */
           <div className="space-y-6">
-            {/* Song Info Header */}
+            {/* Hidden audio element */}
+            <audio
+              ref={audioRef}
+              src={generatedSong.audioUrl}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={handleAudioEnded}
+              preload="metadata"
+            />
+
+            {/* Song Info + Player */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -335,127 +428,66 @@ export function ProAudioGenerator() {
                     <CardTitle className="text-xl">{generatedSong.title}</CardTitle>
                     <p className="text-muted-foreground mt-1">{generatedSong.description}</p>
                   </div>
-                  <Button
-                    onClick={() => setGeneratedSong(null)}
-                    variant="outline"
-                  >
-                    Generate Another Song
-                  </Button>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary">{generatedSong.genre}</Badge>
+                    <Badge variant="outline">{generatedSong.provider}</Badge>
+                  </div>
                 </div>
               </CardHeader>
-            </Card>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Song Structure */}
-              <div className="lg:col-span-2">
-                <Tabs defaultValue="structure" className="space-y-4">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="structure">Song Structure</TabsTrigger>
-                    <TabsTrigger value="chords">Chord Progression</TabsTrigger>
-                    <TabsTrigger value="production">Production Notes</TabsTrigger>
-                    <TabsTrigger value="features">Audio Features</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="structure">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Song Structure</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <pre className="text-sm bg-muted p-4 rounded-lg overflow-auto max-h-96 font-mono">
-                          {JSON.stringify(generatedSong.structure, null, 2)}
-                        </pre>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                  
-                  <TabsContent value="chords">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Chord Progression</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-wrap gap-2">
-                          {generatedSong.chordProgression?.map((chord, index) => (
-                            <Badge key={index} variant="secondary" className="text-base px-3 py-1">
-                              {chord}
-                            </Badge>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                  
-                  <TabsContent value="production">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Production Notes</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <pre className="text-sm bg-muted p-4 rounded-lg overflow-auto max-h-64 font-mono">
-                          {JSON.stringify(generatedSong.productionNotes, null, 2)}
-                        </pre>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                  
-                  <TabsContent value="features">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Audio Features</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <pre className="text-sm bg-muted p-4 rounded-lg overflow-auto max-h-64 font-mono">
-                          {JSON.stringify(generatedSong.audioFeatures, null, 2)}
-                        </pre>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            
-              {/* Metadata Sidebar */}
-              <div className="space-y-4">
-                {/* Quick Metadata */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Metadata</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div>Duration: {formatDuration(generatedSong.metadata.duration)}</div>
-                    <div>Key: {generatedSong.metadata.key}</div>
-                    <div>BPM: {generatedSong.metadata.bpm}</div>
-                    <div>Format: {generatedSong.metadata.format}</div>
-                  </CardContent>
-                </Card>
-                
-                {/* Quick Chord Progression */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Chord Progression</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-1">
-                      {generatedSong.chordProgression?.slice(0, 8).map((chord, index) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
-                          {chord}
-                        </Badge>
-                      ))}
+              <CardContent className="space-y-4">
+                {/* Audio Player Controls */}
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-4">
+                    <Button
+                      onClick={togglePlayback}
+                      size="lg"
+                      className="h-12 w-12 rounded-full p-0"
+                    >
+                      {isPlaying ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      )}
+                    </Button>
+                    <div className="flex-1 space-y-1">
+                      <Slider
+                        value={[currentTime]}
+                        onValueChange={handleSeek}
+                        max={audioDuration || 100}
+                        min={0}
+                        step={0.1}
+                        className="cursor-pointer"
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{formatTime(currentTime)}</span>
+                        <span>{formatTime(audioDuration)}</span>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-                
-                {/* Actions */}
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm" className="w-full">
-                    Export Structure
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={handleDownload} variant="outline">
+                    <Zap className="mr-2 h-4 w-4" />
+                    Download Audio
                   </Button>
-                  <Button variant="outline" size="sm" className="w-full">
-                    Save Project
+                  <Button onClick={handleSaveToLibrary} variant="outline">
+                    <Music className="mr-2 h-4 w-4" />
+                    Save to Library
+                  </Button>
+                  <Button onClick={handleNewGeneration} variant="outline">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate Another
                   </Button>
                 </div>
-              </div>
-            </div>
+
+                {/* Generation Details */}
+                <div className="text-xs text-muted-foreground border-t pt-3 mt-3">
+                  <span className="font-medium">Prompt:</span> {generatedSong.prompt}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
