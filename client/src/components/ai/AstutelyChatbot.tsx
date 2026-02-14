@@ -12,7 +12,7 @@ import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Se
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { astutelyGenerate, astutelyToNotes, astutelyGenerateAudio, astutelyPlayAudio, type AstutelyResult } from '@/lib/astutelyEngine';
+import { astutelyGenerate, astutelyToNotes, astutelyGenerateAudio, astutelyPlayAudio, stopActiveAstutelyAudio, getActiveAstutelyAudio, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
@@ -25,6 +25,7 @@ interface Message {
   content: string;
   timestamp: Date;
   action?: 'beat' | 'stems' | 'analyze' | 'melody' | 'play' | 'stop' | 'status' | null;
+  audioUrl?: string;
 }
 
 interface AstutelyChatbotProps {
@@ -450,8 +451,12 @@ Try: "play", "make a drill beat", or "analyze my project".`,
           const audioResult = await astutelyGenerateAudio(style, { bpm: result.bpm, key: result.key });
           audioInfo = audioResult;
           
-          // Play the generated audio
-          await astutelyPlayAudio(audioResult.audioUrl);
+          // Play the generated audio immediately
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Autoplay blocked, audio player will be shown in chat:', playErr);
+          }
           
           // Also add as an audio track
           const audioTrack: any = {
@@ -480,11 +485,11 @@ Try: "play", "make a drill beat", or "analyze my project".`,
 
         const assistantMessage: Message = {
           role: 'assistant',
-          content: `🔥 Beat generated and playing!
+          content: `🔥 Beat generated!
 
 **${result.style}** at **${result.bpm} BPM** in **${result.key}**
 
-${audioInfo.audioUrl ? `🔊 **Real audio generated** via ${audioInfo.provider}!` : '🎹 Playing synthesized preview'}
+${audioInfo.audioUrl ? `🔊 **Real audio generated** via ${audioInfo.provider}! Use the player below.` : '🎹 Playing synthesized preview'}
 
 Added to your project:
 • 🥁 Drums: ${notes.filter(n => n.trackType === 'drums').length} hits
@@ -495,6 +500,7 @@ ${audioInfo.audioUrl ? '• 🔊 Audio Track: AI-generated audio' : ''}
 
 Your project now has **${status.trackCount + (audioInfo.audioUrl ? 5 : 4)} tracks**.`,
           timestamp: new Date(),
+          audioUrl: audioInfo.audioUrl || undefined,
         };
         setMessages(prev => [...prev, assistantMessage]);
         
@@ -1261,7 +1267,27 @@ Be concise, friendly, and direct. Skip formalities.`,
                       {msg.role === 'assistant' && (
                         <div className="absolute -left-1 -top-1 w-2 h-2 border-t border-l border-cyan-500" />
                       )}
-                      <p className="text-xs leading-relaxed font-medium">{msg.content}</p>
+                      <p className="text-xs leading-relaxed font-medium whitespace-pre-wrap">{msg.content}</p>
+                      {msg.audioUrl && (
+                        <div className="mt-2 p-2 bg-black/40 rounded-lg border border-cyan-500/20">
+                          <audio
+                            controls
+                            src={msg.audioUrl}
+                            className="w-full h-8"
+                            style={{ filter: 'invert(1) hue-rotate(180deg)', opacity: 0.9 }}
+                          />
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-[8px] text-cyan-500/60 font-mono uppercase">AI Generated Audio</span>
+                            <a
+                              href={msg.audioUrl}
+                              download="astutely-beat.wav"
+                              className="text-[8px] text-cyan-400 hover:text-cyan-300 font-mono uppercase"
+                            >
+                              Download
+                            </a>
+                          </div>
+                        </div>
+                      )}
                       <div className="mt-2 flex items-center justify-between opacity-30 group-hover/msg:opacity-100 transition-opacity">
                         <span className="text-[9px] font-mono">
                           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

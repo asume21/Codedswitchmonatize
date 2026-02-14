@@ -1370,14 +1370,32 @@ export default function MasterMultiTrackPlayer() {
   };
 
   // Play all tracks
-  const playTracks = () => {
+  const playTracks = async () => {
     if (!audioContextRef.current || !masterGainRef.current) return;
 
     const ctx = audioContextRef.current;
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
     const hasSolo = tracks.some(t => t.solo);
 
     // Stop any existing playback
     stopTracks();
+
+    // Auto-decode audioUrl → audioBuffer for any tracks missing their buffer
+    for (const track of tracks) {
+      if (!track.audioBuffer && track.audioUrl && track.audioUrl.length > 0) {
+        try {
+          console.log(`🔊 Decoding audio for track: ${track.name}`);
+          const response = await fetch(track.audioUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          track.audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+          console.log(`✅ Decoded ${track.name}: ${track.audioBuffer.duration.toFixed(1)}s`);
+        } catch (err) {
+          console.warn(`⚠️ Could not decode audio for ${track.name}:`, err);
+        }
+      }
+    }
 
     const startOffset = snapEnabled ? snapTime(pauseTimeRef.current) : pauseTimeRef.current;
     const punchStart = punch.enabled ? Math.max(punch.in, startOffset) : startOffset;
@@ -2782,10 +2800,33 @@ export default function MasterMultiTrackPlayer() {
       
       if (selectedTracks.length === 0) return;
 
+      // Auto-decode audioUrl → audioBuffer for tracks missing their buffer
+      const ctx = audioContextRef.current;
+      if (ctx) {
+        for (const track of selectedTracks) {
+          if (!track.audioBuffer && track.audioUrl && track.audioUrl.length > 0) {
+            try {
+              console.log(`🔊 Bounce: Decoding audio for track: ${track.name}`);
+              const response = await fetch(track.audioUrl);
+              const arrayBuffer = await response.arrayBuffer();
+              track.audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+              console.log(`✅ Bounce: Decoded ${track.name}: ${track.audioBuffer.duration.toFixed(1)}s`);
+            } catch (err) {
+              console.warn(`⚠️ Bounce: Could not decode audio for ${track.name}:`, err);
+            }
+          }
+        }
+      }
+
       const maxDuration = Math.max(...selectedTracks.map((t) => (t.startTimeSeconds ?? 0) + getTrackEffectiveDuration(t)));
+      if (maxDuration <= 0) {
+        toast({ title: 'Nothing to Bounce', description: 'Selected tracks have no audio content', variant: 'destructive' });
+        return;
+      }
       const sampleRate = 44100;
       const offline = new OfflineAudioContext(2, Math.ceil(maxDuration * sampleRate), sampleRate);
 
+      let tracksAdded = 0;
       selectedTracks.forEach((track) => {
         if (track.audioBuffer) {
           const source = offline.createBufferSource();
@@ -2795,8 +2836,14 @@ export default function MasterMultiTrackPlayer() {
           source.connect(gain);
           gain.connect(offline.destination);
           source.start(track.startTimeSeconds ?? 0, track.trimStartSeconds ?? 0);
+          tracksAdded++;
         }
       });
+
+      if (tracksAdded === 0) {
+        toast({ title: 'Nothing to Bounce', description: 'No audio buffers available in selected tracks', variant: 'destructive' });
+        return;
+      }
 
       const renderedBuffer = await offline.startRendering();
       // Convert AudioBuffer to WAV blob

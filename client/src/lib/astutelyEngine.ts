@@ -418,20 +418,54 @@ export async function astutelyGenerateAudio(style: string, options?: {
 
 /**
  * Play generated audio directly
+ * Returns the HTMLAudioElement so callers can store/control it
  */
+let _activeAstutelyAudio: HTMLAudioElement | null = null;
+
+export function getActiveAstutelyAudio(): HTMLAudioElement | null {
+  return _activeAstutelyAudio;
+}
+
+export function stopActiveAstutelyAudio(): void {
+  if (_activeAstutelyAudio) {
+    _activeAstutelyAudio.pause();
+    _activeAstutelyAudio.currentTime = 0;
+    _activeAstutelyAudio = null;
+  }
+}
+
 export async function astutelyPlayAudio(audioUrl: string): Promise<HTMLAudioElement> {
   console.log(`🔊 ASTUTELY: Playing audio: ${audioUrl}`);
   
-  const audio = new Audio(audioUrl);
-  audio.crossOrigin = 'anonymous';
+  stopActiveAstutelyAudio();
+  
+  const audio = new Audio();
+  audio.volume = 0.85;
+  audio.src = audioUrl;
+  _activeAstutelyAudio = audio;
   
   return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Audio load timeout (30s)'));
+    }, 30000);
+    
     audio.oncanplaythrough = () => {
+      clearTimeout(timeout);
       audio.play()
-        .then(() => resolve(audio))
-        .catch(reject);
+        .then(() => {
+          console.log(`🔊 ASTUTELY: Audio playing successfully`);
+          resolve(audio);
+        })
+        .catch((err) => {
+          console.warn('🔊 ASTUTELY: Autoplay blocked, user interaction needed:', err.message);
+          resolve(audio);
+        });
     };
-    audio.onerror = () => reject(new Error('Failed to load audio'));
+    audio.onerror = (e) => {
+      clearTimeout(timeout);
+      console.error('🔊 ASTUTELY: Audio load error:', e);
+      reject(new Error('Failed to load audio'));
+    };
     audio.load();
   });
 }
