@@ -249,8 +249,11 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       if (song) {
         setIsAnalyzing(true);
         try {
+          const songURL = song.accessibleUrl || song.originalUrl || '';
           const response = await apiRequest('POST', '/api/songs/analyze', {
-            songId: song.id
+            songId: song.id,
+            songURL,
+            songName: song.name || 'Unknown',
           });
           const data = await response.json();
           setSongAnalysis(data);
@@ -260,10 +263,15 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
           
           toast({
             title: '🧠 Song Analyzed',
-            description: `${data.tempo || 'Unknown'} BPM • Key: ${data.key || 'Unknown'}`,
+            description: `${data.estimatedBPM || data.tempo || 'Unknown'} BPM • Key: ${data.keySignature || data.key || 'Unknown'}`,
           });
         } catch (error) {
           console.error('Analysis failed:', error);
+          toast({
+            title: 'Analysis Failed',
+            description: 'Could not analyze this song. You can still play it and generate beats.',
+            variant: 'destructive',
+          });
         } finally {
           setIsAnalyzing(false);
         }
@@ -328,15 +336,33 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       return;
     }
 
-    const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
+    let audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
     if (!audioUrl) {
-      toast({
-        title: 'No Audio URL',
-        description: 'This song has no playable audio',
-        variant: 'destructive'
-      });
-      return;
+      // Try DB-backed audio endpoint as last resort
+      audioUrl = `/api/songs/${song.id}/audio`;
     }
+
+    // Convert non-MP3 formats via server endpoint for browser compatibility
+    const songFormat = (song.format || '').toLowerCase();
+    const isMP3 = songFormat === 'mp3' || audioUrl.toLowerCase().includes('.mp3');
+    const isConverted = audioUrl.includes('/api/songs/converted/') || audioUrl.includes('/api/songs/convert-and-play/');
+    if (!isMP3 && !isConverted && !audioUrl.includes('/api/songs/') ) {
+      let fileId = '';
+      if (audioUrl.includes('/api/internal/uploads/')) {
+        const parts = audioUrl.split('/api/internal/uploads/');
+        if (parts[1]) fileId = decodeURIComponent(parts[1].split('?')[0]);
+      } else if (audioUrl.includes('/objects/')) {
+        const parts = audioUrl.split('/objects/');
+        if (parts[1]) fileId = decodeURIComponent(parts[1].split('?')[0]);
+      }
+      if (fileId) {
+        audioUrl = `/api/songs/convert-and-play/${encodeURIComponent(fileId)}`;
+      }
+    }
+
+    // Add cache-busting
+    const ts = Date.now();
+    audioUrl = audioUrl.includes('?') ? `${audioUrl}&t=${ts}` : `${audioUrl}?t=${ts}`;
 
     if (audioElement && isPlaying) {
       audioElement.pause();
@@ -578,7 +604,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
                   </div>
                 ) : songAnalysis ? (
                   <div className="text-xs text-green-400">
-                    ✓ {songAnalysis.tempo || '?'} BPM • {songAnalysis.key || '?'} • {songAnalysis.genre || 'Unknown'}
+                    ✓ {songAnalysis.estimatedBPM || songAnalysis.tempo || '?'} BPM • {songAnalysis.keySignature || songAnalysis.key || '?'} • {songAnalysis.genre || 'Unknown'}
                   </div>
                 ) : null}
 

@@ -231,78 +231,136 @@ export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerate
   }
 };
 
-// Fallback local generator (original logic)
+// Fallback local generator with heavy randomization so it never sounds the same twice
 const generateLocalFallback = (style: string, overrides?: { tempo?: number; timeSignature?: { numerator: number; denominator: number }; key?: string }): AstutelyResult => {
+  const rng = Math.random; // use native random for client-side
   const config = STYLE_CONFIGS[style] || STYLE_CONFIGS["Travis Scott rage"];
   const selectedKey = overrides?.key ?? config.key;
   const rootNote = NOTES[selectedKey] || NOTES[config.key] || 60;
   const scale = SCALES[config.scale] || SCALES['minor'];
   
-  // Get patterns for this style
-  const drumPattern = DRUM_PATTERNS[config.drumPattern] || DRUM_PATTERNS['trap-hard'];
+  // Get base patterns for this style
+  const baseDrumPattern = DRUM_PATTERNS[config.drumPattern] || DRUM_PATTERNS['trap-hard'];
   const bassPattern = BASS_PATTERNS[config.bassStyle] || BASS_PATTERNS['808-slide'];
   const chordProg = CHORD_PROGRESSIONS[config.chordVoicing] || CHORD_PROGRESSIONS['dark-pad'];
-  const melodyPattern = MELODY_PATTERNS[Math.floor(Math.random() * MELODY_PATTERNS.length)];
+
+  // Rotate drum patterns randomly for rhythmic variation
+  const rotate = (arr: number[], shift: number) => arr.map((_, i) => arr[(i + shift) % arr.length]);
+  const drumPattern = {
+    kick: rotate(baseDrumPattern.kick, Math.floor(rng() * 16)),
+    snare: rotate(baseDrumPattern.snare, Math.floor(rng() * 16)),
+    hihat: rotate(baseDrumPattern.hihat, Math.floor(rng() * 16)),
+    perc: rotate(baseDrumPattern.perc, Math.floor(rng() * 16)),
+  };
   
   const result: AstutelyResult = {
     style,
-    bpm: overrides?.tempo ?? config.bpm,
+    bpm: overrides?.tempo ?? config.bpm + Math.floor(rng() * 6 - 3),
     key: selectedKey,
     timeSignature: overrides?.timeSignature ?? { numerator: 4, denominator: 4 },
     drums: [],
     bass: [],
     chords: [],
     melody: [],
+    isFallback: true,
+    fallbackReason: 'api_unavailable',
+    meta: { usedFallback: true, warnings: ['Client-side fallback pattern'], aiSource: 'client-fallback' },
   };
   
-  // Generate 4 bars (64 steps at 16 steps per bar)
-  // ... (Logic continues below in original structure, reusing existing helpers)
-  
-  // DRUMS
+  // DRUMS — with ghost notes and random skips
   for (let bar = 0; bar < 4; bar++) {
     for (let step = 0; step < 16; step++) {
       const globalStep = bar * 16 + step;
-      if (drumPattern.kick[step]) result.drums.push({ step: globalStep, type: 'kick' });
-      if (drumPattern.snare[step]) result.drums.push({ step: globalStep, type: 'snare' });
-      if (drumPattern.hihat[step]) result.drums.push({ step: globalStep, type: 'hihat' });
-      if (drumPattern.perc[step]) result.drums.push({ step: globalStep, type: 'perc' });
+      const ghostChance = 0.12 + rng() * 0.08;
+      const skipChance = 0.15;
+      if (drumPattern.kick[step] && rng() > skipChance) result.drums.push({ step: globalStep, type: 'kick' });
+      else if (!drumPattern.kick[step] && rng() < ghostChance * 0.5) result.drums.push({ step: globalStep, type: 'kick' });
+      if (drumPattern.snare[step] && rng() > skipChance) result.drums.push({ step: globalStep, type: 'snare' });
+      if (drumPattern.hihat[step] && rng() > skipChance * 0.5) result.drums.push({ step: globalStep, type: 'hihat' });
+      else if (!drumPattern.hihat[step] && rng() < ghostChance) result.drums.push({ step: globalStep, type: 'hihat' });
+      if (drumPattern.perc[step] && rng() > skipChance) result.drums.push({ step: globalStep, type: 'perc' });
+      else if (!drumPattern.perc[step] && rng() < ghostChance * 0.7) result.drums.push({ step: globalStep, type: 'perc' });
+    }
+  }
+
+  // Randomly reorder chord progression
+  const chordOrder = [0, 1, 2, 3];
+  if (rng() > 0.4) {
+    for (let i = chordOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [chordOrder[i], chordOrder[j]] = [chordOrder[j], chordOrder[i]];
     }
   }
   
-  // BASS
+  // BASS — with random rhythm shifts and octave variation
   for (let bar = 0; bar < 4; bar++) {
-    const chordRoot = chordProg[bar % chordProg.length][0];
+    const chordIdx = chordOrder[bar % chordOrder.length];
+    const chordRoot = chordProg[chordIdx % chordProg.length][0];
+    const bassOctShift = rng() > 0.7 ? -12 : 0;
     for (let step = 0; step < 16; step++) {
       const globalStep = bar * 16 + step;
-      const bassNote = bassPattern[step];
-      if (bassNote >= 0) {
-        const scaleNote = scale[bassNote % scale.length];
-        const octaveShift = Math.floor(bassNote / scale.length) * 12;
-        const midiNote = rootNote - 24 + chordRoot + scaleNote + octaveShift;
-        result.bass.push({ step: globalStep, note: midiNote, duration: 2 });
+      const bassIdx = (step + Math.floor(rng() * 3)) % bassPattern.length;
+      const bassDegree = bassPattern[bassIdx];
+      if (bassDegree >= 0 && rng() > 0.1) {
+        const scaleNote = scale[bassDegree % scale.length];
+        const octaveShift = Math.floor(bassDegree / scale.length) * 12;
+        const midiNote = rootNote - 24 + chordRoot + scaleNote + octaveShift + bassOctShift;
+        const dur = rng() > 0.6 ? 1 : (rng() > 0.3 ? 2 : 4);
+        result.bass.push({ step: globalStep, note: midiNote, duration: dur });
       }
     }
   }
   
-  // CHORDS
+  // CHORDS — with random inversions and varied durations
   for (let bar = 0; bar < 4; bar++) {
-    const chord = chordProg[bar % chordProg.length];
+    const chordIdx = chordOrder[bar % chordOrder.length];
+    const chord = chordProg[chordIdx % chordProg.length];
     const globalStep = bar * 16;
-    const chordNotes = chord.map(interval => rootNote + interval);
-    result.chords.push({ step: globalStep, notes: chordNotes, duration: 16 });
+    const invRoll = rng();
+    const inversion = invRoll > 0.7 ? 12 : (invRoll > 0.4 ? -12 : 0);
+    const chordNotes = chord.map((interval, i) => {
+      const octShift = (i === 0 && rng() > 0.6) ? -12 : 0;
+      return rootNote + interval + inversion + octShift;
+    });
+    const durRoll = rng();
+    const chordDur = durRoll > 0.6 ? 16 : (durRoll > 0.3 ? 8 : 4);
+    result.chords.push({ step: globalStep, notes: chordNotes, duration: chordDur });
+    if (chordDur <= 8 && rng() > 0.4) {
+      const midStep = globalStep + (chordDur <= 4 ? 8 : chordDur);
+      const midChord = chord.map(interval => rootNote + interval + (rng() > 0.5 ? 12 : 0));
+      result.chords.push({ step: midStep, notes: midChord, duration: 16 - chordDur });
+    }
   }
   
-  // MELODY
+  // MELODY — truly random walk using scale degrees (not hardcoded patterns)
   for (let bar = 0; bar < 4; bar++) {
-    for (let step = 0; step < 16; step++) {
+    const densityRoll = rng();
+    const notesInBar = densityRoll > 0.6 ? Math.floor(4 + rng() * 3) : (densityRoll > 0.25 ? Math.floor(7 + rng() * 4) : Math.floor(11 + rng() * 4));
+    const availableSteps = Array.from({ length: 16 }, (_, i) => i);
+    const chosenSteps: number[] = [];
+    for (let n = 0; n < Math.min(notesInBar, 16); n++) {
+      if (availableSteps.length === 0) break;
+      const idx = Math.floor(rng() * availableSteps.length);
+      chosenSteps.push(availableSteps[idx]);
+      availableSteps.splice(idx, 1);
+    }
+    chosenSteps.sort((a, b) => a - b);
+
+    let currentDegree = Math.floor(rng() * scale.length);
+    for (const step of chosenSteps) {
       const globalStep = bar * 16 + step;
-      const melodyDegree = melodyPattern[step];
-      if (melodyDegree >= 0) {
-        const scaleNote = scale[melodyDegree % scale.length];
-        const octaveShift = Math.floor(melodyDegree / scale.length) * 12;
-        const midiNote = rootNote + 12 + scaleNote + octaveShift;
-        result.melody.push({ step: globalStep, note: midiNote, duration: 1 });
-      }
+      const moveRoll = rng();
+      if (moveRoll > 0.7) currentDegree = Math.min(currentDegree + 2, scale.length - 1);
+      else if (moveRoll > 0.45) currentDegree = Math.min(currentDegree + 1, scale.length - 1);
+      else if (moveRoll > 0.2) currentDegree = Math.max(currentDegree - 1, 0);
+      else if (moveRoll > 0.05) currentDegree = Math.max(currentDegree - 2, 0);
+
+      const scaleNote = scale[currentDegree % scale.length];
+      const octaveShift = Math.floor(currentDegree / scale.length) * 12;
+      const octaveBoost = rng() > 0.8 ? 12 : 0;
+      const midiNote = rootNote + 12 + scaleNote + octaveShift + octaveBoost;
+      const dur = rng() > 0.6 ? 1 : (rng() > 0.3 ? 2 : 4);
+      result.melody.push({ step: globalStep, note: midiNote, duration: dur });
     }
   }
   

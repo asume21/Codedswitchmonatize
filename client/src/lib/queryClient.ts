@@ -36,10 +36,10 @@ export async function apiRequest(
       // First try to get the current user to establish a session
       const meRes = await fetch("/api/me", { credentials: "include" });
       if (meRes.ok) {
-        // Retry the original request
+        // Retry the original request with same headers
         const retryRes = await fetch(url, {
           method,
-          headers: data ? { "Content-Type": "application/json" } : {},
+          headers,
           body: data ? JSON.stringify(data) : undefined,
           credentials: "include",
         });

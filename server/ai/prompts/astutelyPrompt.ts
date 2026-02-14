@@ -105,6 +105,22 @@ Use tight voice leading.`;
     systemPrompt += `\n🎚️ CURRENT STUDIO CONTEXT\n${summarizedTracks}\nEnsure the new material complements these tracks without clashing.`;
   }
 
+  // Add a unique variation seed so the AI never gets the exact same prompt twice
+  const variationSeed = Date.now() ^ Math.floor(Math.random() * 1000000);
+  const variationAdjectives = [
+    'fresh', 'unexpected', 'inventive', 'bold', 'experimental',
+    'surprising', 'unconventional', 'creative', 'distinctive', 'original',
+    'innovative', 'unique', 'imaginative', 'daring', 'inspired',
+  ];
+  const adj1 = variationAdjectives[variationSeed % variationAdjectives.length];
+  const adj2 = variationAdjectives[(variationSeed * 7 + 3) % variationAdjectives.length];
+
+  systemPrompt += `\n🎲 VARIATION DIRECTIVE (Seed: ${variationSeed})
+This is generation #${variationSeed}. You MUST create something ${adj1} and ${adj2} — never repeat a previous pattern.
+Vary the rhythm placement, note choices, chord inversions, and melodic contour.
+Randomize which steps have hits, shift the groove, use different scale degrees for melody.
+Do NOT fall back to the most common or obvious pattern for this genre.`;
+
   systemPrompt += `\n📦 OUTPUT FORMAT
 Return JSON only with fields: style, bpm, key, timeSignature, drums[], bass[], chords[], melody[]. Use 64 steps. No commentary.`;
 
@@ -112,7 +128,7 @@ Return JSON only with fields: style, bpm, key, timeSignature, drums[], bass[], c
     ? ` Keep the rhythm feeling ${options.timeSignature.numerator}/${options.timeSignature.denominator}.`
     : '';
   const tempoLine = options.tempo ? ` Match the exact tempo ${options.tempo} BPM.` : '';
-  const userPrompt = `Generate a ${style} beat.${tempoLine}${timeSigLine} ${safePrompt}`.trim();
+  const userPrompt = `Generate a ${adj1}, ${adj2} ${style} beat that sounds different from anything generated before (variation ${variationSeed}).${tempoLine}${timeSigLine} ${safePrompt}`.trim();
 
   return {
     systemPrompt,

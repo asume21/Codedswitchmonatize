@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
@@ -178,13 +179,7 @@ function MelodyComposerV2() {
       toast({ title: "Generating melody...", description: "AI is composing your melody" });
       
       console.log('🎵 Sending melody generation request...');
-      const response = await fetch('/api/melody/generate', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
+      const response = await apiRequest('POST', '/api/melody/generate', {
           scale: 'C Major',
           style: 'melodic',
           complexity: 'medium',
@@ -197,7 +192,6 @@ function MelodyComposerV2() {
             key: 'C',
             timeSignature: '4/4'
           }
-        })
       });
 
       console.log('📡 Response status:', response.status, response.statusText);

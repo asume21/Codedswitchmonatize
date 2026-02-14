@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -87,12 +88,7 @@ export function ProAudioGenerator() {
         instruments: selectedInstruments
       };
       
-      const response = await fetch('/api/music/generate-complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
+      const response = await apiRequest('POST', '/api/music/generate-complete', payload);
       
       if (!response.ok) {
         throw new Error('Failed to generate song');

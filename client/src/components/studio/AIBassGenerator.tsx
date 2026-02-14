@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -319,10 +320,7 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
 
     try {
       // Call AI to generate bass line
-      const response = await fetch('/api/music/generate-bass', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await apiRequest('POST', '/api/music/generate-bass', {
           chordProgression: chords,
           style: bassStyle,
           pattern: patternType,
@@ -332,7 +330,6 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
           velocity: velocity[0] / 127,
           glide: glide[0] / 100,
           name: `Bass ${patternType}`,
-        }),
       });
 
       if (!response.ok) {

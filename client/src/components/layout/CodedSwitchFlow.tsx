@@ -10,6 +10,7 @@ import {
   Shield, MessageSquare, Headphones, ChevronDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import { useTransport } from '@/contexts/TransportContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import VerticalPianoRoll from '@/components/studio/VerticalPianoRoll';
@@ -865,11 +866,7 @@ const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
       bass: `You are Astutely, an AI music producer. Generate a 4-note bassline that grooves. Use MIDI note numbers (36=C2). Return ONLY valid JSON like: {"notes": [36, 43, 41, 38], "durations": [0.5, 0.5, 0.5, 0.5]}`
     };
 
-    const response = await fetch('/api/grok', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompts[type] })
-    });
+    const response = await apiRequest('POST', '/api/grok', { prompt: prompts[type] });
 
     const data = await response.json();
     
@@ -971,12 +968,8 @@ const AIHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
     toast({ title: '💬 Asking AI...', description: chatInput.substring(0, 50) });
     
     try {
-      const response = await fetch('/api/grok', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: `You are Astutely, an AI music production assistant. Help the user with: ${chatInput}. Be concise and helpful.` 
-        })
+      const response = await apiRequest('POST', '/api/grok', { 
+        prompt: `You are Astutely, an AI music production assistant. Help the user with: ${chatInput}. Be concise and helpful.` 
       });
       
       const data = await response.json();

@@ -447,6 +447,8 @@ export const insertSongSchema = createInsertSchema(songs).pick({
   fileSize: true,
   duration: true,
   format: true,
+  audioData: true,
+  mimeType: true,
 });
 
 export const insertPlaylistSchema = createInsertSchema(playlists).pick({

@@ -81,6 +81,18 @@ const publicApiLimiter = rateLimit({
   skipFailedRequests: true,
 });
 
+// Rate limiter for AI endpoints (expensive API calls)
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // Limit each IP to 30 AI requests per 15 min
+  message: { success: false, message: 'AI generation limit reached. Please try again in a few minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientKey,
+  validate: { xForwardedForHeader: false },
+  skipFailedRequests: true,
+});
+
 // Rate limiter for upload endpoints
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -225,7 +237,7 @@ ${urls
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation
   // ============================================
-  app.post("/api/grok", async (req: Request, res: Response) => {
+  app.post("/api/grok", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { prompt } = req.body;
       
@@ -471,7 +483,7 @@ Return ONLY valid JSON:
   // AI CHORD GENERATION ENDPOINT
   // Secure server-side OpenAI integration
   // ============================================
-  app.post("/api/chords", async (req: Request, res: Response) => {
+  app.post("/api/chords", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { key = 'C', mood = 'happy', userId = 'anonymous' } = req.body;
       
@@ -1569,7 +1581,7 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
   // AI MASTERING SUGGESTIONS ENDPOINT
   // Analyzes mix and provides professional mastering guidance
   // ============================================
-  app.post("/api/ai/mastering", async (req: Request, res: Response) => {
+  app.post("/api/ai/mastering", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { 
         frequencyData, 
@@ -1719,7 +1731,7 @@ Provide mastering recommendations in this exact JSON format:
   // AI ARRANGEMENT BUILDER ENDPOINT  
   // Generates full song structure from existing elements
   // ============================================
-  app.post("/api/ai/arrangement", async (req: Request, res: Response) => {
+  app.post("/api/ai/arrangement", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { 
         bpm = 120,
@@ -1856,7 +1868,7 @@ Generate a professional song arrangement in this exact JSON format:
   // AI VOCAL MELODY FROM LYRICS ENDPOINT
   // Generates singable melody matching lyric rhythm
   // ============================================
-  app.post("/api/ai/vocal-melody", async (req: Request, res: Response) => {
+  app.post("/api/ai/vocal-melody", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const {
         lyrics,
@@ -1972,7 +1984,7 @@ Return in this exact JSON format:
   // Uses Replicate's Demucs model with base64 file upload (no URL callback needed)
   // This avoids SSL/timeout issues by sending file data directly
   // ============================================
-  app.post("/api/ai/stem-separation", async (req: Request, res: Response) => {
+  app.post("/api/ai/stem-separation", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { audioUrl, stemCount = 2 } = req.body;
 
@@ -2187,7 +2199,7 @@ Return in this exact JSON format:
   // ============================================
   // AI CHORD PROGRESSION BY MOOD ENDPOINT
   // ============================================
-  app.post("/api/ai/chord-progression", async (req: Request, res: Response) => {
+  app.post("/api/ai/chord-progression", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const {
         key = "C",
@@ -2423,7 +2435,7 @@ Return ONLY valid JSON:
   // ============================================
   // CODE TO MUSIC ENDPOINT
   // ============================================
-  app.post("/api/code-to-music", async (req: Request, res: Response) => {
+  app.post("/api/code-to-music", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { code, language = 'javascript', variation = 0, genre = 'pop', useAI = false } = req.body;
       
@@ -2450,7 +2462,7 @@ Return ONLY valid JSON:
   });
 
   // AI Assistant Chat endpoint
-  app.post("/api/assistant/chat", async (req: Request, res: Response) => {
+  app.post("/api/assistant/chat", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { message, context, aiProvider } = req.body;
 

@@ -87,7 +87,7 @@ router.post('/astutely', async (req: Request, res: Response) => {
             { role: "user", content: userPrompt }
           ], {
             format: 'json',
-            temperature: 0.8
+            temperature: 1.0
           });
           usedLocal = true;
           console.log('✅ Local AI succeeded!');
@@ -99,7 +99,8 @@ router.post('/astutely', async (req: Request, res: Response) => {
             { role: "user", content: userPrompt }
           ], {
             response_format: { type: "json_object" },
-            temperature: 0.8
+            temperature: 1.0,
+            top_p: 0.95
           });
           console.log('✅ Cloud AI (Grok) succeeded!');
         }

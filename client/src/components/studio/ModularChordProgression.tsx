@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Play, Sparkles } from 'lucide-react';
@@ -78,11 +79,7 @@ export default function ModularChordProgression({ progression, onProgressionChan
     if (!onProgressionChange) return;
     setLoading(true); setError(null);
     try {
-      const res = await fetch('/api/chords', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: selectedKey, mood: selectedMood })
-      });
+      const res = await apiRequest('POST', '/api/chords', { key: selectedKey, mood: selectedMood });
       
       const data = await res.json();
       

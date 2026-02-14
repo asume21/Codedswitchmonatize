@@ -128,7 +128,7 @@ export function createSongRoutes(storage: IStorage) {
           await storage.updateSong(newSong.id, {
             audioData: base64Audio,
             mimeType: mime,
-          } as any);
+          });
           console.log(`💾 Audio bytes persisted to DB for song ${newSong.id} (${(audioBuffer.length / 1024 / 1024).toFixed(1)} MB)`);
         } else {
           console.warn(`⚠️ Could not persist audio to DB — disk file not found: ${diskPath}`);

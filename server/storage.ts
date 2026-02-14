@@ -758,6 +758,8 @@ export class MemStorage implements IStorage {
       analysisNotes: null,
       analyzedAt: null,
       isPublic: false,
+      audioData: insertSong.audioData || null,
+      mimeType: insertSong.mimeType || null,
       transcription: null,
       transcriptionStatus: null,
       transcribedAt: null,
