@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { ObjectStorageService } from '../objectStorage';
@@ -226,7 +227,7 @@ export class LocalMusicGenService {
       
       // Save to temp file
       const tempFileName = `${sampleId}.wav`;
-      const tempPath = path.join('/tmp', tempFileName);
+      const tempPath = path.join(os.tmpdir(), tempFileName);
       
       try {
         fs.writeFileSync(tempPath, audioBuffer);

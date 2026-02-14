@@ -4531,6 +4531,9 @@ Return this exact JSON format:
 
 
 
+  // NOTE: /api/packs/generate is handled by createPackRoutes() mounted at /api/packs (line 204)
+  // It supports multiple providers: local-samples, structure, suno, jasco, intelligent, musicgen
+
   // Save pack to library
   app.post(
     "/api/packs/save",

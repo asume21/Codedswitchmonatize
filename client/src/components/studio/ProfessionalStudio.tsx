@@ -135,7 +135,7 @@ export default function ProfessionalStudio() {
   // Code to Music Translation Mutation
   const codeToMusicMutation = useMutation({
     mutationFn: async ({ code, language, musicStyle }: { code: string; language: string; musicStyle: string }) => {
-      const response = await apiRequest('POST', '/api/audio/code-to-music', {
+      const response = await apiRequest('POST', '/api/code-to-music', {
         code,
         language,
         musicStyle
@@ -262,7 +262,7 @@ export default function ProfessionalStudio() {
 
   const addVocalsMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/audio/add-vocals', data);
+      const response = await apiRequest('POST', '/api/audio/generate-song', { ...data, includeVocals: true });
       return await response.json();
     },
     onSuccess: (data) => {
@@ -306,7 +306,7 @@ export default function ProfessionalStudio() {
   // FULL SONG GENERATION - Professional studio feature
   const fullSongGenerationMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/audio/professional-song', data);
+      const response = await apiRequest('POST', '/api/songs/generate-professional', data);
       return await response.json();
     },
     onSuccess: (data: any) => {
@@ -330,7 +330,7 @@ export default function ProfessionalStudio() {
   // GENRE FUSION GENERATION - Advanced genre blending
   const genreFusionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/audio/blend-genres', data);
+      const response = await apiRequest('POST', '/api/songs/blend-genres', data);
       return await response.json();
     },
     onSuccess: (data: any) => {
@@ -376,7 +376,7 @@ export default function ProfessionalStudio() {
 
   const lyricHelperMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/audio/lyric-helper', data);
+      const response = await apiRequest('POST', '/api/audio/generate-lyrics', data);
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -1303,7 +1303,7 @@ export default function ProfessionalStudio() {
                 <Button
                   onClick={async () => {
                     try {
-                      const response = await apiRequest('POST', '/api/audio/bidirectional-test', {
+                      const response = await apiRequest('POST', '/api/code-to-music', {
                         code: codeInput,
                         language: selectedLanguage
                       });

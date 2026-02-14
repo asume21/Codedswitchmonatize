@@ -1,5 +1,6 @@
 import { GeneratedSongData } from './ai-structure-grok';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { ObjectStorageService } from '../objectStorage';
@@ -173,7 +174,7 @@ Professional ${metadata.genre} production with ${productionNotes.mixing}.`;
     // Save structure data for debugging
     try {
       const structureFilename = `structure_${audioId}.json`;
-      const structurePath = path.join('/tmp', structureFilename);
+      const structurePath = path.join(os.tmpdir(), structureFilename);
       fs.writeFileSync(structurePath, JSON.stringify(resultData, null, 2));
     } catch (e) {
       // Ignore file write errors

@@ -279,36 +279,14 @@ export default function AILoopGenerator({
     setGeneratingType('full');
     
     try {
-      const response = await apiRequest('POST', '/api/ai/generate-loop', {
-          genre,
-          key,
-          scale,
-          bpm,
-          complexity: complexity / 100,
-          bars,
-          includeDrums,
-          includeBass,
-          includeChords,
-          includeMelody
-      });
-
-      if (!response.ok) {
-        // Generate locally if API fails
-        const localLoop = generateLocalLoop();
+      // No server endpoint for loop generation — generate locally using music theory
+      // This is instant and free (no API credits needed)
+      const localLoop = generateLocalLoop();
+      if (localLoop.notes && localLoop.notes.length > 0) {
         dispatchTopianoRoll(localLoop);
         toast({
-          title: '🎵 Loop Generated (Local)',
+          title: '🎵 Loop Generated!',
           description: `${localLoop.notes.length} notes created at ${bpm} BPM`,
-        });
-        return;
-      }
-
-      const data = await response.json();
-      if (data.notes && data.notes.length > 0) {
-        dispatchTopianoRoll({ notes: data.notes, bpm });
-        toast({
-          title: '🎵 AI Loop Generated!',
-          description: `${data.notes.length} notes sent to Piano Roll`,
         });
       }
     } catch (error) {
