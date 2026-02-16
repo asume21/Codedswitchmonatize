@@ -24,6 +24,7 @@ import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
 import { unifiedMusicService } from "./services/unifiedMusicService";
+import { sunoApiService } from "./services/sunoApiService";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { callAI } from "./services/aiGateway";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
@@ -1729,7 +1730,8 @@ Provide mastering recommendations in this exact JSON format:
 
   // ============================================
   // AI ARRANGEMENT BUILDER ENDPOINT  
-  // Generates full song structure from existing elements
+  // Takes REAL tracks from the project and arranges them into a full song
+  // Returns per-track per-section volume/mute/pan data
   // ============================================
   app.post("/api/ai/arrangement", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
@@ -1739,56 +1741,58 @@ Provide mastering recommendations in this exact JSON format:
         genre = "pop",
         mood = "uplifting",
         durationMinutes = 3,
-        existingSections = []
+        tracks = [],
       } = req.body;
 
-      const prompt = `You are a professional music producer and songwriter. Create a complete song arrangement.
+      // Build a track summary for the AI
+      const trackSummary = (tracks as any[]).map((t: any, i: number) => 
+        `Track ${i + 1}: "${t.name}" (${t.instrument || t.type || 'unknown'}) - ${t.noteCount || 0} notes`
+      ).join('\n');
 
-Song Parameters:
-- BPM: ${bpm}
-- Key: ${key}
-- Genre: ${genre}
-- Mood: ${mood}
-- Target Duration: ${durationMinutes} minutes
-${existingSections.length ? `- Existing sections to incorporate: ${existingSections.join(', ')}` : ''}
+      const trackIds = (tracks as any[]).map((t: any) => t.id || `track-${t.name}`);
+      const trackNames = (tracks as any[]).map((t: any) => t.name || `Track`);
 
-Generate a professional song arrangement in this exact JSON format:
+      const prompt = `You are a professional music producer. You have ${tracks.length} tracks to arrange into a full song.
+
+TRACKS IN THE PROJECT:
+${trackSummary || 'No tracks provided — generate a generic arrangement plan.'}
+
+Song Parameters: ${bpm} BPM, Key of ${key}, Genre: ${genre}, Mood: ${mood}, Duration: ~${durationMinutes} minutes
+
+YOUR JOB: Decide which tracks should play in each section, at what volume (0-100), and whether they should be muted. This creates a professional arrangement where instruments enter and exit naturally.
+
+Return ONLY this JSON (no commentary):
 {
-  "totalBars": 128,
-  "totalDuration": "${durationMinutes}:00",
+  "totalBars": <number>,
   "sections": [
     {
       "name": "Intro",
       "startBar": 1,
       "endBar": 8,
-      "bars": 8,
-      "duration": "16s",
-      "description": "Atmospheric synth pad with filtered drums",
-      "instruments": ["pad", "filtered-drums"],
-      "energy": 3,
-      "tips": "Keep it minimal, build anticipation"
-    },
-    {
-      "name": "Verse 1",
-      "startBar": 9,
-      "endBar": 24,
-      "bars": 16,
-      "duration": "32s",
-      "description": "Full drums enter, bass establishes groove",
-      "instruments": ["drums", "bass", "pad", "lead"],
-      "energy": 5,
-      "tips": "Introduce main melody, establish rhythm"
+      "energy": <1-10>,
+      "description": "<what happens musically>",
+      "trackStates": {
+        ${trackNames.map((name: string, i: number) => `"${name}": { "active": true/false, "volume": 0-100 }`).join(',\n        ')}
+      }
     }
   ],
   "transitions": [
-    { "from": "Intro", "to": "Verse 1", "type": "build", "tip": "Add drum fill in last 2 bars" }
+    { "from": "Intro", "to": "Verse 1", "type": "build/drop/cut/fade", "description": "<how to transition>" }
   ],
-  "recommendations": [
-    "Add a pre-chorus before the first chorus for maximum impact",
-    "Consider a breakdown after the second chorus",
-    "End with a variation of the intro for cohesion"
-  ]
-}`;
+  "recommendations": ["<production tip 1>", "<production tip 2>", "<production tip 3>"]
+}
+
+RULES:
+- Intro: Start sparse (1-2 tracks), build anticipation
+- Verses: Add rhythm section, keep melody present but not dominant
+- Chorus: ALL tracks active, maximum energy, highest volumes
+- Bridge: Strip back, create contrast — maybe just 2-3 tracks
+- Outro: Gradually remove tracks, mirror the intro
+- Drums should be muted or very quiet in intros/outros
+- Bass and drums should enter together
+- Melody/lead should be louder in choruses
+- Create dynamic contrast between sections
+- Each section's trackStates MUST include ALL ${tracks.length} tracks`;
 
       const aiClient = getAIClient();
       let arrangementData: any = null;
@@ -1798,11 +1802,12 @@ Generate a professional song arrangement in this exact JSON format:
           const completion = await aiClient.chat.completions.create({
             model: "grok-3",
             messages: [
-              { role: "system", content: "You are a hit songwriter and producer with expertise in song structure. Create radio-ready arrangements." },
+              { role: "system", content: "You are a Grammy-winning music producer. Create arrangements that sound professional by controlling which instruments play in each section. Return valid JSON only." },
               { role: "user", content: prompt }
             ],
+            response_format: { type: "json_object" },
             temperature: 0.7,
-            max_tokens: 2000,
+            max_tokens: 3000,
           });
 
           const response = completion.choices[0]?.message?.content;
@@ -1817,35 +1822,58 @@ Generate a professional song arrangement in this exact JSON format:
         }
       }
 
+      // Fallback: generate a smart arrangement based on track types
       if (!arrangementData) {
         const barsPerMinute = bpm / 4;
         const totalBars = Math.round(durationMinutes * barsPerMinute);
-        
+
+        // Classify tracks by role
+        const classify = (t: any) => {
+          const name = (t.name || '').toLowerCase();
+          const inst = (t.instrument || t.type || '').toLowerCase();
+          if (name.includes('drum') || name.includes('beat') || inst.includes('drum')) return 'drums';
+          if (name.includes('bass') || inst.includes('bass')) return 'bass';
+          if (name.includes('melod') || name.includes('lead') || inst.includes('flute') || inst.includes('violin') || inst.includes('trumpet')) return 'melody';
+          if (name.includes('chord') || name.includes('pad') || inst.includes('pad') || inst.includes('piano') || inst.includes('guitar')) return 'chords';
+          return 'other';
+        };
+
+        const trackRoles = (tracks as any[]).map((t: any) => ({ ...t, role: classify(t) }));
+
+        const makeStates = (activeRoles: string[], defaultVol: number) => {
+          const states: Record<string, { active: boolean; volume: number }> = {};
+          trackRoles.forEach((t: any) => {
+            const isActive = activeRoles.includes(t.role) || activeRoles.includes('all');
+            states[t.name || 'Track'] = { active: isActive, volume: isActive ? defaultVol : 0 };
+          });
+          return states;
+        };
+
         arrangementData = {
           totalBars,
-          totalDuration: `${durationMinutes}:00`,
           sections: [
-            { name: "Intro", startBar: 1, endBar: 8, bars: 8, energy: 3, instruments: ["pad", "drums-filtered"], description: "Build anticipation" },
-            { name: "Verse 1", startBar: 9, endBar: 24, bars: 16, energy: 5, instruments: ["drums", "bass", "melody"], description: "Establish groove and melody" },
-            { name: "Pre-Chorus", startBar: 25, endBar: 32, bars: 8, energy: 6, instruments: ["drums", "bass", "melody", "pad"], description: "Build tension" },
-            { name: "Chorus", startBar: 33, endBar: 48, bars: 16, energy: 8, instruments: ["drums", "bass", "melody", "harmony", "pad"], description: "Maximum energy, hook" },
-            { name: "Verse 2", startBar: 49, endBar: 64, bars: 16, energy: 5, instruments: ["drums", "bass", "melody"], description: "Variation of verse 1" },
-            { name: "Pre-Chorus", startBar: 65, endBar: 72, bars: 8, energy: 6, instruments: ["drums", "bass", "melody", "pad"], description: "Build to final chorus" },
-            { name: "Chorus", startBar: 73, endBar: 88, bars: 16, energy: 9, instruments: ["drums", "bass", "melody", "harmony", "pad", "fx"], description: "Biggest section" },
-            { name: "Bridge", startBar: 89, endBar: 96, bars: 8, energy: 4, instruments: ["pad", "melody-variation"], description: "Contrast and reflection" },
-            { name: "Final Chorus", startBar: 97, endBar: 112, bars: 16, energy: 10, instruments: ["drums", "bass", "melody", "harmony", "pad", "fx"], description: "Peak energy" },
-            { name: "Outro", startBar: 113, endBar: totalBars, bars: totalBars - 112, energy: 3, instruments: ["pad", "drums-filtered"], description: "Wind down" }
+            { name: "Intro", startBar: 1, endBar: 8, energy: 3, description: "Atmospheric opening — sparse instruments", trackStates: makeStates(['chords', 'melody'], 60) },
+            { name: "Verse 1", startBar: 9, endBar: 24, energy: 5, description: "Rhythm enters, groove established", trackStates: makeStates(['drums', 'bass', 'melody', 'chords'], 75) },
+            { name: "Pre-Chorus", startBar: 25, endBar: 32, energy: 7, description: "Building tension toward chorus", trackStates: makeStates(['drums', 'bass', 'melody', 'chords', 'other'], 80) },
+            { name: "Chorus", startBar: 33, endBar: 48, energy: 9, description: "Full energy — all tracks active", trackStates: makeStates(['all'], 90) },
+            { name: "Verse 2", startBar: 49, endBar: 64, energy: 5, description: "Variation of verse 1", trackStates: makeStates(['drums', 'bass', 'melody'], 70) },
+            { name: "Pre-Chorus 2", startBar: 65, endBar: 72, energy: 7, description: "Build to final chorus", trackStates: makeStates(['drums', 'bass', 'melody', 'chords', 'other'], 80) },
+            { name: "Chorus 2", startBar: 73, endBar: 88, energy: 10, description: "Peak energy — biggest section", trackStates: makeStates(['all'], 95) },
+            { name: "Bridge", startBar: 89, endBar: 96, energy: 4, description: "Strip back for contrast", trackStates: makeStates(['chords', 'melody'], 65) },
+            { name: "Final Chorus", startBar: 97, endBar: Math.min(112, totalBars - 4), energy: 10, description: "Maximum impact", trackStates: makeStates(['all'], 100) },
+            { name: "Outro", startBar: Math.min(113, totalBars - 3), endBar: totalBars, energy: 2, description: "Fade out — mirror intro", trackStates: makeStates(['chords'], 50) },
           ],
           transitions: [
-            { from: "Intro", to: "Verse 1", type: "drum-fill" },
-            { from: "Pre-Chorus", to: "Chorus", type: "build-drop" },
-            { from: "Bridge", to: "Final Chorus", type: "big-build" }
+            { from: "Intro", to: "Verse 1", type: "build", description: "Drums enter with a fill" },
+            { from: "Pre-Chorus", to: "Chorus", type: "drop", description: "Big impact — everything hits at once" },
+            { from: "Chorus", to: "Verse 2", type: "cut", description: "Strip back suddenly for contrast" },
+            { from: "Bridge", to: "Final Chorus", type: "build", description: "Gradual build over 4 bars" },
           ],
           recommendations: [
-            "Use automation to build energy into choruses",
-            "Add variations to keep verses interesting",
-            "Consider a breakdown for contrast"
-          ]
+            "Add volume automation to build energy into choruses",
+            "Use filter sweeps on drums during transitions",
+            "Consider adding a riser FX before each chorus drop",
+          ],
         };
       }
 
@@ -1855,6 +1883,7 @@ Generate a professional song arrangement in this exact JSON format:
         bpm,
         key,
         genre,
+        trackCount: tracks.length,
         provider: aiClient ? "AI" : "Fallback"
       });
 
@@ -3763,8 +3792,23 @@ ${code}
           songDescription: z.string().min(1, "songDescription is required").max(2000, "Description too long (max 2000 chars)"),
           genre: z.string().optional(),
           mood: z.string().optional(),
+          aiProvider: z.string().optional(),
           duration: z.number().min(5).max(300).optional(),
+          bpm: z.number().min(40).max(300).optional(),
+          key: z.string().optional(),
+          style: z.string().optional(),
           includeVocals: z.boolean().optional(),
+          instruments: z.array(z.string()).optional(),
+          seed: z.number().optional(),
+          variations: z.number().min(1).max(4).optional(),
+          melodyUrl: z.string().url().optional().or(z.literal('')),
+          structure: z.array(z.object({
+            name: z.string(),
+            duration: z.number(),
+            energy: z.string(),
+          })).optional(),
+          autoSeparateStems: z.boolean().optional(),
+          stemCount: z.union([z.literal(2), z.literal(4)]).optional(),
         });
 
         const parsed = schema.safeParse(req.body || {});
@@ -3777,127 +3821,135 @@ ${code}
           songDescription,
           genre,
           mood,
+          aiProvider,
           duration,
+          bpm,
+          key: musicalKey,
+          style: musicalStyle,
           includeVocals = true,
+          instruments: selectedInstruments,
+          seed,
+          variations = 1,
+          melodyUrl,
+          structure,
+          autoSeparateStems = false,
+          stemCount = 4,
         } = parsed.data;
 
-        // Genre-aware prompt building for better AI output
-        const genreBpmMap: Record<string, { bpm: number; instruments: string; style: string }> = {
-          'pop': { bpm: 115, instruments: 'synths, acoustic guitar, piano', style: 'polished radio-ready' },
-          'rock': { bpm: 130, instruments: 'electric guitar, bass, drums', style: 'driving and powerful' },
-          'hip hop': { bpm: 90, instruments: '808 bass, hi-hats, synth pads', style: 'rhythmic and groovy' },
-          'trap': { bpm: 145, instruments: '808 bass, rolling hi-hats, dark synths', style: 'hard-hitting and atmospheric' },
-          'house': { bpm: 125, instruments: 'synth bass, claps, filtered pads', style: 'four-on-the-floor dance' },
-          'r&b': { bpm: 70, instruments: 'rhodes, warm bass, soft drums', style: 'smooth and soulful' },
-          'jazz': { bpm: 110, instruments: 'piano, upright bass, brushed drums', style: 'sophisticated and improvisational' },
-          'country': { bpm: 115, instruments: 'acoustic guitar, fiddle, pedal steel', style: 'warm and storytelling' },
-          'electronic': { bpm: 128, instruments: 'synthesizers, drum machine, bass', style: 'modern and layered' },
-          'lo-fi': { bpm: 80, instruments: 'vinyl piano, soft drums, tape hiss', style: 'warm and nostalgic' },
-          'ambient': { bpm: 75, instruments: 'pads, reverb textures, gentle tones', style: 'spacious and ethereal' },
-          'reggae': { bpm: 75, instruments: 'offbeat guitar, bass, organ', style: 'laid-back island groove' },
-          'funk': { bpm: 110, instruments: 'slap bass, clavinet, tight drums', style: 'groovy and rhythmic' },
-        };
+        // Build instrument string from selected instruments
+        const instrumentStr = selectedInstruments?.length
+          ? selectedInstruments.join(', ')
+          : undefined;
 
-        const genreLower = (genre || '').toLowerCase();
-        const genreInfo = genreBpmMap[genreLower] || null;
-
+        // Build the prompt with all context
         const promptParts = [songDescription];
-        if (genre) {
-          if (genreInfo) {
-            promptParts.push(`${genre} style at ${genreInfo.bpm} BPM`);
-            promptParts.push(`Instruments: ${genreInfo.instruments}`);
-            promptParts.push(`${genreInfo.style} production`);
-          } else {
-            promptParts.push(`Genre: ${genre}`);
-          }
-        }
+        if (genre) promptParts.push(`Genre: ${genre}`);
         if (mood) promptParts.push(`Mood: ${mood}`);
+        if (instrumentStr) promptParts.push(`Instruments: ${instrumentStr}`);
         if (!includeVocals) promptParts.push("Instrumental only, no vocals");
         const prompt = promptParts.join(". ");
 
-        console.log(`🎵 Generating complete song with Suno AI: "${prompt}"`);
-
-        // Call Replicate Suno AI
-        const replicateToken = process.env.REPLICATE_API_TOKEN;
-        if (!replicateToken) {
-          return res.status(500).json({ message: "REPLICATE_API_TOKEN not configured" });
-        }
+        console.log(`🎵 Generating complete song: "${prompt}" (seed=${seed}, variations=${variations}, structure=${structure ? structure.length + ' sections' : 'auto'})`);
 
         try {
-          // Use Suno AI model on Replicate (bark or similar)
-          const response = await fetch("https://api.replicate.com/v1/predictions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Token ${replicateToken}`,
-            },
-            body: JSON.stringify({
-              version: "b76242b40d67c76ab6742e987628a2a9ac019e11d56ab96c4e91ce03b79b2787", // Bark text-to-audio
-              input: {
-                prompt: prompt,
-                text_temp: 0.7,
-                waveform_temp: 0.7,
-              },
-            }),
-          });
+          let result: any;
 
-          const prediction = await response.json();
-
-          // Validate prediction ID
-          if (!prediction.id || typeof prediction.id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(prediction.id)) {
-            console.error('[Suno] Invalid prediction response:', prediction);
-            return res.status(500).json({ message: "Invalid prediction ID from Replicate" });
-          }
-
-          // Poll for result (Suno takes longer, so we need more time)
-          let result;
-          const REPLICATE_API_BASE = 'https://api.replicate.com';
-          let attempts = 0;
-          const maxAttempts = 240; // 8 minutes max for Suno
-
-          do {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const statusResponse = await fetch(`${REPLICATE_API_BASE}/v1/predictions/${prediction.id}`, {
-              headers: { "Authorization": `Token ${replicateToken}` },
+          // If structure sections are provided, use section stitching
+          if (structure && structure.length > 0) {
+            console.log(`🎵 Using section-stitched generation (${structure.length} sections)`);
+            result = await unifiedMusicService.generateStitchedSong(prompt, {
+              genre: genre || undefined,
+              bpm,
+              key: musicalKey,
+              mood: mood || undefined,
+              vocals: includeVocals,
+              seed,
+              structure,
             });
-            result = await statusResponse.json();
-            attempts++;
-
-            if (attempts >= maxAttempts) {
-              return res.status(500).json({ message: "Song generation timeout - Suno took too long" });
-            }
-          } while (result.status === "starting" || result.status === "processing");
-
-          if (result.status === "succeeded" && result.output) {
-            // Deduct credits after successful generation
-            if (req.creditService && req.creditCost) {
-              await req.creditService.deductCredits(
-                req.userId!,
-                req.creditCost,
-                'Complete song generation',
-                { genre, mood, songDescription: songDescription.substring(0, 100) }
-              );
-            }
-
-            const data = {
-              success: true,
-              audioUrl: result.output.audio_out || result.output,
-              title: `${genre || 'AI'} Song`,
-              description: songDescription,
-              genre: genre || 'AI Generated',
-              prompt,
-              provider: 'Suno AI (Replicate)'
-            };
-
-            console.log(`✅ Suno AI generated complete song`);
-            return res.json(data);
           } else {
-            console.error('[Suno] Generation failed:', result);
-            return res.status(500).json({ message: `Song generation failed: ${result.error || 'Unknown error'}` });
+            // Use the multi-provider cascade (Suno → MusicGen Large → Stable Audio → basic MusicGen)
+            result = await unifiedMusicService.generateFullSong(prompt, {
+              genre: genre || undefined,
+              mood: mood || undefined,
+              aiProvider: aiProvider || undefined,
+              duration: duration || 30,
+              style: musicalStyle || genre || 'modern',
+              vocals: includeVocals,
+              bpm,
+              key: musicalKey,
+              seed,
+              variations,
+              melodyUrl: melodyUrl || undefined,
+            });
           }
+
+          if (!result?.audio_url) {
+            return res.status(500).json({ message: "Music generation failed - no audio returned" });
+          }
+
+          let stems: Record<string, string | undefined> | undefined;
+          let stemChannelMapping: Record<string, string> | undefined;
+          let stemWarning: string | undefined;
+          if (autoSeparateStems) {
+            try {
+              const { stemSeparationService } = await import('./services/stemSeparation');
+              if (stemSeparationService.isConfigured()) {
+                const stemResult = await stemSeparationService.separateStems(result.audio_url, stemCount as 2 | 4);
+                if (stemResult.success) {
+                  stems = {
+                    vocals: stemResult.vocals,
+                    instrumental: stemResult.instrumental,
+                    drums: stemResult.drums,
+                    bass: stemResult.bass,
+                    other: stemResult.other,
+                  };
+                  stemChannelMapping = {
+                    vocals: 'track-stem-vocals',
+                    instrumental: 'track-stem-instrumental',
+                    drums: 'track-stem-drums',
+                    bass: 'track-stem-bass',
+                    other: 'track-stem-other',
+                  };
+                } else {
+                  stemWarning = stemResult.error || 'Stem separation failed';
+                }
+              } else {
+                stemWarning = 'Stem separation not configured (missing REPLICATE_API_TOKEN)';
+              }
+            } catch (stemErr: any) {
+              stemWarning = stemErr?.message || 'Stem separation failed unexpectedly';
+            }
+          }
+
+          // Deduct credits after successful generation
+          if (req.creditService && req.creditCost) {
+            await req.creditService.deductCredits(
+              req.userId!,
+              req.creditCost,
+              `Song generation (${result.metadata?.generator || 'AI'})`,
+              { genre, mood, songDescription: songDescription.substring(0, 100) }
+            );
+          }
+
+          return res.json({
+            success: true,
+            audioUrl: result.audio_url,
+            title: `${genre || 'AI'} ${includeVocals ? 'Song' : 'Instrumental'}`,
+            description: songDescription,
+            genre: genre || 'AI Generated',
+            prompt,
+            duration: result.metadata?.duration || duration || 30,
+            provider: result.metadata?.generator || 'AI',
+            seed: result.metadata?.seed,
+            variations: result.variations,
+            sections: result.sections,
+            stems,
+            stemChannelMapping,
+            stemWarning,
+          });
         } catch (err: any) {
-          console.error("Suno AI generation error:", err);
-          return res.status(500).json({ message: err?.message || "Failed to generate song with Suno AI" });
+          console.error("Song generation error:", err);
+          return res.status(500).json({ message: err?.message || "Failed to generate song" });
         }
       } catch (err: any) {
         console.error("Complete song generation error:", err);

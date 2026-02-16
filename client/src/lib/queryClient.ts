@@ -2,8 +2,34 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    const headerRequestId = res.headers.get("x-request-id") || undefined;
+
+    if (contentType.includes("application/json")) {
+      try {
+        const body = await res.json();
+        const message = String(body?.message || body?.error || body?.detail || res.statusText || "Request failed");
+        const provider = body?.provider ? String(body.provider) : undefined;
+        const reason = body?.reason ? String(body.reason) : undefined;
+        const requestId = body?.requestId ? String(body.requestId) : headerRequestId;
+
+        const metadata = [
+          provider ? `provider=${provider}` : null,
+          reason ? `reason=${reason}` : null,
+          requestId ? `requestId=${requestId}` : null,
+        ].filter(Boolean).join(' | ');
+
+        throw new Error(`${res.status}: ${message}${metadata ? ` (${metadata})` : ''}`);
+      } catch (jsonError) {
+        if (jsonError instanceof Error && jsonError.message.includes(`${res.status}:`)) {
+          throw jsonError;
+        }
+      }
+    }
+
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const fallbackRequestId = headerRequestId ? ` (requestId=${headerRequestId})` : '';
+    throw new Error(`${res.status}: ${text}${fallbackRequestId}`);
   }
 }
 

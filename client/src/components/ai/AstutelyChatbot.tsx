@@ -401,7 +401,12 @@ Try: "play", "make a drill beat", or "analyze my project".`,
     try {
       if (action === 'beat') {
         const status = getProjectStatus();
-        const style = 'Travis Scott rage';
+        const randomStyles = [
+          'Travis Scott rage', 'The Weeknd dark', 'Drake smooth', 'Lo-fi chill',
+          'Future bass', 'Afrobeats bounce', 'Phonk drift', 'K-pop cute',
+          'Latin trap', 'Hyperpop glitch',
+        ];
+        const style = randomStyles[Math.floor(Math.random() * randomStyles.length)];
         
         // Generate MIDI pattern for tracks
         const result = await astutelyGenerate(style);
@@ -813,9 +818,14 @@ Say "list songs" to see your uploaded songs.`,
         }
       }
       
-      // BEAT GENERATION
+      // BEAT GENERATION — pass user's FULL message as prompt so AI uses their instrument requests
       if (lowerInput.includes('beat') || lowerInput.includes('drum') || lowerInput.includes('808') || 
-          lowerInput.includes('make a') || lowerInput.includes('create a') || lowerInput.includes('generate')) {
+          lowerInput.includes('make a') || lowerInput.includes('create a') || lowerInput.includes('generate') ||
+          lowerInput.includes('flute') || lowerInput.includes('violin') || lowerInput.includes('guitar') ||
+          lowerInput.includes('piano') || lowerInput.includes('bass') || lowerInput.includes('synth') ||
+          lowerInput.includes('strings') || lowerInput.includes('trumpet') || lowerInput.includes('sax') ||
+          lowerInput.includes('harp') || lowerInput.includes('cello') || lowerInput.includes('orchestra')) {
+        // Map to a genre hint for the AI, but the REAL prompt is the user's full message
         const style = lowerInput.includes('trap') ? 'Travis Scott rage' 
           : lowerInput.includes('chill') || lowerInput.includes('lofi') || lowerInput.includes('lo-fi') ? 'Lo-fi chill'
           : lowerInput.includes('pop') || lowerInput.includes('kpop') ? 'K-pop cute'
@@ -825,9 +835,16 @@ Say "list songs" to see your uploaded songs.`,
           : lowerInput.includes('latin') || lowerInput.includes('reggaeton') ? 'Latin trap'
           : lowerInput.includes('hyper') ? 'Hyperpop glitch'
           : lowerInput.includes('weeknd') || lowerInput.includes('dark') ? 'The Weeknd dark'
+          : lowerInput.includes('drill') ? 'Drill UK'
+          : lowerInput.includes('house') || lowerInput.includes('techno') ? 'House deep'
+          : lowerInput.includes('synth') && lowerInput.includes('wave') ? 'Synthwave retro'
           : 'Drake smooth';
           
-        const result = await astutelyGenerate(style);
+        // Pass the user's FULL message as the prompt — this is what the AI uses to pick instruments
+        const result = await astutelyGenerate({
+          style,
+          prompt: currentInput,
+        });
         const notes = astutelyToNotes(result);
         
         handleSetTempo(result.bpm);
@@ -840,11 +857,35 @@ Say "list songs" to see your uploaded songs.`,
           detail: { notes, bpm: result.bpm } 
         }));
 
+        // Also try to generate real audio via Suno/MusicGen
+        let audioInfo = { provider: 'synth', audioUrl: '' };
+        try {
+          toast({ title: '🎵 Generating audio...', description: 'Creating real audio with AI' });
+          const audioResult = await astutelyGenerateAudio(style, { 
+            prompt: currentInput, 
+            bpm: result.bpm, 
+            key: result.key 
+          });
+          audioInfo = audioResult;
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Autoplay blocked, audio player will be shown in chat:', playErr);
+          }
+        } catch (audioError) {
+          console.warn('Audio generation failed, using synth preview:', audioError);
+        }
+
+        const instrumentInfo = result.instruments 
+          ? `\n🎻 Instruments: ${[result.instruments.melody, result.instruments.chords, result.instruments.bass].filter(Boolean).join(', ')}`
+          : '';
+
         const assistantMessage: Message = {
           role: 'assistant',
           content: `🔥 Created a **${result.style}** beat!
 
-**${result.bpm} BPM** in **${result.key}**
+**${result.bpm} BPM** in **${result.key}**${instrumentInfo}
+${audioInfo.audioUrl ? `🔊 **Real audio generated** via ${audioInfo.provider}! Use the player below.` : ''}
 • 🥁 ${notes.filter(n => n.trackType === 'drums').length} drum hits
 • 🎸 ${notes.filter(n => n.trackType === 'bass').length} bass notes
 • 🎹 ${notes.filter(n => n.trackType === 'chords').length} chord notes
@@ -852,6 +893,7 @@ Say "list songs" to see your uploaded songs.`,
 
 Say "play" to hear it!`,
           timestamp: new Date(),
+          audioUrl: audioInfo.audioUrl || undefined,
         };
         setMessages(prev => [...prev, assistantMessage]);
         toast({ title: '🔥 Beat Generated!', description: `${result.style} at ${result.bpm} BPM` });

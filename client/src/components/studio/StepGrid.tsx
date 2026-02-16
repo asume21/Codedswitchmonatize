@@ -225,6 +225,21 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
 
         {/* Grid - draw each row at the EXACT position of each piano key */}
         <div className="relative" style={{ height: `${pianoKeys.length * keyHeight}px` }}>
+          {/* ═══ PLAYHEAD LINE — bright vertical cursor that moves across the grid ═══ */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: `${currentStep * stepWidth * zoom}px`,
+              width: '2px',
+              backgroundColor: '#ef4444',
+              boxShadow: '0 0 8px 2px rgba(239, 68, 68, 0.6)',
+              zIndex: 30,
+              pointerEvents: 'none',
+              transition: 'left 0.05s linear',
+            }}
+          />
           {pianoKeys.map((key, keyIndex) => {
             const yPosition = keyIndex * keyHeight;
             const thisRowStyle: CSSProperties = {

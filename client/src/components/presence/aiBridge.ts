@@ -273,5 +273,28 @@ export function dispatchAstutelyEvent(
   eventName: string,
   detail?: Record<string, unknown>
 ): void {
-  window.dispatchEvent(new CustomEvent(`astutely:${eventName}`, { detail }));
+  const payload = {
+    name: eventName,
+    detail: detail ?? {},
+    timestamp: Date.now(),
+  };
+
+  // Legacy event channel (kept for backward compatibility)
+  window.dispatchEvent(new CustomEvent(`astutely:${eventName}`, { detail: payload.detail }));
+
+  // Standardized event envelope channel
+  window.dispatchEvent(new CustomEvent('astutely:event', { detail: payload }));
+}
+
+export function dispatchAstutelyCommand(
+  command: string,
+  detail?: Record<string, unknown>
+): void {
+  window.dispatchEvent(new CustomEvent('astutely:command', {
+    detail: {
+      command,
+      detail: detail ?? {},
+      timestamp: Date.now(),
+    },
+  }));
 }

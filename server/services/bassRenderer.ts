@@ -11,6 +11,18 @@ export interface BassNote {
   glide?: number;
 }
 
+export interface BassRenderOptions {
+  style?: string;
+  quality?: 'basic' | 'high';
+}
+
+export interface BassRenderInfo {
+  mode: 'midi-synthesis';
+  quality: 'basic' | 'enhanced';
+  processingChain: string[];
+  warning?: string;
+}
+
 const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
 
@@ -70,7 +82,84 @@ function writeWav(samples: Float32Array): Buffer {
   return buffer;
 }
 
-export async function renderBassToWav(bassNotes: BassNote[], uploadsDir: string) {
+function onePoleLowPass(input: Float32Array, cutoffHz: number): Float32Array {
+  const output = new Float32Array(input.length);
+  const dt = 1 / SAMPLE_RATE;
+  const rc = 1 / (TWO_PI * Math.max(10, cutoffHz));
+  const alpha = dt / (rc + dt);
+  let y = 0;
+  for (let i = 0; i < input.length; i++) {
+    y = y + alpha * (input[i] - y);
+    output[i] = y;
+  }
+  return output;
+}
+
+function onePoleHighPass(input: Float32Array, cutoffHz: number): Float32Array {
+  const output = new Float32Array(input.length);
+  const dt = 1 / SAMPLE_RATE;
+  const rc = 1 / (TWO_PI * Math.max(10, cutoffHz));
+  const alpha = rc / (rc + dt);
+  let prevInput = 0;
+  let prevOutput = 0;
+  for (let i = 0; i < input.length; i++) {
+    const x = input[i];
+    const y = alpha * (prevOutput + x - prevInput);
+    output[i] = y;
+    prevInput = x;
+    prevOutput = y;
+  }
+  return output;
+}
+
+function applySoftSaturation(input: Float32Array, drive = 1.2): Float32Array {
+  const output = new Float32Array(input.length);
+  for (let i = 0; i < input.length; i++) {
+    output[i] = Math.tanh(input[i] * drive);
+  }
+  return output;
+}
+
+function applySimpleCompressor(input: Float32Array, threshold = 0.55, ratio = 3, attackMs = 8, releaseMs = 120): Float32Array {
+  const output = new Float32Array(input.length);
+  const attackCoeff = Math.exp(-1 / (Math.max(1, attackMs) * 0.001 * SAMPLE_RATE));
+  const releaseCoeff = Math.exp(-1 / (Math.max(1, releaseMs) * 0.001 * SAMPLE_RATE));
+  let env = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    const x = input[i];
+    const level = Math.abs(x);
+    env = level > env
+      ? attackCoeff * env + (1 - attackCoeff) * level
+      : releaseCoeff * env + (1 - releaseCoeff) * level;
+
+    let gain = 1;
+    if (env > threshold) {
+      const over = env / threshold;
+      const compressed = Math.pow(over, 1 / ratio);
+      gain = compressed > 0 ? 1 / compressed : 1;
+    }
+
+    output[i] = x * gain;
+  }
+
+  return output;
+}
+
+function applyLimiterInPlace(buffer: Float32Array, ceiling = 0.95) {
+  let peak = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    peak = Math.max(peak, Math.abs(buffer[i]));
+  }
+  if (peak > ceiling) {
+    const gain = ceiling / peak;
+    for (let i = 0; i < buffer.length; i++) {
+      buffer[i] *= gain;
+    }
+  }
+}
+
+export async function renderBassToWav(bassNotes: BassNote[], uploadsDir: string, options: BassRenderOptions = {}) {
   const totalDuration = bassNotes.reduce(
     (max, n) => Math.max(max, n.start + n.duration),
     0
@@ -98,14 +187,34 @@ export async function renderBassToWav(bassNotes: BassNote[], uploadsDir: string)
     }
   }
 
-  // simple limiter
-  let peak = 0;
-  for (let i = 0; i < buffer.length; i++) {
-    peak = Math.max(peak, Math.abs(buffer[i]));
+  const processingChain: string[] = [];
+  let warning: string | undefined;
+
+  // Quality chain for less "MIDI-ish" tone
+  const highQualityRequested = options.quality !== 'basic';
+  if (highQualityRequested) {
+    let processed = onePoleHighPass(buffer, 28);
+    processingChain.push('high-pass@28Hz');
+
+    processed = onePoleLowPass(processed, 3200);
+    processingChain.push('low-pass@3.2kHz');
+
+    processed = applySoftSaturation(processed, 1.25);
+    processingChain.push('soft-saturation');
+
+    processed = applySimpleCompressor(processed, 0.52, 3.2, 8, 110);
+    processingChain.push('compressor(3.2:1)');
+
+    buffer.set(processed);
+  } else {
+    warning = 'Using basic MIDI render chain';
   }
-  if (peak > 0.99) {
-    const gain = 0.99 / peak;
-    for (let i = 0; i < buffer.length; i++) buffer[i] *= gain;
+
+  applyLimiterInPlace(buffer, 0.95);
+  processingChain.push('limiter@-0.45dBFS');
+
+  if (bassNotes.length < 4 && !warning) {
+    warning = 'Very short note sequence may still sound synthetic';
   }
 
   await fs.mkdir(uploadsDir, { recursive: true });
@@ -118,5 +227,11 @@ export async function renderBassToWav(bassNotes: BassNote[], uploadsDir: string)
     filePath: fullPath,
     fileName: filename,
     duration: totalDuration,
+    renderInfo: {
+      mode: 'midi-synthesis' as const,
+      quality: highQualityRequested ? 'enhanced' as const : 'basic' as const,
+      processingChain,
+      warning,
+    },
   };
 }

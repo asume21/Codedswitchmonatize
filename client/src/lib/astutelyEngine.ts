@@ -146,6 +146,12 @@ export interface AstutelyResult {
   bass: { step: number; note: number; duration: number }[];
   chords: { step: number; notes: number[]; duration: number }[];
   melody: { step: number; note: number; duration: number }[];
+  instruments?: {
+    bass?: string;
+    chords?: string;
+    melody?: string;
+    drumKit?: string;
+  };
   isFallback?: boolean;
   fallbackReason?: string;
   meta?: {
@@ -175,6 +181,30 @@ export interface AstutelyGenerateOptions {
   trackSummaries?: AstutelyTrackSummary[];
 }
 
+const formatApiError = async (response: Response, fallbackMessage: string) => {
+  const contentType = response.headers.get('content-type') || '';
+  const headerRequestId = response.headers.get('x-request-id') || undefined;
+
+  if (contentType.includes('application/json')) {
+    const body = await response.json().catch(() => ({} as any));
+    const message = String(body?.message || body?.error || fallbackMessage);
+    const provider = body?.provider ? String(body.provider) : undefined;
+    const reason = body?.reason ? String(body.reason) : undefined;
+    const requestId = body?.requestId ? String(body.requestId) : headerRequestId;
+    const metadata = [
+      provider ? `provider=${provider}` : null,
+      reason ? `reason=${reason}` : null,
+      requestId ? `requestId=${requestId}` : null,
+    ].filter(Boolean).join(' | ');
+
+    return `${response.status}: ${message}${metadata ? ` (${metadata})` : ''}`;
+  }
+
+  const text = await response.text().catch(() => '');
+  const requestMeta = headerRequestId ? ` (requestId=${headerRequestId})` : '';
+  return `${response.status}: ${text || fallbackMessage}${requestMeta}`;
+};
+
 export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerateOptions): Promise<AstutelyResult> => {
   const options: AstutelyGenerateOptions = typeof styleOrOptions === 'string'
     ? { style: styleOrOptions }
@@ -197,7 +227,7 @@ export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerate
     });
 
     if (!response.ok) {
-      throw new Error('Astutely API failed');
+      throw new Error(await formatApiError(response, 'Astutely API failed'));
     }
 
     const result = await response.json();
@@ -253,6 +283,21 @@ const generateLocalFallback = (style: string, overrides?: { tempo?: number; time
     perc: rotate(baseDrumPattern.perc, Math.floor(rng() * 16)),
   };
   
+  // Pick instruments based on style so fallback doesn't always sound the same
+  const STYLE_INSTRUMENTS: Record<string, { bass: string; chords: string; melody: string; drumKit: string }> = {
+    "Travis Scott rage": { bass: 'synth_bass_1', chords: 'pad_2_warm', melody: 'lead_2_sawtooth', drumKit: '808' },
+    "The Weeknd dark": { bass: 'synth_bass_2', chords: 'electric_piano_1', melody: 'lead_1_square', drumKit: 'default' },
+    "Drake smooth": { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'electric_piano_1', drumKit: '808' },
+    "K-pop cute": { bass: 'synth_bass_1', chords: 'electric_piano_2', melody: 'lead_1_square', drumKit: '909' },
+    "Phonk drift": { bass: 'synth_bass_2', chords: 'electric_piano_1', melody: 'lead_2_sawtooth', drumKit: '808' },
+    "Future bass": { bass: 'synth_bass_1', chords: 'pad_2_warm', melody: 'lead_1_square', drumKit: '909' },
+    "Lo-fi chill": { bass: 'acoustic_bass', chords: 'electric_piano_1', melody: 'flute', drumKit: 'lofi' },
+    "Hyperpop glitch": { bass: 'synth_bass_2', chords: 'lead_1_square', melody: 'lead_2_sawtooth', drumKit: '909' },
+    "Afrobeats bounce": { bass: 'electric_bass_finger', chords: 'acoustic_guitar_steel', melody: 'flute', drumKit: 'acoustic' },
+    "Latin trap": { bass: 'synth_bass_1', chords: 'acoustic_guitar_nylon', melody: 'trumpet', drumKit: '808' },
+  };
+  const instruments = STYLE_INSTRUMENTS[style] || { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' };
+
   const result: AstutelyResult = {
     style,
     bpm: overrides?.tempo ?? config.bpm + Math.floor(rng() * 6 - 3),
@@ -262,6 +307,7 @@ const generateLocalFallback = (style: string, overrides?: { tempo?: number; time
     bass: [],
     chords: [],
     melody: [],
+    instruments,
     isFallback: true,
     fallbackReason: 'api_unavailable',
     meta: { usedFallback: true, warnings: ['Client-side fallback pattern'], aiSource: 'client-fallback' },
@@ -392,8 +438,7 @@ export async function astutelyGenerateAudio(style: string, options?: {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || `API error: ${response.status}`);
+      throw new Error(await formatApiError(response, 'Audio generation failed'));
     }
 
     const result = await response.json();
@@ -505,6 +550,12 @@ async function playAstutelyPreview(result: AstutelyResult) {
     0
   ) + 1;
   
+  // Resolve instrument names from AI result (fall back to sensible defaults)
+  const bassInstrument = result.instruments?.bass || 'synth_bass_1';
+  const chordInstrument = result.instruments?.chords || 'acoustic_grand_piano';
+  const melodyInstrument = result.instruments?.melody || 'acoustic_grand_piano';
+  const drumKit = result.instruments?.drumKit || 'default';
+
   // Play ALL steps (typically 64 = 4 bars)
   for (let step = 0; step < maxStep; step++) {
     const currentTime = step * stepDuration;
@@ -515,14 +566,14 @@ async function playAstutelyPreview(result: AstutelyResult) {
       .forEach(d => {
         const tid = setTimeout(() => {
           try {
-            realisticAudio.playDrumSound(d.type, 0.8);
+            realisticAudio.playDrumSound(d.type, 0.8, drumKit);
           } catch (e) {
             console.log(`Drum: ${d.type}`);
           }
         }, currentTime * 1000);
         activePreviewTimeouts.push(tid);
       });
-    
+
     // Schedule bass
     result.bass
       .filter(b => b.step === step)
@@ -530,7 +581,7 @@ async function playAstutelyPreview(result: AstutelyResult) {
         const tid = setTimeout(() => {
           try {
             const { note, octave } = midiToNoteOctave(b.note);
-            realisticAudio.playNote(note, octave, stepDuration * b.duration, 'synth_bass_1', 0.8);
+            realisticAudio.playNote(note, octave, stepDuration * b.duration, bassInstrument, 0.8);
           } catch (e) {
             console.log(`Bass: ${b.note}`);
           }
@@ -546,7 +597,7 @@ async function playAstutelyPreview(result: AstutelyResult) {
           const tid = setTimeout(() => {
             try {
               const { note, octave } = midiToNoteOctave(chordNote);
-              realisticAudio.playNote(note, octave, stepDuration * c.duration, 'acoustic_grand_piano', 0.45);
+              realisticAudio.playNote(note, octave, stepDuration * c.duration, chordInstrument, 0.45);
             } catch (e) {
               console.log(`Chord: ${chordNote}`);
             }
@@ -562,7 +613,7 @@ async function playAstutelyPreview(result: AstutelyResult) {
         const tid = setTimeout(() => {
           try {
             const { note, octave } = midiToNoteOctave(m.note);
-            realisticAudio.playNote(note, octave, stepDuration * m.duration, 'acoustic_grand_piano', 0.6);
+            realisticAudio.playNote(note, octave, stepDuration * m.duration, melodyInstrument, 0.6);
           } catch (e) {
             console.log(`Melody: ${m.note}`);
           }

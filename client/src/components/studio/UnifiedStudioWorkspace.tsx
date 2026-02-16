@@ -59,6 +59,10 @@ import { professionalAudio } from '@/lib/professionalAudio';
 import SampleBrowser from './SampleBrowser';
 import InspectorPanel from './InspectorPanel';
 import InstrumentLibrary from './InstrumentLibrary';
+import { WindowManagerProvider } from '@/contexts/WindowManagerContext';
+import WindowLauncher from './WindowLauncher';
+import StudioWindowRenderer from './StudioWindowRenderer';
+import UndoRedoControls from './UndoRedoControls';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
@@ -2404,9 +2408,12 @@ export default function UnifiedStudioWorkspace() {
 
   // Desktop Layout - Full featured UI
   return (
+    <WindowManagerProvider>
     <div className="h-full w-full flex flex-col bg-black astutely-app astutely-scanlines astutely-grid-bg astutely-scrollbar overflow-visible">
       {/* Presence-driven ambient light — syncs CSS vars to Living Glyph state */}
       <PresenceAmbientLight />
+      {/* Floating Window Renderer — renders all open draggable windows */}
+      <StudioWindowRenderer />
       {/* Top Bar */}
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-4">
@@ -3010,8 +3017,15 @@ export default function UnifiedStudioWorkspace() {
             </div>
           </div>
         </div>
-        
-        {/* Transport Controls */}
+
+        {/* Window Launcher Dock + Undo/Redo — right side of top bar */}
+        <div className="flex items-center gap-2 shrink-0">
+          <UndoRedoControls />
+          <WindowLauncher />
+        </div>
+      </div>
+
+      {/* Transport Controls */}
         <div className="w-full flex items-center gap-3 mt-2 mb-3 relative z-0 py-1 overflow-x-auto overflow-y-visible whitespace-nowrap">
           <div className="flex items-center gap-2 bg-black/60 border border-cyan-500/40 rounded px-3 h-12 shrink-0 astutely-panel">
             <Button
@@ -3090,7 +3104,6 @@ export default function UnifiedStudioWorkspace() {
             </DropdownMenu>
           </div>
         </div>
-      </div>
 
       {/* DAW-Style Tab Bar - All tabs together */}
       <div className="bg-black/60 border-b border-cyan-500/40 px-2 py-2 flex flex-wrap items-center justify-between gap-2 astutely-panel relative z-10">
@@ -4520,5 +4533,6 @@ export default function UnifiedStudioWorkspace() {
       document.body
     )}
     </div>
+    </WindowManagerProvider>
   );
 } 

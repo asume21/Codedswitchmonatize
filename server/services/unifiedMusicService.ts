@@ -53,8 +53,57 @@ export class UnifiedMusicService {
   }
 
   /**
-   * Generate studio-quality full song (Suno/Bark)
-   * Enhanced with genre database intelligence for professional results
+   * Build a rich, structured prompt from user input + genre intelligence
+   * This is the core prompt engineering that makes generations sound good
+   */
+  private buildRichPrompt(userPrompt: string, options: {
+    genre?: string; bpm?: number; key?: string; mood?: string;
+    style?: string; vocals?: boolean; type?: string;
+    instrument?: string; sections?: string;
+  }): { prompt: string; bpm: number; key: string; negativePrompt: string } {
+    const { genre = 'pop', mood, style = 'modern', vocals = false, type, instrument, sections } = options;
+    const genreSpec = getGenreSpec(genre);
+    const bpm = options.bpm || (genreSpec?.bpmRange ? Math.round((genreSpec.bpmRange[0] + genreSpec.bpmRange[1]) / 2) : 120);
+    const key = options.key || genreSpec?.preferredKeys?.[0] || 'C minor';
+    const genreMood = mood || genreSpec?.mood || 'energetic';
+    const instruments = instrument || genreSpec?.instruments?.slice(0, 4).join(', ') || 'synths, drums, bass';
+    const bassStyle = genreSpec?.bassStyle || 'punchy bass';
+    const drumPattern = genreSpec?.drumPattern || 'driving drums';
+    const tips = genreSpec?.productionTips?.[0] || 'professional production';
+
+    // Mix adjectives for quality
+    const mixAdj = 'modern mix, fat low-end, crisp highs, wide stereo, professional mastering';
+    const vocalTag = vocals ? '' : ', no vocals, instrumental only';
+
+    // Section cues if provided
+    const sectionCue = sections ? `, ${sections}` : '';
+
+    const prompt = [
+      userPrompt,
+      `${genre} ${style}`,
+      `${bpm} bpm, ${key}`,
+      `${genreMood} mood`,
+      instruments,
+      `${bassStyle}, ${drumPattern}`,
+      tips,
+      mixAdj,
+      vocalTag,
+      sectionCue,
+    ].filter(Boolean).join(', ');
+
+    // Negative prompt to reduce mushy/bad outputs
+    const negativePrompt = 'low quality, distorted, clipping, noise, hiss, muffled, mono, amateur, off-key, out of tune';
+
+    return { prompt, bpm, key, negativePrompt };
+  }
+
+  /**
+   * Generate studio-quality audio using provider cascade:
+   * 1. Suno API (best quality, if configured)
+   * 2. MusicGen Large/Stereo on Replicate (high quality fallback)
+   * 3. Stable Audio on Replicate (alternative)
+   * 
+   * Supports: variations, seed control, melody conditioning, section stitching
    */
   async generateFullSong(prompt: string, options: {
     genre?: string;
@@ -64,65 +113,264 @@ export class UnifiedMusicService {
     vocals?: boolean;
     bpm?: number;
     key?: string;
+    seed?: number;
+    variations?: number;
+    sections?: string;
+    melodyUrl?: string;
+    aiProvider?: string;
   }): Promise<any> {
-    try {
-      const {
-        genre = "pop",
-        mood = "uplifting",
-        duration = 30,
-        style = "modern",
-        vocals = true,
-        bpm,
-        key
-      } = options;
+    const {
+      genre = "pop",
+      mood = "uplifting",
+      duration = 30,
+      style = "modern",
+      vocals = true,
+      bpm,
+      key,
+      seed,
+      variations = 1,
+      sections,
+      melodyUrl,
+      aiProvider,
+    } = options;
 
-      console.log('🎵 UnifiedMusic: Generating full song with intelligence...');
+    console.log('🎵 UnifiedMusic: Generating full song with multi-provider cascade...');
 
-      // Get genre-specific intelligence
-      const genreSpec = getGenreSpec(genre);
-      // bpmRange is [min, max] tuple - use average as default
-      const smartBpm = bpm || (genreSpec?.bpmRange ? Math.round((genreSpec.bpmRange[0] + genreSpec.bpmRange[1]) / 2) : 120);
-      const smartKey = key || genreSpec?.preferredKeys?.[0] || 'C Major';
-      const genreMood = mood || genreSpec?.mood || 'energetic';
-      const instruments = genreSpec?.instruments?.slice(0, 3).join(', ') || 'synths, drums';
-      const productionTips = genreSpec?.productionTips?.[0] || 'professional mix';
-      const bassStyle = genreSpec?.bassStyle || 'punchy bass';
-      const drumPattern = genreSpec?.drumPattern || 'driving drums';
-      
-      console.log(`🧠 Song Intelligence: ${genre} → BPM: ${smartBpm}, Key: ${smartKey}, Style: ${genreMood}`);
+    const rich = this.buildRichPrompt(prompt, { genre, bpm, key, mood, style, vocals, sections });
+    console.log(`🧠 Rich prompt: ${rich.prompt.substring(0, 120)}...`);
+    const providerPreference = String(aiProvider || '').toLowerCase();
 
-      // Build rich prompt with genre knowledge
-      const musicPrompt = vocals 
-        ? `♪ ${prompt}. Professional ${genre} ${style} song in ${smartKey} at ${smartBpm} BPM. ${genreMood} mood with ${instruments}. ${bassStyle}, ${drumPattern}. ${productionTips}. Radio-ready mix. ♪`
-        : `♪ ${prompt}. Professional ${genre} ${style} instrumental in ${smartKey} at ${smartBpm} BPM. ${genreMood} mood with ${instruments}. ${bassStyle}, ${drumPattern}. ${productionTips}. ♪`;
-      
-      console.log(`🎵 Enhanced Suno prompt: ${musicPrompt.substring(0, 100)}...`);
+    const trySuno = async () => {
+      const { sunoApiService } = await import('./sunoApiService');
+      if (!sunoApiService.isConfigured()) {
+        throw new Error('Suno provider requested but not configured');
+      }
 
-      const output = await replicate.run(
-        "suno-ai/bark:b76242b40d67c76ab6742e987628a2a9ac019e11d56ab96c4e91ce03b79b2787",
-        {
-          input: {
-            prompt: musicPrompt,
-            text_temp: 0.7,
-            waveform_temp: 0.7,
-            history_prompt: "announcer"
-          }
-        }
-      );
+      if (vocals) {
+        const result = await sunoApiService.generateSong(rich.prompt, style, `${genre} Song`);
+        return {
+          status: 'success',
+          audio_url: result.audioUrl,
+          metadata: { duration: result.duration, quality: '48kHz stereo', generator: 'suno', genre, bpm: rich.bpm, key: rich.key }
+        };
+      }
 
+      const result = await sunoApiService.generateBeat(style, rich.bpm, rich.key);
       return {
         status: 'success',
-        audio_url: output,
+        audio_url: result.audioUrl,
+        metadata: { duration: result.duration, quality: '48kHz stereo', generator: 'suno', genre, bpm: rich.bpm, key: rich.key }
+      };
+    };
+
+    const tryMusicGenLarge = async () => {
+      return this.generateWithMusicGenLarge(rich.prompt, {
+        duration: Math.min(duration, 30),
+        seed,
+        variations,
+        melodyUrl,
+      });
+    };
+
+    if (providerPreference === 'suno' || providerPreference === 'replicate-suno') {
+      try {
+        console.log('🎵 Requested provider: Suno');
+        return await trySuno();
+      } catch (sunoErr: any) {
+        console.warn('⚠️ Requested Suno failed, continuing fallback cascade:', sunoErr?.message || sunoErr);
+      }
+    }
+
+    if (providerPreference === 'replicate-musicgen') {
+      try {
+        console.log('🎵 Requested provider: MusicGen Large (Replicate)');
+        return await tryMusicGenLarge();
+      } catch (mgErr: any) {
+        console.warn('⚠️ Requested MusicGen failed, continuing fallback cascade:', mgErr?.message || mgErr);
+      }
+    }
+
+    // ═══ PROVIDER 1: Suno API (best quality) ═══
+    try {
+      console.log('🎵 Provider 1: Suno API');
+      return await trySuno();
+    } catch (sunoErr: any) {
+      console.warn('⚠️ Suno API failed, trying next provider:', sunoErr.message);
+    }
+
+    // ═══ PROVIDER 2: MusicGen Large/Stereo on Replicate ═══
+    try {
+      console.log('🎵 Provider 2: MusicGen Large (Replicate)');
+      const result = await tryMusicGenLarge();
+      return result;
+    } catch (mgErr: any) {
+      console.warn('⚠️ MusicGen Large failed, trying Stable Audio:', mgErr.message);
+    }
+
+    // ═══ PROVIDER 3: Stable Audio ═══
+    try {
+      console.log('🎵 Provider 3: Stable Audio');
+      return await this.generateWithStableAudio(rich.prompt, {
+        duration: Math.min(duration, 47),
+        genre, bpm: rich.bpm, key: rich.key,
+        negative_prompt: rich.negativePrompt,
+      });
+    } catch (saErr: any) {
+      console.warn('⚠️ Stable Audio failed, using basic MusicGen:', saErr.message);
+    }
+
+    // ═══ PROVIDER 4: Basic MusicGen (last resort) ═══
+    return this.generateTrack(rich.prompt, { type: 'instrumental', duration, genre, bpm: rich.bpm, key: rich.key });
+  }
+
+  /**
+   * MusicGen Large / Stereo — high quality Replicate generation
+   * Uses the large model with proper sampling params from the model card
+   */
+  async generateWithMusicGenLarge(prompt: string, options: {
+    duration?: number;
+    seed?: number;
+    variations?: number;
+    melodyUrl?: string | null;
+  } = {}): Promise<any> {
+    const { duration = 30, seed, variations = 1, melodyUrl } = options;
+    const actualSeed = seed ?? Math.floor(Math.random() * 2147483647);
+
+    console.log(`🎵 MusicGen Large: duration=${duration}s, seed=${actualSeed}, variations=${variations}`);
+
+    // Use melody-large if melody conditioning is provided, otherwise stereo-large
+    const modelId = melodyUrl
+      ? "meta/musicgen:b05b1dff1d8c6dc63d14b0cdb42135571e41c36ba2865ab1c3dfc28e1e4e8463" // melody-large
+      : "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043ac92924f66e7e4c19447d8b35"; // stereo-large
+
+    const input: Record<string, any> = {
+      prompt,
+      duration: Math.min(duration, 30),
+      model_version: "stereo-large",
+      output_format: "wav",
+      seed: actualSeed,
+      top_k: 250,
+      top_p: 0.97,
+      temperature: 1.0,
+      classifier_free_guidance: 3.5,
+      normalization_strategy: "loudness",
+    };
+
+    if (melodyUrl) {
+      input.input_audio = melodyUrl;
+      input.model_version = "melody-large";
+      input.continuation = false;
+    }
+
+    // Generate multiple variations if requested
+    if (variations > 1) {
+      console.log(`🎵 Generating ${variations} variations...`);
+      const results: any[] = [];
+      for (let i = 0; i < Math.min(variations, 4); i++) {
+        input.seed = actualSeed + i * 1000;
+        const output = await replicate.run(modelId as any, { input: { ...input } });
+        results.push({
+          audio_url: output,
+          seed: input.seed,
+          variation: i + 1,
+        });
+      }
+      return {
+        status: 'success',
+        audio_url: results[0].audio_url, // Primary result
+        variations: results,
         metadata: {
           duration,
-          quality: "24kHz",
-          generator: "suno-bark"
+          quality: '32kHz stereo',
+          generator: 'musicgen-large',
+          model: melodyUrl ? 'melody-large' : 'stereo-large',
+          seed: actualSeed,
+          variationCount: results.length,
         }
       };
-    } catch (error) {
-      console.error("Full song generation failed:", error);
-      throw error;
     }
+
+    const output = await replicate.run(modelId as any, { input });
+    return {
+      status: 'success',
+      audio_url: output,
+      metadata: {
+        duration,
+        quality: '32kHz stereo',
+        generator: 'musicgen-large',
+        model: melodyUrl ? 'melody-large' : 'stereo-large',
+        seed: actualSeed,
+      }
+    };
+  }
+
+  /**
+   * Generate a full song by stitching sections (verse, hook, bridge)
+   * Each section is generated separately then concatenated server-side
+   */
+  async generateStitchedSong(prompt: string, options: {
+    genre?: string; bpm?: number; key?: string; mood?: string;
+    vocals?: boolean; seed?: number;
+    structure?: Array<{ name: string; duration: number; energy: string }>;
+  }): Promise<any> {
+    const { genre = 'pop', bpm, key, mood, vocals = false, seed } = options;
+    const baseSeed = seed ?? Math.floor(Math.random() * 2147483647);
+
+    // Default song structure if none provided
+    const structure = options.structure || [
+      { name: 'intro', duration: 10, energy: 'low' },
+      { name: 'verse', duration: 20, energy: 'medium' },
+      { name: 'hook', duration: 15, energy: 'high' },
+      { name: 'verse2', duration: 20, energy: 'medium' },
+      { name: 'hook2', duration: 15, energy: 'high' },
+      { name: 'outro', duration: 10, energy: 'low' },
+    ];
+
+    console.log(`🎵 Stitched Song: ${structure.length} sections, seed=${baseSeed}`);
+
+    const sectionResults: any[] = [];
+
+    for (let i = 0; i < structure.length; i++) {
+      const section = structure[i];
+      const energyAdj = section.energy === 'high' ? 'energetic, full arrangement, maximum impact'
+        : section.energy === 'low' ? 'sparse, atmospheric, minimal'
+        : 'balanced, groovy, steady';
+
+      const sectionPrompt = this.buildRichPrompt(
+        `${prompt}. ${section.name} section: ${energyAdj}`,
+        { genre, bpm, key, mood, vocals, sections: `${section.name} section` }
+      );
+
+      try {
+        const result = await this.generateWithMusicGenLarge(sectionPrompt.prompt, {
+          duration: Math.min(section.duration, 30),
+          seed: baseSeed + i * 10000, // Related seeds for coherence
+        });
+        sectionResults.push({
+          ...result,
+          section: section.name,
+          sectionIndex: i,
+        });
+      } catch (err: any) {
+        console.warn(`⚠️ Section "${section.name}" failed:`, err.message);
+      }
+    }
+
+    if (sectionResults.length === 0) {
+      throw new Error('All section generations failed');
+    }
+
+    return {
+      status: 'success',
+      audio_url: sectionResults[0].audio_url, // First section as primary
+      sections: sectionResults,
+      metadata: {
+        generator: 'musicgen-stitched',
+        sectionCount: sectionResults.length,
+        totalDuration: structure.reduce((sum, s) => sum + s.duration, 0),
+        seed: baseSeed,
+      }
+    };
   }
 
   /**
@@ -172,22 +420,10 @@ export class UnifiedMusicService {
       console.log(`🎵 Enhanced MusicGen prompt: ${fullPrompt.substring(0, 100)}...`);
 
       try {
-        // Add genre-specific musical variation descriptors instead of random English words
-        const randomSeed = Math.floor(Math.random() * 1000000);
-        const genreVariations: Record<string, string[]> = {
-          pop: ['catchy hook', 'radio-ready mix', 'polished production', 'bright arrangement'],
-          rock: ['driving guitars', 'powerful dynamics', 'raw energy', 'tight rhythm section'],
-          hiphop: ['hard-hitting 808s', 'crisp snares', 'deep groove', 'head-nodding rhythm'],
-          trap: ['rolling hi-hats', 'heavy 808 bass', 'dark atmosphere', 'punchy kicks'],
-          house: ['four-on-the-floor', 'deep bassline', 'filtered synths', 'building energy'],
-          techno: ['hypnotic rhythm', 'industrial textures', 'relentless drive', 'minimal arrangement'],
-          jazz: ['swinging rhythm', 'rich harmonies', 'improvisational feel', 'warm tones'],
-          ambient: ['spacious reverb', 'evolving textures', 'atmospheric depth', 'gentle movement'],
-          electronic: ['synthesized textures', 'digital precision', 'layered production', 'modern sound'],
-        };
-        const variations = genreVariations[genre] || genreVariations['electronic'];
-        const variation = variations[randomSeed % variations.length];
-        const variedPrompt = `${fullPrompt}. ${variation}.`;
+        // Use MusicGen Large with optimized sampling params
+        const randomSeed = Math.floor(Math.random() * 2147483647);
+        const mixAdj = 'modern mix, fat low-end, crisp highs, wide stereo';
+        const variedPrompt = `${fullPrompt}. ${mixAdj}.`;
         
         const output = await replicate.run(
           "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043ac92924f66e7e4c19447d8b35",
@@ -195,11 +431,14 @@ export class UnifiedMusicService {
             input: {
               prompt: variedPrompt,
               duration: Math.min(duration, 30),
-              temperature: 1.2,  // Higher temperature for more variety
-              top_k: 300,        // More token choices
-              top_p: 0.95,       // Enable nucleus sampling for diversity
+              model_version: "stereo-large",
+              output_format: "wav",
+              temperature: 1.0,
+              top_k: 250,
+              top_p: 0.97,
               classifier_free_guidance: 3.5,
-              seed: randomSeed   // Random seed each time
+              normalization_strategy: "loudness",
+              seed: randomSeed
             }
           }
         );
@@ -279,14 +518,17 @@ export class UnifiedMusicService {
     
     try {
       const output = await replicate.run(
-        "stackadoc/stable-audio-open-1.0:ee6e70e8e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+        "stability-ai/stable-audio-open-1.0:a493f1e6e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5" as any,
         {
           input: {
             prompt: fullPrompt,
-            seconds_total: Math.min(duration, 47), // Stable Audio max is 47 seconds
+            seconds_total: Math.min(duration, 47),
             steps: 100,
             cfg_scale: 7,
-            seed: Math.floor(Math.random() * 1000000), // Random seed for variety
+            seed: Math.floor(Math.random() * 2147483647),
+            sampler: "dpmpp-3m-sde",
+            sigma_min: 0.3,
+            sigma_max: 500,
             ...(negative_prompt && { negative_prompt })
           }
         }

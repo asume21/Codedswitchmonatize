@@ -88,6 +88,16 @@ function getPreferredClient() {
   return null;
 }
 
+function getClientByProvider(provider?: string) {
+  if (provider === 'grok' && grokClient) {
+    return { client: grokClient, model: 'grok-3', provider: 'grok' as const };
+  }
+  if (provider === 'openai' && openaiClient) {
+    return { client: openaiClient, model: 'gpt-4', provider: 'openai' as const };
+  }
+  return null;
+}
+
 export function getAIProviderStatus() {
   return {
     grok: {
@@ -165,7 +175,11 @@ function handleAuthFailure(provider: 'grok' | 'openai', error: any) {
 
 // Helper function to make AI calls with fallback
 export async function makeAICall(messages: any[], options: any = {}) {
-  const preferred = getPreferredClient();
+  const requestedProvider =
+    typeof options?.preferredProvider === 'string'
+      ? String(options.preferredProvider).toLowerCase()
+      : undefined;
+  const preferred = getClientByProvider(requestedProvider) || getPreferredClient();
 
   if (!preferred) {
     throw new Error("No AI API keys configured");

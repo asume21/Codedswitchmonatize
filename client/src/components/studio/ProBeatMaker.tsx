@@ -644,35 +644,99 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     toast({ title: `Variation ${v} Loaded` });
   };
 
+  const applyRateLimitFallbackPattern = useCallback(() => {
+    const genre = selectedGenre.toLowerCase();
+    const fallbackPresetName =
+      PRESETS[selectedGenre] ? selectedGenre
+      : genre.includes('trap') ? 'Trap'
+      : genre.includes('house') ? 'House'
+      : genre.includes('techno') ? 'Techno'
+      : genre.includes('dnb') || genre.includes('drum') ? 'D&B'
+      : 'Hip-Hop';
+
+    const preset = PRESETS[fallbackPresetName] || PRESETS['Hip-Hop'];
+    if (!preset) return;
+
+    saveHistory();
+    setTracks(prev => prev.map(t => {
+      const presetPattern = preset[t.id];
+      if (!presetPattern) return t;
+      return {
+        ...t,
+        pattern: t.pattern.map((step, i) => ({
+          ...step,
+          active: !!presetPattern[i % presetPattern.length],
+        })),
+      };
+    }));
+
+    toast({
+      title: 'AI Rate Limited — Fallback Loaded',
+      description: `Applied local ${fallbackPresetName} preset so you can keep producing.`,
+    });
+  }, [selectedGenre, saveHistory, toast]);
+
   const generateBeatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/beats/generate', { genre: selectedGenre.toLowerCase(), bpm, duration: 4, aiProvider });
+      const bars = Math.max(1, Math.ceil(patternLength / 16));
+      const beatGridProvider = aiProvider === 'grok' || aiProvider === 'openai' ? aiProvider : undefined;
+      const response = await apiRequest('POST', '/api/ai/music/drums', {
+        bpm,
+        bars,
+        style: selectedGenre.toLowerCase(),
+        aiProvider: beatGridProvider,
+        gridResolution: '1/16',
+      });
       return response.json();
     },
     onSuccess: (data) => {
-      const pattern = data?.beat?.pattern;
-      if (pattern) {
-        saveHistory();
-        setTracks(prev => prev.map(t => ({
-          ...t, pattern: t.pattern.map((s, i) => ({ ...s, active: pattern[t.id] ? pattern[t.id][i % pattern[t.id].length] : false }))
-        })));
-        toast({ title: 'AI Beat Pattern Synchronized' });
-      }
+      const grid = data?.data?.grid;
+      if (!grid) return;
+
+      const pickGridRow = (trackId: string): Array<number | boolean> => {
+        const drumType = DRUM_ID_TO_TYPE[trackId.toLowerCase()] || 'perc';
+        if (drumType === 'kick') return grid.kick || [];
+        if (drumType === 'snare' || drumType === 'clap' || drumType === 'rim') return grid.snare || [];
+        if (drumType === 'hihat' || drumType === 'openhat' || drumType === 'ride' || drumType === 'crash') return grid.hihat || [];
+        return grid.percussion || [];
+      };
+
+      saveHistory();
+      setTracks(prev => prev.map((track) => {
+        const row = pickGridRow(track.id);
+        return {
+          ...track,
+          pattern: track.pattern.map((step, i) => ({
+            ...step,
+            active: !!row[i % Math.max(1, row.length)],
+          })),
+        };
+      }));
+
+      toast({
+        title: 'AI Beat Pattern Synchronized',
+        description: data?.data?.provider
+          ? `Provider: ${data.data.provider}`
+          : (aiProvider !== 'grok' && aiProvider !== 'openai'
+            ? `Selected provider (${aiProvider}) is audio/text-specialized for other tasks; beat grid used the internal text provider.`
+            : undefined),
+      });
     },
     onError: (err: any) => {
+      const rawMessage = String(err?.message || err || 'Unknown error');
+      const isRateLimited = rawMessage.includes('429') || rawMessage.toLowerCase().includes('rate limit');
+
+      if (isRateLimited) {
+        applyRateLimitFallbackPattern();
+        return;
+      }
+
       toast({
         title: 'AI Beat Failed',
-        description: String(err?.message || err || 'Unknown error'),
+        description: rawMessage,
         variant: 'destructive',
       });
     },
-  });
-
-  const generatePhase3DrumsMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/ai/music/drums', { bpm, bars: 4, style: selectedGenre.toLowerCase() });
-      return response.json();
-    }
   });
 
   const changeKit = (id: string) => {

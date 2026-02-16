@@ -11,6 +11,12 @@ export interface AstutelyResult {
   bass: { step: number; note: number; duration: number }[];
   chords: { step: number; notes: number[]; duration: number }[];
   melody: { step: number; note: number; duration: number }[];
+  instruments?: {
+    bass?: string;
+    chords?: string;
+    melody?: string;
+    drumKit?: string;
+  };
   isFallback?: boolean;
   fallbackReason?: string;
   variationSeed?: number;
@@ -203,6 +209,21 @@ export function generateAstutelyFallback(style: string, overrides: AstutelyFallb
   const bpm = overrides.tempo ?? config.bpm + Math.floor(rng() * 4 - 2);
   const timeSignature = overrides.timeSignature ?? { numerator: 4, denominator: 4 };
 
+  // Per-style instrument mapping so fallback doesn't always sound the same
+  const STYLE_INSTRUMENTS: Record<string, { bass: string; chords: string; melody: string; drumKit: string }> = {
+    'Travis Scott rage': { bass: 'synth_bass_1', chords: 'pad_2_warm', melody: 'lead_2_sawtooth', drumKit: '808' },
+    'The Weeknd dark': { bass: 'synth_bass_2', chords: 'electric_piano_1', melody: 'lead_1_square', drumKit: 'default' },
+    'Drake smooth': { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'electric_piano_1', drumKit: '808' },
+    'K-pop cute': { bass: 'synth_bass_1', chords: 'electric_piano_2', melody: 'lead_1_square', drumKit: '909' },
+    'Phonk drift': { bass: 'synth_bass_2', chords: 'electric_piano_1', melody: 'lead_2_sawtooth', drumKit: '808' },
+    'Future bass': { bass: 'synth_bass_1', chords: 'pad_2_warm', melody: 'lead_1_square', drumKit: '909' },
+    'Lo-fi chill': { bass: 'acoustic_bass', chords: 'electric_piano_1', melody: 'flute', drumKit: 'lofi' },
+    'Hyperpop glitch': { bass: 'synth_bass_2', chords: 'lead_1_square', melody: 'lead_2_sawtooth', drumKit: '909' },
+    'Afrobeats bounce': { bass: 'electric_bass_finger', chords: 'acoustic_guitar_steel', melody: 'flute', drumKit: 'acoustic' },
+    'Latin trap': { bass: 'synth_bass_1', chords: 'acoustic_guitar_nylon', melody: 'trumpet', drumKit: '808' },
+  };
+  const instruments = STYLE_INSTRUMENTS[style] || { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' };
+
   const result: AstutelyResult = {
     style,
     bpm,
@@ -212,6 +233,7 @@ export function generateAstutelyFallback(style: string, overrides: AstutelyFallb
     bass: [],
     chords: [],
     melody: [],
+    instruments,
     isFallback: true,
     fallbackReason: overrides.fallbackReason ?? 'ai_unavailable',
     variationSeed,

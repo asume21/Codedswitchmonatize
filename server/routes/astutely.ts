@@ -215,11 +215,18 @@ router.get('/astutely/status/:predictionId', async (req: Request, res: Response)
 
 // Generate actual audio using Suno API
 router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
-  const { style, prompt, bpm, key, instrumental = true } = req.body;
+  const { style, prompt, bpm, key, duration, instrumental = true } = req.body;
 
   if (!style && !prompt) {
     return res.status(400).json({ error: 'Style or prompt is required' });
   }
+
+  // Normalize duration with sensible bounds to avoid hard-coded 30s
+  const targetDuration = (() => {
+    const parsed = Number(duration);
+    if (!Number.isFinite(parsed)) return 30;
+    return Math.max(10, Math.min(parsed, 120));
+  })();
 
   try {
     // Check if Suno API is configured
@@ -230,14 +237,14 @@ router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
       const musicPrompt = prompt || `${style} instrumental beat, ${bpm || 120} BPM, professional quality`;
       const result = await unifiedMusicService.generateTrack(musicPrompt, {
         type: 'beat',
-        duration: 30,
+        duration: targetDuration,
       });
 
       if (result?.audio_url) {
         return res.json({
           success: true,
           audioUrl: result.audio_url,
-          duration: 30,
+          duration: targetDuration,
           provider: 'musicgen',
           style,
           bpm: bpm || 120,
@@ -258,7 +265,7 @@ router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
       success: true,
       audioUrl: result.audioUrl,
       streamUrl: result.streamUrl,
-      duration: result.duration,
+      duration: result.duration ?? targetDuration,
       provider: 'suno',
       style,
       bpm: bpm || 120,

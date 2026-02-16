@@ -60,6 +60,87 @@ export type StudioEvents = {
   'export:started': { format: string; filename: string };
   'export:completed': { format: string; url: string };
   'export:failed': { format: string; error: string };
+
+  // Project Events
+  'project:created': { projectId: string; name: string };
+  'project:saved': { projectId: string };
+  'project:loaded': { projectId: string; name: string };
+  'project:autosaved': { projectId: string };
+  'project:dirty': { projectId: string };
+  'project:exported': { projectId: string; filename: string };
+  'project:imported': { projectId: string; name: string };
+
+  // Undo/Redo Events
+  'undo:executed': { label: string };
+  'undo:redone': { label: string };
+  'undo:cleared': {};
+
+  // Automation Events
+  'automation:point-added': { laneId: string; trackId: string; parameter: string };
+  'automation:point-removed': { laneId: string; trackId: string };
+  'automation:curve-drawn': { laneId: string; trackId: string; pointCount: number };
+  'automation:lane-created': { laneId: string; trackId: string; parameter: string };
+  'automation:lane-toggled': { laneId: string; enabled: boolean };
+
+  // Effects Chain Events
+  'effects:added': { trackId: string; effectType: string; effectId: string };
+  'effects:removed': { trackId: string; effectId: string };
+  'effects:reordered': { trackId: string };
+  'effects:param-changed': { trackId: string; effectId: string; param: string; value: number };
+  'effects:bypassed': { trackId: string; effectId: string; enabled: boolean };
+  'effects:preset-loaded': { trackId: string; effectId: string; presetName: string };
+
+  // Mixer Events
+  'mixer:initialized': { channelCount: number; busCount: number };
+  'mixer:volume-changed': { channelId: string; volume: number };
+  'mixer:pan-changed': { channelId: string; pan: number };
+  'mixer:mute-toggled': { channelId: string; muted: boolean };
+  'mixer:solo-toggled': { channelId: string; soloed: boolean };
+  'mixer:send-changed': { channelId: string; busId: string; amount: number };
+  'mixer:bus-created': { busId: string; name: string; type: string };
+  'mixer:bus-removed': { busId: string };
+
+  // Recording Events
+  'recording:started': { trackId: string };
+  'recording:stopped': { trackId: string; takeId: string; durationMs: number };
+  'recording:paused': { trackId: string };
+  'recording:resumed': { trackId: string };
+  'recording:take-selected': { trackId: string; takeId: string };
+  'recording:take-deleted': { trackId: string; takeId: string };
+  'recording:monitoring-started': {};
+  'recording:monitoring-stopped': {};
+
+  // Clip Events
+  'clip:created': { clipId: string; trackId: string };
+  'clip:trimmed': { clipId: string; edge: 'start' | 'end' };
+  'clip:moved': { clipId: string; newStartBeat: number };
+  'clip:split': { clipId: string; leftId: string; rightId: string };
+  'clip:deleted': { clipId: string; trackId: string };
+  'clip:duplicated': { clipId: string; newClipId: string };
+  'clip:crossfade-created': { clipAId: string; clipBId: string };
+  'clip:gain-changed': { clipId: string; gain: number };
+  'clip:fade-changed': { clipId: string; fadeIn: number; fadeOut: number };
+
+  // Sample Slicer Events
+  'slicer:loaded': { sampleId: string; name: string };
+  'slicer:sliced': { sampleId: string; sliceCount: number; method: string };
+  'slicer:slice-played': { sampleId: string; sliceId: string };
+  'slicer:exported': { sampleId: string; sliceCount: number };
+
+  // Freeze/Bounce Events
+  'track:frozen': { trackId: string };
+  'track:unfrozen': { trackId: string };
+  'bounce:started': { trackIds: string[] };
+  'bounce:completed': { url: string };
+  'bounce:failed': { error: string };
+
+  // MIDI Editor Events
+  'midi:velocity-changed': { trackId: string; noteIds: string[] };
+  'midi:quantized': { trackId: string; grid: string; noteCount: number };
+  'midi:transposed': { trackId: string; semitones: number };
+  'midi:scale-snapped': { trackId: string; scale: string; key: string };
+  'midi:cc-changed': { trackId: string; cc: number };
+  'midi:humanized': { trackId: string; type: 'velocity' | 'timing' };
 };
 
 /**

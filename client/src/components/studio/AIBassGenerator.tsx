@@ -340,11 +340,31 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
       
       const bassNotes = data.notes || data.bassNotes || [];
       setGeneratedBass(bassNotes);
+      const renderInfo = data?.renderInfo as {
+        quality?: string;
+        processingChain?: string[];
+        warning?: string;
+      } | undefined;
       
       toast({
         title: "🎸 Bass Generated!",
-        description: `Created ${bassNotes.length} bass notes using ${bassStyles.find(s => s.value === bassStyle)?.label}`,
+        description: `Created ${bassNotes.length} bass notes using ${bassStyles.find(s => s.value === bassStyle)?.label}${renderInfo?.quality ? ` • Render: ${renderInfo.quality}` : ''}`,
       });
+
+      if (renderInfo?.processingChain?.length) {
+        toast({
+          title: 'MIDI Render Chain',
+          description: renderInfo.processingChain.join(' → '),
+        });
+      }
+
+      if (renderInfo?.warning) {
+        toast({
+          title: 'Bass Render Notice',
+          description: renderInfo.warning,
+          variant: 'destructive',
+        });
+      }
 
       // Pass bass notes to parent
       if (onBassGenerated) {

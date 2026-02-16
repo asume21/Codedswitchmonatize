@@ -5,7 +5,7 @@ import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'r
 import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2, MoveDiagonal2 } from 'lucide-react';
 import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useTransport } from '@/contexts/TransportContext';
@@ -13,7 +13,7 @@ import { StudioAudioContext } from '@/pages/studio';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { professionalAudio } from '@/lib/professionalAudio';
 import type { Song } from '../../../../shared/schema';
-import { dispatchAstutelyEvent } from '@/components/presence';
+import { dispatchAstutelyCommand, dispatchAstutelyEvent } from '@/components/presence';
 
 const styles = [
   { name: "Travis Scott rage", icon: "🔥", preview: "808s + dark pads" },
@@ -115,6 +115,10 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     if (!targetType) return;
 
     setTimeout(() => {
+      dispatchAstutelyCommand('focus-track', {
+        trackId: ASTUTELY_CHANNEL_MAPPING[targetType],
+        view: 'piano-roll'
+      });
       window.dispatchEvent(new CustomEvent('studio:focusTrack', {
         detail: {
           trackId: ASTUTELY_CHANNEL_MAPPING[targetType],
@@ -145,6 +149,11 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   // Fetch user's song library
   const { data: songs = [] } = useQuery<any[]>({
     queryKey: ['/api/songs'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/songs');
+      if (!res.ok) throw new Error('Failed to fetch songs');
+      return res.json();
+    },
   });
 
   // Emit panel opened event for Presence Engine
@@ -262,8 +271,8 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
           dispatchAstutelyEvent('analysis-completed', { songId: song.id, success: true });
           
           toast({
-            title: '🧠 Song Analyzed',
-            description: `${data.estimatedBPM || data.tempo || 'Unknown'} BPM • Key: ${data.keySignature || data.key || 'Unknown'}`,
+            title: 'Song Analyzed',
+            description: `${data.estimatedBPM || data.tempo || 'Unknown'} BPM - Key: ${data.keySignature || data.key || 'Unknown'}`,
           });
         } catch (error) {
           console.error('Analysis failed:', error);
@@ -407,7 +416,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       await targetAudio.play();
       setIsPlaying(true);
       toast({
-        title: '🎵 Now Playing',
+        title: 'Now Playing',
         description: song.name || 'Song'
       });
     } catch (error) {
@@ -428,7 +437,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     // Emit generation started event
     dispatchAstutelyEvent('generation-started', { style: selectedStyle.name });
     
-    toast({ title: '✨ Astutely Activated', description: `Creating ${selectedStyle.name} beat...` });
+    toast({ title: 'Astutely Activated', description: `Creating ${selectedStyle.name} beat...` });
 
     // Simulate progress for UX
     const interval = setInterval(() => {
@@ -488,7 +497,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       const melodyCount = notes.filter(n => n.trackType === 'melody').length;
 
       toast({ 
-        title: '🔥 Beat Generated & Added to Timeline!', 
+        title: 'Beat Generated & Added to Timeline!', 
         description: `${drumCount} drums, ${bassCount} bass, ${chordCount} chords, ${melodyCount} melody notes` 
       });
 
@@ -510,7 +519,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       });
       
       toast({ 
-        title: '❌ Generation Failed', 
+        title: 'Generation Failed', 
         description: 'Astutely encountered an error. Try again!',
         variant: 'destructive'
       });
@@ -614,6 +623,10 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
                     onClick={() => {
                       sessionStorage.setItem('stem_separator_url', selectedSong?.accessibleUrl || selectedSong?.originalUrl || '');
                       sessionStorage.setItem('stem_separator_name', selectedSong?.name || 'Song');
+                      dispatchAstutelyCommand('navigate-stem-separator', {
+                        songName: selectedSong?.name || 'Song',
+                        songUrl: selectedSong?.accessibleUrl || selectedSong?.originalUrl || ''
+                      });
                       toast({ title: 'Routing to Stem Separator', description: 'Opening AI Studio...' });
                       window.dispatchEvent(new CustomEvent('navigate-to-stem-separator'));
                       onClose();
@@ -626,6 +639,10 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
                   </button>
                   <button
                     onClick={() => {
+                      dispatchAstutelyCommand('import-audio-track', {
+                        name: selectedSong?.name || 'Track',
+                        audioUrl: selectedSong?.accessibleUrl || selectedSong?.originalUrl || ''
+                      });
                       window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
                         detail: {
                           name: selectedSong?.name || 'Track',
@@ -644,6 +661,11 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
                   <button
                     onClick={() => {
                       sessionStorage.setItem('astutely_mixer_song', JSON.stringify(selectedSong));
+                      dispatchAstutelyCommand('open-mixer', {
+                        route: '/mixer?tab=ai-mix',
+                        songId: selectedSong?.id,
+                        songName: selectedSong?.name,
+                      });
                       toast({ title: 'Opening Mixer', description: 'Loading song...' });
                       window.location.href = '/mixer?tab=ai-mix';
                     }}
@@ -726,7 +748,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
             ) : (
               <div className="flex items-center justify-center gap-2">
                 <Music className="w-6 h-6" />
-                <span>Make It Bang 🔥</span>
+                <span>Make It Bang</span>
               </div>
             )}
           </button>

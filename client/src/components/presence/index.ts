@@ -38,7 +38,7 @@ export {
 export { SignalCollector, getSignalCollector, resetSignalCollector } from './signalCollector';
 export { SignalInterpreter, getSignalInterpreter, resetSignalInterpreter } from './signalInterpreter';
 export { PresenceEngine, getPresenceEngine, resetPresenceEngine } from './presenceEngine';
-export { AIBridge, getAIBridge, resetAIBridge, dispatchAstutelyEvent } from './aiBridge';
+export { AIBridge, getAIBridge, resetAIBridge, dispatchAstutelyEvent, dispatchAstutelyCommand } from './aiBridge';
 
 // React components and hooks
 export { LivingGlyph } from './LivingGlyph';

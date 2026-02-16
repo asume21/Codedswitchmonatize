@@ -597,7 +597,11 @@ Create complete lyrics with verses, chorus, and bridge.`;
           duration: n.duration,
           velocity: Math.round((n.velocity ?? 0.7) * 127),
         })),
-        uploadsDir
+        uploadsDir,
+        {
+          style,
+          quality: 'high',
+        }
       );
 
       const audioUrl = `/uploads/${renderResult.fileName}`;
@@ -622,6 +626,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
           noteLength,
           velocity,
           glide,
+          renderInfo: renderResult.renderInfo,
         },
       });
 
@@ -631,6 +636,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
         pattern: pattern || 'root-fifth',
         style: style || 'fingerstyle',
         audioUrl,
+        renderInfo: renderResult.renderInfo,
         trackId: track.id,
         track,
       });
@@ -702,7 +708,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
       };
 
       let notes: AIBassTrack['notes'] = [];
-      let provider = "Grok/OpenAI via callAI";
+      let provider = preferredProvider ? `${preferredProvider} via callAI` : "auto via callAI";
 
       try {
         const aiResult = await callAI<AIBassTrack>({
@@ -782,11 +788,15 @@ Create complete lyrics with verses, chorus, and bridge.`;
         return sendError(res, 401, "Authentication required - please log in");
       }
 
-      const { bpm, bars, style, songPlanId, sectionId, gridResolution } = req.body || {};
+      const { bpm, bars, style, songPlanId, sectionId, gridResolution, aiProvider } = req.body || {};
 
       const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
       const safeBars = Math.max(1, Math.min(16, Number(bars) || 4));
       const safeStyle = typeof style === "string" && style.length > 0 ? style : "hip-hop";
+      const requestedProvider = typeof aiProvider === "string" ? aiProvider.toLowerCase() : "";
+      const preferredProvider = requestedProvider === "grok" || requestedProvider === "openai"
+        ? requestedProvider
+        : undefined;
       const stepsPerBar = 16; // match BeatMaker gridResolution 1/16
       const totalSteps = safeBars * stepsPerBar;
 
@@ -903,9 +913,13 @@ Create complete lyrics with verses, chorus, and bridge.`;
           },
           temperature: 0.7,
           maxTokens: 800,
+          preferredProvider,
         });
 
         rawPattern = (aiResult as any)?.content?.pattern as DrumGrid | undefined;
+        if ((aiResult as any)?.provider) {
+          provider = String((aiResult as any).provider);
+        }
       } catch (aiError: any) {
         console.warn(`⚠️ AI drum generation failed, using fallback pattern: ${aiError?.message}`);
         rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle);
@@ -935,6 +949,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
           style: safeStyle,
           resolution: gridResolution || "1/16",
           provider,
+          requestedProvider: preferredProvider || null,
           generationMethod: provider.includes("Fallback") ? "algorithmic" : "ai",
           songPlanId: songPlanId || null,
           sectionId: sectionId || "beat-section",

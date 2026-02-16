@@ -43,6 +43,7 @@ import {
   AVAILABLE_INSTRUMENTS
 } from "./types/pianoRollTypes";
 import { createTrackPayload } from "@/types/studioTracks";
+import { openMidiFilePicker, readFileAsArrayBuffer, parseMidiFile, parseMidiBase64 } from "@/lib/midiImport";
 
 // ISSUE #1: Pattern storage key
 const PIANO_ROLL_STORAGE_KEY = "piano-roll-patterns";
@@ -730,6 +731,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     if (newStep === prevStepRef.current) return;
     
     prevStepRef.current = newStep;
+    // CRITICAL: Update the visual playhead position so the cursor moves across the grid
+    setCurrentStep(newStep);
     const stepDuration = (60 / bpm / 4);
     
     // Play notes at the current step
@@ -2257,6 +2260,148 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     toast({ title: '🎹 MIDI Exported', description: `${allNotes.length} notes exported` });
   }, [tracks, bpm, toast]);
 
+  // MIDI FILE IMPORT — load .mid files directly into the piano roll
+  const importMIDI = useCallback(async () => {
+    try {
+      const file = await openMidiFilePicker();
+      if (!file) return;
+
+      toast({ title: '📂 Loading MIDI...', description: file.name });
+
+      const arrayBuffer = await readFileAsArrayBuffer(file);
+      const result = parseMidiFile(arrayBuffer, bpm);
+
+      if (result.tracks.length === 0) {
+        toast({ title: '⚠️ Empty MIDI', description: 'No note data found in this file', variant: 'destructive' });
+        return;
+      }
+
+      // Update BPM from MIDI file if different
+      if (result.bpm !== bpm) {
+        setBpm(result.bpm);
+      }
+
+      // Convert imported tracks to piano roll format
+      const newTracks: Track[] = result.tracks.map((imported, idx) => {
+        const color = TRACK_COLORS[idx % TRACK_COLORS.length];
+        const notes: Note[] = imported.notes.map(n => ({
+          id: n.id,
+          note: n.note,
+          octave: n.octave,
+          step: n.step % STEPS, // Wrap to pattern length
+          velocity: n.velocity,
+          length: Math.min(n.length, STEPS - (n.step % STEPS)), // Clamp to grid
+          drumType: n.drumType,
+        }));
+
+        return {
+          id: `midi-import-${Date.now()}-${idx}`,
+          name: imported.name || `MIDI Track ${idx + 1}`,
+          color,
+          notes,
+          muted: false,
+          volume: 80,
+          instrument: imported.instrument === 'drums' ? 'drums' : imported.instrument,
+        };
+      });
+
+      // Replace or merge tracks
+      if (tracks.every(t => t.notes.length === 0)) {
+        // All tracks are empty — replace them
+        setTracks(newTracks);
+        setSelectedTrackIndex(0);
+      } else {
+        // Existing notes — append imported tracks
+        setTracks(prev => [...prev, ...newTracks]);
+        setSelectedTrackIndex(tracks.length); // Select first imported track
+      }
+
+      addToHistory(newTracks[0]?.notes || []);
+
+      const totalNotes = newTracks.reduce((sum, t) => sum + t.notes.length, 0);
+      toast({
+        title: '🎹 MIDI Imported!',
+        description: `${file.name}: ${newTracks.length} tracks, ${totalNotes} notes at ${result.bpm} BPM`,
+      });
+    } catch (error: any) {
+      console.error('MIDI import error:', error);
+      toast({
+        title: '❌ Import Failed',
+        description: error.message || 'Could not parse MIDI file',
+        variant: 'destructive',
+      });
+    }
+  }, [bpm, tracks, addToHistory, toast]);
+
+  // MIDI BASE64 IMPORT — paste base64-encoded MIDI data
+  const importMidiBase64 = useCallback((base64String: string) => {
+    try {
+      const result = parseMidiBase64(base64String, bpm);
+
+      if (result.tracks.length === 0) {
+        toast({ title: '⚠️ Empty MIDI', description: 'No note data in base64 string', variant: 'destructive' });
+        return;
+      }
+
+      const newTracks: Track[] = result.tracks.map((imported, idx) => {
+        const color = TRACK_COLORS[idx % TRACK_COLORS.length];
+        const notes: Note[] = imported.notes.map(n => ({
+          id: n.id,
+          note: n.note,
+          octave: n.octave,
+          step: n.step % STEPS,
+          velocity: n.velocity,
+          length: Math.min(n.length, STEPS - (n.step % STEPS)),
+          drumType: n.drumType,
+        }));
+
+        return {
+          id: `midi-b64-${Date.now()}-${idx}`,
+          name: imported.name || `MIDI Track ${idx + 1}`,
+          color,
+          notes,
+          muted: false,
+          volume: 80,
+          instrument: imported.instrument === 'drums' ? 'drums' : imported.instrument,
+        };
+      });
+
+      if (tracks.every(t => t.notes.length === 0)) {
+        setTracks(newTracks);
+        setSelectedTrackIndex(0);
+      } else {
+        setTracks(prev => [...prev, ...newTracks]);
+        setSelectedTrackIndex(tracks.length);
+      }
+
+      addToHistory(newTracks[0]?.notes || []);
+
+      const totalNotes = newTracks.reduce((sum, t) => sum + t.notes.length, 0);
+      toast({
+        title: '🎹 Base64 MIDI Imported!',
+        description: `${newTracks.length} tracks, ${totalNotes} notes at ${result.bpm} BPM`,
+      });
+    } catch (error: any) {
+      console.error('Base64 MIDI import error:', error);
+      toast({
+        title: '❌ Base64 Import Failed',
+        description: error.message || 'Could not parse base64 MIDI data',
+        variant: 'destructive',
+      });
+    }
+  }, [bpm, tracks, addToHistory, toast]);
+
+  // Listen for external MIDI import events (from chatbot or other components)
+  useEffect(() => {
+    const handleMidiImportEvent = (e: CustomEvent) => {
+      if (e.detail?.base64) {
+        importMidiBase64(e.detail.base64);
+      }
+    };
+    window.addEventListener('pianoroll:importMidiBase64', handleMidiImportEvent as EventListener);
+    return () => window.removeEventListener('pianoroll:importMidiBase64', handleMidiImportEvent as EventListener);
+  }, [importMidiBase64]);
+
   // ISSUE #3: Quantize selected notes
   const quantizeNotes = useCallback((quantizeValue: number = 4) => {
     if (selectedNoteIds.size === 0) {
@@ -2392,11 +2537,31 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   }, [onPlayNoteOff, selectedTrack]);
 
   // Callback for piano key playback - uses current track's instrument
+  // Also records notes to the grid when recording + playing
   const handlePianoKeyPlay = useCallback((note: string, octave: number) => {
     const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
     const instrument = selectedTrack?.instrument || 'piano';
     realisticAudio.playNote(note, octave, 0.5, instrument, 0.8, true, channel?.input);
-  }, [selectedTrack]);
+
+    // Record the note at the current playhead position if recording is active
+    if (isRecording && isPlaying) {
+      const step = currentStep % STEPS;
+      const newNote: Note = {
+        id: `rec-${note}${octave}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        note,
+        octave,
+        step,
+        velocity: 100,
+        length: 1,
+      };
+      recordingNotesRef.current.push(newNote);
+
+      // Live-add to the track so the note appears immediately on the grid
+      setTracks(prev => prev.map((track, idx) =>
+        idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
+      ));
+    }
+  }, [selectedTrack, isRecording, isPlaying, currentStep, selectedTrackIndex]);
 
   return (
     <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
@@ -2446,6 +2611,26 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
               </span>
             </div>
 
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={importMIDI}
+              className="h-8 px-4 rounded-none font-black tracking-widest bg-black/60 text-cyan-500/60 border border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400"
+              title="Import .mid file into piano roll"
+            >
+              <FolderOpen className="w-4 h-4 mr-2" />
+              MIDI
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={exportMIDI}
+              className="h-8 px-4 rounded-none font-black tracking-widest bg-black/60 text-cyan-500/60 border border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400"
+              title="Export piano roll as .mid file"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              EXPORT
+            </Button>
             <Button
               variant="ghost"
               size="sm"

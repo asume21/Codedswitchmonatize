@@ -122,7 +122,17 @@ Randomize which steps have hits, shift the groove, use different scale degrees f
 Do NOT fall back to the most common or obvious pattern for this genre.`;
 
   systemPrompt += `\n📦 OUTPUT FORMAT
-Return JSON only with fields: style, bpm, key, timeSignature, drums[], bass[], chords[], melody[]. Use 64 steps. No commentary.`;
+Return JSON only with these fields: style, bpm, key, timeSignature, drums[], bass[], chords[], melody[], instruments.
+Use 64 steps (4 bars × 16 steps). No commentary.
+
+The "instruments" field MUST be an object specifying which General MIDI instrument to use for each track:
+{
+  "bass": "electric_bass_finger" | "synth_bass_1" | "synth_bass_2" | "acoustic_bass" | "fretless_bass" | "slap_bass_1",
+  "chords": "acoustic_grand_piano" | "electric_piano_1" | "pad_2_warm" | "string_ensemble_1" | "acoustic_guitar_steel" | "orchestral_harp" | "choir_aahs",
+  "melody": "flute" | "violin" | "trumpet" | "clarinet" | "tenor_sax" | "acoustic_grand_piano" | "electric_piano_1" | "lead_1_square" | "lead_2_sawtooth" | "french_horn" | "cello" | "viola" | "trombone" | "orchestral_harp",
+  "drumKit": "default" | "808" | "909" | "acoustic" | "lofi"
+}
+Choose instruments that match the user's request. If they ask for flutes, use "flute". If they ask for violin, use "violin". If they ask for strings, use "string_ensemble_1". ALWAYS honor instrument requests.`;
 
   const timeSigLine = options.timeSignature
     ? ` Keep the rhythm feeling ${options.timeSignature.numerator}/${options.timeSignature.denominator}.`

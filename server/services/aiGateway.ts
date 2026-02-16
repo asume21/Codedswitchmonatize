@@ -14,6 +14,7 @@ export interface CallAIOptions<TSchema = Record<string, unknown>> {
    */
   jsonSchema?: TSchema;
   maxTokens?: number;
+  preferredProvider?: "grok" | "openai";
 }
 
 export interface CallAIResult<TContent = unknown> {
@@ -70,6 +71,7 @@ export async function callAI<TContent = unknown>(options: CallAIOptions): Promis
       temperature: options.temperature ?? 0.6,
       max_tokens: options.maxTokens ?? 3000,
       response_format: responseFormat,
+      preferredProvider: options.preferredProvider,
     });
   } catch (error) {
     // If structured schema fails (provider incompatibility), fall back to basic json_object.
@@ -78,6 +80,7 @@ export async function callAI<TContent = unknown>(options: CallAIOptions): Promis
         temperature: options.temperature ?? 0.6,
         max_tokens: options.maxTokens ?? 3000,
         response_format: { type: "json_object" },
+        preferredProvider: options.preferredProvider,
       });
     } else {
       throw error;
