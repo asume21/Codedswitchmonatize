@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -6,12 +6,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Wand2, Music, DollarSign, Piano, Play, Pause, Square } from 'lucide-react';
+import { Wand2, Music, DollarSign, Piano, Play, Pause, Square, Activity, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 import { requestAstutelyPattern, mapGenreToAstutelyStyle } from '@/lib/astutelyBridge';
 import { astutelyToNotes, midiToNoteOctave } from '@/lib/astutelyEngine';
+
+interface DiagnosticEvent {
+  id: string;
+  timestamp: number;
+  severity: 'info' | 'warn' | 'error' | 'critical';
+  category: string;
+  message: string;
+  provider?: string;
+  durationMs?: number;
+  resolution?: string;
+  validationErrors?: string[];
+  rawAIResponse?: string;
+}
+
+interface DiagnosticSummary {
+  totalGenerations: number;
+  successCount: number;
+  fallbackCount: number;
+  errorCount: number;
+  avgLatencyMs: number;
+  localAISuccessRate: number;
+  cloudAISuccessRate: number;
+  lastError: DiagnosticEvent | null;
+  topErrors: { message: string; count: number }[];
+  uptime: number;
+  recentEvents: DiagnosticEvent[];
+}
 
 interface MusicGenerationPanelProps {
   onMusicGenerated?: (audioUrl: string, metadata: any) => void;
@@ -126,14 +154,36 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [duration, setDuration] = useState([30]);
   const [bpm, setBpm] = useState([120]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [useRealisticInstruments, setUseRealisticInstruments] = useState(true); // Default to realistic
+  const [useRealisticInstruments, setUseRealisticInstruments] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const { toast } = useToast();
   const [showUpgrade, setShowUpgrade] = useState(false);
   const { requirePro, startUpgrade } = useLicenseGate();
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticSummary | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
   
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentPatternRef = useRef<RealisticPattern | null>(null);
+
+  const fetchDiagnostics = useCallback(async () => {
+    setDiagLoading(true);
+    try {
+      const res = await fetch('/api/astutely/diagnostics?limit=20');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) setDiagnostics(data);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setDiagLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showDiagnostics) fetchDiagnostics();
+  }, [showDiagnostics, fetchDiagnostics]);
   
   const providers = {
     musicgen: {
@@ -493,10 +543,146 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
           )}
         </Button>
 
-        {/* Info */}
-        <div className="text-xs text-gray-500 text-center">
-          Powered by Astutely intelligence • Auto-loads into Piano Roll
+        {/* Info + Diagnostics Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-gray-500">
+            Powered by Astutely intelligence
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-gray-400 hover:text-white gap-1"
+            onClick={() => {
+              setShowDiagnostics(!showDiagnostics);
+              if (!showDiagnostics) fetchDiagnostics();
+            }}
+          >
+            <Activity className="w-3 h-3" />
+            {showDiagnostics ? 'Hide' : 'Brain Status'}
+          </Button>
         </div>
+
+        {/* Astutely Diagnostics Panel */}
+        {showDiagnostics && (
+          <div className="border border-gray-700 rounded-lg p-3 space-y-3 bg-gray-900/50">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-200 flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-purple-400" />
+                Astutely Brain Diagnostics
+              </h4>
+              <Button variant="ghost" size="sm" onClick={fetchDiagnostics} disabled={diagLoading} className="text-xs h-6 px-2">
+                {diagLoading ? 'Loading...' : 'Refresh'}
+              </Button>
+            </div>
+
+            {diagnostics ? (
+              <>
+                {/* Health Summary */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-gray-800 rounded p-2">
+                    <div className="text-gray-400">Generations</div>
+                    <div className="text-lg font-bold text-white">{diagnostics.totalGenerations}</div>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-green-400">{diagnostics.successCount} AI</span>
+                      <span className="text-yellow-400">{diagnostics.fallbackCount} fallback</span>
+                      <span className="text-red-400">{diagnostics.errorCount} err</span>
+                    </div>
+                  </div>
+                  <div className="bg-gray-800 rounded p-2">
+                    <div className="text-gray-400">AI Success Rates</div>
+                    <div className="mt-1 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Phi3 (Local)</span>
+                        <Badge variant={diagnostics.localAISuccessRate >= 50 ? 'default' : 'destructive'} className="text-xs h-5">
+                          {diagnostics.localAISuccessRate}%
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Grok (Cloud)</span>
+                        <Badge variant={diagnostics.cloudAISuccessRate >= 50 ? 'default' : 'destructive'} className="text-xs h-5">
+                          {diagnostics.cloudAISuccessRate}%
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {diagnostics.avgLatencyMs > 0 && (
+                  <div className="text-xs text-gray-400">
+                    Avg latency: <span className="text-white">{diagnostics.avgLatencyMs}ms</span>
+                  </div>
+                )}
+
+                {/* Recent Events */}
+                {diagnostics.recentEvents.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs text-gray-400 font-medium">Recent Activity</div>
+                    <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                      {diagnostics.recentEvents.slice(0, 15).map((evt) => (
+                        <div
+                          key={evt.id}
+                          className={`text-xs rounded px-2 py-1.5 flex items-start gap-1.5 ${
+                            evt.severity === 'critical' ? 'bg-red-900/40 border border-red-700' :
+                            evt.severity === 'error' ? 'bg-red-900/20 border border-red-800/50' :
+                            evt.severity === 'warn' ? 'bg-yellow-900/20 border border-yellow-800/50' :
+                            'bg-gray-800/50 border border-gray-700/50'
+                          }`}
+                        >
+                          {evt.severity === 'critical' || evt.severity === 'error' ? (
+                            <XCircle className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />
+                          ) : evt.severity === 'warn' ? (
+                            <AlertTriangle className="w-3 h-3 text-yellow-400 mt-0.5 shrink-0" />
+                          ) : (
+                            <CheckCircle className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-gray-200 break-words">{evt.message}</div>
+                            {evt.resolution && (
+                              <div className="text-gray-500 mt-0.5">→ {evt.resolution}</div>
+                            )}
+                            {evt.validationErrors && evt.validationErrors.length > 0 && (
+                              <div className="text-red-300/70 mt-0.5">
+                                Validation: {evt.validationErrors.slice(0, 3).join('; ')}
+                              </div>
+                            )}
+                            <div className="text-gray-600 mt-0.5">
+                              {new Date(evt.timestamp).toLocaleTimeString()}
+                              {evt.provider && ` • ${evt.provider}`}
+                              {evt.durationMs ? ` • ${evt.durationMs}ms` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Top Errors */}
+                {diagnostics.topErrors.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs text-gray-400 font-medium">Top Recurring Issues</div>
+                    {diagnostics.topErrors.slice(0, 5).map((err, i) => (
+                      <div key={i} className="text-xs flex justify-between bg-gray-800/50 rounded px-2 py-1">
+                        <span className="text-red-300 truncate mr-2">{err.message}</span>
+                        <Badge variant="destructive" className="text-xs h-4 shrink-0">×{err.count}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {diagnostics.totalGenerations === 0 && (
+                  <div className="text-xs text-gray-500 text-center py-2">
+                    No generations yet this session. Generate something to see diagnostics.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-xs text-gray-500 text-center py-2">
+                {diagLoading ? 'Loading diagnostics...' : 'Could not load diagnostics'}
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
     <UpgradeModal

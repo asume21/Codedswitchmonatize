@@ -3,7 +3,7 @@ import { unifiedMusicService } from '../services/unifiedMusicService';
 import { makeAICall, getAIProviderStatus, performAIProviderSelfTest } from '../services/grok';
 import { localAI, makeLocalAICall } from '../services/localAI';
 import { getGenreSpec } from '../ai/knowledge/genreDatabase';
-import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety/aiSafeguards';
+import { sanitizePrompt, validateAIOutput } from '../ai/safety/aiSafeguards';
 import { enhancePromptWithMusicTheory, getProgressionsForGenre } from '../ai/knowledge/musicTheory';
 import { buildAstutelyPrompt } from '../ai/prompts/astutelyPrompt';
 import { logPromptStart, logPromptResult } from '../ai/utils/promptLogger';
@@ -11,6 +11,9 @@ import { generateAstutelyFallback } from '../../shared/astutelyFallback';
 import { resolveGenerationConstraints } from '@shared/aiProviderCapabilities';
 import { sunoApiService } from '../services/sunoApiService';
 import { recordAIGenerationMetric } from '../services/aiRouteMetrics';
+import { astutelyDiagnostics } from '../services/astutelyDiagnostics';
+import { extractJSON, mergePartialWithFallback } from '../ai/utils/robustJsonParser';
+import { generatePerTrack } from '../ai/strategies/perTrackGeneration';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -56,10 +59,7 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
     : undefined;
 
   try {
-    // Sanitize user input for security
     const safePrompt = sanitizePrompt(prompt);
-    
-    // Build enhanced prompt package (genre + insights + theory)
     const promptPackage = buildAstutelyPrompt(style, safePrompt, {
       tempo: normalizedTempo,
       timeSignature: normalizedTimeSignature,
@@ -68,153 +68,337 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
     });
     const { systemPrompt, userPrompt, metadata } = promptPackage;
     const genreSpec = getGenreSpec(style);
-    const progressions = getProgressionsForGenre(style);
 
-    if (metadata.genreName) {
-      console.log(`✨ Enhanced AI: Using ${metadata.genreName} specifications`);
-    }
-    if (metadata.hasInsights) {
-      console.log('🧠 Genre insights attached to prompt');
-    }
-    if (metadata.progressionCount > 0) {
-      console.log(`🎼 Music Theory: Added ${metadata.progressionCount} chord progressions`);
-    }
-
-    console.log(`🤖 Astutely generating with FULL intelligence (Genre + Music Theory) for: ${style}`);
+    console.log(`🤖 Astutely generating for: ${style} (genre: ${metadata.genreName || 'unknown'}, theory: ${metadata.progressionCount} progs)`);
     const promptHash = logPromptStart(systemPrompt, { feature: 'astutely-beat', style });
     const startTime = Date.now();
-    
-    // Use safe AI generation with failsafes
-    const result = await safeAIGeneration(
-      // AI generation function with local-first, cloud fallback
-      async () => {
-        let response;
-        let usedLocal = false;
-        
-        // Try local AI first
-        try {
-          console.log('🖥️ Attempting local AI generation...');
-          response = await makeLocalAICall([
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ], {
-            format: 'json',
-            temperature: 1.0
+    const allWarnings: string[] = [];
+
+    // ── Helper: attempt an AI call, extract JSON robustly, validate ──
+    async function tryAIProvider(
+      providerName: string,
+      callFn: () => Promise<any>,
+    ): Promise<{ parsed: any; validation: ReturnType<typeof validateAIOutput> } | null> {
+      const callStart = Date.now();
+      try {
+        const response = await callFn();
+        const rawContent = response.choices?.[0]?.message?.content || '';
+
+        if (providerName.includes('Local')) {
+          astutelyDiagnostics.recordLocalAIAttempt(true, { requestId, durationMs: Date.now() - callStart });
+        } else {
+          astutelyDiagnostics.recordCloudAIAttempt(true, { requestId, durationMs: Date.now() - callStart });
+        }
+
+        // Robust JSON extraction — handles markdown fences, trailing commas, truncated output
+        const extracted = extractJSON(rawContent);
+        if (!extracted.success) {
+          astutelyDiagnostics.recordJSONParseError({
+            requestId,
+            rawResponse: rawContent,
+            error: extracted.warnings.join('; '),
+            provider: providerName,
           });
-          usedLocal = true;
-          console.log('✅ Local AI succeeded!');
-        } catch (localError) {
-          console.log('⚠️ Local AI failed, falling back to cloud (Grok)...');
-          // Fallback to cloud API
-          response = await makeAICall([
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ], {
-            response_format: { type: "json_object" },
-            temperature: 1.0,
-            top_p: 0.95
+          allWarnings.push(`${providerName}: JSON extraction failed (${extracted.method})`);
+          return null;
+        }
+        if (extracted.warnings.length) {
+          allWarnings.push(...extracted.warnings.map(w => `${providerName}: ${w}`));
+        }
+
+        const parsed = extracted.data;
+        if (!parsed.timeSignature && normalizedTimeSignature) parsed.timeSignature = normalizedTimeSignature;
+        if (!parsed.bpm && normalizedTempo) parsed.bpm = normalizedTempo;
+        parsed._aiSource = providerName;
+
+        // Validate
+        const validation = validateAIOutput(parsed, style);
+        if (validation.warnings.length) {
+          allWarnings.push(...validation.warnings.map(w => `${providerName} validation: ${w}`));
+        }
+
+        if (!validation.isValid) {
+          astutelyDiagnostics.recordValidationFailure({
+            requestId,
+            errors: validation.errors,
+            warnings: validation.warnings,
+            provider: providerName,
+            style,
           });
-          console.log('✅ Cloud AI (Grok) succeeded!');
         }
-        
-        const content = response.choices?.[0]?.message?.content || '{}';
-        const parsed = JSON.parse(content);
-        if (!parsed.timeSignature && normalizedTimeSignature) {
-          parsed.timeSignature = normalizedTimeSignature;
+
+        return { parsed, validation };
+      } catch (err: any) {
+        const durationMs = Date.now() - callStart;
+        if (providerName.includes('Local')) {
+          astutelyDiagnostics.recordLocalAIAttempt(false, { requestId, error: err.message, durationMs });
+        } else {
+          astutelyDiagnostics.recordCloudAIAttempt(false, { requestId, error: err.message, durationMs });
         }
-        if (!parsed.bpm && normalizedTempo) {
-          parsed.bpm = normalizedTempo;
+        allWarnings.push(`${providerName} call failed: ${err.message}`);
+        return null;
+      }
+    }
+
+    // ── COLLABORATION MODEL: Phi3 is the rapper, Grok is the sound engineer ──
+    // Phi3 goes first — lays down the raw creative idea (free, fast, local).
+    // Then Grok steps in and fills whatever Phi3 couldn't handle (the polish).
+    // Together they make the child — the final track.
+    let finalOutput: any = null;
+    let aiSource = 'astutely-fallback';
+    let usedFallback = false;
+    const trackFields = ['drums', 'bass', 'chords', 'melody'] as const;
+    const trackMinItems: Record<string, number> = { drums: 4, bass: 2, chords: 2, melody: 2 };
+
+    // Step 1: Phi3 creates first (the artist)
+    console.log('🎤 Step 1: Phi3 lays down the raw idea...');
+    const phi3Result = await tryAIProvider('Phi3 (Local)', () =>
+      makeLocalAICall(
+        [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+        { format: 'json', temperature: 1.0 },
+      ),
+    );
+
+    // See what Phi3 gave us
+    const phi3Data = phi3Result?.parsed || {};
+    const phi3Valid = phi3Result?.validation.isValid && phi3Result.validation.sanitizedOutput;
+    const phi3Tracks: string[] = [];
+    const phi3Missing: string[] = [];
+
+    for (const field of trackFields) {
+      const arr = phi3Valid ? (phi3Result!.validation.sanitizedOutput as any)?.[field] : phi3Data[field];
+      if (Array.isArray(arr) && arr.length >= trackMinItems[field]) {
+        phi3Tracks.push(field);
+      } else {
+        phi3Missing.push(field);
+      }
+    }
+
+    if (phi3Valid && phi3Missing.length === 0) {
+      // Phi3 nailed it solo — full valid output, no help needed
+      finalOutput = phi3Result!.validation.sanitizedOutput;
+      aiSource = 'Phi3 (Local) — solo';
+      console.log('✅ Phi3 nailed it solo! All 4 tracks valid.');
+    } else {
+      // Step 2: Grok steps in as the sound engineer — fills what Phi3 missed
+      const phi3Got = phi3Tracks.length > 0 ? phi3Tracks.join(', ') : 'nothing usable';
+      const phi3Needs = phi3Missing.length > 0 ? phi3Missing.join(', ') : 'nothing';
+      console.log(`🎤 Phi3 delivered: [${phi3Got}] — needs help with: [${phi3Needs}]`);
+      console.log('🎛️ Step 2: Grok (sound engineer) stepping in to help...');
+
+      const grokResult = await tryAIProvider('Grok-3 (Cloud)', () =>
+        makeAICall(
+          [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+          { response_format: { type: 'json_object' }, temperature: 1.0, top_p: 0.95 },
+        ),
+      );
+
+      const grokData = grokResult?.parsed || {};
+      const grokValid = grokResult?.validation.isValid && grokResult.validation.sanitizedOutput;
+
+      // Now MERGE: Phi3's tracks + Grok's tracks = the child
+      const sources: string[] = [];
+      const child: any = {
+        style,
+        bpm: phi3Data.bpm || grokData.bpm,
+        key: phi3Data.key || grokData.key,
+        timeSignature: phi3Data.timeSignature || grokData.timeSignature,
+        instruments: phi3Data.instruments || grokData.instruments,
+      };
+
+      const phi3Source = phi3Valid ? phi3Result!.validation.sanitizedOutput : phi3Data;
+      const grokSource = grokValid ? grokResult!.validation.sanitizedOutput : grokData;
+
+      for (const field of trackFields) {
+        const phi3Arr = (phi3Source as any)?.[field];
+        const grokArr = (grokSource as any)?.[field];
+        const phi3Len = Array.isArray(phi3Arr) ? phi3Arr.length : 0;
+        const grokLen = Array.isArray(grokArr) ? grokArr.length : 0;
+
+        // Phi3 gets priority — it's the artist. Grok only fills gaps.
+        if (phi3Len >= trackMinItems[field]) {
+          child[field] = phi3Arr;
+          sources.push(`${field}:Phi3(${phi3Len})`);
+        } else if (grokLen >= trackMinItems[field]) {
+          child[field] = grokArr;
+          sources.push(`${field}:Grok(${grokLen})`);
+        } else if (phi3Len > 0) {
+          child[field] = phi3Arr;
+          sources.push(`${field}:Phi3(${phi3Len}*)`);
+        } else if (grokLen > 0) {
+          child[field] = grokArr;
+          sources.push(`${field}:Grok(${grokLen}*)`);
         }
-        const duration = Date.now() - startTime;
-        logPromptResult(promptHash, {
-          feature: 'astutely-beat',
-          style,
-          provider: usedLocal ? 'Phi3 (Local)' : 'Grok-3 (Cloud)',
-          durationMs: duration,
-        });
-        
-        // Add metadata about which AI was used
-        const aiSource = usedLocal ? 'Phi3 (Local)' : 'Grok-3 (Cloud)';
-        parsed._aiSource = aiSource;
-        
-        // Log prominently which AI was used
-        console.log('═══════════════════════════════════════════════════════');
-        console.log(`🤖 ASTUTELY AI SOURCE: ${aiSource}`);
-        console.log('═══════════════════════════════════════════════════════');
-        
-        return parsed;
-      },
-      
-      // Validator
-      (output) => validateAIOutput(output, style),
-      
-      // Fallback generator
-      () => generateAstutelyFallback(style, {
+      }
+
+      // Fill any remaining gaps with fallback
+      const fallback = generateAstutelyFallback(style, {
         tempo: normalizedTempo ?? genreSpec?.bpmRange?.[0],
         key: normalizedKey ?? genreSpec?.preferredKeys?.[0],
         timeSignature: normalizedTimeSignature ?? { numerator: 4, denominator: 4 },
-        fallbackReason: 'ai_generation_failed',
         prompt: safePrompt,
-      }),
-      
-      // Config
-      { maxRetries: 3, fallbackEnabled: true }
-    );
-    
-    // Log results
-    if (result.usedFallback) {
-      console.warn('⚠️ AI generation failed, used fallback');
-      logPromptResult(promptHash, {
-        feature: 'astutely-beat',
-        style,
-        provider: 'fallback-template',
-        durationMs: Date.now() - startTime,
-        warnings: result.warnings,
+        fallbackReason: 'collab_fill',
       });
-    }
-    if (result.warnings.length > 0) {
-      console.warn('⚠️ Warnings:', result.warnings);
-    }
-    
-    const output = {
-      ...result.output,
-      bpm: result.output.bpm ?? normalizedTempo ?? metadata.tempo ?? (genreSpec ? genreSpec.bpmRange[0] : 120),
-      timeSignature: result.output.timeSignature ?? normalizedTimeSignature ?? metadata.timeSignature ?? { numerator: 4, denominator: 4 },
-      key: result.output.key ?? normalizedKey ?? metadata.key ?? (genreSpec ? genreSpec.preferredKeys[0] : 'C Minor'),
-      trackSummaries: normalizedTracks ?? result.output.trackSummaries,
-    } as any;
+      const { merged, filledFields } = mergePartialWithFallback(child, fallback as any);
+      finalOutput = merged;
 
-    const mergedMeta = {
-      ...(output.meta ?? {}),
-      usedFallback: result.usedFallback || output.isFallback || output.meta?.usedFallback,
-      warnings: [...new Set([...(output.meta?.warnings ?? []), ...(result.warnings ?? [])])],
-      aiSource: output.meta?.aiSource || output._aiSource || (result.usedFallback ? 'astutely-fallback' : 'astutely-ai'),
-      attempts: result.attempts,
+      if (filledFields.length) {
+        sources.push(`fallback:[${filledFields.join(',')}]`);
+        usedFallback = true;
+      }
+
+      const hasPhi3 = sources.some(s => s.includes('Phi3'));
+      const hasGrok = sources.some(s => s.includes('Grok'));
+      if (hasPhi3 && hasGrok) {
+        aiSource = `Astutely Collab [${sources.join(', ')}]`;
+      } else if (hasGrok) {
+        aiSource = `Grok-3 (Cloud) [${sources.join(', ')}]`;
+      } else if (hasPhi3) {
+        aiSource = `Phi3 (Local) [${sources.join(', ')}]`;
+      } else {
+        aiSource = `Fallback [${sources.join(', ')}]`;
+        usedFallback = true;
+      }
+
+      allWarnings.push(`Collab: ${sources.join(', ')}`);
+      console.log(`🎨 The child: ${sources.join(', ')}`);
+    }
+
+    // Step 3: Per-track mode if both AIs failed to produce anything usable
+    if (!finalOutput) {
+      console.log('🎯 Step 3: Per-track mode — one simple track at a time...');
+      const effectiveBpm = normalizedTempo ?? genreSpec?.bpmRange?.[0] ?? 120;
+      const effectiveKey = normalizedKey ?? genreSpec?.preferredKeys?.[0] ?? 'C';
+      const defaultInstruments = { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' };
+
+      try {
+        const perTrackResult = await generatePerTrack({
+          style,
+          bpm: effectiveBpm,
+          key: effectiveKey,
+          userHint: safePrompt,
+          requestId,
+          instruments: defaultInstruments,
+        });
+
+        if (perTrackResult.tracksFromAI.length > 0) {
+          const fallback = generateAstutelyFallback(style, {
+            tempo: effectiveBpm,
+            key: effectiveKey,
+            timeSignature: normalizedTimeSignature ?? { numerator: 4, denominator: 4 },
+            prompt: safePrompt,
+            fallbackReason: 'per_track_partial',
+          });
+
+          const { merged, filledFields } = mergePartialWithFallback(
+            {
+              drums: perTrackResult.drums,
+              bass: perTrackResult.bass,
+              chords: perTrackResult.chords,
+              melody: perTrackResult.melody,
+              bpm: effectiveBpm,
+              key: effectiveKey,
+              style,
+              instruments: perTrackResult.instruments,
+            },
+            fallback as any,
+          );
+
+          finalOutput = merged;
+          const aiTracks = perTrackResult.tracksFromAI.join(', ');
+          const failedTracks = filledFields.join(', ') || 'none';
+          aiSource = `Per-track [${aiTracks}]${filledFields.length ? ` + fallback [${failedTracks}]` : ''}`;
+          usedFallback = filledFields.length > 0;
+          if (filledFields.length) {
+            allWarnings.push(`Per-track: AI [${aiTracks}], fallback [${failedTracks}]`);
+          }
+        }
+      } catch (perTrackErr: any) {
+        allWarnings.push(`Per-track failed: ${perTrackErr.message}`);
+      }
+    }
+
+    // Step 4: Full fallback if absolutely everything failed
+    if (!finalOutput) {
+      console.log('🛟 Step 4: Full fallback — all strategies exhausted');
+      finalOutput = generateAstutelyFallback(style, {
+        tempo: normalizedTempo ?? genreSpec?.bpmRange?.[0],
+        key: normalizedKey ?? genreSpec?.preferredKeys?.[0],
+        timeSignature: normalizedTimeSignature ?? { numerator: 4, denominator: 4 },
+        prompt: safePrompt,
+        fallbackReason: 'all_ai_failed',
+      });
+      aiSource = 'astutely-fallback';
+      usedFallback = true;
+      allWarnings.push('All strategies failed — used full fallback');
+    }
+
+    const durationMs = Date.now() - startTime;
+    logPromptResult(promptHash, {
+      feature: 'astutely-beat',
+      style,
+      provider: aiSource,
+      durationMs,
+      warnings: allWarnings,
+    });
+
+    // Ensure required fields
+    finalOutput.bpm = finalOutput.bpm ?? normalizedTempo ?? metadata.tempo ?? (genreSpec ? genreSpec.bpmRange[0] : 120);
+    finalOutput.timeSignature = finalOutput.timeSignature ?? normalizedTimeSignature ?? { numerator: 4, denominator: 4 };
+    finalOutput.key = finalOutput.key ?? normalizedKey ?? metadata.key ?? (genreSpec ? genreSpec.preferredKeys[0] : 'C Minor');
+
+    finalOutput.meta = {
+      ...(finalOutput.meta ?? {}),
+      usedFallback,
+      warnings: [...new Set(allWarnings)],
+      aiSource,
       requestId,
+      durationMs,
     };
 
-    output.meta = mergedMeta;
+    // Record to diagnostics + metrics
+    astutelyDiagnostics.recordGeneration({
+      requestId,
+      style,
+      provider: aiSource,
+      durationMs,
+      usedFallback,
+      warnings: allWarnings,
+    });
 
     recordAIGenerationMetric({
       route: '/api/astutely',
       requestedProvider: null,
-      effectiveProvider: mergedMeta.aiSource,
-      outcome: mergedMeta.usedFallback ? 'fallback' : 'success',
+      effectiveProvider: aiSource,
+      outcome: usedFallback ? 'fallback' : 'success',
       latencyMs: Date.now() - routeStartedAt,
     });
 
-    return res.json(output);
+    console.log('═══════════════════════════════════════════════════════');
+    console.log(`🤖 ASTUTELY RESULT: ${aiSource} (${durationMs}ms, ${usedFallback ? 'FALLBACK' : 'AI'})`);
+    if (allWarnings.length) console.log(`⚠️ Warnings: ${allWarnings.join(' | ')}`);
+    console.log('═══════════════════════════════════════════════════════');
+
+    return res.json(finalOutput);
 
   } catch (error: any) {
-    console.error('Astutely AI error, using fallback:', error);
+    const durationMs = Date.now() - routeStartedAt;
+    console.error('Astutely route-level error:', error);
+
+    astutelyDiagnostics.recordEndpointMiss({
+      endpoint: 'POST /api/astutely',
+      error: error.message,
+      requestId,
+    });
+
     logPromptResult('unknown', {
       feature: 'astutely-beat',
       style,
       provider: 'error-fallback',
-      durationMs: 0,
-      warnings: [error.message]
+      durationMs,
+      warnings: [error.message],
     });
-    // Return fallback pattern instead of error - Astutely should always work
+
     const fallbackResult = generateAstutelyFallback(style, {
       tempo: normalizedTempo,
       key: normalizedKey,
@@ -228,15 +412,16 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
       requestedProvider: null,
       effectiveProvider: 'astutely-fallback',
       outcome: 'error',
-      latencyMs: Date.now() - routeStartedAt,
+      latencyMs: durationMs,
     });
 
     (fallbackResult as any).meta = {
       ...((fallbackResult as any).meta ?? {}),
       requestId,
       usedFallback: true,
+      routeError: error.message,
     };
-    
+
     return res.json(fallbackResult);
   }
 });
@@ -442,6 +627,28 @@ router.get('/astutely/provider-status', async (_req: Request, res: Response) => 
     });
   } catch (error: any) {
     console.error('Provider status error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Astutely self-diagnostics — reports what's happening under the hood
+router.get('/astutely/diagnostics', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const errorsOnly = req.query.errors === 'true';
+
+    if (errorsOnly) {
+      return res.json({
+        success: true,
+        errors: astutelyDiagnostics.getRecentErrors(limit),
+      });
+    }
+
+    return res.json({
+      success: true,
+      ...astutelyDiagnostics.getSummary(limit),
+    });
+  } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }
 });

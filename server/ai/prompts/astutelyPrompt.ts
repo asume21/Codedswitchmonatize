@@ -121,18 +121,28 @@ Vary the rhythm placement, note choices, chord inversions, and melodic contour.
 Randomize which steps have hits, shift the groove, use different scale degrees for melody.
 Do NOT fall back to the most common or obvious pattern for this genre.`;
 
-  systemPrompt += `\n📦 OUTPUT FORMAT
-Return JSON only with these fields: style, bpm, key, timeSignature, drums[], bass[], chords[], melody[], instruments.
-Use 64 steps (4 bars × 16 steps). No commentary.
-
-The "instruments" field MUST be an object specifying which General MIDI instrument to use for each track:
+  systemPrompt += `\n📦 OUTPUT: Return ONLY valid JSON. No markdown, no commentary. Copy this structure exactly:
 {
-  "bass": "electric_bass_finger" | "synth_bass_1" | "synth_bass_2" | "acoustic_bass" | "fretless_bass" | "slap_bass_1",
-  "chords": "acoustic_grand_piano" | "electric_piano_1" | "pad_2_warm" | "string_ensemble_1" | "acoustic_guitar_steel" | "orchestral_harp" | "choir_aahs",
-  "melody": "flute" | "violin" | "trumpet" | "clarinet" | "tenor_sax" | "acoustic_grand_piano" | "electric_piano_1" | "lead_1_square" | "lead_2_sawtooth" | "french_horn" | "cello" | "viola" | "trombone" | "orchestral_harp",
-  "drumKit": "default" | "808" | "909" | "acoustic" | "lofi"
+  "style":"${style}","bpm":120,"key":"C","timeSignature":{"numerator":4,"denominator":4},
+  "instruments":{"bass":"electric_bass_finger","chords":"acoustic_grand_piano","melody":"flute","drumKit":"default"},
+  "drums":[
+    {"step":0,"type":"kick"},{"step":4,"type":"snare"},{"step":8,"type":"kick"},{"step":12,"type":"snare"},
+    {"step":2,"type":"hihat"},{"step":6,"type":"hihat"},{"step":10,"type":"hihat"},{"step":14,"type":"hihat"}
+  ],
+  "bass":[
+    {"step":0,"note":36,"duration":4},{"step":8,"note":38,"duration":4},
+    {"step":16,"note":36,"duration":4},{"step":24,"note":41,"duration":4}
+  ],
+  "chords":[
+    {"step":0,"notes":[60,64,67],"duration":16},{"step":16,"notes":[65,69,72],"duration":16},
+    {"step":32,"notes":[67,71,74],"duration":16},{"step":48,"notes":[60,64,67],"duration":16}
+  ],
+  "melody":[
+    {"step":0,"note":72,"duration":2},{"step":4,"note":74,"duration":2},
+    {"step":8,"note":76,"duration":4},{"step":16,"note":79,"duration":2}
+  ]
 }
-Choose instruments that match the user's request. If they ask for flutes, use "flute". If they ask for violin, use "violin". If they ask for strings, use "string_ensemble_1". ALWAYS honor instrument requests.`;
+RULES: steps 0-63 (4 bars × 16 steps). drums use "type" (kick/snare/hihat/perc). bass/melody use MIDI "note" (36-96) + "duration". chords use "notes" array of MIDI values + "duration". Generate at least 16 drum hits, 8 bass notes, 4 chords, 8 melody notes. Match the user's instrument requests.`;
 
   const timeSigLine = options.timeSignature
     ? ` Keep the rhythm feeling ${options.timeSignature.numerator}/${options.timeSignature.denominator}.`
