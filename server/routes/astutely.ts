@@ -14,6 +14,7 @@ import { recordAIGenerationMetric } from '../services/aiRouteMetrics';
 import { astutelyDiagnostics } from '../services/astutelyDiagnostics';
 import { extractJSON, mergePartialWithFallback } from '../ai/utils/robustJsonParser';
 import { generatePerTrack } from '../ai/strategies/perTrackGeneration';
+import { generateChatMusicianMelody } from '../services/chatMusician';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -140,9 +141,10 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
       }
     }
 
-    // ── COLLABORATION MODEL: Phi3 is the rapper, Grok is the sound engineer ──
-    // Phi3 goes first — lays down the raw creative idea (free, fast, local).
-    // Then Grok steps in and fills whatever Phi3 couldn't handle (the polish).
+    // ── COLLABORATION MODEL ──
+    // Phi3 is the rapper — lays down the raw creative idea (free, fast, local).
+    // ChatMusician is the sound engineer — actual music AI trained on notation.
+    // Grok is the last-resort text LLM backup.
     // Together they make the child — the final track.
     let finalOutput: any = null;
     let aiSource = 'astutely-fallback';
@@ -150,7 +152,30 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
     const trackFields = ['drums', 'bass', 'chords', 'melody'] as const;
     const trackMinItems: Record<string, number> = { drums: 4, bass: 2, chords: 2, melody: 2 };
 
-    // Step 1: Phi3 creates first (the artist)
+    // Helper: convert ChatMusician ABC notation to MIDI-like melody events
+    function abcToMelodyEvents(abc: string): any[] {
+      const noteMap: Record<string, number> = {
+        'C': 60, 'D': 62, 'E': 64, 'F': 65, 'G': 67, 'A': 69, 'B': 71,
+        'c': 72, 'd': 74, 'e': 76, 'f': 77, 'g': 79, 'a': 81, 'b': 83,
+      };
+      const events: any[] = [];
+      let step = 0;
+      const tokens = abc.replace(/[^A-Ga-gz0-9,/]/g, ' ').split(/\s+/).filter(Boolean);
+      for (const token of tokens) {
+        const noteLetter = token.charAt(0);
+        const midi = noteMap[noteLetter];
+        if (midi !== undefined) {
+          const durChar = token.slice(1);
+          const duration = durChar ? Math.max(1, Math.min(8, parseInt(durChar) || 2)) : 2;
+          events.push({ step, note: midi, duration });
+          step += duration;
+          if (step >= 64) break;
+        }
+      }
+      return events;
+    }
+
+    // Step 1: Phi3 creates first (the artist/rapper)
     console.log('🎤 Step 1: Phi3 lays down the raw idea...');
     const phi3Result = await tryAIProvider('Phi3 (Local)', () =>
       makeLocalAICall(
@@ -159,7 +184,6 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
       ),
     );
 
-    // See what Phi3 gave us
     const phi3Data = phi3Result?.parsed || {};
     const phi3Valid = phi3Result?.validation.isValid && phi3Result.validation.sanitizedOutput;
     const phi3Tracks: string[] = [];
@@ -175,63 +199,111 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
     }
 
     if (phi3Valid && phi3Missing.length === 0) {
-      // Phi3 nailed it solo — full valid output, no help needed
       finalOutput = phi3Result!.validation.sanitizedOutput;
       aiSource = 'Phi3 (Local) — solo';
       console.log('✅ Phi3 nailed it solo! All 4 tracks valid.');
     } else {
-      // Step 2: Grok steps in as the sound engineer — fills what Phi3 missed
+      // Step 2: Sound engineers step in — real music AI first, then Grok as backup
       const phi3Got = phi3Tracks.length > 0 ? phi3Tracks.join(', ') : 'nothing usable';
-      const phi3Needs = phi3Missing.length > 0 ? phi3Missing.join(', ') : 'nothing';
-      console.log(`🎤 Phi3 delivered: [${phi3Got}] — needs help with: [${phi3Needs}]`);
-      console.log('🎛️ Step 2: Grok (sound engineer) stepping in to help...');
+      console.log(`🎤 Phi3 delivered: [${phi3Got}] — needs help with: [${phi3Missing.join(', ')}]`);
 
-      const grokResult = await tryAIProvider('Grok-3 (Cloud)', () =>
-        makeAICall(
-          [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-          { response_format: { type: 'json_object' }, temperature: 1.0, top_p: 0.95 },
-        ),
-      );
-
-      const grokData = grokResult?.parsed || {};
-      const grokValid = grokResult?.validation.isValid && grokResult.validation.sanitizedOutput;
-
-      // Now MERGE: Phi3's tracks + Grok's tracks = the child
       const sources: string[] = [];
       const child: any = {
         style,
-        bpm: phi3Data.bpm || grokData.bpm,
-        key: phi3Data.key || grokData.key,
-        timeSignature: phi3Data.timeSignature || grokData.timeSignature,
-        instruments: phi3Data.instruments || grokData.instruments,
+        bpm: phi3Data.bpm,
+        key: phi3Data.key,
+        timeSignature: phi3Data.timeSignature,
+        instruments: phi3Data.instruments,
       };
 
+      // Keep Phi3's good tracks
       const phi3Source = phi3Valid ? phi3Result!.validation.sanitizedOutput : phi3Data;
-      const grokSource = grokValid ? grokResult!.validation.sanitizedOutput : grokData;
-
       for (const field of trackFields) {
         const phi3Arr = (phi3Source as any)?.[field];
-        const grokArr = (grokSource as any)?.[field];
-        const phi3Len = Array.isArray(phi3Arr) ? phi3Arr.length : 0;
-        const grokLen = Array.isArray(grokArr) ? grokArr.length : 0;
-
-        // Phi3 gets priority — it's the artist. Grok only fills gaps.
-        if (phi3Len >= trackMinItems[field]) {
+        if (Array.isArray(phi3Arr) && phi3Arr.length >= trackMinItems[field]) {
           child[field] = phi3Arr;
-          sources.push(`${field}:Phi3(${phi3Len})`);
-        } else if (grokLen >= trackMinItems[field]) {
-          child[field] = grokArr;
-          sources.push(`${field}:Grok(${grokLen})`);
-        } else if (phi3Len > 0) {
-          child[field] = phi3Arr;
-          sources.push(`${field}:Phi3(${phi3Len}*)`);
-        } else if (grokLen > 0) {
-          child[field] = grokArr;
-          sources.push(`${field}:Grok(${grokLen}*)`);
+          sources.push(`${field}:Phi3(${phi3Arr.length})`);
         }
       }
 
-      // Fill any remaining gaps with fallback
+      // Step 2a: ChatMusician (actual music AI) — try to fill missing melody/chords
+      if (phi3Missing.includes('melody') || phi3Missing.includes('chords')) {
+        console.log('🎵 Step 2a: ChatMusician (music AI) generating melody...');
+        try {
+          const musicianResult = await generateChatMusicianMelody(safePrompt || `${style} instrumental`, style);
+          if (musicianResult?.abcNotation) {
+            const melodyEvents = abcToMelodyEvents(musicianResult.abcNotation);
+            if (melodyEvents.length >= 4 && !child.melody) {
+              child.melody = melodyEvents;
+              sources.push(`melody:ChatMusician(${melodyEvents.length})`);
+              console.log(`✅ ChatMusician generated ${melodyEvents.length} melody events`);
+            }
+            // ChatMusician can also inform chord choices
+            if (!child.chords && melodyEvents.length >= 2) {
+              // Derive simple chords from melody notes
+              const chordEvents = [];
+              for (let i = 0; i < melodyEvents.length && i < 8; i += 2) {
+                const root = melodyEvents[i]?.note || 60;
+                chordEvents.push({
+                  step: melodyEvents[i].step,
+                  notes: [root - 12, root - 8, root - 5],
+                  duration: Math.min(16, (melodyEvents[i + 1]?.step || 64) - melodyEvents[i].step),
+                });
+              }
+              if (chordEvents.length >= 2) {
+                child.chords = chordEvents;
+                sources.push(`chords:ChatMusician(${chordEvents.length})`);
+              }
+            }
+          }
+        } catch (cmErr: any) {
+          console.warn('⚠️ ChatMusician failed:', cmErr.message);
+          allWarnings.push(`ChatMusician failed: ${cmErr.message}`);
+          astutelyDiagnostics.log({
+            severity: 'warn',
+            category: 'cloud_ai_call',
+            message: `ChatMusician failed: ${cmErr.message}`,
+            requestId,
+            provider: 'ChatMusician',
+          });
+        }
+      }
+
+      // Step 2b: Grok (text LLM backup) — fills any tracks still missing
+      const stillMissing = trackFields.filter(f => !child[f] || (Array.isArray(child[f]) && child[f].length < trackMinItems[f]));
+      if (stillMissing.length > 0) {
+        console.log(`🎛️ Step 2b: Grok (text LLM backup) filling: [${stillMissing.join(', ')}]`);
+        const grokResult = await tryAIProvider('Grok-3 (Cloud)', () =>
+          makeAICall(
+            [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+            { response_format: { type: 'json_object' }, temperature: 1.0, top_p: 0.95 },
+          ),
+        );
+
+        const grokData = grokResult?.parsed || {};
+        const grokValid = grokResult?.validation.isValid && grokResult.validation.sanitizedOutput;
+        const grokSource = grokValid ? grokResult!.validation.sanitizedOutput : grokData;
+
+        // Fill metadata from Grok if Phi3 didn't provide it
+        if (!child.bpm) child.bpm = (grokSource as any)?.bpm;
+        if (!child.key) child.key = (grokSource as any)?.key;
+        if (!child.instruments) child.instruments = (grokSource as any)?.instruments;
+        if (!child.timeSignature) child.timeSignature = (grokSource as any)?.timeSignature;
+
+        for (const field of stillMissing) {
+          const grokArr = (grokSource as any)?.[field];
+          const grokLen = Array.isArray(grokArr) ? grokArr.length : 0;
+          if (grokLen >= trackMinItems[field]) {
+            child[field] = grokArr;
+            sources.push(`${field}:Grok(${grokLen})`);
+          } else if (grokLen > 0 && !child[field]) {
+            child[field] = grokArr;
+            sources.push(`${field}:Grok(${grokLen}*)`);
+          }
+        }
+      }
+
+      // Fill any remaining gaps with prompt-aware fallback
       const fallback = generateAstutelyFallback(style, {
         tempo: normalizedTempo ?? genreSpec?.bpmRange?.[0],
         key: normalizedKey ?? genreSpec?.preferredKeys?.[0],
@@ -248,13 +320,13 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
       }
 
       const hasPhi3 = sources.some(s => s.includes('Phi3'));
+      const hasMusician = sources.some(s => s.includes('ChatMusician'));
       const hasGrok = sources.some(s => s.includes('Grok'));
-      if (hasPhi3 && hasGrok) {
+      const collabParts = [hasPhi3 && 'Phi3', hasMusician && 'ChatMusician', hasGrok && 'Grok'].filter(Boolean);
+      if (collabParts.length > 1) {
         aiSource = `Astutely Collab [${sources.join(', ')}]`;
-      } else if (hasGrok) {
-        aiSource = `Grok-3 (Cloud) [${sources.join(', ')}]`;
-      } else if (hasPhi3) {
-        aiSource = `Phi3 (Local) [${sources.join(', ')}]`;
+      } else if (collabParts.length === 1) {
+        aiSource = `${collabParts[0]} [${sources.join(', ')}]`;
       } else {
         aiSource = `Fallback [${sources.join(', ')}]`;
         usedFallback = true;
