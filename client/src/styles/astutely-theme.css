@@ -100,10 +100,16 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    GLOBAL APP STYLES & RESET
    ───────────────────────────────────────────────────────────────────────────── */
-html, body, #root, .astutely-app {
+html {
+  font-size: 16px !important;
+}
+
+body, #root, .astutely-app {
   background: radial-gradient(circle at 50% 35%, rgba(8, 16, 30, 1) 0%, #020617 65%, #01020a 100%) !important;
   color: #f8fafc !important;
   font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
   min-height: 100vh !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -186,10 +192,10 @@ div:not(.absolute):not(.relative):not(.flex):not(.flex-col):not(.flex-row) {
 
 /* BUTTONS - Global Override */
 button, .btn, [class*="Button"], [role="button"], [data-radix-collection-item] {
-  text-transform: uppercase !important;
-  letter-spacing: 0.15em !important;
-  font-weight: 900 !important;
-  border-radius: 2px !important;
+  letter-spacing: 0.04em !important;
+  font-weight: 600 !important;
+  font-size: 0.9rem !important;
+  border-radius: 6px !important;
   border: 1px solid rgba(6, 182, 212, 0.3) !important;
   background: rgba(6, 182, 212, 0.08) !important;
   color: #06b6d4 !important;
@@ -228,13 +234,47 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* HEADERS & TYPOGRAPHY */
-h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
-  font-weight: 900 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.2em !important;
+h1 {
+  font-weight: 800 !important;
+  font-size: 1.75rem !important;
+  letter-spacing: 0.06em !important;
   color: #06b6d4 !important;
   text-shadow: 0 0 15px rgba(6, 182, 212, 0.6) !important;
   font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+h2 {
+  font-weight: 700 !important;
+  font-size: 1.4rem !important;
+  letter-spacing: 0.04em !important;
+  color: #06b6d4 !important;
+  text-shadow: 0 0 12px rgba(6, 182, 212, 0.5) !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+h3, h4, h5, h6 {
+  font-weight: 600 !important;
+  font-size: 1.15rem !important;
+  letter-spacing: 0.03em !important;
+  color: #06b6d4 !important;
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.4) !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+.text-xs { font-size: 0.8rem !important; line-height: 1.4 !important; }
+.text-sm { font-size: 0.9rem !important; line-height: 1.5 !important; }
+.text-base { font-size: 1rem !important; line-height: 1.6 !important; }
+.text-lg { font-size: 1.125rem !important; line-height: 1.5 !important; }
+.text-xl { font-size: 1.25rem !important; line-height: 1.4 !important; }
+.text-2xl { font-size: 1.5rem !important; line-height: 1.3 !important; }
+.text-3xl { font-size: 1.875rem !important; line-height: 1.2 !important; }
+
+p, label, li, td, th {
+  line-height: 1.6;
+}
+
+nav a, nav button, nav span {
+  font-size: 0.9rem !important;
 }
 
 /* SLIDERS, PROGRESS, METERS */
@@ -298,9 +338,9 @@ h1, h2, h3, h4, h5, h6, .text-lg, .text-xl, .text-2xl, .text-3xl {
   border-left: 4px solid var(--presence-warm-border) !important;
   padding: 0.75rem 1.25rem !important;
   font-family: 'Inter', sans-serif !important;
-  font-weight: 900 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.2em !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  letter-spacing: 0.04em !important;
   box-shadow: inset 6px 0 25px var(--presence-warm-inset) !important;
   transition: border-left-color 2s ease, box-shadow 2s ease !important;
 }
