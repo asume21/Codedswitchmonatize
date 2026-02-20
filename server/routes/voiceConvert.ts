@@ -1,5 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import multer from "multer";
+import fetch from "node-fetch";
+import FormData from "form-data";
 import type { IStorage } from "../storage";
 import { requireAuth } from "../middleware/auth";
 import { requireCredits, deductCredits } from "../middleware/requireCredits";
@@ -12,6 +15,11 @@ import {
   isValidService,
   type SupportedService,
 } from "../services/userApiKeys";
+
+const voiceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024, files: 5 },
+});
 
 const submitJobSchema = z.object({
   voiceId: z.string().min(1, "voiceId is required"),
@@ -425,6 +433,136 @@ export function createVoiceConvertRoutes(storage: IStorage) {
       } catch (error) {
         console.error("[VoiceConvert] Health check error:", error);
         return res.status(500).json({ success: false, message: "Health check failed" });
+      }
+    },
+  );
+
+  // ─── Clone Voice via ElevenLabs IVC ──────────────────────────────────
+  router.post(
+    "/clone-voice",
+    requireAuth(),
+    voiceUpload.array("files", 5),
+    async (req: Request, res: Response) => {
+      try {
+        const { name, description } = req.body;
+        const files = req.files as Express.Multer.File[] | undefined;
+
+        if (!name || typeof name !== "string" || name.trim().length === 0) {
+          return res.status(400).json({ success: false, message: "Voice name is required" });
+        }
+
+        if (!files || files.length === 0) {
+          return res.status(400).json({ success: false, message: "At least one audio recording is required" });
+        }
+
+        // Resolve ElevenLabs API key — prefer user's BYO key, fall back to platform key
+        let apiKey = process.env.ELEVENLABS_API_KEY || "";
+        if (req.userId) {
+          const keyService = getUserApiKeyService(storage);
+          const userKey = await keyService.getDecryptedKey(req.userId, "elevenlabs");
+          if (userKey) apiKey = userKey;
+        }
+
+        if (!apiKey) {
+          return res.status(503).json({
+            success: false,
+            message: "ElevenLabs API key not configured. Add your key in the API Keys section or contact the admin.",
+          });
+        }
+
+        // Build multipart form for ElevenLabs
+        const form = new FormData();
+        form.append("name", name.trim());
+        if (description) form.append("description", description);
+
+        for (const file of files) {
+          const ext = file.originalname?.split(".").pop()?.toLowerCase() || "wav";
+          const mimeMap: Record<string, string> = {
+            mp3: "audio/mpeg",
+            wav: "audio/wav",
+            m4a: "audio/mp4",
+            ogg: "audio/ogg",
+            webm: "audio/webm",
+            flac: "audio/flac",
+          };
+          form.append("files", file.buffer, {
+            filename: file.originalname || `recording.${ext}`,
+            contentType: mimeMap[ext] || "audio/wav",
+          });
+        }
+
+        console.log(`[VoiceClone] Sending ${files.length} file(s) to ElevenLabs IVC for user ${req.userId}`);
+
+        const elResponse = await fetch("https://api.elevenlabs.io/v1/voices/add", {
+          method: "POST",
+          headers: {
+            "xi-api-key": apiKey,
+          },
+          body: form,
+        });
+
+        if (!elResponse.ok) {
+          const errText = await elResponse.text();
+          console.error(`[VoiceClone] ElevenLabs error ${elResponse.status}:`, errText);
+          return res.status(elResponse.status).json({
+            success: false,
+            message: `ElevenLabs error: ${errText}`,
+          });
+        }
+
+        const result = await elResponse.json() as { voice_id: string; requires_verification?: boolean };
+        console.log(`[VoiceClone] Voice created: ${result.voice_id}`);
+
+        return res.json({
+          success: true,
+          voiceId: result.voice_id,
+          requiresVerification: result.requires_verification || false,
+          message: `Voice "${name.trim()}" cloned successfully!`,
+        });
+      } catch (error: any) {
+        console.error("[VoiceClone] Error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Voice cloning failed" });
+      }
+    },
+  );
+
+  // ─── List User's ElevenLabs Voices ──────────────────────────────────
+  router.get(
+    "/my-voices",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        let apiKey = process.env.ELEVENLABS_API_KEY || "";
+        if (req.userId) {
+          const keyService = getUserApiKeyService(storage);
+          const userKey = await keyService.getDecryptedKey(req.userId, "elevenlabs");
+          if (userKey) apiKey = userKey;
+        }
+
+        if (!apiKey) {
+          return res.json({ success: true, voices: [] });
+        }
+
+        const elResponse = await fetch("https://api.elevenlabs.io/v1/voices", {
+          headers: { "xi-api-key": apiKey },
+        });
+
+        if (!elResponse.ok) {
+          return res.json({ success: true, voices: [] });
+        }
+
+        const data = await elResponse.json() as { voices: Array<{ voice_id: string; name: string; category: string; labels?: Record<string, string> }> };
+        const voices = (data.voices || []).map((v) => ({
+          voiceId: v.voice_id,
+          name: v.name,
+          category: v.category,
+          labels: v.labels || {},
+        }));
+
+        return res.json({ success: true, voices });
+      } catch (error: any) {
+        console.error("[VoiceClone] List voices error:", error);
+        return res.json({ success: true, voices: [] });
       }
     },
   );

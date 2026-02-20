@@ -1830,7 +1830,11 @@ export default function UnifiedStudioWorkspace() {
     return () => window.clearInterval(timer);
   }, [saveAutosaveSnapshot, pushProjectCheckpoint]);
 
+  const autosaveCheckedRef = useRef(false);
   useEffect(() => {
+    if (autosaveCheckedRef.current) return;
+    autosaveCheckedRef.current = true;
+
     try {
       const raw = localStorage.getItem(STUDIO_AUTOSAVE_KEY);
       if (!raw) return;
@@ -1858,7 +1862,8 @@ export default function UnifiedStudioWorkspace() {
     } catch {
       // ignore corrupted autosave payloads
     }
-  }, [applyProjectData, toast, pushProjectCheckpoint]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleNewProject = () => {
     if (confirm('Create new project? This will clear all tracks.')) {

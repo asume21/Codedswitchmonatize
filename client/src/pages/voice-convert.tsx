@@ -36,6 +36,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
+import VoiceRecorder from "@/components/studio/VoiceRecorder";
 import {
   useSubmitJob,
   useCostCheck,
@@ -537,10 +538,14 @@ export default function VoiceConvertPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="convert">
             <Mic2 className="w-4 h-4 mr-2" />
             Convert
+          </TabsTrigger>
+          <TabsTrigger value="train">
+            <Plus className="w-4 h-4 mr-2" />
+            Voice Training
           </TabsTrigger>
           <TabsTrigger value="jobs">
             <Clock className="w-4 h-4 mr-2" />
@@ -755,6 +760,20 @@ export default function VoiceConvertPage() {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        {/* ── Voice Training Tab ─────────────────────────── */}
+        <TabsContent value="train" className="space-y-4 mt-4">
+          <VoiceRecorder
+            onVoiceCloned={(voice) => {
+              setVoiceId(voice.voiceId);
+              toast({
+                title: "Voice ID Auto-Filled",
+                description: `Switched to Convert tab with voice "${voice.name}" ready to use.`,
+              });
+              setActiveTab("convert");
+            }}
+          />
         </TabsContent>
 
         {/* ── Jobs Tab ─────────────────────────────────── */}
