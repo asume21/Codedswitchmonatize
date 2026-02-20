@@ -153,7 +153,8 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
         tempo: normalizedTempo ?? genreSpec?.bpmRange?.[0],
         key: normalizedKey ?? genreSpec?.preferredKeys?.[0],
         timeSignature: normalizedTimeSignature ?? { numerator: 4, denominator: 4 },
-        fallbackReason: 'ai_generation_failed'
+        fallbackReason: 'ai_generation_failed',
+        prompt: safePrompt,
       }),
       
       // Config
@@ -218,7 +219,8 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
       tempo: normalizedTempo,
       key: normalizedKey,
       timeSignature: normalizedTimeSignature,
-      fallbackReason: error.message ?? 'astutely_route_error'
+      fallbackReason: error.message ?? 'astutely_route_error',
+      prompt: typeof prompt === 'string' ? prompt : '',
     });
 
     recordAIGenerationMetric({

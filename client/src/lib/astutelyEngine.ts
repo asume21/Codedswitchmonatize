@@ -257,12 +257,50 @@ export const astutelyGenerate = async (styleOrOptions: string | AstutelyGenerate
       tempo: options.tempo,
       timeSignature: options.timeSignature,
       key: options.key,
+      prompt: options.prompt,
     });
   }
 };
 
 // Fallback local generator with heavy randomization so it never sounds the same twice
-const generateLocalFallback = (style: string, overrides?: { tempo?: number; timeSignature?: { numerator: number; denominator: number }; key?: string }): AstutelyResult => {
+const PROMPT_INSTRUMENT_MAP: Record<string, { field: 'bass' | 'chords' | 'melody'; value: string }[]> = {
+  piano: [{ field: 'chords', value: 'acoustic_grand_piano' }, { field: 'melody', value: 'acoustic_grand_piano' }],
+  strings: [{ field: 'chords', value: 'string_ensemble_1' }],
+  violin: [{ field: 'melody', value: 'violin' }],
+  cello: [{ field: 'melody', value: 'cello' }],
+  flute: [{ field: 'melody', value: 'flute' }],
+  trumpet: [{ field: 'melody', value: 'trumpet' }],
+  guitar: [{ field: 'chords', value: 'acoustic_guitar_steel' }],
+  sax: [{ field: 'melody', value: 'tenor_sax' }],
+  saxophone: [{ field: 'melody', value: 'tenor_sax' }],
+  harp: [{ field: 'chords', value: 'orchestral_harp' }],
+  organ: [{ field: 'chords', value: 'church_organ' }],
+  choir: [{ field: 'chords', value: 'choir_aahs' }],
+  oboe: [{ field: 'melody', value: 'oboe' }],
+  clarinet: [{ field: 'melody', value: 'clarinet' }],
+  synth: [{ field: 'melody', value: 'lead_2_sawtooth' }],
+  pad: [{ field: 'chords', value: 'pad_2_warm' }],
+  rhodes: [{ field: 'chords', value: 'electric_piano_1' }],
+};
+
+function applyPromptInstruments(
+  instruments: { bass: string; chords: string; melody: string; drumKit: string },
+  prompt?: string
+): { bass: string; chords: string; melody: string; drumKit: string } {
+  if (!prompt) return instruments;
+  const lower = prompt.toLowerCase();
+  const result = { ...instruments };
+  for (const [keyword, mappings] of Object.entries(PROMPT_INSTRUMENT_MAP)) {
+    if (lower.includes(keyword)) {
+      for (const m of mappings) {
+        result[m.field] = m.value;
+      }
+    }
+  }
+  return result;
+}
+
+const generateLocalFallback = (style: string, overrides?: { tempo?: number; timeSignature?: { numerator: number; denominator: number }; key?: string; prompt?: string }): AstutelyResult => {
   const rng = Math.random; // use native random for client-side
   const config = STYLE_CONFIGS[style] || STYLE_CONFIGS["Travis Scott rage"];
   const selectedKey = overrides?.key ?? config.key;
@@ -296,7 +334,8 @@ const generateLocalFallback = (style: string, overrides?: { tempo?: number; time
     "Afrobeats bounce": { bass: 'electric_bass_finger', chords: 'acoustic_guitar_steel', melody: 'flute', drumKit: 'acoustic' },
     "Latin trap": { bass: 'synth_bass_1', chords: 'acoustic_guitar_nylon', melody: 'trumpet', drumKit: '808' },
   };
-  const instruments = STYLE_INSTRUMENTS[style] || { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' };
+  const baseInstruments = STYLE_INSTRUMENTS[style] || { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' };
+  const instruments = applyPromptInstruments(baseInstruments, overrides?.prompt);
 
   const result: AstutelyResult = {
     style,
@@ -566,7 +605,7 @@ async function playAstutelyPreview(result: AstutelyResult) {
       .forEach(d => {
         const tid = setTimeout(() => {
           try {
-            realisticAudio.playDrumSound(d.type, 0.8, drumKit);
+            realisticAudio.playDrumSound(d.type, 0.4, drumKit);
           } catch (e) {
             console.log(`Drum: ${d.type}`);
           }
@@ -581,7 +620,7 @@ async function playAstutelyPreview(result: AstutelyResult) {
         const tid = setTimeout(() => {
           try {
             const { note, octave } = midiToNoteOctave(b.note);
-            realisticAudio.playNote(note, octave, stepDuration * b.duration, bassInstrument, 0.8);
+            realisticAudio.playNote(note, octave, stepDuration * b.duration, bassInstrument, 0.55);
           } catch (e) {
             console.log(`Bass: ${b.note}`);
           }
@@ -597,7 +636,7 @@ async function playAstutelyPreview(result: AstutelyResult) {
           const tid = setTimeout(() => {
             try {
               const { note, octave } = midiToNoteOctave(chordNote);
-              realisticAudio.playNote(note, octave, stepDuration * c.duration, chordInstrument, 0.45);
+              realisticAudio.playNote(note, octave, stepDuration * c.duration, chordInstrument, 0.5);
             } catch (e) {
               console.log(`Chord: ${chordNote}`);
             }

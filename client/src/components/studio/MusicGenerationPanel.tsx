@@ -194,22 +194,21 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
         
         notesToPlay.forEach((note) => {
           if (instrumentPattern.instrument === 'drums') {
-            // Play drum sounds
-            realisticAudio.playDrumSound(note.pitch, note.velocity / 127);
+            realisticAudio.playDrumSound(note.pitch, (note.velocity / 127) * 0.45);
           } else {
-            // Parse pitch string (e.g., "C4" -> note: "C", octave: 4)
             const match = note.pitch.match(/([A-G]#?)(\d+)/);
             if (match) {
               const noteName = match[1];
               const octave = parseInt(match[2]);
-              
-              // Play instrument note
+              const vol = instrumentPattern.instrument.includes('bass')
+                ? (note.velocity / 127) * 0.6
+                : (note.velocity / 127) * 0.7;
               realisticAudio.playNote(
                 noteName,
                 octave,
                 note.duration * msPerBeat / 1000,
                 instrumentPattern.instrument,
-                note.velocity / 127
+                vol
               );
             }
           }
@@ -269,9 +268,8 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
         description: `Drums ${counts.drums} • Bass ${counts.bass} • Chords ${counts.chords} • Melody ${counts.melody}`,
       });
 
-      if (useRealisticInstruments && pattern.patterns.length > 0) {
-        await playPattern(pattern);
-      }
+      // NOTE: playAstutelyPreview() already plays the pattern inside astutelyGenerate().
+      // Do NOT call playPattern() here — it would double the audio.
 
       if (onMusicGenerated) {
         onMusicGenerated('', {

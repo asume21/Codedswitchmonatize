@@ -2447,30 +2447,13 @@ export default function UnifiedStudioWorkspace() {
     setShowAboutDialog(true);
   };
 
-  const handleMusicGenerated = (audioUrl: string, metadata: any) => {
-    // Add generated music as a new track
-    const newTrack: StudioTrack = {
-      id: `track-${Date.now()}`,
-      name: `Generated - ${metadata.genre}`,
-      kind: 'audio',
-      type: 'audio',
-      instrument: metadata.provider,
-      data: { audioUrl, metadata },
-      notes: [], // Initialize notes array
-      volume: 0.8,
-      pan: 0,
-      muted: false,
-      solo: false,
-      lengthBars: 8,
-      startBar: 0,
-      source: 'ai-generated',
-      bpm: metadata.bpm || 120,
-      payload: createTrackPayload({ type: 'audio' }),
-      sendA: -60,
-      sendB: -60,
-    };
-    setTracks([...tracks, newTrack]);
-    setSelectedTrack(newTrack.id);
+  const handleMusicGenerated = (_audioUrl: string, metadata: any) => {
+    // The astutely:generated event (fired in astutelyBridge.broadcastAstutelyPattern)
+    // already loads the 4 MIDI tracks (drums, bass, chords, melody) into the piano roll.
+    // We only need to close the generation modal here.
+    if (metadata?.bpm) {
+      setSessionSettings(prev => ({ ...prev, bpm: metadata.bpm }));
+    }
     setShowMusicGen(false);
   };
 

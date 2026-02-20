@@ -33,6 +33,48 @@ export interface AstutelyFallbackOptions {
   key?: string;
   randomSeed?: number;
   fallbackReason?: string;
+  prompt?: string;
+}
+
+const PROMPT_INSTRUMENT_MAP: Record<string, { field: 'bass' | 'chords' | 'melody'; value: string }[]> = {
+  piano: [{ field: 'chords', value: 'acoustic_grand_piano' }, { field: 'melody', value: 'acoustic_grand_piano' }],
+  strings: [{ field: 'chords', value: 'string_ensemble_1' }],
+  violin: [{ field: 'melody', value: 'violin' }],
+  cello: [{ field: 'melody', value: 'cello' }],
+  flute: [{ field: 'melody', value: 'flute' }],
+  trumpet: [{ field: 'melody', value: 'trumpet' }],
+  guitar: [{ field: 'chords', value: 'acoustic_guitar_steel' }],
+  'electric guitar': [{ field: 'chords', value: 'electric_guitar_clean' }],
+  sax: [{ field: 'melody', value: 'tenor_sax' }],
+  saxophone: [{ field: 'melody', value: 'tenor_sax' }],
+  harp: [{ field: 'chords', value: 'orchestral_harp' }],
+  organ: [{ field: 'chords', value: 'church_organ' }],
+  choir: [{ field: 'chords', value: 'choir_aahs' }],
+  oboe: [{ field: 'melody', value: 'oboe' }],
+  clarinet: [{ field: 'melody', value: 'clarinet' }],
+  'french horn': [{ field: 'melody', value: 'french_horn' }],
+  trombone: [{ field: 'melody', value: 'trombone' }],
+  synth: [{ field: 'melody', value: 'lead_2_sawtooth' }],
+  pad: [{ field: 'chords', value: 'pad_2_warm' }],
+  rhodes: [{ field: 'chords', value: 'electric_piano_1' }],
+  'electric piano': [{ field: 'chords', value: 'electric_piano_1' }],
+};
+
+function applyPromptInstruments(
+  instruments: { bass: string; chords: string; melody: string; drumKit: string },
+  prompt?: string
+): { bass: string; chords: string; melody: string; drumKit: string } {
+  if (!prompt) return instruments;
+  const lower = prompt.toLowerCase();
+  const result = { ...instruments };
+  for (const [keyword, mappings] of Object.entries(PROMPT_INSTRUMENT_MAP)) {
+    if (lower.includes(keyword)) {
+      for (const m of mappings) {
+        result[m.field] = m.value;
+      }
+    }
+  }
+  return result;
 }
 
 interface StyleConfig {
@@ -222,7 +264,8 @@ export function generateAstutelyFallback(style: string, overrides: AstutelyFallb
     'Afrobeats bounce': { bass: 'electric_bass_finger', chords: 'acoustic_guitar_steel', melody: 'flute', drumKit: 'acoustic' },
     'Latin trap': { bass: 'synth_bass_1', chords: 'acoustic_guitar_nylon', melody: 'trumpet', drumKit: '808' },
   };
-  const instruments = STYLE_INSTRUMENTS[style] || { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' };
+  const baseInstruments = STYLE_INSTRUMENTS[style] || { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' };
+  const instruments = applyPromptInstruments(baseInstruments, overrides.prompt);
 
   const result: AstutelyResult = {
     style,
