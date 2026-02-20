@@ -34,6 +34,10 @@ export const CREDIT_COSTS = {
   AUDIO_MASTERING: 8,           // API: $0.125 → User: $0.32
   TRANSCRIPTION: 5,             // API: $0.08 → User: $0.20
   AI_ENHANCEMENT: 6,            // API: $0.09 → User: $0.24
+  
+  // Tier 5: Voice Conversion (cloud mode only — BYO keys = 0 credits)
+  VOICE_CONVERT_2STEM: 30,      // API: $0.50 → User: $1.20 (stem sep + voice convert + remix)
+  VOICE_CONVERT_4STEM: 38,      // API: $0.62 → User: $1.52 (stem sep + voice convert + instrumental mix + remix)
 } as const;
 
 // Membership tiers (recurring subscriptions)

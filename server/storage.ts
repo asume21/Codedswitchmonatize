@@ -38,6 +38,10 @@ import {
   type UserProfile,
   type UserFollow,
   type ProjectShare,
+  type VoiceConvertJob,
+  type InsertVoiceConvertJob,
+  type UserApiKey,
+  type InsertUserApiKey,
   users,
   userSubscriptions,
   projects,
@@ -60,6 +64,8 @@ import {
   userProfiles,
   userFollows,
   projectShares,
+  voiceConvertJobs,
+  userApiKeys,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -239,6 +245,18 @@ export interface IStorage {
   createProjectShare(projectId: string, sharedByUserId: string, sharedWithUserId: string, permission?: string): Promise<ProjectShare>;
   getProjectShares(projectId: string): Promise<ProjectShare[]>;
   getUserSharedProjects(userId: string): Promise<ProjectShare[]>;
+
+  // Voice Convert Jobs
+  createVoiceConvertJob(userId: string, data: InsertVoiceConvertJob): Promise<VoiceConvertJob>;
+  getVoiceConvertJob(id: string): Promise<VoiceConvertJob | undefined>;
+  getUserVoiceConvertJobs(userId: string, limit?: number): Promise<VoiceConvertJob[]>;
+  updateVoiceConvertJob(id: string, data: Partial<VoiceConvertJob>): Promise<VoiceConvertJob>;
+
+  // User API Keys
+  getUserApiKeys(userId: string): Promise<UserApiKey[]>;
+  getUserApiKey(userId: string, service: string): Promise<UserApiKey | undefined>;
+  upsertUserApiKey(userId: string, data: InsertUserApiKey): Promise<UserApiKey>;
+  deleteUserApiKey(userId: string, service: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1142,6 +1160,18 @@ export class MemStorage implements IStorage {
   async createProjectShare(_projectId: string, _sharedByUserId: string, _sharedWithUserId: string, _permission?: string): Promise<ProjectShare> { throw new Error("Not implemented in MemStorage"); }
   async getProjectShares(_projectId: string): Promise<ProjectShare[]> { return []; }
   async getUserSharedProjects(_userId: string): Promise<ProjectShare[]> { return []; }
+
+  // Voice Convert Jobs (MemStorage stubs)
+  async createVoiceConvertJob(_userId: string, _data: InsertVoiceConvertJob): Promise<VoiceConvertJob> { throw new Error("Not implemented in MemStorage"); }
+  async getVoiceConvertJob(_id: string): Promise<VoiceConvertJob | undefined> { return undefined; }
+  async getUserVoiceConvertJobs(_userId: string, _limit?: number): Promise<VoiceConvertJob[]> { return []; }
+  async updateVoiceConvertJob(_id: string, _data: Partial<VoiceConvertJob>): Promise<VoiceConvertJob> { throw new Error("Not implemented in MemStorage"); }
+
+  // User API Keys (MemStorage stubs)
+  async getUserApiKeys(_userId: string): Promise<UserApiKey[]> { return []; }
+  async getUserApiKey(_userId: string, _service: string): Promise<UserApiKey | undefined> { return undefined; }
+  async upsertUserApiKey(_userId: string, _data: InsertUserApiKey): Promise<UserApiKey> { throw new Error("Not implemented in MemStorage"); }
+  async deleteUserApiKey(_userId: string, _service: string): Promise<void> {}
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2079,6 +2109,78 @@ export class DatabaseStorage implements IStorage {
 
   async getUserSharedProjects(userId: string): Promise<ProjectShare[]> {
     return db.select().from(projectShares).where(eq(projectShares.sharedWithUserId, userId));
+  }
+
+  // Voice Convert Jobs
+  async createVoiceConvertJob(userId: string, data: InsertVoiceConvertJob): Promise<VoiceConvertJob> {
+    const [job] = await db
+      .insert(voiceConvertJobs)
+      .values({ ...data, userId })
+      .returning();
+    return job;
+  }
+
+  async getVoiceConvertJob(id: string): Promise<VoiceConvertJob | undefined> {
+    const [job] = await db.select().from(voiceConvertJobs).where(eq(voiceConvertJobs.id, id));
+    return job || undefined;
+  }
+
+  async getUserVoiceConvertJobs(userId: string, limit: number = 20): Promise<VoiceConvertJob[]> {
+    return db
+      .select()
+      .from(voiceConvertJobs)
+      .where(eq(voiceConvertJobs.userId, userId))
+      .orderBy(desc(voiceConvertJobs.createdAt))
+      .limit(limit);
+  }
+
+  async updateVoiceConvertJob(id: string, data: Partial<VoiceConvertJob>): Promise<VoiceConvertJob> {
+    const [job] = await db
+      .update(voiceConvertJobs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(voiceConvertJobs.id, id))
+      .returning();
+    return job;
+  }
+
+  // User API Keys
+  async getUserApiKeys(userId: string): Promise<UserApiKey[]> {
+    return db
+      .select()
+      .from(userApiKeys)
+      .where(eq(userApiKeys.userId, userId))
+      .orderBy(desc(userApiKeys.createdAt));
+  }
+
+  async getUserApiKey(userId: string, service: string): Promise<UserApiKey | undefined> {
+    const [key] = await db
+      .select()
+      .from(userApiKeys)
+      .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.service, service)));
+    return key || undefined;
+  }
+
+  async upsertUserApiKey(userId: string, data: InsertUserApiKey): Promise<UserApiKey> {
+    const existing = await this.getUserApiKey(userId, data.service);
+    if (existing) {
+      const [updated] = await db
+        .update(userApiKeys)
+        .set({ encryptedKey: data.encryptedKey, keyHint: data.keyHint, isValid: true, updatedAt: new Date() })
+        .where(eq(userApiKeys.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(userApiKeys)
+      .values({ ...data, userId })
+      .returning();
+    return created;
+  }
+
+  async deleteUserApiKey(userId: string, service: string): Promise<void> {
+    await db
+      .delete(userApiKeys)
+      .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.service, service)));
   }
 }
 

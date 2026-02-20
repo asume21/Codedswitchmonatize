@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload, Wand2, Square } from 'lucide-react';
+import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload, Wand2, Square, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useLocation } from 'wouter';
@@ -19,6 +19,12 @@ interface StemResult {
   piano?: string;
 }
 
+interface MasteringAnalysis {
+  overallScore?: number;
+  quickFixes?: string[];
+  topIssues?: string[];
+}
+
 interface AIStemSeparationProps {
   audioUrl?: string;
   onStemsReady?: (stems: StemResult) => void;
@@ -30,9 +36,16 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const [isProcessing, setIsProcessing] = useState(false);
   const [predictionId, setPredictionId] = useState<string | null>(null);
   const [stems, setStems] = useState<StemResult | null>(null);
+  const [pipelineStatus, setPipelineStatus] = useState<string>('');
+  const [voiceId, setVoiceId] = useState<string>(() => localStorage.getItem('elevenlabs:voiceId') || '');
+  const [isCloning, setIsCloning] = useState(false);
+  const [clonedVocalsUrl, setClonedVocalsUrl] = useState<string | null>(null);
+  const [remixPreviewUrl, setRemixPreviewUrl] = useState<string | null>(null);
+  const [masteringAnalysis, setMasteringAnalysis] = useState<MasteringAnalysis | null>(null);
   const [playingStem, setPlayingStem] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const remixedObjectUrlRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -78,6 +91,20 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       sessionStorage.setItem('separated_stems_source', uploadedFileName);
     }
   }, [stems, uploadedFileName]);
+
+  useEffect(() => {
+    if (voiceId.trim()) {
+      localStorage.setItem('elevenlabs:voiceId', voiceId.trim());
+    }
+  }, [voiceId]);
+
+  useEffect(() => {
+    return () => {
+      if (remixedObjectUrlRef.current) {
+        URL.revokeObjectURL(remixedObjectUrlRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -130,6 +157,186 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
     }
   };
 
+  const audioBufferToWavBlob = (buffer: AudioBuffer): Blob => {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bitDepth = 16;
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = buffer.length * blockAlign;
+
+    const wavBuffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(wavBuffer);
+
+    const writeString = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i++) {
+        view.setUint8(offset + i, value.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i] || 0));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+  };
+
+  const renderRemixPreview = async (vocalUrl: string, backingUrl: string): Promise<string> => {
+    const [vocalRes, backingRes] = await Promise.all([fetch(vocalUrl), fetch(backingUrl)]);
+    if (!vocalRes.ok || !backingRes.ok) {
+      throw new Error('Could not download vocal or backing stem for remix preview');
+    }
+
+    const audioContext = new AudioContext();
+    try {
+      const [vocalBufRaw, backingBufRaw] = await Promise.all([
+        audioContext.decodeAudioData(await vocalRes.arrayBuffer()),
+        audioContext.decodeAudioData(await backingRes.arrayBuffer()),
+      ]);
+
+      const sampleRate = 44100;
+      const channels = 2;
+      const duration = Math.max(vocalBufRaw.duration, backingBufRaw.duration, 1);
+      const offline = new OfflineAudioContext(channels, Math.ceil(duration * sampleRate), sampleRate);
+
+      const toStereo = (source: AudioBuffer) => {
+        if (source.numberOfChannels >= 2 && source.sampleRate === sampleRate) {
+          return source;
+        }
+        const converted = offline.createBuffer(2, Math.ceil(source.duration * sampleRate), sampleRate);
+        const leftSource = source.getChannelData(0);
+        const rightSource = source.numberOfChannels > 1 ? source.getChannelData(1) : leftSource;
+        converted.getChannelData(0).set(leftSource);
+        converted.getChannelData(1).set(rightSource);
+        return converted;
+      };
+
+      const backingSource = offline.createBufferSource();
+      backingSource.buffer = toStereo(backingBufRaw);
+      const backingGain = offline.createGain();
+      backingGain.gain.value = 0.88;
+      backingSource.connect(backingGain).connect(offline.destination);
+      backingSource.start(0);
+
+      const vocalSource = offline.createBufferSource();
+      vocalSource.buffer = toStereo(vocalBufRaw);
+      const vocalGain = offline.createGain();
+      vocalGain.gain.value = 1.06;
+      vocalSource.connect(vocalGain).connect(offline.destination);
+      vocalSource.start(0);
+
+      const rendered = await offline.startRendering();
+      const blob = audioBufferToWavBlob(rendered);
+
+      if (remixedObjectUrlRef.current) {
+        URL.revokeObjectURL(remixedObjectUrlRef.current);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      remixedObjectUrlRef.current = objectUrl;
+      return objectUrl;
+    } finally {
+      await audioContext.close();
+    }
+  };
+
+  const runCloneRemixMaster = async () => {
+    if (!stems?.vocals) {
+      toast({
+        title: 'No vocal stem available',
+        description: 'Separate stems first to extract vocals before cloning.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!voiceId.trim()) {
+      toast({
+        title: 'Voice ID required',
+        description: 'Enter your ElevenLabs voice ID to clone the vocals.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCloning(true);
+    setPipelineStatus('Cloning vocal stem with ElevenLabs...');
+
+    try {
+      const cloneResponse = await apiRequest('POST', `/api/voices/${encodeURIComponent(voiceId.trim())}/convert`, {
+        audioUrl: stems.vocals,
+        provider: 'elevenlabs',
+      });
+
+      const cloneData = await cloneResponse.json();
+      if (!cloneData?.success || !cloneData?.url) {
+        throw new Error(cloneData?.message || 'Voice cloning failed');
+      }
+
+      const replacedVocalsUrl = String(cloneData.url);
+      const updatedStems = {
+        ...stems,
+        vocals: replacedVocalsUrl,
+      };
+
+      setClonedVocalsUrl(replacedVocalsUrl);
+      setStems(updatedStems);
+      onStemsReady?.(updatedStems);
+
+      setPipelineStatus('Rendering remix preview...');
+      const backingUrl = updatedStems.accompaniment || updatedStems.other || updatedStems.drums;
+      if (backingUrl) {
+        const previewUrl = await renderRemixPreview(replacedVocalsUrl, backingUrl);
+        setRemixPreviewUrl(previewUrl);
+      }
+
+      setPipelineStatus('Generating mastering guidance...');
+      const masterResponse = await apiRequest('POST', '/api/ai/mastering', {
+        peakLevel: -3,
+        rmsLevel: -14,
+        genre: 'pop',
+        targetLoudness: -14,
+      });
+      const masterData = await masterResponse.json();
+      if (masterData?.success && masterData?.analysis) {
+        setMasteringAnalysis(masterData.analysis);
+      }
+
+      setPipelineStatus('Complete: vocals cloned, remix preview rendered, mastering plan ready.');
+      toast({
+        title: 'Pipeline complete',
+        description: 'Cloned vocal and remix/mastering outputs are ready below.',
+      });
+    } catch (error: any) {
+      setPipelineStatus('Pipeline failed.');
+      toast({
+        title: 'Clone/remix failed',
+        description: error?.message || 'Could not run cloned vocal remix pipeline.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
   const startSeparation = async () => {
     if (!audioUrl) {
       toast({
@@ -142,6 +349,10 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
 
     setIsProcessing(true);
     setStems(null);
+    setClonedVocalsUrl(null);
+    setRemixPreviewUrl(null);
+    setMasteringAnalysis(null);
+    setPipelineStatus('Separating stems...');
 
     try {
       const response = await apiRequest('POST', '/api/ai/stem-separation', {
@@ -155,6 +366,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       if (data.success && data.status === 'completed' && data.stems) {
         setStems(data.stems);
         setIsProcessing(false);
+        setPipelineStatus('Stems ready. Clone vocals next.');
         onStemsReady?.(data.stems);
         toast({
           title: "Separation Complete",
@@ -163,6 +375,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       } else if (data.success && data.predictionId) {
         // Legacy flow: poll for results
         setPredictionId(data.predictionId);
+        setPipelineStatus('Stem job submitted. Waiting for completion...');
         toast({
           title: "Processing Started",
           description: data.message,
@@ -172,6 +385,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       }
     } catch (error: any) {
       setIsProcessing(false);
+      setPipelineStatus('Stem separation failed.');
       toast({
         title: "Separation Failed",
         description: error.message || "Failed to separate stems",
@@ -347,6 +561,18 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
             <p className="text-xs text-muted-foreground">{stemDescriptions[stemCount]}</p>
           </div>
 
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">ElevenLabs Voice ID</label>
+            <Input
+              value={voiceId}
+              onChange={(e) => setVoiceId(e.target.value)}
+              placeholder="e.g. 0UoWMp8jHDjyEstFbfsf"
+              disabled={isProcessing || isCloning}
+              data-testid="input-elevenlabs-voice-id"
+            />
+            <p className="text-xs text-muted-foreground">Used to replace the separated vocal stem with your cloned voice.</p>
+          </div>
+
           <Button
             data-testid="button-start-separation"
             onClick={startSeparation}
@@ -365,6 +591,31 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
               </>
             )}
           </Button>
+
+          <Button
+            onClick={runCloneRemixMaster}
+            disabled={isProcessing || isCloning || !stems?.vocals || !voiceId.trim()}
+            className="w-full bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 hover:to-violet-500"
+            data-testid="button-clone-remix-master"
+          >
+            {isCloning ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Running Vocal Clone + Remix + Master...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Clone Vocal + Remix + Master Plan
+              </>
+            )}
+          </Button>
+
+          {pipelineStatus && (
+            <div className="rounded-md border border-purple-500/30 bg-purple-500/10 p-2 text-xs text-purple-100" data-testid="text-pipeline-status">
+              {pipelineStatus}
+            </div>
+          )}
         </div>
 
         {stems && (
@@ -416,6 +667,55 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
               <Wand2 className="w-4 h-4 mr-2" />
               Send to Astutely for AI Remix
             </Button>
+
+            {clonedVocalsUrl && (
+              <div className="space-y-2 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 p-3">
+                <p className="text-xs font-semibold text-fuchsia-200">Cloned Vocal Stem</p>
+                <audio src={clonedVocalsUrl} controls className="w-full" />
+                <a href={clonedVocalsUrl} download="cloned-vocals.mp3" className="text-xs text-fuchsia-100 underline">
+                  Download cloned vocal
+                </a>
+              </div>
+            )}
+
+            {remixPreviewUrl && (
+              <div className="space-y-2 rounded-md border border-cyan-500/30 bg-cyan-500/10 p-3">
+                <p className="text-xs font-semibold text-cyan-200">Remix Preview (Cloned Vocal + Backing)</p>
+                <audio src={remixPreviewUrl} controls className="w-full" />
+                <a href={remixPreviewUrl} download="cloned-remix-preview.wav" className="text-xs text-cyan-100 underline">
+                  Download remix preview
+                </a>
+              </div>
+            )}
+
+            {masteringAnalysis && (
+              <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-100">
+                <p className="font-semibold">Mastering Guidance</p>
+                {typeof masteringAnalysis.overallScore === 'number' && (
+                  <p>Overall score: {masteringAnalysis.overallScore}/10</p>
+                )}
+                {Array.isArray(masteringAnalysis.topIssues) && masteringAnalysis.topIssues.length > 0 && (
+                  <div>
+                    <p className="font-medium">Top Issues:</p>
+                    <ul className="list-disc list-inside">
+                      {masteringAnalysis.topIssues.slice(0, 3).map((issue, i) => (
+                        <li key={`${issue}-${i}`}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {Array.isArray(masteringAnalysis.quickFixes) && masteringAnalysis.quickFixes.length > 0 && (
+                  <div>
+                    <p className="font-medium">Quick Fixes:</p>
+                    <ul className="list-disc list-inside">
+                      {masteringAnalysis.quickFixes.slice(0, 3).map((fix, i) => (
+                        <li key={`${fix}-${i}`}>{fix}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </CardContent>

@@ -11,9 +11,54 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import FormData from "form-data";
 
 const ANALYSIS_API_URL = process.env.AUDIO_ANALYSIS_API_URL || "http://localhost:7871";
+
+function inferAudioMime(audioPath: string): string {
+  const ext = path.extname(audioPath).toLowerCase();
+  if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".ogg") return "audio/ogg";
+  if (ext === ".flac") return "audio/flac";
+  if (ext === ".m4a") return "audio/mp4";
+  if (ext === ".aac") return "audio/aac";
+  if (ext === ".webm") return "audio/webm";
+  return "audio/wav";
+}
+
+function createAudioFormData(audioPath: string): FormData {
+  const formData = new FormData();
+  const sourceBuffer = fs.readFileSync(audioPath);
+  const sourceFileName = path.basename(audioPath);
+  const mimeType = inferAudioMime(audioPath);
+  formData.append("audio", new Blob([sourceBuffer], { type: mimeType }), sourceFileName);
+  return formData;
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === "TimeoutError" || /timeout/i.test(error.message);
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  retries: number = 1
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    } catch (error) {
+      lastError = error;
+      if (!isTimeoutError(error) || attempt >= retries) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Request failed");
+}
 
 // Storage for analysis results
 const ANALYSIS_STORAGE_DIR = path.resolve(process.cwd(), "objects", "audio-analysis");
@@ -26,10 +71,9 @@ function ensureStorageDir() {
 
 async function isApiAvailable(): Promise<boolean> {
   try {
-    const response = await fetch(`${ANALYSIS_API_URL}/health`, {
+    const response = await fetchWithRetry(`${ANALYSIS_API_URL}/health`, {
       method: "GET",
-      signal: AbortSignal.timeout(2000),
-    });
+    }, 8000, 1);
     return response.ok;
   } catch {
     return false;
@@ -94,19 +138,16 @@ export interface KaraokeScore {
  */
 export async function extractPitch(audioPath: string): Promise<PitchData | null> {
   if (!(await isApiAvailable())) {
-    console.log("[AudioAnalysis] API not available");
-    return null;
+    console.warn("[AudioAnalysis] Health check unavailable, attempting extract-pitch anyway");
   }
 
   try {
-    const formData = new FormData();
-    formData.append("audio", fs.createReadStream(audioPath));
+    const formData = createAudioFormData(audioPath);
 
-    const response = await fetch(`${ANALYSIS_API_URL}/extract-pitch`, {
+    const response = await fetchWithRetry(`${ANALYSIS_API_URL}/extract-pitch`, {
       method: "POST",
-      body: formData as any,
-      signal: AbortSignal.timeout(30000),
-    });
+      body: formData,
+    }, 90000, 1);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -134,8 +175,7 @@ export async function pitchCorrect(
   }
 ): Promise<string | null> {
   if (!(await isApiAvailable())) {
-    console.log("[AudioAnalysis] API not available");
-    return null;
+    console.warn("[AudioAnalysis] Health check unavailable, attempting pitch-correct anyway");
   }
 
   const { scale = "C_major", root = 0, correctionStrength = 0.8 } = options || {};
@@ -143,17 +183,15 @@ export async function pitchCorrect(
   try {
     ensureStorageDir();
 
-    const formData = new FormData();
-    formData.append("audio", fs.createReadStream(audioPath));
+    const formData = createAudioFormData(audioPath);
     formData.append("scale", scale);
     formData.append("root", root.toString());
     formData.append("correction_strength", correctionStrength.toString());
 
-    const response = await fetch(`${ANALYSIS_API_URL}/pitch-correct`, {
+    const response = await fetchWithRetry(`${ANALYSIS_API_URL}/pitch-correct`, {
       method: "POST",
-      body: formData as any,
-      signal: AbortSignal.timeout(60000),
-    });
+      body: formData,
+    }, 180000, 1);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -183,20 +221,18 @@ export async function extractMelody(
   minNoteDuration?: number
 ): Promise<{ notes: MelodyNote[]; total_duration: number; note_count: number } | null> {
   if (!(await isApiAvailable())) {
-    console.log("[AudioAnalysis] API not available");
-    return null;
+    console.warn("[AudioAnalysis] Health check unavailable, attempting extract-melody anyway");
   }
 
   try {
-    const formData = new FormData();
-    formData.append("audio", fs.createReadStream(audioPath));
+    const formData = createAudioFormData(audioPath);
     if (minNoteDuration !== undefined) {
       formData.append("min_note_duration", minNoteDuration.toString());
     }
 
     const response = await fetch(`${ANALYSIS_API_URL}/extract-melody`, {
       method: "POST",
-      body: formData as any,
+      body: formData,
       signal: AbortSignal.timeout(30000),
     });
 
@@ -222,18 +258,16 @@ export async function scoreKaraoke(
   referenceNotes: MelodyNote[]
 ): Promise<KaraokeScore | null> {
   if (!(await isApiAvailable())) {
-    console.log("[AudioAnalysis] API not available");
-    return null;
+    console.warn("[AudioAnalysis] Health check unavailable, attempting karaoke-score anyway");
   }
 
   try {
-    const formData = new FormData();
-    formData.append("audio", fs.createReadStream(audioPath));
+    const formData = createAudioFormData(audioPath);
     formData.append("reference_notes", JSON.stringify(referenceNotes));
 
     const response = await fetch(`${ANALYSIS_API_URL}/karaoke-score`, {
       method: "POST",
-      body: formData as any,
+      body: formData,
       signal: AbortSignal.timeout(30000),
     });
 
@@ -256,17 +290,15 @@ export async function scoreKaraoke(
  */
 export async function detectEmotion(audioPath: string): Promise<EmotionResult | null> {
   if (!(await isApiAvailable())) {
-    console.log("[AudioAnalysis] API not available");
-    return null;
+    console.warn("[AudioAnalysis] Health check unavailable, attempting detect-emotion anyway");
   }
 
   try {
-    const formData = new FormData();
-    formData.append("audio", fs.createReadStream(audioPath));
+    const formData = createAudioFormData(audioPath);
 
     const response = await fetch(`${ANALYSIS_API_URL}/detect-emotion`, {
       method: "POST",
-      body: formData as any,
+      body: formData,
       signal: AbortSignal.timeout(30000),
     });
 
@@ -289,17 +321,15 @@ export async function detectEmotion(audioPath: string): Promise<EmotionResult | 
  */
 export async function classifyAudio(audioPath: string): Promise<ClassificationResult | null> {
   if (!(await isApiAvailable())) {
-    console.log("[AudioAnalysis] API not available");
-    return null;
+    console.warn("[AudioAnalysis] Health check unavailable, attempting classify-audio anyway");
   }
 
   try {
-    const formData = new FormData();
-    formData.append("audio", fs.createReadStream(audioPath));
+    const formData = createAudioFormData(audioPath);
 
     const response = await fetch(`${ANALYSIS_API_URL}/classify-audio`, {
       method: "POST",
-      body: formData as any,
+      body: formData,
       signal: AbortSignal.timeout(30000),
     });
 
@@ -322,10 +352,9 @@ export async function classifyAudio(audioPath: string): Promise<ClassificationRe
  */
 export async function checkApiHealth(): Promise<{ available: boolean; gpu: boolean }> {
   try {
-    const response = await fetch(`${ANALYSIS_API_URL}/health`, {
+    const response = await fetchWithRetry(`${ANALYSIS_API_URL}/health`, {
       method: "GET",
-      signal: AbortSignal.timeout(2000),
-    });
+    }, 8000, 1);
 
     if (response.ok) {
       const data = await response.json();

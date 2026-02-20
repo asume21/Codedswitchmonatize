@@ -128,6 +128,66 @@ export async function runMigrations() {
     `;
     console.log('✅ Migration: audio_url made nullable for MIDI tracks');
 
+    // Migration: voice_convert_jobs table
+    await sql`
+      CREATE TABLE IF NOT EXISTS voice_convert_jobs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        status VARCHAR NOT NULL DEFAULT 'queued',
+        execution_mode VARCHAR NOT NULL DEFAULT 'cloud',
+        stem_mode INTEGER NOT NULL DEFAULT 2,
+        provider VARCHAR NOT NULL DEFAULT 'elevenlabs',
+        voice_id VARCHAR NOT NULL,
+        pitch_correct BOOLEAN DEFAULT false,
+        source_file_name VARCHAR,
+        source_url VARCHAR,
+        vocal_stem_url VARCHAR,
+        instrumental_stem_url VARCHAR,
+        drums_stem_url VARCHAR,
+        bass_stem_url VARCHAR,
+        other_stem_url VARCHAR,
+        converted_vocal_url VARCHAR,
+        corrected_vocal_url VARCHAR,
+        remix_url VARCHAR,
+        credits_cost INTEGER DEFAULT 0,
+        vendor_cost_cents INTEGER DEFAULT 0,
+        error TEXT,
+        failed_stage VARCHAR,
+        retry_count INTEGER DEFAULT 0,
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_voice_convert_jobs_user_id ON voice_convert_jobs(user_id)
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_voice_convert_jobs_status ON voice_convert_jobs(status)
+    `;
+    console.log('✅ Migration: voice_convert_jobs table ensured');
+
+    // Migration: user_api_keys table
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_api_keys (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        service VARCHAR NOT NULL,
+        encrypted_key TEXT NOT NULL,
+        key_hint VARCHAR,
+        is_valid BOOLEAN DEFAULT true,
+        last_used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, service)
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)
+    `;
+    console.log('✅ Migration: user_api_keys table ensured');
+
     console.log('✅ All migrations completed successfully');
   } catch (error) {
     // If columns already exist, that's fine

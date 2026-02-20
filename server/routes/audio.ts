@@ -14,6 +14,7 @@ import { aiGenerationLimiter, beatGenerationLimiter, lyricsLimiter, analysisLimi
 import { requireTier } from "../middleware/tierEnforcement";
 import { validatePrompt, validateRequired } from "../middleware/inputValidation";
 import { sanitizePath } from "../utils/security";
+import { recordAIGenerationMetric } from "../services/aiRouteMetrics";
 
 const router = Router();
 
@@ -654,11 +655,15 @@ Create complete lyrics with verses, chorus, and bridge.`;
         return sendError(res, 401, "Authentication required - please log in");
       }
 
-      const { key, bpm, bars, songPlanId, sectionId } = req.body || {};
+      const { key, bpm, bars, songPlanId, sectionId, aiProvider } = req.body || {};
 
       const safeKey = typeof key === "string" && key.trim().length > 0 ? key.trim() : "C minor";
       const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
       const safeBars = Math.max(1, Math.min(16, Number(bars) || 4));
+      const requestedProvider = typeof aiProvider === "string" ? aiProvider.toLowerCase() : "";
+      const preferredProvider = requestedProvider === "grok" || requestedProvider === "openai"
+        ? requestedProvider
+        : undefined;
 
       console.log(
         `🎸 [Phase 3] Generating AI bassline via callAI: key=${safeKey}, bpm=${safeBpm}, bars=${safeBars}`,
@@ -783,12 +788,13 @@ Create complete lyrics with verses, chorus, and bridge.`;
 
   // Phase 3: AI Drum Grid endpoint
   router.post("/ai/music/drums", async (req: Request, res: Response) => {
+    const routeStartedAt = Date.now();
     try {
       if (!req.userId) {
         return sendError(res, 401, "Authentication required - please log in");
       }
 
-      const { bpm, bars, style, songPlanId, sectionId, gridResolution, aiProvider } = req.body || {};
+      const { bpm, bars, style, songPlanId, sectionId, gridResolution, grooveMode, aiProvider, generationSeed } = req.body || {};
 
       const safeBpm = Math.max(40, Math.min(240, Number(bpm) || 120));
       const safeBars = Math.max(1, Math.min(16, Number(bars) || 4));
@@ -797,11 +803,27 @@ Create complete lyrics with verses, chorus, and bridge.`;
       const preferredProvider = requestedProvider === "grok" || requestedProvider === "openai"
         ? requestedProvider
         : undefined;
+      const resolvedSeed = Number.isFinite(Number(generationSeed))
+        ? Number(generationSeed)
+        : Date.now();
+      const normalizedGrooveMode = (() => {
+        const raw = typeof grooveMode === "string" ? grooveMode.toLowerCase() : "balanced";
+        return raw === "tight" || raw === "busy" ? raw : "balanced";
+      })();
+      const recordDrumMetric = (outcome: 'success' | 'error' | 'fallback', resolvedProvider?: string | null) => {
+        recordAIGenerationMetric({
+          route: '/api/ai/music/drums',
+          requestedProvider: preferredProvider || null,
+          effectiveProvider: resolvedProvider || null,
+          outcome,
+          latencyMs: Date.now() - routeStartedAt,
+        });
+      };
       const stepsPerBar = 16; // match BeatMaker gridResolution 1/16
       const totalSteps = safeBars * stepsPerBar;
 
       console.log(
-        `🥁 [Phase 3] Generating AI drum grid via callAI: style=${safeStyle}, bpm=${safeBpm}, bars=${safeBars}, steps=${totalSteps}`,
+        `🥁 [Phase 3] Generating AI drum grid via callAI: style=${safeStyle}, bpm=${safeBpm}, bars=${safeBars}, steps=${totalSteps}, seed=${resolvedSeed}`,
       );
 
       type DrumGrid = {
@@ -811,59 +833,273 @@ Create complete lyrics with verses, chorus, and bridge.`;
         percussion?: Array<number | boolean>;
       };
 
-      // Helper to generate fallback pattern when AI fails
-      const generateFallbackDrumPattern = (steps: number, styleHint: string): DrumGrid => {
-        const kick: number[] = [];
-        const snare: number[] = [];
-        const hihat: number[] = [];
-        const percussion: number[] = [];
+      type DrumStyleProfile = {
+        kickMin: number;
+        kickMax: number;
+        snareMin: number;
+        snareMax: number;
+        hihatMin: number;
+        hihatMax: number;
+        percMin: number;
+        percMax: number;
+        kickPreferredSteps: number[];
+        snarePreferredSteps: number[];
+        hihatPreferredSteps: number[];
+        percPreferredSteps: number[];
+      };
 
-        // Style-based pattern generation
-        const isHipHop = styleHint.toLowerCase().includes('hip') || styleHint.toLowerCase().includes('trap');
-        const isElectronic = styleHint.toLowerCase().includes('electro') || styleHint.toLowerCase().includes('house') || styleHint.toLowerCase().includes('techno');
+      type GrooveMode = "tight" | "balanced" | "busy";
 
-        for (let i = 0; i < steps; i++) {
-          const stepInBar = i % 16;
-          
-          // Kick pattern - varies by style
-          if (isHipHop) {
-            kick.push((stepInBar === 0 || stepInBar === 6 || stepInBar === 10) ? 1 : (Math.random() < 0.1 ? 1 : 0));
-          } else if (isElectronic) {
-            kick.push((stepInBar % 4 === 0) ? 1 : 0);
-          } else {
-            kick.push((stepInBar === 0 || stepInBar === 8) ? 1 : (Math.random() < 0.15 ? 1 : 0));
-          }
+      const createSeededRandom = (seed: number) => {
+        let state = (seed >>> 0) || 1;
+        return () => {
+          state = (1664525 * state + 1013904223) >>> 0;
+          return state / 4294967296;
+        };
+      };
 
-          // Snare pattern
-          if (isHipHop) {
-            snare.push((stepInBar === 4 || stepInBar === 12) ? 1 : (Math.random() < 0.08 ? 1 : 0));
-          } else {
-            snare.push((stepInBar === 4 || stepInBar === 12) ? 1 : 0);
-          }
+      const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-          // Hi-hat pattern
-          if (isElectronic) {
-            hihat.push((stepInBar % 2 === 0) ? 1 : (Math.random() < 0.3 ? 1 : 0));
-          } else {
-            hihat.push((stepInBar % 2 === 0) ? 1 : (Math.random() < 0.4 ? 1 : 0));
-          }
+      const applyGrooveModeToProfile = (profile: DrumStyleProfile, mode: GrooveMode): DrumStyleProfile => {
+        if (mode === "balanced") return profile;
 
-          // Percussion/extras
-          percussion.push(Math.random() < 0.12 ? 1 : 0);
+        const multiplier = mode === "tight" ? 0.84 : 1.18;
+        return {
+          ...profile,
+          kickMin: clamp(profile.kickMin * multiplier, 0.05, 0.7),
+          kickMax: clamp(profile.kickMax * multiplier, 0.1, 0.8),
+          snareMin: clamp(profile.snareMin * (mode === "tight" ? 0.92 : 1.12), 0.06, 0.35),
+          snareMax: clamp(profile.snareMax * (mode === "tight" ? 0.95 : 1.1), 0.1, 0.4),
+          hihatMin: clamp(profile.hihatMin * multiplier, 0.16, 0.88),
+          hihatMax: clamp(profile.hihatMax * multiplier, 0.22, 0.94),
+          percMin: clamp(profile.percMin * multiplier, 0.01, 0.32),
+          percMax: clamp(profile.percMax * multiplier, 0.03, 0.4),
+        };
+      };
+
+      const getDrumStyleProfile = (styleHint: string, mode: GrooveMode): DrumStyleProfile => {
+        const lower = styleHint.toLowerCase();
+        const isTrapOrHipHop = lower.includes('trap') || lower.includes('hip') || lower.includes('drill');
+        const isElectronic = lower.includes('house') || lower.includes('techno') || lower.includes('electro') || lower.includes('edm');
+        const isDnb = lower.includes('dnb') || lower.includes('drum and bass');
+
+        if (isDnb) {
+          return applyGrooveModeToProfile({
+            kickMin: 0.18,
+            kickMax: 0.34,
+            snareMin: 0.1,
+            snareMax: 0.18,
+            hihatMin: 0.5,
+            hihatMax: 0.85,
+            percMin: 0.04,
+            percMax: 0.2,
+            kickPreferredSteps: [0, 3, 6, 8, 10, 14],
+            snarePreferredSteps: [4, 12],
+            hihatPreferredSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+            percPreferredSteps: [7, 11, 15],
+          }, mode);
         }
+
+        if (isElectronic) {
+          return applyGrooveModeToProfile({
+            kickMin: 0.22,
+            kickMax: 0.36,
+            snareMin: 0.08,
+            snareMax: 0.16,
+            hihatMin: 0.45,
+            hihatMax: 0.78,
+            percMin: 0.03,
+            percMax: 0.16,
+            kickPreferredSteps: [0, 4, 8, 12],
+            snarePreferredSteps: [4, 12],
+            hihatPreferredSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+            percPreferredSteps: [3, 7, 11, 15],
+          }, mode);
+        }
+
+        if (isTrapOrHipHop) {
+          return applyGrooveModeToProfile({
+            kickMin: 0.14,
+            kickMax: 0.3,
+            snareMin: 0.1,
+            snareMax: 0.18,
+            hihatMin: 0.3,
+            hihatMax: 0.72,
+            percMin: 0.02,
+            percMax: 0.18,
+            kickPreferredSteps: [0, 6, 8, 10, 14],
+            snarePreferredSteps: [4, 12],
+            hihatPreferredSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+            percPreferredSteps: [5, 11, 13, 15],
+          }, mode);
+        }
+
+        return applyGrooveModeToProfile({
+          kickMin: 0.14,
+          kickMax: 0.3,
+          snareMin: 0.08,
+          snareMax: 0.16,
+          hihatMin: 0.3,
+          hihatMax: 0.68,
+          percMin: 0.02,
+          percMax: 0.14,
+          kickPreferredSteps: [0, 8, 10, 14],
+          snarePreferredSteps: [4, 12],
+          hihatPreferredSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+          percPreferredSteps: [3, 7, 11, 15],
+        }, mode);
+      };
+
+      const normalizeRow = (row: Array<number | boolean> | undefined): number[] => {
+        if (!Array.isArray(row) || row.length === 0) {
+          return Array(totalSteps).fill(0);
+        }
+        return Array.from({ length: totalSteps }, (_, i) => (row[i] ? 1 : 0));
+      };
+
+      const countHits = (row: number[]) => row.reduce((sum, v) => sum + (v ? 1 : 0), 0);
+
+      const enforceDensity = (
+        row: number[],
+        minDensity: number,
+        maxDensity: number,
+        preferredSteps: number[],
+        protectedSteps: Set<number>,
+        random: () => number,
+      ) => {
+        const next = [...row];
+        const minHits = Math.max(1, Math.round(totalSteps * minDensity));
+        const maxHits = Math.max(minHits, Math.round(totalSteps * maxDensity));
+
+        const removable = Array.from({ length: totalSteps }, (_, step) => step)
+          .filter((step) => next[step] === 1 && !protectedSteps.has(step));
+
+        removable.sort((a, b) => random() - 0.5 || a - b);
+        while (countHits(next) > maxHits && removable.length > 0) {
+          const step = removable.pop();
+          if (step === undefined) break;
+          next[step] = 0;
+        }
+
+        const preferredAcrossBars: number[] = [];
+        const barsCount = Math.max(1, Math.floor(totalSteps / 16));
+        for (let bar = 0; bar < barsCount; bar++) {
+          preferredSteps.forEach((base) => {
+            const step = bar * 16 + base;
+            if (step < totalSteps) preferredAcrossBars.push(step);
+          });
+        }
+
+        preferredAcrossBars.sort((a, b) => random() - 0.5 || a - b);
+        for (const step of preferredAcrossBars) {
+          if (countHits(next) >= minHits) break;
+          if (next[step] === 0) next[step] = 1;
+        }
+
+        if (countHits(next) < minHits) {
+          const anySteps = Array.from({ length: totalSteps }, (_, step) => step).sort((a, b) => random() - 0.5 || a - b);
+          for (const step of anySteps) {
+            if (countHits(next) >= minHits) break;
+            next[step] = 1;
+          }
+        }
+
+        return next;
+      };
+
+      const shapePattern = (pattern: DrumGrid | undefined, styleHint: string, seed: number): DrumGrid => {
+        const random = createSeededRandom(seed);
+        const profile = getDrumStyleProfile(styleHint, normalizedGrooveMode as GrooveMode);
+
+        let kick = normalizeRow(pattern?.kick);
+        let snare = normalizeRow(pattern?.snare);
+        let hihat = normalizeRow(pattern?.hihat);
+        let percussion = normalizeRow(pattern?.percussion);
+
+        const barsCount = Math.max(1, Math.floor(totalSteps / 16));
+        for (let bar = 0; bar < barsCount; bar++) {
+          const barOffset = bar * 16;
+          if (barOffset < totalSteps) kick[barOffset] = 1;
+          if (barOffset + 4 < totalSteps) snare[barOffset + 4] = 1;
+          if (barOffset + 12 < totalSteps) snare[barOffset + 12] = 1;
+          if (barOffset + 8 < totalSteps && random() < 0.65) kick[barOffset + 8] = 1;
+        }
+
+        for (let step = 0; step < totalSteps; step++) {
+          if (kick[step] && snare[step] && step % 16 !== 0) {
+            if (random() < 0.7) kick[step] = 0;
+          }
+        }
+
+        kick = enforceDensity(kick, profile.kickMin, profile.kickMax, profile.kickPreferredSteps, new Set([0, 8]), random);
+        snare = enforceDensity(snare, profile.snareMin, profile.snareMax, profile.snarePreferredSteps, new Set([4, 12]), random);
+        hihat = enforceDensity(hihat, profile.hihatMin, profile.hihatMax, profile.hihatPreferredSteps, new Set<number>(), random);
+        percussion = enforceDensity(percussion, profile.percMin, profile.percMax, profile.percPreferredSteps, new Set<number>(), random);
 
         return { kick, snare, hihat, percussion };
       };
 
-      const normalizeRow = (row: Array<number | boolean> | undefined): number[] => {
-        if (!row || !Array.isArray(row) || row.length === 0) {
-          return Array(totalSteps).fill(0);
+      const isPatternUsable = (pattern: DrumGrid): boolean => {
+        const kick = normalizeRow(pattern.kick);
+        const snare = normalizeRow(pattern.snare);
+        const hihat = normalizeRow(pattern.hihat);
+
+        const kickDensity = countHits(kick) / Math.max(1, totalSteps);
+        const snareDensity = countHits(snare) / Math.max(1, totalSteps);
+        const hihatDensity = countHits(hihat) / Math.max(1, totalSteps);
+
+        const hasBackbeat = Array.from({ length: Math.max(1, Math.floor(totalSteps / 16)) }, (_, bar) => {
+          const offset = bar * 16;
+          return (snare[offset + 4] || 0) === 1 || (snare[offset + 12] || 0) === 1;
+        }).every(Boolean);
+
+        return kickDensity >= 0.08 && snareDensity >= 0.08 && hihatDensity >= 0.18 && hasBackbeat;
+      };
+
+      // Helper to generate fallback pattern when AI truly fails
+      const generateFallbackDrumPattern = (steps: number, styleHint: string, seed: number): DrumGrid => {
+        const random = createSeededRandom(seed);
+        const barsCount = Math.max(1, Math.floor(steps / 16));
+        const lower = styleHint.toLowerCase();
+        const isElectronic = lower.includes('house') || lower.includes('techno') || lower.includes('electro') || lower.includes('edm');
+
+        const kick = Array(steps).fill(0);
+        const snare = Array(steps).fill(0);
+        const hihat = Array(steps).fill(0);
+        const percussion = Array(steps).fill(0);
+
+        for (let bar = 0; bar < barsCount; bar++) {
+          const o = bar * 16;
+          if (o >= steps) continue;
+
+          kick[o] = 1;
+          if (o + 4 < steps && isElectronic) kick[o + 4] = 1;
+          if (o + 8 < steps) kick[o + 8] = random() < 0.75 ? 1 : 0;
+          if (o + 10 < steps && random() < 0.45) kick[o + 10] = 1;
+          if (o + 14 < steps && random() < 0.3) kick[o + 14] = 1;
+
+          if (o + 4 < steps) snare[o + 4] = 1;
+          if (o + 12 < steps) snare[o + 12] = 1;
+          if (o + 15 < steps && random() < 0.2) snare[o + 15] = 1;
+
+          for (let s = 0; s < 16 && o + s < steps; s++) {
+            if (s % 2 === 0) {
+              hihat[o + s] = 1;
+            } else if (random() < (isElectronic ? 0.35 : 0.25)) {
+              hihat[o + s] = 1;
+            }
+            if ((s === 7 || s === 11 || s === 15) && random() < 0.22) {
+              percussion[o + s] = 1;
+            }
+          }
         }
-        return row.slice(0, totalSteps).map((v) => (v ? 1 : 0));
+
+        return shapePattern({ kick, snare, hihat, percussion }, styleHint, seed);
       };
 
       let rawPattern: DrumGrid | undefined;
       let provider = "Grok/OpenAI via callAI";
+      let fallbackReason: string | null = null;
 
       try {
         const aiResult = await callAI<{ pattern?: DrumGrid}>({
@@ -872,8 +1108,10 @@ Create complete lyrics with verses, chorus, and bridge.`;
             "Always return a JSON object with a 'pattern' property describing drum grids.",
           user:
             `Create a modern ${safeStyle} drum pattern at ${safeBpm} BPM for a ${safeBars}-bar loop on a 16-step-per-bar grid. ` +
+            `Groove mode is ${normalizedGrooveMode}. ` +
             `Return JSON with 'pattern' = { kick: number[${totalSteps}], snare: number[${totalSteps}], hihat: number[${totalSteps}], percussion: number[${totalSteps}] }. ` +
-            "Each array element must be 0 or 1. Do not include any extra properties.",
+            `Each array element must be 0 or 1. Use generation seed ${resolvedSeed} and produce a clearly distinct groove (not a generic default pattern). ` +
+            "Do not include any extra properties.",
           responseFormat: "json",
           jsonSchema: {
             type: "object",
@@ -911,7 +1149,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
             },
             required: ["pattern"],
           },
-          temperature: 0.7,
+          temperature: 0.95,
           maxTokens: 800,
           preferredProvider,
         });
@@ -920,17 +1158,23 @@ Create complete lyrics with verses, chorus, and bridge.`;
         if ((aiResult as any)?.provider) {
           provider = String((aiResult as any).provider);
         }
+
+        if (rawPattern) {
+          rawPattern = shapePattern(rawPattern, safeStyle, resolvedSeed);
+        }
       } catch (aiError: any) {
         console.warn(`⚠️ AI drum generation failed, using fallback pattern: ${aiError?.message}`);
-        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle);
+        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle, resolvedSeed);
         provider = "Algorithmic Fallback";
+        fallbackReason = aiError?.message ? String(aiError.message) : "ai_call_failed";
       }
 
-      // If AI returned nothing, use fallback
-      if (!rawPattern || (!rawPattern.kick && !rawPattern.snare && !rawPattern.hihat)) {
+      // Fallback only when AI output is absent or fails quality gate
+      if (!rawPattern || !isPatternUsable(rawPattern)) {
         console.warn("⚠️ AI returned empty pattern, using fallback");
-        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle);
+        rawPattern = generateFallbackDrumPattern(totalSteps, safeStyle, resolvedSeed);
         provider = "Algorithmic Fallback";
+        fallbackReason = fallbackReason || "empty_or_low_quality_pattern";
       }
 
       const grid = {
@@ -940,6 +1184,9 @@ Create complete lyrics with verses, chorus, and bridge.`;
         percussion: normalizeRow(rawPattern.percussion),
       };
 
+      const outcome: 'success' | 'fallback' = provider.includes("Fallback") ? 'fallback' : 'success';
+      recordDrumMetric(outcome, provider);
+
       return res.json({
         success: true,
         data: {
@@ -947,15 +1194,25 @@ Create complete lyrics with verses, chorus, and bridge.`;
           bpm: safeBpm,
           bars: safeBars,
           style: safeStyle,
+          grooveMode: normalizedGrooveMode,
           resolution: gridResolution || "1/16",
           provider,
           requestedProvider: preferredProvider || null,
+          generationSeed: resolvedSeed,
           generationMethod: provider.includes("Fallback") ? "algorithmic" : "ai",
+          fallbackReason,
           songPlanId: songPlanId || null,
           sectionId: sectionId || "beat-section",
         },
       });
     } catch (error: any) {
+      recordAIGenerationMetric({
+        route: '/api/ai/music/drums',
+        requestedProvider: typeof req.body?.aiProvider === 'string' ? String(req.body.aiProvider).toLowerCase() : null,
+        effectiveProvider: null,
+        outcome: 'error',
+        latencyMs: Date.now() - routeStartedAt,
+      });
       console.error("❌ Phase 3 AI drum grid error:", error);
       sendError(res, 500, error?.message || "Failed to generate AI drum grid");
     }

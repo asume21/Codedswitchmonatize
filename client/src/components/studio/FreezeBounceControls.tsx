@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Snowflake, Sun, FileAudio, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import {
   freezeTrack,
@@ -9,8 +10,11 @@ import {
   isTrackFrozen,
   bounceTracks,
   bounceMaster,
+  evaluateBounceParity,
   type BounceConfig,
 } from '@/lib/freezeBounce';
+
+const BOUNCE_SETTINGS_KEY = 'studio:bounce:settings:v1';
 
 interface FreezeBounceControlsProps {
   tracks: Array<{
@@ -19,6 +23,10 @@ interface FreezeBounceControlsProps {
     audioUrl?: string;
     volume: number;
     pan: number;
+    startTimeSeconds?: number;
+    trimStartSeconds?: number;
+    trimEndSeconds?: number;
+    latencyCompensationMs?: number;
     effects?: any[];
     notes?: any[];
     clips?: any[];
@@ -44,6 +52,44 @@ export default function FreezeBounceControls({
   const [bounceMode, setBounceMode] = useState<'selection' | 'master'>('master');
   const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(new Set());
   const [normalize, setNormalize] = useState(true);
+  const [latencyCompensationMs, setLatencyCompensationMs] = useState(0);
+  const [goldenFingerprint, setGoldenFingerprint] = useState('');
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(BOUNCE_SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<{
+        latencyCompensationMs: number;
+        normalize: boolean;
+        goldenFingerprint: string;
+      }>;
+
+      if (typeof parsed.latencyCompensationMs === 'number') {
+        setLatencyCompensationMs(Math.max(0, Math.min(500, Math.round(parsed.latencyCompensationMs))));
+      }
+      if (typeof parsed.normalize === 'boolean') {
+        setNormalize(parsed.normalize);
+      }
+      if (typeof parsed.goldenFingerprint === 'string') {
+        setGoldenFingerprint(parsed.goldenFingerprint);
+      }
+    } catch {
+      // ignore corrupted setting payload
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BOUNCE_SETTINGS_KEY, JSON.stringify({
+        latencyCompensationMs,
+        normalize,
+        goldenFingerprint,
+      }));
+    } catch {
+      // ignore persistence failures
+    }
+  }, [latencyCompensationMs, normalize, goldenFingerprint]);
 
   const handleFreeze = useCallback(async (trackId: string) => {
     const track = tracks.find(t => t.id === trackId);
@@ -90,10 +136,14 @@ export default function FreezeBounceControls({
           audioUrl: t.audioUrl,
           volume: t.volume,
           pan: t.pan,
+          startTimeSeconds: t.startTimeSeconds,
+          trimStartSeconds: t.trimStartSeconds,
+          trimEndSeconds: t.trimEndSeconds,
+          latencyCompensationMs: t.latencyCompensationMs,
         }));
         const beatsPerSecond = bpm / 60;
         const durationSeconds = totalBeats / beatsPerSecond;
-        const result = await bounceMaster(allTrackData, durationSeconds, 48000, normalize);
+        const result = await bounceMaster(allTrackData, durationSeconds, 48000, normalize, latencyCompensationMs);
 
         onBounceComplete?.(result.url, result.blob);
 
@@ -105,7 +155,15 @@ export default function FreezeBounceControls({
         a.click();
         document.body.removeChild(a);
 
-        toast({ title: 'Master Bounced', description: 'WAV file downloaded' });
+        const parity = evaluateBounceParity(goldenFingerprint, result.metrics);
+        if (parity && !parity.matches) {
+          toast({
+            title: 'Bounce Parity Warning',
+            description: `Expected ${parity.expectedFingerprint} but rendered ${parity.actualFingerprint}`,
+            variant: 'destructive',
+          });
+        }
+        toast({ title: 'Master Bounced', description: `WAV downloaded • fp=${result.metrics.fingerprint} • peak=${result.metrics.peak.toFixed(3)}` });
       } else {
         const trackIds = Array.from(selectedTrackIds);
         if (trackIds.length === 0) {
@@ -122,6 +180,10 @@ export default function FreezeBounceControls({
             effects: t.effects,
             volume: t.volume,
             pan: t.pan,
+            startTimeSeconds: t.startTimeSeconds,
+            trimStartSeconds: t.trimStartSeconds,
+            trimEndSeconds: t.trimEndSeconds,
+            latencyCompensationMs: t.latencyCompensationMs,
           }])
         );
 
@@ -136,6 +198,7 @@ export default function FreezeBounceControls({
           format: 'wav',
           includeEffects: true,
           includeSends: false,
+          latencyCompensationMs,
         };
 
         const result = await bounceTracks(config, trackDataMap);
@@ -148,14 +211,22 @@ export default function FreezeBounceControls({
         a.click();
         document.body.removeChild(a);
 
-        toast({ title: 'Bounce Complete', description: `${trackIds.length} tracks bounced` });
+        const parity = evaluateBounceParity(goldenFingerprint, result.metrics);
+        if (parity && !parity.matches) {
+          toast({
+            title: 'Bounce Parity Warning',
+            description: `Expected ${parity.expectedFingerprint} but rendered ${parity.actualFingerprint}`,
+            variant: 'destructive',
+          });
+        }
+        toast({ title: 'Bounce Complete', description: `${trackIds.length} tracks bounced • fp=${result.metrics.fingerprint}` });
       }
     } catch (err) {
       toast({ title: 'Bounce Failed', description: String(err), variant: 'destructive' });
     } finally {
       setBouncing(false);
     }
-  }, [bounceMode, tracks, bpm, totalBeats, normalize, selectedTrackIds, onBounceComplete, toast]);
+  }, [bounceMode, tracks, bpm, totalBeats, normalize, selectedTrackIds, onBounceComplete, toast, latencyCompensationMs, goldenFingerprint]);
 
   const toggleTrackSelection = useCallback((trackId: string) => {
     setSelectedTrackIds(prev => {
@@ -263,6 +334,31 @@ export default function FreezeBounceControls({
           />
           <span className="text-xs text-zinc-400">Normalize output</span>
         </label>
+
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-400">Latency Compensation</span>
+            <span className="text-xs text-zinc-300">{latencyCompensationMs} ms</span>
+          </div>
+          <Slider
+            value={[latencyCompensationMs]}
+            onValueChange={(value) => setLatencyCompensationMs(Math.max(0, Math.min(500, Math.round(value[0] || 0))))}
+            min={0}
+            max={500}
+            step={1}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <span className="text-xs text-zinc-400">Golden Fingerprint (optional)</span>
+          <Input
+            value={goldenFingerprint}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGoldenFingerprint(e.target.value)}
+            placeholder="e.g. a1b2c3d4"
+            className="h-7 text-xs"
+          />
+          <span className="text-[10px] text-zinc-500">If set, bounce compares this expected fingerprint to the render output.</span>
+        </div>
 
         <Button
           onClick={handleBounce}

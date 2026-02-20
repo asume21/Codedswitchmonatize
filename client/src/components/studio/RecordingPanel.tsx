@@ -26,6 +26,7 @@ interface RecordingPanelProps {
   trackName: string;
   currentBeat: number;
   onTakeReady?: (take: RecordingTake) => void;
+  onLatencyCompensationChange?: (latencyMs: number) => void;
 }
 
 export default function RecordingPanel({
@@ -33,6 +34,7 @@ export default function RecordingPanel({
   trackName,
   currentBeat,
   onTakeReady,
+  onLatencyCompensationChange,
 }: RecordingPanelProps) {
   const { toast } = useToast();
   const [state, setState] = useState<RecordingState | null>(null);
@@ -106,8 +108,9 @@ export default function RecordingPanel({
     const ms = await measureLatency();
     setLatencyMs(ms);
     setRecordingConfig({ latencyCompensationMs: ms });
+    onLatencyCompensationChange?.(ms);
     toast({ title: 'Latency Measured', description: `${ms}ms estimated round-trip` });
-  }, [toast]);
+  }, [toast, onLatencyCompensationChange]);
 
   const handleSelectTake = useCallback((takeId: string) => {
     selectTake(takeId);

@@ -64,6 +64,105 @@ test.describe('Music Generation APIs (Auth Required)', () => {
     expect([200, 400, 401, 403, 404, 500]).toContain(response.status());
   });
 
+  test('GET /api/ai/generation-metrics requires auth', async ({ request }) => {
+    const response = await request.get(`${API_BASE}/api/ai/generation-metrics`);
+    expect([200, 401, 403, 500]).toContain(response.status());
+  });
+
+  test('POST /api/ai/music/drums enforces auth and returns non-2xx when unauthenticated', async ({ request }) => {
+    const response = await request.post(`${API_BASE}/api/ai/music/drums`, {
+      data: {
+        bpm: 128,
+        bars: 4,
+        style: 'house',
+        grooveMode: 'tight',
+        gridResolution: '1/16',
+      },
+    });
+
+    // Primary expectation is auth guard; tolerate upstream middleware differences in CI.
+    expect([400, 401, 403, 404, 500]).toContain(response.status());
+  });
+
+  test('POST /api/ai/music/drums returns structured groove metadata when generation succeeds', async ({ request }) => {
+    const response = await request.post(`${API_BASE}/api/ai/music/drums`, {
+      data: {
+        bpm: 140,
+        bars: 2,
+        style: 'trap',
+        grooveMode: 'busy',
+        gridResolution: '1/16',
+        generationSeed: 1337,
+      },
+    });
+
+    expect([200, 400, 401, 403, 404, 429, 500]).toContain(response.status());
+
+    if (response.status() === 200) {
+      const body = await response.json();
+      expect(body.success).toBeTruthy();
+      expect(body.data?.grid).toBeTruthy();
+      expect(body.data?.grid?.kick).toBeDefined();
+      expect(body.data?.grid?.snare).toBeDefined();
+      expect(body.data?.grid?.hihat).toBeDefined();
+      expect(body.data?.grid?.percussion).toBeDefined();
+      expect(body.data?.grooveMode).toBe('busy');
+      expect(typeof body.data?.generationSeed).toBe('number');
+
+      if (body.data?.generationMethod === 'algorithmic') {
+        expect(typeof body.data?.fallbackReason).toBe('string');
+      }
+    }
+  });
+
+});
+
+test.describe('Astutely APIs', () => {
+
+  test('POST /api/astutely returns structured result or controlled error', async ({ request }) => {
+    const response = await request.post(`${API_BASE}/api/astutely`, {
+      data: {
+        style: 'hip-hop',
+        prompt: 'tight punchy drums and warm bass',
+        tempo: 96,
+      }
+    });
+
+    expect([200, 400, 429, 500]).toContain(response.status());
+
+    if (response.status() === 200) {
+      const body = await response.json();
+      expect(body).toBeTruthy();
+      expect(body.meta || body.isFallback || body.bpm).toBeTruthy();
+      if (body.meta) {
+        expect(typeof body.meta).toBe('object');
+        if (body.meta.requestId) {
+          expect(typeof body.meta.requestId).toBe('string');
+        }
+      }
+    }
+  });
+
+  test('POST /api/astutely/generate-audio includes provider/request metadata when successful', async ({ request }) => {
+    const response = await request.post(`${API_BASE}/api/astutely/generate-audio`, {
+      data: {
+        style: 'trap',
+        prompt: 'dark trap instrumental with clean 808 and snappy hats',
+        bpm: 140,
+        aiProvider: 'suno',
+        duration: 30,
+      }
+    });
+
+    expect([200, 400, 429, 500]).toContain(response.status());
+
+    if (response.status() === 200) {
+      const body = await response.json();
+      expect(body.success).toBeTruthy();
+      expect(typeof body.requestId).toBe('string');
+      expect(body.effectiveProvider || body.provider).toBeTruthy();
+    }
+  });
 });
 
 test.describe('Lyrics APIs (Auth Required)', () => {

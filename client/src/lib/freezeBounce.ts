@@ -12,6 +12,49 @@ export interface FreezeState {
   originalState: any; // preserved so we can unfreeze
 }
 
+function analyzeBounceMetrics(buffer: AudioBuffer): BounceMetrics {
+  let peak = 0;
+  let sumSquares = 0;
+  let sampleCount = 0;
+
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (let i = 0; i < data.length; i++) {
+      const value = data[i];
+      const abs = Math.abs(value);
+      if (abs > peak) peak = abs;
+      sumSquares += value * value;
+      sampleCount++;
+    }
+  }
+
+  const rms = sampleCount > 0 ? Math.sqrt(sumSquares / sampleCount) : 0;
+  const fingerprint = createBounceFingerprint(buffer);
+
+  return { peak, rms, fingerprint };
+}
+
+export function createBounceFingerprint(buffer: AudioBuffer, targetSamples: number = 4096): string {
+  const channels = buffer.numberOfChannels;
+  const length = buffer.length;
+  const safeTarget = Math.max(128, targetSamples);
+  const stride = Math.max(1, Math.floor(length / safeTarget));
+
+  let hash = 2166136261;
+  for (let ch = 0; ch < channels; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (let i = 0; i < data.length; i += stride) {
+      const quantized = Math.round(Math.max(-1, Math.min(1, data[i])) * 32767);
+      hash ^= (quantized & 0xff);
+      hash = Math.imul(hash, 16777619);
+      hash ^= ((quantized >> 8) & 0xff);
+      hash = Math.imul(hash, 16777619);
+    }
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 export interface BounceConfig {
   trackIds: string[];           // which tracks to include
   startBeat: number;
@@ -23,6 +66,38 @@ export interface BounceConfig {
   format: 'wav' | 'mp3';
   includeEffects: boolean;
   includeSends: boolean;
+  latencyCompensationMs?: number;
+}
+
+export interface BounceMetrics {
+  peak: number;
+  rms: number;
+  fingerprint: string;
+}
+
+export interface BounceParityResult {
+  matches: boolean;
+  expectedFingerprint: string;
+  actualFingerprint: string;
+  severity: 'none' | 'warning';
+}
+
+export function evaluateBounceParity(
+  expectedFingerprint: string | null | undefined,
+  metrics: BounceMetrics,
+): BounceParityResult | null {
+  const expected = (expectedFingerprint || '').trim().toLowerCase();
+  if (!expected) return null;
+
+  const actual = (metrics.fingerprint || '').trim().toLowerCase();
+  const matches = expected === actual;
+
+  return {
+    matches,
+    expectedFingerprint: expected,
+    actualFingerprint: actual,
+    severity: matches ? 'none' : 'warning',
+  };
 }
 
 const frozenTracks: Map<string, FreezeState> = new Map();
@@ -157,8 +232,12 @@ export async function bounceTracks(
     effects?: any[];
     volume: number;
     pan: number;
+    startTimeSeconds?: number;
+    trimStartSeconds?: number;
+    trimEndSeconds?: number;
+    latencyCompensationMs?: number;
   }>,
-): Promise<{ blob: Blob; url: string; buffer: AudioBuffer }> {
+): Promise<{ blob: Blob; url: string; buffer: AudioBuffer; metrics: BounceMetrics }> {
   const beatsPerSecond = config.bpm / 60;
   const durationBeats = config.endBeat - config.startBeat;
   const durationSeconds = durationBeats / beatsPerSecond;
@@ -189,9 +268,30 @@ export async function bounceTracks(
       gainNode.connect(panNode);
       panNode.connect(offlineCtx.destination);
 
-      // Calculate start offset based on beat position
-      const startOffsetSeconds = config.startBeat / beatsPerSecond;
-      source.start(0, startOffsetSeconds, durationSeconds);
+      const bounceStartAbs = config.startBeat / beatsPerSecond;
+      const bounceEndAbs = bounceStartAbs + durationSeconds;
+
+      const latencySeconds = Math.max(0, (config.latencyCompensationMs || 0) / 1000) +
+        Math.max(0, (trackData.latencyCompensationMs || 0) / 1000);
+      const trackStartAbs = Math.max(0, (trackData.startTimeSeconds || 0) - latencySeconds);
+
+      const trimStart = Math.max(0, Math.min(sourceBuffer.duration, trackData.trimStartSeconds || 0));
+      const trimEnd = Math.max(trimStart, Math.min(sourceBuffer.duration, trackData.trimEndSeconds || sourceBuffer.duration));
+      const playableDuration = Math.max(0, trimEnd - trimStart);
+
+      if (playableDuration <= 0) continue;
+
+      const trackEndAbs = trackStartAbs + playableDuration;
+      const intersectStart = Math.max(bounceStartAbs, trackStartAbs);
+      const intersectEnd = Math.min(bounceEndAbs, trackEndAbs);
+
+      if (intersectEnd <= intersectStart) continue;
+
+      const scheduleAt = intersectStart - bounceStartAbs;
+      const sourceOffset = trimStart + (intersectStart - trackStartAbs);
+      const playDuration = intersectEnd - intersectStart;
+
+      source.start(scheduleAt, sourceOffset, playDuration);
     } catch (err) {
       console.warn(`Failed to render track ${trackId}:`, err);
     }
@@ -206,8 +306,9 @@ export async function bounceTracks(
 
   const blob = audioBufferToWavBlob(renderedBuffer);
   const url = URL.createObjectURL(blob);
+  const metrics = analyzeBounceMetrics(renderedBuffer);
 
-  return { blob, url, buffer: renderedBuffer };
+  return { blob, url, buffer: renderedBuffer, metrics };
 }
 
 /**
@@ -219,11 +320,16 @@ export async function bounceMaster(
     audioUrl?: string;
     volume: number;
     pan: number;
+    startTimeSeconds?: number;
+    trimStartSeconds?: number;
+    trimEndSeconds?: number;
+    latencyCompensationMs?: number;
   }>,
   durationSeconds: number,
   sampleRate: number = 48000,
   normalize: boolean = true,
-): Promise<{ blob: Blob; url: string }> {
+  latencyCompensationMs: number = 0,
+): Promise<{ blob: Blob; url: string; metrics: BounceMetrics }> {
   const offlineCtx = new OfflineAudioContext(2, Math.ceil(durationSeconds * sampleRate), sampleRate);
 
   for (const track of allTrackData) {
@@ -245,7 +351,28 @@ export async function bounceMaster(
       source.connect(gain);
       gain.connect(pan);
       pan.connect(offlineCtx.destination);
-      source.start(0);
+
+      const bounceStartAbs = 0;
+      const bounceEndAbs = durationSeconds;
+      const latencySeconds = Math.max(0, latencyCompensationMs / 1000) +
+        Math.max(0, (track.latencyCompensationMs || 0) / 1000);
+      const trackStartAbs = Math.max(0, (track.startTimeSeconds || 0) - latencySeconds);
+
+      const trimStart = Math.max(0, Math.min(sourceBuffer.duration, track.trimStartSeconds || 0));
+      const trimEnd = Math.max(trimStart, Math.min(sourceBuffer.duration, track.trimEndSeconds || sourceBuffer.duration));
+      const playableDuration = Math.max(0, trimEnd - trimStart);
+      if (playableDuration <= 0) continue;
+
+      const trackEndAbs = trackStartAbs + playableDuration;
+      const intersectStart = Math.max(bounceStartAbs, trackStartAbs);
+      const intersectEnd = Math.min(bounceEndAbs, trackEndAbs);
+      if (intersectEnd <= intersectStart) continue;
+
+      const scheduleAt = intersectStart - bounceStartAbs;
+      const sourceOffset = trimStart + (intersectStart - trackStartAbs);
+      const playDuration = intersectEnd - intersectStart;
+
+      source.start(scheduleAt, sourceOffset, playDuration);
     } catch (err) {
       console.warn(`Failed to include track ${track.trackId} in master bounce:`, err);
     }
@@ -256,7 +383,8 @@ export async function bounceMaster(
 
   const blob = audioBufferToWavBlob(buffer);
   const url = URL.createObjectURL(blob);
-  return { blob, url };
+  const metrics = analyzeBounceMetrics(buffer);
+  return { blob, url, metrics };
 }
 
 // ─── Utility functions ──────────────────────────────────────────────

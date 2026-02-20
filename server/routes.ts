@@ -20,6 +20,7 @@ import { createSampleRoutes } from "./routes/samples";
 import { createUserRoutes } from "./routes/user";
 import { createSocialRoutes } from "./routes/social";
 import { createVulnerabilityRoutes } from "./routes/vulnerability";
+import { createVoiceConvertRoutes } from "./routes/voiceConvert";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -33,11 +34,15 @@ import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import { convertCodeToMusic, convertCodeToMusicEnhanced } from "./services/codeToMusic";
 import { transcribeAudio } from "./services/transcriptionService";
 import { aiCache, withCache } from "./services/aiCache";
+import { getAIGenerationMetricsSnapshot, recordAIGenerationMetric } from "./services/aiRouteMetrics";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import crypto from "crypto";
+import ffmpeg from "fluent-ffmpeg";
 import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID, resolveAudioPath } from "./utils/security";
 import { insertPlaylistSchema } from "@shared/schema";
+import { resolveGenerationConstraints } from "@shared/aiProviderCapabilities";
 import { z } from "zod";
 import { generateSpeechPreview, createVoiceIdForFile, storePreview, getPreview, applyVoiceConversion } from "./services/speechCorrection";
 import { listVoices, getVoice, createVoice, deleteVoice, convertWithVoice, checkRvcHealth } from "./services/voiceLibrary";
@@ -103,6 +108,81 @@ const uploadLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
   skipFailedRequests: true,
 });
+
+async function getAudioDuration(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
+      if (err) return reject(err);
+      const dur = metadata?.format?.duration ?? 0;
+      resolve(Number(dur) || 0);
+    });
+  });
+}
+
+async function polishGeneratedAudio(sourceUrl: string, objectsDir: string): Promise<{ url: string; duration: number }> {
+  const tmpIn = path.join(os.tmpdir(), `ai-polish-in-${crypto.randomUUID()}`);
+  const tmpOut = path.join(os.tmpdir(), `ai-polish-out-${crypto.randomUUID()}.mp3`);
+  try {
+    const resp = await fetch(sourceUrl);
+    if (!resp.ok) throw new Error(`Download failed ${resp.status}`);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    await fs.promises.writeFile(tmpIn, buf);
+
+    const duration = await getAudioDuration(tmpIn);
+    const fadeOutStart = Math.max(0, duration - 0.75);
+
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(tmpIn)
+        .audioFilters([
+          "loudnorm=I=-16:LRA=11:TP=-1.5",
+          "dynaudnorm",
+          "afade=t=in:st=0:d=0.3",
+          `afade=t=out:st=${fadeOutStart}:d=0.5`,
+        ])
+        .audioCodec("libmp3lame")
+        .audioBitrate("192k")
+        .on("end", () => resolve())
+        .on("error", (err: any) => reject(err))
+        .save(tmpOut);
+    });
+
+    const relativeKey = `generated/${crypto.randomUUID()}.mp3`;
+    const destPath = path.join(objectsDir, relativeKey);
+    await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+    await fs.promises.copyFile(tmpOut, destPath);
+
+    return { url: `/api/internal/uploads/${relativeKey}`, duration };
+  } finally {
+    [tmpIn, tmpOut].forEach((p) => {
+      try { fs.unlinkSync(p); } catch { /* ignore */ }
+    });
+  }
+}
+
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+function estimateDominantPitchClass(pitchHzValues: number[]): number | null {
+  const pitchClassCounts = new Array(12).fill(0) as number[];
+
+  for (const hz of pitchHzValues) {
+    if (!Number.isFinite(hz) || hz <= 0) continue;
+    const midi = 69 + 12 * Math.log2(hz / 440);
+    const rounded = Math.round(midi);
+    const pitchClass = ((rounded % 12) + 12) % 12;
+    pitchClassCounts[pitchClass] += 1;
+  }
+
+  let bestClass = -1;
+  let bestCount = 0;
+  for (let i = 0; i < pitchClassCounts.length; i += 1) {
+    if (pitchClassCounts[i] > bestCount) {
+      bestCount = pitchClassCounts[i];
+      bestClass = i;
+    }
+  }
+
+  return bestClass >= 0 && bestCount > 0 ? bestClass : null;
+}
 
 // Secure file upload configuration
 const upload = multer({
@@ -234,6 +314,9 @@ ${urls
 
   // Mount Vulnerability Scanner routes
   app.use("/api/vulnerability", createVulnerabilityRoutes(storage));
+
+  // Mount Voice Conversion pipeline routes (jobs, BYO keys, cost check)
+  app.use("/api/voice-convert", createVoiceConvertRoutes(storage));
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation
@@ -605,6 +688,7 @@ Return ONLY valid JSON:
   const LOCAL_OBJECTS_DIR = fs.existsSync('/data') 
     ? path.resolve('/data', 'objects')
     : path.resolve(process.cwd(), "objects");
+  const LOCAL_STEMS_DIR = path.resolve(process.cwd(), "objects", "stems");
   
   try {
     fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
@@ -1728,6 +1812,18 @@ Provide mastering recommendations in this exact JSON format:
     }
   });
 
+  app.get("/api/ai/generation-metrics", requireAuth(), async (_req: Request, res: Response) => {
+    try {
+      const metrics = getAIGenerationMetricsSnapshot();
+      return res.json({
+        success: true,
+        metrics,
+      });
+    } catch (error: any) {
+      return sendError(res, 500, error?.message || "Failed to get AI generation metrics");
+    }
+  });
+
   // ============================================
   // AI ARRANGEMENT BUILDER ENDPOINT  
   // Takes REAL tracks from the project and arranges them into a full song
@@ -2015,9 +2111,30 @@ Return in this exact JSON format:
   // ============================================
   app.post("/api/ai/stem-separation", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { audioUrl, stemCount = 2 } = req.body;
+      const { audioUrl, stemCount, qualityMode } = req.body;
 
-      console.log('🎵 Stem separation request:', { audioUrl: audioUrl?.substring(0, 50), stemCount });
+      const normalizedMode = typeof qualityMode === "string" ? qualityMode.toLowerCase() : "standard";
+      const requestedStemCountRaw = typeof stemCount === "number" ? Math.trunc(stemCount) : undefined;
+      const defaultStemCount = normalizedMode === "pro" ? 4 : 2;
+      const requestedStemCount = requestedStemCountRaw ?? defaultStemCount;
+      const coercedStemCount = requestedStemCount === 5 ? 4 : requestedStemCount;
+
+      const validStemCounts = [2, 4];
+      const stems = validStemCounts.includes(coercedStemCount) ? coercedStemCount : defaultStemCount;
+      const qualityLabel = stems === 4 ? "pro" : "standard";
+      const fallbackReason =
+        requestedStemCount === 5
+          ? "5-stem separation is not supported in current Demucs integration; using 4-stem pro mode"
+          : requestedStemCount !== stems
+            ? `Invalid stemCount ${requestedStemCount}; using ${stems}-stem ${qualityLabel} mode`
+            : null;
+
+      console.log('🎵 Stem separation request:', {
+        audioUrl: audioUrl?.substring(0, 50),
+        qualityMode: qualityLabel,
+        requestedStemCount,
+        actualStemCount: stems,
+      });
 
       if (!audioUrl || typeof audioUrl !== 'string') {
         return res.status(400).json({
@@ -2058,9 +2175,6 @@ Return in this exact JSON format:
         });
       }
 
-      const validStemCounts = [2, 4];
-      const stems = validStemCounts.includes(stemCount) ? stemCount : 2;
-
       console.log(`🎵 Starting LOCAL stem separation: ${stems} stems...`);
       console.log(`📁 Processing file locally (no URL callback needed)`);
 
@@ -2085,6 +2199,10 @@ Return in this exact JSON format:
       res.json({
         success: true,
         status: 'completed',
+        qualityMode: qualityLabel,
+        requestedStemCount,
+        actualStemCount: stems,
+        fallbackReason,
         stems: {
           vocals: result.vocals,
           instrumental: result.instrumental,
@@ -3334,7 +3452,35 @@ ${code}
     async (req: Request, res: Response) => {
       try {
         const { voiceId } = req.params;
-        const { audioUrl, objectKey, pitch, indexRate, filterRadius, rmsMixRate, protect } = req.body;
+        const {
+          audioUrl,
+          fileUrl,
+          objectKey,
+          pitch,
+          indexRate,
+          filterRadius,
+          rmsMixRate,
+          protect,
+          provider,
+        } = req.body;
+
+        const selectedProvider = typeof provider === "string" ? provider.toLowerCase() : "rvc";
+        const resolvedSourcePath = (() => {
+          const resolved = resolveAudioPath({ objectKey, fileUrl: fileUrl || audioUrl }, LOCAL_OBJECTS_DIR);
+          if (resolved) return resolved;
+
+          const stemUrl = typeof audioUrl === "string" && audioUrl.startsWith("/api/stems/")
+            ? decodeURIComponent(audioUrl.replace("/api/stems/", ""))
+            : null;
+          if (!stemUrl) return null;
+
+          const stemFileName = path.basename(stemUrl);
+          const candidate = path.resolve(LOCAL_STEMS_DIR, stemFileName);
+          if (!candidate.startsWith(path.resolve(LOCAL_STEMS_DIR))) {
+            return null;
+          }
+          return fs.existsSync(candidate) ? candidate : null;
+        })();
 
         let sourceUrl = audioUrl;
         if (!sourceUrl && objectKey) {
@@ -3350,12 +3496,203 @@ ${code}
           filterRadius,
           rmsMixRate,
           protect,
+          provider: selectedProvider === "elevenlabs" ? "elevenlabs" : "rvc",
+          sourcePath: resolvedSourcePath || undefined,
         });
 
         res.json({ success: true, url: resultUrl });
       } catch (error: unknown) {
         console.error("Voice convert error:", error);
         const message = error instanceof Error ? error.message : "Voice conversion failed";
+        sendError(res, 500, message);
+      }
+    }
+  );
+
+  // Convert vocal stem with V2 refinement (gentle key lock + polished remix)
+  app.post(
+    "/api/voices/:voiceId/convert-v2",
+    requireAuth(),
+    requireCredits(CREDIT_COSTS.AI_ENHANCEMENT, storage),
+    async (req: Request, res: Response) => {
+      try {
+        const { voiceId } = req.params;
+        const {
+          audioUrl,
+          fileUrl,
+          objectKey,
+          instrumentalUrl,
+          instrumentalFileUrl,
+          instrumentalObjectKey,
+          provider,
+          keyMode,
+          root,
+          correctionStrength,
+          pitch,
+          indexRate,
+          filterRadius,
+          rmsMixRate,
+          protect,
+        } = req.body;
+
+        const selectedProvider = typeof provider === "string" ? provider.toLowerCase() : "elevenlabs";
+        const sanitizedMode = typeof keyMode === "string" && keyMode.toLowerCase() === "minor" ? "minor" : "major";
+        const targetCorrectionStrength =
+          typeof correctionStrength === "number"
+            ? Math.max(0, Math.min(1, correctionStrength))
+            : 0.48;
+
+        const resolveStemPath = (url: unknown): string | null => {
+          if (typeof url !== "string" || !url.startsWith("/api/stems/")) return null;
+          const stemName = path.basename(decodeURIComponent(url.replace("/api/stems/", "")));
+          const candidate = path.resolve(LOCAL_STEMS_DIR, stemName);
+          if (!candidate.startsWith(path.resolve(LOCAL_STEMS_DIR))) {
+            return null;
+          }
+          return fs.existsSync(candidate) ? candidate : null;
+        };
+
+        const resolveOutputPath = (url: string): string | null => {
+          if (url.startsWith("/api/internal/uploads/voices/outputs/")) {
+            const name = path.basename(decodeURIComponent(url.replace("/api/internal/uploads/voices/outputs/", "")));
+            const candidate = path.resolve(process.cwd(), "objects", "voices", "outputs", name);
+            return fs.existsSync(candidate) ? candidate : null;
+          }
+          if (url.startsWith("/api/internal/uploads/audio-analysis/")) {
+            const name = path.basename(decodeURIComponent(url.replace("/api/internal/uploads/audio-analysis/", "")));
+            const candidate = path.resolve(process.cwd(), "objects", "audio-analysis", name);
+            return fs.existsSync(candidate) ? candidate : null;
+          }
+          return null;
+        };
+
+        const resolvedVocalPath =
+          resolveAudioPath({ objectKey, fileUrl: fileUrl || audioUrl }, LOCAL_OBJECTS_DIR) || resolveStemPath(audioUrl);
+
+        if (!resolvedVocalPath) {
+          return sendError(res, 400, "Unable to resolve source vocal path from audioUrl/objectKey/fileUrl");
+        }
+
+        let sourceUrl = audioUrl;
+        if (!sourceUrl && objectKey) {
+          sourceUrl = `/api/internal/uploads/${objectKey}`;
+        }
+        if (!sourceUrl && fileUrl) {
+          sourceUrl = fileUrl;
+        }
+        if (!sourceUrl) {
+          return sendError(res, 400, "audioUrl or objectKey required");
+        }
+
+        const convertedUrl = await convertWithVoice(voiceId, sourceUrl, {
+          pitch,
+          indexRate,
+          filterRadius,
+          rmsMixRate,
+          protect,
+          provider: selectedProvider === "rvc" ? "rvc" : "elevenlabs",
+          sourcePath: resolvedVocalPath,
+        });
+
+        const convertedPath = resolveOutputPath(convertedUrl);
+        if (!convertedPath) {
+          return sendError(res, 500, "Converted output path could not be resolved");
+        }
+
+        const resolvedInstrumentalPath =
+          resolveAudioPath(
+            {
+              objectKey: instrumentalObjectKey,
+              fileUrl: instrumentalFileUrl || instrumentalUrl,
+            },
+            LOCAL_OBJECTS_DIR,
+          ) || resolveStemPath(instrumentalUrl);
+
+        let resolvedRoot: number = typeof root === "number" ? ((Math.round(root) % 12) + 12) % 12 : 0;
+        if (typeof root !== "number" && resolvedInstrumentalPath) {
+          const instrumentalPitch = await extractPitch(resolvedInstrumentalPath);
+          const estimated = estimateDominantPitchClass(instrumentalPitch?.pitch_hz || []);
+          if (estimated !== null) {
+            resolvedRoot = estimated;
+          }
+        }
+
+        const correctionScale = `${NOTE_NAMES[resolvedRoot]}_${sanitizedMode}`;
+        const correctedUrl = await pitchCorrect(convertedPath, {
+          scale: correctionScale,
+          root: resolvedRoot,
+          correctionStrength: targetCorrectionStrength,
+        });
+        const finalVocalUrl = correctedUrl || convertedUrl;
+        const finalVocalPath = correctedUrl ? resolveOutputPath(correctedUrl) : convertedPath;
+
+        if (!resolvedInstrumentalPath || !finalVocalPath) {
+          return res.json({
+            success: true,
+            mode: "v2-vocal-only",
+            convertedUrl,
+            correctedVocalUrl: finalVocalUrl,
+            remixUrl: null,
+            tuning: {
+              scale: correctionScale,
+              root: resolvedRoot,
+              keyMode: sanitizedMode,
+              correctionStrength: targetCorrectionStrength,
+              rootEstimated: typeof root !== "number",
+            },
+          });
+        }
+
+        const outputsDir = path.resolve(process.cwd(), "objects", "voices", "outputs");
+        fs.mkdirSync(outputsDir, { recursive: true });
+        const remixFilename = `remix-v2-${crypto.randomUUID()}.mp3`;
+        const remixPath = path.join(outputsDir, remixFilename);
+
+        const runMix = (useSidechain: boolean): Promise<void> =>
+          new Promise((resolve, reject) => {
+            const sidechainBlock = useSidechain
+              ? "[a1]asplit=2[a1sc][a1mix];[a0][a1sc]sidechaincompress=threshold=0.06:ratio=3.5:attack=8:release=180[ducked];[ducked][a1mix]amix=inputs=2:duration=longest:weights='0.9 1.35':normalize=0:dropout_transition=2,alimiter=limit=0.95[out]"
+              : "[a0][a1]amix=inputs=2:duration=longest:weights='0.9 1.35':normalize=0:dropout_transition=2,alimiter=limit=0.95[out]";
+
+            const filter = [
+              "[0:a]volume=0.92[a0]",
+              "[1:a]volume=0.86,highpass=f=95,agate=threshold=0.03:range=0.35:ratio=2.2:attack=4:release=75,acompressor=threshold=-21dB:ratio=2.3:attack=8:release=95,equalizer=f=6800:t=q:w=1.2:g=-1.4,equalizer=f=12000:t=q:w=0.8:g=-0.4,volume=1.0[a1]",
+              sidechainBlock,
+            ].join(";");
+
+            ffmpeg()
+              .input(resolvedInstrumentalPath)
+              .input(finalVocalPath)
+              .complexFilter(filter)
+              .outputOptions(["-map [out]", "-c:a libmp3lame", "-b:a 320k"])
+              .on("end", () => resolve())
+              .on("error", (err: Error) => reject(err))
+              .save(remixPath);
+          });
+
+        try {
+          await runMix(true);
+        } catch {
+          await runMix(false);
+        }
+
+        res.json({
+          success: true,
+          mode: "v2-full",
+          convertedUrl,
+          correctedVocalUrl: finalVocalUrl,
+          remixUrl: `/api/internal/uploads/voices/outputs/${remixFilename}`,
+          tuning: {
+            scale: correctionScale,
+            root: resolvedRoot,
+            keyMode: sanitizedMode,
+            correctionStrength: targetCorrectionStrength,
+            rootEstimated: typeof root !== "number",
+          },
+        });
+      } catch (error: unknown) {
+        console.error("Voice convert V2 error:", error);
+        const message = error instanceof Error ? error.message : "Voice conversion V2 failed";
         sendError(res, 500, message);
       }
     }
@@ -3809,6 +4146,7 @@ ${code}
           })).optional(),
           autoSeparateStems: z.boolean().optional(),
           stemCount: z.union([z.literal(2), z.literal(4)]).optional(),
+          requireStems: z.boolean().optional(),
         });
 
         const parsed = schema.safeParse(req.body || {});
@@ -3834,7 +4172,34 @@ ${code}
           structure,
           autoSeparateStems = false,
           stemCount = 4,
+          requireStems = false,
         } = parsed.data;
+
+        const requestId = crypto.randomUUID();
+        const routeStartedAt = Date.now();
+        const providerConstraints = resolveGenerationConstraints({
+          provider: aiProvider || 'suno',
+          duration,
+          bpm,
+          variations,
+          sectionCount: structure?.length || 0,
+          requireGuideMelody: Boolean(melodyUrl),
+        });
+
+        const effectiveProvider = providerConstraints.effectiveProvider;
+        const effectiveDuration = providerConstraints.duration ?? duration ?? 30;
+        const effectiveBpm = providerConstraints.bpm ?? bpm;
+        const effectiveVariations = providerConstraints.variations;
+        const constraintWarnings = providerConstraints.warnings;
+        const recordCompleteSongMetric = (outcome: 'success' | 'error' | 'fallback', resolvedProvider?: string | null) => {
+          recordAIGenerationMetric({
+            route: '/api/music/generate-complete',
+            requestedProvider: aiProvider || null,
+            effectiveProvider: resolvedProvider || effectiveProvider || null,
+            outcome,
+            latencyMs: Date.now() - routeStartedAt,
+          });
+        };
 
         // Build instrument string from selected instruments
         const instrumentStr = selectedInstruments?.length
@@ -3849,7 +4214,10 @@ ${code}
         if (!includeVocals) promptParts.push("Instrumental only, no vocals");
         const prompt = promptParts.join(". ");
 
-        console.log(`🎵 Generating complete song: "${prompt}" (seed=${seed}, variations=${variations}, structure=${structure ? structure.length + ' sections' : 'auto'})`);
+        console.log(
+          `🎵 [${requestId}] Generating complete song: "${prompt}" ` +
+          `(provider=${effectiveProvider}, seed=${seed}, variations=${effectiveVariations}, structure=${structure ? structure.length + ' sections' : 'auto'})`
+        );
 
         try {
           let result: any;
@@ -3859,7 +4227,7 @@ ${code}
             console.log(`🎵 Using section-stitched generation (${structure.length} sections)`);
             result = await unifiedMusicService.generateStitchedSong(prompt, {
               genre: genre || undefined,
-              bpm,
+              bpm: effectiveBpm,
               key: musicalKey,
               mood: mood || undefined,
               vocals: includeVocals,
@@ -3871,30 +4239,47 @@ ${code}
             result = await unifiedMusicService.generateFullSong(prompt, {
               genre: genre || undefined,
               mood: mood || undefined,
-              aiProvider: aiProvider || undefined,
-              duration: duration || 30,
+              aiProvider: effectiveProvider,
+              duration: effectiveDuration,
               style: musicalStyle || genre || 'modern',
               vocals: includeVocals,
-              bpm,
+              bpm: effectiveBpm,
               key: musicalKey,
               seed,
-              variations,
+              variations: effectiveVariations,
               melodyUrl: melodyUrl || undefined,
             });
           }
 
           if (!result?.audio_url) {
+            recordCompleteSongMetric('error', effectiveProvider);
             return res.status(500).json({ message: "Music generation failed - no audio returned" });
           }
 
           let stems: Record<string, string | undefined> | undefined;
           let stemChannelMapping: Record<string, string> | undefined;
           let stemWarning: string | undefined;
-          if (autoSeparateStems) {
+          let polished: { url: string; duration: number } | undefined;
+
+          let sourceAudioUrl = result.audio_url;
+          const isHttpAudioUrl =
+            typeof sourceAudioUrl === 'string' &&
+            (sourceAudioUrl.startsWith('http://') || sourceAudioUrl.startsWith('https://'));
+          if (isHttpAudioUrl) {
+            try {
+              polished = await polishGeneratedAudio(sourceAudioUrl, LOCAL_OBJECTS_DIR);
+              sourceAudioUrl = polished.url;
+            } catch (err: any) {
+              console.warn("Audio polish failed:", err?.message || err);
+            }
+          }
+
+          const shouldSeparateStems = autoSeparateStems || requireStems;
+          if (shouldSeparateStems) {
             try {
               const { stemSeparationService } = await import('./services/stemSeparation');
               if (stemSeparationService.isConfigured()) {
-                const stemResult = await stemSeparationService.separateStems(result.audio_url, stemCount as 2 | 4);
+                const stemResult = await stemSeparationService.separateStems(sourceAudioUrl, stemCount as 2 | 4);
                 if (stemResult.success) {
                   stems = {
                     vocals: stemResult.vocals,
@@ -3919,7 +4304,23 @@ ${code}
             } catch (stemErr: any) {
               stemWarning = stemErr?.message || 'Stem separation failed unexpectedly';
             }
+
+            if (requireStems && (!stems || Object.values(stems).every((url) => !url))) {
+              recordCompleteSongMetric('error', effectiveProvider);
+              return res.status(502).json({
+                message: stemWarning || 'Stems were required but could not be generated',
+                requestId,
+                requestedProvider: aiProvider || null,
+                effectiveProvider,
+                providerWarnings: constraintWarnings,
+                stemWarning,
+              });
+            }
           }
+
+          const resolvedGenerator = String(result.metadata?.generator || effectiveProvider || 'ai');
+          const generationOutcome: 'success' | 'fallback' = resolvedGenerator.toLowerCase().includes('fallback') ? 'fallback' : 'success';
+          recordCompleteSongMetric(generationOutcome, resolvedGenerator);
 
           // Deduct credits after successful generation
           if (req.creditService && req.creditCost) {
@@ -3933,12 +4334,12 @@ ${code}
 
           return res.json({
             success: true,
-            audioUrl: result.audio_url,
+            audioUrl: sourceAudioUrl,
             title: `${genre || 'AI'} ${includeVocals ? 'Song' : 'Instrumental'}`,
             description: songDescription,
             genre: genre || 'AI Generated',
             prompt,
-            duration: result.metadata?.duration || duration || 30,
+            duration: polished?.duration || result.metadata?.duration || duration || 30,
             provider: result.metadata?.generator || 'AI',
             seed: result.metadata?.seed,
             variations: result.variations,
@@ -3946,10 +4347,18 @@ ${code}
             stems,
             stemChannelMapping,
             stemWarning,
+            requireStems,
+            requestId,
+            requestedProvider: aiProvider || null,
+            effectiveProvider,
+            rerouteReason: providerConstraints.rerouteReason,
+            providerWarnings: constraintWarnings,
+            generationOutcome,
           });
         } catch (err: any) {
+          recordCompleteSongMetric('error', effectiveProvider);
           console.error("Song generation error:", err);
-          return res.status(500).json({ message: err?.message || "Failed to generate song" });
+          return res.status(500).json({ message: err?.message || "Failed to generate song", requestId });
         }
       } catch (err: any) {
         console.error("Complete song generation error:", err);

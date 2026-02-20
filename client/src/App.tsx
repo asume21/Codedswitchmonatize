@@ -45,6 +45,7 @@ const PublicSongPage = React.lazy(() => import("@/pages/public-song").catch(() =
 const SocialHub = React.lazy(() => import("@/pages/social-hub").catch(() => ({ default: () => <NotFound /> })));
 const UserProfilePage = React.lazy(() => import("@/pages/user-profile").catch(() => ({ default: () => <NotFound /> })));
 const SitemapPage = React.lazy(() => import("@/pages/sitemap-page").catch(() => ({ default: () => <NotFound /> })));
+const VoiceConvertPage = React.lazy(() => import("@/pages/voice-convert").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -221,6 +222,9 @@ function App() {
                 <AIMessageProvider>
                   <AppLayout><VulnerabilityScannerPage /></AppLayout>
                 </AIMessageProvider>
+              </Route>
+              <Route path="/voice-convert">
+                <AppLayout><VoiceConvertPage /></AppLayout>
               </Route>
               <Route path="/ai-assistant">
                 <AIMessageProvider>

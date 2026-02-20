@@ -433,6 +433,12 @@ export class RealisticAudioEngine {
       }
     }
 
+    if (String(instrument || '').toLowerCase() === 'drums') {
+      const drumType = this.mapMidiPitchToDrumType(note, octave);
+      await this.playDrumSound(drumType, velocity, 'default', targetNode);
+      return;
+    }
+
     const requestedInstrument = String(instrument || 'piano');
     // Map requested name to GM key if possible
     let realInstrument = (this.instrumentLibrary as any)[requestedInstrument] || requestedInstrument;
@@ -491,6 +497,20 @@ export class RealisticAudioEngine {
       // Soundfont play failed, using synthetic fallback
       await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || this.audioContext.destination);
     }
+  }
+
+  private mapMidiPitchToDrumType(note: string, octave: number): string {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const normalized = String(note || '').toUpperCase();
+    const noteIndex = noteNames.indexOf(normalized);
+    const midiNote = noteIndex >= 0 ? ((octave + 1) * 12 + noteIndex) : 36;
+
+    if (midiNote <= 36) return 'kick';
+    if (midiNote <= 40) return 'snare';
+    if (midiNote <= 45) return 'hihat';
+    if (midiNote <= 49) return 'tom';
+    if (midiNote <= 57) return 'perc';
+    return 'crash';
   }
 
   async playDrumSound(drumType: string, velocity: number = 0.7, kit: string = 'default', targetNode?: AudioNode): Promise<void> {
@@ -747,44 +767,50 @@ export class RealisticAudioEngine {
       const bodyOsc = ctx.createOscillator();
       const bodyGain = ctx.createGain();
       const bodyFilter = ctx.createBiquadFilter();
+      const bodySubCleanup = ctx.createBiquadFilter();
       
       // Sub-bass body - pure sine for clean low end
       bodyOsc.type = 'sine';
       bodyOsc.frequency.setValueAtTime(k.pitchStart, currentTime);
-      bodyOsc.frequency.exponentialRampToValueAtTime(Math.max(20, k.pitchEnd), currentTime + k.pitchSweep);
+      bodyOsc.frequency.exponentialRampToValueAtTime(Math.max(42, k.pitchEnd), currentTime + Math.min(0.12, k.pitchSweep));
       
       // Gentle lowpass to remove any harmonics
       bodyFilter.type = 'lowpass';
-      bodyFilter.frequency.setValueAtTime(Math.max(80, k.filterHz), currentTime);
-      bodyFilter.Q.setValueAtTime(Math.min(k.filterQ, 4), currentTime); // Limit Q to prevent ringing
+      bodyFilter.frequency.setValueAtTime(Math.max(95, k.filterHz), currentTime);
+      bodyFilter.Q.setValueAtTime(Math.min(k.filterQ, 1.2), currentTime); // keep kick clean, avoid resonant squelch
+
+      // Remove subsonic rumble that can read as "fart" on small speakers
+      bodySubCleanup.type = 'highpass';
+      bodySubCleanup.frequency.setValueAtTime(30, currentTime);
+      bodySubCleanup.Q.setValueAtTime(0.7, currentTime);
       
       // Smooth envelope with proper attack
-      const bodyVol = Math.max(0.001, velocity * k.bodyGain * 0.9);
+      const bodyVol = Math.max(0.001, velocity * k.bodyGain * 0.72);
       bodyGain.gain.setValueAtTime(0.001, currentTime);
       bodyGain.gain.linearRampToValueAtTime(bodyVol, currentTime + 0.005); // 5ms attack
       bodyGain.gain.exponentialRampToValueAtTime(bodyVol * 0.7, currentTime + 0.05);
-      bodyGain.gain.exponentialRampToValueAtTime(0.001, currentTime + k.bodyDecay);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, currentTime + Math.min(0.28, k.bodyDecay));
       
       // === PUNCH/CLICK LAYER (softer, lower frequency) ===
       const clickOsc = ctx.createOscillator();
       const clickGain = ctx.createGain();
       const clickFilter = ctx.createBiquadFilter();
       
-      // Use a lower frequency sine for punch instead of harsh triangle
-      clickOsc.type = 'sine';
-      clickOsc.frequency.setValueAtTime(180, currentTime); // Much lower than before (was 1200)
-      clickOsc.frequency.exponentialRampToValueAtTime(60, currentTime + 0.025);
+      // Brighter transient helps perceived punch without adding muddy low-end
+      clickOsc.type = 'triangle';
+      clickOsc.frequency.setValueAtTime(1400, currentTime);
+      clickOsc.frequency.exponentialRampToValueAtTime(300, currentTime + 0.02);
       
       // Bandpass to shape the click
       clickFilter.type = 'bandpass';
-      clickFilter.frequency.setValueAtTime(150, currentTime);
-      clickFilter.Q.setValueAtTime(1.5, currentTime);
+      clickFilter.frequency.setValueAtTime(1700, currentTime);
+      clickFilter.Q.setValueAtTime(0.9, currentTime);
       
       // Very short click envelope
-      const clickVol = Math.max(0.001, velocity * k.clickVol * 0.6);
+      const clickVol = Math.max(0.001, velocity * k.clickVol * 0.4);
       clickGain.gain.setValueAtTime(0.001, currentTime);
       clickGain.gain.linearRampToValueAtTime(clickVol, currentTime + 0.002);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.035);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.025);
       
       // === TRANSIENT NOISE LAYER (uses pre-allocated buffer) ===
       const noiseSource = ctx.createBufferSource();
@@ -793,7 +819,7 @@ export class RealisticAudioEngine {
       const noiseGain = ctx.createGain();
       const noiseFilter = ctx.createBiquadFilter();
       noiseFilter.type = 'bandpass';
-      noiseFilter.frequency.setValueAtTime(400, currentTime);
+      noiseFilter.frequency.setValueAtTime(1800, currentTime);
       noiseFilter.Q.setValueAtTime(2, currentTime);
       
       const noiseVol = velocity * k.clickVol * 0.15;
@@ -802,7 +828,8 @@ export class RealisticAudioEngine {
       
       // === CONNECT ALL LAYERS ===
       bodyOsc.connect(bodyFilter);
-      bodyFilter.connect(bodyGain);
+      bodyFilter.connect(bodySubCleanup);
+      bodySubCleanup.connect(bodyGain);
       bodyGain.connect(dest);
       
       clickOsc.connect(clickFilter);

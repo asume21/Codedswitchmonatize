@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   Music, Loader2, Sparkles, Zap, Download, AlertTriangle,
   Copy, Check, ChefHat, Lightbulb, Clock, Save,
 } from 'lucide-react';
+import { PROVIDER_CAPABILITIES, resolveGenerationConstraints } from '../../../../shared/aiProviderCapabilities';
 
 interface GenerationVariation {
   audio_url: string;
@@ -46,6 +47,35 @@ interface GeneratedSong {
   };
   stemChannelMapping?: Record<string, string>;
   stemWarning?: string;
+  requestId?: string;
+  requestedProvider?: string | null;
+  effectiveProvider?: string;
+  rerouteReason?: string | null;
+  providerWarnings?: string[];
+  generationOutcome?: 'success' | 'fallback' | 'error';
+}
+
+interface GenerationMeta {
+  requestedProvider?: string | null;
+  effectiveProvider?: string | null;
+  requestId?: string | null;
+  outcome?: 'success' | 'fallback' | 'error';
+  stemWarning?: string | null;
+}
+
+interface AIGenerationRouteMetrics {
+  total: number;
+  success: number;
+  error: number;
+  fallback: number;
+  averageLatencyMs: number;
+  fallbackRate: number;
+}
+
+interface AIGenerationMetricsSnapshot {
+  startedAt: string;
+  totals: AIGenerationRouteMetrics;
+  routes: Record<string, AIGenerationRouteMetrics>;
 }
 
 interface StarterRecipe {
@@ -128,42 +158,8 @@ const STARTER_RECIPES: StarterRecipe[] = [
   },
 ];
 
-const PROVIDER_MAX_DURATION: Record<string, number> = {
-  'suno': 240,
-  'replicate-musicgen': 30,
-  'replicate-suno': 240,
-  'astutely': 30,
-  'grok': 0,
-  'openai': 0,
-  'local': 0,
-};
-
-const PROVIDER_BPM_RANGE: Record<string, { min: number; max: number }> = {
-  'suno': { min: 60, max: 180 },
-  'replicate-suno': { min: 60, max: 180 },
-  'replicate-musicgen': { min: 70, max: 160 },
-  'astutely': { min: 70, max: 160 },
-  'grok': { min: 0, max: 0 },
-  'openai': { min: 0, max: 0 },
-  'local': { min: 0, max: 0 },
-};
-
-const PROVIDER_LABELS: Record<string, string> = {
-  'suno': 'Suno',
-  'replicate-musicgen': 'MusicGen',
-  'replicate-suno': 'Suno (Replicate)',
-  'astutely': 'Astutely',
-  'grok': 'Grok',
-  'openai': 'OpenAI',
-  'local': 'Local',
-};
-
-const PROVIDER_EST_SECONDS: Record<string, string> = {
-  'suno': '30-90s',
-  'replicate-musicgen': '15-30s',
-  'replicate-suno': '30-90s',
-  'astutely': '5-15s',
-};
+const BEST_TAKE_CACHE_KEY = 'pro-audio-best-take-v1';
+const PRO_AUDIO_SETTINGS_KEY = 'pro-audio-settings-v1';
 
 const STRUCTURE_MAP: Record<string, Array<{name: string; duration: number; energy: string}>> = {
   'verse-hook': [
@@ -218,6 +214,7 @@ export function ProAudioGenerator() {
   const [autoSeparateStems, setAutoSeparateStems] = useState(false);
   const [stemCount, setStemCount] = useState<2 | 4>(4);
   const [autoImportStems, setAutoImportStems] = useState(true);
+  const [requireStems, setRequireStems] = useState(false);
 
   // Instruments state — drums + bass + keys default on
   const [instruments, setInstruments] = useState({
@@ -235,6 +232,9 @@ export function ProAudioGenerator() {
   const [generatedSong, setGeneratedSong] = useState<GeneratedSong | null>(null);
   const [selectedVariation, setSelectedVariation] = useState(0);
   const [generationProgress, setGenerationProgress] = useState('');
+  const [generationMeta, setGenerationMeta] = useState<GenerationMeta | null>(null);
+  const [aiMetrics, setAiMetrics] = useState<AIGenerationMetricsSnapshot | null>(null);
+  const [aiMetricsError, setAiMetricsError] = useState<string | null>(null);
 
   // Results UI state
   const [savedToLibrary, setSavedToLibrary] = useState(false);
@@ -247,11 +247,12 @@ export function ProAudioGenerator() {
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   // Derived provider info
-  const providerMaxSingle = PROVIDER_MAX_DURATION[aiProvider] ?? 30;
-  const providerBpmRange = PROVIDER_BPM_RANGE[aiProvider] ?? { min: 60, max: 180 };
-  const isTextOnlyProvider = providerMaxSingle === 0;
-  const providerLabel = PROVIDER_LABELS[aiProvider] || aiProvider;
-  const providerEst = PROVIDER_EST_SECONDS[aiProvider] || '15-60s';
+  const providerCapability = PROVIDER_CAPABILITIES[(aiProvider as keyof typeof PROVIDER_CAPABILITIES)] || PROVIDER_CAPABILITIES.suno;
+  const providerMaxSingle = providerCapability.maxDuration;
+  const providerBpmRange = providerCapability.bpmRange;
+  const isTextOnlyProvider = !providerCapability.canGenerateAudio;
+  const providerLabel = providerCapability.label || aiProvider;
+  const providerEst = providerCapability.estimatedLatency || '15-60s';
   const effectiveVariations = generateMultiple ? 3 : variations;
   const getMaxDuration = useCallback(() => {
     if (songStructure !== 'auto') return 300;
@@ -263,23 +264,138 @@ export function ProAudioGenerator() {
   const isBpmCapped = !isTextOnlyProvider && (bpm[0] < providerBpmRange.min || bpm[0] > providerBpmRange.max);
 
   const resolveEffectiveProvider = useCallback(() => {
-    if (isTextOnlyProvider) {
-      return { effectiveProvider: aiProvider, rerouteReason: null as string | null };
+    return resolveGenerationConstraints({
+      provider: aiProvider,
+      duration: duration[0],
+      bpm: bpm[0],
+      variations: effectiveVariations,
+      sectionCount: STRUCTURE_MAP[songStructure]?.length || 0,
+      requireGuideMelody: Boolean(melodyGuideUrl),
+    });
+  }, [aiProvider, duration, bpm, effectiveVariations, songStructure, melodyGuideUrl]);
+
+  const buildTakeCacheKey = useCallback((payload: {
+    prompt: string;
+    provider: string;
+    seed?: number;
+    bpm: number;
+    duration: number;
+    structureKey: string;
+  }) => {
+    return [
+      payload.provider,
+      payload.seed ?? 'auto-seed',
+      payload.bpm,
+      payload.duration,
+      payload.structureKey,
+      payload.prompt.trim().toLowerCase(),
+    ].join('::');
+  }, []);
+
+  const loadAIMetrics = useCallback(async () => {
+    try {
+      const response = await apiRequest('GET', '/api/ai/generation-metrics');
+      if (!response.ok) {
+        setAiMetricsError(`Metrics unavailable (${response.status})`);
+        return;
+      }
+
+      const body = await response.json();
+      setAiMetrics(body?.metrics || null);
+      setAiMetricsError(null);
+    } catch {
+      setAiMetricsError('Metrics unavailable');
     }
+  }, []);
 
-    const requestingLongOrStructured = songStructure !== 'auto' || duration[0] > providerMaxSingle;
-    const requestingManyVariations = effectiveVariations > 2;
-    const needsHighCapacity = requestingLongOrStructured || requestingManyVariations;
+  useEffect(() => {
+    void loadAIMetrics();
+  }, [loadAIMetrics]);
 
-    if (aiProvider === 'replicate-musicgen' && needsHighCapacity) {
-      return {
-        effectiveProvider: 'suno',
-        rerouteReason: 'Routed from MusicGen to Suno for longer/structured or multi-variation generation quality.'
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PRO_AUDIO_SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<{
+        songStructure: string;
+        variations: number;
+        generateMultiple: boolean;
+        seed: number | '';
+        melodyGuideUrl: string;
+        autoSeparateStems: boolean;
+        stemCount: 2 | 4;
+        autoImportStems: boolean;
+        requireStems: boolean;
+      }>;
+
+      if (typeof parsed.songStructure === 'string' && (parsed.songStructure === 'auto' || Boolean(STRUCTURE_MAP[parsed.songStructure]))) {
+        setSongStructure(parsed.songStructure);
+      }
+      if (typeof parsed.variations === 'number' && parsed.variations >= 1 && parsed.variations <= 4) {
+        setVariations(parsed.variations);
+      }
+      if (typeof parsed.generateMultiple === 'boolean') {
+        setGenerateMultiple(parsed.generateMultiple);
+      }
+      if (typeof parsed.seed === 'number' || parsed.seed === '') {
+        setSeed(parsed.seed);
+      }
+      if (typeof parsed.melodyGuideUrl === 'string') {
+        setMelodyGuideUrl(parsed.melodyGuideUrl);
+      }
+      if (typeof parsed.autoSeparateStems === 'boolean') {
+        setAutoSeparateStems(parsed.autoSeparateStems);
+      }
+      if (parsed.stemCount === 2 || parsed.stemCount === 4) {
+        setStemCount(parsed.stemCount);
+      }
+      if (typeof parsed.autoImportStems === 'boolean') {
+        setAutoImportStems(parsed.autoImportStems);
+      }
+      if (typeof parsed.requireStems === 'boolean') {
+        setRequireStems(parsed.requireStems);
+      }
+    } catch {
+      // ignore corrupted persisted settings
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const payload = {
+        songStructure,
+        variations,
+        generateMultiple,
+        seed,
+        melodyGuideUrl,
+        autoSeparateStems,
+        stemCount,
+        autoImportStems,
+        requireStems,
       };
+      localStorage.setItem(PRO_AUDIO_SETTINGS_KEY, JSON.stringify(payload));
+    } catch {
+      // non-blocking persistence
     }
+  }, [songStructure, variations, generateMultiple, seed, melodyGuideUrl, autoSeparateStems, stemCount, autoImportStems, requireStems]);
 
-    return { effectiveProvider: aiProvider, rerouteReason: null as string | null };
-  }, [aiProvider, duration, effectiveVariations, isTextOnlyProvider, providerMaxSingle, songStructure]);
+  const persistBestTake = useCallback((cacheKey: string, song: GeneratedSong, selectedIndex: number) => {
+    try {
+      const raw = localStorage.getItem(BEST_TAKE_CACHE_KEY);
+      const parsed: Record<string, unknown> = raw ? JSON.parse(raw) : {};
+      parsed[cacheKey] = {
+        updatedAt: Date.now(),
+        selectedVariation: selectedIndex,
+        provider: song.provider,
+        audioUrl: song.audioUrl,
+        seed: song.seed,
+      };
+
+      localStorage.setItem(BEST_TAKE_CACHE_KEY, JSON.stringify(parsed));
+    } catch {
+      // non-blocking cache write
+    }
+  }, []);
 
   // Instrument validation
   const selectedInstrumentsList = useMemo(
@@ -309,16 +425,35 @@ export function ProAudioGenerator() {
         throw new Error('Select at least one instrument before generating.');
       }
 
-      const { effectiveProvider, rerouteReason } = resolveEffectiveProvider();
+      const resolved = resolveEffectiveProvider();
+      const {
+        effectiveProvider,
+        rerouteReason,
+        duration: constrainedDuration,
+        bpm: constrainedBpm,
+        variations: constrainedVariations,
+        warnings,
+      } = resolved;
       if (rerouteReason) {
         toast({
           title: 'Provider Auto-Routed',
           description: rerouteReason,
         });
       }
+      if (warnings.length > 0) {
+        toast({
+          title: 'Provider Constraints Applied',
+          description: warnings.join(' '),
+        });
+      }
 
-      const estTime = providerEst;
-      setGenerationProgress(`Starting generation via ${(PROVIDER_LABELS[effectiveProvider] || effectiveProvider)} (est. ${estTime})...`);
+      const estTime = (PROVIDER_CAPABILITIES[effectiveProvider]?.estimatedLatency || providerEst);
+      const effectiveLabel = PROVIDER_CAPABILITIES[effectiveProvider]?.label || effectiveProvider;
+      setGenerationMeta({
+        requestedProvider: aiProvider,
+        effectiveProvider,
+      });
+      setGenerationProgress(`Routing request to ${effectiveLabel} (est. ${estTime})...`);
       setSelectedVariation(0);
 
       const payload: Record<string, any> = {
@@ -326,37 +461,46 @@ export function ProAudioGenerator() {
         genre,
         mood,
         aiProvider: effectiveProvider,
-        duration: effectiveDuration,
-        bpm: effectiveBpm,
+        duration: constrainedDuration ?? effectiveDuration,
+        bpm: constrainedBpm ?? effectiveBpm,
         key,
         style,
         includeVocals,
         instruments: selectedInstrumentsList,
         seed: typeof seed === 'number' ? seed : undefined,
-        variations: effectiveVariations,
+        variations: constrainedVariations,
         melodyUrl: melodyGuideUrl || undefined,
         structure: STRUCTURE_MAP[songStructure] || undefined,
         autoSeparateStems,
         stemCount,
+        requireStems,
       };
 
-      if (effectiveVariations > 1) {
-        setGenerationProgress(`${(PROVIDER_LABELS[effectiveProvider] || effectiveProvider)}: generating ${effectiveVariations} variations (est. ${estTime})...`);
+      if (constrainedVariations > 1) {
+        setGenerationProgress(`${effectiveLabel}: generating ${constrainedVariations} variations (est. ${estTime})...`);
       } else if (STRUCTURE_MAP[songStructure]) {
-        setGenerationProgress(`${(PROVIDER_LABELS[effectiveProvider] || effectiveProvider)}: generating ${STRUCTURE_MAP[songStructure].length} sections (est. ${estTime})...`);
+        setGenerationProgress(`${effectiveLabel}: generating ${STRUCTURE_MAP[songStructure].length} sections (est. ${estTime})...`);
       } else {
-        setGenerationProgress(`${(PROVIDER_LABELS[effectiveProvider] || effectiveProvider)}: generating audio (est. ${estTime})...`);
+        setGenerationProgress(`${effectiveLabel}: generating audio (est. ${estTime})...`);
       }
 
       const response = await apiRequest('POST', '/api/music/generate-complete', payload);
 
       if (!response.ok) {
         let detail = 'Failed to generate song';
+        let requestId: string | null = null;
+        let effectiveProvider: string | null = null;
         try {
           const errBody = await response.json();
           detail = errBody.message || errBody.error || detail;
+          requestId = errBody.requestId || null;
+          effectiveProvider = errBody.effectiveProvider || errBody.provider || null;
         } catch { /* response wasn't JSON */ }
-        throw new Error(`${providerLabel} (${response.status}): ${detail}`);
+        const suffix = [
+          effectiveProvider ? `provider=${effectiveProvider}` : null,
+          requestId ? `requestId=${requestId}` : null,
+        ].filter(Boolean).join(' | ');
+        throw new Error(`${providerLabel} (${response.status}): ${detail}${suffix ? ` [${suffix}]` : ''}`);
       }
 
       return response.json();
@@ -364,6 +508,20 @@ export function ProAudioGenerator() {
     onSuccess: (data) => {
       setGeneratedSong(data);
       setGenerationProgress('');
+      setGenerationMeta({
+        requestedProvider: data.requestedProvider || aiProvider,
+        effectiveProvider: data.effectiveProvider || data.provider || null,
+        requestId: data.requestId || null,
+        outcome: (data.generationOutcome as 'success' | 'fallback' | 'error' | undefined) || 'success',
+        stemWarning: data.stemWarning || null,
+      });
+
+      if ((data.generationOutcome as string) === 'fallback') {
+        toast({
+          title: 'Fallback Generation Used',
+          description: 'The primary provider path did not fully succeed, so a fallback provider path was used.',
+        });
+      }
       setSavedToLibrary(false);
       setLinkCopied(false);
       const varCount = data.variations?.length || 0;
@@ -373,6 +531,13 @@ export function ProAudioGenerator() {
         title: 'Song Generated!',
         description: `Ready to play via ${data.provider || providerLabel}${extra}`,
       });
+
+      if (Array.isArray(data?.providerWarnings) && data.providerWarnings.length > 0) {
+        toast({
+          title: 'Generation Constraints Applied',
+          description: data.providerWarnings.join(' '),
+        });
+      }
 
       if (data?.stemWarning) {
         toast({
@@ -389,8 +554,10 @@ export function ProAudioGenerator() {
           .filter((entry) => typeof entry.url === 'string' && entry.url.length > 0);
 
         importableStems.forEach((entry) => {
+          const mappedTrackId = data?.stemChannelMapping?.[String(entry.stemName)] || `track-stem-${String(entry.stemName)}`;
           window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
             detail: {
+              trackId: mappedTrackId,
               name: `${data.title || 'Generated Song'} - ${String(entry.stemName).toUpperCase()}`,
               audioUrl: entry.url,
             }
@@ -404,14 +571,36 @@ export function ProAudioGenerator() {
           });
         }
       }
+
+      const cacheKey = buildTakeCacheKey({
+        prompt: songDescription,
+        provider: data.provider || aiProvider,
+        seed: typeof data.seed === 'number' ? data.seed : (typeof seed === 'number' ? seed : undefined),
+        bpm: effectiveBpm,
+        duration: effectiveDuration,
+        structureKey: songStructure,
+      });
+      persistBestTake(cacheKey, data as GeneratedSong, 0);
+      void loadAIMetrics();
     },
     onError: (error) => {
       setGenerationProgress('');
+      const message = String(error?.message || 'Generation failed');
+      const requestIdMatch = message.match(/requestId=([^\]\s|]+)/i);
+      const providerMatch = message.match(/provider=([^\]\s|]+)/i);
+      setGenerationMeta((prev) => ({
+        requestedProvider: prev?.requestedProvider || aiProvider,
+        effectiveProvider: providerMatch?.[1] || prev?.effectiveProvider || null,
+        requestId: requestIdMatch?.[1] || prev?.requestId || null,
+        outcome: 'error',
+        stemWarning: prev?.stemWarning || null,
+      }));
       toast({
         title: `Generation Failed (${providerLabel})`,
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
+      void loadAIMetrics();
     },
   });
 
@@ -722,7 +911,7 @@ export function ProAudioGenerator() {
                         </div>
                         <div>
                           <Label className="mb-1.5 block text-sm">Variations</Label>
-                          <Select value={String(variations)} onValueChange={(v) => setVariations(Number(v))}>
+                          <Select value={String(variations)} onValueChange={(v) => setVariations(Number(v))} disabled={generateMultiple}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="1">1 (fastest)</SelectItem>
@@ -731,6 +920,9 @@ export function ProAudioGenerator() {
                               <SelectItem value="4">4 variations (pick best)</SelectItem>
                             </SelectContent>
                           </Select>
+                          {generateMultiple && (
+                            <p className="text-[10px] text-muted-foreground mt-1">"Generate 3 options" is enabled, so variations are locked to 3.</p>
+                          )}
                         </div>
                       </div>
 
@@ -738,6 +930,10 @@ export function ProAudioGenerator() {
                         <div>
                           <Label className="mb-1.5 block text-sm">Seed</Label>
                           <Input type="number" placeholder="Random" value={seed} onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : '')} />
+                          <div className="flex items-center gap-2 mt-2">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setSeed(Date.now())}>Randomize</Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setSeed('')}>Clear</Button>
+                          </div>
                           <p className="text-[10px] text-muted-foreground mt-1">Same seed = same output. Leave empty for random.</p>
                         </div>
                         <div>
@@ -770,6 +966,10 @@ export function ProAudioGenerator() {
                             <Switch checked={autoImportStems} onCheckedChange={setAutoImportStems} disabled={!autoSeparateStems} />
                             <span className="text-sm text-muted-foreground">Auto-import stems into Multi-Track</span>
                           </div>
+                          <div className="flex items-center gap-2">
+                            <Switch checked={requireStems} onCheckedChange={setRequireStems} disabled={!autoSeparateStems} />
+                            <span className="text-sm text-muted-foreground">Require stems (fail generation if unavailable)</span>
+                          </div>
                           <p className="text-[10px] text-muted-foreground">Imports each returned stem as its own audio track.</p>
                         </div>
                       </div>
@@ -786,6 +986,64 @@ export function ProAudioGenerator() {
                 <span><strong>{providerLabel}</strong> does not generate audio. Switch to Suno or MusicGen.</span>
               </div>
             )}
+
+            {requireStems && autoSeparateStems && (
+              <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 text-sm text-sky-200 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  Strict stems mode is enabled. Generation will fail if stems cannot be produced for this request.
+                </span>
+              </div>
+            )}
+
+            {generationMeta?.requestId && (
+              <div className="bg-muted/40 border rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+                <div><span className="font-medium">Request ID:</span> {generationMeta.requestId}</div>
+                {generationMeta.requestedProvider && (
+                  <div><span className="font-medium">Requested Provider:</span> {generationMeta.requestedProvider}</div>
+                )}
+                {generationMeta.effectiveProvider && (
+                  <div><span className="font-medium">Effective Provider:</span> {generationMeta.effectiveProvider}</div>
+                )}
+                {generationMeta.outcome && (
+                  <div><span className="font-medium">Outcome:</span> {generationMeta.outcome}</div>
+                )}
+                {generationMeta.stemWarning && (
+                  <div className="text-amber-400"><span className="font-medium">Stem Warning:</span> {generationMeta.stemWarning}</div>
+                )}
+              </div>
+            )}
+
+            <div className="bg-muted/20 border rounded-lg p-3 text-xs text-muted-foreground space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-foreground">AI Generation Metrics</span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => void loadAIMetrics()}>
+                  Refresh
+                </Button>
+              </div>
+              {aiMetricsError && <div className="text-amber-400">{aiMetricsError}</div>}
+              {!aiMetrics && !aiMetricsError && <div>Loading metrics...</div>}
+              {aiMetrics && (
+                <div className="space-y-1">
+                  <div>Total requests: {aiMetrics.totals.total} • Fallback rate: {(aiMetrics.totals.fallbackRate * 100).toFixed(1)}% • Avg latency: {Math.round(aiMetrics.totals.averageLatencyMs)}ms</div>
+                  {aiMetrics.routes['/api/music/generate-complete'] && (
+                    <div>
+                      /api/music/generate-complete → total {aiMetrics.routes['/api/music/generate-complete'].total}, fallback {aiMetrics.routes['/api/music/generate-complete'].fallback}, error {aiMetrics.routes['/api/music/generate-complete'].error}
+                    </div>
+                  )}
+                  {aiMetrics.routes['/api/astutely'] && (
+                    <div>
+                      /api/astutely → total {aiMetrics.routes['/api/astutely'].total}, fallback {aiMetrics.routes['/api/astutely'].fallback}, error {aiMetrics.routes['/api/astutely'].error}
+                    </div>
+                  )}
+                  {aiMetrics.routes['/api/astutely/generate-audio'] && (
+                    <div>
+                      /api/astutely/generate-audio → total {aiMetrics.routes['/api/astutely/generate-audio'].total}, fallback {aiMetrics.routes['/api/astutely/generate-audio'].fallback}, error {aiMetrics.routes['/api/astutely/generate-audio'].error}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {isBpmCapped && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-sm text-amber-300 flex items-start gap-2">
@@ -919,6 +1177,16 @@ export function ProAudioGenerator() {
                               setCurrentTime(0);
                             }
                             setGeneratedSong(prev => prev ? { ...prev, audioUrl: v.audio_url } : prev);
+
+                            const cacheKey = buildTakeCacheKey({
+                              prompt: songDescription,
+                              provider: generatedSong.provider || aiProvider,
+                              seed: typeof generatedSong.seed === 'number' ? generatedSong.seed : (typeof seed === 'number' ? seed : undefined),
+                              bpm: effectiveBpm,
+                              duration: effectiveDuration,
+                              structureKey: songStructure,
+                            });
+                            persistBestTake(cacheKey, generatedSong, i);
                           }}
                         >
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
@@ -969,6 +1237,13 @@ export function ProAudioGenerator() {
                   <div><span className="font-medium">Prompt:</span> {generatedSong.prompt}</div>
                   {generatedSong.seed != null && <div><span className="font-medium">Seed:</span> {generatedSong.seed} (reuse for same output)</div>}
                   {generatedSong.provider && <div><span className="font-medium">Provider:</span> {generatedSong.provider}</div>}
+                  {generatedSong.requestId && <div><span className="font-medium">Request ID:</span> {generatedSong.requestId}</div>}
+                  {generatedSong.requestedProvider && <div><span className="font-medium">Requested Provider:</span> {generatedSong.requestedProvider}</div>}
+                  {generatedSong.effectiveProvider && <div><span className="font-medium">Effective Provider:</span> {generatedSong.effectiveProvider}</div>}
+                  {generatedSong.generationOutcome && <div><span className="font-medium">Outcome:</span> {generatedSong.generationOutcome}</div>}
+                  {generatedSong.stemWarning && (
+                    <div className="text-amber-400"><span className="font-medium">Stem Warning:</span> {generatedSong.stemWarning}</div>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -8,6 +8,19 @@ const INDEX_FILE = path.join(VOICES_DIR, "index.json");
 
 // RVC API configuration
 const RVC_API_URL = process.env.RVC_API_URL || "http://localhost:7870";
+const ELEVENLABS_API_URL = process.env.ELEVENLABS_API_URL || "https://api.elevenlabs.io/v1";
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
+const ELEVENLABS_S2S_MODEL_ID = process.env.ELEVENLABS_S2S_MODEL_ID || "eleven_multilingual_sts_v2";
+
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+
+const ELEVENLABS_S2S_STABILITY = clamp01(Number.parseFloat(process.env.ELEVENLABS_S2S_STABILITY ?? "0.92"));
+const ELEVENLABS_S2S_SIMILARITY = clamp01(Number.parseFloat(process.env.ELEVENLABS_S2S_SIMILARITY ?? "0.96"));
+const ELEVENLABS_S2S_STYLE = clamp01(Number.parseFloat(process.env.ELEVENLABS_S2S_STYLE ?? "0.0"));
+const ELEVENLABS_S2S_SPEAKER_BOOST = (process.env.ELEVENLABS_S2S_SPEAKER_BOOST ?? "true").toLowerCase() !== "false";
 
 export interface VoiceRecord {
   voiceId: string;
@@ -26,6 +39,88 @@ export interface ConvertOptions {
   filterRadius?: number;
   rmsMixRate?: number;
   protect?: number;
+  provider?: "rvc" | "elevenlabs";
+  sourcePath?: string;
+}
+
+function ensureVoiceOutputsDir(): string {
+  const outputsDir = path.join(VOICES_DIR, "outputs");
+  if (!fs.existsSync(outputsDir)) {
+    fs.mkdirSync(outputsDir, { recursive: true });
+  }
+  return outputsDir;
+}
+
+function saveConvertedOutput(buffer: Buffer, extension: "wav" | "mp3"): string {
+  const outputsDir = ensureVoiceOutputsDir();
+  const outputFilename = `vc-${crypto.randomUUID()}.${extension}`;
+  const outputPath = path.join(outputsDir, outputFilename);
+  fs.writeFileSync(outputPath, buffer);
+  return `/api/internal/uploads/voices/outputs/${outputFilename}`;
+}
+
+function inferAudioMime(sourcePath: string): string {
+  const ext = path.extname(sourcePath).toLowerCase();
+  if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".ogg") return "audio/ogg";
+  if (ext === ".flac") return "audio/flac";
+  if (ext === ".m4a") return "audio/mp4";
+  if (ext === ".aac") return "audio/aac";
+  return "audio/wav";
+}
+
+async function convertWithElevenLabs(
+  voiceId: string,
+  audioUrl: string,
+  options: ConvertOptions = {}
+): Promise<string> {
+  if (!ELEVENLABS_API_KEY) {
+    throw new Error("ElevenLabs API key not configured (ELEVENLABS_API_KEY)");
+  }
+
+  const sourcePath = options.sourcePath;
+  if (!sourcePath || !fs.existsSync(sourcePath)) {
+    throw new Error("ElevenLabs conversion requires a valid uploaded source audio file");
+  }
+
+  const sourceBuffer = fs.readFileSync(sourcePath);
+  const mimeType = inferAudioMime(sourcePath);
+  const sourceFileName = path.basename(sourcePath);
+
+  const form = new FormData();
+  form.append("audio", new Blob([sourceBuffer], { type: mimeType }), sourceFileName);
+  form.append("model_id", ELEVENLABS_S2S_MODEL_ID);
+  form.append(
+    "voice_settings",
+    JSON.stringify({
+      stability: ELEVENLABS_S2S_STABILITY,
+      similarity_boost: ELEVENLABS_S2S_SIMILARITY,
+      style: ELEVENLABS_S2S_STYLE,
+      use_speaker_boost: ELEVENLABS_S2S_SPEAKER_BOOST,
+    })
+  );
+
+  const response = await fetch(`${ELEVENLABS_API_URL}/speech-to-speech/${encodeURIComponent(voiceId)}/stream`, {
+    method: "POST",
+    headers: {
+      "xi-api-key": ELEVENLABS_API_KEY,
+      Accept: "audio/mpeg",
+    },
+    body: form,
+    signal: AbortSignal.timeout(120000),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "Unknown ElevenLabs error");
+    throw new Error(`ElevenLabs conversion failed: ${errorText}`);
+  }
+
+  const outputArrayBuffer = await response.arrayBuffer();
+  if (!outputArrayBuffer || outputArrayBuffer.byteLength === 0) {
+    throw new Error("ElevenLabs returned empty audio output");
+  }
+
+  return saveConvertedOutput(Buffer.from(outputArrayBuffer), "mp3");
 }
 
 function ensureVoicesDir() {
@@ -154,6 +249,11 @@ export async function convertWithVoice(
   audioUrl: string,
   options: ConvertOptions = {}
 ): Promise<string> {
+  const provider = (options.provider || "rvc").toLowerCase();
+  if (provider === "elevenlabs") {
+    return convertWithElevenLabs(voiceId, audioUrl, options);
+  }
+
   const voice = getVoice(voiceId);
   if (!voice) {
     throw new Error("Voice not found");
@@ -206,21 +306,14 @@ export async function convertWithVoice(
     
     if (result.success && result.output_path) {
       // Copy RVC output to our storage
-      const outputFilename = `vc-${crypto.randomUUID()}.wav`;
-      const outputPath = path.join(VOICES_DIR, "outputs", outputFilename);
-      
-      // Ensure outputs directory exists
-      const outputsDir = path.join(VOICES_DIR, "outputs");
-      if (!fs.existsSync(outputsDir)) {
-        fs.mkdirSync(outputsDir, { recursive: true });
-      }
+      ensureVoiceOutputsDir();
 
       if (fs.existsSync(result.output_path)) {
-        fs.copyFileSync(result.output_path, outputPath);
+        const copiedData = fs.readFileSync(result.output_path);
         // Clean up RVC temp file
         try { fs.unlinkSync(result.output_path); } catch {}
-        
-        return `/api/internal/uploads/voices/outputs/${outputFilename}`;
+
+        return saveConvertedOutput(copiedData, "wav");
       }
     }
 

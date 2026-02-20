@@ -8,13 +8,25 @@ import { enhancePromptWithMusicTheory, getProgressionsForGenre } from '../ai/kno
 import { buildAstutelyPrompt } from '../ai/prompts/astutelyPrompt';
 import { logPromptStart, logPromptResult } from '../ai/utils/promptLogger';
 import { generateAstutelyFallback } from '../../shared/astutelyFallback';
+import { resolveGenerationConstraints } from '@shared/aiProviderCapabilities';
 import { sunoApiService } from '../services/sunoApiService';
+import { recordAIGenerationMetric } from '../services/aiRouteMetrics';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+const astutelyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many Astutely generation requests. Please wait a moment.' },
+});
 
 // Astutely — the real AI music generation endpoint
-router.post('/astutely', async (req: Request, res: Response) => {
+router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) => {
   const { style, prompt = '', tempo, timeSignature, key, trackSummaries } = req.body;
+  const requestId = `astutely-pattern-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  const routeStartedAt = Date.now();
 
   if (!style) {
     return res.status(400).json({ error: 'Style is required' });
@@ -177,9 +189,18 @@ router.post('/astutely', async (req: Request, res: Response) => {
       warnings: [...new Set([...(output.meta?.warnings ?? []), ...(result.warnings ?? [])])],
       aiSource: output.meta?.aiSource || output._aiSource || (result.usedFallback ? 'astutely-fallback' : 'astutely-ai'),
       attempts: result.attempts,
+      requestId,
     };
 
     output.meta = mergedMeta;
+
+    recordAIGenerationMetric({
+      route: '/api/astutely',
+      requestedProvider: null,
+      effectiveProvider: mergedMeta.aiSource,
+      outcome: mergedMeta.usedFallback ? 'fallback' : 'success',
+      latencyMs: Date.now() - routeStartedAt,
+    });
 
     return res.json(output);
 
@@ -199,6 +220,20 @@ router.post('/astutely', async (req: Request, res: Response) => {
       timeSignature: normalizedTimeSignature,
       fallbackReason: error.message ?? 'astutely_route_error'
     });
+
+    recordAIGenerationMetric({
+      route: '/api/astutely',
+      requestedProvider: null,
+      effectiveProvider: 'astutely-fallback',
+      outcome: 'error',
+      latencyMs: Date.now() - routeStartedAt,
+    });
+
+    (fallbackResult as any).meta = {
+      ...((fallbackResult as any).meta ?? {}),
+      requestId,
+      usedFallback: true,
+    };
     
     return res.json(fallbackResult);
   }
@@ -214,40 +249,67 @@ router.get('/astutely/status/:predictionId', async (req: Request, res: Response)
 });
 
 // Generate actual audio using Suno API
-router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
-  const { style, prompt, bpm, key, duration, instrumental = true } = req.body;
+router.post('/astutely/generate-audio', astutelyLimiter, async (req: Request, res: Response) => {
+  const { style, prompt, bpm, key, duration, instrumental = true, aiProvider = 'suno', seed, variations, melodyUrl, structure } = req.body;
 
   if (!style && !prompt) {
     return res.status(400).json({ error: 'Style or prompt is required' });
   }
 
+  const requestId = `astutely-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  const routeStartedAt = Date.now();
+  const constraints = resolveGenerationConstraints({
+    provider: aiProvider,
+    duration,
+    bpm,
+    variations,
+    sectionCount: Array.isArray(structure) ? structure.length : 0,
+    requireGuideMelody: Boolean(melodyUrl),
+  });
+  const effectiveProvider = constraints.effectiveProvider;
+  const effectiveDuration = constraints.duration ?? 30;
+  const effectiveBpm = constraints.bpm ?? (Number.isFinite(Number(bpm)) ? Number(bpm) : 120);
+
   // Normalize duration with sensible bounds to avoid hard-coded 30s
-  const targetDuration = (() => {
-    const parsed = Number(duration);
-    if (!Number.isFinite(parsed)) return 30;
-    return Math.max(10, Math.min(parsed, 120));
-  })();
+  const targetDuration = Math.max(10, Math.min(effectiveDuration, 240));
 
   try {
     // Check if Suno API is configured
-    if (!sunoApiService.isConfigured()) {
+    if (!sunoApiService.isConfigured() || effectiveProvider === 'replicate-musicgen' || effectiveProvider === 'astutely') {
       console.log('[Astutely] Suno API not configured, falling back to MusicGen via Replicate');
       
       // Fallback to MusicGen via unifiedMusicService
-      const musicPrompt = prompt || `${style} instrumental beat, ${bpm || 120} BPM, professional quality`;
+      const musicPrompt = prompt || `${style} instrumental beat, ${effectiveBpm} BPM, professional quality`;
       const result = await unifiedMusicService.generateTrack(musicPrompt, {
         type: 'beat',
         duration: targetDuration,
+        bpm: effectiveBpm,
+        style: style || undefined,
+        key: key || undefined,
       });
 
       if (result?.audio_url) {
+        const resolvedProvider = String(result.metadata?.generator || 'musicgen');
+        const outcome: 'success' | 'fallback' = resolvedProvider.toLowerCase().includes('fallback') ? 'fallback' : 'success';
+        recordAIGenerationMetric({
+          route: '/api/astutely/generate-audio',
+          requestedProvider: aiProvider,
+          effectiveProvider: resolvedProvider,
+          outcome,
+          latencyMs: Date.now() - routeStartedAt,
+        });
         return res.json({
           success: true,
           audioUrl: result.audio_url,
           duration: targetDuration,
-          provider: 'musicgen',
+          provider: result.metadata?.generator || 'musicgen',
+          requestedProvider: aiProvider,
+          effectiveProvider,
+          requestId,
+          providerWarnings: constraints.warnings,
+          rerouteReason: constraints.rerouteReason,
           style,
-          bpm: bpm || 120,
+          bpm: effectiveBpm,
         });
       }
       
@@ -259,7 +321,15 @@ router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
 
     console.log(`[Astutely] Generating audio with Suno API: ${style}`);
     
-    const result = await sunoApiService.generateBeat(style, bpm, key);
+    const result = await sunoApiService.generateBeat(style, effectiveBpm, key);
+
+    recordAIGenerationMetric({
+      route: '/api/astutely/generate-audio',
+      requestedProvider: aiProvider,
+      effectiveProvider: 'suno',
+      outcome: 'success',
+      latencyMs: Date.now() - routeStartedAt,
+    });
     
     return res.json({
       success: true,
@@ -267,8 +337,13 @@ router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
       streamUrl: result.streamUrl,
       duration: result.duration ?? targetDuration,
       provider: 'suno',
+      requestedProvider: aiProvider,
+      effectiveProvider,
+      requestId,
+      providerWarnings: constraints.warnings,
+      rerouteReason: constraints.rerouteReason,
       style,
-      bpm: bpm || 120,
+      bpm: effectiveBpm,
       key,
     });
 
@@ -278,29 +353,56 @@ router.post('/astutely/generate-audio', async (req: Request, res: Response) => {
     // Try MusicGen as fallback
     try {
       console.log('[Astutely] Trying MusicGen fallback...');
-      const musicPrompt = prompt || `${style} instrumental beat, ${bpm || 120} BPM, professional quality`;
+      const musicPrompt = prompt || `${style} instrumental beat, ${effectiveBpm} BPM, professional quality`;
       const result = await unifiedMusicService.generateTrack(musicPrompt, {
         type: 'beat',
-        duration: 30,
+        duration: targetDuration,
+        bpm: effectiveBpm,
+        style: style || undefined,
+        key: key || undefined,
       });
 
       if (result?.audio_url) {
+        recordAIGenerationMetric({
+          route: '/api/astutely/generate-audio',
+          requestedProvider: aiProvider,
+          effectiveProvider: 'musicgen-fallback',
+          outcome: 'fallback',
+          latencyMs: Date.now() - routeStartedAt,
+        });
         return res.json({
           success: true,
           audioUrl: result.audio_url,
-          duration: 30,
+          duration: targetDuration,
           provider: 'musicgen-fallback',
+          requestedProvider: aiProvider,
+          effectiveProvider,
+          requestId,
+          providerWarnings: constraints.warnings,
+          rerouteReason: constraints.rerouteReason,
           style,
-          bpm: bpm || 120,
+          bpm: effectiveBpm,
         });
       }
     } catch (fallbackError) {
       console.error('[Astutely] MusicGen fallback also failed:', fallbackError);
     }
 
+    recordAIGenerationMetric({
+      route: '/api/astutely/generate-audio',
+      requestedProvider: aiProvider,
+      effectiveProvider,
+      outcome: 'error',
+      latencyMs: Date.now() - routeStartedAt,
+    });
+
     return res.status(500).json({ 
       error: 'Audio generation failed',
-      details: error.message 
+      details: error.message,
+      requestId,
+      requestedProvider: aiProvider,
+      effectiveProvider,
+      providerWarnings: constraints.warnings,
     });
   }
 });

@@ -1,8 +1,79 @@
 import Replicate from "replicate";
 import { randomUUID } from "crypto";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import ffmpeg from "fluent-ffmpeg";
 import { localMusicGenService, LocalMusicGenPack, LocalMusicGenSample } from "./local-musicgen";
 import { ObjectStorageService } from "../objectStorage";
 import { getGenreSpec, enhancePromptWithGenre } from "../ai/knowledge/genreDatabase";
+
+const LOCAL_OBJECTS_DIR =
+  fs.existsSync("/data") && fs.statSync("/data").isDirectory()
+    ? path.resolve("/data", "objects")
+    : path.resolve(process.cwd(), "objects");
+
+fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
+
+async function getAudioDuration(filePath: string): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) {
+        return reject(err);
+      }
+      const duration = metadata?.format?.duration ?? 0;
+      resolve(duration);
+    });
+  });
+}
+
+async function polishGeneratedAudio(sourceUrl: string): Promise<{ url: string; duration: number }> {
+  const inputPath = path.join(os.tmpdir(), `ai-input-${randomUUID()}`);
+  const outputPath = path.join(os.tmpdir(), `ai-output-${randomUUID()}.mp3`);
+  try {
+    const response = await fetch(sourceUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download audio for polish: ${response.status} ${response.statusText}`);
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await fs.promises.writeFile(inputPath, buffer);
+
+    const duration = await getAudioDuration(inputPath);
+    const outFadeStart = Math.max(0, duration - 0.75);
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(inputPath)
+        .audioFilters([
+          "loudnorm=I=-16:LRA=11:TP=-1.5",
+          "dynaudnorm",
+          "afade=t=in:st=0:d=0.3",
+          `afade=t=out:st=${outFadeStart}:d=0.5`,
+        ])
+        .audioCodec("libmp3lame")
+        .audioBitrate("192k")
+        .on("end", () => resolve())
+        .on("error", (err) => reject(err))
+        .save(outputPath);
+    });
+
+    const relativeKey = `generated/${randomUUID()}.mp3`;
+    const destPath = path.join(LOCAL_OBJECTS_DIR, relativeKey);
+    await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+    await fs.promises.copyFile(outputPath, destPath);
+
+    return {
+      url: `/api/internal/uploads/${relativeKey}`,
+      duration,
+    };
+  } finally {
+    [inputPath, outputPath].forEach((file) => {
+      try {
+        fs.unlinkSync(file);
+      } catch {
+        // ignore
+      }
+    });
+  }
+}
 
 // Replicate client
 const replicate = new Replicate({

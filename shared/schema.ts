@@ -593,6 +593,84 @@ export type JamContribution = typeof jamContributions.$inferSelect;
 export type InsertJamContribution = z.infer<typeof insertJamContributionSchema>;
 export type JamLike = typeof jamLikes.$inferSelect;
 
+// Voice Conversion Jobs - tracks async pipeline execution
+export const voiceConvertJobs = pgTable("voice_convert_jobs", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
+  status: varchar("status").notNull().default("queued"), // queued, separating, converting, correcting, remixing, done, failed
+  executionMode: varchar("execution_mode").notNull().default("cloud"), // cloud, byo_keys
+  stemMode: integer("stem_mode").notNull().default(2), // 2 or 4
+  provider: varchar("provider").notNull().default("elevenlabs"), // elevenlabs, rvc
+  voiceId: varchar("voice_id").notNull(),
+  pitchCorrect: boolean("pitch_correct").default(false),
+  // Source
+  sourceFileName: varchar("source_file_name"),
+  sourceUrl: varchar("source_url"),
+  // Output URLs (populated as pipeline progresses)
+  vocalStemUrl: varchar("vocal_stem_url"),
+  instrumentalStemUrl: varchar("instrumental_stem_url"),
+  drumsStemUrl: varchar("drums_stem_url"),
+  bassStemUrl: varchar("bass_stem_url"),
+  otherStemUrl: varchar("other_stem_url"),
+  convertedVocalUrl: varchar("converted_vocal_url"),
+  correctedVocalUrl: varchar("corrected_vocal_url"),
+  remixUrl: varchar("remix_url"),
+  // Cost tracking
+  creditsCost: integer("credits_cost").default(0),
+  vendorCostCents: integer("vendor_cost_cents").default(0), // actual API cost in cents
+  // Error handling
+  error: text("error"),
+  failedStage: varchar("failed_stage"),
+  retryCount: integer("retry_count").default(0),
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// User API Keys - encrypted BYO key vault for cost-shifting
+export const userApiKeys = pgTable("user_api_keys", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
+  service: varchar("service").notNull(), // elevenlabs, replicate
+  encryptedKey: text("encrypted_key").notNull(),
+  keyHint: varchar("key_hint"), // last 4 chars for display
+  isValid: boolean("is_valid").default(true),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertVoiceConvertJobSchema = createInsertSchema(voiceConvertJobs).pick({
+  executionMode: true,
+  stemMode: true,
+  provider: true,
+  voiceId: true,
+  pitchCorrect: true,
+  sourceFileName: true,
+  sourceUrl: true,
+});
+
+export const insertUserApiKeySchema = createInsertSchema(userApiKeys).pick({
+  service: true,
+  encryptedKey: true,
+  keyHint: true,
+});
+
+export type VoiceConvertJob = typeof voiceConvertJobs.$inferSelect;
+export type InsertVoiceConvertJob = z.infer<typeof insertVoiceConvertJobSchema>;
+export type UserApiKey = typeof userApiKeys.$inferSelect;
+export type InsertUserApiKey = z.infer<typeof insertUserApiKeySchema>;
+
 // AI Recommendation System for Song Analysis
 export enum RecommendationCategory {
   MIX_BALANCE = "mix_balance",

@@ -93,6 +93,8 @@ for (let i = 0; i <= 127; i++) {
 type DrumEngineType =
   | 'kick' | 'snare' | 'clap' | 'hihat' | 'openhat' | 'ride' | 'tom' | 'tom_hi' | 'tom_mid' | 'tom_lo' | 'conga' | 'perc' | 'rim' | 'crash' | 'cowbell';
 
+type DrumGrooveMode = 'tight' | 'balanced' | 'busy';
+
 // Normalize drum ids to sound engine types
 const DRUM_ID_TO_TYPE: Record<string, DrumEngineType> = {
   kick: 'kick',
@@ -124,6 +126,62 @@ const DRUM_ID_TO_TYPE: Record<string, DrumEngineType> = {
   tom_hi: 'tom_hi',
   tom_mid: 'tom_mid',
   tom_lo: 'tom_lo',
+};
+
+const createSeededRandom = (seed: number) => {
+  let state = (seed >>> 0) || 1;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+};
+
+const applyGrooveModeToRow = (
+  row: Array<number | boolean>,
+  lane: 'kick' | 'snare' | 'hihat' | 'percussion',
+  mode: DrumGrooveMode,
+  totalSteps: number,
+  seed: number,
+): number[] => {
+  const normalized = Array.from({ length: totalSteps }, (_, i) => (row[i] ? 1 : 0));
+  if (mode === 'balanced') return normalized;
+
+  const random = createSeededRandom(seed);
+  const next = [...normalized];
+
+  if (mode === 'tight') {
+    for (let i = 0; i < next.length; i++) {
+      const stepInBar = i % 16;
+      const isKickAnchor = stepInBar === 0 || stepInBar === 8;
+      const isSnareAnchor = stepInBar === 4 || stepInBar === 12;
+      const isHatAnchor = stepInBar % 2 === 0;
+
+      if (lane === 'kick' && next[i] === 1 && !isKickAnchor && random() < 0.45) next[i] = 0;
+      if (lane === 'snare' && next[i] === 1 && !isSnareAnchor && random() < 0.6) next[i] = 0;
+      if (lane === 'hihat' && next[i] === 1 && !isHatAnchor && random() < 0.45) next[i] = 0;
+      if (lane === 'percussion' && next[i] === 1 && random() < 0.55) next[i] = 0;
+    }
+    return next;
+  }
+
+  for (let i = 0; i < next.length; i++) {
+    const stepInBar = i % 16;
+
+    if (lane === 'kick' && (stepInBar === 6 || stepInBar === 10 || stepInBar === 14) && random() < 0.24) {
+      next[i] = 1;
+    }
+    if (lane === 'snare' && (stepInBar === 3 || stepInBar === 15) && random() < 0.2) {
+      next[i] = 1;
+    }
+    if (lane === 'hihat' && stepInBar % 2 === 1 && random() < 0.45) {
+      next[i] = 1;
+    }
+    if (lane === 'percussion' && (stepInBar === 7 || stepInBar === 11 || stepInBar === 15) && random() < 0.35) {
+      next[i] = 1;
+    }
+  }
+
+  return next;
 };
 
 // Types
@@ -448,6 +506,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
   const [midiLearnTarget, setMidiLearnTarget] = useState<string | null>(null);
   const [aiProvider, setAiProvider] = useState('grok');
   const [selectedGenre, setSelectedGenre] = useState('Hip-Hop');
+  const [grooveMode, setGrooveMode] = useState<DrumGrooveMode>('balanced');
   
   const audioCtx = useRef<AudioContext | null>(null);
   const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -680,11 +739,14 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     mutationFn: async () => {
       const bars = Math.max(1, Math.ceil(patternLength / 16));
       const beatGridProvider = aiProvider === 'grok' || aiProvider === 'openai' ? aiProvider : undefined;
+      const generationSeed = Date.now() + Math.floor(Math.random() * 100000);
       const response = await apiRequest('POST', '/api/ai/music/drums', {
         bpm,
         bars,
         style: selectedGenre.toLowerCase(),
+        grooveMode,
         aiProvider: beatGridProvider,
+        generationSeed,
         gridResolution: '1/16',
       });
       return response.json();
@@ -701,25 +763,47 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         return grid.percussion || [];
       };
 
+      const responseSeed = Number.isFinite(Number(data?.data?.generationSeed))
+        ? Number(data?.data?.generationSeed)
+        : Date.now();
+
       saveHistory();
       setTracks(prev => prev.map((track) => {
         const row = pickGridRow(track.id);
+        const drumType = DRUM_ID_TO_TYPE[track.id.toLowerCase()] || 'perc';
+        const lane: 'kick' | 'snare' | 'hihat' | 'percussion' =
+          drumType === 'kick'
+            ? 'kick'
+            : (drumType === 'snare' || drumType === 'clap' || drumType === 'rim')
+              ? 'snare'
+              : (drumType === 'hihat' || drumType === 'openhat' || drumType === 'ride' || drumType === 'crash')
+                ? 'hihat'
+                : 'percussion';
+        const grooveRow = applyGrooveModeToRow(
+          row,
+          lane,
+          grooveMode,
+          track.pattern.length,
+          responseSeed + track.id.length,
+        );
         return {
           ...track,
           pattern: track.pattern.map((step, i) => ({
             ...step,
-            active: !!row[i % Math.max(1, row.length)],
+            active: !!grooveRow[i],
           })),
         };
       }));
 
       toast({
         title: 'AI Beat Pattern Synchronized',
-        description: data?.data?.provider
-          ? `Provider: ${data.data.provider}`
-          : (aiProvider !== 'grok' && aiProvider !== 'openai'
-            ? `Selected provider (${aiProvider}) is audio/text-specialized for other tasks; beat grid used the internal text provider.`
-            : undefined),
+        description: data?.data?.generationMethod === 'algorithmic'
+          ? `Fallback pattern used (${data?.data?.fallbackReason || 'AI unavailable'}). Seed: ${data?.data?.generationSeed ?? 'n/a'}`
+          : (data?.data?.provider
+            ? `Provider: ${data.data.provider}${data?.data?.generationSeed ? ` • Seed: ${data.data.generationSeed}` : ''} • Groove: ${grooveMode}`
+            : (aiProvider !== 'grok' && aiProvider !== 'openai'
+              ? `Selected provider (${aiProvider}) is audio/text-specialized for other tasks; beat grid used the internal text provider.`
+              : undefined)),
       });
     },
     onError: (err: any) => {
@@ -1017,6 +1101,16 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
               {Object.keys(PRESETS).map(g => (
                 <SelectItem key={g} value={g} className="focus:bg-blue-500/20">{g}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={grooveMode} onValueChange={(value) => setGrooveMode(value as DrumGrooveMode)}>
+            <SelectTrigger className="h-12 w-32 bg-black/20 border-white/10 rounded-xl font-bold text-xs">
+              <SelectValue placeholder="Groove" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
+              <SelectItem value="tight" className="focus:bg-blue-500/20">Tight</SelectItem>
+              <SelectItem value="balanced" className="focus:bg-blue-500/20">Balanced</SelectItem>
+              <SelectItem value="busy" className="focus:bg-blue-500/20">Busy</SelectItem>
             </SelectContent>
           </Select>
           <Button 

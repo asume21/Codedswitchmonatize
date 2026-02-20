@@ -49,6 +49,7 @@ interface StudioWindowRendererProps {
   recordingTrackName?: string;
   currentBeat?: number;
   onTakeReady?: (take: any) => void;
+  onRecordingLatencyMeasured?: (latencyMs: number) => void;
 
   // Sample Slicer
   slicerAudioUrl?: string;
@@ -63,6 +64,10 @@ interface StudioWindowRendererProps {
     audioUrl?: string;
     volume: number;
     pan: number;
+    startTimeSeconds?: number;
+    trimStartSeconds?: number;
+    trimEndSeconds?: number;
+    latencyCompensationMs?: number;
     effects?: any[];
     notes?: any[];
     clips?: any[];
@@ -159,6 +164,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
             trackName={props.recordingTrackName || 'Track'}
             currentBeat={props.currentBeat || 0}
             onTakeReady={props.onTakeReady}
+            onLatencyCompensationChange={props.onRecordingLatencyMeasured}
           />
         );
 

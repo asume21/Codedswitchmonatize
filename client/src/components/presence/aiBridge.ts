@@ -7,6 +7,13 @@
 
 import { getSignalCollector } from './signalCollector';
 import { getPresenceEngine } from './presenceEngine';
+import {
+  ASTUTELY_COMMAND_CHANNEL,
+  ASTUTELY_EVENT_CHANNEL,
+  type AstutelyCommandEnvelope,
+  type AstutelyEventEnvelope,
+  toAstutelyLegacyChannel,
+} from '@/lib/astutelyEvents';
 
 /** Astutely state that can be fed into the Presence Engine */
 export interface AstutelyState {
@@ -24,7 +31,6 @@ const MIN_AI_DISPLAY_MS = 800;
 
 export class AIBridge {
   private signalCollector = getSignalCollector();
-  private presenceEngine = getPresenceEngine();
   private astutelyState: AstutelyState = {
     isGenerating: false,
     isAnalyzing: false,
@@ -273,28 +279,28 @@ export function dispatchAstutelyEvent(
   eventName: string,
   detail?: Record<string, unknown>
 ): void {
-  const payload = {
+  const payload: AstutelyEventEnvelope = {
     name: eventName,
     detail: detail ?? {},
     timestamp: Date.now(),
   };
 
   // Legacy event channel (kept for backward compatibility)
-  window.dispatchEvent(new CustomEvent(`astutely:${eventName}`, { detail: payload.detail }));
+  window.dispatchEvent(new CustomEvent(toAstutelyLegacyChannel(eventName), { detail: payload.detail }));
 
   // Standardized event envelope channel
-  window.dispatchEvent(new CustomEvent('astutely:event', { detail: payload }));
+  window.dispatchEvent(new CustomEvent(ASTUTELY_EVENT_CHANNEL, { detail: payload }));
 }
 
 export function dispatchAstutelyCommand(
   command: string,
   detail?: Record<string, unknown>
 ): void {
-  window.dispatchEvent(new CustomEvent('astutely:command', {
-    detail: {
-      command,
-      detail: detail ?? {},
-      timestamp: Date.now(),
-    },
-  }));
+  const payload: AstutelyCommandEnvelope = {
+    command,
+    detail: detail ?? {},
+    timestamp: Date.now(),
+  };
+
+  window.dispatchEvent(new CustomEvent(ASTUTELY_COMMAND_CHANNEL, { detail: payload }));
 }

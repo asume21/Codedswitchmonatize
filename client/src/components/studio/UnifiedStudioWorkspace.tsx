@@ -87,7 +87,15 @@ const LEGACY_WORKFLOW_ID_MAP: Record<string, WorkflowPreset['id']> = {
   'immersive-mode': 'immersive',
 };
 
-const DEFAULT_TRACK_HEIGHT = 120;
+const DEFAULT_TRACK_HEIGHT = 84;
+const STUDIO_AUTOSAVE_KEY = 'unifiedStudioAutosave';
+const STUDIO_AUTOSAVE_INTERVAL_MS = 30000;
+const STUDIO_AUTOSAVE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const STUDIO_CHECKPOINTS_KEY = 'unifiedStudioCheckpoints';
+const STUDIO_MAX_CHECKPOINTS = 10;
+const STUDIO_BOUNCE_SETTINGS_KEY = 'studio:bounce:settings:v1';
+const STUDIO_UNDO_TIMELINE_KEY = 'unifiedStudioUndoTimeline';
+const STUDIO_MAX_UNDO_ENTRIES = 100;
 
 type ClipType = 'midi' | 'audio';
 interface TrackClip {
@@ -300,11 +308,23 @@ function convertAstutelyNotes(notes: ReturnType<typeof astutelyToNotes>) {
   return grouped;
 }
 
+function getAstutelyBars(grouped: ReturnType<typeof convertAstutelyNotes>) {
+  let maxStep = 0;
+  (Object.keys(grouped) as AstutelyTrackType[]).forEach((type) => {
+    grouped[type].forEach((n) => {
+      const endStep = (n.step ?? 0) + (n.length ?? 1);
+      if (endStep > maxStep) maxStep = endStep;
+    });
+  });
+  return Math.max(1, Math.ceil((maxStep + 1) / 16)); // 16 steps per bar
+}
+
 function buildAstutelyTrack(
   existing: StudioTrack | undefined,
   config: (typeof ASTUTELY_TRACK_CONFIG)[AstutelyTrackType],
   notes: Note[],
-  bpm: number
+  bpm: number,
+  lengthBars: number
 ): StudioTrack {
   const base: StudioTrack = existing || {
     id: config.id,
@@ -320,7 +340,7 @@ function buildAstutelyTrack(
     pan: 0,
     muted: false,
     solo: false,
-    lengthBars: 4,
+    lengthBars,
     startBar: 0,
     bpm,
     data: {},
@@ -338,6 +358,7 @@ function buildAstutelyTrack(
   return {
     ...base,
     notes,
+    lengthBars,
     bpm,
     payload: {
       ...(base.payload ?? createTrackPayload({ type: config.type })),
@@ -355,6 +376,7 @@ function mergeAstutelyTracks(
   bpm: number
 ) {
   let next = [...currentTracks];
+  const totalBars = getAstutelyBars(groupedNotes);
 
   (Object.keys(ASTUTELY_TRACK_CONFIG) as AstutelyTrackType[]).forEach((type) => {
     const noteSet = groupedNotes[type];
@@ -362,7 +384,7 @@ function mergeAstutelyTracks(
     const config = ASTUTELY_TRACK_CONFIG[type];
     const existingIndex = next.findIndex((track) => track.id === config.id);
     const existing = existingIndex !== -1 ? next[existingIndex] : undefined;
-    const updated = buildAstutelyTrack(existing, config, noteSet, bpm);
+    const updated = buildAstutelyTrack(existing, config, noteSet, bpm, totalBars);
     if (existingIndex !== -1) {
       next[existingIndex] = updated;
     } else {
@@ -370,7 +392,7 @@ function mergeAstutelyTracks(
     }
   });
 
-  return next;
+  return { tracks: next, totalBars };
 }
 
 function chooseAstutelyFocusTrack(groupedNotes: ReturnType<typeof convertAstutelyNotes>) {
@@ -426,7 +448,10 @@ export default function UnifiedStudioWorkspace() {
     }
 
     if (!isRestoringTracksRef.current) {
-      undoManagerRef.current.record(tracks.map(t => ({ ...t })));
+      const currentSnapshot = tracks.map(t => ({ ...t }));
+      undoManagerRef.current.record(currentSnapshot);
+      setTrackHistory((prev) => [...prev, currentSnapshot].slice(-STUDIO_MAX_UNDO_ENTRIES));
+      setTrackFuture([]);
     } else {
       isRestoringTracksRef.current = false;
     }
@@ -526,6 +551,7 @@ export default function UnifiedStudioWorkspace() {
   const [waveformTrimStart, setWaveformTrimStart] = useState(0);
   const [waveformTrimEnd, setWaveformTrimEnd] = useState(100);
   const [playheadPosition, setPlayheadPosition] = useState(0);
+  const [recordingLatencyCompensationMs, setRecordingLatencyCompensationMs] = useState(0);
   // Use the MIDI hook for real MIDI functionality
   const {
     isSupported: midiSupported,
@@ -920,6 +946,33 @@ export default function UnifiedStudioWorkspace() {
   };
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STUDIO_UNDO_TIMELINE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<{ history: StudioTrack[][]; future: StudioTrack[][] }>;
+      if (Array.isArray(parsed.history)) {
+        setTrackHistory(parsed.history.slice(-STUDIO_MAX_UNDO_ENTRIES));
+      }
+      if (Array.isArray(parsed.future)) {
+        setTrackFuture(parsed.future.slice(0, STUDIO_MAX_UNDO_ENTRIES));
+      }
+    } catch {
+      // ignore invalid persisted undo timeline payloads
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STUDIO_UNDO_TIMELINE_KEY, JSON.stringify({
+        history: trackHistory.slice(-STUDIO_MAX_UNDO_ENTRIES),
+        future: trackFuture.slice(0, STUDIO_MAX_UNDO_ENTRIES),
+      }));
+    } catch {
+      // ignore non-blocking undo timeline persistence failures
+    }
+  }, [trackHistory, trackFuture]);
+
+  useEffect(() => {
     const handleFocusTrack = (event: Event) => {
       const customEvent = event as CustomEvent<{ trackId?: string; view?: string } | undefined>;
       const trackId = customEvent.detail?.trackId;
@@ -957,12 +1010,18 @@ export default function UnifiedStudioWorkspace() {
   // Handle audio import events from other tools (e.g., Audio Tools router)
   useEffect(() => {
     const handleImportAudio = (event: Event) => {
-      const customEvent = event as CustomEvent<{ sessionId?: string; name?: string; audioUrl?: string }>;
+      const customEvent = event as CustomEvent<{ sessionId?: string; trackId?: string; name?: string; audioUrl?: string; bpm?: number; lengthBars?: number }>;
       const detail = customEvent.detail;
       if (!detail?.audioUrl) return;
 
+      const resolvedTrackId = detail.trackId || `track-${Date.now()}`;
+      const resolvedBpm = typeof detail.bpm === 'number' && Number.isFinite(detail.bpm) ? detail.bpm : 120;
+      const resolvedLengthBars = typeof detail.lengthBars === 'number' && Number.isFinite(detail.lengthBars)
+        ? Math.max(1, Math.floor(detail.lengthBars))
+        : 8;
+
       const newTrack: StudioTrack = {
-        id: `track-${Date.now()}`,
+        id: resolvedTrackId,
         name: detail.name || 'Imported Audio',
         kind: 'audio',
         type: 'audio',
@@ -972,10 +1031,10 @@ export default function UnifiedStudioWorkspace() {
         pan: 0,
         muted: false,
         solo: false,
-        lengthBars: 8,
+        lengthBars: resolvedLengthBars,
         startBar: 0,
         source: 'imported',
-        bpm: 120,
+        bpm: resolvedBpm,
         payload: createTrackPayload({ type: 'audio', audioUrl: detail.audioUrl }),
         audioUrl: detail.audioUrl,
         data: {},
@@ -983,7 +1042,22 @@ export default function UnifiedStudioWorkspace() {
         sendB: -60,
       };
 
-      setTracks([...tracks, newTrack]);
+      setTracks((prev) => {
+        const existingIndex = prev.findIndex((t) => t.id === resolvedTrackId);
+        if (existingIndex !== -1) {
+          const next = [...prev];
+          next[existingIndex] = {
+            ...next[existingIndex],
+            ...newTrack,
+            payload: {
+              ...(next[existingIndex].payload ?? createTrackPayload({ type: 'audio' })),
+              ...(newTrack.payload ?? {}),
+            },
+          };
+          return next;
+        }
+        return [...prev, newTrack];
+      });
       setSelectedTrack(newTrack.id);
       setActiveView('piano-roll');
       setPianoRollExpanded(true);
@@ -996,7 +1070,7 @@ export default function UnifiedStudioWorkspace() {
 
     window.addEventListener('studio:importAudioTrack', handleImportAudio as EventListener);
     return () => window.removeEventListener('studio:importAudioTrack', handleImportAudio as EventListener);
-  }, [setTracks, tracks, toast]);
+  }, [setTracks, toast]);
 
   const getTrackEffectsChain = useCallback((trackId: string | null) => {
     if (!trackId) return [] as ToolType[];
@@ -1031,7 +1105,13 @@ export default function UnifiedStudioWorkspace() {
         setTransportTempo(detail.bpm);
       }
 
-      setTracks(prev => mergeAstutelyTracks(prev, grouped, detail.bpm || sessionSettings.bpm));
+      const { tracks: mergedTracks, totalBars } = mergeAstutelyTracks(tracks as StudioTrack[], grouped, detail.bpm || sessionSettings.bpm);
+      setTracks(mergedTracks);
+
+      // Set loop to cover the generated pattern length
+      if (totalBars && totalBars > 0) {
+        setLoop({ enabled: true, start: 0, end: totalBars });
+      }
 
       if (focusTrackId) {
         setSelectedTrack(focusTrackId);
@@ -1096,8 +1176,28 @@ export default function UnifiedStudioWorkspace() {
       if (isCtrlZ || isCtrlY) {
         e.preventDefault();
         const current = tracks as StudioTrack[];
+        const currentSnapshot = current.map(t => ({ ...t }));
+
+        if (isCtrlZ && trackHistory.length > 0) {
+          const previousSnapshot = trackHistory[trackHistory.length - 1];
+          setTrackHistory(prev => prev.slice(0, -1));
+          setTrackFuture(prev => [currentSnapshot, ...prev].slice(0, STUDIO_MAX_UNDO_ENTRIES));
+          isRestoringTracksRef.current = true;
+          setTracks(previousSnapshot.map(t => ({ ...t })));
+          return;
+        }
+
+        if (isCtrlY && trackFuture.length > 0) {
+          const [redoSnapshot, ...rest] = trackFuture;
+          setTrackFuture(rest);
+          setTrackHistory(prev => [...prev, currentSnapshot].slice(-STUDIO_MAX_UNDO_ENTRIES));
+          isRestoringTracksRef.current = true;
+          setTracks(redoSnapshot.map(t => ({ ...t })));
+          return;
+        }
+
         const manager = undoManagerRef.current;
-        const next = isCtrlZ ? manager.undo(current.map(t => ({ ...t }))) : manager.redo(current.map(t => ({ ...t })));
+        const next = isCtrlZ ? manager.undo(currentSnapshot) : manager.redo(currentSnapshot);
         if (next) {
           isRestoringTracksRef.current = true;
           setTracks(next);
@@ -1107,7 +1207,7 @@ export default function UnifiedStudioWorkspace() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tracks, setTracks]);
+  }, [tracks, setTracks, trackHistory, trackFuture]);
 
   const ensureDefaultTrack = useCallback(() => {
     if (tracks.length === 0) {
@@ -1621,7 +1721,7 @@ export default function UnifiedStudioWorkspace() {
   };
 
   // File menu actions
-  const buildProjectData = () => ({
+  const buildProjectData = useCallback(() => ({
     version: 1,
     timestamp: new Date().toISOString(),
     tracks,
@@ -1634,7 +1734,18 @@ export default function UnifiedStudioWorkspace() {
     selectedTrack,
     snapToGridEnabled,
     showGrid,
-  });
+  }), [
+    tracks,
+    clips,
+    markers,
+    gridSettings,
+    sessionSettings,
+    loop,
+    tempo,
+    selectedTrack,
+    snapToGridEnabled,
+    showGrid,
+  ]);
 
   const downloadProject = (data: any) => {
     const dataStr = JSON.stringify(data, null, 2);
@@ -1647,7 +1758,7 @@ export default function UnifiedStudioWorkspace() {
     URL.revokeObjectURL(url);
   };
 
-  const applyProjectData = (projectData: any) => {
+  const applyProjectData = useCallback((projectData: any) => {
     const normalizedTracks: StudioTrack[] = (projectData.tracks ?? []).map((t: any) => ({
       ...t,
       id: t.id ?? `track-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
@@ -1675,7 +1786,79 @@ export default function UnifiedStudioWorkspace() {
     if (projectData.selectedTrack) setSelectedTrack(projectData.selectedTrack);
     if (typeof projectData.snapToGridEnabled === 'boolean') setSnapToGridEnabled(projectData.snapToGridEnabled);
     if (typeof projectData.showGrid === 'boolean') setShowGrid(projectData.showGrid);
-  };
+    setTrackHistory([]);
+    setTrackFuture([]);
+  }, [setClips, setGridSettings, setLoop, setMarkers, setSelectedTrack, setSessionSettings, setShowGrid, setSnapToGridEnabled, setTracks, setTransportTempo]);
+
+  const saveAutosaveSnapshot = useCallback(() => {
+    try {
+      const snapshot = {
+        savedAt: Date.now(),
+        projectData: buildProjectData(),
+      };
+      localStorage.setItem(STUDIO_AUTOSAVE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // ignore non-blocking autosave failures
+    }
+  }, [buildProjectData]);
+
+  const pushProjectCheckpoint = useCallback((reason: 'autosave' | 'manual-save' | 'restore') => {
+    try {
+      const raw = localStorage.getItem(STUDIO_CHECKPOINTS_KEY);
+      const existing = raw ? JSON.parse(raw) as Array<{ createdAt: number; reason: string; projectData: unknown }> : [];
+      const checkpoint = {
+        createdAt: Date.now(),
+        reason,
+        projectData: buildProjectData(),
+      };
+
+      const next = [checkpoint, ...existing].slice(0, STUDIO_MAX_CHECKPOINTS);
+      localStorage.setItem(STUDIO_CHECKPOINTS_KEY, JSON.stringify(next));
+    } catch {
+      // ignore checkpoint persistence failures
+    }
+  }, [buildProjectData]);
+
+  useEffect(() => {
+    saveAutosaveSnapshot();
+    pushProjectCheckpoint('autosave');
+    const timer = window.setInterval(() => {
+      saveAutosaveSnapshot();
+      pushProjectCheckpoint('autosave');
+    }, STUDIO_AUTOSAVE_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [saveAutosaveSnapshot, pushProjectCheckpoint]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STUDIO_AUTOSAVE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as { savedAt?: number; projectData?: any };
+      if (!parsed?.savedAt || !parsed?.projectData) return;
+
+      if (Date.now() - parsed.savedAt > STUDIO_AUTOSAVE_MAX_AGE_MS) {
+        return;
+      }
+
+      const hasRecoverableContent =
+        Array.isArray(parsed.projectData?.tracks) && parsed.projectData.tracks.length > 0;
+      if (!hasRecoverableContent) return;
+
+      const shouldRestore = window.confirm('Recovered autosave found. Restore the previous session?');
+      if (!shouldRestore) return;
+
+      applyProjectData(parsed.projectData);
+      pushProjectCheckpoint('restore');
+      toast({
+        title: 'Recovered Autosave',
+        description: 'Restored your previous studio session from autosave.',
+      });
+    } catch {
+      // ignore corrupted autosave payloads
+    }
+  }, [applyProjectData, toast, pushProjectCheckpoint]);
 
   const handleNewProject = () => {
     if (confirm('Create new project? This will clear all tracks.')) {
@@ -1694,6 +1877,7 @@ export default function UnifiedStudioWorkspace() {
     if (!requirePro("save", () => setShowLicenseModal(true))) return;
     const projectData = buildProjectData();
     localStorage.setItem('unifiedStudioProject', JSON.stringify(projectData));
+    pushProjectCheckpoint('manual-save');
     downloadProject(projectData);
     toast({
       title: "Project Saved",
@@ -1712,6 +1896,7 @@ export default function UnifiedStudioWorkspace() {
         const text = await file.text();
         const projectData = JSON.parse(text);
         applyProjectData(projectData);
+        pushProjectCheckpoint('restore');
         toast({
           title: "Project Loaded",
           description: file.name,
@@ -2316,6 +2501,119 @@ export default function UnifiedStudioWorkspace() {
     setShowLyricsFocus(false);
   };
 
+  const handleRecordingLatencyMeasured = useCallback((latencyMs: number) => {
+    const bounded = Math.max(0, Math.min(500, Math.round(latencyMs || 0)));
+    setRecordingLatencyCompensationMs(bounded);
+
+    try {
+      const raw = localStorage.getItem(STUDIO_BOUNCE_SETTINGS_KEY);
+      const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+      localStorage.setItem(STUDIO_BOUNCE_SETTINGS_KEY, JSON.stringify({
+        ...parsed,
+        latencyCompensationMs: bounded,
+      }));
+    } catch {
+      // non-blocking persistence
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STUDIO_BOUNCE_SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<{ latencyCompensationMs: number }>;
+      if (typeof parsed.latencyCompensationMs === 'number') {
+        setRecordingLatencyCompensationMs(Math.max(0, Math.min(500, Math.round(parsed.latencyCompensationMs))));
+      }
+    } catch {
+      // ignore invalid persisted bounce settings
+    }
+  }, []);
+
+  const selectedTrackEntity = useMemo(
+    () => (tracks as StudioTrack[]).find((t) => t.id === selectedTrack) || (tracks as StudioTrack[])[0] || null,
+    [tracks, selectedTrack],
+  );
+
+  const freezeWindowTracks = useMemo(() => {
+    const secondsPerBeat = 60 / Math.max(1, tempo || 120);
+    return (tracks as StudioTrack[]).map((track) => {
+      const trackAny = track as any;
+      const payload = trackAny.payload || {};
+      const startBar = typeof trackAny.startBar === 'number' ? trackAny.startBar : 0;
+
+      return {
+        id: track.id,
+        name: track.name,
+        audioUrl: track.audioUrl || payload.audioUrl,
+        volume: typeof track.volume === 'number' ? track.volume : 0.8,
+        pan: typeof track.pan === 'number' ? track.pan : 0,
+        startTimeSeconds:
+          typeof trackAny.startTimeSeconds === 'number'
+            ? trackAny.startTimeSeconds
+            : startBar * 4 * secondsPerBeat,
+        trimStartSeconds: typeof payload.trimStartSeconds === 'number' ? payload.trimStartSeconds : undefined,
+        trimEndSeconds: typeof payload.trimEndSeconds === 'number' ? payload.trimEndSeconds : undefined,
+        latencyCompensationMs:
+          typeof payload.latencyCompensationMs === 'number'
+            ? payload.latencyCompensationMs
+            : recordingLatencyCompensationMs,
+        effects: trackAny.effects,
+        notes: track.notes,
+        clips: trackAny.clips,
+      };
+    });
+  }, [tracks, tempo, recordingLatencyCompensationMs]);
+
+  const handleWindowTakeReady = useCallback((take: { trackId: string; audioUrl: string }) => {
+    if (!take?.trackId || !take?.audioUrl) return;
+
+    setTracks((prev) =>
+      prev.map((track) => {
+        if (track.id !== take.trackId) return track;
+        const payload = (track as any).payload || {};
+        return {
+          ...track,
+          type: 'audio',
+          kind: 'audio',
+          audioUrl: take.audioUrl,
+          payload: {
+            ...payload,
+            audioUrl: take.audioUrl,
+            latencyCompensationMs: recordingLatencyCompensationMs,
+          },
+        } as StudioTrack;
+      }),
+    );
+    toast({ title: 'Take Imported', description: 'Recorded take attached to track for editing and bounce.' });
+  }, [setTracks, recordingLatencyCompensationMs, toast]);
+
+  const handleWindowTrackFrozen = useCallback((trackId: string, frozenAudioUrl: string) => {
+    setTracks((prev) =>
+      prev.map((track) => {
+        if (track.id !== trackId) return track;
+        const payload = (track as any).payload || {};
+        return {
+          ...track,
+          frozen: true,
+          audioUrl: frozenAudioUrl,
+          payload: {
+            ...payload,
+            audioUrl: frozenAudioUrl,
+          },
+        } as StudioTrack;
+      }),
+    );
+  }, [setTracks]);
+
+  const handleWindowTrackUnfrozen = useCallback((trackId: string) => {
+    setTracks((prev) => prev.map((track) => (track.id === trackId ? ({ ...(track as any), frozen: false } as StudioTrack) : track)));
+  }, [setTracks]);
+
+  const handleWindowBounceComplete = useCallback((url: string) => {
+    toast({ title: 'Bounce Ready', description: `Rendered bounce available: ${url.slice(0, 42)}...` });
+  }, [toast]);
+
   // Mobile Layout - Simplified UI for touch devices
   if (isMobile) {
     const mobileTabMap: Record<string, typeof activeView> = {
@@ -2413,7 +2711,19 @@ export default function UnifiedStudioWorkspace() {
       {/* Presence-driven ambient light — syncs CSS vars to Living Glyph state */}
       <PresenceAmbientLight />
       {/* Floating Window Renderer — renders all open draggable windows */}
-      <StudioWindowRenderer />
+      <StudioWindowRenderer
+        recordingTrackId={selectedTrackEntity?.id}
+        recordingTrackName={selectedTrackEntity?.name || 'Track'}
+        currentBeat={position}
+        onTakeReady={handleWindowTakeReady}
+        onRecordingLatencyMeasured={handleRecordingLatencyMeasured}
+        freezeTracks={freezeWindowTracks}
+        freezeBpm={tempo}
+        freezeTotalBeats={Math.max(64, Math.ceil(playheadPosition || 64))}
+        onTrackFrozen={handleWindowTrackFrozen}
+        onTrackUnfrozen={handleWindowTrackUnfrozen}
+        onBounceComplete={handleWindowBounceComplete}
+      />
       {/* Top Bar */}
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-4">
