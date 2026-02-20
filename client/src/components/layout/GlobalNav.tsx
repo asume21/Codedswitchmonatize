@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { icon: Mic2, label: 'Lyrics', path: '/lyric-lab' },
   { icon: Shield, label: 'Security', path: '/vulnerability-scanner' },
   { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant' },
+  { icon: Mic2, label: 'Voice Convert', path: '/voice-convert' },
 ];
 
 interface GlobalNavProps {

@@ -1317,6 +1317,7 @@ export const CodedSwitchFlow: React.FC = () => {
                   { icon: Shield, label: 'Security Scanner', path: '/vulnerability-scanner' },
                   { icon: MessageSquare, label: 'AI Assistant', path: '/ai-assistant' },
                   { icon: Headphones, label: 'Mix Studio', path: '/mix-studio' },
+                  { icon: Mic2, label: 'Voice Convert', path: '/voice-convert' },
                 ].map(item => (
                   <button
                     key={item.path}

@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { icon: Mic2, label: 'Lyrics', path: '/lyric-lab', color: 'bg-cyan-600/25 border border-cyan-500/40' },
   { icon: Shield, label: 'Security', path: '/vulnerability-scanner', color: 'bg-cyan-600/25 border border-cyan-500/40' },
   { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant', color: 'bg-cyan-600/25 border border-cyan-500/40' },
+  { icon: Mic2, label: 'Voice Convert', path: '/voice-convert', color: 'bg-cyan-600/25 border border-cyan-500/40' },
 ];
 
 export function Navigation() {

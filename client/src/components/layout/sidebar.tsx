@@ -48,6 +48,7 @@ const navigation = [
   { name: "Wavetable Synth", href: "/wavetable-oscillator", icon: Target },
   { name: "Song Structure", href: "/song-structure", icon: FileText },
   { name: "Pro Audio", href: "/pro-audio", icon: Wand2 },
+  { name: "Voice Convert", href: "/voice-convert", icon: Mic },
 ];
 
 const bottomNavigation = [
