@@ -528,19 +528,47 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Convert M4A to MP3 on-demand and serve immediately
+  // Serve audio files for playback — streams browser-playable formats directly,
+  // only converts via ffmpeg when the format truly needs it.
   router.get("/convert-and-play/:fileId(*)", analysisLimiter, async (req: Request, res: Response) => {
     try {
       const fileId = decodeURIComponent(req.params.fileId);
       console.log(`🔄 Convert-and-play request for: ${fileId}`);
       
       const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
-      const convertedDir = join(objectsDir, 'converted');
+      const sourcePath = join(objectsDir, fileId);
       
-      // Create safe filename for converted file
+      if (!existsSync(sourcePath)) {
+        console.error(`❌ Source file not found: ${sourcePath}`);
+        return res.status(404).json({ error: "Source file not found" });
+      }
+
+      // Browsers natively support these formats — serve directly, no conversion
+      const ext = fileId.split('.').pop()?.toLowerCase() || '';
+      const browserPlayable: Record<string, string> = {
+        mp3: 'audio/mpeg',
+        m4a: 'audio/mp4',
+        mp4: 'audio/mp4',
+        aac: 'audio/aac',
+        wav: 'audio/wav',
+        ogg: 'audio/ogg',
+        webm: 'audio/webm',
+        flac: 'audio/flac',
+      };
+
+      if (browserPlayable[ext]) {
+        console.log(`▶️ Serving ${ext} directly (browser-playable): ${sourcePath}`);
+        res.setHeader('Content-Type', browserPlayable[ext]);
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return createReadStream(sourcePath).pipe(res);
+      }
+
+      // Non-browser format — try ffmpeg conversion
+      const convertedDir = join(objectsDir, 'converted');
       const safeFileId = fileId.replace(/[^a-zA-Z0-9-_\.]/g, '_');
       const convertedPath = join(convertedDir, `${safeFileId}.mp3`);
-      
+
       // Check if already converted
       if (existsSync(convertedPath)) {
         console.log(`✅ Already converted, serving: ${convertedPath}`);
@@ -549,23 +577,13 @@ export function createSongRoutes(storage: IStorage) {
         res.setHeader('Cache-Control', 'public, max-age=86400');
         return createReadStream(convertedPath).pipe(res);
       }
-      
-      // Find the source file
-      const sourcePath = join(objectsDir, fileId);
-      
-      if (!existsSync(sourcePath)) {
-        console.error(`❌ Source file not found: ${sourcePath}`);
-        return res.status(404).json({ error: "Source file not found" });
-      }
-      
-      // Ensure converted directory exists
+
       if (!existsSync(convertedDir)) {
         mkdirSync(convertedDir, { recursive: true });
       }
       
       console.log(`🎵 Converting: ${sourcePath} → ${convertedPath}`);
       
-      // Convert using ffmpeg
       await new Promise<void>((resolve, reject) => {
         ffmpeg(sourcePath)
           .toFormat('mp3')
@@ -583,14 +601,20 @@ export function createSongRoutes(storage: IStorage) {
           .save(convertedPath);
       });
       
-      // Serve the converted file
       res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Cache-Control', 'public, max-age=86400');
       createReadStream(convertedPath).pipe(res);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Convert-and-play error:', error);
+      const msg = error?.message || '';
+      if (msg.includes('Cannot find ffmpeg') || msg.includes('ENOENT')) {
+        return res.status(503).json({ 
+          error: "FFmpeg not available",
+          message: "This audio format requires conversion but ffmpeg is not installed on this server."
+        });
+      }
       res.status(500).json({ error: "Conversion failed" });
     }
   });
