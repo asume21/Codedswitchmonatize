@@ -185,7 +185,30 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
     description: 'Lyrics-first layout with Lyric Lab front and center',
     showLyricsFocus: true,
   },
+  'ai-song-production': {
+    activeView: 'timeline',
+    showAIAssistant: true,
+    showMusicGen: true,
+    guidedMode: true,
+    description: 'AI-powered song production workflow with guided steps',
+  },
 };
+
+const AI_SONG_GUIDE_STEPS = [
+  { id: 'ctx', title: 'Set context', detail: 'Pick genre/mood/BPM/key; start a session.' },
+  { id: 'lyrics', title: 'Lyrics', detail: 'Generate lyrics, then run lyrics analysis for quality.' },
+  { id: 'plan', title: 'Song plan', detail: 'Generate song plan/sections (intro/verse/chorus/bridge).' },
+  { id: 'patterns', title: 'Patterns', detail: 'Create/edit patterns in Piano Roll (Astutely patterns).' },
+  { id: 'audio', title: 'Real audio', detail: 'Generate real audio (Suno/MusicGen); load reference track.' },
+  { id: 'vocals', title: 'Vocals (optional)', detail: 'Generate/import vocals (e.g., ElevenLabs) and align to BPM/key.' },
+  { id: 'mix', title: 'Mix', detail: 'Balance levels/pan/EQ; loop main section for balance.' },
+  { id: 'master', title: 'Master & export', detail: 'Export master WAV/MP3; spot-check trims and loudness.' },
+];
+
+const INITIAL_AI_SONG_STATUS = AI_SONG_GUIDE_STEPS.reduce<Record<string, 'pending' | 'done'>>((acc, step) => {
+  acc[step.id] = 'pending';
+  return acc;
+}, {});
 
 type AstutelyTrackType = 'drums' | 'bass' | 'chords' | 'melody';
 

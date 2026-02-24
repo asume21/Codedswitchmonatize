@@ -11,9 +11,12 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ollama
+# Install Ollama and pull model (start server temporarily for pull)
 RUN curl -fsSL https://ollama.com/install.sh | sh \
-  && ollama pull llama3.1:8b
+  && (OLLAMA_HOST=127.0.0.1:11434 ollama serve >/tmp/ollama.log 2>&1 &) \
+  && sleep 8 \
+  && OLLAMA_HOST=127.0.0.1:11434 ollama pull llama3.1:8b \
+  && pkill ollama || true
 
 # Set working directory
 WORKDIR /app

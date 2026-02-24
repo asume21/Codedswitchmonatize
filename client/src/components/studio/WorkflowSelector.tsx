@@ -1,9 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sliders, Brain, Piano, Maximize2, GraduationCap, Upload, BookOpen } from 'lucide-react';
+import { Sliders, Brain, Piano, Maximize2, GraduationCap, Upload, BookOpen, Drum, Wand2 } from 'lucide-react';
 
 export interface WorkflowPreset {
-  id: 'song-analyzer' | 'beginner' | 'mixing' | 'ai' | 'composition' | 'immersive' | 'lyrics-focus';
+  id: 'song-analyzer' | 'beginner' | 'mixing' | 'ai' | 'composition' | 'immersive' | 'lyrics-focus' | 'pro-beatmaker' | 'ai-song-production' | 'hybrid-workflow';
   name: string;
   description: string;
   icon: typeof Sliders;
@@ -51,6 +51,30 @@ const workflows: WorkflowPreset[] = [
     icon: Piano,
     color: 'text-orange-500',
     preview: 'Instruments + Samples + Large Piano Roll'
+  },
+  {
+    id: 'pro-beatmaker',
+    name: '🥁 Pro Beatmaker',
+    description: 'Design drum patterns, basslines, and loops with AI-assisted controls.',
+    icon: Drum,
+    color: 'text-yellow-500',
+    preview: 'AI drums + bass + loop layering with quick export.'
+  },
+  {
+    id: 'ai-song-production',
+    name: '🎛️ AI Song Production (Idea → Master)',
+    description: 'Follow a guided flow: lyrics → plan → patterns → real audio → vocals → mix/master.',
+    icon: Wand2,
+    color: 'text-indigo-500',
+    preview: '1) Set genre/BPM/key\n2) AI lyrics + analysis\n3) AI song plan\n4) Astutely patterns to Piano Roll\n5) Suno/MusicGen real audio\n6) Optional vocals (ElevenLabs)\n7) Mix levels/pan/EQ\n8) Export master'
+  },
+  {
+    id: 'hybrid-workflow',
+    name: '🧠 Hybrid Workflow',
+    description: 'Blend AI suggestions with manual edits across all studio tools.',
+    icon: Brain,
+    color: 'text-teal-500',
+    preview: 'AI helps, you drive. Combine human tweaks with AI drafts.'
   },
   {
     id: 'immersive',
