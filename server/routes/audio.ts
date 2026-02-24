@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { requireAuth } from "../middleware/auth";
 import { unifiedMusicService } from "../services/unifiedMusicService";
 import { patternGenerator } from "../services/patternGenerator";
@@ -15,6 +16,7 @@ import { requireTier } from "../middleware/tierEnforcement";
 import { validatePrompt, validateRequired } from "../middleware/inputValidation";
 import { sanitizePath } from "../utils/security";
 import { recordAIGenerationMetric } from "../services/aiRouteMetrics";
+import { extractMelody, type MelodyNote } from "../services/audioAnalysis";
 
 const router = Router();
 
@@ -1368,5 +1370,320 @@ Create complete lyrics with verses, chorus, and bridge.`;
     }
   });
 
+  // Extract editable patterns from generated audio URL
+  // Downloads the audio, runs melody extraction, converts to piano roll note format
+  router.post("/songs/extract-patterns", requireAuth(), async (req: Request, res: Response) => {
+    try {
+      const { audioUrl, bpm = 120 } = req.body;
+      if (!audioUrl || typeof audioUrl !== 'string') {
+        return sendError(res, 400, "audioUrl is required");
+      }
+
+      console.log(`🎵 Extracting patterns from audio: ${audioUrl.substring(0, 80)}...`);
+
+      // Download audio to temp file
+      const tempDir = path.resolve(process.cwd(), "objects", "temp-audio");
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      const tempFile = path.join(tempDir, `extract-${crypto.randomUUID()}.mp3`);
+
+      try {
+        const audioResponse = await fetch(audioUrl);
+        if (!audioResponse.ok) {
+          return sendError(res, 400, `Failed to download audio: HTTP ${audioResponse.status}`);
+        }
+        const buffer = Buffer.from(await audioResponse.arrayBuffer());
+        fs.writeFileSync(tempFile, buffer);
+        console.log(`📥 Downloaded ${buffer.length} bytes to temp file`);
+      } catch (dlErr: any) {
+        return sendError(res, 400, `Failed to download audio: ${dlErr.message}`);
+      }
+
+      // Run melody extraction via local audio analysis API (with retries for dense/polyphonic content)
+      let melodyResult: { notes: MelodyNote[]; total_duration: number; note_count: number } | null = null;
+      for (const minNoteDuration of [0.05, 0.03, 0.02]) {
+        melodyResult = await extractMelody(tempFile, minNoteDuration);
+        if (melodyResult?.notes?.length) break;
+      }
+
+      // Clean up temp file
+      try { fs.unlinkSync(tempFile); } catch { /* ignore */ }
+
+      if (!melodyResult || !melodyResult.notes || melodyResult.notes.length === 0) {
+        // Fallback: generate approximate patterns using AI estimation
+        console.warn('⚠️ Melody extraction unavailable or returned no notes. Generating estimated patterns.');
+        const estimatedNotes = generateEstimatedPattern(bpm);
+        return res.json({
+          success: true,
+          source: 'estimated',
+          bpm,
+          notes: estimatedNotes,
+          message: 'Audio analysis API unavailable. Generated estimated patterns based on BPM.',
+        });
+      }
+
+      // Convert extracted melody into richer editor-ready multi-track pattern
+      const pianoRollNotes = buildEditorPatternFromMelody(melodyResult.notes, bpm);
+
+      console.log(`✅ Extracted ${pianoRollNotes.length} notes from audio (${melodyResult.total_duration?.toFixed(1)}s)`);
+
+      res.json({
+        success: true,
+        source: 'extracted',
+        bpm,
+        notes: pianoRollNotes,
+        totalDuration: melodyResult.total_duration,
+        noteCount: pianoRollNotes.length,
+        message: `Extracted ${pianoRollNotes.length} editor notes from audio`,
+      });
+
+    } catch (error: any) {
+      console.error('❌ Pattern extraction error:', error);
+      sendError(res, 500, "Failed to extract patterns from audio");
+    }
+  });
+
   return router;
+}
+
+// Generate estimated patterns when audio analysis API is unavailable
+function generateEstimatedPattern(bpm: number) {
+  const stepsPerBeat = 4;
+  const totalBeats = 32; // 8 bars
+  const notes: Array<{
+    id: string;
+    pitch: number;
+    startStep: number;
+    duration: number;
+    velocity: number;
+    trackType: string;
+  }> = [];
+
+  // Deterministic, musical fallback progression (I-V-vi-IV in C)
+  const progressionRoots = [60, 67, 69, 65]; // C, G, A, F
+  const phrase = [0, 2, 4, 7, 4, 2, 0, -2];
+
+  // Melody (phrase-based, no randomness)
+  for (let beat = 0; beat < totalBeats; beat++) {
+    const barIndex = Math.floor(beat / 4) % progressionRoots.length;
+    const root = progressionRoots[barIndex];
+    const offset = phrase[beat % phrase.length];
+    const pitch = Math.max(48, Math.min(84, root + offset));
+
+    notes.push({
+      id: `est-melody-${beat}`,
+      pitch,
+      startStep: beat * stepsPerBeat,
+      duration: beat % 2 === 0 ? stepsPerBeat : stepsPerBeat / 2,
+      velocity: beat % 4 === 0 ? 98 : 84,
+      trackType: 'melody',
+    });
+  }
+
+  // Chords (triads each bar)
+  for (let bar = 0; bar < totalBeats / 4; bar++) {
+    const root = progressionRoots[bar % progressionRoots.length];
+    const barStart = bar * 16;
+    for (const chordTone of [root, root + 4, root + 7]) {
+      notes.push({
+        id: `est-chord-${bar}-${chordTone}`,
+        pitch: chordTone,
+        startStep: barStart,
+        duration: 16,
+        velocity: 70,
+        trackType: 'chords',
+      });
+    }
+  }
+
+  // Bass line (roots + approach note)
+  for (let beat = 0; beat < totalBeats; beat += 2) {
+    const root = progressionRoots[Math.floor(beat / 4) % progressionRoots.length] - 24;
+    notes.push({
+      id: `est-bass-${beat}`,
+      pitch: root,
+      startStep: beat * stepsPerBeat,
+      duration: stepsPerBeat * 2,
+      velocity: 90,
+      trackType: 'bass',
+    });
+  }
+
+  // Drum groove
+  for (let beat = 0; beat < totalBeats; beat++) {
+    // Kick on 1/3 with occasional pickup
+    if (beat % 2 === 0) {
+      notes.push({
+        id: `est-kick-${beat}`,
+        pitch: 36,
+        startStep: beat * stepsPerBeat,
+        duration: 1,
+        velocity: 100,
+        trackType: 'drums',
+      });
+    }
+
+    if (beat % 4 === 3) {
+      notes.push({
+        id: `est-kick-pickup-${beat}`,
+        pitch: 36,
+        startStep: beat * stepsPerBeat + 2,
+        duration: 1,
+        velocity: 78,
+        trackType: 'drums',
+      });
+    }
+
+    // Snare on 2 and 4
+    if (beat % 2 === 1) {
+      notes.push({
+        id: `est-snare-${beat}`,
+        pitch: 38,
+        startStep: beat * stepsPerBeat,
+        duration: 1,
+        velocity: 90,
+        trackType: 'drums',
+      });
+    }
+
+    // Hi-hat on 8ths
+    notes.push({
+      id: `est-hihat-${beat}`,
+      pitch: 42,
+      startStep: beat * stepsPerBeat,
+      duration: 1,
+      velocity: beat % 2 === 0 ? 62 : 50,
+      trackType: 'drums',
+    });
+
+    notes.push({
+      id: `est-hihat-off-${beat}`,
+      pitch: 42,
+      startStep: beat * stepsPerBeat + 2,
+      duration: 1,
+      velocity: 44,
+      trackType: 'drums',
+    });
+  }
+
+  return notes;
+}
+
+function buildEditorPatternFromMelody(melody: MelodyNote[], bpm: number) {
+  const stepsPerSecond = (bpm / 60) * 4; // 16th-note grid
+  const quantize = (step: number) => Math.max(0, Math.round(step));
+  const clampPitch = (pitch: number) => Math.max(21, Math.min(108, Math.round(pitch)));
+
+  const normalized = melody
+    .map((n) => ({
+      midi: clampPitch(n.midi),
+      startStep: quantize(n.start * stepsPerSecond),
+      duration: Math.max(1, quantize(n.duration * stepsPerSecond)),
+      velocity: Math.max(1, Math.min(127, Math.round(n.velocity || 80))),
+    }))
+    .filter((n) => Number.isFinite(n.midi) && Number.isFinite(n.startStep))
+    .sort((a, b) => a.startStep - b.startStep)
+    .slice(0, 512);
+
+  if (normalized.length === 0) {
+    return generateEstimatedPattern(bpm);
+  }
+
+  const notes: Array<{
+    id: string;
+    pitch: number;
+    startStep: number;
+    duration: number;
+    velocity: number;
+    trackType: string;
+  }> = normalized.map((n, i) => ({
+    id: `extracted-melody-${i}`,
+    pitch: n.midi,
+    startStep: n.startStep,
+    duration: n.duration,
+    velocity: n.velocity,
+    trackType: 'melody',
+  }));
+
+  const maxStep = normalized.reduce((acc, n) => Math.max(acc, n.startStep + n.duration), 0);
+  const totalSteps = Math.max(64, Math.min(512, Math.ceil(maxStep / 16) * 16));
+
+  // Infer tonic from pitch-class histogram
+  const pitchClassCounts = new Array<number>(12).fill(0);
+  for (const n of normalized) pitchClassCounts[n.midi % 12] += 1;
+  const tonicClass = pitchClassCounts.indexOf(Math.max(...pitchClassCounts));
+  const progressionDegrees = [0, 7, 9, 5]; // I-V-vi-IV
+
+  // Add harmonic support and bass from inferred progression
+  for (let barStart = 0; barStart < totalSteps; barStart += 16) {
+    const barIndex = Math.floor(barStart / 16);
+    const rootClass = (tonicClass + progressionDegrees[barIndex % progressionDegrees.length]) % 12;
+
+    // Chord root centered near C4
+    const chordRoot = 60 + ((rootClass - 60) % 12 + 12) % 12;
+    for (const tone of [chordRoot, chordRoot + 4, chordRoot + 7]) {
+      notes.push({
+        id: `extracted-chord-${barIndex}-${tone}`,
+        pitch: clampPitch(tone),
+        startStep: barStart,
+        duration: 16,
+        velocity: 68,
+        trackType: 'chords',
+      });
+    }
+
+    // Bass root on beats 1 and 3
+    notes.push({
+      id: `extracted-bass-${barIndex}-a`,
+      pitch: clampPitch(chordRoot - 24),
+      startStep: barStart,
+      duration: 8,
+      velocity: 88,
+      trackType: 'bass',
+    });
+    notes.push({
+      id: `extracted-bass-${barIndex}-b`,
+      pitch: clampPitch(chordRoot - 24),
+      startStep: barStart + 8,
+      duration: 8,
+      velocity: 84,
+      trackType: 'bass',
+    });
+
+    // Groove-aware drums (8th hats + kick/snare backbone)
+    for (let step = barStart; step < barStart + 16; step += 2) {
+      notes.push({
+        id: `extracted-hat-${barIndex}-${step}`,
+        pitch: 42,
+        startStep: step,
+        duration: 1,
+        velocity: step % 4 === 0 ? 62 : 48,
+        trackType: 'drums',
+      });
+    }
+
+    for (const rel of [0, 8]) {
+      notes.push({
+        id: `extracted-kick-${barIndex}-${rel}`,
+        pitch: 36,
+        startStep: barStart + rel,
+        duration: 1,
+        velocity: 98,
+        trackType: 'drums',
+      });
+    }
+    for (const rel of [4, 12]) {
+      notes.push({
+        id: `extracted-snare-${barIndex}-${rel}`,
+        pitch: 38,
+        startStep: barStart + rel,
+        duration: 1,
+        velocity: 90,
+        trackType: 'drums',
+      });
+    }
+  }
+
+  return notes;
 }

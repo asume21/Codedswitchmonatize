@@ -7,10 +7,10 @@ import { CREDIT_COSTS } from '../services/credits';
 
 // Actual API costs (update these based on real usage)
 export const API_COSTS = {
-  // Suno (from Replicate)
-  SONG_GENERATION: 0.40,
-  SONG_EXTENSION: 0.25,
-  CUSTOM_VOCALS: 0.35,
+  // Suno (via apibox.erweima.ai — 50 Suno credits per generation)
+  SONG_GENERATION: 2.00,
+  SONG_EXTENSION: 1.25,
+  CUSTOM_VOCALS: 1.75,
   STEM_SEPARATION: 0.30,
   
   // MusicGen (from Replicate)
@@ -32,6 +32,10 @@ export const API_COSTS = {
   AUDIO_MASTERING: 0.125,
   TRANSCRIPTION: 0.08,
   AI_ENHANCEMENT: 0.09,
+  
+  // Voice Conversion (stem sep + voice convert + remix)
+  VOICE_CONVERT_2STEM: 0.50,
+  VOICE_CONVERT_4STEM: 0.62,
 } as const;
 
 // Credit value tiers (based on packages)

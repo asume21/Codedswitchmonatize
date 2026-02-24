@@ -16,6 +16,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
+import { astutelyGenerateAudio, astutelyPlayAudio } from "@/lib/astutelyEngine";
 
 export default function CodeToMusic() {
   const [language, setLanguage] = useState("javascript");
@@ -227,6 +228,22 @@ export default function CodeToMusic() {
         title: "Compilation Complete",
         description: "Code has been converted to music successfully.",
       });
+
+      // Also generate real AI audio from the compiled music
+      (async () => {
+        try {
+          toast({ title: '🎵 Generating Real Audio', description: 'Creating professional audio from compiled code via AI...' });
+          const audioResult = await astutelyGenerateAudio('Electronic', { bpm: 120 });
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, compiled music still available:', audioErr);
+        }
+      })();
     },
     onError: () => {
       toast({

@@ -51,8 +51,8 @@ A revolutionary AI-powered music creation platform that bridges the gap between 
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/asume21/codetune-studio.git
-   cd codetune-studio
+   git clone https://github.com/asume21/Codedswitchmonatize.git
+   cd Codedswitchmonatize
    ```
 
 2. **Install dependencies**
@@ -195,8 +195,13 @@ CodedSwitch integrates with xAI Grok for advanced AI capabilities:
 
 ## 🚀 Deployment
 
-### Replit (Recommended)
-The project is optimized for Replit deployment with automatic environment setup.
+### Railway (Recommended)
+The project is configured for Railway deployment.
+
+1. Connect your GitHub repository to Railway.
+2. Add the required environment variables from `.env.example` in Railway service variables.
+3. Ensure your database service is available and `DATABASE_URL` is set.
+4. Deploy and confirm the app is reachable on the assigned Railway domain.
 
 ### Manual Deployment
 1. Build the project: `npm run build`

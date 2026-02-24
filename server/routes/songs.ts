@@ -536,9 +536,9 @@ export function createSongRoutes(storage: IStorage) {
       console.log(`🔄 Convert-and-play request for: ${fileId}`);
       
       const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
-      const sourcePath = join(objectsDir, fileId);
+      const sourcePath = sanitizePath(fileId, objectsDir);
       
-      if (!existsSync(sourcePath)) {
+      if (!sourcePath || !existsSync(sourcePath)) {
         console.error(`❌ Source file not found: ${sourcePath}`);
         return res.status(404).json({ error: "Source file not found" });
       }

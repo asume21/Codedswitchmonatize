@@ -34,6 +34,7 @@ import { AstutelyFader, AstutelyKnob, AstutelyMeter } from '@/components/astutel
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { professionalAudio } from '@/lib/professionalAudio';
+import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
 import { audioBufferToWav } from '@/lib/stemExport';
 import { useMIDI } from '@/hooks/use-midi';
 import {
@@ -805,6 +806,22 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
               ? `Selected provider (${aiProvider}) is audio/text-specialized for other tasks; beat grid used the internal text provider.`
               : undefined)),
       });
+
+      // Also generate real AI audio for the beat
+      (async () => {
+        try {
+          toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${selectedGenre} beat via AI...` });
+          const audioResult = await astutelyGenerateAudio(selectedGenre, { bpm });
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, beat grid still available:', audioErr);
+        }
+      })();
     },
     onError: (err: any) => {
       const rawMessage = String(err?.message || err || 'Unknown error');
@@ -1092,7 +1109,7 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
         </Select>
         
         <div className="flex flex-wrap items-center gap-3 ml-auto">
-          <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} />
+          <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} feature="beat" />
           <Select value={selectedGenre} onValueChange={setSelectedGenre}>
             <SelectTrigger className="h-12 w-32 bg-black/20 border-white/10 rounded-xl font-bold text-xs">
               <SelectValue />

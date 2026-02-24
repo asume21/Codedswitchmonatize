@@ -13,7 +13,8 @@ function getEncryptionKey(): Buffer {
       "API_KEY_ENCRYPTION_SECRET must be set (min 32 chars) to use BYO key vault",
     );
   }
-  return crypto.scryptSync(raw, "codedswitch-byo-salt", 32);
+  const salt = crypto.createHash("sha256").update(raw).digest().subarray(0, 16);
+  return crypto.scryptSync(raw, salt, 32);
 }
 
 export function encryptApiKey(plaintext: string): string {

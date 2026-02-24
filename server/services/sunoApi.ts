@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 
-const SUNO_API_BASE = 'https://api.sunoapi.org/api/v1';
+const SUNO_API_BASE = 'https://apibox.erweima.ai/api/v1';
 const SUNO_API_KEY = process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN;
 
 interface SunoApiResponse {
@@ -205,9 +205,14 @@ export class SunoApiService {
       console.log(`⏳ Task ${taskId} status: ${taskStatus}`);
       
       if (taskStatus === 'SUCCESS') {
+        // API returns tracks in response.sunoData (camelCase)
+        const tracks = status.data?.response?.sunoData
+          || status.data?.response?.data
+          || status.data?.sunoData
+          || status.data;
         return {
           success: true,
-          data: status.data?.response?.data || status.data
+          data: tracks
         };
       } else if (taskStatus === 'FAILED') {
         return {

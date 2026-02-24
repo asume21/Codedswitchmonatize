@@ -20,14 +20,14 @@ export async function generateChatMusicianMelody(
 
   try {
     const response = await axios.post(
-      'https://api-inference.huggingface.co/models/sander-wood/text-to-music-abc-notation-v2',
+      'https://router.huggingface.co/models/sander-wood/text-to-music-abc-notation-v2',
       {
         inputs: fullPrompt,
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${HUGGING_FACE_API_TOKEN}`,
+          'Authorization': `Bearer ${token}`,
         },
       }
     );

@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Play, Pause, Square, RotateCcw, Sparkles, Edit3, Download, Upload } from 'lucide-react';
+import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
 
 interface HybridProject {
   id: string;
@@ -73,6 +74,22 @@ export default function HybridWorkflow() {
         title: "AI Beat Generated",
         description: "Beat added to your hybrid project!"
       });
+
+      // Also generate real AI audio for the beat
+      (async () => {
+        try {
+          toast({ title: '🎵 Generating Real Audio', description: 'Creating professional beat audio via AI...' });
+          const audioResult = await astutelyGenerateAudio(beat?.style || 'Hip-Hop', { bpm: beat?.bpm || 120 });
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, beat data still available:', audioErr);
+        }
+      })();
     }
   });
 
@@ -99,6 +116,22 @@ export default function HybridWorkflow() {
         title: "AI Melody Generated",
         description: "Melody added to your hybrid project!"
       });
+
+      // Also generate real AI audio for the melody
+      (async () => {
+        try {
+          toast({ title: '🎵 Generating Real Audio', description: 'Creating professional melody audio via AI...' });
+          const audioResult = await astutelyGenerateAudio(melody?.style || 'Lo-fi chill', {});
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, melody data still available:', audioErr);
+        }
+      })();
     }
   });
 

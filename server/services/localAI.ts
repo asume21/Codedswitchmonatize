@@ -25,7 +25,7 @@ export class LocalAIService {
   private defaultModel: string;
   private isAvailable: boolean | null = null;
 
-  constructor(baseUrl: string = 'http://localhost:11434', defaultModel: string = 'phi3:medium') {
+  constructor(baseUrl: string = 'http://localhost:11434', defaultModel: string = 'llama3.1:8b') {
     this.baseUrl = baseUrl;
     this.defaultModel = defaultModel;
   }
@@ -44,10 +44,10 @@ export class LocalAIService {
         const data = await response.json();
         this.isAvailable = true;
         console.log('═══════════════════════════════════════════════════════');
-        console.log('✅ PHI3 LOCAL AI IS AVAILABLE');
+        console.log('✅ Local AI (Ollama) is available');
         console.log(`📦 Models: ${data.models?.map((m: any) => m.name).join(', ') || 'none'}`);
         console.log(`🔗 URL: ${this.baseUrl}`);
-        console.log('🎯 Astutely will use Phi3 (Local) first, Grok-3 (Cloud) as fallback');
+        console.log(`🎯 Astutely will use ${this.defaultModel} (Local) first, Grok-3 (Cloud) as fallback`);
         console.log('═══════════════════════════════════════════════════════');
         return true;
       }
@@ -57,7 +57,7 @@ export class LocalAIService {
     } catch (error) {
       this.isAvailable = false;
       console.log('═══════════════════════════════════════════════════════');
-      console.log('⚠️ PHI3 LOCAL AI NOT AVAILABLE');
+      console.log(`⚠️ Local AI model ${this.defaultModel} not available`);
       console.log('🔄 Astutely will use Grok-3 (Cloud) only');
       console.log('═══════════════════════════════════════════════════════');
       return false;

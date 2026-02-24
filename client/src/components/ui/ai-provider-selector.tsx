@@ -114,7 +114,14 @@ export function AIProviderSelector({ value, onValueChange, className, feature }:
     fetchProviders();
   }, []);
 
-  const availableProviders = providers;
+  // Filter providers based on feature context
+  // For audio generation features, hide text-only providers (Grok, OpenAI, Local)
+  // since they cannot produce audio and confuse users
+  const audioFeatures = ['beat', 'audio', 'music', 'song', 'instrumental', 'melody'];
+  const isAudioContext = feature ? audioFeatures.some(f => feature.toLowerCase().includes(f)) : false;
+  const availableProviders = isAudioContext
+    ? providers.filter(p => p.outputType !== 'text')
+    : providers;
 
   const selectedProvider = availableProviders.find((provider) => provider.name === value);
 

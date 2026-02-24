@@ -12,7 +12,7 @@ import { Wand2, Music, DollarSign, Piano, Play, Pause, Square, Activity, AlertTr
 import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 import { requestAstutelyPattern, mapGenreToAstutelyStyle } from '@/lib/astutelyBridge';
-import { astutelyToNotes, midiToNoteOctave } from '@/lib/astutelyEngine';
+import { astutelyToNotes, midiToNoteOctave, astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
 
 interface DiagnosticEvent {
   id: string;
@@ -332,6 +332,42 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
           generatedAt: new Date(),
           pattern,
         });
+      }
+
+      // Generate real AI audio (Suno/MusicGen) after pattern succeeds
+      try {
+        toast({
+          title: '🎵 Generating Real Audio',
+          description: `Creating professional ${style} track via AI...`,
+        });
+        const audioResult = await astutelyGenerateAudio(style, {
+          prompt: composedPrompt,
+          bpm: result.bpm,
+          key: result.key,
+        });
+        try {
+          await astutelyPlayAudio(audioResult.audioUrl);
+        } catch (playErr) {
+          console.warn('Auto-play blocked:', playErr);
+        }
+        if (onMusicGenerated) {
+          onMusicGenerated(audioResult.audioUrl, {
+            provider: audioResult.provider,
+            prompt: composedPrompt,
+            genre,
+            bpm: result.bpm,
+            style: result.style,
+            key: result.key,
+            generatedAt: new Date(),
+            duration: audioResult.duration,
+          });
+        }
+        toast({
+          title: '✅ Real Audio Ready!',
+          description: `Generated via ${audioResult.provider} (${audioResult.duration}s)`,
+        });
+      } catch (audioErr) {
+        console.warn('Real audio generation failed, pattern still available:', audioErr);
       }
     } catch (error) {
       console.error('Generation error:', error);

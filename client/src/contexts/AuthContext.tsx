@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         monthlyUploads: 0,
         monthlyGenerations: 0
       });
-      setStatus("authenticated"); // Allow app to function normally
+      setStatus("unauthenticated"); // Don't falsely mark as logged in
     }
   }, []);
 

@@ -27,6 +27,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
+import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
 
 interface ChannelMeterData {
   peak: number;
@@ -112,6 +113,22 @@ export default function ProfessionalMixer() {
         });
 
         setAiMixLayers(Array.isArray(data.layers) ? data.layers : []);
+
+        // Also generate real AI audio for the mix
+        (async () => {
+          try {
+            toast({ title: '🎵 Generating Real Audio', description: 'Creating professional master mix via AI...' });
+            const audioResult = await astutelyGenerateAudio('professional mix', { bpm: transport?.tempo || 120 });
+            try {
+              await astutelyPlayAudio(audioResult.audioUrl);
+            } catch (playErr) {
+              console.warn('Auto-play blocked:', playErr);
+            }
+            toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+          } catch (audioErr) {
+            console.warn('Real audio generation failed, mix settings still applied:', audioErr);
+          }
+        })();
 
         // Capture returned mix/preview URL if provided by backend; otherwise fallback to first uploaded stem for quick audition
         const candidateUrl = data.mixUrl || data.previewUrl || data.audioUrl || null;

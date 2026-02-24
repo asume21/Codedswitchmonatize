@@ -38,11 +38,22 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
   const isMouseDownRef = useRef(false);
   const lastPressedKeyRef = useRef<number | null>(null);
   const { playNote } = useAudio();
+  
+  // Debounce ref to prevent rapid successive note triggers
+  const lastPlayTimeRef = useRef(0);
+  const DEBOUNCE_MS = 50; // Minimum 50ms between note plays
 
   const handleKeyDown = useCallback((keyIndex: number) => {
     const key = pianoKeys[keyIndex];
 
     if (!key) return;
+    
+    // Debounce rapid key presses to prevent audio crackling
+    const now = Date.now();
+    if (now - lastPlayTimeRef.current < DEBOUNCE_MS) {
+      return; // Skip this key press if too soon after the last one
+    }
+    lastPlayTimeRef.current = now;
     
     if (onPlayNote) {
       onPlayNote(key.note, key.octave);

@@ -1,15 +1,17 @@
 import express from 'express';
-import { generateBassLine } from '../services/bassGenerator';
+import { generateBassLine, DEFAULT_PROGRESSIONS } from '../services/bassGenerator';
 
 const router = express.Router();
 
 // Smart Bass Generator using Music Theory (INSTANT, NO API NEEDED!)
 router.post('/generate-bass', async (req, res) => {
   try {
-    const { chordProgression, style, pattern, octave, groove, noteLength, velocity, glide } = req.body;
+    const { style, pattern, octave, groove, noteLength, velocity, glide } = req.body;
+    let { chordProgression } = req.body;
 
+    // If no chords provided, pick a random common progression
     if (!chordProgression || chordProgression.length === 0) {
-      return res.status(400).json({ error: 'Chord progression is required' });
+      chordProgression = DEFAULT_PROGRESSIONS[Math.floor(Math.random() * DEFAULT_PROGRESSIONS.length)];
     }
 
     console.log(`🎸 Generating ${style} bass (${pattern} pattern) for ${chordProgression.length} chords`);

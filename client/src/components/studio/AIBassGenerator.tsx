@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,21 +6,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Music2, Zap, Piano, Volume2, Save, RotateCcw, Download, Trash2, Send, Circle, Square, Edit3, X } from 'lucide-react';
+import { Loader2, Music2, Zap, Piano, Volume2, Save, RotateCcw, Download, Trash2, Send, Circle, Square, Edit3, X, Link2, Unlink, Plus, Copy, ChevronUp, ChevronDown, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { useMIDI } from '@/hooks/use-midi';
+import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { useTransport } from '@/contexts/TransportContext';
+import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
+import { useTrackStore } from '@/contexts/TrackStoreContext';
 
 interface BassGeneratorProps {
   chordProgression?: Array<{ chord: string; duration: number }>;
   onBassGenerated?: (bassNotes: any[]) => void;
+  bpm?: number;
+  musicalKey?: string;
 }
 
 // Bass notes for interactive keyboard
 const BASS_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-export default function AIBassGenerator({ chordProgression, onBassGenerated }: BassGeneratorProps) {
+export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm: propBpm, musicalKey: propKey }: BassGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [bassStyle, setBassStyle] = useState('808');
   const [patternType, setPatternType] = useState('root-fifth');
@@ -34,10 +40,85 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
   const [recordedNotes, setRecordedNotes] = useState<any[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [syncWithTracks, setSyncWithTracks] = useState(true);
   const playbackRef = useRef<NodeJS.Timeout | null>(null);
   const recordStartTimeRef = useRef<number>(0);
   const { toast } = useToast();
   
+  // Connect to session contexts for track-aware bass generation
+  const { tempo: transportBpm } = useTransport();
+  const { currentSession } = useSongWorkSession();
+  const { tracks: storeTracks } = useTrackStore();
+
+  // Resolve effective BPM: prop > transport > session > default
+  const effectiveBpm = propBpm || transportBpm || currentSession?.analysis?.bpm || 120;
+
+  // Resolve effective key: prop > session > default
+  const effectiveKey = propKey || currentSession?.analysis?.key || 'C';
+
+  // Auto-detect chords from existing tracks in the piano roll / track store
+  const detectedChords = useMemo(() => {
+    if (!syncWithTracks || !storeTracks || storeTracks.length === 0) return null;
+
+    // Look for tracks that have chord/harmony notes
+    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    for (const track of storeTracks) {
+      const notes = (track as any)?.notes || (track as any)?.payload?.notes;
+      if (!Array.isArray(notes) || notes.length === 0) continue;
+
+      // Group notes by step position to find chords (multiple notes at same time)
+      const stepGroups = new Map<number, any[]>();
+      for (const n of notes) {
+        const step = n.step ?? n.startStep ?? 0;
+        if (!stepGroups.has(step)) stepGroups.set(step, []);
+        stepGroups.get(step)!.push(n);
+      }
+
+      // Find groups with 2+ simultaneous notes (likely chords)
+      const chordGroups = Array.from(stepGroups.entries())
+        .filter(([, group]) => group.length >= 2)
+        .sort(([a], [b]) => a - b);
+
+      if (chordGroups.length >= 2) {
+        // Convert note groups to chord names (simplified: use root note)
+        const chords: Array<{ chord: string; duration: number }> = [];
+        for (let i = 0; i < chordGroups.length; i++) {
+          const [step, group] = chordGroups[i];
+          const nextStep = i < chordGroups.length - 1 ? chordGroups[i + 1][0] : step + 16;
+          // Find lowest note as root
+          const midiValues = group.map((n: any) => {
+            if (typeof n.pitch === 'number') return n.pitch;
+            const noteIdx = NOTE_NAMES.indexOf(n.note || 'C');
+            return (noteIdx >= 0 ? noteIdx : 0) + ((n.octave || 4) * 12);
+          });
+          const rootMidi = Math.min(...midiValues);
+          const rootName = NOTE_NAMES[rootMidi % 12] || 'C';
+          // Check if minor (has minor third interval = 3 semitones)
+          const intervals = midiValues.map((m: number) => (m - rootMidi) % 12).sort((a: number, b: number) => a - b);
+          const isMinor = intervals.includes(3) && !intervals.includes(4);
+          const chordName = isMinor ? `${rootName}m` : rootName;
+          const durationSteps = nextStep - step;
+          const durationBeats = Math.max(1, durationSteps / 4);
+          chords.push({ chord: chordName, duration: durationBeats });
+        }
+        return chords;
+      }
+    }
+    return null;
+  }, [storeTracks, syncWithTracks]);
+
+  // Final chord progression: explicit prop > detected from tracks > random fallback
+  const effectiveChords = chordProgression && chordProgression.length > 0
+    ? chordProgression
+    : detectedChords;
+
+  const chordsSource = chordProgression && chordProgression.length > 0
+    ? 'prop'
+    : detectedChords
+      ? 'tracks'
+      : 'random';
+
   // Get MIDI hook to set bass instrument
   const { updateSettings: updateMIDISettings, lastNote: midiLastNote } = useMIDI();
 
@@ -173,19 +254,54 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
     toast({ title: "Cleared", description: "Recorded notes cleared" });
   }, [toast]);
 
-  // Send to Piano Roll for editing
+  // Send to Piano Roll for editing — uses astutely:generated event bridge
   const sendToPianoRoll = useCallback(() => {
     const notesToSend = generatedBass.length > 0 ? generatedBass : recordedNotes;
     if (notesToSend.length === 0) {
       toast({ title: "No Notes", description: "Generate or record notes first", variant: "destructive" });
       return;
     }
-    window.dispatchEvent(new CustomEvent('bass:sendToPianoRoll', {
-      detail: { notes: notesToSend, instrument: 'Bass Synth' }
+
+    const NOTE_MAP: Record<string, number> = {
+      'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+      'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+      'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11,
+    };
+
+    // Convert bass notes to astutely format for the piano roll
+    const stepsPerBeat = 4; // 16th notes
+    const astutelyNotes = notesToSend.map((n: any, i: number) => {
+      const noteIdx = NOTE_MAP[n.note] ?? 0;
+      const oct = n.octave ?? 2;
+      const midiPitch = (oct + 1) * 12 + noteIdx;
+      const startStep = typeof n.step === 'number'
+        ? n.step
+        : Math.round((n.time || n.start || i * 0.5) * stepsPerBeat);
+      const duration = typeof n.length === 'number'
+        ? n.length
+        : Math.max(1, Math.round((n.duration || 0.5) * stepsPerBeat));
+
+      return {
+        id: `bass-pr-${i}`,
+        pitch: midiPitch,
+        startStep,
+        duration,
+        velocity: Math.round((n.velocity || 0.8) * (n.velocity > 1 ? 1 : 127)),
+        trackType: 'bass' as const,
+      };
+    });
+
+    // Dispatch to piano roll via the astutely:generated event bridge
+    window.dispatchEvent(new CustomEvent('astutely:generated', {
+      detail: {
+        notes: astutelyNotes,
+        bpm: effectiveBpm,
+        key: effectiveKey,
+      }
     }));
     window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'piano-roll' }));
-    toast({ title: "Sent to Piano Roll", description: `${notesToSend.length} notes sent for editing` });
-  }, [generatedBass, recordedNotes, toast]);
+    toast({ title: "Sent to Piano Roll", description: `${astutelyNotes.length} bass notes loaded into Piano Roll at ${effectiveBpm} BPM` });
+  }, [generatedBass, recordedNotes, effectiveBpm, effectiveKey, toast]);
 
   // Play generated bass line
   const playGeneratedBass = useCallback(async () => {
@@ -289,6 +405,67 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
     toast({ title: 'Cleared', description: 'Bass line cleared' });
   }, [stopPlayback, toast]);
 
+  // --- Inline Note Editing Functions ---
+
+  const updateBassNote = useCallback((index: number, updates: Record<string, any>) => {
+    setGeneratedBass(prev => prev.map((n, i) => i === index ? { ...n, ...updates } : n));
+  }, []);
+
+  const deleteBassNote = useCallback((index: number) => {
+    setGeneratedBass(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const duplicateBassNote = useCallback((index: number) => {
+    setGeneratedBass(prev => {
+      const note = { ...prev[index] };
+      // Offset the duplicate slightly in time
+      if (typeof note.start === 'number') note.start += (note.duration || 0.5);
+      if (typeof note.time === 'number') note.time += (note.duration || 0.5);
+      const next = [...prev];
+      next.splice(index + 1, 0, note);
+      return next;
+    });
+  }, []);
+
+  const addNewBassNote = useCallback(() => {
+    const lastNote = generatedBass[generatedBass.length - 1];
+    const newNote = {
+      note: lastNote?.note || effectiveKey.replace(/m$/, '') || 'C',
+      octave: lastNote?.octave ?? octave[0],
+      start: (lastNote?.start ?? 0) + (lastNote?.duration ?? 0.5),
+      time: (lastNote?.time ?? 0) + (lastNote?.duration ?? 0.5),
+      duration: lastNote?.duration ?? 0.5,
+      velocity: lastNote?.velocity ?? 0.8,
+      glide: 0,
+    };
+    setGeneratedBass(prev => [...prev, newNote]);
+  }, [generatedBass, effectiveKey, octave]);
+
+  const moveBassNote = useCallback((index: number, direction: -1 | 1) => {
+    setGeneratedBass(prev => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }, []);
+
+  const transposeNote = useCallback((index: number, semitones: number) => {
+    setGeneratedBass(prev => prev.map((n, i) => {
+      if (i !== index) return n;
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const currentIdx = noteNames.indexOf(n.note);
+      if (currentIdx === -1) return n;
+      let newIdx = currentIdx + semitones;
+      let newOctave = n.octave ?? 2;
+      while (newIdx >= 12) { newIdx -= 12; newOctave++; }
+      while (newIdx < 0) { newIdx += 12; newOctave--; }
+      newOctave = Math.max(0, Math.min(4, newOctave));
+      return { ...n, note: noteNames[newIdx], octave: newOctave };
+    }));
+  }, []);
+
   const bassStyles = [
     { value: '808', label: '🔊 808 Bass', description: 'Deep trap/hip-hop bass' },
     { value: 'sub', label: '🌊 Sub Bass', description: 'Pure sine wave sub' },
@@ -306,20 +483,56 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
   ];
 
   const generateBassLine = async () => {
-    // Use provided chord progression or default to a common progression
-    const chords = chordProgression && chordProgression.length > 0 
-      ? chordProgression 
-      : [
-          { chord: 'C', duration: 4 },
-          { chord: 'G', duration: 4 },
-          { chord: 'Am', duration: 4 },
-          { chord: 'F', duration: 4 }
-        ];
+    // Key-aware default progressions — grouped by key family
+    const KEY_PROGRESSIONS: Record<string, Array<Array<{ chord: string; duration: number }>>> = {
+      'C': [
+        [{ chord: 'C', duration: 4 }, { chord: 'G', duration: 4 }, { chord: 'Am', duration: 4 }, { chord: 'F', duration: 4 }],
+        [{ chord: 'Am', duration: 4 }, { chord: 'F', duration: 4 }, { chord: 'C', duration: 4 }, { chord: 'G', duration: 4 }],
+        [{ chord: 'F', duration: 4 }, { chord: 'Am', duration: 4 }, { chord: 'G', duration: 4 }, { chord: 'C', duration: 4 }],
+      ],
+      'G': [
+        [{ chord: 'G', duration: 4 }, { chord: 'Em', duration: 4 }, { chord: 'C', duration: 4 }, { chord: 'D', duration: 4 }],
+        [{ chord: 'Em', duration: 4 }, { chord: 'C', duration: 4 }, { chord: 'G', duration: 4 }, { chord: 'D', duration: 4 }],
+      ],
+      'D': [
+        [{ chord: 'D', duration: 4 }, { chord: 'Bm', duration: 4 }, { chord: 'G', duration: 4 }, { chord: 'A', duration: 4 }],
+        [{ chord: 'Bm', duration: 4 }, { chord: 'G', duration: 4 }, { chord: 'D', duration: 4 }, { chord: 'A', duration: 4 }],
+      ],
+      'A': [
+        [{ chord: 'A', duration: 4 }, { chord: 'E', duration: 4 }, { chord: 'F#m', duration: 4 }, { chord: 'D', duration: 4 }],
+      ],
+      'E': [
+        [{ chord: 'E', duration: 4 }, { chord: 'B', duration: 4 }, { chord: 'C#m', duration: 4 }, { chord: 'A', duration: 4 }],
+      ],
+      'F': [
+        [{ chord: 'F', duration: 4 }, { chord: 'Dm', duration: 4 }, { chord: 'Bb', duration: 4 }, { chord: 'C', duration: 4 }],
+      ],
+      'Bb': [
+        [{ chord: 'Bb', duration: 4 }, { chord: 'F', duration: 4 }, { chord: 'Gm', duration: 4 }, { chord: 'Eb', duration: 4 }],
+      ],
+      'Eb': [
+        [{ chord: 'Eb', duration: 4 }, { chord: 'Cm', duration: 4 }, { chord: 'Ab', duration: 4 }, { chord: 'Bb', duration: 4 }],
+      ],
+    };
+
+    // Use effective chords from tracks/props, or pick key-aware fallback
+    let chords: Array<{ chord: string; duration: number }>;
+    if (effectiveChords && effectiveChords.length > 0) {
+      chords = effectiveChords;
+    } else {
+      // Pick a progression that matches the session key
+      const keyRoot = effectiveKey.replace(/m$/, '').replace(/\s.*/, '');
+      const keyProgs = KEY_PROGRESSIONS[keyRoot] || KEY_PROGRESSIONS['C']!;
+      chords = keyProgs[Math.floor(Math.random() * keyProgs.length)];
+    }
 
     setIsGenerating(true);
 
+    const sourceLabel = chordsSource === 'tracks' ? ' (from your tracks)' : chordsSource === 'prop' ? ' (from session)' : ` (in ${effectiveKey})`;
+    console.log(`🎸 Bass: Generating at ${effectiveBpm} BPM, key ${effectiveKey}, chords: ${chords.map(c => c.chord).join(' → ')}${sourceLabel}`);
+
     try {
-      // Call AI to generate bass line
+      // Call server to generate bass line with full session context
       const response = await apiRequest('POST', '/api/music/generate-bass', {
           chordProgression: chords,
           style: bassStyle,
@@ -329,6 +542,8 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
           noteLength: noteLength[0] / 100,
           velocity: velocity[0] / 127,
           glide: glide[0] / 100,
+          bpm: effectiveBpm,
+          key: effectiveKey,
           name: `Bass ${patternType}`,
       });
 
@@ -346,9 +561,10 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
         warning?: string;
       } | undefined;
       
+      const chordLabel = chordsSource === 'tracks' ? ' synced with your tracks' : chordsSource === 'prop' ? ' from session chords' : ` in ${effectiveKey}`;
       toast({
         title: "🎸 Bass Generated!",
-        description: `Created ${bassNotes.length} bass notes using ${bassStyles.find(s => s.value === bassStyle)?.label}${renderInfo?.quality ? ` • Render: ${renderInfo.quality}` : ''}`,
+        description: `${bassNotes.length} notes at ${effectiveBpm} BPM${chordLabel} using ${bassStyles.find(s => s.value === bassStyle)?.label}${renderInfo?.quality ? ` • ${renderInfo.quality}` : ''}`,
       });
 
       if (renderInfo?.processingChain?.length) {
@@ -371,7 +587,21 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
         onBassGenerated(bassNotes);
       }
 
-      // Note: Track is added via onBassGenerated callback to parent component
+      // Also generate real AI audio for the bass line
+      (async () => {
+        try {
+          toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${bassStyle} bass via AI...` });
+          const audioResult = await astutelyGenerateAudio(`${bassStyle} bass`, {});
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, bass pattern still available:', audioErr);
+        }
+      })();
 
     } catch (error) {
       console.error('Bass generation error:', error);
@@ -400,6 +630,46 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
       </CardHeader>
 
       <CardContent className="space-y-6 pt-6 relative z-10">
+        {/* Session Context Bar — shows what the bass generator is synced to */}
+        <div className="flex flex-wrap items-center gap-2 p-3 bg-white/5 rounded-xl border border-white/5">
+          <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-[10px] font-bold">
+            {effectiveBpm} BPM
+          </Badge>
+          <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30 text-[10px] font-bold">
+            Key: {effectiveKey}
+          </Badge>
+          <Badge
+            variant="outline"
+            className={`text-[10px] font-bold ${
+              chordsSource === 'tracks'
+                ? 'bg-green-500/10 text-green-400 border-green-500/30'
+                : chordsSource === 'prop'
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  : 'bg-white/5 text-white/40 border-white/10'
+            }`}
+          >
+            {chordsSource === 'tracks'
+              ? `Chords: ${(effectiveChords || []).map(c => c.chord).join(' → ')}`
+              : chordsSource === 'prop'
+                ? `Session: ${(effectiveChords || []).map(c => c.chord).join(' → ')}`
+                : 'Chords: auto (no tracks yet)'}
+          </Badge>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSyncWithTracks(!syncWithTracks)}
+            className={`ml-auto h-7 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+              syncWithTracks
+                ? 'text-green-400 bg-green-500/10 border border-green-500/30'
+                : 'text-white/40 bg-white/5 border border-white/10'
+            }`}
+            title={syncWithTracks ? 'Synced with your tracks — bass follows your chords' : 'Not synced — using random chords'}
+          >
+            {syncWithTracks ? <Link2 className="w-3 h-3 mr-1" /> : <Unlink className="w-3 h-3 mr-1" />}
+            {syncWithTracks ? 'Synced' : 'Unlinked'}
+          </Button>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Column: Style & Pattern */}
           <div className="space-y-4">
@@ -612,17 +882,158 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated }: B
           </div>
         )}
 
-        {/* Generated Pattern Output */}
+        {/* Generated Pattern Output — Inline Note Editor */}
         {generatedBass.length > 0 && (
           <div className="space-y-4 p-5 bg-blue-500/5 border border-blue-500/20 rounded-2xl shadow-xl animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest flex items-center gap-2">
+                <Edit3 className="w-3.5 h-3.5" />
+                Bass Line Editor ({generatedBass.length} notes)
+              </Label>
+              <Button size="sm" variant="outline" onClick={addNewBassNote} className="h-7 text-[10px] font-black uppercase tracking-tighter rounded-lg border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
+                <Plus className="w-3 h-3 mr-1" />
+                Add Note
+              </Button>
+            </div>
+
+            {/* Scrollable note list */}
+            <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
               {generatedBass.map((note, idx) => (
-                <span key={idx} className="px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black rounded-md shadow-sm">
-                  {note.note}{note.octave}
-                </span>
+                <div
+                  key={idx}
+                  className="flex items-center gap-1.5 p-2 bg-white/5 rounded-xl border border-white/5 hover:border-blue-500/30 transition-all group"
+                >
+                  {/* Note index */}
+                  <span className="text-[9px] font-black text-white/20 w-5 text-center shrink-0">{idx + 1}</span>
+
+                  {/* Pitch selector */}
+                  <Select
+                    value={note.note || 'C'}
+                    onValueChange={(val) => updateBassNote(idx, { note: val })}
+                  >
+                    <SelectTrigger className="h-8 w-16 bg-blue-500/10 border-blue-500/20 rounded-lg text-blue-400 text-xs font-black px-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
+                      {BASS_NOTES.map(n => (
+                        <SelectItem key={n} value={n} className="text-xs font-bold focus:bg-blue-500/20">{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Octave control */}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => transposeNote(idx, -12)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all"
+                      title="Octave down"
+                    >
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    <span className="text-[10px] font-black text-purple-400 w-5 text-center">{note.octave ?? 2}</span>
+                    <button
+                      onClick={() => transposeNote(idx, 12)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all"
+                      title="Octave up"
+                    >
+                      <ChevronUp className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Semitone transpose */}
+                  <div className="flex items-center gap-0.5 shrink-0 border-l border-white/5 pl-1.5">
+                    <button
+                      onClick={() => transposeNote(idx, -1)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/20 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all text-[9px] font-black"
+                      title="Semitone down"
+                    >
+                      -1
+                    </button>
+                    <button
+                      onClick={() => transposeNote(idx, 1)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/20 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all text-[9px] font-black"
+                      title="Semitone up"
+                    >
+                      +1
+                    </button>
+                  </div>
+
+                  {/* Duration slider */}
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 border-l border-white/5 pl-1.5">
+                    <span className="text-[8px] font-bold text-white/20 uppercase shrink-0">Dur</span>
+                    <Slider
+                      value={[Math.round((note.duration || 0.5) * 100)]}
+                      onValueChange={([v]) => updateBassNote(idx, { duration: v / 100 })}
+                      min={5}
+                      max={200}
+                      step={5}
+                      className="flex-1 min-w-[40px]"
+                    />
+                    <span className="text-[9px] font-black text-white/30 w-8 text-right shrink-0">{((note.duration || 0.5) * 100).toFixed(0)}%</span>
+                  </div>
+
+                  {/* Velocity slider */}
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 border-l border-white/5 pl-1.5">
+                    <span className="text-[8px] font-bold text-white/20 uppercase shrink-0">Vel</span>
+                    <Slider
+                      value={[Math.round((note.velocity || 0.8) * 100)]}
+                      onValueChange={([v]) => updateBassNote(idx, { velocity: v / 100 })}
+                      min={10}
+                      max={100}
+                      step={1}
+                      className="flex-1 min-w-[40px]"
+                    />
+                    <span className="text-[9px] font-black text-white/30 w-8 text-right shrink-0">{Math.round((note.velocity || 0.8) * 100)}%</span>
+                  </div>
+
+                  {/* Action buttons — visible on hover */}
+                  <div className="flex items-center gap-0.5 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity border-l border-white/5 pl-1.5">
+                    <button
+                      onClick={() => moveBassNote(idx, -1)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all disabled:opacity-20"
+                      disabled={idx === 0}
+                      title="Move up"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => moveBassNote(idx, 1)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 transition-all disabled:opacity-20"
+                      disabled={idx === generatedBass.length - 1}
+                      title="Move down"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => duplicateBassNote(idx)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                      title="Duplicate note"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        playBassNote(note.note, note.octave ?? 2);
+                      }}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-green-400 hover:bg-green-500/10 transition-all"
+                      title="Preview note"
+                    >
+                      <Volume2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => deleteBassNote(idx)}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      title="Delete note"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
-            <div className="flex gap-3">
+
+            {/* Action bar */}
+            <div className="flex gap-3 pt-2 border-t border-white/5">
               <Button
                 onClick={isPlaying ? stopPlayback : playGeneratedBass}
                 variant="outline"

@@ -551,7 +551,7 @@ def detect_emotion():
             emotions = {k: 0.2 for k in emotions}
         
         # Find dominant emotion
-        dominant = max(emotions, key=emotions.get)
+        dominant = max(emotions, key=lambda k: emotions[k])
         
         # Clean up
         try:
@@ -659,7 +659,7 @@ def classify_audio():
             classifications = {k: round(v / total, 2) for k, v in classifications.items()}
         
         # Find dominant
-        dominant = max(classifications, key=classifications.get)
+        dominant = max(classifications, key=lambda k: classifications[k])
         
         # Clean up
         try:

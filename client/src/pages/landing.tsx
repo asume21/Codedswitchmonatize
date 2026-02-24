@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send, Construction, Play, Sparkles, Wand2, Radio, Mic2, Piano, Layout, Cpu, Activity, Database, ChevronRight, CheckCircle2, Globe, Github, Twitter, Instagram } from "lucide-react";
+import { Code, Music, Zap, MessageSquare, Drum, Upload, Shield, Send, Construction, Play, Sparkles, Wand2, Radio, Mic2, Piano, Layout, Cpu, Activity, Database, ChevronRight, CheckCircle2, Globe, Github, Twitter, Instagram, LogIn, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 
 // UNDER CONSTRUCTION MODE - Set to false to show full landing page
 const UNDER_CONSTRUCTION = false;
@@ -16,6 +17,7 @@ export default function Landing() {
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -98,6 +100,45 @@ export default function Landing() {
             <Link href="/studio">
               <Button variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 uppercase tracking-widest font-bold">
                 Launch DAW
+              </Button>
+            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                <Button variant="outline" className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 uppercase tracking-widest font-bold">
+                  Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Link href="/login">
+                  <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 uppercase tracking-widest font-bold text-sm gap-2">
+                    <LogIn className="w-4 h-4" />
+                    Log In
+                  </Button>
+                </Link>
+                <Link href="/signup">
+                  <Button className="bg-cyan-600 hover:bg-cyan-500 text-white uppercase tracking-widest font-bold text-sm gap-2 shadow-[0_0_20px_rgba(6,182,212,0.3)]">
+                    <UserPlus className="w-4 h-4" />
+                    Sign Up
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile: Login + Launch buttons */}
+          <div className="flex md:hidden items-center gap-2">
+            {!isAuthenticated && (
+              <Link href="/login">
+                <Button size="sm" variant="ghost" className="text-white/70 hover:text-white gap-1.5 text-xs font-bold uppercase tracking-wider">
+                  <LogIn className="w-4 h-4" />
+                  Log In
+                </Button>
+              </Link>
+            )}
+            <Link href={isAuthenticated ? "/dashboard" : "/signup"}>
+              <Button size="sm" className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold uppercase tracking-wider gap-1.5 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+                {isAuthenticated ? 'Dashboard' : 'Sign Up'}
               </Button>
             </Link>
           </div>

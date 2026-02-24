@@ -15,13 +15,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
 
 // Lazy load heavy audio providers - only needed for studio routes
-const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: any) => children })));
-const TrackStoreProvider = React.lazy(() => import("@/contexts/TrackStoreContext").then(m => ({ default: m.TrackStoreProvider })).catch(() => ({ default: ({ children }: any) => children })));
-const InstrumentProvider = React.lazy(() => import("@/contexts/InstrumentContext").then(m => ({ default: m.InstrumentProvider })).catch(() => ({ default: ({ children }: any) => children })));
-const GlobalAudioProvider = React.lazy(() => import("@/contexts/GlobalAudioContext").then(m => ({ default: m.GlobalAudioProvider })).catch(() => ({ default: ({ children }: any) => children })));
-const StudioSessionProvider = React.lazy(() => import("@/contexts/StudioSessionContext").then(m => ({ default: m.StudioSessionProvider })).catch(() => ({ default: ({ children }: any) => children })));
-const SongWorkSessionProvider = React.lazy(() => import("@/contexts/SongWorkSessionContext").then(m => ({ default: m.SongWorkSessionProvider })).catch(() => ({ default: ({ children }: any) => children })));
-const SessionDestinationProvider = React.lazy(() => import("@/contexts/SessionDestinationContext").then(m => ({ default: m.SessionDestinationProvider })).catch(() => ({ default: ({ children }: any) => children })));
+const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const TrackStoreProvider = React.lazy(() => import("@/contexts/TrackStoreContext").then(m => ({ default: m.TrackStoreProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const InstrumentProvider = React.lazy(() => import("@/contexts/InstrumentContext").then(m => ({ default: m.InstrumentProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const GlobalAudioProvider = React.lazy(() => import("@/contexts/GlobalAudioContext").then(m => ({ default: m.GlobalAudioProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const StudioSessionProvider = React.lazy(() => import("@/contexts/StudioSessionContext").then(m => ({ default: m.StudioSessionProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const SongWorkSessionProvider = React.lazy(() => import("@/contexts/SongWorkSessionContext").then(m => ({ default: m.SongWorkSessionProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const SessionDestinationProvider = React.lazy(() => import("@/contexts/SessionDestinationContext").then(m => ({ default: m.SessionDestinationProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const AstutelyCoreProvider = React.lazy(() => import("@/contexts/AstutelyCoreContext").then(m => ({ default: m.AstutelyCoreProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const GlobalAudioPlayer = React.lazy(() => import("@/components/GlobalAudioPlayer").then(m => ({ default: m.GlobalAudioPlayer })).catch(() => ({ default: () => null })));
 
 // Eagerly loaded pages (small, frequently accessed) - FAST INITIAL LOAD
@@ -85,15 +86,17 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
           <GlobalAudioProvider>
             <InstrumentProvider>
               <TrackStoreProvider>
-                <StudioSessionProvider>
-                  <SongWorkSessionProvider>
-                    <SessionDestinationProvider>
-                      <GlobalAudioPlayer />
-                      <GlobalLivingGlyph position="bottom-right" size={48} />
-                      {children}
-                    </SessionDestinationProvider>
-                  </SongWorkSessionProvider>
-                </StudioSessionProvider>
+                <AstutelyCoreProvider>
+                  <StudioSessionProvider>
+                    <SongWorkSessionProvider>
+                      <SessionDestinationProvider>
+                        <GlobalAudioPlayer />
+                        <GlobalLivingGlyph position="bottom-right" size={48} />
+                        {children}
+                      </SessionDestinationProvider>
+                    </SongWorkSessionProvider>
+                  </StudioSessionProvider>
+                </AstutelyCoreProvider>
               </TrackStoreProvider>
             </InstrumentProvider>
           </GlobalAudioProvider>

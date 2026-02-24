@@ -17,6 +17,90 @@ export async function runMigrations() {
   const sql = postgres(url);
   
   try {
+    // Migration: Ensure core tables exist first (users, songs, projects)
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        username TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        stripe_customer_id TEXT,
+        stripe_subscription_id TEXT,
+        subscription_status TEXT,
+        subscription_tier TEXT DEFAULT 'free',
+        activation_key TEXT UNIQUE,
+        activated_at TIMESTAMP,
+        monthly_uploads INTEGER DEFAULT 0,
+        monthly_generations INTEGER DEFAULT 0,
+        last_usage_reset TIMESTAMP DEFAULT NOW(),
+        credits INTEGER DEFAULT 10,
+        total_credits_spent INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: users table ensured');
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS projects (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR REFERENCES users(id),
+        name TEXT NOT NULL,
+        data JSON NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: projects table ensured');
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS songs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR REFERENCES users(id),
+        title TEXT NOT NULL,
+        description TEXT,
+        genre TEXT,
+        audio_url TEXT,
+        cover_image_url TEXT,
+        duration INTEGER,
+        bpm INTEGER,
+        key TEXT,
+        is_public BOOLEAN DEFAULT false,
+        play_count INTEGER DEFAULT 0,
+        like_count INTEGER DEFAULT 0,
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: songs table ensured');
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS credit_transactions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        amount INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        balance_before INTEGER NOT NULL,
+        balance_after INTEGER NOT NULL,
+        metadata JSON,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: credit_transactions table ensured');
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS session (
+        sid VARCHAR NOT NULL PRIMARY KEY,
+        sess JSON NOT NULL,
+        expire TIMESTAMP(6) NOT NULL
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_session_expire ON session(expire)
+    `;
+    console.log('✅ Migration: session table ensured');
+
     // Migration: Add transcription columns to songs table
     await sql`
       ALTER TABLE songs 

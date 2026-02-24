@@ -308,10 +308,12 @@ export async function convertWithVoice(
       // Copy RVC output to our storage
       ensureVoiceOutputsDir();
 
-      if (fs.existsSync(result.output_path)) {
-        const copiedData = fs.readFileSync(result.output_path);
+      // Validate output_path to prevent path traversal from RVC API response
+      const resolvedOutput = path.resolve(result.output_path);
+      if (fs.existsSync(resolvedOutput)) {
+        const copiedData = fs.readFileSync(resolvedOutput);
         // Clean up RVC temp file
-        try { fs.unlinkSync(result.output_path); } catch {}
+        try { fs.unlinkSync(resolvedOutput); } catch {}
 
         return saveConvertedOutput(copiedData, "wav");
       }

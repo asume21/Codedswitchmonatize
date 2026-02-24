@@ -75,9 +75,20 @@ async function polishGeneratedAudio(sourceUrl: string): Promise<{ url: string; d
   }
 }
 
-// Replicate client
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
+// Replicate client — lazy-initialized so dotenv.config() has time to load the token
+let _replicateInstance: Replicate | null = null;
+function getReplicate(): Replicate {
+  if (!_replicateInstance) {
+    _replicateInstance = new Replicate({
+      auth: process.env.REPLICATE_API_TOKEN,
+    });
+  }
+  return _replicateInstance;
+}
+const replicate = new Proxy({} as Replicate, {
+  get(_target, prop) {
+    return (getReplicate() as any)[prop];
+  },
 });
 
 export interface MusicSample {
@@ -213,23 +224,37 @@ export class UnifiedMusicService {
 
     const trySuno = async () => {
       const { sunoApiService } = await import('./sunoApiService');
-      if (!sunoApiService.isConfigured()) {
-        throw new Error('Suno provider requested but not configured');
+      const configured = sunoApiService.isConfigured();
+      console.log(`🔑 Suno API configured: ${configured} (env SUNO_API_KEY present: ${!!process.env.SUNO_API_KEY}, SUNO_API_TOKEN present: ${!!process.env.SUNO_API_TOKEN})`);
+      if (!configured) {
+        throw new Error('Suno provider requested but not configured — check SUNO_API_KEY in .env');
       }
 
       if (vocals) {
         const result = await sunoApiService.generateSong(rich.prompt, style, `${genre} Song`);
+        const sunoVariations = result.tracks.map((t, i) => ({
+          audio_url: t.audio_url || t.stream_audio_url,
+          seed: Date.now() + i,
+          variation: i + 1,
+        }));
         return {
           status: 'success',
           audio_url: result.audioUrl,
+          variations: sunoVariations,
           metadata: { duration: result.duration, quality: '48kHz stereo', generator: 'suno', genre, bpm: rich.bpm, key: rich.key }
         };
       }
 
       const result = await sunoApiService.generateBeat(style, rich.bpm, rich.key);
+      const sunoVariations = result.tracks.map((t, i) => ({
+        audio_url: t.audio_url || t.stream_audio_url,
+        seed: Date.now() + i,
+        variation: i + 1,
+      }));
       return {
         status: 'success',
         audio_url: result.audioUrl,
+        variations: sunoVariations,
         metadata: { duration: result.duration, quality: '48kHz stereo', generator: 'suno', genre, bpm: rich.bpm, key: rich.key }
       };
     };
@@ -312,7 +337,7 @@ export class UnifiedMusicService {
     // Use melody-large if melody conditioning is provided, otherwise stereo-large
     const modelId = melodyUrl
       ? "meta/musicgen:b05b1dff1d8c6dc63d14b0cdb42135571e41c36ba2865ab1c3dfc28e1e4e8463" // melody-large
-      : "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043ac92924f66e7e4c19447d8b35"; // stereo-large
+      : "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"; // stereo-large
 
     const input: Record<string, any> = {
       prompt,
@@ -323,7 +348,7 @@ export class UnifiedMusicService {
       top_k: 250,
       top_p: 0.97,
       temperature: 1.0,
-      classifier_free_guidance: 3.5,
+      classifier_free_guidance: 4,
       normalization_strategy: "loudness",
     };
 
@@ -341,7 +366,7 @@ export class UnifiedMusicService {
         input.seed = actualSeed + i * 1000;
         const output = await replicate.run(modelId as any, { input: { ...input } });
         results.push({
-          audio_url: output,
+          audio_url: String(output),
           seed: input.seed,
           variation: i + 1,
         });
@@ -364,7 +389,7 @@ export class UnifiedMusicService {
     const output = await replicate.run(modelId as any, { input });
     return {
       status: 'success',
-      audio_url: output,
+      audio_url: String(output),
       metadata: {
         duration,
         quality: '32kHz stereo',
@@ -428,7 +453,23 @@ export class UnifiedMusicService {
     }
 
     if (sectionResults.length === 0) {
-      throw new Error('All section generations failed');
+      // All section-level generations failed (e.g. Replicate unavailable).
+      // Fall back to the full provider cascade (Suno → MusicGen → Stable Audio)
+      // which generates a single cohesive track instead of stitched sections.
+      console.warn('⚠️ All stitched sections failed — falling back to full song cascade');
+      const totalDuration = structure.reduce((sum, s) => sum + s.duration, 0);
+      const fallbackResult = await this.generateFullSong(prompt, {
+        genre, mood, bpm, key, vocals, seed,
+        duration: Math.min(totalDuration, 120),
+        style: genre || 'modern',
+      });
+      return {
+        ...fallbackResult,
+        metadata: {
+          ...fallbackResult.metadata,
+          generator: `${fallbackResult.metadata?.generator || 'ai'}-stitched-fallback`,
+        },
+      };
     }
 
     return {
@@ -497,7 +538,7 @@ export class UnifiedMusicService {
         const variedPrompt = `${fullPrompt}. ${mixAdj}.`;
         
         const output = await replicate.run(
-          "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043ac92924f66e7e4c19447d8b35",
+          "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
           {
             input: {
               prompt: variedPrompt,
@@ -507,7 +548,7 @@ export class UnifiedMusicService {
               temperature: 1.0,
               top_k: 250,
               top_p: 0.97,
-              classifier_free_guidance: 3.5,
+              classifier_free_guidance: 4,
               normalization_strategy: "loudness",
               seed: randomSeed
             }
@@ -516,7 +557,7 @@ export class UnifiedMusicService {
 
         return {
           status: 'success',
-          audio_url: output,
+          audio_url: String(output),
           metadata: {
             type,
             duration,
@@ -589,25 +630,21 @@ export class UnifiedMusicService {
     
     try {
       const output = await replicate.run(
-        "stability-ai/stable-audio-open-1.0:a493f1e6e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5" as any,
+        "stability-ai/stable-audio-2.5:a61ac8edbb27cd2eda1b2eff2bbc03dcff1131f5560836ff77a052df05b77491" as any,
         {
           input: {
             prompt: fullPrompt,
-            seconds_total: Math.min(duration, 47),
-            steps: 100,
+            duration: Math.min(duration, 47),
+            steps: 8,
             cfg_scale: 7,
             seed: Math.floor(Math.random() * 2147483647),
-            sampler: "dpmpp-3m-sde",
-            sigma_min: 0.3,
-            sigma_max: 500,
-            ...(negative_prompt && { negative_prompt })
           }
         }
       );
 
       return {
         status: 'success',
-        audio_url: output,
+        audio_url: String(output),
         metadata: {
           type: 'instrumental',
           duration,
@@ -657,7 +694,7 @@ export class UnifiedMusicService {
       console.log(`🧠 Genre Fusion Intelligence: ${genreList} → BPM: ${blendedBpm}, Instruments: ${instrumentList}`);
 
       const output = await replicate.run(
-        "meta/musicgen:2b5dc5f29cee83fd5cdf8f9c92e555aae7ca2a69b73c5182f3065362b2fa0a45",
+        "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
         {
           input: {
             prompt: fullPrompt,
@@ -672,7 +709,7 @@ export class UnifiedMusicService {
 
       return {
         status: 'success',
-        audio_url: output,
+        audio_url: String(output),
         metadata: {
           type: 'genre_blend',
           duration: 30,
@@ -724,7 +761,7 @@ export class UnifiedMusicService {
         console.log(`🎵 Pack ${i + 1}: "${variedPrompt}"`);
         
         const output = await replicate.run(
-          "andreasjansson/musicgen-looper:ad041aebc8406f8883e7f28313614c4a11c6e623dd934a54f2bf30127b4bc7a8",
+          "andreasjansson/musicgen-looper:f8140d0457c2b39ad8728a80736fea9a67a0ec0cd37b35f40b68cce507db2366",
           {
             input: {
               prompt: variedPrompt,

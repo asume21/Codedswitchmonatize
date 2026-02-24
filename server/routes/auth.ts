@@ -96,9 +96,21 @@ export function createAuthRoutes(storage: IStorage) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
-      // Create session
+      // Create session — try to save but don't fail login if session store is down
       if (req.session) {
         req.session.userId = user.id;
+        try {
+          await new Promise<void>((resolve, reject) => {
+            req.session!.save((err: Error | null) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+        } catch (sessionError) {
+          // Session store may be unavailable (no DB, table missing, etc.)
+          // Login still works via token-based auth in localStorage
+          console.warn("Session save failed (token auth still works):", sessionError);
+        }
       }
 
       // Return user without password
@@ -107,11 +119,12 @@ export function createAuthRoutes(storage: IStorage) {
         message: "Login successful",
         user: userWithoutPassword,
         userId: user.id,
-        token: `Bearer ${user.id}` // Frontend should send this in Authorization header
+        token: `Bearer ${user.id}`
       });
-    } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Login failed" });
+    } catch (error: any) {
+      console.error("Login error:", error?.message || error);
+      console.error("Login error stack:", error?.stack);
+      res.status(500).json({ message: error?.message || "Login failed" });
     }
   });
 

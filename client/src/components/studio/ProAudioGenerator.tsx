@@ -16,7 +16,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import {
   Music, Loader2, Sparkles, Zap, Download, AlertTriangle,
-  Copy, Check, ChefHat, Lightbulb, Clock, Save,
+  Copy, Check, ChefHat, Lightbulb, Clock, Save, Edit3,
 } from 'lucide-react';
 import { PROVIDER_CAPABILITIES, resolveGenerationConstraints } from '../../../../shared/aiProviderCapabilities';
 
@@ -36,6 +36,8 @@ interface GeneratedSong {
   provider: string;
   seed?: number;
   duration?: number;
+  bpm?: number;
+  key?: string;
   variations?: GenerationVariation[];
   sections?: Array<{ audio_url: string; section: string; sectionIndex: number }>;
   stems?: {
@@ -239,6 +241,8 @@ export function ProAudioGenerator() {
   // Results UI state
   const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [extractingPatterns, setExtractingPatterns] = useState(false);
+  const [patternsLoaded, setPatternsLoaded] = useState(false);
 
   // Audio player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -253,7 +257,9 @@ export function ProAudioGenerator() {
   const isTextOnlyProvider = !providerCapability.canGenerateAudio;
   const providerLabel = providerCapability.label || aiProvider;
   const providerEst = providerCapability.estimatedLatency || '15-60s';
-  const effectiveVariations = generateMultiple ? 3 : variations;
+  const isSunoProvider = aiProvider === 'suno' || aiProvider === 'replicate-suno';
+  const maxVariationsForProvider = isSunoProvider ? 2 : 4;
+  const effectiveVariations = generateMultiple ? Math.min(3, maxVariationsForProvider) : Math.min(variations, maxVariationsForProvider);
   const getMaxDuration = useCallback(() => {
     if (songStructure !== 'auto') return 300;
     return providerMaxSingle;
@@ -680,11 +686,12 @@ export function ProAudioGenerator() {
   const handleSaveToLibrary = async () => {
     if (!generatedSong) return;
     try {
+      const audioUrl = generatedSong.variations?.[selectedVariation]?.audio_url || generatedSong.audioUrl;
       const response = await apiRequest('POST', '/api/songs/upload', {
-        title: generatedSong.title,
-        genre: generatedSong.genre,
-        songURL: generatedSong.audioUrl,
-        description: generatedSong.description,
+        name: generatedSong.title,
+        songURL: audioUrl,
+        format: audioUrl?.endsWith('.mp3') ? 'mp3' : 'wav',
+        duration: generatedSong.duration,
       });
       if (!response.ok) {
         let detail = 'Could not save to library';
@@ -701,6 +708,58 @@ export function ProAudioGenerator() {
     }
   };
 
+  const handleEditInPianoRoll = async () => {
+    if (!generatedSong?.audioUrl) return;
+    setExtractingPatterns(true);
+    setPatternsLoaded(false);
+    try {
+      const response = await apiRequest('POST', '/api/songs/extract-patterns', {
+        audioUrl: generatedSong.audioUrl,
+        bpm: generatedSong.bpm || bpm[0] || 120,
+      });
+      const data = await response.json();
+      if (!data.success || !data.notes || data.notes.length === 0) {
+        toast({ title: 'No Patterns Found', description: data.message || 'Could not extract editable patterns from this audio.', variant: 'destructive' });
+        return;
+      }
+      // Dispatch to piano roll via the astutely:generated event bridge
+      const resolvedBpm = data.bpm || bpm[0] || 120;
+      window.dispatchEvent(new CustomEvent('astutely:generated', {
+        detail: {
+          notes: data.notes,
+          bpm: resolvedBpm,
+          key: generatedSong.key || key,
+        }
+      }));
+
+      // Also inject the original generated audio as a playable reference track
+      const durationSeconds = Number(data.totalDuration) || Number(generatedSong.duration) || 0;
+      const lengthBars = durationSeconds > 0
+        ? Math.max(1, Math.ceil((durationSeconds / (60 / resolvedBpm)) / 4))
+        : 8;
+
+      window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
+        detail: {
+          trackId: `track-source-${Date.now()}`,
+          name: `${generatedSong.title || 'Generated Song'} (Reference)` ,
+          audioUrl: generatedSong.audioUrl,
+          bpm: resolvedBpm,
+          lengthBars,
+        }
+      }));
+
+      setPatternsLoaded(true);
+      toast({
+        title: 'Patterns Loaded!',
+        description: `${data.noteCount || data.notes.length} notes loaded and a playable reference track was added. ${data.source === 'estimated' ? '(Estimated — audio analysis API offline)' : ''}`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Extraction Failed', description: err?.message || 'Could not extract patterns.', variant: 'destructive' });
+    } finally {
+      setExtractingPatterns(false);
+    }
+  };
+
   const handleNewGeneration = () => {
     setGeneratedSong(null);
     setIsPlaying(false);
@@ -708,6 +767,7 @@ export function ProAudioGenerator() {
     setAudioDuration(0);
     setSavedToLibrary(false);
     setLinkCopied(false);
+    setPatternsLoaded(false);
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; }
   };
   
@@ -806,7 +866,15 @@ export function ProAudioGenerator() {
                         </div>
                         <div>
                           <Label className="mb-1.5 block text-sm">AI Provider</Label>
-                          <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} />
+                          <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} feature="audio" />
+                          {isSunoProvider ? (
+                            <div className="mt-1.5 space-y-0.5">
+                              <p className="text-[10px] font-semibold text-amber-400">Premium: 125 credits per song (best quality, full vocals)</p>
+                              <p className="text-[10px] text-muted-foreground">Try <button type="button" className="underline text-cyan-400 hover:text-cyan-300" onClick={() => setAiProvider('replicate-musicgen')}>MusicGen</button> for beats &amp; instrumentals at only 5 credits each.</p>
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-emerald-400 mt-1">Budget-friendly: 5-10 credits per generation</p>
+                          )}
                         </div>
                       </div>
 
@@ -916,12 +984,17 @@ export function ProAudioGenerator() {
                             <SelectContent>
                               <SelectItem value="1">1 (fastest)</SelectItem>
                               <SelectItem value="2">2 variations</SelectItem>
-                              <SelectItem value="3">3 variations</SelectItem>
-                              <SelectItem value="4">4 variations (pick best)</SelectItem>
+                              <SelectItem value="3" disabled={aiProvider === 'suno'}>3 variations{aiProvider === 'suno' ? ' (MusicGen only)' : ''}</SelectItem>
+                              <SelectItem value="4" disabled={aiProvider === 'suno'}>4 variations{aiProvider === 'suno' ? ' (MusicGen only)' : ''}</SelectItem>
                             </SelectContent>
                           </Select>
                           {generateMultiple && (
-                            <p className="text-[10px] text-muted-foreground mt-1">"Generate 3 options" is enabled, so variations are locked to 3.</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              "Generate 3 options" is enabled{isSunoProvider ? ' (Suno max: 2 per request)' : ', so variations are locked to 3'}.
+                            </p>
+                          )}
+                          {aiProvider === 'suno' && variations > 2 && !generateMultiple && (
+                            <p className="text-[10px] text-amber-400 mt-1">Suno generates 2 per request. Switching to 2 variations.</p>
                           )}
                         </div>
                       </div>
@@ -1148,6 +1221,22 @@ export function ProAudioGenerator() {
                   <Button onClick={handleCopyLink} variant="outline" size="sm">
                     {linkCopied ? <Check className="mr-1.5 h-4 w-4 text-green-400" /> : <Copy className="mr-1.5 h-4 w-4" />}
                     {linkCopied ? 'Copied!' : 'Copy Link'}
+                  </Button>
+                  <Button
+                    onClick={handleEditInPianoRoll}
+                    variant="outline"
+                    size="sm"
+                    disabled={extractingPatterns || patternsLoaded}
+                    className={patternsLoaded ? 'border-green-500/40 text-green-400' : ''}
+                  >
+                    {extractingPatterns ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : patternsLoaded ? (
+                      <Check className="mr-1.5 h-4 w-4" />
+                    ) : (
+                      <Edit3 className="mr-1.5 h-4 w-4" />
+                    )}
+                    {extractingPatterns ? 'Extracting...' : patternsLoaded ? 'In Piano Roll' : 'Edit in Piano Roll'}
                   </Button>
                   <Button onClick={handleNewGeneration} variant="outline" size="sm">
                     <Sparkles className="mr-1.5 h-4 w-4" />

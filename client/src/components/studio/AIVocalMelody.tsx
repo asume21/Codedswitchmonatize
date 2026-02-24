@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Mic, Music, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
 
 interface VocalNote {
   syllable: string;
@@ -76,6 +77,20 @@ export default function AIVocalMelody({
           title: "Melody Generated",
           description: `Created melody with ${data.melody.notes?.length || 0} notes`,
         });
+
+        // Also generate real AI audio for the vocal melody
+        try {
+          toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${mood} vocal melody via AI...` });
+          const audioResult = await astutelyGenerateAudio(`${mood} vocal melody`, { bpm, key });
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, melody data still available:', audioErr);
+        }
       }
     } catch (error: any) {
       toast({

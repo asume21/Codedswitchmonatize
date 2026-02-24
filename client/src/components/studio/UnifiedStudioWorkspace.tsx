@@ -14,7 +14,7 @@ import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
 import FloatingAIAssistant from './FloatingAIAssistant';
 import AIAssistant from './AIAssistant';
-import MusicGenerationPanel from './MusicGenerationPanel';
+import { ProAudioGenerator } from './ProAudioGenerator';
 import LyricsFocusMode from './LyricsFocusMode';
 import { Resizable } from 'react-resizable';
 import LyricLab from './LyricLab';
@@ -4204,7 +4204,7 @@ export default function UnifiedStudioWorkspace() {
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 p-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
                 <AIMasteringCard />
-                <AIArrangementBuilder currentBpm={tempo} currentKey="C" />
+                <AIArrangementBuilder currentBpm={tempo} currentKey="C" tracks={tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: (t as any).payload?.notes?.length || 0, muted: t.muted, volume: t.volume }))} />
                 <AIVocalMelody currentKey="C" currentBpm={tempo} />
                 <AIStemSeparation />
               </div>
@@ -4298,17 +4298,21 @@ export default function UnifiedStudioWorkspace() {
       )} */}
 
       {showMusicGen && (
-        <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full">
+        <div className="fixed inset-0 bg-black/70 z-[60] flex flex-col items-center p-4">
+          <div className="w-full max-w-5xl flex justify-end shrink-0 mb-2">
             <Button
               onClick={() => setShowMusicGen(false)}
               variant="ghost"
-              className="mb-2"
+              className="text-white hover:bg-white/10"
             >
-              <i className="fas fa-times mr-2"></i>
+              <X className="w-4 h-4 mr-2" />
               Close
             </Button>
-            <MusicGenerationPanel onMusicGenerated={handleMusicGenerated} />
+          </div>
+          <div className="max-w-5xl w-full flex-1 min-h-0 overflow-y-auto rounded-lg bg-background border border-border shadow-2xl">
+            <ErrorBoundary>
+              <ProAudioGenerator />
+            </ErrorBoundary>
           </div>
         </div>
       )}
@@ -4815,7 +4819,7 @@ export default function UnifiedStudioWorkspace() {
             >
               <X className="w-5 h-5" />
             </Button>
-            <AIArrangementBuilder currentBpm={tempo} currentKey="C" />
+            <AIArrangementBuilder currentBpm={tempo} currentKey="C" tracks={tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: (t as any).payload?.notes?.length || 0, muted: t.muted, volume: t.volume }))} />
           </div>
         </div>
       </div>,

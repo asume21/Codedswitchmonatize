@@ -25,12 +25,20 @@ export default function Login() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
+        credentials: "include",
       });
 
-      const data = await response.json();
+      // Safely parse JSON — server may return empty body on error
+      let data: any;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
-        throw new Error(data.message || "Login failed");
+        throw new Error(data.message || `Login failed (${response.status})`);
       }
 
       // Store auth token for subsequent requests

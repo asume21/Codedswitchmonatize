@@ -256,12 +256,15 @@ export async function generateSunoPacks(prompt: string, count: number) {
 
   const packs = [] as any[];
 
-  for (let i = 0; i < count; i++) {
-    const variationPrompt = `${prompt} (variation ${i + 1}, instrumental focus)`;
-    console.log(`🎵 Suno: Generating pack ${i + 1}/${count}: "${variationPrompt}"`);
+  // Suno returns 2 tracks per API call, so we only need ceil(count/2) calls
+  const apiCallsNeeded = Math.ceil(count / 2);
+  console.log(`🎵 Suno: Need ${count} packs → ${apiCallsNeeded} API call(s) (2 tracks each)`);
+
+  for (let callIndex = 0; callIndex < apiCallsNeeded; callIndex++) {
+    const variationPrompt = `${prompt} (batch ${callIndex + 1}, instrumental focus)`;
+    console.log(`🎵 Suno: API call ${callIndex + 1}/${apiCallsNeeded}: "${variationPrompt}"`);
     
     try {
-      // Step 1: Start the generation task
       const response = await sunoApi.generateMusic({
         prompt: variationPrompt,
         instrumental: true,
@@ -269,11 +272,10 @@ export async function generateSunoPacks(prompt: string, count: number) {
       });
 
       if (!response.success) {
-        console.warn(`⚠️ Suno generation failed for pack ${i + 1}:`, response.error);
+        console.warn(`⚠️ Suno generation failed for call ${callIndex + 1}:`, response.error);
         continue;
       }
 
-      // Extract taskId from various possible response shapes
       const taskId = response.taskId
         || response.data?.taskId
         || response.data?.task_id
@@ -281,93 +283,60 @@ export async function generateSunoPacks(prompt: string, count: number) {
 
       if (!taskId) {
         console.warn("⚠️ Suno response missing taskId. Full response:", JSON.stringify(response).substring(0, 500));
-        // If the response itself contains audio directly (some API versions), try to use it
-        const directAudio = response.data?.audio_url || response.data?.audioUrl;
-        if (directAudio) {
-          console.log(`✅ Suno: Got direct audio URL (no polling needed)`);
-          packs.push({
-            id: `suno-pack-${Date.now()}-${i}`,
-            title: response.data?.title || `Suno Instrumental #${i + 1}`,
-            description: `Suno AI instrumental generated from "${variationPrompt}"`,
-            bpm: response.data?.bpm || 120,
-            key: 'C',
-            genre: 'AI Generated',
-            samples: [{
-              id: `sample-suno-${Date.now()}-${i}`,
-              name: 'Full Track',
-              type: 'loop' as const,
-              duration: response.data?.duration || 120,
-              url: directAudio,
-              audioUrl: directAudio
-            }],
-            metadata: {
-              energy: 80,
-              mood: 'Generated',
-              instruments: ['AI Orchestra'],
-              tags: ['Suno', 'AI', 'Generative']
-            }
-          });
-          continue;
-        }
         continue;
       }
 
       console.log(`🎵 Suno: Task started with ID: ${taskId}`);
 
-      // Step 2: Use the built-in waitForCompletion with generous timeout
       const completionResult = await sunoApi.waitForCompletion(taskId, 180000, 8000);
 
       if (!completionResult.success) {
-        console.warn(`⚠️ Suno: Completion failed for pack ${i + 1}:`, completionResult.error);
+        console.warn(`⚠️ Suno: Completion failed for call ${callIndex + 1}:`, completionResult.error);
         continue;
       }
 
-      // Step 3: Extract audio from the completed result
-      // The response can be an array of tracks or a single object
+      // waitForCompletion now returns sunoData array directly (after fix)
       const resultData = completionResult.data;
-      const tracks = Array.isArray(resultData) ? resultData
-        : resultData?.data ? (Array.isArray(resultData.data) ? resultData.data : [resultData.data])
-        : resultData?.response?.data ? (Array.isArray(resultData.response.data) ? resultData.response.data : [resultData.response.data])
-        : [resultData];
+      const tracks = Array.isArray(resultData) ? resultData : [resultData];
 
-      // Find the first track with audio
-      const track = tracks.find((t: any) =>
-        t && (t.audio_url || t.audioUrl || t.stream_audio_url)
-      );
+      // Extract all tracks with audio URLs from this call
+      for (const track of tracks) {
+        if (packs.length >= count) break;
 
-      if (!track) {
-        console.warn(`⚠️ Suno: No audio URL in completed result. Data shape:`, JSON.stringify(resultData).substring(0, 500));
-        continue;
-      }
-
-      const audioUrl = track.audio_url || track.audioUrl || track.stream_audio_url;
-
-      packs.push({
-        id: `suno-pack-${Date.now()}-${i}`,
-        title: track.title || `Suno Instrumental #${i + 1}`,
-        description: track.description || `Suno AI instrumental generated from "${variationPrompt}"`,
-        bpm: track.bpm || 122,
-        key: 'C',
-        genre: 'AI Generated',
-        samples: [{
-          id: `sample-suno-${Date.now()}-${i}`,
-          name: 'Full Track',
-          type: 'loop' as const,
-          duration: track.duration || 120,
-          url: audioUrl,
-          audioUrl: audioUrl
-        }],
-        metadata: {
-          energy: 80,
-          mood: 'Generated',
-          instruments: ['AI Orchestra'],
-          tags: ['Suno', 'AI', 'Generative']
+        const audioUrl = track?.audioUrl || track?.audio_url || track?.streamAudioUrl || track?.stream_audio_url;
+        if (!audioUrl) {
+          console.warn(`⚠️ Suno: Track missing audio URL. Keys: ${Object.keys(track || {}).join(', ')}`);
+          continue;
         }
-      });
 
-      console.log(`✅ Suno: Pack ${i + 1} complete with audio: ${audioUrl.substring(0, 80)}...`);
+        const packIndex = packs.length;
+        packs.push({
+          id: `suno-pack-${Date.now()}-${packIndex}`,
+          title: track.title || `Suno Instrumental #${packIndex + 1}`,
+          description: track.description || `Suno AI instrumental generated from "${prompt}"`,
+          bpm: track.bpm || 122,
+          key: 'C',
+          genre: 'AI Generated',
+          samples: [{
+            id: `sample-suno-${Date.now()}-${packIndex}`,
+            name: 'Full Track',
+            type: 'loop' as const,
+            duration: track.duration || 120,
+            url: audioUrl,
+            audioUrl: audioUrl
+          }],
+          metadata: {
+            energy: 80,
+            mood: 'Generated',
+            instruments: ['AI Orchestra'],
+            tags: ['Suno', 'AI', 'Generative']
+          }
+        });
+
+        console.log(`✅ Suno: Pack ${packIndex + 1} complete with audio: ${audioUrl.substring(0, 80)}...`);
+      }
     } catch (packError: any) {
-      console.error(`❌ Suno: Error generating pack ${i + 1}:`, packError?.message || packError);
+      console.error(`❌ Suno: Error in API call ${callIndex + 1}:`, packError?.message || packError);
       continue;
     }
   }

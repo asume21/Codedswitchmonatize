@@ -28,6 +28,7 @@ import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useStudioSession } from "@/contexts/StudioSessionContext";
 import { useSessionDestination } from "@/contexts/SessionDestinationContext";
 import { Music2, FileMusic, AlertCircle, BookOpen, Sparkles } from "lucide-react";
+import { astutelyGenerateAudio, astutelyPlayAudio } from "@/lib/astutelyEngine";
 import { SongUploadPanel } from "./SongUploadPanel";
 import type { Song } from "../../../../shared/schema";
 import { metaphors, type MetaphorEntry } from "@/data/metaphors";
@@ -613,6 +614,28 @@ export default function LyricLab() {
             detail: "beat-lab",
           }),
         );
+
+        // Also generate real AI audio for the beat
+        try {
+          toast({
+            title: "🎵 Generating Real Audio",
+            description: `Creating professional ${genre} beat via AI...`,
+          });
+          const audioResult = await astutelyGenerateAudio(genre, {
+            prompt: `${genre} beat matching lyrics`,
+          });
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn("Auto-play blocked:", playErr);
+          }
+          toast({
+            title: "✅ Real Audio Ready!",
+            description: `Generated via ${audioResult.provider} (${audioResult.duration}s)`,
+          });
+        } catch (audioErr) {
+          console.warn("Real audio generation failed, beat pattern still available:", audioErr);
+        }
       }
     },
     onError: () => {

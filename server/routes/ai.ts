@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
-import { getAIClient, getAIProviderStatus } from "../services/grok";
+import { getAIClient, getAIProviderStatus, makeAICall } from "../services/grok";
 import { aiProviderManager } from "../services/aiProviderManager";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
@@ -69,35 +69,18 @@ export function createAIRoutes() {
 
       console.log('💬 AI Chat request received');
 
-      const aiClient = getAIClient();
-      if (!aiClient) {
-        console.error('❌ No AI client available - check XAI_API_KEY or OPENAI_API_KEY');
-        return res.status(503).json({ 
-          error: "No AI provider configured",
-          response: "AI is not configured. Please check your API keys."
-        });
-      }
-
-      console.log('✅ AI client available, sending request...');
-
-      const chatMessages =
+      const response = await makeAICall(
         Array.isArray(messages) && messages.length > 0
           ? messages
-          : [{ role: "user", content: prompt || "Hello" }];
+          : [{ role: "user", content: prompt || "Hello" }],
+        { temperature: 0.7, max_tokens: 800 },
+      );
 
-      const completion = await aiClient.chat.completions.create({
-        model: "grok-3",
-        messages: chatMessages,
-        temperature: 0.7,
-        max_tokens: 800,
-      });
-
-      const content = completion.choices?.[0]?.message?.content || "";
+      const content = response.choices?.[0]?.message?.content || "";
       console.log(`✅ AI response received: ${content.substring(0, 50)}...`);
       return res.json({ response: content });
     } catch (error) {
       console.error("❌ AI chat error:", error);
-      // Return actual error info for debugging
       return res.status(500).json({ 
         error: "AI chat failed",
         message: error instanceof Error ? error.message : "Unknown error",

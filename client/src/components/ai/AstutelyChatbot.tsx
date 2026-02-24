@@ -578,14 +578,51 @@ What would you like to do?`,
           detail: { notes, bpm: result.bpm } 
         }));
 
+        // Generate real AI audio for the melody
+        let audioInfo = { provider: 'synth', audioUrl: '' };
+        try {
+          toast({ title: '🎵 Generating audio...', description: 'Creating real melody audio with AI' });
+          const audioResult = await astutelyGenerateAudio('Lo-fi chill', { bpm: result.bpm, key: result.key });
+          audioInfo = audioResult;
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Autoplay blocked:', playErr);
+          }
+          const audioTrack: any = {
+            id: `ai-audio-melody-${Date.now()}`,
+            name: `Astutely Melody Audio`,
+            kind: 'audio',
+            lengthBars: Math.ceil(audioResult.duration / (60 / result.bpm) / 4),
+            startBar: 0,
+            payload: {
+              type: 'audio',
+              audioUrl: audioResult.audioUrl,
+              duration: audioResult.duration,
+              bpm: result.bpm,
+              source: 'astutely-audio',
+              provider: audioResult.provider,
+              color: '#3b82f6',
+              volume: 0.9,
+              pan: 0,
+            }
+          };
+          addTrack(audioTrack);
+          await saveTrackToServer(audioTrack);
+        } catch (audioError) {
+          console.warn('Melody audio generation failed, using synth preview:', audioError);
+        }
+
         const assistantMessage: Message = {
           role: 'assistant',
           content: `🎹 Melody created!
 
 Generated a **${result.style}** melody with **${melodyNotes.length} notes** in **${result.key}**.
+${audioInfo.audioUrl ? `🔊 **Real audio generated** via ${audioInfo.provider}!` : ''}
 
 The melody is now in your Piano Roll. Say "play" to hear it!`,
           timestamp: new Date(),
+          audioUrl: audioInfo.audioUrl || undefined,
         };
         setMessages(prev => [...prev, assistantMessage]);
         

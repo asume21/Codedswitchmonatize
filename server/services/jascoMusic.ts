@@ -46,7 +46,7 @@ export class JascoMusicService {
   }
 
   private async queryModel(prompt: string): Promise<JascoModelResponse> {
-    const response = await fetch(`https://api-inference.huggingface.co/models/${JASCO_MODEL}`, {
+    const response = await fetch(`https://router.huggingface.co/models/${JASCO_MODEL}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,

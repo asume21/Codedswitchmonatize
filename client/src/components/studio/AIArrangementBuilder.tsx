@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, LayoutList, ArrowRight, Music2, Play, Volume2, VolumeX, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
 
 interface TrackState {
   active: boolean;
@@ -99,6 +100,20 @@ export default function AIArrangementBuilder({
           title: "🎼 Arrangement Generated!",
           description: `${data.arrangement.sections?.length || 0} sections for ${projectTracks.length} tracks (${data.provider})`,
         });
+
+        // Also generate real AI audio for the arrangement
+        try {
+          toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${genre} arrangement via AI...` });
+          const audioResult = await astutelyGenerateAudio(genre, { bpm, key });
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, arrangement data still available:', audioErr);
+        }
       }
     } catch (error: any) {
       toast({

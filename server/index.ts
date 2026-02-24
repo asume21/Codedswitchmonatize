@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -173,6 +174,15 @@ const cookieConfig = {
   secure: isProduction,
   // Use 'none' in production for cross-site, 'lax' in development
   sameSite: isProduction ? "none" as const : "lax" as const,
+  // Set domain for production cookies to allow cross-origin requests
+  ...(isProduction && process.env.APP_URL && (() => {
+    try {
+      const url = new URL(process.env.APP_URL!);
+      return { domain: url.hostname };
+    } catch {
+      return {};
+    }
+  })()),
 };
 
 app.use(

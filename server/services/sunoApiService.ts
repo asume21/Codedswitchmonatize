@@ -5,7 +5,7 @@
 
 import fetch from 'node-fetch';
 
-const SUNO_API_BASE = 'https://api.sunoapi.org';
+const SUNO_API_BASE = 'https://apibox.erweima.ai';
 
 // Model versions available
 type SunoModel = 'V4' | 'V4_5' | 'V4_5PLUS' | 'V4_5ALL' | 'V5';
@@ -46,29 +46,57 @@ interface SunoTrackData {
   duration: number;
 }
 
-interface SunoTaskStatusResponse {
+interface SunoTaskStatusRaw {
   code: number;
   msg: string;
   data?: {
     taskId: string;
-    status: 'pending' | 'text' | 'first' | 'complete' | 'error';
-    data?: SunoTrackData[];
-    errorMessage?: string;
+    status: string;
+    response?: {
+      sunoData?: Array<{
+        id: string;
+        audioUrl: string;
+        sourceAudioUrl: string;
+        streamAudioUrl: string;
+        sourceStreamAudioUrl: string;
+        imageUrl: string;
+        sourceImageUrl: string;
+        prompt: string;
+        modelName: string;
+        title: string;
+        tags: string;
+        createTime: number;
+        duration: number;
+      }>;
+    };
+    errorCode?: string | null;
+    errorMessage?: string | null;
   };
 }
 
-class SunoApiService {
-  private apiKey: string | null = null;
+interface NormalizedTaskStatus {
+  taskId: string;
+  status: string;
+  data?: SunoTrackData[];
+  errorMessage?: string;
+}
 
-  constructor() {
-    this.apiKey = process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN || null;
+class SunoApiService {
+  /**
+   * Read the API key lazily from environment variables every time.
+   * The singleton is created at module-load time, which may be BEFORE
+   * dotenv.config() runs, so we must NOT cache the value in the constructor.
+   */
+  private resolveApiKey(): string | null {
+    return process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN || null;
   }
 
   private getApiKey(): string {
-    if (!this.apiKey || this.apiKey === 'YOUR_API_KEY') {
+    const key = this.resolveApiKey();
+    if (!key || key === 'YOUR_API_KEY' || key === 'your-suno-api-key-here') {
       throw new Error('SUNO_API_KEY not configured. Please add your Suno API key to environment variables.');
     }
-    return this.apiKey;
+    return key;
   }
 
   private async makeRequest<T>(endpoint: string, method: string = 'GET', body?: object): Promise<T> {
@@ -110,7 +138,7 @@ class SunoApiService {
       customMode: params.customMode,
       instrumental: params.instrumental,
       model: params.model || 'V4_5ALL',
-      callBackUrl: params.callBackUrl || '',
+      callBackUrl: params.callBackUrl || 'https://www.codedswitch.com/api/suno/callback',
     };
 
     // Custom mode requires style and title
@@ -146,20 +174,45 @@ class SunoApiService {
    * Check the status of a generation task
    * Endpoint: GET /api/v1/generate/record-info?taskId=xxx
    */
-  async checkTaskStatus(taskId: string): Promise<SunoTaskStatusResponse['data']> {
+  async checkTaskStatus(taskId: string): Promise<NormalizedTaskStatus | undefined> {
     console.log('[SunoAPI] Checking task status:', taskId);
     
-    const result = await this.makeRequest<SunoTaskStatusResponse>(
+    const result = await this.makeRequest<SunoTaskStatusRaw>(
       `/api/v1/generate/record-info?taskId=${encodeURIComponent(taskId)}`
     );
     
-    return result.data;
+    if (!result.data) return undefined;
+
+    // Normalize camelCase sunoData into snake_case SunoTrackData
+    const sunoTracks = result.data.response?.sunoData;
+    const normalizedTracks: SunoTrackData[] | undefined = sunoTracks?.map(t => ({
+      id: t.id,
+      audio_url: t.audioUrl,
+      source_audio_url: t.sourceAudioUrl,
+      stream_audio_url: t.streamAudioUrl,
+      source_stream_audio_url: t.sourceStreamAudioUrl,
+      image_url: t.imageUrl,
+      source_image_url: t.sourceImageUrl,
+      prompt: t.prompt,
+      model_name: t.modelName,
+      title: t.title,
+      tags: t.tags,
+      createTime: String(t.createTime),
+      duration: t.duration,
+    }));
+
+    return {
+      taskId: result.data.taskId,
+      status: result.data.status,
+      data: normalizedTracks,
+      errorMessage: result.data.errorMessage || undefined,
+    };
   }
 
   /**
    * Poll for task completion with streaming URL (available in 30-40 seconds)
    */
-  async waitForStreamUrl(taskId: string, maxWaitMs: number = 60000): Promise<SunoTrackData> {
+  async waitForStreamUrl(taskId: string, maxWaitMs: number = 120000): Promise<SunoTrackData> {
     const startTime = Date.now();
     const pollInterval = 5000; // 5 seconds
 
@@ -170,8 +223,11 @@ class SunoApiService {
         throw new Error('Failed to get task status');
       }
 
+      // Normalize status to uppercase for comparison (API returns UPPERCASE)
+      const s = (status.status || '').toUpperCase();
+
       // Check if we have at least one track with a stream URL
-      if (status.status === 'first' || status.status === 'complete') {
+      if (s === 'FIRST_SUCCESS' || s === 'COMPLETE' || s === 'SUCCESS') {
         if (status.data && status.data.length > 0) {
           const track = status.data[0];
           if (track.stream_audio_url || track.audio_url) {
@@ -181,7 +237,7 @@ class SunoApiService {
         }
       }
       
-      if (status.status === 'error') {
+      if (s === 'ERROR' || s === 'CREATE_FAIL' || s === 'SENSITIVE_WORD_ERROR') {
         throw new Error(`Suno generation failed: ${status.errorMessage || 'Unknown error'}`);
       }
 
@@ -195,7 +251,7 @@ class SunoApiService {
   /**
    * Poll for full completion (downloadable URL ready in 2-3 minutes)
    */
-  async waitForCompletion(taskId: string, maxWaitMs: number = 180000): Promise<SunoTrackData[]> {
+  async waitForCompletion(taskId: string, maxWaitMs: number = 300000): Promise<SunoTrackData[]> {
     const startTime = Date.now();
     const pollInterval = 5000; // 5 seconds
 
@@ -206,14 +262,25 @@ class SunoApiService {
         throw new Error('Failed to get task status');
       }
 
-      if (status.status === 'complete') {
+      // Normalize status to uppercase for comparison (API returns UPPERCASE)
+      const s = (status.status || '').toUpperCase();
+
+      if (s === 'COMPLETE' || s === 'SUCCESS') {
         if (status.data && status.data.length > 0) {
           console.log('[SunoAPI] All tracks complete:', status.data.length);
           return status.data;
         }
       }
+
+      // Also accept FIRST_SUCCESS as partial completion with usable audio
+      if (s === 'FIRST_SUCCESS') {
+        if (status.data && status.data.length > 0 && status.data[0].audio_url) {
+          console.log('[SunoAPI] First track ready, returning early:', status.data.length);
+          return status.data;
+        }
+      }
       
-      if (status.status === 'error') {
+      if (s === 'ERROR' || s === 'CREATE_FAIL' || s === 'SENSITIVE_WORD_ERROR') {
         throw new Error(`Suno generation failed: ${status.errorMessage || 'Unknown error'}`);
       }
 
@@ -228,7 +295,7 @@ class SunoApiService {
    * Generate a beat/instrumental for Astutely
    * Uses custom mode with instrumental=true
    */
-  async generateBeat(style: string, bpm?: number, key?: string): Promise<{ audioUrl: string; duration: number; streamUrl: string }> {
+  async generateBeat(style: string, bpm?: number, key?: string): Promise<{ audioUrl: string; duration: number; streamUrl: string; tracks: SunoTrackData[] }> {
     const styleDescription = this.buildStyleDescription(style, bpm, key);
     
     // Use custom mode for instrumentals
@@ -242,13 +309,15 @@ class SunoApiService {
       negativeTags: 'vocals, singing, voice',
     });
     
-    // Wait for stream URL (faster, available in 30-40 seconds)
-    const track = await this.waitForStreamUrl(taskId);
+    // Wait for full completion to get all tracks (Suno generates 2 per request)
+    const tracks = await this.waitForCompletion(taskId);
+    const primary = tracks[0];
     
     return {
-      audioUrl: track.audio_url || track.stream_audio_url,
-      streamUrl: track.stream_audio_url || track.audio_url,
-      duration: track.duration || 30,
+      audioUrl: primary.audio_url || primary.stream_audio_url,
+      streamUrl: primary.stream_audio_url || primary.audio_url,
+      duration: primary.duration || 30,
+      tracks,
     };
   }
 
@@ -340,7 +409,8 @@ class SunoApiService {
    * Check if the API is configured and available
    */
   isConfigured(): boolean {
-    return !!this.apiKey && this.apiKey !== 'YOUR_API_KEY';
+    const key = this.resolveApiKey();
+    return !!key && key !== 'YOUR_API_KEY' && key !== 'your-suno-api-key-here';
   }
 
   /**

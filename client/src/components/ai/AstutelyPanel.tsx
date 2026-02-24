@@ -2,8 +2,8 @@
 // ASTUTELY - The AI that makes beats legendary
 
 import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
-import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2, MoveDiagonal2 } from 'lucide-react';
-import { astutelyGenerate, astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
+import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2, MoveDiagonal2, Download, Volume2, VolumeX, RefreshCw } from 'lucide-react';
+import { astutelyGenerate, astutelyToNotes, astutelyGenerateAudio, astutelyPlayAudio, stopActiveAstutelyAudio, getActiveAstutelyAudio, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -51,6 +51,12 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [songAnalysis, setSongAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [isPlayingGenerated, setIsPlayingGenerated] = useState(false);
+  const [audioProvider, setAudioProvider] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const generatedAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const { play: playTransport, seek, setTempo: setTransportTempo, timeSignature, tempo: transportTempo } = useTransport();
   const studioContext = useContext(StudioAudioContext);
@@ -226,6 +232,12 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       if (audioElement) {
         audioElement.pause();
         audioElement.src = '';
+      }
+      stopActiveAstutelyAudio();
+      if (generatedAudioRef.current) {
+        generatedAudioRef.current.pause();
+        generatedAudioRef.current.src = '';
+        generatedAudioRef.current = null;
       }
       detachResizeListeners();
     };
@@ -430,6 +442,94 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     }
   }, [audioElement, isPlaying, resolvePlaybackUrl, selectedSong, toast]);
 
+  const handleGenerateRealAudio = async (styleName?: string) => {
+    const style = styleName || selectedStyle.name;
+    setIsGeneratingAudio(true);
+    setAudioError(null);
+    setGeneratedAudioUrl(null);
+    setAudioProvider(null);
+
+    toast({
+      title: '🎵 Generating Real Audio',
+      description: `Creating professional ${style} track via AI... This may take 30-60 seconds.`,
+    });
+
+    try {
+      const result = await astutelyGenerateAudio(style, {
+        prompt: query.trim() || undefined,
+        bpm: transportTempo || undefined,
+        key: currentKey || undefined,
+      });
+
+      setGeneratedAudioUrl(result.audioUrl);
+      setAudioProvider(result.provider);
+
+      toast({
+        title: '✅ Real Audio Ready!',
+        description: `Generated via ${result.provider} (${result.duration}s)`,
+      });
+
+      // Auto-play the generated audio
+      try {
+        const audio = await astutelyPlayAudio(result.audioUrl);
+        generatedAudioRef.current = audio;
+        setIsPlayingGenerated(true);
+        audio.onended = () => setIsPlayingGenerated(false);
+        audio.onpause = () => setIsPlayingGenerated(false);
+        audio.onplay = () => setIsPlayingGenerated(true);
+      } catch (playErr) {
+        console.warn('Auto-play blocked, user can click play:', playErr);
+      }
+    } catch (error: any) {
+      const msg = error?.message || 'Audio generation failed';
+      setAudioError(msg);
+      toast({
+        title: 'Audio Generation Failed',
+        description: msg.includes('API') || msg.includes('configured')
+          ? 'No AI music provider configured. Add REPLICATE_API_TOKEN or SUNO_API_KEY to your environment variables.'
+          : msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
+  const handleToggleGeneratedAudio = async () => {
+    if (!generatedAudioUrl) return;
+
+    if (isPlayingGenerated && generatedAudioRef.current) {
+      generatedAudioRef.current.pause();
+      setIsPlayingGenerated(false);
+      return;
+    }
+
+    try {
+      const audio = await astutelyPlayAudio(generatedAudioUrl);
+      generatedAudioRef.current = audio;
+      setIsPlayingGenerated(true);
+      audio.onended = () => setIsPlayingGenerated(false);
+      audio.onpause = () => setIsPlayingGenerated(false);
+      audio.onplay = () => setIsPlayingGenerated(true);
+    } catch (err) {
+      toast({
+        title: 'Playback Error',
+        description: 'Could not play the generated audio',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDownloadAudio = () => {
+    if (!generatedAudioUrl) return;
+    const a = document.createElement('a');
+    a.href = generatedAudioUrl;
+    a.download = `${selectedStyle.name.replace(/\s+/g, '-').toLowerCase()}-beat.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setProgress(0);
@@ -505,8 +605,8 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
         onGenerated(result);
       }
 
-      // Auto-close after success
-      setTimeout(() => onClose(), 1500);
+      // Auto-trigger real audio generation after pattern succeeds
+      handleGenerateRealAudio(selectedStyle.name);
 
     } catch (error) {
       clearInterval(interval);
@@ -734,30 +834,128 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
             </div>
           )}
 
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="w-full py-5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-xl hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
-          >
-            {isGenerating ? (
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>Creating Magic...</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <Music className="w-6 h-6" />
-                <span>Make It Bang</span>
-              </div>
-            )}
-          </button>
+          {/* Generate Buttons */}
+          <div className="flex gap-3 mb-3">
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || isGeneratingAudio}
+              className="flex-1 py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-sm hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {isGenerating ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Creating...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <Music className="w-5 h-5" />
+                  <span>Pattern + Audio</span>
+                </div>
+              )}
+            </button>
+            <button
+              onClick={() => handleGenerateRealAudio()}
+              disabled={isGenerating || isGeneratingAudio}
+              className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl font-bold text-sm hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {isGeneratingAudio ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Generating...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <Volume2 className="w-5 h-5" />
+                  <span>Audio Only</span>
+                </div>
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 text-center mb-4">
+            <strong>Pattern + Audio</strong> = MIDI pattern + real AI audio &nbsp;•&nbsp; <strong>Audio Only</strong> = just the AI-generated track
+          </p>
 
-          {/* Result Preview */}
+          {/* Real Audio Generation Progress */}
+          {isGeneratingAudio && (
+            <div className="mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+                <div>
+                  <p className="text-emerald-400 font-semibold text-sm">Generating Professional Audio...</p>
+                  <p className="text-gray-400 text-xs mt-0.5">AI is composing a real {selectedStyle.name} track (30-60s)</p>
+                </div>
+              </div>
+              <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full animate-pulse" style={{ width: '60%' }} />
+              </div>
+            </div>
+          )}
+
+          {/* Real Audio Player */}
+          {generatedAudioUrl && (
+            <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/40">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-emerald-400 font-semibold text-sm flex items-center gap-2">
+                    <Volume2 className="w-4 h-4" />
+                    AI-Generated Audio Ready
+                  </p>
+                  <p className="text-gray-400 text-xs mt-0.5">
+                    Provider: {audioProvider || 'AI'} • {selectedStyle.name}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleToggleGeneratedAudio}
+                  className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                    isPlayingGenerated
+                      ? 'bg-red-500/30 hover:bg-red-500/40 text-red-300 border border-red-500/40'
+                      : 'bg-emerald-500/30 hover:bg-emerald-500/40 text-emerald-300 border border-emerald-500/40'
+                  }`}
+                >
+                  {isPlayingGenerated ? (
+                    <><Pause className="w-4 h-4" /> Pause</>
+                  ) : (
+                    <><Play className="w-4 h-4" /> Play Audio</>
+                  )}
+                </button>
+                <button
+                  onClick={handleDownloadAudio}
+                  className="px-4 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-all flex items-center gap-2 border border-white/20"
+                  title="Download generated audio"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleGenerateRealAudio()}
+                  disabled={isGeneratingAudio}
+                  className="px-4 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-all flex items-center gap-2 border border-white/20 disabled:opacity-50"
+                  title="Regenerate"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Audio Error */}
+          {audioError && !isGeneratingAudio && !generatedAudioUrl && (
+            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30">
+              <p className="text-red-400 text-sm font-semibold">Audio Generation Failed</p>
+              <p className="text-gray-400 text-xs mt-1">
+                {audioError.includes('API') || audioError.includes('configured')
+                  ? 'No AI music provider configured. Add REPLICATE_API_TOKEN or SUNO_API_KEY to your environment.'
+                  : audioError}
+              </p>
+            </div>
+          )}
+
+          {/* Pattern Result Preview */}
           {generatedResult && (
-            <div className="mt-4 p-4 rounded-xl bg-green-500/20 border border-green-500/40">
+            <div className="mt-2 p-4 rounded-xl bg-green-500/20 border border-green-500/40">
               <p className="text-green-400 font-semibold flex items-center gap-2">
-                ✅ Added to Timeline!
+                ✅ Pattern Added to Timeline!
               </p>
               <p className="text-gray-300 text-sm mt-1">
                 {generatedResult.bpm} BPM • Key of {generatedResult.key} • {generatedResult.style}

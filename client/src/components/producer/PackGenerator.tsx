@@ -20,6 +20,7 @@ import { packSynthesizer } from "@/lib/packAudioSynthesizer";
 import { professionalAudio } from "@/lib/professionalAudio";
 import { getAudioContext } from "@/lib/audioContext";
 import { apiRequest } from "@/lib/queryClient";
+import { astutelyGenerateAudio, astutelyPlayAudio } from "@/lib/astutelyEngine";
 
 const PACK_HISTORY_KEY = "pack-generator-history";
 
@@ -387,6 +388,23 @@ export default function PackGenerator() {
       }
       saveHistory(packs);
       toast({ title: `Generated ${packs.length} packs` });
+
+      // Also generate real AI audio for the first pack
+      (async () => {
+        try {
+          const firstPack = packs[0];
+          toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${firstPack?.genre || 'music'} audio via AI...` });
+          const audioResult = await astutelyGenerateAudio(firstPack?.genre || 'Electronic', { bpm: firstPack?.bpm || 120 });
+          try {
+            await astutelyPlayAudio(audioResult.audioUrl);
+          } catch (playErr) {
+            console.warn('Auto-play blocked:', playErr);
+          }
+          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
+        } catch (audioErr) {
+          console.warn('Real audio generation failed, pack data still available:', audioErr);
+        }
+      })();
     },
     onError: (error) => {
       toast({ variant: "destructive", title: "Generation failed", description: error.message });

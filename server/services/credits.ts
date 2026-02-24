@@ -10,9 +10,9 @@ import type { IStorage } from "../storage";
 // See PRICING_CALCULATOR.md for detailed breakdown
 export const CREDIT_COSTS = {
   // Tier 1: Suno (Premium AI) - Most Expensive
-  SONG_GENERATION: 25,          // API: $0.40 → User: $1.00
-  SONG_EXTENSION: 16,           // API: $0.25 → User: $0.64
-  CUSTOM_VOCALS: 22,            // API: $0.35 → User: $0.88
+  SONG_GENERATION: 125,         // API: ~$2.00 (50 Suno credits) → User: $5.00
+  SONG_EXTENSION: 80,           // API: ~$1.25 → User: $3.20
+  CUSTOM_VOCALS: 110,           // API: ~$1.75 → User: $4.40
   STEM_SEPARATION: 19,          // API: $0.30 → User: $0.76
   
   // Tier 2: MusicGen (Advanced AI)
