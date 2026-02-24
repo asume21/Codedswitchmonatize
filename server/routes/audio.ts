@@ -1590,6 +1590,7 @@ function buildEditorPatternFromMelody(melody: MelodyNote[], bpm: number) {
     return generateEstimatedPattern(bpm);
   }
 
+  // Return melody-only to mirror the extracted audio closely (no synthetic chords/bass/drums)
   const notes: Array<{
     id: string;
     pitch: number;
@@ -1605,85 +1606,6 @@ function buildEditorPatternFromMelody(melody: MelodyNote[], bpm: number) {
     velocity: n.velocity,
     trackType: 'melody',
   }));
-
-  const maxStep = normalized.reduce((acc, n) => Math.max(acc, n.startStep + n.duration), 0);
-  const totalSteps = Math.max(64, Math.min(512, Math.ceil(maxStep / 16) * 16));
-
-  // Infer tonic from pitch-class histogram
-  const pitchClassCounts = new Array<number>(12).fill(0);
-  for (const n of normalized) pitchClassCounts[n.midi % 12] += 1;
-  const tonicClass = pitchClassCounts.indexOf(Math.max(...pitchClassCounts));
-  const progressionDegrees = [0, 7, 9, 5]; // I-V-vi-IV
-
-  // Add harmonic support and bass from inferred progression
-  for (let barStart = 0; barStart < totalSteps; barStart += 16) {
-    const barIndex = Math.floor(barStart / 16);
-    const rootClass = (tonicClass + progressionDegrees[barIndex % progressionDegrees.length]) % 12;
-
-    // Chord root centered near C4
-    const chordRoot = 60 + ((rootClass - 60) % 12 + 12) % 12;
-    for (const tone of [chordRoot, chordRoot + 4, chordRoot + 7]) {
-      notes.push({
-        id: `extracted-chord-${barIndex}-${tone}`,
-        pitch: clampPitch(tone),
-        startStep: barStart,
-        duration: 16,
-        velocity: 68,
-        trackType: 'chords',
-      });
-    }
-
-    // Bass root on beats 1 and 3
-    notes.push({
-      id: `extracted-bass-${barIndex}-a`,
-      pitch: clampPitch(chordRoot - 24),
-      startStep: barStart,
-      duration: 8,
-      velocity: 88,
-      trackType: 'bass',
-    });
-    notes.push({
-      id: `extracted-bass-${barIndex}-b`,
-      pitch: clampPitch(chordRoot - 24),
-      startStep: barStart + 8,
-      duration: 8,
-      velocity: 84,
-      trackType: 'bass',
-    });
-
-    // Groove-aware drums (8th hats + kick/snare backbone)
-    for (let step = barStart; step < barStart + 16; step += 2) {
-      notes.push({
-        id: `extracted-hat-${barIndex}-${step}`,
-        pitch: 42,
-        startStep: step,
-        duration: 1,
-        velocity: step % 4 === 0 ? 62 : 48,
-        trackType: 'drums',
-      });
-    }
-
-    for (const rel of [0, 8]) {
-      notes.push({
-        id: `extracted-kick-${barIndex}-${rel}`,
-        pitch: 36,
-        startStep: barStart + rel,
-        duration: 1,
-        velocity: 98,
-        trackType: 'drums',
-      });
-    }
-    for (const rel of [4, 12]) {
-      notes.push({
-        id: `extracted-snare-${barIndex}-${rel}`,
-        pitch: 38,
-        startStep: barStart + rel,
-        duration: 1,
-        velocity: 90,
-        trackType: 'drums',
-      });
-    }
-  }
 
   return notes;
 }
