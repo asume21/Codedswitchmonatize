@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import {
-  Save, Undo2, Sliders, Music, Mic, Scissors, Snowflake, Layers, Piano, Wand2,
+  Save, Undo2, Sliders, Music, Mic, Scissors, Snowflake, Layers, Layers2, Piano, Wand2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -36,6 +36,8 @@ export const STUDIO_WINDOWS: WindowConfig[] = [
   { id: 'clip-editor', title: 'Clip Editor', icon: Music, defaultWidth: 700, defaultHeight: 200, minWidth: 400, minHeight: 120, resizable: true },
   { id: 'midi-editor', title: 'MIDI Editor', icon: Piano, defaultWidth: 750, defaultHeight: 350, minWidth: 500, minHeight: 250, resizable: true },
   { id: 'undo-history', title: 'Undo History', icon: Undo2, defaultWidth: 280, defaultHeight: 360, minWidth: 220, minHeight: 200, resizable: true },
+  { id: 'stem-generator', title: 'AI Stem Generator', icon: Layers2, defaultWidth: 380, defaultHeight: 580, minWidth: 320, minHeight: 400, resizable: true },
+  { id: 'sample-library', title: 'Sample Library', icon: Music, defaultWidth: 420, defaultHeight: 600, minWidth: 360, minHeight: 450, resizable: true },
 ];
 
 interface WindowManagerContextValue {

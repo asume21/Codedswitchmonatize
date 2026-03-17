@@ -35,6 +35,27 @@ interface StudioMenuBarProps {
   onTranspose: () => void;
   onTimeStretch: () => void;
   onAbout: () => void;
+  // Create Menu
+  onNewAudioTrack?: () => void;
+  onNewMIDITrack?: () => void;
+  onNewAudioClip?: () => void;
+  onNewMIDIClip?: () => void;
+  onNewAutomationLane?: () => void;
+  // Arrange Menu
+  onDuplicate?: () => void;
+  onSplit?: () => void;
+  onJoin?: () => void;
+  onReverse?: () => void;
+  onNormalize?: () => void;
+  // Mix Menu
+  onShowMixer?: () => void;
+  onAddBus?: () => void;
+  onAddEffect?: () => void;
+  onShowAutomation?: () => void;
+  // MIDI Menu
+  onMIDILearn?: () => void;
+  onMIDISettings?: () => void;
+  onMIDIMap?: () => void;
 }
 
 interface MenuItemProps {
@@ -109,6 +130,23 @@ export function StudioMenuBar({
   onTranspose,
   onTimeStretch,
   onAbout,
+  onNewAudioTrack,
+  onNewMIDITrack,
+  onNewAudioClip,
+  onNewMIDIClip,
+  onNewAutomationLane,
+  onDuplicate,
+  onSplit,
+  onJoin,
+  onReverse,
+  onNormalize,
+  onShowMixer,
+  onAddBus,
+  onAddEffect,
+  onShowAutomation,
+  onMIDILearn,
+  onMIDISettings,
+  onMIDIMap,
 }: StudioMenuBarProps) {
   return (
     <div className="flex space-x-0.5">
@@ -165,6 +203,44 @@ export function StudioMenuBar({
         <MenuItem label="Quantize..." shortcut="Q" onClick={onQuantize} />
         <MenuItem label="Transpose..." onClick={onTranspose} />
         <MenuItem label="Time Stretch..." onClick={onTimeStretch} />
+      </DropdownMenu>
+
+      {/* Create Menu */}
+      <DropdownMenu label="Create">
+        <MenuItem label="New Audio Track" shortcut="Ctrl+T" onClick={onNewAudioTrack || (() => {})} />
+        <MenuItem label="New MIDI Track" shortcut="Ctrl+Shift+T" onClick={onNewMIDITrack || (() => {})} />
+        <MenuDivider />
+        <MenuItem label="New Audio Clip" onClick={onNewAudioClip || (() => {})} />
+        <MenuItem label="New MIDI Clip" onClick={onNewMIDIClip || (() => {})} />
+        <MenuDivider />
+        <MenuItem label="New Automation Lane" onClick={onNewAutomationLane || (() => {})} />
+      </DropdownMenu>
+
+      {/* Arrange Menu */}
+      <DropdownMenu label="Arrange">
+        <MenuItem label="Duplicate" shortcut="Ctrl+D" onClick={onDuplicate || (() => {})} />
+        <MenuItem label="Split at Playhead" shortcut="Ctrl+E" onClick={onSplit || (() => {})} />
+        <MenuItem label="Join" shortcut="Ctrl+J" onClick={onJoin || (() => {})} />
+        <MenuDivider />
+        <MenuItem label="Reverse" onClick={onReverse || (() => {})} />
+        <MenuItem label="Normalize" onClick={onNormalize || (() => {})} />
+      </DropdownMenu>
+
+      {/* Mix Menu */}
+      <DropdownMenu label="Mix">
+        <MenuItem label="Show Mixer" shortcut="Ctrl+M" onClick={onShowMixer || (() => {})} />
+        <MenuDivider />
+        <MenuItem label="Add Bus" onClick={onAddBus || (() => {})} />
+        <MenuItem label="Add Effect" onClick={onAddEffect || (() => {})} />
+        <MenuDivider />
+        <MenuItem label="Show Automation" shortcut="A" onClick={onShowAutomation || (() => {})} />
+      </DropdownMenu>
+
+      {/* MIDI Menu */}
+      <DropdownMenu label="MIDI">
+        <MenuItem label="MIDI Learn" shortcut="Ctrl+L" onClick={onMIDILearn || (() => {})} />
+        <MenuItem label="MIDI Settings..." onClick={onMIDISettings || (() => {})} />
+        <MenuItem label="MIDI Mapping..." onClick={onMIDIMap || (() => {})} />
       </DropdownMenu>
 
       {/* Help Menu */}

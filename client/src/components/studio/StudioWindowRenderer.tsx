@@ -10,6 +10,8 @@ import SampleSlicerPanel from '@/components/studio/SampleSlicerPanel';
 import FreezeBounceControls from '@/components/studio/FreezeBounceControls';
 import ClipEditorOverlay from '@/components/studio/ClipEditorOverlay';
 import MidiEditorPanel from '@/components/studio/MidiEditorPanel';
+import SampleLibrary from '@/components/studio/SampleLibrary';
+import AIStemSeparation from '@/components/studio/AIStemSeparation';
 import { Save, Undo2, Sliders, Music, Mic, Scissors, Snowflake, Layers, Wand2 } from 'lucide-react';
 import type { AutomationLane, AudioClip, MixerChannel, MixBus } from '@/lib/projectManager';
 import type { EffectInstance } from '@/lib/effectsChain';
@@ -218,6 +220,12 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
             onScaleChange={props.onMidiScaleChange}
           />
         );
+
+      case 'sample-library':
+        return <SampleLibrary />;
+
+      case 'stem-generator':
+        return <AIStemSeparation />;
 
       default:
         return <div className="p-4 text-zinc-500 text-sm">Window not configured</div>;

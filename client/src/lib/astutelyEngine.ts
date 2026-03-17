@@ -2,6 +2,8 @@
 // ASTUTELY - The AI that makes beats legendary
 
 import { realisticAudio } from './realisticAudio';
+import { resumeAudioContext, getAudioContext } from './audioContext';
+import { globalAudioKillSwitch } from './globalAudioKillSwitch';
 
 // Style-specific configurations
 const STYLE_CONFIGS: Record<string, {
@@ -501,6 +503,90 @@ export async function astutelyGenerateAudio(style: string, options?: {
 }
 
 /**
+ * UNIFIED GENERATION - Generates both pattern AND professional audio
+ * This is the recommended way to use Astutely for complete music generation
+ * 
+ * Returns:
+ * - pattern: MIDI notes for editing in Piano Roll
+ * - audio: Professional AI-generated audio
+ * - instruments: Instrument assignments for each track
+ * - notes: Converted notes ready for track store
+ */
+export interface AstutelyCompleteResult {
+  pattern: AstutelyResult;
+  audio: {
+    audioUrl: string;
+    duration: number;
+    provider: string;
+  };
+  instruments: {
+    bass: string;
+    chords: string;
+    melody: string;
+    drumKit: string;
+  };
+  notes: Array<{
+    id: string;
+    pitch: number;
+    startStep: number;
+    duration: number;
+    velocity: number;
+    trackType: 'drums' | 'bass' | 'chords' | 'melody';
+  }>;
+}
+
+export async function astutelyGenerateComplete(
+  styleOrOptions: string | AstutelyGenerateOptions
+): Promise<AstutelyCompleteResult> {
+  const options: AstutelyGenerateOptions = typeof styleOrOptions === 'string'
+    ? { style: styleOrOptions }
+    : styleOrOptions;
+
+  console.log(`🎵 ASTUTELY UNIFIED: Generating complete music (pattern + audio) for "${options.style}"...`);
+
+  try {
+    // Step 1: Generate pattern (MIDI notes + instruments)
+    console.log('📝 Step 1/2: Generating pattern...');
+    const pattern = await astutelyGenerate(options);
+    
+    // Step 2: Generate professional audio with matching BPM and key
+    console.log('🎵 Step 2/2: Generating professional audio...');
+    const audio = await astutelyGenerateAudio(options.style, {
+      prompt: options.prompt,
+      bpm: pattern.bpm,
+      key: pattern.key,
+    });
+
+    // Convert pattern to notes for track store
+    const notes = astutelyToNotes(pattern);
+
+    console.log(`✅ ASTUTELY UNIFIED: Complete generation successful!`);
+    console.log(`   - Pattern: ${notes.length} notes across 4 tracks`);
+    console.log(`   - Audio: ${audio.duration}s via ${audio.provider}`);
+    console.log(`   - BPM: ${pattern.bpm}, Key: ${pattern.key}`);
+    console.log(`   - Instruments:`, pattern.instruments);
+
+    // Ensure instruments are always defined
+    const instruments = {
+      bass: pattern.instruments?.bass || 'electric_bass_finger',
+      chords: pattern.instruments?.chords || 'acoustic_grand_piano',
+      melody: pattern.instruments?.melody || 'flute',
+      drumKit: pattern.instruments?.drumKit || 'default',
+    };
+
+    return {
+      pattern,
+      audio,
+      instruments,
+      notes,
+    };
+  } catch (error) {
+    console.error('❌ ASTUTELY UNIFIED: Complete generation failed:', error);
+    throw error;
+  }
+}
+
+/**
  * Play generated audio directly
  * Returns the HTMLAudioElement so callers can store/control it
  */
@@ -514,6 +600,7 @@ export function stopActiveAstutelyAudio(): void {
   if (_activeAstutelyAudio) {
     _activeAstutelyAudio.pause();
     _activeAstutelyAudio.currentTime = 0;
+    globalAudioKillSwitch.unregisterAudioElement(_activeAstutelyAudio);
     _activeAstutelyAudio = null;
   }
 }
@@ -521,12 +608,26 @@ export function stopActiveAstutelyAudio(): void {
 export async function astutelyPlayAudio(audioUrl: string): Promise<HTMLAudioElement> {
   console.log(`🔊 ASTUTELY: Playing audio: ${audioUrl}`);
   
+  // Ensure the shared AudioContext is running so WebAudio-connected sources are audible
+  const audioContext = getAudioContext();
+  if (audioContext && audioContext.state === 'suspended') {
+    try {
+      await audioContext.resume();
+    } catch (err) {
+      console.warn('Failed to resume AudioContext:', err);
+    }
+  }
+
   stopActiveAstutelyAudio();
   
   const audio = new Audio();
   audio.volume = 0.85;
+  audio.crossOrigin = 'anonymous';
   audio.src = audioUrl;
   _activeAstutelyAudio = audio;
+  
+  // Register with global kill switch
+  globalAudioKillSwitch.registerAudioElement(audio);
   
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -578,6 +679,11 @@ async function playAstutelyPreview(result: AstutelyResult) {
   const stepDuration = 60 / result.bpm / 4; // Duration of one 16th note in seconds
   
   // Initialize audio engine
+  try {
+    await resumeAudioContext();
+  } catch (err) {
+    console.warn('🔊 Astutely preview: Unable to resume audio context', err);
+  }
   await realisticAudio.initialize();
 
   // Find the maximum step across all parts to play everything
@@ -673,10 +779,33 @@ export function astutelyToNotes(result: AstutelyResult) {
     trackType: 'drums' | 'bass' | 'chords' | 'melody';
   }> = [];
 
-  const safeDrums = Array.isArray(result.drums) ? result.drums : [];
-  const safeBass = Array.isArray(result.bass) ? result.bass : [];
-  const safeChords = Array.isArray(result.chords) ? result.chords : [];
-  const safeMelody = Array.isArray(result.melody) ? result.melody : [];
+  // Helper: repeat a set of events across multiple bars to avoid ultra-sparse patterns
+  const repeatOverBars = <T extends { step: number }>(items: T[], barLength: number, bars: number): T[] => {
+    if (!items.length) return items;
+    const repeated: T[] = [];
+    for (let b = 0; b < bars; b += 1) {
+      const offset = b * barLength;
+      items.forEach(item => {
+        repeated.push({ ...item, step: item.step + offset });
+      });
+    }
+    return repeated;
+  };
+
+  // If patterns are too short, tile them over 4 bars (64 steps of 16th-notes)
+  const BAR_LENGTH = 16; // 16 steps = 1 bar if step is 16th note
+  const BARS = 2; // reduce tiling to avoid overly repetitive patterns
+
+  const baseDrums = Array.isArray(result.drums) ? result.drums : [];
+  const baseBass = Array.isArray(result.bass) ? result.bass : [];
+  const baseChords = Array.isArray(result.chords) ? result.chords : [];
+  const baseMelody = Array.isArray(result.melody) ? result.melody : [];
+
+  // Repeat sparse patterns to fill space
+  const safeDrums = repeatOverBars(baseDrums, BAR_LENGTH, BARS);
+  const safeBass = repeatOverBars(baseBass, BAR_LENGTH, BARS);
+  const safeChords = repeatOverBars(baseChords, BAR_LENGTH, BARS);
+  const safeMelody = repeatOverBars(baseMelody, BAR_LENGTH, BARS);
 
   if (!Array.isArray(result.drums) || !Array.isArray(result.bass) || !Array.isArray(result.chords) || !Array.isArray(result.melody)) {
     console.warn('[Astutely] Received malformed pattern payload. Some tracks missing or mis-typed.', {
@@ -738,6 +867,25 @@ export function astutelyToNotes(result: AstutelyResult) {
       trackType: 'melody',
     });
   });
-  
-  return notes;
+
+  // Humanize: add slight velocity/timing variation to avoid robotic repeats
+  const humanize = <T extends typeof notes[number]>(items: T[]): T[] => {
+    const jitterStep = (step: number, max: number) => {
+      const delta = Math.round((Math.random() - 0.5) * 2 * max);
+      return Math.max(0, step + delta);
+    };
+    const clamp = (val: number, min: number, max: number) => Math.min(max, Math.max(min, val));
+
+    return items.map((n) => {
+      const velDelta = Math.round((Math.random() - 0.5) * 20); // ±10
+      const jitter = n.trackType === 'drums' ? 0 : 1; // keep drums tight
+      return {
+        ...n,
+        startStep: jitter ? jitterStep(n.startStep, jitter) : n.startStep,
+        velocity: clamp(n.velocity + velDelta, 55, 120),
+      } as T;
+    });
+  };
+
+  return humanize(notes);
 }

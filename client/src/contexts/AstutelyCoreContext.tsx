@@ -20,12 +20,15 @@ import {
   astutelyGenerate,
   astutelyToNotes,
   astutelyGenerateAudio,
+  astutelyGenerateComplete,
   astutelyPlayAudio,
   stopActiveAstutelyAudio,
   stopAstutelyPreview,
   type AstutelyResult,
   type AstutelyGenerateOptions,
+  type AstutelyCompleteResult,
 } from '@/lib/astutelyEngine';
+import { renderAstutelyToStems, audioBufferToWav } from '@/lib/astutelyAudioRenderer';
 import { dispatchAstutelyCommand, dispatchAstutelyEvent } from '@/components/presence';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -79,6 +82,9 @@ export interface AstutelyCoreValue {
     key?: string;
   }) => Promise<GeneratedAudio>;
 
+  // ── UNIFIED GENERATION (Pattern + Audio) ──
+  generateComplete: (options: AstutelyGenerateOptions) => Promise<AstutelyCompleteResult>;
+
   // ── Audio Playback ──
   playGeneratedAudio: (audioUrl: string) => Promise<HTMLAudioElement>;
   stopGeneratedAudio: () => void;
@@ -98,6 +104,7 @@ export interface AstutelyCoreValue {
   getProjectStatus: () => ProjectStatus;
   addGeneratedTracks: (result: AstutelyResult) => void;
   addAudioTrack: (name: string, audioUrl: string, duration: number, provider: string, bpm: number) => void;
+  renderPatternToStems: (result: AstutelyResult) => Promise<void>;
   muteTrack: (trackId: string, muted: boolean) => void;
   removeTrack: (trackId: string) => void;
 
@@ -335,6 +342,85 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // UNIFIED GENERATION (Pattern + Audio)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const generateComplete = useCallback(async (
+    options: AstutelyGenerateOptions
+  ): Promise<AstutelyCompleteResult> => {
+    setIsGeneratingPattern(true);
+    setIsGeneratingAudio(true);
+    setAudioError(null);
+
+    try {
+      console.log(`🎵 UNIFIED: Generating complete music for "${options.style}"...`);
+      
+      // Generate both pattern and audio
+      const result = await astutelyGenerateComplete(options);
+      
+      // Store pattern
+      setLastGeneratedPattern(result.pattern);
+      
+      // Store audio
+      const generated: GeneratedAudio = {
+        audioUrl: result.audio.audioUrl,
+        duration: result.audio.duration,
+        provider: result.audio.provider,
+        style: options.style,
+        timestamp: Date.now(),
+      };
+      setLastGeneratedAudio(generated);
+
+      // Auto-play the audio
+      try {
+        const audio = await astutelyPlayAudio(result.audio.audioUrl);
+        generatedAudioRef.current = audio;
+        setIsPlayingGeneratedAudio(true);
+        setActiveAudioUrl(result.audio.audioUrl);
+        audio.onended = () => setIsPlayingGeneratedAudio(false);
+        audio.onpause = () => setIsPlayingGeneratedAudio(false);
+        audio.onplay = () => setIsPlayingGeneratedAudio(true);
+      } catch {
+        // autoplay blocked
+      }
+
+      // Broadcast pattern to listeners
+      const payload = {
+        drums: result.notes.filter(n => n.trackType === 'drums'),
+        bass: result.notes.filter(n => n.trackType === 'bass'),
+        chords: result.notes.filter(n => n.trackType === 'chords'),
+        melody: result.notes.filter(n => n.trackType === 'melody'),
+        bpm: result.pattern.bpm,
+        key: result.pattern.key,
+        style: result.pattern.style,
+        instruments: result.instruments,
+      };
+      
+      dispatchAstutelyEvent('pattern-generated', payload);
+      dispatchAstutelyEvent('generation-completed', { 
+        style: options.style, 
+        success: true,
+        hasAudio: true,
+        hasPattern: true,
+      });
+
+      console.log(`✅ UNIFIED: Complete generation successful!`);
+      return result;
+    } catch (error: unknown) {
+      const msg = (error instanceof Error ? error.message : null) || 'Unified generation failed';
+      setAudioError(msg);
+      dispatchAstutelyEvent('generation-error', {
+        error: msg,
+        style: options.style,
+      });
+      throw error;
+    } finally {
+      setIsGeneratingPattern(false);
+      setIsGeneratingAudio(false);
+    }
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // AUDIO PLAYBACK
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -399,39 +485,88 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     }
   }, [trackStore]);
 
-  const addAudioTrack = useCallback((
-    name: string,
-    audioUrl: string,
-    duration: number,
-    provider: string,
-    bpm: number
-  ) => {
-    const trackData: TrackClip = {
-      id: `ai-audio-${Date.now()}`,
+  const addAudioTrack = useCallback((name: string, audioUrl: string, duration: number, provider: string, bpm: number) => {
+    const track: TrackClip = {
+      id: `audio-${Date.now()}`,
       name,
       kind: 'audio',
-      lengthBars: Math.ceil(duration / (60 / bpm) / 4),
+      lengthBars: Math.ceil((bpm / 60) * duration / 4),
       startBar: 0,
       payload: {
         type: 'audio',
         audioUrl,
         duration,
         bpm,
-        source: 'astutely-audio',
-        provider,
-        color: '#10b981',
-        volume: 0.9,
+        source: provider,
+        volume: 0.8,
         pan: 0,
+        color: '#10b981',
+        notes: [],
       },
     };
-    trackStore.addTrack(trackData);
-    trackStore.saveTrackToServer(trackData);
+    trackStore.addTrack(track);
+  }, [trackStore]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER PATTERN TO AUDIO STEMS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const renderPatternToStems = useCallback(async (result: AstutelyResult): Promise<void> => {
+    try {
+      console.log('🎵 Rendering Astutely pattern to audio stems...');
+      const stems = await renderAstutelyToStems(result);
+      
+      const stemColors: Record<string, string> = {
+        drums: '#ef4444',
+        bass: '#3b82f6',
+        chords: '#10b981',
+        melody: '#f59e0b',
+      };
+
+      // Convert each stem to WAV blob and create object URL
+      for (const stem of stems) {
+        const wavBlob = audioBufferToWav(stem.audioBuffer);
+        const audioUrl = URL.createObjectURL(wavBlob);
+
+        const track: TrackClip = {
+          id: `stem-${stem.name}-${Date.now()}`,
+          name: `${stem.name.charAt(0).toUpperCase() + stem.name.slice(1)} (Astutely)`,
+          kind: 'audio',
+          lengthBars: Math.ceil((result.bpm / 60) * stem.duration / 4),
+          startBar: 0,
+          payload: {
+            type: 'audio',
+            audioUrl,
+            duration: stem.duration,
+            bpm: result.bpm,
+            source: 'astutely-render',
+            volume: 0.8,
+            pan: 0,
+            color: stemColors[stem.name] || '#6366f1',
+            notes: [],
+          },
+        };
+        
+        trackStore.addTrack(track);
+      }
+
+      console.log('✅ Astutely stems rendered and imported to Multi-Track');
+      
+      // Dispatch event for UI feedback
+      window.dispatchEvent(new CustomEvent('astutely:stemsRendered', {
+        detail: { stemCount: stems.length, bpm: result.bpm },
+      }));
+    } catch (error) {
+      console.error('❌ Failed to render Astutely stems:', error);
+      throw error;
+    }
   }, [trackStore]);
 
   const muteTrack = useCallback((trackId: string, muted: boolean) => {
     trackStore.updateTrack(trackId, { muted });
   }, [trackStore]);
 
+// ... (rest of the code remains the same)
   const removeTrack = useCallback((trackId: string) => {
     trackStore.removeTrack(trackId);
   }, [trackStore]);
@@ -526,6 +661,9 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     // Real Audio Generation
     generateRealAudio,
 
+    // Unified Generation (Pattern + Audio)
+    generateComplete,
+
     // Audio Playback
     playGeneratedAudio,
     stopGeneratedAudio,
@@ -545,6 +683,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     getProjectStatus,
     addGeneratedTracks,
     addAudioTrack,
+    renderPatternToStems,
     muteTrack,
     removeTrack,
 
@@ -572,6 +711,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     audioError,
     generatePattern,
     generateRealAudio,
+    generateComplete,
     playGeneratedAudio,
     stopGeneratedAudio,
     isPlayingGeneratedAudio,
@@ -586,6 +726,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     getProjectStatus,
     addGeneratedTracks,
     addAudioTrack,
+    renderPatternToStems,
     muteTrack,
     removeTrack,
     navigateTo,

@@ -12,7 +12,7 @@ import { Wand2, Music, DollarSign, Piano, Play, Pause, Square, Activity, AlertTr
 import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 import { requestAstutelyPattern, mapGenreToAstutelyStyle } from '@/lib/astutelyBridge';
-import { astutelyToNotes, midiToNoteOctave, astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { astutelyToNotes, midiToNoteOctave, astutelyGenerateAudio, astutelyGenerateComplete, astutelyPlayAudio } from '@/lib/astutelyEngine';
 
 interface DiagnosticEvent {
   id: string;
@@ -300,74 +300,44 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
 
       toast({
         title: 'Astutely Generating',
-        description: `Creating a ${style} arrangement with ${composedPrompt}`,
+        description: `Creating ${style} with pattern + professional audio...`,
       });
 
-      const { result, notes } = await requestAstutelyPattern({
+      // 🎵 UNIFIED GENERATION - Get both pattern AND professional audio
+      const completeResult = await astutelyGenerateComplete({
         style,
         prompt: composedPrompt,
       });
 
-      const pattern = astutelyNotesToRealisticPattern(notes, result.bpm);
+      const pattern = astutelyNotesToRealisticPattern(completeResult.notes, completeResult.pattern.bpm);
       currentPatternRef.current = pattern;
-      setBpm([result.bpm]);
+      setBpm([completeResult.pattern.bpm]);
 
-      const counts = summarizeTrackCounts(notes);
+      const counts = summarizeTrackCounts(completeResult.notes);
       toast({
-        title: 'Beat Added To Piano Roll',
-        description: `Drums ${counts.drums} • Bass ${counts.bass} • Chords ${counts.chords} • Melody ${counts.melody}`,
+        title: '🎵 Complete Music Generated!',
+        description: `Pattern: Drums ${counts.drums} • Bass ${counts.bass} • Chords ${counts.chords} • Melody ${counts.melody} | Audio: ${completeResult.audio.duration}s via ${completeResult.audio.provider}`,
       });
 
-      // NOTE: playAstutelyPreview() already plays the pattern inside astutelyGenerate().
-      // Do NOT call playPattern() here — it would double the audio.
-
-      if (onMusicGenerated) {
-        onMusicGenerated('', {
-          provider: 'astutely',
-          prompt: composedPrompt,
-          genre,
-          bpm: result.bpm,
-          style: result.style,
-          key: result.key,
-          generatedAt: new Date(),
-          pattern,
-        });
+      // Auto-play the professional audio
+      try {
+        await astutelyPlayAudio(completeResult.audio.audioUrl);
+      } catch (playErr) {
+        console.warn('Auto-play blocked:', playErr);
       }
 
-      // Generate real AI audio (Suno/MusicGen) after pattern succeeds
-      try {
-        toast({
-          title: '🎵 Generating Real Audio',
-          description: `Creating professional ${style} track via AI...`,
-        });
-        const audioResult = await astutelyGenerateAudio(style, {
+      if (onMusicGenerated) {
+        onMusicGenerated(completeResult.audio.audioUrl, {
+          provider: completeResult.audio.provider,
           prompt: composedPrompt,
-          bpm: result.bpm,
-          key: result.key,
+          genre,
+          bpm: completeResult.pattern.bpm,
+          style: completeResult.pattern.style,
+          key: completeResult.pattern.key,
+          generatedAt: new Date(),
+          duration: completeResult.audio.duration,
+          pattern,
         });
-        try {
-          await astutelyPlayAudio(audioResult.audioUrl);
-        } catch (playErr) {
-          console.warn('Auto-play blocked:', playErr);
-        }
-        if (onMusicGenerated) {
-          onMusicGenerated(audioResult.audioUrl, {
-            provider: audioResult.provider,
-            prompt: composedPrompt,
-            genre,
-            bpm: result.bpm,
-            style: result.style,
-            key: result.key,
-            generatedAt: new Date(),
-            duration: audioResult.duration,
-          });
-        }
-        toast({
-          title: '✅ Real Audio Ready!',
-          description: `Generated via ${audioResult.provider} (${audioResult.duration}s)`,
-        });
-      } catch (audioErr) {
-        console.warn('Real audio generation failed, pattern still available:', audioErr);
       }
     } catch (error) {
       console.error('Generation error:', error);

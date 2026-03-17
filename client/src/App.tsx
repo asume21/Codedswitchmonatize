@@ -13,10 +13,12 @@ import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
+import FloatingAudioMonitor from "@/components/ui/FloatingAudioMonitor";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const TrackStoreProvider = React.lazy(() => import("@/contexts/TrackStoreContext").then(m => ({ default: m.TrackStoreProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+const StemGenerationProvider = React.lazy(() => import("@/contexts/StemGenerationContext").then(m => ({ default: m.StemGenerationProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const InstrumentProvider = React.lazy(() => import("@/contexts/InstrumentContext").then(m => ({ default: m.InstrumentProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const GlobalAudioProvider = React.lazy(() => import("@/contexts/GlobalAudioContext").then(m => ({ default: m.GlobalAudioProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const StudioSessionProvider = React.lazy(() => import("@/contexts/StudioSessionContext").then(m => ({ default: m.StudioSessionProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
@@ -47,6 +49,9 @@ const SocialHub = React.lazy(() => import("@/pages/social-hub").catch(() => ({ d
 const UserProfilePage = React.lazy(() => import("@/pages/user-profile").catch(() => ({ default: () => <NotFound /> })));
 const SitemapPage = React.lazy(() => import("@/pages/sitemap-page").catch(() => ({ default: () => <NotFound /> })));
 const VoiceConvertPage = React.lazy(() => import("@/pages/voice-convert").catch(() => ({ default: () => <NotFound /> })));
+const SampleLibraryPage = React.lazy(() => import("@/pages/sample-library").catch(() => ({ default: () => <NotFound /> })));
+const BlogPage = React.lazy(() => import("@/pages/blog").catch(() => ({ default: () => <NotFound /> })));
+const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -86,17 +91,19 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
           <GlobalAudioProvider>
             <InstrumentProvider>
               <TrackStoreProvider>
-                <AstutelyCoreProvider>
-                  <StudioSessionProvider>
-                    <SongWorkSessionProvider>
-                      <SessionDestinationProvider>
-                        <GlobalAudioPlayer />
-                        <GlobalLivingGlyph position="bottom-right" size={48} />
-                        {children}
-                      </SessionDestinationProvider>
-                    </SongWorkSessionProvider>
-                  </StudioSessionProvider>
-                </AstutelyCoreProvider>
+                <StemGenerationProvider>
+                  <AstutelyCoreProvider>
+                    <StudioSessionProvider>
+                      <SongWorkSessionProvider>
+                        <SessionDestinationProvider>
+                          <GlobalAudioPlayer />
+                          <GlobalLivingGlyph position="bottom-right" size={48} />
+                          {children}
+                        </SessionDestinationProvider>
+                      </SongWorkSessionProvider>
+                    </StudioSessionProvider>
+                  </AstutelyCoreProvider>
+                </StemGenerationProvider>
               </TrackStoreProvider>
             </InstrumentProvider>
           </GlobalAudioProvider>
@@ -217,6 +224,12 @@ function App() {
               <Route path="/sitemap">
                 <AppLayout><SitemapPage /></AppLayout>
               </Route>
+              <Route path="/blog">
+                <AppLayout><BlogPage /></AppLayout>
+              </Route>
+              <Route path="/blog/:slug">
+                <AppLayout><BlogPostPage /></AppLayout>
+              </Route>
               
               {/* ============================================
                   NON-AUDIO AI ROUTES - No StudioProviders
@@ -228,6 +241,9 @@ function App() {
               </Route>
               <Route path="/voice-convert">
                 <AppLayout><VoiceConvertPage /></AppLayout>
+              </Route>
+              <Route path="/sample-library">
+                <AppLayout><SampleLibraryPage /></AppLayout>
               </Route>
               <Route path="/ai-assistant">
                 <AIMessageProvider>
@@ -288,6 +304,7 @@ function App() {
             </Suspense>
           </TooltipProvider>
         </AuthProvider>
+        <FloatingAudioMonitor />
       </QueryClientProvider>
     </ErrorBoundary>
   );

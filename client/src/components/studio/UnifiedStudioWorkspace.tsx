@@ -559,6 +559,24 @@ export default function UnifiedStudioWorkspace() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showMetronomeSettings, setShowMetronomeSettings] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const menuBarRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on click outside
+  useEffect(() => {
+    if (!openMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (menuBarRef.current && !menuBarRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openMenu]);
+
+  // Helper: wrap a menu-item click so it fires the action then closes the menu
+  const menuAction = (fn: () => void) => () => { fn(); setOpenMenu(null); };
+
   const [effectsDialogOpen, setEffectsDialogOpen] = useState(false);
   const [activeEffectTool, setActiveEffectTool] = useState<string | null>(null);
   const [snapToGridEnabled, setSnapToGridEnabled] = useState(true);
@@ -567,7 +585,7 @@ export default function UnifiedStudioWorkspace() {
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [beatLabTab, setBeatLabTab] = useState<'pro' | 'bass-studio' | 'loop-library' | 'pack-generator'>('pro');
   const [pianoRollTool, setPianoRollTool] = useState<'select' | 'draw' | 'erase'>('draw');
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(50);
   const [trackListWidth, setTrackListWidth] = useState(200);
   const [trackHeights, setTrackHeights] = useState<Record<string, number>>({});
   const [waveformData, setWaveformData] = useState<Record<string, any>>({});
@@ -575,6 +593,12 @@ export default function UnifiedStudioWorkspace() {
   const [waveformTrimEnd, setWaveformTrimEnd] = useState(100);
   const [playheadPosition, setPlayheadPosition] = useState(0);
   const [recordingLatencyCompensationMs, setRecordingLatencyCompensationMs] = useState(0);
+
+  // Sync playheadPosition with transport position so the Piano Roll
+  // receives real-time position updates and can trigger note playback
+  useEffect(() => {
+    setPlayheadPosition(position);
+  }, [position]);
   // Use the MIDI hook for real MIDI functionality
   const {
     isSupported: midiSupported,
@@ -628,11 +652,70 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleTimelineTrackPlay = (trackId: string) => {
-    // Placeholder implementation
+    // If already playing this track, stop it
+    if (timelinePlayingTrackRef.current === trackId) {
+      const existing = timelineAudioRefs.current.get(trackId);
+      if (existing) {
+        existing.pause();
+        existing.currentTime = 0;
+      }
+      setTimelinePlayingTrack(null);
+      timelinePlayingTrackRef.current = null;
+      return;
+    }
+
+    // Stop any currently playing track first
+    stopTimelineAudio();
+
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+
+    const audioUrl = (track.payload as any)?.audioUrl || (track.data as any)?.audioUrl;
+    if (!audioUrl) {
+      // For MIDI tracks, start transport playback instead
+      if (track.type === 'midi' && track.notes?.length > 0) {
+        startTransport();
+        setTimelinePlayingTrack(trackId);
+        timelinePlayingTrackRef.current = trackId;
+        toast({ title: 'Playing', description: `${track.name} via Piano Roll` });
+        return;
+      }
+      toast({ title: 'No Audio', description: `${track.name} has no audio to play`, variant: 'destructive' });
+      return;
+    }
+
+    let audio = timelineAudioRefs.current.get(trackId);
+    if (!audio) {
+      audio = new Audio();
+      audio.crossOrigin = 'anonymous';
+      audio.src = audioUrl;
+      timelineAudioRefs.current.set(trackId, audio);
+    }
+
+    audio.volume = Math.min(1, Math.max(0, track.volume ?? 0.8));
+    audio.currentTime = 0;
+    audio.onended = () => {
+      setTimelinePlayingTrack(null);
+      timelinePlayingTrackRef.current = null;
+    };
+
+    audio.play().then(() => {
+      setTimelinePlayingTrack(trackId);
+      timelinePlayingTrackRef.current = trackId;
+    }).catch(err => {
+      toast({ title: 'Playback Error', description: String(err), variant: 'destructive' });
+    });
   };
-  
+
   const stopTimelineAudio = () => {
-    // Placeholder implementation
+    timelineAudioRefs.current.forEach((audio) => {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+      } catch { /* ignore */ }
+    });
+    setTimelinePlayingTrack(null);
+    timelinePlayingTrackRef.current = null;
   };
 
   const handleAstutelyResult = useCallback((result: AstutelyResult) => {
@@ -2072,7 +2155,10 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleSelectAll = () => {
-    toast({ title: "Select All", description: "All items selected" });
+    if (tracks.length > 0 && !selectedTrack) {
+      setSelectedTrack(tracks[0].id);
+    }
+    toast({ title: 'Select All', description: `${tracks.length} track(s) in project` });
   };
 
   // Create menu actions
@@ -2282,11 +2368,27 @@ export default function UnifiedStudioWorkspace() {
 
   // Mix menu actions
   const handleNormalize = () => {
-    toast({ title: "Normalize", description: "Audio normalized to 0dB" });
+    if (!selectedTrack) {
+      toast({ title: 'Select a track', description: 'Choose a track to normalize', variant: 'destructive' });
+      return;
+    }
+    setTracks(prev => prev.map(t => t.id === selectedTrack ? { ...t, volume: 0.8 } : t));
+    const track = tracks.find(t => t.id === selectedTrack);
+    toast({ title: 'Normalize', description: `${track?.name || 'Track'} volume normalized to 0dB` });
   };
 
   const handleReverse = () => {
-    toast({ title: "Reverse", description: "Audio reversed" });
+    if (!selectedTrack) {
+      toast({ title: 'Select a track', description: 'Choose a track to reverse', variant: 'destructive' });
+      return;
+    }
+    setTracks(prev => prev.map(t => {
+      if (t.id !== selectedTrack || !t.notes?.length) return t;
+      const maxStep = Math.max(...t.notes.map(n => n.step + (n.length || 1)));
+      const reversed = t.notes.map(n => ({ ...n, step: maxStep - n.step - (n.length || 1) }));
+      return { ...t, notes: reversed };
+    }));
+    toast({ title: 'Reverse', description: 'Notes reversed in selected track' });
   };
 
   const handleBounceToAudio = () => {
@@ -2307,11 +2409,27 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleGroupTracks = () => {
-    toast({ title: "Group Tracks", description: "Selected tracks grouped" });
+    if (!selectedTrack) {
+      toast({ title: 'No Selection', description: 'Select tracks to group', variant: 'destructive' });
+      return;
+    }
+    const groupId = `group-${Date.now()}`;
+    setTracks(prev => prev.map(t => t.id === selectedTrack ? { ...t, data: { ...((t.data as any) || {}), groupId } } : t));
+    toast({ title: 'Group Created', description: `Track added to group ${groupId.slice(-4)}` });
   };
 
   const handleUngroupTracks = () => {
-    toast({ title: "Ungroup Tracks", description: "Selected tracks ungrouped" });
+    if (!selectedTrack) {
+      toast({ title: 'No Selection', description: 'Select a grouped track to ungroup', variant: 'destructive' });
+      return;
+    }
+    setTracks(prev => prev.map(t => {
+      if (t.id !== selectedTrack) return t;
+      const data = { ...((t.data as any) || {}) };
+      delete data.groupId;
+      return { ...t, data };
+    }));
+    toast({ title: 'Ungrouped', description: 'Track removed from group' });
   };
 
   const handleFadeIn = () => {
@@ -2739,74 +2857,79 @@ export default function UnifiedStudioWorkspace() {
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-4">
           <h1 className="text-xl font-black tracking-[0.3em] astutely-gradient-text uppercase">CodedSwitch</h1>
-          <div className="flex space-x-0.5">
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="astutely-button">File ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
-                <button onClick={handleNewProject} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+          <div className="flex space-x-0.5" ref={menuBarRef}>
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
+              {openMenu === 'file' && (
+              <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel">
+                <button onClick={menuAction(handleNewProject)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New Project</span>
                   <span className="text-xs text-cyan-400">Ctrl+N</span>
                 </button>
-                <button onClick={handleLoadProject} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleLoadProject)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Open Project...</span>
                   <span className="text-xs text-cyan-400">Ctrl+O</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleSaveProject} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleSaveProject)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Save Project</span>
                   <span className="text-xs text-cyan-400">Ctrl+S</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('song-uploader'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Import Audio...</span>
                   <span className="text-xs text-cyan-400">Ctrl+I</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleExport} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleExport)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Export Audio...</span>
                   <span className="text-xs text-gray-500">Ctrl+E</span>
                 </button>
               </div>
+              )}
             </div>
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="astutely-button">Edit ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
-                <button onClick={handleUndo} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'edit' ? null : 'edit')}>Edit ▼</Button>
+              {openMenu === 'edit' && (
+              <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel">
+                <button onClick={menuAction(handleUndo)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Undo</span>
                   <span className="text-xs text-cyan-400">Ctrl+Z</span>
                 </button>
-                <button onClick={handleRedo} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleRedo)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Redo</span>
                   <span className="text-xs text-cyan-400">Ctrl+Y</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleCut} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleCut)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Cut</span>
                   <span className="text-xs text-cyan-400">Ctrl+X</span>
                 </button>
-                <button onClick={handleCopy} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleCopy)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Copy</span>
                   <span className="text-xs text-cyan-400">Ctrl+C</span>
                 </button>
-                <button onClick={handlePaste} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handlePaste)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Paste</span>
                   <span className="text-xs text-cyan-400">Ctrl+V</span>
                 </button>
-                <button onClick={handleDelete} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleDelete)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Delete</span>
                   <span className="text-xs text-cyan-400">Del</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleSelectAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleSelectAll)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Select All</span>
                   <span className="text-xs text-cyan-400">Ctrl+A</span>
                 </button>
               </div>
+              )}
             </div>
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="astutely-button">View ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
-                <button onClick={() => setActiveView('arrangement')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'view' ? null : 'view')}>View ▼</Button>
+              {openMenu === 'view' && (
+              <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel">
+                <button onClick={menuAction(() => setActiveView('arrangement'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
                   <span className="text-xs text-cyan-400">F1</span>
                 </button>
@@ -2879,13 +3002,15 @@ export default function UnifiedStudioWorkspace() {
                   <span className="text-xs text-cyan-400">Ctrl+Shift+F</span>
                 </button>
               </div>
+              )}
             </div>
 
             {/* CREATE Menu */}
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="astutely-button">Create ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
-                <button onClick={handleNewMIDITrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'create' ? null : 'create')}>Create ▼</Button>
+              {openMenu === 'create' && (
+              <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel">
+                <button onClick={menuAction(handleNewMIDITrack)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New MIDI Track</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+T</span>
                 </button>
@@ -2925,12 +3050,14 @@ export default function UnifiedStudioWorkspace() {
                   Recording Clip
                 </button>
               </div>
+              )}
             </div>
 
             {/* ARRANGE Menu */}
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="astutely-button">Arrange ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'arrange' ? null : 'arrange')}>Arrange ▼</Button>
+              {openMenu === 'arrange' && (
+              <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel">
                 <button onClick={() => { setTimeDialogMode('insert'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Insert Time...</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+I</span>
@@ -2982,159 +3109,133 @@ export default function UnifiedStudioWorkspace() {
                   Key Signature...
                 </button>
               </div>
+              )}
             </div>
 
             {/* MIX Menu */}
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="astutely-button">Mix ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
-                <button onClick={handleNormalize} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'mix' ? null : 'mix')}>Mix ▼</Button>
+              {openMenu === 'mix' && (
+              <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel">
+                <button onClick={menuAction(handleNormalize)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Normalize</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+N</span>
                 </button>
-                <button onClick={handleReverse} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleReverse)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Reverse</span>
                   <span className="text-xs text-cyan-400">Ctrl+R</span>
                 </button>
-                <button onClick={handleFadeIn} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleFadeIn)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Fade In
                 </button>
-                <button onClick={handleFadeOut} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleFadeOut)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Fade Out
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleBounceToAudio} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleBounceToAudio)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Bounce to Audio</span>
                   <span className="text-xs text-cyan-400">Ctrl+B</span>
                 </button>
-                <button onClick={handleFreezeTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleFreezeTrack)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Freeze Track
                 </button>
-                <button onClick={handleFlattenTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleFlattenTrack)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Flatten Track
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleGroupTracks} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleGroupTracks)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Group Tracks</span>
                   <span className="text-xs text-cyan-400">Ctrl+G</span>
                 </button>
-                <button onClick={handleUngroupTracks} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleUngroupTracks)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Ungroup Tracks</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+G</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleSoloAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleSoloAll)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Solo All Tracks
                 </button>
-                <button onClick={handleMuteAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleMuteAll)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Mute All Tracks
                 </button>
-                <button onClick={handleUnsoloAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleUnsoloAll)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Unsolo All
                 </button>
-                <button onClick={handleUnmuteAll} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleUnmuteAll)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Unmute All
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleResetFaders} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleResetFaders)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Reset All Faders
                 </button>
-                <button onClick={handleResetPan} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleResetPan)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Reset All Pan
                 </button>
               </div>
+              )}
             </div>
 
-            {/* MORE Menu - Groups Tools, Window, Help */}
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="astutely-button">More ▼</Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-56 z-[9999] astutely-panel">
-                {/* Tools Submenu */}
-                <div className="relative group/tools">
-                  <div className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between text-cyan-100 astutely-menu-item">
-                    <span>🔧 Tools</span>
-                    <span>▶</span>
-                  </div>
-                  <div className="hidden group-hover/tools:block absolute left-full top-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] ml-1 w-56 z-[100] astutely-panel">
-                    <button onClick={handleTuner} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      <span>Tuner</span>
-                      <span className="text-xs text-cyan-400">Ctrl+Shift+U</span>
-                    </button>
-                    <button onClick={handleMetronome} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      <span>{metronomeEnabled ? '✓' : '  '} Metronome</span>
-                      <span className="text-xs text-cyan-400">C</span>
-                    </button>
-                    <button onClick={handleClickTrackSettings} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      Click Track Settings...
-                    </button>
-                    <div className="border-t border-cyan-500/30 my-1"></div>
-                    <button onClick={() => { setShowAudioDetector(true); toast({ title: "Spectrum Analyzer", description: "Opening Audio Detector..." }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      Spectrum Analyzer
-                    </button>
-                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      Chord Detector
-                    </button>
-                    <button onClick={() => setShowAudioDetector(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      BPM Detector
-                    </button>
-                  </div>
-                </div>
-
-                {/* Window Submenu */}
-                <div className="relative group/window">
-                  <div className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between text-cyan-100 astutely-menu-item">
-                    <span>🪟 Window</span>
-                    <span>▶</span>
-                  </div>
-                  <div className="hidden group-hover/window:block absolute left-full top-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] ml-1 w-56 z-[100] astutely-panel">
-                    <button onClick={handleResetLayout} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      <span>Reset Layout</span>
-                      <span className="text-xs text-cyan-400">Ctrl+Alt+R</span>
-                    </button>
-                    <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
-                    </button>
-                    <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      <span>Full Screen</span>
-                      <span className="text-xs text-cyan-400">F11</span>
-                    </button>
-                    <button onClick={() => setFocusModeEnabled(!focusModeEnabled)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      {focusModeEnabled ? '✓' : '  '} Focus Mode
-                    </button>
-                  </div>
-                </div>
-
-                {/* Help Submenu */}
-                <div className="relative group/help">
-                  <div className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between text-cyan-100 astutely-menu-item">
-                    <span>❓ Help</span>
-                    <span>▶</span>
-                  </div>
-                  <div className="hidden group-hover/help:block absolute left-full top-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] ml-1 w-56 z-[100] astutely-panel">
-                    <button onClick={handleShowKeyboardShortcuts} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      <span>Keyboard Shortcuts</span>
-                      <span className="text-xs text-cyan-400">?</span>
-                    </button>
-                    <button onClick={() => window.open('/docs', '_blank')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      Documentation
-                    </button>
-                    <div className="border-t border-cyan-500/30 my-1"></div>
-                    <button onClick={handleShowAbout} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
-                      About CodedSwitch
-                    </button>
-                  </div>
-                </div>
+            {/* MORE Menu - Flattened (no nested hover submenus) */}
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'more' ? null : 'more')}>More ▼</Button>
+              {openMenu === 'more' && (
+              <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel max-h-[70vh] overflow-y-auto">
+                <div className="px-4 py-1 text-xs text-cyan-400 font-semibold uppercase tracking-wider">Tools</div>
+                <button onClick={menuAction(handleTuner)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Tuner</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Shift+U</span>
+                </button>
+                <button onClick={menuAction(handleMetronome)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>{metronomeEnabled ? '✓' : '  '} Metronome</span>
+                  <span className="text-xs text-cyan-400">C</span>
+                </button>
+                <button onClick={menuAction(handleClickTrackSettings)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  Click Track Settings...
+                </button>
+                <button onClick={menuAction(() => { setShowAudioDetector(true); })} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  Spectrum / Chord / BPM Detector
+                </button>
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <div className="px-4 py-1 text-xs text-cyan-400 font-semibold uppercase tracking-wider">Window</div>
+                <button onClick={menuAction(handleResetLayout)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Reset Layout</span>
+                  <span className="text-xs text-cyan-400">Ctrl+Alt+R</span>
+                </button>
+                <button onClick={menuAction(() => setInstrumentsExpanded(!instrumentsExpanded))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  {instrumentsExpanded ? '✓' : '  '} Show Instrument Library
+                </button>
+                <button onClick={menuAction(handleToggleFullScreen)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Full Screen</span>
+                  <span className="text-xs text-cyan-400">F11</span>
+                </button>
+                <button onClick={menuAction(() => setFocusModeEnabled(!focusModeEnabled))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  {focusModeEnabled ? '✓' : '  '} Focus Mode
+                </button>
+                <div className="border-t border-cyan-500/30 my-1"></div>
+                <div className="px-4 py-1 text-xs text-cyan-400 font-semibold uppercase tracking-wider">Help</div>
+                <button onClick={menuAction(handleShowKeyboardShortcuts)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Keyboard Shortcuts</span>
+                  <span className="text-xs text-cyan-400">?</span>
+                </button>
+                <button onClick={menuAction(() => window.open('/docs', '_blank'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  Documentation
+                </button>
+                <button onClick={menuAction(handleShowAbout)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  About CodedSwitch
+                </button>
               </div>
+              )}
             </div>
 
             {/* MIDI Menu */}
-            <div className="relative group">
-              <Button variant="ghost" size="sm" className="flex items-center gap-1 astutely-button">
+            <div className="relative">
+              <Button variant="ghost" size="sm" className="flex items-center gap-1 astutely-button" onClick={() => setOpenMenu(openMenu === 'midi' ? null : 'midi')}>
                 <Cable className="w-3 h-3" />
                 MIDI ▼
                 {midiConnected && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>}
               </Button>
-              <div className="hidden group-hover:block absolute top-full left-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] mt-1 w-72 z-[100] p-3 space-y-3 astutely-panel">
+              {openMenu === 'midi' && (
+              <div className="absolute top-full right-0 bg-black/90 border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-72 z-[9999] p-3 space-y-3 astutely-panel">
                 {/* MIDI Status */}
                 <div className="pb-2 border-b border-cyan-500/30">
                   <div className="flex items-center justify-between mb-2">
@@ -3335,6 +3436,7 @@ export default function UnifiedStudioWorkspace() {
                   💡 MIDI works across all tabs - play Piano Roll, Arrangement, Mixer in real-time!
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -3867,23 +3969,26 @@ export default function UnifiedStudioWorkspace() {
                             </div>
                             
                             {/* Timeline Visualization */}
-                            <div className="flex-1 bg-gray-900 p-2 relative h-full">
+                            <div className="flex-1 bg-gray-900 p-2 relative h-full overflow-x-auto">
                               {track.type === 'midi' ? (
-                                <div className="relative" style={{ height: laneHeight }}>
+                                <div className="relative" style={{ height: laneHeight, minWidth: `${64 * Math.max(5, 15 * zoom / 50)}px` }}>
                                   {track.notes?.length > 0 ? (
-                                    track.notes.map((note) => (
+                                    track.notes.map((note) => {
+                                      const pxPerStep = 15 * zoom / 50;
+                                      return (
                                       <div
                                         key={note.id}
                                         className="absolute top-2 bg-green-600/80 border border-green-400 rounded text-xs flex items-center justify-center"
                                         style={{
-                                          left: `${note.step * 15}px`,
-                                          width: `${(note.length || 4) * 15 - 4}px`,
+                                          left: `${note.step * pxPerStep}px`,
+                                          width: `${Math.max(2, (note.length || 4) * pxPerStep - 4)}px`,
                                           height: noteLaneHeight,
                                         }}
                                       >
                                         {note.note}{note.octave}
                                       </div>
-                                    ))
+                                      );
+                                    })
                                   ) : (
                                     <div className="text-xs text-gray-500 text-center">No notes</div>
                                   )}
@@ -4227,7 +4332,17 @@ export default function UnifiedStudioWorkspace() {
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 p-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
                 <AIMasteringCard />
-                <AIArrangementBuilder currentBpm={tempo} currentKey="C" tracks={tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: (t as any).payload?.notes?.length || 0, muted: t.muted, volume: t.volume }))} />
+                <AIArrangementBuilder
+                  currentBpm={tempo}
+                  currentKey="C"
+                  tracks={tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: t.notes?.length || 0, muted: t.muted, volume: t.volume }))}
+                  onApplySection={(sectionIndex, trackStates) => {
+                    Object.entries(trackStates).forEach(([trackId, state]) => {
+                      setTracks(prev => prev.map(t => t.id === trackId ? { ...t, muted: !state.active, volume: state.volume } : t));
+                    });
+                    toast({ title: 'Section Applied', description: `Applied track states for section ${sectionIndex + 1}` });
+                  }}
+                />
                 <AIVocalMelody currentKey="C" currentBpm={tempo} />
                 <AIStemSeparation />
               </div>
@@ -4842,7 +4957,18 @@ export default function UnifiedStudioWorkspace() {
             >
               <X className="w-5 h-5" />
             </Button>
-            <AIArrangementBuilder currentBpm={tempo} currentKey="C" tracks={tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: (t as any).payload?.notes?.length || 0, muted: t.muted, volume: t.volume }))} />
+            <AIArrangementBuilder
+              currentBpm={tempo}
+              currentKey="C"
+              tracks={tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: t.notes?.length || 0, muted: t.muted, volume: t.volume }))}
+              onClose={() => setShowAIArrange(false)}
+              onApplySection={(sectionIndex, trackStates) => {
+                Object.entries(trackStates).forEach(([trackId, state]) => {
+                  setTracks(prev => prev.map(t => t.id === trackId ? { ...t, muted: !state.active, volume: state.volume } : t));
+                });
+                toast({ title: 'Section Applied', description: `Applied track states for section ${sectionIndex + 1}` });
+              }}
+            />
           </div>
         </div>
       </div>,
