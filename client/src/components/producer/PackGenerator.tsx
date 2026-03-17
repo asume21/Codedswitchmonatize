@@ -212,6 +212,10 @@ const PROMPT_TEMPLATES: Record<string, string[]> = {
   ],
 };
 
+function getSamplePlaybackUrl(sample: GeneratedPack['samples'][number]): string | null {
+  return sample.audioUrl || sample.url || null;
+}
+
 export default function PackGenerator() {
   const [prompt, setPrompt] = useState("");
   const [packCount, setPackCount] = useState(4);
@@ -316,7 +320,7 @@ export default function PackGenerator() {
   
   const downloadAllPacks = async () => {
     const packsWithAudio = generatedPacks.filter(p => 
-      p.samples.some(s => s.audioUrl)
+      p.samples.some((s) => Boolean(getSamplePlaybackUrl(s)))
     );
     
     if (packsWithAudio.length === 0) {
@@ -327,10 +331,11 @@ export default function PackGenerator() {
     toast({ title: `Downloading ${packsWithAudio.length} packs...` });
     
     for (const pack of packsWithAudio) {
-      const sample = pack.samples.find(s => s.audioUrl);
-      if (sample?.audioUrl) {
+      const sample = pack.samples.find((s) => Boolean(getSamplePlaybackUrl(s)));
+      const sampleUrl = sample ? getSamplePlaybackUrl(sample) : null;
+      if (sampleUrl) {
         const link = document.createElement('a');
-        link.href = sample.audioUrl;
+        link.href = sampleUrl;
         link.download = `${pack.title.replace(/[^a-z0-9]/gi, '_')}.wav`;
         document.body.appendChild(link);
         link.click();
@@ -427,23 +432,47 @@ export default function PackGenerator() {
   };
 
   const handleSendToTracks = (pack: GeneratedPack) => {
-    const firstSample = pack.samples.find((s) => s.audioUrl || s.url);
-    addTrack({
-      name: pack.title || "Generated Pack",
-      type: "audio",
-      audioUrl: firstSample?.audioUrl || firstSample?.url,
-      payload: {
-        source: "pack-generator",
-        packId: pack.id,
-        samples: pack.samples,
-        bpm: pack.bpm,
-        key: pack.key,
-        genre: pack.genre,
-      },
-      lengthBars: 4,
-      startBar: 0,
+    const samplesWithAudio = pack.samples.filter((sample) => Boolean(getSamplePlaybackUrl(sample)));
+
+    if (!samplesWithAudio.length) {
+      toast({ title: 'No audio available to send', variant: 'destructive' });
+      return;
+    }
+
+    samplesWithAudio.forEach((sample, index) => {
+      const sampleUrl = getSamplePlaybackUrl(sample);
+      if (!sampleUrl) return;
+
+      addTrack({
+        name: `${pack.title || 'Generated Pack'} - ${sample.name || `Sample ${index + 1}`}`,
+        type: 'audio',
+        audioUrl: sampleUrl,
+        payload: {
+          source: 'pack-generator',
+          packId: pack.id,
+          sampleId: sample.id,
+          sampleName: sample.name,
+          sampleType: sample.type,
+          bpm: pack.bpm,
+          key: pack.key,
+          genre: pack.genre,
+          duration: sample.duration,
+          samples: pack.samples,
+        },
+        lengthBars: 4,
+        startBar: index * 4,
+      });
+
+      window.dispatchEvent(new CustomEvent('importToMultiTrack', {
+        detail: {
+          type: 'audio',
+          name: `${pack.title || 'Generated Pack'} - ${sample.name || `Sample ${index + 1}`}`,
+          audioUrl: sampleUrl,
+        },
+      }));
     });
-    toast({ title: "Sent to timeline" });
+
+    toast({ title: 'Sent to Multi-Track', description: `${samplesWithAudio.length} sample${samplesWithAudio.length === 1 ? '' : 's'} imported` });
   };
 
   const startSamplePlaylist = (urls: string[], volume: number, onFallback: () => void) => {
@@ -492,7 +521,9 @@ export default function PackGenerator() {
     const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === 'instruments' || ch.name.toLowerCase() === 'instruments');
     packSynthesizer.setTargetNode(mixerChannel?.input || null);
 
-    const audioUrls = pack.samples.map((sample) => sample.audioUrl).filter((url): url is string => Boolean(url));
+    const audioUrls = pack.samples
+      .map((sample) => getSamplePlaybackUrl(sample))
+      .filter((url): url is string => Boolean(url));
     const volume = (previewVolume[0] ?? 75) / 100;
 
     if (audioUrls.length) {
@@ -524,10 +555,11 @@ export default function PackGenerator() {
   };
 
   const handleDownloadPack = (pack: GeneratedPack) => {
-    const sample = pack.samples.find((s) => s.audioUrl);
-    if (!sample?.audioUrl) return;
+    const sample = pack.samples.find((s) => Boolean(getSamplePlaybackUrl(s)));
+    const sampleUrl = sample ? getSamplePlaybackUrl(sample) : null;
+    if (!sampleUrl) return;
     const link = document.createElement("a");
-    link.href = sample.audioUrl;
+    link.href = sampleUrl;
     link.download = `${pack.title}.wav`;
     document.body.appendChild(link);
     link.click();

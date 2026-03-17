@@ -3,6 +3,8 @@
 
 FROM node:20-bullseye
 
+ARG OLLAMA_MODEL=llama3.1:8b
+
 # Install Ollama dependencies (including zstd required by Ollama installer)
 RUN apt-get update && apt-get install -y \
     curl \
@@ -15,7 +17,7 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://ollama.com/install.sh | sh \
   && (OLLAMA_HOST=127.0.0.1:11434 ollama serve >/tmp/ollama.log 2>&1 &) \
   && sleep 8 \
-  && OLLAMA_HOST=127.0.0.1:11434 ollama pull llama3.1:8b \
+  && OLLAMA_HOST=127.0.0.1:11434 ollama pull ${OLLAMA_MODEL} \
   && pkill ollama || true
 
 # Set working directory
@@ -39,5 +41,6 @@ EXPOSE 5000
 # Startup script
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh
 
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/docker-entrypoint.sh"]

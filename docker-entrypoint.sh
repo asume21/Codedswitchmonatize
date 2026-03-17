@@ -30,19 +30,21 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "⚠️ Ollama did not start in time, continuing anyway (will use cloud fallback)"
 fi
 
-# Verify model is available
-echo "📦 Verifying Phi3 model..."
-if ollama list 2>/dev/null | grep -q "phi3:medium"; then
-    echo "✅ Phi3 model is ready"
+# Verify/pull configured model (default llama3.1:8b)
+echo "📦 OLLAMA_MODEL env: ${OLLAMA_MODEL}"
+MODEL_NAME=${OLLAMA_MODEL:-llama3.1:8b}
+echo "📦 Verifying model: $MODEL_NAME"
+if ollama list 2>/dev/null | grep -q "$MODEL_NAME"; then
+    echo "✅ Model '$MODEL_NAME' is ready"
 else
-    echo "⚠️ Model not found. Starting download in background (server will start now; cloud fallback will be used until model is ready)..."
+    echo "⚠️ Model '$MODEL_NAME' not found. Starting download in background..."
     (
       set +e
-      ollama pull phi3:medium
+      ollama pull "$MODEL_NAME"
       if [ $? -eq 0 ]; then
-        echo "✅ Phi3 model downloaded"
+        echo "✅ Model '$MODEL_NAME' downloaded"
       else
-        echo "⚠️ Phi3 model download failed; cloud fallback will remain in use"
+        echo "⚠️ Model '$MODEL_NAME' download failed; please check connectivity or model name"
       fi
     ) &
 fi

@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { IStorage } from "../storage";
+import { grantTrialCredits } from "../middleware/trialCredits";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -44,6 +45,11 @@ export function createAuthRoutes(storage: IStorage) {
         email,
         password: hashedPassword,
         username: username || email.split('@')[0],
+      });
+
+      // Grant trial credits to new user (async, don't wait)
+      grantTrialCredits(storage, user.id).catch(err => {
+        console.error('Failed to grant trial credits:', err);
       });
 
       // Create session

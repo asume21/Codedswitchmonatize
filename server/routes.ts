@@ -21,6 +21,9 @@ import { createUserRoutes } from "./routes/user";
 import { createSocialRoutes } from "./routes/social";
 import { createVulnerabilityRoutes } from "./routes/vulnerability";
 import { createVoiceConvertRoutes } from "./routes/voiceConvert";
+import { createStemGenerationRoutes } from "./routes/stemGeneration";
+import { createSampleLibraryRoutes } from "./routes/sampleLibrary";
+import { createBlogRouter } from "./routes/blog";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -312,11 +315,20 @@ ${urls
   // Mount Social Hub routes
   app.use("/api/social", createSocialRoutes(storage));
 
+  // Mount Blog routes
+  app.use("/api/blog", createBlogRouter(storage));
+
   // Mount Vulnerability Scanner routes
   app.use("/api/vulnerability", createVulnerabilityRoutes(storage));
 
   // Mount Voice Conversion pipeline routes (jobs, BYO keys, cost check)
   app.use("/api/voice-convert", createVoiceConvertRoutes(storage));
+
+  // Mount AI Stem Generation routes
+  app.use("/api/stem-generation", createStemGenerationRoutes());
+
+  // Mount Sample Library routes
+  app.use("/api/sample-library", createSampleLibraryRoutes());
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation
@@ -3797,6 +3809,79 @@ ${code}
       } catch (error: any) {
         console.error("Extract melody error:", error);
         sendError(res, 500, error.message || "Melody extraction failed");
+      }
+    }
+  );
+
+  // Extract MIDI notes from an audio URL (for Suno/MusicGen → Piano Roll)
+  app.post(
+    "/api/audio-analysis/audio-to-midi",
+    requireAuth(),
+    async (req: Request, res: Response) => {
+      try {
+        const { audioUrl, bpm, key } = req.body;
+        if (!audioUrl || typeof audioUrl !== 'string') {
+          return sendError(res, 400, "audioUrl is required");
+        }
+
+        // Download audio to temp file
+        const tempDir = path.resolve(process.cwd(), "objects", "temp");
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        const tempFile = path.join(tempDir, `audio-to-midi-${Date.now()}.wav`);
+
+        try {
+          const audioResponse = await fetch(audioUrl, { signal: AbortSignal.timeout(60000) });
+          if (!audioResponse.ok) throw new Error(`Failed to download audio: ${audioResponse.status}`);
+          const arrayBuffer = await audioResponse.arrayBuffer();
+          fs.writeFileSync(tempFile, Buffer.from(arrayBuffer));
+        } catch (dlErr: any) {
+          return sendError(res, 502, `Failed to download audio: ${dlErr.message}`);
+        }
+
+        // Extract melody notes
+        const melodyResult = await extractMelody(tempFile, 0.05);
+
+        // Clean up temp file
+        try { fs.unlinkSync(tempFile); } catch { /* ignore */ }
+
+        if (!melodyResult || !melodyResult.notes?.length) {
+          // Fallback: return empty but successful response so client can handle
+          return res.json({
+            success: true,
+            notes: [],
+            totalDuration: 0,
+            noteCount: 0,
+            message: "Could not extract notes from audio (analysis API may be unavailable)",
+          });
+        }
+
+        // Convert MelodyNote[] to Piano Roll format
+        const stepsPerBeat = 4; // 16th note resolution
+        const beatsPerSecond = (bpm || 120) / 60;
+        const pianoRollNotes = melodyResult.notes.map((note: any, i: number) => ({
+          id: `extracted-${i}-${Date.now()}`,
+          pitch: note.midi,
+          note: note.note?.replace(/[0-9]/g, '') || 'C',
+          octave: parseInt(note.note?.match(/[0-9]+/)?.[0] || '4'),
+          step: Math.round(note.start * beatsPerSecond * stepsPerBeat),
+          startStep: Math.round(note.start * beatsPerSecond * stepsPerBeat),
+          duration: Math.max(1, Math.round(note.duration * beatsPerSecond * stepsPerBeat)),
+          length: Math.max(1, Math.round(note.duration * beatsPerSecond * stepsPerBeat)),
+          velocity: note.velocity || 100,
+          trackType: note.midi < 48 ? 'bass' : note.midi < 72 ? 'chords' : 'melody',
+        }));
+
+        res.json({
+          success: true,
+          notes: pianoRollNotes,
+          totalDuration: melodyResult.total_duration,
+          noteCount: pianoRollNotes.length,
+          bpm: bpm || 120,
+          key: key || 'C',
+        });
+      } catch (error: any) {
+        console.error("Audio-to-MIDI error:", error);
+        sendError(res, 500, error.message || "Audio-to-MIDI extraction failed");
       }
     }
   );

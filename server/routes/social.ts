@@ -226,5 +226,154 @@ export function createSocialRoutes(storage: IStorage) {
     }
   });
 
+  /**
+   * GET /api/social/posts
+   * Get social feed of posts from followed users
+   */
+  router.get('/posts', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      // Get posts from followed users and own posts
+      const posts = await storage.getSocialFeed(req.userId);
+      
+      res.json({ 
+        posts,
+        stats: {
+          totalShares: posts.length,
+          totalViews: posts.reduce((sum: number, p: any) => sum + (p.views || 0), 0),
+          totalLikes: posts.reduce((sum: number, p: any) => sum + (p.likes || 0), 0),
+          totalComments: posts.reduce((sum: number, p: any) => sum + (p.comments || 0), 0),
+          weeklyGrowth: 0,
+          topPlatform: 'Twitter'
+        }
+      });
+    } catch (error) {
+      console.error('Get posts error:', error);
+      res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+  });
+
+  /**
+   * POST /api/social/share
+   * Share content to social platform
+   */
+  router.post('/share', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const schema = z.object({
+        platform: z.string(),
+        content: z.string(),
+        type: z.string(),
+        title: z.string(),
+        url: z.string().url(),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
+      }
+
+      const { platform, content, type, title, url } = parsed.data;
+
+      // Create social post record
+      const post = await storage.createSocialPost(req.userId, {
+        platform,
+        content,
+        type,
+        title,
+        url,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        views: 0,
+      });
+
+      res.json({ message: 'Shared successfully', post });
+    } catch (error) {
+      console.error('Share error:', error);
+      res.status(500).json({ error: 'Failed to share content' });
+    }
+  });
+
+  /**
+   * POST /api/social/connect
+   * Connect a social platform
+   */
+  router.post('/connect', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const schema = z.object({
+        platform: z.string(),
+        accessToken: z.string().optional(),
+        refreshToken: z.string().optional(),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
+      }
+
+      const { platform, accessToken, refreshToken } = parsed.data;
+
+      // Store platform connection
+      const connection = await storage.createSocialConnection(req.userId, {
+        platform,
+        accessToken: accessToken || '',
+        refreshToken: refreshToken || '',
+        connected: true,
+      });
+
+      res.json({ message: 'Platform connected', connection });
+    } catch (error) {
+      console.error('Connect platform error:', error);
+      res.status(500).json({ error: 'Failed to connect platform' });
+    }
+  });
+
+  /**
+   * GET /api/social/followers
+   * Get user's followers list
+   */
+  router.get('/followers', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const followers = await storage.getUserFollowers(req.userId);
+      res.json({ followers });
+    } catch (error) {
+      console.error('Get followers error:', error);
+      res.status(500).json({ error: 'Failed to fetch followers' });
+    }
+  });
+
+  /**
+   * GET /api/social/following
+   * Get list of users the current user is following
+   */
+  router.get('/following', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const following = await storage.getUserFollowing(req.userId);
+      res.json({ following });
+    } catch (error) {
+      console.error('Get following error:', error);
+      res.status(500).json({ error: 'Failed to fetch following' });
+    }
+  });
+
   return router;
 }

@@ -30,6 +30,11 @@ try {
 
 const app = express();
 
+// Lightweight healthcheck for deploy platforms
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Detect environment
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -48,23 +53,32 @@ app.use("/data", express.static(dataRoot));
 const assetsRoot = path.resolve(process.cwd(), "server", "Assets");
 app.use("/assets", express.static(assetsRoot));
 
-// Serve stem separation output files
-const stemsRoot = path.resolve(process.cwd(), "objects", "stems");
+// Serve stem separation output files (include musicgen-stems subfolder)
+const stemsRoot = path.resolve(process.cwd(), "objects");
 app.use("/api/stems", express.static(stemsRoot, {
+  maxAge: '1d',
   setHeaders: (res, filePath) => {
-    // Set correct content type based on file extension
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      '.mp3': 'audio/mpeg',
-      '.wav': 'audio/wav',
-      '.flac': 'audio/flac',
-      '.ogg': 'audio/ogg',
-    };
-    res.setHeader('Content-Type', mimeTypes[ext] || 'audio/mpeg');
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    if (filePath.endsWith('.wav') || filePath.endsWith('.mp3')) {
+      res.set('Cache-Control', 'public, max-age=86400');
+    }
+    res.set('Accept-Ranges', 'bytes');
   }
 }));
+
+// Serve sample library files
+const sampleLibraryPath = process.env.SAMPLE_LIBRARY_PATH || path.resolve("D:\\DATA SET\\good-sounds\\sound_files");
+if (fs.existsSync(sampleLibraryPath)) {
+  app.use("/api/samples", express.static(sampleLibraryPath, {
+    maxAge: '7d',
+    setHeaders: (res, filePath) => {
+      res.set('Cache-Control', 'public, max-age=604800');
+      res.set('Accept-Ranges', 'bytes');
+    }
+  }));
+  console.log(`📂 Sample library served from: ${sampleLibraryPath}`);
+} else {
+  console.warn(`⚠️  Sample library path not found: ${sampleLibraryPath}`);
+}
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)
 app.set('trust proxy', 1);
@@ -270,8 +284,9 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT.
-  // Default to 4000 in dev to match Playwright/API clients.
-  const port = parseInt(process.env.PORT || "4000", 10);
+  // Default to 4000 in dev to match Playwright/API clients, 5000 in production/Docker.
+  const defaultPort = isProduction ? "5000" : "4000";
+  const port = parseInt(process.env.PORT || defaultPort, 10);
   server.listen(port, "0.0.0.0", () => {
     log(`serving on http://localhost:${port}`);
   });

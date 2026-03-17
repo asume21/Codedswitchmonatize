@@ -107,21 +107,26 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
 
     switch (tool) {
       case 'erase':
+        // Erase tool: only remove notes, don't add
         if (note) {
           onNoteRemove(note.id);
         }
         return;
       case 'select':
+        // Select tool: only select existing notes, don't add/remove
         if (note) {
           onNoteSelect?.(note.id, false);
         }
+        // Don't do anything if clicking empty cell with select tool
         return;
       case 'draw':
       default:
+        // Draw tool: toggle notes (add if empty, remove if exists)
         if (note) {
           onNoteRemove(note.id);
           return;
         }
+        // Add new note
         if (chordMode) {
           onChordAdd(step);
         } else {

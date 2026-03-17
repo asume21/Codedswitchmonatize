@@ -1,0 +1,28 @@
+# MusicGen-Stem sidecar
+FROM python:3.10-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8001
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Torch CPU build (adjust to GPU build if needed)
+RUN pip install --no-cache-dir torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cpu
+
+# FastAPI + audiocraft
+RUN pip install --no-cache-dir fastapi uvicorn==0.27.1 "audiocraft @ git+https://github.com/facebookresearch/audiocraft.git"
+
+WORKDIR /app
+
+COPY musicgen_server.py /app/
+
+EXPOSE 8001
+
+CMD ["uvicorn", "musicgen_server:app", "--host", "0.0.0.0", "--port", "8001"]

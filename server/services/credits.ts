@@ -47,11 +47,12 @@ export const MEMBERSHIP_TIERS = {
     name: 'Free',
     price: 0,
     priceId: '', // No Stripe product needed
-    monthlyCredits: 10,
+    monthlyCredits: 50,
     rolloverMax: 0,
     features: [
-      'Try basic features',
-      '10 credits/month',
+      'Try all features',
+      '50 credits/month',
+      '10 MusicGen beats OR 12 lyrics',
       'Community support',
     ],
   },
@@ -60,11 +61,13 @@ export const MEMBERSHIP_TIERS = {
     name: 'Creator',
     price: 999, // $9.99/month
     priceId: process.env.STRIPE_PRICE_ID_CREATOR || '',
-    monthlyCredits: 200,
-    rolloverMax: 400,
+    monthlyCredits: 300,
+    rolloverMax: 600,
     features: [
-      '200 credits/month',
-      'Credits rollover (max 400)',
+      '300 credits/month',
+      '2 Suno songs + extras',
+      '60 MusicGen beats OR mix & match',
+      'Credits rollover (max 600)',
       'Priority support',
       'No ads',
       'Early access to features',
@@ -77,11 +80,13 @@ export const MEMBERSHIP_TIERS = {
     name: 'Pro',
     price: 2999, // $29.99/month
     priceId: process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || process.env.STRIPE_PRICE_ID_PRO || '',
-    monthlyCredits: 750,
-    rolloverMax: 1500,
+    monthlyCredits: 1000,
+    rolloverMax: 2000,
     features: [
-      '750 credits/month',
-      'Credits rollover (max 1500)',
+      '1000 credits/month',
+      '8 Suno songs + extras',
+      '200 MusicGen beats OR mix & match',
+      'Credits rollover (max 2000)',
       'Priority queue',
       'Advanced analytics',
       'Commercial license',
@@ -317,14 +322,20 @@ export class CreditService {
       return;
     }
 
-    // Grant 1000 credits for pro users
-    await this.addCredits(
-      userId,
-      1000,
-      CreditTransactionType.SUBSCRIPTION_GRANT,
-      'Monthly pro subscription credits',
-      { month: now.toISOString().substring(0, 7) }
-    );
+    // Get user's tier to grant appropriate credits
+    const tier = user.subscriptionTier || 'free';
+    const tierConfig = Object.values(MEMBERSHIP_TIERS).find(t => t.tier === tier);
+    const creditsToGrant = tierConfig?.monthlyCredits || 0;
+
+    if (creditsToGrant > 0) {
+      await this.addCredits(
+        userId,
+        creditsToGrant,
+        CreditTransactionType.SUBSCRIPTION_GRANT,
+        `Monthly ${tier} subscription credits`,
+        { month: now.toISOString().substring(0, 7), tier }
+      );
+    }
 
     // Update last reset date
     await this.storage.updateUser(userId, {

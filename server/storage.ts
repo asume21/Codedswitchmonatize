@@ -240,11 +240,18 @@ export interface IStorage {
   isUserFollowing(followerId: string, followingId: string): Promise<boolean>;
   getUserFollowersCount(userId: string): Promise<number>;
   getUserFollowingCount(userId: string): Promise<number>;
+  getUserFollowers(userId: string): Promise<any[]>;
+  getUserFollowing(userId: string): Promise<any[]>;
 
   // Social Features - Project Shares
   createProjectShare(projectId: string, sharedByUserId: string, sharedWithUserId: string, permission?: string): Promise<ProjectShare>;
   getProjectShares(projectId: string): Promise<ProjectShare[]>;
   getUserSharedProjects(userId: string): Promise<ProjectShare[]>;
+
+  // Social Features - Posts & Feed
+  getSocialFeed(userId: string): Promise<any[]>;
+  createSocialPost(userId: string, data: any): Promise<any>;
+  createSocialConnection(userId: string, data: any): Promise<any>;
 
   // Voice Convert Jobs
   createVoiceConvertJob(userId: string, data: InsertVoiceConvertJob): Promise<VoiceConvertJob>;
@@ -257,6 +264,13 @@ export interface IStorage {
   getUserApiKey(userId: string, service: string): Promise<UserApiKey | undefined>;
   upsertUserApiKey(userId: string, data: InsertUserApiKey): Promise<UserApiKey>;
   deleteUserApiKey(userId: string, service: string): Promise<void>;
+
+  // Blog Posts
+  getBlogPosts(): Promise<any[]>;
+  getBlogPostBySlug(slug: string): Promise<any | undefined>;
+  getRelatedBlogPosts(category: string, excludeSlug: string): Promise<any[]>;
+  createBlogPost(data: any): Promise<any>;
+  incrementBlogPostViews(slug: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1157,9 +1171,14 @@ export class MemStorage implements IStorage {
   async isUserFollowing(_followerId: string, _followingId: string): Promise<boolean> { return false; }
   async getUserFollowersCount(_userId: string): Promise<number> { return 0; }
   async getUserFollowingCount(_userId: string): Promise<number> { return 0; }
+  async getUserFollowers(_userId: string): Promise<any[]> { return []; }
+  async getUserFollowing(_userId: string): Promise<any[]> { return []; }
   async createProjectShare(_projectId: string, _sharedByUserId: string, _sharedWithUserId: string, _permission?: string): Promise<ProjectShare> { throw new Error("Not implemented in MemStorage"); }
   async getProjectShares(_projectId: string): Promise<ProjectShare[]> { return []; }
   async getUserSharedProjects(_userId: string): Promise<ProjectShare[]> { return []; }
+  async getSocialFeed(_userId: string): Promise<any[]> { return []; }
+  async createSocialPost(_userId: string, _data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
+  async createSocialConnection(_userId: string, _data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
 
   // Voice Convert Jobs (MemStorage stubs)
   async createVoiceConvertJob(_userId: string, _data: InsertVoiceConvertJob): Promise<VoiceConvertJob> { throw new Error("Not implemented in MemStorage"); }
@@ -1172,6 +1191,13 @@ export class MemStorage implements IStorage {
   async getUserApiKey(_userId: string, _service: string): Promise<UserApiKey | undefined> { return undefined; }
   async upsertUserApiKey(_userId: string, _data: InsertUserApiKey): Promise<UserApiKey> { throw new Error("Not implemented in MemStorage"); }
   async deleteUserApiKey(_userId: string, _service: string): Promise<void> {}
+
+  // Blog Posts (MemStorage stubs)
+  async getBlogPosts(): Promise<any[]> { return []; }
+  async getBlogPostBySlug(_slug: string): Promise<any | undefined> { return undefined; }
+  async getRelatedBlogPosts(_category: string, _excludeSlug: string): Promise<any[]> { return []; }
+  async createBlogPost(_data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
+  async incrementBlogPostViews(_slug: string): Promise<void> {}
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2089,6 +2115,22 @@ export class DatabaseStorage implements IStorage {
     return result[0]?.count || 0;
   }
 
+  async getUserFollowers(userId: string): Promise<any[]> {
+    const follows = await db.select().from(userFollows).where(eq(userFollows.followingId, userId));
+    const followerIds = follows.map(f => f.followerId);
+    if (followerIds.length === 0) return [];
+    const followers = await db.select().from(users).where(sql`${users.id} IN ${followerIds}`);
+    return followers.map(u => ({ id: u.id, name: u.name, email: u.email }));
+  }
+
+  async getUserFollowing(userId: string): Promise<any[]> {
+    const follows = await db.select().from(userFollows).where(eq(userFollows.followerId, userId));
+    const followingIds = follows.map(f => f.followingId);
+    if (followingIds.length === 0) return [];
+    const following = await db.select().from(users).where(sql`${users.id} IN ${followingIds}`);
+    return following.map(u => ({ id: u.id, name: u.name, email: u.email }));
+  }
+
   // ============ SOCIAL FEATURES - PROJECT SHARES ============
   async createProjectShare(projectId: string, sharedByUserId: string, sharedWithUserId: string, permission = "view"): Promise<ProjectShare> {
     const [share] = await db
@@ -2109,6 +2151,50 @@ export class DatabaseStorage implements IStorage {
 
   async getUserSharedProjects(userId: string): Promise<ProjectShare[]> {
     return db.select().from(projectShares).where(eq(projectShares.sharedWithUserId, userId));
+  }
+
+  // ============ SOCIAL FEATURES - POSTS & FEED ============
+  async getSocialFeed(userId: string): Promise<any[]> {
+    // Get posts from followed users and own posts
+    const follows = await db.select().from(userFollows).where(eq(userFollows.followerId, userId));
+    const followingIds = follows.map(f => f.followingId);
+    const userIds = [userId, ...followingIds];
+    
+    // Return empty feed for now - can be expanded with actual post storage
+    return [];
+  }
+
+  async createSocialPost(userId: string, data: any): Promise<any> {
+    // Store social post - for now return a mock object
+    // In production, this would insert into a socialPosts table
+    return {
+      id: `post-${Date.now()}`,
+      userId,
+      platform: data.platform,
+      content: data.content,
+      type: data.type,
+      title: data.title,
+      url: data.url,
+      likes: data.likes || 0,
+      comments: data.comments || 0,
+      shares: data.shares || 0,
+      views: data.views || 0,
+      createdAt: new Date(),
+    };
+  }
+
+  async createSocialConnection(userId: string, data: any): Promise<any> {
+    // Store social platform connection - for now return a mock object
+    // In production, this would insert into a socialConnections table
+    return {
+      id: `conn-${Date.now()}`,
+      userId,
+      platform: data.platform,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      connected: data.connected,
+      createdAt: new Date(),
+    };
   }
 
   // Voice Convert Jobs
@@ -2173,14 +2259,67 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db
       .insert(userApiKeys)
       .values({ ...data, userId })
-      .returning();
     return created;
   }
 
   async deleteUserApiKey(userId: string, service: string): Promise<void> {
-    await db
-      .delete(userApiKeys)
-      .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.service, service)));
+    await db.delete(userApiKeys)
+      .where(and(
+        eq(userApiKeys.userId, userId),
+        eq(userApiKeys.service, service)
+      ));
+  }
+
+  // Blog Posts - Using in-memory storage for now (can migrate to DB later)
+  private blogPosts: any[] = [
+    {
+      id: 1,
+      slug: 'how-to-make-beats-online-free',
+      title: 'How to Make Beats Online Free - Complete Guide 2026',
+      excerpt: 'Learn how to create professional beats online for free using CodedSwitch\'s AI-powered tools. No downloads, no experience needed.',
+      content: '<h2>Introduction</h2><p>Making beats online has never been easier...</p>',
+      author: 'CodedSwitch Team',
+      publishedAt: '2026-03-15T00:00:00Z',
+      readTime: 8,
+      category: 'Tutorial',
+      tags: ['beat making', 'tutorial', 'free tools', 'online daw'],
+      imageUrl: '/images/blog/beat-making-guide.jpg',
+      views: 1250
+    }
+  ];
+
+  async getBlogPosts(): Promise<any[]> {
+    return this.blogPosts.sort((a, b) => 
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    );
+  }
+
+  async getBlogPostBySlug(slug: string): Promise<any | undefined> {
+    return this.blogPosts.find(post => post.slug === slug);
+  }
+
+  async getRelatedBlogPosts(category: string, excludeSlug: string): Promise<any[]> {
+    return this.blogPosts
+      .filter(post => post.category === category && post.slug !== excludeSlug)
+      .slice(0, 3);
+  }
+
+  async createBlogPost(data: any): Promise<any> {
+    const post = {
+      id: this.blogPosts.length + 1,
+      ...data,
+      publishedAt: new Date().toISOString(),
+      views: 0
+    };
+    this.blogPosts.push(post);
+    return post;
+  }
+
+  async incrementBlogPostViews(slug: string): Promise<void> {
+    const post = this.blogPosts.find(p => p.slug === slug);
+    if (post) {
+      post.views += 1;
+    }
   }
 }
 

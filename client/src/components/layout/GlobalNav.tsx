@@ -3,17 +3,20 @@ import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import { 
   Home, LayoutDashboard, Mic2, Shield, MessageSquare, 
-  ChevronDown, Menu, LogIn, Coins, X
+  ChevronDown, Menu, LogIn, Coins, X, BookOpen, VolumeX, Music2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 
 const NAV_ITEMS = [
   { icon: Home, label: 'Home', path: '/' },
   { icon: LayoutDashboard, label: 'Studio', path: '/studio' },
   { icon: Mic2, label: 'Lyrics', path: '/lyric-lab' },
+  { icon: Music2, label: 'Samples', path: '/sample-library' },
+  { icon: BookOpen, label: 'Blog', path: '/blog' },
   { icon: Shield, label: 'Security', path: '/vulnerability-scanner' },
   { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant' },
   { icon: Mic2, label: 'Voice Convert', path: '/voice-convert' },
@@ -126,6 +129,16 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
           {currentCredits === null ? 'Credits' : currentCredits}
         </Button>
       )}
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-2 border-red-500/40 text-red-100 hover:bg-red-500/20 hover:text-white"
+        onClick={() => globalAudioKillSwitch.killAllAudio()}
+        title="Stop all audio (Ctrl+Shift+K or Escape)"
+      >
+        <VolumeX className="w-4 h-4 text-red-400" />
+      </Button>
 
       {isAuthenticated ? (
         <Button

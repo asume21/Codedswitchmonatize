@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useContext, useMemo, useRef, useCallback } from 'react';
 import { Sparkles, X, Loader2, Music, Library, Play, Pause, Scissors, Sliders, FileText, BarChart3, Layers, Wand2, MoveDiagonal2, Download, Volume2, VolumeX, RefreshCw, Disc3 } from 'lucide-react';
-import { astutelyGenerate, astutelyToNotes, astutelyGenerateAudio, astutelyGenerateComplete, astutelyPlayAudio, stopActiveAstutelyAudio, getActiveAstutelyAudio, type AstutelyResult, type AstutelyCompleteResult } from '@/lib/astutelyEngine';
+import { astutelyGenerate, astutelyToNotes, astutelyGenerateAudio, astutelyPlayAudio, stopActiveAstutelyAudio, getActiveAstutelyAudio, type AstutelyResult, type AstutelyCompleteResult } from '@/lib/astutelyEngine';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,16 +17,16 @@ import { dispatchAstutelyCommand, dispatchAstutelyEvent } from '@/components/pre
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 
 const styles = [
-  { name: "Travis Scott rage", icon: "🔥", preview: "808s + dark pads" },
-  { name: "The Weeknd dark", icon: "🌙", preview: "Glassy synths + vocal chops" },
-  { name: "Drake smooth", icon: "😌", preview: "Soft piano + trap hats" },
-  { name: "K-pop cute", icon: "💖", preview: "Bright plucks + bubbly synth" },
-  { name: "Phonk drift", icon: "🚗", preview: "Cowbell + slowed reverb" },
-  { name: "Future bass", icon: "⚡", preview: "Wobble bass + supersaw chords" },
-  { name: "Lo-fi chill", icon: "☕", preview: "Vinyl crackle + jazz chords" },
-  { name: "Hyperpop glitch", icon: "💻", preview: "Chopped vocals + sidechain" },
-  { name: "Afrobeats bounce", icon: "🕺", preview: "Log drums + highlife guitar" },
-  { name: "Latin trap", icon: "🌴", preview: "Dem bow rhythm + reggaeton keys" },
+  { name: "Travis Scott rage", icon: "", preview: "808s + dark pads" },
+  { name: "The Weeknd dark", icon: "", preview: "Glassy synths + vocal chops" },
+  { name: "Drake smooth", icon: "", preview: "Soft piano + trap hats" },
+  { name: "K-pop cute", icon: "", preview: "Bright plucks + bubbly synth" },
+  { name: "Phonk drift", icon: "", preview: "Cowbell + slowed reverb" },
+  { name: "Future bass", icon: "", preview: "Wobble bass + supersaw chords" },
+  { name: "Lo-fi chill", icon: "", preview: "Vinyl crackle + jazz chords" },
+  { name: "Hyperpop glitch", icon: "", preview: "Chopped vocals + sidechain" },
+  { name: "Afrobeats bounce", icon: "", preview: "Log drums + highlife guitar" },
+  { name: "Latin trap", icon: "", preview: "Dem bow rhythm + reggaeton keys" },
 ];
 
 interface AstutelyPanelProps {
@@ -61,7 +61,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
   const { toast } = useToast();
   const { play: playTransport, seek, setTempo: setTransportTempo, timeSignature, tempo: transportTempo } = useTransport();
   const studioContext = useContext(StudioAudioContext);
-  const { renderPatternToStems } = useAstutelyCore();
+  const { renderPatternToStems, generateComplete, playGeneratedAudio } = useAstutelyCore();
 
   const currentKey = studioContext?.currentKey ?? 'C';
   const premixCacheRef = useRef(new AudioPremixCache());
@@ -116,43 +116,6 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       };
     }).filter(summary => summary.name || summary.instrument || summary.type);
   }, [studioContext]);
-
-  const focusAstutelyTrack = (notes: ReturnType<typeof astutelyToNotes>) => {
-    const priorityOrder: Array<keyof typeof ASTUTELY_CHANNEL_MAPPING> = ['melody', 'chords', 'bass', 'drums'];
-    const targetType = priorityOrder.find(type => notes.some(n => n.trackType === type));
-    if (!targetType) return;
-
-    setTimeout(() => {
-      dispatchAstutelyCommand('focus-track', {
-        trackId: ASTUTELY_CHANNEL_MAPPING[targetType],
-        view: 'piano-roll'
-      });
-      window.dispatchEvent(new CustomEvent('studio:focusTrack', {
-        detail: {
-          trackId: ASTUTELY_CHANNEL_MAPPING[targetType],
-          view: 'piano-roll'
-        }
-      }));
-    }, 120);
-  };
-
-  const broadcastAstutelyPattern = (result: AstutelyResult, notes: ReturnType<typeof astutelyToNotes>) => {
-    const payload = {
-      notes,
-      bpm: result.bpm,
-      key: result.key,
-      style: result.style,
-      timestamp: Date.now(),
-      channelMapping: ASTUTELY_CHANNEL_MAPPING
-    };
-
-    window.dispatchEvent(new CustomEvent('astutely:generated', { detail: payload }));
-    try {
-      localStorage.setItem('astutely-generated', JSON.stringify(payload));
-    } catch (error) {
-      console.warn('Unable to persist Astutely payload', error);
-    }
-  };
 
   // Fetch user's song library
   const { data: songs = [] } = useQuery<any[]>({
@@ -403,7 +366,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
         toast({
           title: 'Playback Error',
           description: 'Failed to load audio',
-          variant: 'destructive'
+          variant: 'destructive',
         });
         setIsPlaying(false);
       };
@@ -452,7 +415,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     setAudioProvider(null);
 
     toast({
-      title: '🎵 Generating Real Audio',
+      title: '',
       description: `Creating professional ${style} track via AI... This may take 30-60 seconds.`,
     });
 
@@ -499,11 +462,12 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       // Stop other players before starting
       window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
 
-      const audio = await astutelyPlayAudio(generatedAudioUrl);
+      const audio = await playGeneratedAudio(generatedAudioUrl);
       generatedAudioRef.current = audio;
       setIsPlayingGenerated(true);
       audio.onended = () => setIsPlayingGenerated(false);
       audio.onpause = () => setIsPlayingGenerated(false);
+      audio.onplay = () => setIsPlayingGenerated(true);
     } catch (err) {
       toast({
         title: 'Playback Error',
@@ -554,8 +518,8 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
     try {
       const trimmedPrompt = query.trim();
       
-      // 🎵 UNIFIED GENERATION - Get both pattern AND professional audio
-      const completeResult = await astutelyGenerateComplete({
+      // UNIFIED GENERATION - Get both pattern AND professional audio
+      const completeResult = await generateComplete({
         style: selectedStyle.name,
         prompt: trimmedPrompt.length ? trimmedPrompt : undefined,
         tempo: transportTempo,
@@ -592,8 +556,6 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
 
       // Convert to timeline notes (already done in completeResult.notes)
       const notes = completeResult.notes;
-      broadcastAstutelyPattern(completeResult.pattern, notes);
-      focusAstutelyTrack(notes);
       
       try {
         setTransportTempo(completeResult.pattern.bpm);
@@ -609,7 +571,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
       const melodyCount = notes.filter(n => n.trackType === 'melody').length;
 
       toast({ 
-        title: '🎵 Complete Music Generated!', 
+        title: ' Complete Music Generated!', 
         description: `Pattern: ${drumCount} drums, ${bassCount} bass, ${chordCount} chords, ${melodyCount} melody | Audio: ${completeResult.audio.duration}s via ${completeResult.audio.provider}` 
       });
 
@@ -619,7 +581,7 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
 
       // Auto-play the professional audio
       try {
-        const audio = await astutelyPlayAudio(completeResult.audio.audioUrl);
+        const audio = await playGeneratedAudio(completeResult.audio.audioUrl);
         generatedAudioRef.current = audio;
         setIsPlayingGenerated(true);
         audio.onended = () => setIsPlayingGenerated(false);

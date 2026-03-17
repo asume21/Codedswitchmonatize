@@ -12,7 +12,8 @@ import { Wand2, Music, DollarSign, Piano, Play, Pause, Square, Activity, AlertTr
 import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 import { requestAstutelyPattern, mapGenreToAstutelyStyle } from '@/lib/astutelyBridge';
-import { astutelyToNotes, midiToNoteOctave, astutelyGenerateAudio, astutelyGenerateComplete, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { astutelyToNotes, midiToNoteOctave, astutelyGenerateAudio } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 
 interface DiagnosticEvent {
   id: string;
@@ -162,6 +163,7 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DiagnosticSummary | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
+  const { generateComplete, playGeneratedAudio } = useAstutelyCore();
   
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const currentPatternRef = useRef<RealisticPattern | null>(null);
@@ -303,8 +305,8 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
         description: `Creating ${style} with pattern + professional audio...`,
       });
 
-      // 🎵 UNIFIED GENERATION - Get both pattern AND professional audio
-      const completeResult = await astutelyGenerateComplete({
+      // UNIFIED GENERATION - Get both pattern AND professional audio
+      const completeResult = await generateComplete({
         style,
         prompt: composedPrompt,
       });
@@ -315,13 +317,13 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
 
       const counts = summarizeTrackCounts(completeResult.notes);
       toast({
-        title: '🎵 Complete Music Generated!',
+        title: ' Complete Music Generated!',
         description: `Pattern: Drums ${counts.drums} • Bass ${counts.bass} • Chords ${counts.chords} • Melody ${counts.melody} | Audio: ${completeResult.audio.duration}s via ${completeResult.audio.provider}`,
       });
 
       // Auto-play the professional audio
       try {
-        await astutelyPlayAudio(completeResult.audio.audioUrl);
+        await playGeneratedAudio(completeResult.audio.audioUrl);
       } catch (playErr) {
         console.warn('Auto-play blocked:', playErr);
       }

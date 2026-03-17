@@ -20,7 +20,7 @@ import {
   astutelyGenerate,
   astutelyToNotes,
   astutelyGenerateAudio,
-  astutelyGenerateComplete,
+  astutelyExtractMidiFromAudio,
   astutelyPlayAudio,
   stopActiveAstutelyAudio,
   stopAstutelyPreview,
@@ -353,59 +353,146 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     setAudioError(null);
 
     try {
-      console.log(`🎵 UNIFIED: Generating complete music for "${options.style}"...`);
-      
-      // Generate both pattern and audio
-      const result = await astutelyGenerateComplete(options);
-      
-      // Store pattern
-      setLastGeneratedPattern(result.pattern);
-      
-      // Store audio
+      console.log(`🎵 UNIFIED: Generating music for "${options.style}"...`);
+
+      // Step 1: Generate the AI instrumental audio (Suno / MusicGen)
+      console.log('🎵 Step 1/3: Generating professional AI audio...');
+      const aiAudio = await astutelyGenerateAudio(options.style, {
+        prompt: options.prompt,
+        bpm: options.tempo,
+        key: options.key,
+      });
+      const audioUrl = aiAudio.audioUrl;
+      const audioDuration = aiAudio.duration;
+
+      // Store audio info
       const generated: GeneratedAudio = {
-        audioUrl: result.audio.audioUrl,
-        duration: result.audio.duration,
-        provider: result.audio.provider,
+        audioUrl,
+        duration: audioDuration,
+        provider: aiAudio.provider,
         style: options.style,
         timestamp: Date.now(),
       };
       setLastGeneratedAudio(generated);
 
-      // Auto-play the audio
+      // Auto-play the instrumental immediately
       try {
-        const audio = await astutelyPlayAudio(result.audio.audioUrl);
+        const audio = await astutelyPlayAudio(audioUrl);
         generatedAudioRef.current = audio;
         setIsPlayingGeneratedAudio(true);
-        setActiveAudioUrl(result.audio.audioUrl);
+        setActiveAudioUrl(audioUrl);
         audio.onended = () => setIsPlayingGeneratedAudio(false);
         audio.onpause = () => setIsPlayingGeneratedAudio(false);
         audio.onplay = () => setIsPlayingGeneratedAudio(true);
       } catch {
-        // autoplay blocked
+        // autoplay blocked — user can click play
       }
 
-      // Broadcast pattern to listeners
-      const payload = {
-        drums: result.notes.filter(n => n.trackType === 'drums'),
-        bass: result.notes.filter(n => n.trackType === 'bass'),
-        chords: result.notes.filter(n => n.trackType === 'chords'),
-        melody: result.notes.filter(n => n.trackType === 'melody'),
-        bpm: result.pattern.bpm,
-        key: result.pattern.key,
-        style: result.pattern.style,
-        instruments: result.instruments,
+      // Step 2: Extract MIDI notes FROM the audio so Piano Roll matches
+      console.log('🎵 Step 2/3: Extracting MIDI from audio for Piano Roll...');
+      const bpm = options.tempo || 120;
+      const key = options.key || 'C';
+      let notes: AstutelyCompleteResult['notes'] = [];
+      let pattern: AstutelyResult;
+
+      const extracted = await astutelyExtractMidiFromAudio(audioUrl, bpm, key);
+
+      if (extracted.notes.length > 0) {
+        console.log(`✅ Extracted ${extracted.notes.length} notes from AI audio`);
+        notes = extracted.notes.map(n => ({
+          ...n,
+          trackType: n.trackType as 'drums' | 'bass' | 'chords' | 'melody',
+        }));
+
+        // Build a synthetic AstutelyResult from the extracted notes for compatibility
+        pattern = {
+          drums: notes.filter(n => n.trackType === 'drums').map(n => ({ step: n.startStep, note: n.pitch, type: 'kick' as const, duration: n.duration })),
+          bass: notes.filter(n => n.trackType === 'bass').map(n => ({ step: n.startStep, note: n.pitch, duration: n.duration })),
+          chords: notes.filter(n => n.trackType === 'chords').map(n => ({ step: n.startStep, notes: [n.pitch], duration: n.duration })),
+          melody: notes.filter(n => n.trackType === 'melody').map(n => ({ step: n.startStep, note: n.pitch, duration: n.duration })),
+          bpm,
+          key,
+          style: options.style,
+          instruments: { bass: 'electric_bass_finger', chords: 'acoustic_grand_piano', melody: 'flute', drumKit: 'default' },
+        };
+      } else {
+        // Fallback: if extraction failed, generate a pattern separately
+        console.log('⚠️ Audio-to-MIDI extraction returned no notes, generating pattern...');
+        pattern = await astutelyGenerate(options);
+        notes = astutelyToNotes(pattern);
+      }
+
+      setLastGeneratedPattern(pattern);
+
+      const instruments = {
+        bass: pattern.instruments?.bass || 'electric_bass_finger',
+        chords: pattern.instruments?.chords || 'acoustic_grand_piano',
+        melody: pattern.instruments?.melody || 'flute',
+        drumKit: pattern.instruments?.drumKit || 'default',
       };
-      
-      dispatchAstutelyEvent('pattern-generated', payload);
-      dispatchAstutelyEvent('generation-completed', { 
-        style: options.style, 
+
+      // Step 3: Broadcast extracted/generated notes to Piano Roll
+      console.log('🎵 Step 3/3: Loading notes into Piano Roll...');
+      const broadcastPayload = {
+        notes,
+        bpm: pattern.bpm,
+        key: pattern.key,
+        style: pattern.style,
+        timestamp: Date.now(),
+        channelMapping: ASTUTELY_CHANNEL_MAPPING,
+      };
+      window.dispatchEvent(new CustomEvent('astutely:generated', { detail: broadcastPayload }));
+      try { localStorage.setItem('astutely-generated', JSON.stringify(broadcastPayload)); } catch { /* */ }
+
+      // Focus the most relevant track
+      const priorityOrder: Array<keyof typeof ASTUTELY_CHANNEL_MAPPING> = ['melody', 'chords', 'bass', 'drums'];
+      const targetType = priorityOrder.find(type => notes.some(n => n.trackType === type));
+      if (targetType) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('studio:focusTrack', {
+            detail: { trackId: ASTUTELY_CHANNEL_MAPPING[targetType], view: 'piano-roll' },
+          }));
+        }, 120);
+      }
+
+      // Sync transport BPM
+      try { transport.setTempo(pattern.bpm); transport.seek(0); } catch { /* */ }
+
+      // Add audio track to timeline
+      trackStore.addTrack({
+        id: `ai-audio-${Date.now()}`,
+        name: `${options.style} (AI Instrumental)`,
+        kind: 'audio',
+        lengthBars: Math.ceil((bpm / 60) * audioDuration / 4),
+        startBar: 0,
+        payload: {
+          type: 'audio',
+          audioUrl,
+          duration: audioDuration,
+          bpm,
+          source: aiAudio.provider,
+          volume: 0.8,
+          pan: 0,
+          color: '#10b981',
+          notes: [],
+        },
+      });
+
+      dispatchAstutelyEvent('generation-completed', {
+        style: options.style,
         success: true,
         hasAudio: true,
         hasPattern: true,
+        extractedNotes: extracted.notes.length,
       });
 
-      console.log(`✅ UNIFIED: Complete generation successful!`);
-      return result;
+      console.log(`✅ UNIFIED: AI audio + ${notes.length} extracted notes loaded into Piano Roll!`);
+      return {
+        pattern,
+        audio: { audioUrl, duration: audioDuration, provider: aiAudio.provider },
+        instruments,
+        notes,
+      };
     } catch (error: unknown) {
       const msg = (error instanceof Error ? error.message : null) || 'Unified generation failed';
       setAudioError(msg);
@@ -418,7 +505,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       setIsGeneratingPattern(false);
       setIsGeneratingAudio(false);
     }
-  }, []);
+  }, [transport, trackStore]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // AUDIO PLAYBACK

@@ -1,0 +1,17 @@
+node_modules/
+**/node_modules/
+.git/
+.github/
+dist/
+build/
+.cache/
+.turbo/
+.next/
+coverage/
+.tmp/
+logs/
+*.log
+objects/
+**/*.wav
+**/*.m4a
+**/*.mp3

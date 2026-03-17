@@ -76,6 +76,24 @@ export default function SongUploader() {
   const { addTrack, tracks } = useTracks();
   const premixCacheRef = useRef(new AudioPremixCache());
   const inFlightPremixRef = useRef<Map<string, Promise<string | null>>>(new Map());
+  const songAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Stop this uploader's audio if any other player claims focus
+  useEffect(() => {
+    const handleStopAll = () => {
+      if (songAudioRef.current) {
+        try {
+          songAudioRef.current.pause();
+          songAudioRef.current.currentTime = 0;
+        } catch (err) {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener('globalAudio:stopAll', handleStopAll);
+    return () => window.removeEventListener('globalAudio:stopAll', handleStopAll);
+  }, []);
 
   const transcribeSong = async (song: Song): Promise<string | null> => {
     const songId = song.id.toString();
@@ -845,187 +863,38 @@ export default function SongUploader() {
       premixedUrl = await inFlightPremixRef.current.get(premixKey)!;
       inFlightPremixRef.current.delete(premixKey);
 
-      // Create fresh audio element and store it immediately so Transport can see it
-      const audio = new Audio();
-      audio.crossOrigin = "anonymous";
-      audio.autoplay = false;
-      audio.muted = false;
-      audio.volume = 1;
-      
-      audio.addEventListener('loadedmetadata', () => {
-        console.log(`✅ Song loaded: ${song.name}, duration: ${audio.duration}s`);
-      });
-      
-      audio.addEventListener('ended', () => {
-        console.log(`✅ Song finished: ${song.name}`);
-        // Clear from context when song ends
-        studioContext.setCurrentUploadedSong(null, null);
-      });
+      const rawUrl = premixedUrl ?? accessibleURL;
 
-      audio.addEventListener('error', (e) => {
-        const error = (e.target as HTMLAudioElement).error;
-        let errorMessage = 'Audio loading failed';
-        let isFormatIssue = false;
-        
-        if (error) {
-          switch (error.code) {
-            case error.MEDIA_ERR_ABORTED:
-              errorMessage = 'Audio loading aborted';
-              break;
-            case error.MEDIA_ERR_NETWORK:
-              errorMessage = 'Network error - check your connection';
-              break;
-            case error.MEDIA_ERR_DECODE:
-              errorMessage = 'Audio format not supported or file corrupted';
-              isFormatIssue = true;
-              break;
-            case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-              errorMessage = 'Audio format not supported by your browser';
-              isFormatIssue = true;
-              break;
-          }
-        }
-        
-        // Check if it's an M4A format issue and suggest conversion
-        if (isFormatIssue) {
-          console.log('🔄 Trying server-converted audio...');
-          
-          // Extract file ID from URL and use conversion endpoint
-          // Handle multiple URL formats:
-          // - /api/internal/uploads/songs%2Fuser123%2Ffile.m4a
-          // - /api/internal/uploads/songs/user123/file.m4a
-          // - /uploads/songs/file.m4a
-          let fileId = '';
-          
-          if (accessibleURL.includes('/api/internal/uploads/')) {
-            const parts = accessibleURL.split('/api/internal/uploads/');
-            if (parts.length > 1) {
-              fileId = decodeURIComponent(parts[1].split('?')[0]); // Decode and remove query params
-            }
-          } else if (accessibleURL.includes('/uploads/')) {
-            const parts = accessibleURL.split('/uploads/');
-            if (parts.length > 1) {
-              fileId = decodeURIComponent(parts[1].split('?')[0]); // Decode and remove query params
-            }
-          }
-          
-          console.log(`🔄 Extracted fileId for conversion: ${fileId}`);
-          
-          if (!fileId) {
-            console.error('❌ Could not extract fileId from URL:', accessibleURL);
-            toast({
-              title: "⚠️ Playback Failed",
-              description: `Cannot play ${song.name}. Audio format not supported by your browser. M4A files may not work in all browsers. Try re-uploading as MP3 or WAV.`,
-              variant: "destructive",
-              duration: 8000,
-            });
-            studioContext.setCurrentUploadedSong(null, null);
-            return;
-          }
-          
-          const convertedURL = `/api/songs/converted/${encodeURIComponent(fileId)}`;
-          
-          const convertedAudio = new Audio();
-          convertedAudio.crossOrigin = "anonymous";
-          
-          convertedAudio.addEventListener('loadedmetadata', () => {
-            console.log('✅ Server conversion worked for:', song.name);
-            studioContext.setCurrentUploadedSong(song, convertedAudio);
-            toast({
-              title: "🎵 Song Converted & Ready",
-              description: `${song.name} converted to browser-friendly format. Ready to play!`,
-            });
-          });
-          
-          convertedAudio.addEventListener('error', () => {
-            // If conversion fails, show helpful message based on format field
-            if (isM4A) {
-              errorMessage += '. M4A files may not work in all browsers. Try re-uploading as MP3 or WAV.';
-            } else if (isMP3) {
-              errorMessage += '. This MP3 may use an unsupported encoding or bitrate. Server conversion failed - try re-uploading a standard MP3 (128-320 kbps).';
-            } else {
-              errorMessage += '. This audio format is not supported. Try converting to MP3 or WAV format.';
-            }
-            
-            toast({
-              title: "⚠️ Playback Failed",
-              description: `Cannot play ${song.name}. ${errorMessage}`,
-              variant: "destructive",
-              duration: 8000,
-            });
-            
-            studioContext.setCurrentUploadedSong(null, null);
-          });
-          
-          convertedAudio.src = convertedURL;
-          return; // Don't show the original error yet
-        }
-        
-        console.error('🚫 Audio error:', errorMessage, 'URL:', accessibleURL);
+      // Normalize to absolute URL so fetch/decode works in multi-track
+      const finalUrl = rawUrl.startsWith('http')
+        ? rawUrl
+        : `${window.location.origin}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+
+      if (!finalUrl) {
         toast({
-          title: "Playback Error",
-          description: `Cannot play ${song.name}: ${errorMessage}`,
+          title: "Load Failed",
+          description: `Cannot load ${song.name}: missing audio URL`,
           variant: "destructive",
-          duration: 8000,
         });
-        
-        studioContext.setCurrentUploadedSong(null, null);
-      });
+        return;
+      }
 
-      // Set source and load
-      audio.src = premixedUrl ?? accessibleURL;
-      audio.preload = "auto";
-      
-      // Initialize/Resume professional audio context
-      await professionalAudio.initialize();
-      const audioCtx = professionalAudio.getAudioContext();
-      const masterBus = professionalAudio.getMasterBus();
-      
-      if (audioCtx && masterBus) {
-        // Create source and connect to professional audio graph
-        const source = audioCtx.createMediaElementSource(audio);
-        source.connect(masterBus);
-        console.log('🎛️ Routed uploaded song through professional master bus');
-      }
-      
-      // Initialize Tone.js if needed (requires user interaction)
-      if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-        await Tone.start();
-        console.log('🎵 Tone.js AudioContext started');
-      }
-      
-      // Store in context for Global Transport to play
-      studioContext.setCurrentUploadedSong(song, audio);
-      // Broadcast to Astutely/global listeners so any view can route playback
-      window.dispatchEvent(new CustomEvent('astutely:load', {
+      // Route into Multi-Track: import as an audio track and let the main transport handle playback
+      window.dispatchEvent(new CustomEvent('importToMultiTrack', {
         detail: {
-          song,
-          audio,
-          url: accessibleURL,
-          name: song.name,
-          source: 'song-uploader'
+          type: 'audio',
+          name: song.name || 'Track',
+          audioUrl: finalUrl,
         }
       }));
-      
-      // Start playback immediately
-      try {
-        // Ensure the element is ready
-        await audio.play();
-        console.log('▶️ Playback started for:', song.name);
-      } catch (playError) {
-        console.warn('⚠️ Auto-play blocked, user interaction required:', playError);
-      }
-      
-      // Also load into global audio player for persistent playback across navigation
-      window.dispatchEvent(new CustomEvent('globalAudio:load', {
-        detail: { name: song.name, url: accessibleURL, type: 'song', autoplay: true }
-      }));
-      
+
       toast({
-        title: "Song Playing",
-        description: `Now playing: ${song.name}`,
+        title: "Added to Multi-Track",
+        description: `${song.name} loaded. Use the main transport to play.`,
       });
-      
+
+      return;
+
     } catch (error) {
       console.error('🚫 Audio playback error:', error instanceof Error ? error.message : 'Unknown error');
       toast({

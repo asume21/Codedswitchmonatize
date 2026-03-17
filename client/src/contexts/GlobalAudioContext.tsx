@@ -121,6 +121,9 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     const buffer = audioBufferRef.current;
     if (!buffer || !masterGainRef.current) return;
 
+    // Stop other players globally before starting
+    window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+
     if (sourceNodeRef.current) {
       try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
     }
@@ -165,6 +168,15 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     setCurrentTime(0);
     setIsPlaying(false);
   }, []);
+
+  // Respond to global stop-all to halt this player
+  useEffect(() => {
+    const handleStopAll = () => {
+      stop();
+    };
+    window.addEventListener('globalAudio:stopAll', handleStopAll);
+    return () => window.removeEventListener('globalAudio:stopAll', handleStopAll);
+  }, [stop]);
 
   const seek = useCallback(
     (time: number) => {

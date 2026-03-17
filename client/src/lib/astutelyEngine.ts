@@ -503,6 +503,58 @@ export async function astutelyGenerateAudio(style: string, options?: {
 }
 
 /**
+ * Extract MIDI notes from an audio URL (Suno/MusicGen instrumental → Piano Roll notes)
+ * Calls the server-side audio-to-midi endpoint which uses melody extraction
+ */
+export async function astutelyExtractMidiFromAudio(
+  audioUrl: string,
+  bpm: number = 120,
+  key: string = 'C'
+): Promise<{
+  notes: Array<{
+    id: string;
+    pitch: number;
+    note: string;
+    octave: number;
+    step: number;
+    startStep: number;
+    duration: number;
+    length: number;
+    velocity: number;
+    trackType: 'bass' | 'chords' | 'melody';
+  }>;
+  noteCount: number;
+  totalDuration: number;
+}> {
+  console.log(`🎵 ASTUTELY: Extracting MIDI from audio URL...`);
+
+  try {
+    const response = await fetch('/api/audio-analysis/audio-to-midi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ audioUrl, bpm, key }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Audio-to-MIDI failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ ASTUTELY: Extracted ${result.noteCount || 0} notes from audio`);
+    return {
+      notes: result.notes || [],
+      noteCount: result.noteCount || 0,
+      totalDuration: result.totalDuration || 0,
+    };
+  } catch (error) {
+    console.warn('⚠️ ASTUTELY: Audio-to-MIDI extraction failed:', error);
+    return { notes: [], noteCount: 0, totalDuration: 0 };
+  }
+}
+
+/**
  * UNIFIED GENERATION - Generates both pattern AND professional audio
  * This is the recommended way to use Astutely for complete music generation
  * 

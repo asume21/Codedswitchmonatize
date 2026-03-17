@@ -640,12 +640,106 @@ export default function MasterMultiTrackPlayer() {
   useEffect(() => {
     const handleImportTrack = async (event: CustomEvent) => {
       const { type, name, audioData, audioUrl } = event.detail;
-      
-      if (!audioContextRef.current) return;
-      
+
+      const addTrackEntry = (track: AudioTrack) => {
+        setTracks(prev => {
+          if (prev.length === 0) {
+            return [track];
+          }
+
+          // Reuse first empty/placeholder slot if available
+          const emptyIdx = prev.findIndex(t => (!t.audioBuffer || t.audioBuffer === null) && (!t.audioUrl || t.audioUrl.length === 0));
+          if (emptyIdx >= 0) {
+            const next = [...prev];
+            next[emptyIdx] = track;
+            return next;
+          }
+
+          return [...prev, track];
+        });
+      };
+
+      if (!audioContextRef.current) {
+        // Fallback: create track with URL only; will decode lazily during play
+        if (audioUrl) {
+          const newTrack: AudioTrack = {
+            id: `${type}-${Date.now()}`,
+            name: name || `${type.charAt(0).toUpperCase() + type.slice(1)} Track`,
+            audioBuffer: null,
+            audioUrl,
+            volume: 80,
+            pan: 0,
+            fadeInSeconds: 0.05,
+            fadeOutSeconds: 0.1,
+            volumePoints: [],
+            sendA: -60,
+            sendB: -60,
+            regionGain: 0,
+            muted: false,
+            solo: false,
+            color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+            trackType: type as 'beat' | 'melody' | 'vocal' | 'audio',
+            kind: type === 'beat' ? 'drums' : type === 'vocal' ? 'vocal' : type === 'melody' ? 'synth' : 'other',
+            origin: 'manual',
+            height: DEFAULT_TRACK_HEIGHT,
+          };
+          addTrackEntry(newTrack);
+        ensureMixerChannel(newTrack.id, newTrack.name);
+        applySendLevelsToChannel(newTrack.id, newTrack.sendA, newTrack.sendB);
+          toast({ title: '✅ Track Imported', description: `${newTrack.name} added from ${type}` });
+        }
+        return;
+      }
+
+      // Normalize URL to absolute
+      const resolvedUrl = audioUrl
+        ? (audioUrl.startsWith('http')
+            ? audioUrl
+            : `${window.location.origin}${audioUrl.startsWith('/') ? '' : '/'}${audioUrl}`)
+        : '';
+
+      // Fast-path: if we only have a URL (no in-memory audio data), create a track immediately and decode lazily during playback
+      if (!audioData && resolvedUrl) {
+        const trackColor = TRACK_COLORS[tracks.length % TRACK_COLORS.length];
+        const mappedKind =
+          type === 'beat'
+            ? 'drums'
+            : type === 'vocal'
+            ? 'vocal'
+            : type === 'melody'
+            ? 'synth'
+            : 'other';
+        const newTrack: AudioTrack = {
+          id: `${type}-${Date.now()}`,
+          name: name || `${type.charAt(0).toUpperCase() + type.slice(1)} Track`,
+          audioBuffer: null,
+          audioUrl: resolvedUrl,
+          volume: 80,
+          pan: 0,
+          fadeInSeconds: 0.05,
+          fadeOutSeconds: 0.1,
+          volumePoints: [],
+          sendA: -60,
+          sendB: -60,
+          regionGain: 0,
+          muted: false,
+          solo: false,
+          color: trackColor,
+          trackType: type as 'beat' | 'melody' | 'vocal' | 'audio',
+          kind: mappedKind,
+          origin: 'manual',
+          height: DEFAULT_TRACK_HEIGHT,
+        };
+        addTrackEntry(newTrack);
+      ensureMixerChannel(newTrack.id, newTrack.name);
+      applySendLevelsToChannel(newTrack.id, newTrack.sendA, newTrack.sendB);
+        toast({ title: '✅ Track Imported', description: `${newTrack.name} added (lazy load)` });
+        return;
+      }
+
       try {
         let audioBuffer: AudioBuffer | null = null;
-        let url = audioUrl || '';
+        let url = resolvedUrl || '';
         
         if (audioData instanceof ArrayBuffer) {
           audioBuffer = await audioContextRef.current.decodeAudioData(audioData);
@@ -694,7 +788,7 @@ export default function MasterMultiTrackPlayer() {
           height: DEFAULT_TRACK_HEIGHT,
         };
         
-        setTracks(prev => [...prev, newTrack]);
+        addTrackEntry(newTrack);
       ensureMixerChannel(newTrack.id, newTrack.name);
       applySendLevelsToChannel(newTrack.id, newTrack.sendA, newTrack.sendB);
         toast({
@@ -703,11 +797,40 @@ export default function MasterMultiTrackPlayer() {
         });
       } catch (error) {
         console.error('Error importing track:', error);
-        toast({
-          title: '❌ Import Failed',
-          description: 'Could not import track from studio tool',
-          variant: 'destructive',
-        });
+        // Fallback: if decode failed but we have a URL, still add track to decode later
+        if (audioUrl) {
+          const fallbackTrack: AudioTrack = {
+            id: `${type}-${Date.now()}`,
+            name: name || `${type.charAt(0).toUpperCase() + type.slice(1)} Track`,
+            audioBuffer: null,
+            audioUrl,
+            volume: 80,
+            pan: 0,
+            fadeInSeconds: 0.05,
+            fadeOutSeconds: 0.1,
+            volumePoints: [],
+            sendA: -60,
+            sendB: -60,
+            regionGain: 0,
+            muted: false,
+            solo: false,
+            color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
+            trackType: type as 'beat' | 'melody' | 'vocal' | 'audio',
+            kind: mappedKind,
+            origin: 'manual',
+            height: DEFAULT_TRACK_HEIGHT,
+          };
+          addTrackEntry(fallbackTrack);
+        ensureMixerChannel(fallbackTrack.id, fallbackTrack.name);
+        applySendLevelsToChannel(fallbackTrack.id, fallbackTrack.sendA, fallbackTrack.sendB);
+          toast({ title: '✅ Track Imported', description: `${fallbackTrack.name} added (lazy decode)` });
+        } else {
+          toast({
+            title: '❌ Import Failed',
+            description: 'Could not import track from studio tool',
+            variant: 'destructive',
+          });
+        }
       }
     };
     
@@ -777,6 +900,15 @@ export default function MasterMultiTrackPlayer() {
       // Don't close shared context here, just disconnect local nodes
       masterGainRef.current?.disconnect();
     };
+  }, []);
+
+  // Respond to global stop-all to halt this player
+  useEffect(() => {
+    const handleStopAll = () => {
+      stopPlayback();
+    };
+    window.addEventListener('globalAudio:stopAll', handleStopAll);
+    return () => window.removeEventListener('globalAudio:stopAll', handleStopAll);
   }, []);
 
   // Sync canonical track store into the master player (central hub)
@@ -1156,11 +1288,6 @@ export default function MasterMultiTrackPlayer() {
       };
       addStoreTrack(storeTrackInput);
 
-      // Also load into global audio player for persistent playback across navigation
-      window.dispatchEvent(new CustomEvent('globalAudio:load', {
-        detail: { name: song.name, url: audioUrl, type: 'song', autoplay: false }
-      }));
-
       toast({
         title: '✅ Track Added!',
         description: `${song.name} loaded into multi-track`,
@@ -1373,6 +1500,9 @@ export default function MasterMultiTrackPlayer() {
   const playTracks = async () => {
     if (!audioContextRef.current || !masterGainRef.current) return;
 
+    // Ensure no other players keep running
+    window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+
     const ctx = audioContextRef.current;
     if (ctx.state === 'suspended') {
       await ctx.resume();
@@ -1559,7 +1689,8 @@ export default function MasterMultiTrackPlayer() {
 
     setIsPlaying(true);
     isPlayingRef.current = true;
-    updateCurrentTime();
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = requestAnimationFrame(updateCurrentTime);
   };
 
   // Stop all tracks
@@ -1594,6 +1725,8 @@ export default function MasterMultiTrackPlayer() {
 
   // Stop and reset
   const stopPlayback = () => {
+    // Stop any other players globally too
+    window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
     stopTracks();
     setIsPlaying(false);
     isPlayingRef.current = false;
@@ -1601,6 +1734,7 @@ export default function MasterMultiTrackPlayer() {
     setCurrentTime(0);
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
   };
 
@@ -1612,8 +1746,11 @@ export default function MasterMultiTrackPlayer() {
     setCurrentTime(elapsed);
 
     const punchEnd = punch.enabled ? punch.out : duration;
-    if (elapsed < punchEnd || loop) {
-      animationFrameRef.current = requestAnimationFrame(updateCurrentTime);
+    // Continue animating while playing; stop via stopPlayback when needed
+    animationFrameRef.current = requestAnimationFrame(updateCurrentTime);
+    // If past end (and not looping), stop playback
+    if (!loop && elapsed >= punchEnd && punchEnd > 0) {
+      stopPlayback();
     }
   };
 
