@@ -66,8 +66,8 @@ app.use("/api/stems", express.static(stemsRoot, {
 }));
 
 // Serve sample library files
-const sampleLibraryPath = process.env.SAMPLE_LIBRARY_PATH || path.resolve("D:\\DATA SET\\good-sounds\\sound_files");
-if (fs.existsSync(sampleLibraryPath)) {
+const sampleLibraryPath = process.env.SAMPLE_LIBRARY_PATH || (isProduction ? '' : path.resolve("D:\\DATA SET\\good-sounds\\sound_files"));
+if (sampleLibraryPath && fs.existsSync(sampleLibraryPath)) {
   app.use("/api/samples", express.static(sampleLibraryPath, {
     maxAge: '7d',
     setHeaders: (res, filePath) => {
@@ -77,7 +77,7 @@ if (fs.existsSync(sampleLibraryPath)) {
   }));
   console.log(`📂 Sample library served from: ${sampleLibraryPath}`);
 } else {
-  console.warn(`⚠️  Sample library path not found: ${sampleLibraryPath}`);
+  console.warn(sampleLibraryPath ? `⚠️  Sample library path not found: ${sampleLibraryPath}` : '⚠️  Sample library path not configured');
 }
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)

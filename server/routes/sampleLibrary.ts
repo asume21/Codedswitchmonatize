@@ -11,7 +11,7 @@ import { requireAuth } from "../middleware/auth";
 const router = Router();
 
 // User sample library path
-const SAMPLE_LIBRARY_PATH = process.env.SAMPLE_LIBRARY_PATH || path.resolve("D:\\DATA SET\\good-sounds\\sound_files");
+const SAMPLE_LIBRARY_PATH = process.env.SAMPLE_LIBRARY_PATH || (process.env.NODE_ENV === 'production' ? '' : path.resolve("D:\\DATA SET\\good-sounds\\sound_files"));
 
 interface SampleFile {
   id: string;
@@ -28,6 +28,11 @@ interface SampleFile {
  */
 function scanSampleLibrary(): SampleFile[] {
   const samples: SampleFile[] = [];
+
+  if (!SAMPLE_LIBRARY_PATH) {
+    console.warn('Sample library path not configured');
+    return samples;
+  }
   
   if (!fs.existsSync(SAMPLE_LIBRARY_PATH)) {
     console.warn(`Sample library path does not exist: ${SAMPLE_LIBRARY_PATH}`);

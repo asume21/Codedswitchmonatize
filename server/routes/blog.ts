@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { IStorage } from '../storage';
+import { requireAuth } from '../middleware/auth';
 
 export function createBlogRouter(storage: IStorage) {
   const router = Router();
@@ -55,8 +56,12 @@ export function createBlogRouter(storage: IStorage) {
   });
 
   // Create new blog post (admin only)
-  router.post('/posts', async (req, res) => {
+  router.post('/posts', requireAuth(), async (req, res) => {
     try {
+      if (req.userId !== 'owner-user') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
       const postSchema = z.object({
         title: z.string().min(1),
         slug: z.string().min(1),

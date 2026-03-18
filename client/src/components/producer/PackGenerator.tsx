@@ -462,14 +462,6 @@ export default function PackGenerator() {
         lengthBars: 4,
         startBar: index * 4,
       });
-
-      window.dispatchEvent(new CustomEvent('importToMultiTrack', {
-        detail: {
-          type: 'audio',
-          name: `${pack.title || 'Generated Pack'} - ${sample.name || `Sample ${index + 1}`}`,
-          audioUrl: sampleUrl,
-        },
-      }));
     });
 
     toast({ title: 'Sent to Multi-Track', description: `${samplesWithAudio.length} sample${samplesWithAudio.length === 1 ? '' : 's'} imported` });

@@ -2259,6 +2259,7 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db
       .insert(userApiKeys)
       .values({ ...data, userId })
+      .returning();
     return created;
   }
 
