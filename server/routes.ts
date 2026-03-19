@@ -47,6 +47,8 @@ import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID, resolveAudi
 import { insertPlaylistSchema } from "@shared/schema";
 import { resolveGenerationConstraints } from "@shared/aiProviderCapabilities";
 import { z } from "zod";
+import { sessionRouter } from "./src/organism/sessionRouter";
+import { profileRouter } from "./src/organism/profileRouter";
 import { generateSpeechPreview, createVoiceIdForFile, storePreview, getPreview, applyVoiceConversion } from "./services/speechCorrection";
 import { listVoices, getVoice, createVoice, deleteVoice, convertWithVoice, checkRvcHealth } from "./services/voiceLibrary";
 import { extractPitch, pitchCorrect, extractMelody, scoreKaraoke, detectEmotion, classifyAudio, checkApiHealth } from "./services/audioAnalysis";
@@ -329,6 +331,10 @@ ${urls
 
   // Mount Sample Library routes
   app.use("/api/sample-library", createSampleLibraryRoutes());
+
+  // Mount Organism routes (Session Capture + Evolution Profile)
+  app.use("/api/organism/sessions", sessionRouter);
+  app.use("/api/organism/profile", profileRouter);
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation

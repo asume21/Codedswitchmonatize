@@ -272,6 +272,58 @@ export async function runMigrations() {
     `;
     console.log('✅ Migration: user_api_keys table ensured');
 
+    // Migration: organism_sessions table (Section 07 — Session Capture)
+    await sql`
+      CREATE TABLE IF NOT EXISTS organism_sessions (
+        id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id            VARCHAR(36) NOT NULL UNIQUE,
+        user_id               VARCHAR(255) NOT NULL,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        duration_ms           INTEGER NOT NULL,
+        dominant_mode         VARCHAR(20) NOT NULL,
+        avg_pulse             NUMERIC(6,2) NOT NULL,
+        avg_bounce            NUMERIC(5,4) NOT NULL,
+        avg_swing             NUMERIC(5,4) NOT NULL,
+        avg_presence          NUMERIC(5,4) NOT NULL,
+        avg_density           NUMERIC(5,4) NOT NULL,
+        time_in_flow_ms       INTEGER NOT NULL DEFAULT 0,
+        flow_percentage       NUMERIC(5,4) NOT NULL DEFAULT 0,
+        longest_flow_streak   INTEGER NOT NULL DEFAULT 0,
+        transition_count      INTEGER NOT NULL DEFAULT 0,
+        cadence_lock_events   INTEGER NOT NULL DEFAULT 0,
+        avg_syllabic_density  NUMERIC(5,2) NOT NULL DEFAULT 0,
+        pitch_center          NUMERIC(8,2) NOT NULL DEFAULT 0,
+        energy_profile        VARCHAR(10) NOT NULL DEFAULT 'cool',
+        session_dna           JSONB NOT NULL
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_organism_sessions_user_id ON organism_sessions(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_organism_sessions_created_at ON organism_sessions(created_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_organism_sessions_dominant_mode ON organism_sessions(dominant_mode)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_organism_sessions_flow_pct ON organism_sessions(flow_percentage DESC)`;
+    console.log('✅ Migration: organism_sessions table ensured');
+
+    // Migration: organism_profiles table (Section 09 — Evolution System)
+    await sql`
+      CREATE TABLE IF NOT EXISTS organism_profiles (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id       VARCHAR(255) NOT NULL UNIQUE,
+        computed_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        session_count INTEGER NOT NULL DEFAULT 0,
+        bounce_bias   NUMERIC(5,4) NOT NULL DEFAULT 0,
+        swing_bias    NUMERIC(5,4) NOT NULL DEFAULT 0,
+        pocket_bias   NUMERIC(5,4) NOT NULL DEFAULT 0,
+        presence_bias NUMERIC(5,4) NOT NULL DEFAULT 0,
+        density_bias  NUMERIC(5,4) NOT NULL DEFAULT 0,
+        pulse_bias    NUMERIC(6,2) NOT NULL DEFAULT 0,
+        confidence    NUMERIC(4,3) NOT NULL DEFAULT 0,
+        mode_bias     JSONB NOT NULL DEFAULT '{}'
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_organism_profiles_user_id ON organism_profiles(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_organism_profiles_computed_at ON organism_profiles(computed_at DESC)`;
+    console.log('✅ Migration: organism_profiles table ensured');
+
     console.log('✅ All migrations completed successfully');
   } catch (error) {
     // If columns already exist, that's fine

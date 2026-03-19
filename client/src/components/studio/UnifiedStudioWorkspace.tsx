@@ -36,6 +36,8 @@ import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin,
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
 import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
+import { OrganismPage } from '@/features/organism/OrganismPage';
+import { OrganismProvider } from '@/features/organism/OrganismProvider';
 import AIMasteringCard from './AIMasteringCard';
 import AIArrangementBuilder from './AIArrangementBuilder';
 import AIVocalMelody from './AIVocalMelody';
@@ -66,7 +68,7 @@ import UndoRedoControls from './UndoRedoControls';
 
 // Workflow Configuration Types
 interface WorkflowConfig {
-  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack';
+  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism';
   showAIAssistant: boolean;
   showMusicGen: boolean;
   showLyricsFocus?: boolean;
@@ -159,6 +161,15 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
     },
     description: 'Focused on melody creation with piano roll and instrument selection',
   },
+  'pro-beatmaker': {
+    activeView: 'beat-lab',
+    showAIAssistant: true,
+    showMusicGen: false,
+    expandedSections: {
+      pianoRollTools: true,
+    },
+    description: 'Beat-focused workflow for drum programming, basslines, loops, and fast arrangement moves',
+  },
   'immersive': {
     activeView: 'arrangement',
     showAIAssistant: false,
@@ -186,11 +197,21 @@ const WORKFLOW_CONFIGS: Record<WorkflowPreset['id'], WorkflowConfig> = {
     showLyricsFocus: true,
   },
   'ai-song-production': {
-    activeView: 'timeline',
+    activeView: 'multitrack',
     showAIAssistant: true,
     showMusicGen: true,
     guidedMode: true,
     description: 'AI-powered song production workflow with guided steps',
+  },
+  'hybrid-workflow': {
+    activeView: 'arrangement',
+    showAIAssistant: true,
+    showMusicGen: true,
+    expandedSections: {
+      arrangementControls: true,
+      instrumentsPanel: true,
+    },
+    description: 'Balanced workflow that blends AI generation with manual arranging, editing, and mixing',
   },
 };
 
@@ -539,7 +560,7 @@ export default function UnifiedStudioWorkspace() {
   const [timelinePlayingTrack, setTimelinePlayingTrack] = useState<string | null>(null);
   const timelinePlayingTrackRef = useRef<string | null>(null);
   const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack'>('arrangement');
+  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism'>('arrangement');
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [showAstutely, setShowAstutely] = useState(false);
   const [showAstutelyArchitect, setShowAstutelyArchitect] = useState(false);
@@ -928,6 +949,9 @@ export default function UnifiedStudioWorkspace() {
           break;
         case 'audio-tools':
           setActiveView('audio-tools');
+          break;
+        case 'organism':
+          setActiveView('organism');
           break;
         case 'uploader':
           setActiveView('song-uploader');
@@ -2966,6 +2990,10 @@ export default function UnifiedStudioWorkspace() {
                   <span>{activeView === 'song-uploader' ? '✓' : '  '} Upload</span>
                   <span className="text-xs text-cyan-400">F9</span>
                 </button>
+                <button onClick={() => setActiveView('organism')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>{activeView === 'organism' ? '✓' : '  '} Organism</span>
+                  <span className="text-xs text-cyan-400">F10</span>
+                </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
                 <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{instrumentsExpanded ? '✓' : '  '} Instrument Library</span>
@@ -3641,6 +3669,16 @@ export default function UnifiedStudioWorkspace() {
           >
             <Upload className="w-3 h-3 mr-1" />
             Upload
+          </Button>
+          <div className="w-px h-5 astutely-divider-green mx-1" />
+          <Button
+            variant={activeView === 'organism' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveView('organism')}
+            className={`h-8 px-3 text-xs ${activeView === 'organism' ? 'astutely-btn-green active' : 'astutely-btn-green'}`}
+          >
+            <Mic2 className="w-3 h-3 mr-1" />
+            Organism
           </Button>
         </div>
 
@@ -4417,6 +4455,15 @@ export default function UnifiedStudioWorkspace() {
           {activeView === 'multitrack' && (
             <div className="flex-1 overflow-hidden bg-gray-900 h-full pt-14">
               <MasterMultiTrackPlayer />
+            </div>
+          )}
+
+          {/* HIP-HOP ORGANISM */}
+          {activeView === 'organism' && (
+            <div className="flex-1 overflow-hidden bg-gray-900 h-full pt-14">
+              <OrganismProvider userId="default-user">
+                <OrganismPage />
+              </OrganismProvider>
             </div>
           )}
         </div>

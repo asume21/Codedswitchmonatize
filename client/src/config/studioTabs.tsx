@@ -24,6 +24,7 @@ const GranularEngine = lazy(() => import("@/components/producer/GranularEngine")
 const OutputSequencer = lazy(() => import("@/components/producer/OutputSequencer"));
 const WavetableOscillator = lazy(() => import("@/components/producer/WavetableOscillator"));
 const MIDIController = lazy(() => import("@/components/studio/MIDIController").then(m => ({ default: m.MIDIController })));
+const OrganismPage = lazy(() => import("@/features/organism/OrganismPage").then(m => ({ default: m.OrganismPage })));
 const PerformanceMetrics = lazy(() => import("@/components/studio/PerformanceMetrics").then(m => ({ default: m.PerformanceMetrics })));
 const SongStructureManager = lazy(() => import("@/components/studio/SongStructureManager").then(m => ({ default: m.SongStructureManager })));
 // Deprecated: CodeBeat page is routed separately; keep lazy import commented to avoid unused warning
@@ -73,7 +74,8 @@ export type StudioTabId =
   | "wavetable-oscillator"
   | "pack-generator"
   | "song-structure"
-  | "bass-generator";
+  | "bass-generator"
+  | "organism";
 
 export interface StudioTabConfig {
   id: StudioTabId;
@@ -325,6 +327,16 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     routes: ["/song-structure"],
     requirePro: true,
     component: withSuspense(SongStructureManager),
+  },
+  {
+    id: "organism",
+    label: "Hip-Hop Organism",
+    shortName: "Organism",
+    icon: "fas fa-dna",
+    description: "Speak, rap, freestyle — the organism listens and responds with reactive beats",
+    routes: ["/organism", "/hip-hop-organism"],
+    requireAuth: true,
+    component: withSuspense(OrganismPage),
   },
 ];
 
