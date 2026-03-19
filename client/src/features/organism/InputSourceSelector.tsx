@@ -10,10 +10,10 @@ interface InputSourceSelectorProps {
 }
 
 const SOURCE_OPTIONS: { type: InputSourceType; label: string; icon: string; desc: string }[] = [
-  { type: 'mic', label: 'Microphone', icon: '🎤', desc: 'Speak, rap, freestyle — the organism reacts to your voice' },
-  { type: 'midi', label: 'MIDI Controller', icon: '🎹', desc: 'Play keys or pads — velocity & notes drive the organism' },
+  { type: 'mic', label: 'Mic', icon: '🎤', desc: 'Speak, rap, freestyle — the organism reacts to your voice' },
+  { type: 'midi', label: 'MIDI', icon: '🎹', desc: 'Play keys or pads — velocity & notes drive the organism' },
   { type: 'audioFile', label: 'Audio File', icon: '📁', desc: 'Drop in a beat, vocal, or loop — the organism reacts to it' },
-  { type: 'autoGenerate', label: 'Auto-Generate', icon: '🤖', desc: 'Fully autonomous — the organism creates on its own' },
+  { type: 'autoGenerate', label: 'Auto', icon: '🤖', desc: 'Fully autonomous — the organism creates on its own' },
 ]
 
 const ENERGY_OPTIONS: { value: 'chill' | 'medium' | 'intense'; label: string; color: string }[] = [
@@ -76,9 +76,11 @@ export function InputSourceSelector({
               title={opt.desc}
               style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
+                justifyContent: 'center',
+                gap: 4,
+                padding: '10px 6px 8px',
                 borderRadius: 'var(--border-radius-md)',
                 border: isActive
                   ? '1.5px solid var(--color-border-accent)'
@@ -92,12 +94,13 @@ export function InputSourceSelector({
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 opacity: disabled ? 0.5 : 1,
                 fontWeight: isActive ? 600 : 400,
-                fontSize: 13,
+                fontSize: 11,
                 transition: 'all 0.15s ease',
+                minWidth: 0,
               }}
             >
-              <span style={{ fontSize: 16 }}>{opt.icon}</span>
-              <span>{opt.label}</span>
+              <span style={{ fontSize: 18 }}>{opt.icon}</span>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{opt.label}</span>
             </button>
           )
         })}

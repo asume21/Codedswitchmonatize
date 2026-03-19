@@ -58,13 +58,13 @@ describe('OrganismPage', () => {
 
   it('Controls section present', () => {
     renderPage()
-    expect(screen.getAllByText('Start').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Capture').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Start/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Capture/).length).toBeGreaterThan(0)
   })
 
   it('Visualizer section present', () => {
     renderPage()
-    expect(screen.getAllByText('Organism is dormant. Press Start to wake it.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Organism is dormant/).length).toBeGreaterThan(0)
   })
 
   it('Session sidebar shows "No session captured yet" initially', () => {

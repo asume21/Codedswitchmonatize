@@ -49,7 +49,7 @@ export function OrganismPage() {
       <div style={{
         flex: 1, overflow: 'auto',
         display: 'grid',
-        gridTemplateColumns: '1fr 280px',
+        gridTemplateColumns: '1fr 320px',
         gap: 0,
       }}>
         {/* Visualizer */}
@@ -77,12 +77,13 @@ export function OrganismPage() {
           {/* Last session */}
           <div>
             <div style={{
-              fontSize: 12, fontWeight: 500,
+              fontSize: 11, fontWeight: 600,
               color: 'var(--color-text-tertiary)',
               marginBottom: 12,
               letterSpacing: '0.06em',
+              textTransform: 'uppercase' as const,
             }}>
-              LAST SESSION
+              Last Session
             </div>
 
             {lastSessionDNA ? (

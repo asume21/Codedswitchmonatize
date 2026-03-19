@@ -48,12 +48,12 @@ describe('OrganismControls', () => {
 
   it('Start button renders when isRunning=false', () => {
     renderWithCtx(makeCtx({ isRunning: false }))
-    expect(screen.getByText('Start')).toBeDefined()
+    expect(screen.getByText(/Start/)).toBeDefined()
   })
 
   it('Stop button renders when isRunning=true', () => {
     renderWithCtx(makeCtx({ isRunning: true }))
-    expect(screen.getByText('Stop')).toBeDefined()
+    expect(screen.getByText(/Stop/)).toBeDefined()
   })
 
   it('Capture button disabled when isRunning=false', () => {

@@ -17,33 +17,42 @@ const STATE_COLORS: Record<OState, string> = {
   [OState.Flow]:      'var(--color-text-success)',
 }
 
+const BAR_COLORS: Record<string, string> = {
+  Bounce:   '#22d3ee',
+  Swing:    '#a78bfa',
+  Pocket:   '#34d399',
+  Presence: '#fbbf24',
+  Density:  '#f87171',
+}
+
 function PhysicsBar({ label, value, max = 1 }: {
   label: string, value: number, max?: number
 }) {
-  const pct = Math.round((value / max) * 100)
+  const pct = Math.min(100, Math.round((value / max) * 100))
+  const barColor = BAR_COLORS[label] || '#60a5fa'
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{ marginBottom: 10 }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between',
         fontSize: 12, color: 'var(--color-text-secondary)',
-        marginBottom: 3,
+        marginBottom: 4,
       }}>
         <span>{label}</span>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ fontVariantNumeric: 'tabular-nums', color: barColor }}>
           {value.toFixed(2)}
         </span>
       </div>
       <div style={{
-        height: 4,
+        height: 5,
         background: 'var(--color-background-tertiary)',
-        borderRadius: 2,
+        borderRadius: 3,
         overflow: 'hidden',
       }}>
         <div style={{
           height: '100%',
           width: `${pct}%`,
-          background: 'var(--color-text-primary)',
-          borderRadius: 2,
+          background: barColor,
+          borderRadius: 3,
           transition: 'width 80ms linear',
         }} />
       </div>
@@ -146,43 +155,48 @@ export function OrganismVisualizer() {
       {meterReading && (
         <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', paddingTop: 12 }}>
           <div style={{
-            fontSize: 12, color: 'var(--color-text-tertiary)', marginBottom: 8,
+            fontSize: 11, fontWeight: 600, color: 'var(--color-text-tertiary)',
+            marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' as const,
           }}>
             Levels
           </div>
-          {Object.entries(meterReading.channels).map(([name, ch]) => (
-            <div key={name} style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
-            }}>
-              <span style={{
-                width: 52, fontSize: 11,
-                color: 'var(--color-text-tertiary)',
-                textTransform: 'capitalize',
+          {Object.entries(meterReading.channels).map(([name, ch]) => {
+            const pct = Math.max(0, Math.min(100, (ch.rmsDb + 60) / 60 * 100))
+            const meterColor = pct > 85 ? '#ef4444' : pct > 60 ? '#fbbf24' : '#22d3ee'
+            return (
+              <div key={name} style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
               }}>
-                {name}
-              </span>
-              <div style={{
-                flex: 1, height: 3,
-                background: 'var(--color-background-tertiary)',
-                borderRadius: 2, overflow: 'hidden',
-              }}>
+                <span style={{
+                  width: 56, fontSize: 11,
+                  color: 'var(--color-text-tertiary)',
+                  textTransform: 'capitalize',
+                }}>
+                  {name}
+                </span>
                 <div style={{
-                  height: '100%',
-                  width: `${Math.max(0, Math.min(100, (ch.rmsDb + 60) / 60 * 100))}%`,
-                  background: 'var(--color-text-primary)',
-                  borderRadius: 2,
-                  transition: 'width 100ms linear',
-                }} />
+                  flex: 1, height: 4,
+                  background: 'var(--color-background-tertiary)',
+                  borderRadius: 2, overflow: 'hidden',
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${pct}%`,
+                    background: meterColor,
+                    borderRadius: 2,
+                    transition: 'width 100ms linear',
+                  }} />
+                </div>
+                <span style={{
+                  width: 40, fontSize: 11, textAlign: 'right',
+                  color: 'var(--color-text-tertiary)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {ch.rmsDb === -Infinity ? '–∞' : ch.rmsDb.toFixed(1)}
+                </span>
               </div>
-              <span style={{
-                width: 36, fontSize: 11, textAlign: 'right',
-                color: 'var(--color-text-tertiary)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {ch.rmsDb === -Infinity ? '–∞' : ch.rmsDb.toFixed(1)}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

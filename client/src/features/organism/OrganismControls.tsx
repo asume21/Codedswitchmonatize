@@ -20,21 +20,22 @@ export function OrganismControls() {
       <button
         onClick={isRunning ? stop : start}
         style={{
-          padding: '8px 20px',
+          padding: '7px 22px',
           borderRadius: 'var(--border-radius-md)',
-          border: '0.5px solid var(--color-border-secondary)',
+          border: isRunning
+            ? '1px solid #ef4444'
+            : '1px solid #22c55e',
           background: isRunning
-            ? 'var(--color-background-danger)'
-            : 'var(--color-background-success)',
-          color: isRunning
-            ? 'var(--color-text-danger)'
-            : 'var(--color-text-success)',
+            ? 'rgba(239, 68, 68, 0.15)'
+            : 'rgba(34, 197, 94, 0.15)',
+          color: isRunning ? '#f87171' : '#4ade80',
           cursor: 'pointer',
-          fontWeight: 500,
-          fontSize: 14,
+          fontWeight: 600,
+          fontSize: 13,
+          letterSpacing: '0.02em',
         }}
       >
-        {isRunning ? 'Stop' : 'Start'}
+        {isRunning ? '⏹ Stop' : '▶ Start'}
       </button>
 
       {/* Capture */}
@@ -42,15 +43,15 @@ export function OrganismControls() {
         onClick={() => capture()}
         disabled={!isRunning || isCapturing}
         style={{
-          padding: '8px 20px',
+          padding: '7px 18px',
           borderRadius: 'var(--border-radius-md)',
-          border: '0.5px solid var(--color-border-secondary)',
-          background: 'var(--color-background-secondary)',
-          color: 'var(--color-text-primary)',
+          border: '1px solid rgba(34, 211, 238, 0.4)',
+          background: 'rgba(34, 211, 238, 0.1)',
+          color: '#22d3ee',
           cursor: isRunning && !isCapturing ? 'pointer' : 'not-allowed',
-          opacity: isRunning && !isCapturing ? 1 : 0.5,
+          opacity: isRunning && !isCapturing ? 1 : 0.4,
           fontWeight: 500,
-          fontSize: 14,
+          fontSize: 13,
         }}
       >
         {isCapturing ? 'Saving...' : 'Capture'}
@@ -61,14 +62,14 @@ export function OrganismControls() {
         <button
           onClick={downloadMidi}
           style={{
-            padding: '8px 20px',
+            padding: '7px 18px',
             borderRadius: 'var(--border-radius-md)',
-            border: '0.5px solid var(--color-border-secondary)',
-            background: 'var(--color-background-secondary)',
-            color: 'var(--color-text-primary)',
+            border: '1px solid rgba(167, 139, 250, 0.4)',
+            background: 'rgba(167, 139, 250, 0.1)',
+            color: '#a78bfa',
             cursor: 'pointer',
             fontWeight: 500,
-            fontSize: 14,
+            fontSize: 13,
           }}
         >
           Download MIDI

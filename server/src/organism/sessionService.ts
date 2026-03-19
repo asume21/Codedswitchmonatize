@@ -22,6 +22,14 @@ export const sessionService = {
     energyProfile: string
     [key: string]: unknown
   }) {
+    // Round integer-typed columns — JS timers and accumulators produce floats
+    const durationMs       = Math.round(dna.durationMs       || 0)
+    const timeInFlowMs     = Math.round(dna.timeInFlowMs     || 0)
+    const longestFlowStreak = Math.round(dna.longestFlowStreak || 0)
+    const transitionCount  = Math.round(dna.transitionCount  || 0)
+    const cadenceLockEvents = Math.round(dna.cadenceLockEvents || 0)
+    const pitchCenter      = Math.round(dna.pitchCenter      || 0)
+
     const result = await db.execute(sql`
       INSERT INTO organism_sessions (
         session_id, user_id, duration_ms,
@@ -32,12 +40,12 @@ export const sessionService = {
         avg_syllabic_density, pitch_center, energy_profile,
         session_dna
       ) VALUES (
-        ${dna.sessionId}, ${dna.userId}, ${dna.durationMs},
+        ${dna.sessionId}, ${dna.userId}, ${durationMs},
         ${dna.dominantMode}, ${dna.avgPulse}, ${dna.avgBounce}, ${dna.avgSwing},
         ${dna.avgPresence}, ${dna.avgDensity},
-        ${dna.timeInFlowMs}, ${dna.flowPercentage}, ${dna.longestFlowStreak},
-        ${dna.transitionCount}, ${dna.cadenceLockEvents},
-        ${dna.avgSyllabicDensity}, ${dna.pitchCenter}, ${dna.energyProfile},
+        ${timeInFlowMs}, ${dna.flowPercentage}, ${longestFlowStreak},
+        ${transitionCount}, ${cadenceLockEvents},
+        ${dna.avgSyllabicDensity}, ${pitchCenter}, ${dna.energyProfile},
         ${JSON.stringify(dna)}::jsonb
       )
       RETURNING id, session_id as "sessionId"
