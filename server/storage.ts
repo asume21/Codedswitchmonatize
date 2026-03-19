@@ -2117,21 +2117,29 @@ export class DatabaseStorage implements IStorage {
 
   async getUserFollowers(userId: string): Promise<any[]> {
     const follows = await db.select().from(userFollows).where(eq(userFollows.followingId, userId));
-    const followerIds = follows.map(f => f.followerId);
+    const followerIds = follows.map((f: typeof follows[number]) => f.followerId);
     if (followerIds.length === 0) return [];
     const followers = await db.select().from(users).where(sql`${users.id} IN ${followerIds}`);
-    return followers.map(u => ({ id: u.id, name: u.name, email: u.email }));
+    return followers.map((u: typeof followers[number]) => ({ id: u.id, name: u.name, email: u.email }));
   }
 
   async getUserFollowing(userId: string): Promise<any[]> {
     const follows = await db.select().from(userFollows).where(eq(userFollows.followerId, userId));
-    const followingIds = follows.map(f => f.followingId);
+    const followingIds = follows.map((f: typeof follows[number]) => f.followingId);
     if (followingIds.length === 0) return [];
     const following = await db.select().from(users).where(sql`${users.id} IN ${followingIds}`);
-    return following.map(u => ({ id: u.id, name: u.name, email: u.email }));
+    return following.map((u: typeof following[number]) => ({ id: u.id, name: u.name, email: u.email }));
   }
 
-  // ============ SOCIAL FEATURES - PROJECT SHARES ============
+
+  async getProjectShares(projectId: string): Promise<ProjectShare[]> {
+    return db.select().from(projectShares).where(eq(projectShares.projectId, projectId));
+  }
+
+  async getUserSharedProjects(userId: string): Promise<ProjectShare[]> {
+    return db.select().from(projectShares).where(eq(projectShares.sharedWithUserId, userId));
+  }
+
   async createProjectShare(projectId: string, sharedByUserId: string, sharedWithUserId: string, permission = "view"): Promise<ProjectShare> {
     const [share] = await db
       .insert(projectShares)
@@ -2145,19 +2153,11 @@ export class DatabaseStorage implements IStorage {
     return share;
   }
 
-  async getProjectShares(projectId: string): Promise<ProjectShare[]> {
-    return db.select().from(projectShares).where(eq(projectShares.projectId, projectId));
-  }
-
-  async getUserSharedProjects(userId: string): Promise<ProjectShare[]> {
-    return db.select().from(projectShares).where(eq(projectShares.sharedWithUserId, userId));
-  }
-
   // ============ SOCIAL FEATURES - POSTS & FEED ============
   async getSocialFeed(userId: string): Promise<any[]> {
     // Get posts from followed users and own posts
     const follows = await db.select().from(userFollows).where(eq(userFollows.followerId, userId));
-    const followingIds = follows.map(f => f.followingId);
+    const followingIds = follows.map((f: typeof follows[number]) => f.followingId);
     const userIds = [userId, ...followingIds];
     
     // Return empty feed for now - can be expanded with actual post storage

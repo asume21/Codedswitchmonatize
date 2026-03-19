@@ -19,6 +19,7 @@
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
+    "test:unit": "vitest run",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "lint:css": "stylelint \"**/*.css\"",
@@ -128,6 +129,7 @@
     "lucide-react": "^0.544.0",
     "memoizee": "^0.4.17",
     "memorystore": "^1.6.7",
+    "midi-writer-js": "^3.2.1",
     "mitt": "^3.0.1",
     "multer": "^2.0.2",
     "music-metadata": "^11.9.0",
@@ -164,6 +166,7 @@
     "tsx": "^4.19.2",
     "tw-animate-css": "^1.0.1",
     "typescript": "^5.7.2",
+    "uuid": "^13.0.0",
     "vaul": "^1.1.1",
     "vite": "^7.1.3",
     "wouter": "^3.3.8",
@@ -175,6 +178,8 @@
   "devDependencies": {
     "@babel/plugin-transform-runtime": "^7.28.3",
     "@playwright/test": "^1.56.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
@@ -194,6 +199,7 @@
     "puppeteer": "^24.27.0",
     "storybook": "^10.0.7",
     "stylelint": "^16.25.0",
-    "stylelint-config-standard": "^39.0.1"
+    "stylelint-config-standard": "^39.0.1",
+    "vitest": "^4.1.0"
   }
 }

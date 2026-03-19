@@ -3,6 +3,23 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { LocalStorageService } from "./localStorageService";
 
+const DEFAULT_MUSICGEN_GENERATE_URL = "http://localhost:5005/generate";
+
+function resolveMusicGenGenerateUrl() {
+  const configuredUrl = process.env.MUSICGEN_URL?.trim();
+  const sidecarUrl = process.env.MUSICGEN_SIDECAR_URL?.trim();
+
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (sidecarUrl) {
+    return `${sidecarUrl.replace(/\/$/, "")}/generate`;
+  }
+
+  return DEFAULT_MUSICGEN_GENERATE_URL;
+}
+
 export interface BackingTrackRequest {
   prompt: string;
   durationSeconds: number;
@@ -19,7 +36,7 @@ export class BackingTrackService {
   private storage = new LocalStorageService();
 
   async generateBackingTrack(request: BackingTrackRequest): Promise<BackingTrackResult> {
-    const musicgenUrl = process.env.MUSICGEN_URL || "http://localhost:5005/generate";
+    const musicgenUrl = resolveMusicGenGenerateUrl();
 
     if (!request.prompt || request.prompt.trim().length === 0) {
       throw new Error("Prompt is required for backing track generation");

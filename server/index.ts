@@ -54,7 +54,7 @@ const assetsRoot = path.resolve(process.cwd(), "server", "Assets");
 app.use("/assets", express.static(assetsRoot));
 
 // Serve stem separation output files (include musicgen-stems subfolder)
-const stemsRoot = path.resolve(process.cwd(), "objects");
+const stemsRoot = LOCAL_OBJECTS_DIR;
 app.use("/api/stems", express.static(stemsRoot, {
   maxAge: '1d',
   setHeaders: (res, filePath) => {

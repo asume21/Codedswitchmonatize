@@ -44,6 +44,9 @@ Write the blog post now:`;
 
   try {
     const aiClient = getAIClient();
+    if (!aiClient) {
+      throw new Error('AI client unavailable');
+    }
     const response = await aiClient.chat.completions.create({
       model: 'grok-2-1212',
       messages: [
@@ -85,6 +88,9 @@ Return as JSON.`;
 
   try {
     const aiClient = getAIClient();
+    if (!aiClient) {
+      throw new Error('AI client unavailable');
+    }
     const response = await aiClient.chat.completions.create({
       model: 'grok-2-1212',
       messages: [{ role: 'user', content: prompt }],

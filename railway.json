@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile.ollama"
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "/usr/local/bin/docker-entrypoint.sh",
+    "startCommand": "node dist/index.cjs",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",

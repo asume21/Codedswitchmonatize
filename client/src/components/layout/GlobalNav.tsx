@@ -135,7 +135,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
         size="sm"
         className="gap-2 border-red-500/40 text-red-100 hover:bg-red-500/20 hover:text-white"
         onClick={() => globalAudioKillSwitch.killAllAudio()}
-        title="Stop all audio (Ctrl+Shift+K or Escape)"
+        title="Stop all audio (Ctrl+Shift+K)"
       >
         <VolumeX className="w-4 h-4 text-red-400" />
       </Button>

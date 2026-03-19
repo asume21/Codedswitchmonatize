@@ -799,6 +799,14 @@ export default function MasterMultiTrackPlayer() {
         console.error('Error importing track:', error);
         // Fallback: if decode failed but we have a URL, still add track to decode later
         if (audioUrl) {
+          const mappedKind =
+            type === 'beat'
+              ? 'drums'
+              : type === 'vocal'
+                ? 'vocal'
+                : type === 'melody'
+                  ? 'synth'
+                  : 'other';
           const fallbackTrack: AudioTrack = {
             id: `${type}-${Date.now()}`,
             name: name || `${type.charAt(0).toUpperCase() + type.slice(1)} Track`,

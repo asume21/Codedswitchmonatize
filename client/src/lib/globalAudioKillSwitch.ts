@@ -53,7 +53,7 @@ class GlobalAudioKillSwitch {
    * Stops every tracked element, every DOM element, every AudioContext.
    */
   killAllAudio() {
-    console.log('🔴 GLOBAL AUDIO KILL SWITCH ACTIVATED — NUCLEAR MODE');
+    console.log(' GLOBAL AUDIO KILL SWITCH ACTIVATED — NUCLEAR MODE');
     this._killed = true;
 
     // 1. Stop ALL tracked HTMLAudioElements (includes hidden new Audio() calls)
@@ -61,9 +61,6 @@ class GlobalAudioKillSwitch {
       try {
         audio.pause();
         audio.currentTime = 0;
-        audio.src = '';
-        audio.removeAttribute('src');
-        audio.load(); // forces release
       } catch (e) { /* ignore */ }
     });
 
@@ -101,16 +98,6 @@ class GlobalAudioKillSwitch {
         const media = el as HTMLMediaElement;
         media.pause();
         media.currentTime = 0;
-        media.src = '';
-        media.removeAttribute('src');
-        media.load();
-      } catch { /* ignore */ }
-    });
-
-    // 8. Stop any iframes that might be playing audio
-    document.querySelectorAll('iframe').forEach(iframe => {
-      try {
-        iframe.src = 'about:blank';
       } catch { /* ignore */ }
     });
 
@@ -118,9 +105,8 @@ class GlobalAudioKillSwitch {
     this.audioElements.clear();
     this.oscillators.clear();
     this.audioSources.clear();
-    this.audioContexts.clear();
 
-    console.log('✅ ALL AUDIO KILLED — Nothing should be playing');
+    console.log(' ALL AUDIO KILLED — Nothing should be playing');
 
     // Reset killed state after a short delay so new audio can be created
     setTimeout(() => { this._killed = false; }, 500);
@@ -163,10 +149,10 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Global keyboard shortcut: Escape or Ctrl+Shift+K kills all audio
+// Global keyboard shortcut: Ctrl+Shift+K kills all audio
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey && e.shiftKey && e.key === 'K') || e.key === 'Escape') {
+    if (e.ctrlKey && e.shiftKey && e.key === 'K') {
       globalAudioKillSwitch.killAllAudio();
     }
   });

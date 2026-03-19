@@ -15,8 +15,11 @@ import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-const MUSICGEN_URL =
-  process.env.MUSICGEN_SIDECAR_URL || "http://localhost:8001";
+const MUSICGEN_URL = (
+  process.env.MUSICGEN_SIDECAR_URL?.trim() ||
+  process.env.MUSICGEN_URL?.trim() ||
+  "http://localhost:8001"
+).replace(/\/generate\/?$/, "").replace(/\/$/, "");
 
 // Where to store normalized stem WAVs before uploading / serving them.
 const STEMS_OUT_DIR = fs.existsSync("/data")

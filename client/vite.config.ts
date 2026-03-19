@@ -23,5 +23,15 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['@babel/plugin-transform-react-jsx']
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        entryFileNames: (chunk) =>
+          chunk.name === 'analysisWorklet'
+            ? 'organism/worklets/analysis-worklet-processor.js'
+            : 'assets/[name]-[hash].js',
+      },
+    },
+  },
 });
