@@ -296,7 +296,6 @@ function App() {
               <Route path="/pro-audio"><Redirect to="/studio" /></Route>
               <Route path="/codebeat-studio-direct"><Redirect to="/studio" /></Route>
               <Route path="/piano-roll"><Redirect to="/studio" /></Route>
-              <Route path="/design-playground"><Redirect to="/studio" /></Route>
               
               {/* 404 */}
               <Route component={NotFound} />
