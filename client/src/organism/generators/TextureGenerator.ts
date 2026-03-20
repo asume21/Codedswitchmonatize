@@ -18,13 +18,14 @@ export class TextureGenerator extends GeneratorBase {
 
   // Thinning state (responds to DensityComputer.thinningRequested)
   private thinningActive: boolean = false
+  private noiseStarted:  boolean = false
 
   constructor() {
     super(GeneratorName.Texture)
 
     this.noiseSource = new Tone.Noise('pink')
-    this.filter      = new Tone.Filter(1200, 'lowpass')
-    this.reverb      = new Tone.Reverb({ decay: 3.0, wet: 0.5 })
+    this.filter      = new Tone.Filter(400, 'lowpass')    // start low, opens as organism warms up
+    this.reverb      = new Tone.Reverb({ decay: 1.5, wet: 0.35 })  // shorter tail to reduce noise bleed
     this.gain        = new Tone.Gain(0)
 
     this.output = new Tone.Gain(1)
@@ -34,7 +35,8 @@ export class TextureGenerator extends GeneratorBase {
     this.reverb.connect(this.gain)
     this.gain.connect(this.output)
 
-    this.noiseSource.start()
+    // Do NOT start noise here — defer until organism leaves Dormant
+    // this.noiseSource.start()
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -49,9 +51,10 @@ export class TextureGenerator extends GeneratorBase {
     this.activityLevel += this.smoothingCoeff(130) * (targetLevel - this.activityLevel)
 
     // Apply gain (texture is always soft — max -12 dB)
-    const db = this.activityLevel <= 0
+    const shaped = this.activityLevel * layer.gainLevel * this.arrangementMultiplier
+    const db = shaped <= 0
       ? -Infinity
-      : 20 * Math.log10(Math.max(0.0001, this.activityLevel * layer.gainLevel))
+      : 20 * Math.log10(Math.max(0.0001, shaped))
     this.gain.gain.rampTo(Math.pow(10, db / 20), 0.5)
 
     // Morph filter cutoff toward mode target
@@ -70,6 +73,15 @@ export class TextureGenerator extends GeneratorBase {
     if (to === OState.Dormant) {
       this.activityLevel = 0
       this.gain.gain.rampTo(0, 1.0)
+      // Stop noise source to eliminate any bleed during silence
+      if (this.noiseStarted) {
+        this.noiseSource.stop()
+        this.noiseStarted = false
+      }
+    } else if (!this.noiseStarted) {
+      // Start noise only when organism first leaves Dormant
+      this.noiseSource.start()
+      this.noiseStarted = true
     }
   }
 
@@ -77,6 +89,10 @@ export class TextureGenerator extends GeneratorBase {
     this.activityLevel  = 0
     this.thinningActive = false
     this.gain.gain.rampTo(0, 0.5)
+    if (this.noiseStarted) {
+      this.noiseSource.stop()
+      this.noiseStarted = false
+    }
   }
 
   // ── Reactive mutation methods (Section 05) ────────────────────────

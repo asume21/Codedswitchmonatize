@@ -28,6 +28,7 @@ export interface AnalysisConfig {
   pitchMaxHz: number
   onsetThreshold: number
   voiceActivityThreshold: number
+  noiseGateThreshold: number
   debugMode: boolean
 }
 
@@ -39,7 +40,8 @@ export const DEFAULT_ANALYSIS_CONFIG: AnalysisConfig = {
   pitchMinHz: 60,
   pitchMaxHz: 1200,
   onsetThreshold: 0.3,
-  voiceActivityThreshold: 0.01,
+  voiceActivityThreshold: 0.03,
+  noiseGateThreshold: 0.02,
   debugMode: false,
 }
 

@@ -52,6 +52,37 @@ export function createToneMock() {
       return Object.assign(this, makeSynth())
     }),
     Synth: vi.fn(),
+    FMSynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, makeSynth())
+    }),
+    Compressor: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, {
+        toDestination: vi.fn().mockReturnThis(),
+        connect: vi.fn().mockReturnThis(),
+      })
+    }),
+    Distortion: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, {
+        toDestination: vi.fn().mockReturnThis(),
+        connect: vi.fn().mockReturnThis(),
+        wet: { value: 0, rampTo: vi.fn() },
+      })
+    }),
+    FeedbackDelay: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, {
+        toDestination: vi.fn().mockReturnThis(),
+        connect: vi.fn().mockReturnThis(),
+        wet: { value: 0, rampTo: vi.fn() },
+      })
+    }),
+    Chorus: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, {
+        toDestination: vi.fn().mockReturnThis(),
+        connect: vi.fn().mockReturnThis(),
+        start: vi.fn(),
+        wet: { value: 0, rampTo: vi.fn() },
+      })
+    }),
     Filter: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),

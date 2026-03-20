@@ -4,7 +4,7 @@ import type { PhysicsState } from '../../physics/types'
 import { OState } from '../../state/types'
 import type { OrganismState } from '../../state/types'
 import { GeneratorName } from '../types'
-import { createToneMock, mockRampTo } from './__mocks__/toneMock'
+import { createToneMock, mockGainRampTo } from './__mocks__/toneMock'
 
 vi.mock('tone', () => createToneMock())
 
@@ -112,8 +112,8 @@ describe('DrumGenerator', () => {
     const organism = makeOrganism({ current: OState.Breathing, breathingWarmth: 1 })
     gen.processFrame(physics, organism)
 
-    // Volume rampTo should have been called (output level applied)
-    expect(mockRampTo).toHaveBeenCalled()
+    // Gain rampTo should have been called (output level applied)
+    expect(mockGainRampTo).toHaveBeenCalled()
   })
 
   it('processFrame with bounce=1.0 → kick velocity increased', () => {
@@ -124,7 +124,7 @@ describe('DrumGenerator', () => {
     gen.processFrame(physics, organism)
 
     // The drum generator stores bounce for dynamic application
-    expect(mockRampTo).toHaveBeenCalled()
+    expect(mockGainRampTo).toHaveBeenCalled()
   })
 
   it('pattern rebuilds on state transition without error', () => {

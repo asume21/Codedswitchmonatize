@@ -34,20 +34,35 @@ export class MelodyGenerator extends GeneratorBase {
   private voiceActive:     boolean = false
   private flowDepth:       number  = 0
 
+  private reverb:  Tone.Reverb
+  private delay:   Tone.FeedbackDelay
+  private chorus:  Tone.Chorus
+
   constructor() {
     super(GeneratorName.Melody)
 
     this.output = new Tone.Gain(1)
 
-    this.synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'triangle' },
-      envelope:   { attack: 0.05, decay: 0.2, sustain: 0.4, release: 0.8 },
+    this.synth = new Tone.PolySynth(Tone.FMSynth, {
+      harmonicity: 2,
+      modulationIndex: 1.5,
+      oscillator:    { type: 'sine' },
+      modulation:    { type: 'triangle' },
+      envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
+      modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
     })
+    this.synth.volume.value = -6
 
-    const reverb = new Tone.Reverb({ decay: 2.5, wet: 0.35 })
-    this.synth.connect(reverb)
-    reverb.connect(this.output)
+    this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
+    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.25, wet: 0.2 })
+    this.reverb = new Tone.Reverb({ decay: 3.0, wet: 0.35 })
 
+    this.synth.connect(this.chorus)
+    this.chorus.connect(this.delay)
+    this.delay.connect(this.reverb)
+    this.reverb.connect(this.output)
+
+    this.chorus.start()
     this.setOutputLevel(0)
   }
 
@@ -161,34 +176,61 @@ export class MelodyGenerator extends GeneratorBase {
     const octave    = octaves[0] + Math.floor(Math.random() * (octaves[1] - octaves[0] + 1))
     const scale     = this.currentScale
 
-    // Walk through phrase, picking scale degrees
+    // Build a musical phrase with rests, call-and-response, swing
     let cursor = 0
-    let prev   = 0  // last scale index
+    let prev   = Math.floor(scale.length / 2)  // start mid-scale
+    let phraseNoteCount = 0
+    const phraseGroupSize = 3 + Math.floor(Math.random() * 3) // 3-5 notes then rest
 
     while (cursor < length16ths) {
-      // Pick next scale degree (biased toward stepwise motion)
-      const stepDelta = Math.random() < 0.7
-        ? (Math.random() < 0.5 ? 1 : -1)          // stepwise
-        : Math.floor(Math.random() * 4) - 2        // occasional leap
+      // Insert rests between phrase groups (call-and-response feel)
+      if (phraseNoteCount >= phraseGroupSize && Math.random() < 0.6) {
+        const restLen = 2 + Math.floor(Math.random() * 4) // 2-5 16ths rest
+        cursor += restLen
+        phraseNoteCount = 0
+        continue
+      }
+
+      // Pick next scale degree (stepwise bias with occasional leaps)
+      const r = Math.random()
+      const stepDelta = r < 0.55
+        ? (Math.random() < 0.5 ? 1 : -1)          // step up/down
+        : r < 0.8
+          ? (Math.random() < 0.5 ? 2 : -2)        // skip
+          : Math.floor(Math.random() * 5) - 2      // leap
 
       prev = Math.max(0, Math.min(scale.length - 1, prev + stepDelta))
 
       const semitone = scale[prev]
-      const midi     = (octave * 12) + 12 + semitone  // C0 = MIDI 12
+      const midi     = (octave * 12) + 12 + semitone + this.pitchOffsetSemitones
       const pitch    = Tone.Frequency(midi, 'midi').toNote()
 
-      // Duration: 1–3 16th notes, biased to 2
-      const dur16ths = Math.random() < 0.5 ? 2 : (Math.random() < 0.5 ? 1 : 3)
-      const durStr   = dur16ths === 1 ? '16n' : dur16ths === 2 ? '8n' : '8n.'
+      // Duration variety: 1-4 16ths with musical bias
+      const durRoll = Math.random()
+      const dur16ths = durRoll < 0.2 ? 1     // 16th (fast)
+                     : durRoll < 0.55 ? 2    // 8th (standard)
+                     : durRoll < 0.8 ? 3     // dotted 8th (groove)
+                     : 4                     // quarter (sustain)
+      const durStr = dur16ths === 1 ? '16n'
+                   : dur16ths === 2 ? '8n'
+                   : dur16ths === 3 ? '8n.'
+                   : '4n'
 
-      notes.push({
-        pitch,
-        duration:  durStr,
-        velocity:  0.45 + Math.random() * 0.25,
-        time:      `${Math.floor(cursor / 16)}:${Math.floor((cursor % 16) / 4)}:${cursor % 4}`,
-      })
+      // Swing: off-16ths pushed late
+      const bar  = Math.floor(cursor / 16)
+      const beat = Math.floor((cursor % 16) / 4)
+      const sub  = cursor % 4
+      const swungSub = (sub === 1 || sub === 3) ? sub + 0.35 : sub
+      const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
+
+      // Velocity: accent downbeats, softer off-beats
+      const accentBase = sub === 0 ? 0.55 : sub === 2 ? 0.48 : 0.40
+      const vel = Math.min(1, Math.max(0.15, accentBase + (Math.random() - 0.5) * 0.12))
+
+      notes.push({ pitch, duration: durStr, velocity: vel, time })
 
       cursor += dur16ths
+      phraseNoteCount++
     }
 
     return notes
@@ -203,7 +245,8 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const db = level <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, level))
+    const shaped = level * this.arrangementMultiplier
+    const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     this.synth.volume.rampTo(db, 0.1)
   }
 }

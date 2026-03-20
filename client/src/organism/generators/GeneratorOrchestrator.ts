@@ -31,11 +31,42 @@ export class GeneratorOrchestrator {
   private melodyVolumeMultiplier: number = 1.0
   private textureVolumeMultiplier: number = 1.0
 
+  // ── Arrangement state ─────────────────────────────────────────────
+  //
+  // Cycles through 16-bar arrangement sections to add dynamic variation.
+  // Each section shapes which generators are active and at what level.
+  //
+  //   intro (4 bars)     → drums only, building
+  //   verse (4 bars)     → drums + bass
+  //   build (4 bars)     → drums + bass + melody
+  //   drop  (4 bars)     → everything, full energy
+  //   breakdown (2 bars) → bass + texture only (breathing room)
+  //   verse2 (4 bars)    → drums + bass + melody variation
+  //   drop2  (4 bars)    → everything, peak
+  //   outro (2 bars)     → texture fade
+  //
+  // Total cycle: 28 bars, then repeats.
+
+  private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number }[] = [
+    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, texture: 0.3 },
+    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, texture: 0.5 },
+    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0.7 },
+    { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 1.0 },
+    { name: 'breakdown', bars: 2, drums: 0.3, bass: 0.7, melody: 0.0, texture: 1.0 },
+    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, texture: 0.5 },
+    { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 1.0 },
+    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.4, melody: 0.0, texture: 0.8 },
+  ]
+  private arrangementTotalBars: number = 0
+  private arrangementEnabled: boolean = true
+  private lastArrangementBar: number = -1
+
   constructor() {
     this.drum    = new DrumGenerator()
     this.bass    = new BassGenerator()
     this.melody  = new MelodyGenerator()
     this.texture = new TextureGenerator()
+    this.arrangementTotalBars = this.ARRANGEMENT.reduce((sum, s) => sum + s.bars, 0)
   }
 
   // Wire to physics and state machine outputs
@@ -154,6 +185,9 @@ export class GeneratorOrchestrator {
   private onFrame(physics: PhysicsState, organism: OrganismState | null): void {
     if (!organism) return
 
+    // Apply arrangement shaping before processing generators
+    this.applyArrangement()
+
     this.drum.processFrame(physics, organism)
     this.bass.processFrame(physics, organism)
     this.melody.processFrame(physics, organism)
@@ -181,5 +215,37 @@ export class GeneratorOrchestrator {
     } else {
       this.texture.setThinning(false)
     }
+  }
+
+  /** Reads the current Transport bar and applies arrangement section multipliers. */
+  private applyArrangement(): void {
+    if (!this.arrangementEnabled || !this.running) return
+
+    // Get current bar from Tone.js Transport
+    const transport = Tone.getTransport()
+    const position  = transport.position as string  // "bars:beats:16ths"
+    const barNumber = parseInt(position.split(':')[0], 10) || 0
+
+    // Only update when bar changes
+    if (barNumber === this.lastArrangementBar) return
+    this.lastArrangementBar = barNumber
+
+    // Find which arrangement section we're in
+    const cycleBar = barNumber % this.arrangementTotalBars
+    let accumulated = 0
+    let section = this.ARRANGEMENT[0]
+    for (const s of this.ARRANGEMENT) {
+      if (cycleBar < accumulated + s.bars) {
+        section = s
+        break
+      }
+      accumulated += s.bars
+    }
+
+    // Apply section multipliers to generator volumes
+    this.drum.applyArrangementMultiplier(section.drums)
+    this.bass.applyArrangementMultiplier(section.bass)
+    this.melody.applyArrangementMultiplier(section.melody)
+    this.texture.applyArrangementMultiplier(section.texture)
   }
 }

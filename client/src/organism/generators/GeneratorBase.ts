@@ -8,9 +8,15 @@ import type { OState }        from '../state/types'
 export abstract class GeneratorBase {
   readonly name: GeneratorName
   protected activityLevel: number = 0
+  protected arrangementMultiplier: number = 1.0
 
   constructor(name: GeneratorName) {
     this.name = name
+  }
+
+  /** Called by the orchestrator's arrangement logic to shape section dynamics. */
+  applyArrangementMultiplier(multiplier: number): void {
+    this.arrangementMultiplier = Math.max(0, Math.min(1, multiplier))
   }
 
   abstract processFrame(physics: PhysicsState, organism: OrganismState): void

@@ -38,6 +38,12 @@ export function createMixToneMock() {
         getValue: vi.fn().mockReturnValue(new Float32Array(1024)),
       })
     }),
+    Filter: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, {
+        ...makeDisposable(),
+        frequency: { value: 400, rampTo: vi.fn() },
+      })
+    }),
     Distortion: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, makeDisposable())
     }),

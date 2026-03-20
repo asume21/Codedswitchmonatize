@@ -78,8 +78,8 @@ export class AudioAnalysisEngine {
       audio: {
         sampleRate: this.config.sampleRate,
         channelCount: 1,
-        echoCancellation: false,
-        noiseSuppression: false,
+        echoCancellation: true,
+        noiseSuppression: true,
         autoGainControl: false,
       },
     })
@@ -179,7 +179,15 @@ export class AudioAnalysisEngine {
       linearSpectrum[index] = Math.pow(10, this.frequencyData[index] / 20)
     }
 
-    const { rms, rmsRaw } = this.rmsAnalyzer.process(buffer)
+    let { rms, rmsRaw } = this.rmsAnalyzer.process(buffer)
+
+    // Noise gate: zero out signal below threshold so ambient room noise
+    // doesn't trigger the physics engine or wake the organism
+    if (rms < this.config.noiseGateThreshold) {
+      rms = 0
+      rmsRaw = 0
+    }
+
     const {
       pitch,
       confidence: pitchConfidence,

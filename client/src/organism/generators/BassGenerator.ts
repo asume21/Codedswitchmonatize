@@ -5,9 +5,12 @@ import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, BassBehavior } from './types'
 import type { ScheduledNote } from './types'
 import {
-  PENTATONIC_MINOR,
   getBassBehavior,
   getBassFilterCutoff,
+  buildBreatheNotes,
+  buildLockNotes,
+  buildWalkNotes,
+  buildBounceNotes,
 }                              from './patterns/BassPatternLibrary'
 import type { PhysicsState }   from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -16,9 +19,11 @@ import { OState }              from '../state/types'
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth:  Tone.MonoSynth
-  private filter: Tone.Filter
-  private part:   Tone.Part | null = null
+  private synth:      Tone.MonoSynth
+  private filter:     Tone.Filter
+  private compressor: Tone.Compressor
+  private distortion: Tone.Distortion
+  private part:       Tone.Part | null = null
 
   // Musical state
   private rootMidi:        number       = 36   // C2
@@ -30,25 +35,30 @@ export class BassGenerator extends GeneratorBase {
   constructor() {
     super(GeneratorName.Bass)
 
-    this.output = new Tone.Gain(1)
-    this.filter = new Tone.Filter(400, 'lowpass')
+    this.output     = new Tone.Gain(1)
+    this.filter     = new Tone.Filter(350, 'lowpass')
+    this.compressor = new Tone.Compressor({ threshold: -20, ratio: 6, attack: 0.005, release: 0.12 })
+    this.distortion = new Tone.Distortion({ distortion: 0.08, wet: 0.2 })
 
     this.synth = new Tone.MonoSynth({
-      oscillator: { type: 'sawtooth' },
-      filter:     { Q: 2, type: 'lowpass', rolloff: -24 },
-      envelope:   { attack: 0.01, decay: 0.3, sustain: 0.7, release: 0.5 },
+      oscillator: { type: 'fatsawtooth', spread: 15, count: 2 },
+      filter:     { Q: 3, type: 'lowpass', rolloff: -24 },
+      envelope:   { attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3 },
       filterEnvelope: {
-        attack:      0.06,
-        decay:       0.2,
-        sustain:     0.5,
-        release:     0.8,
-        baseFrequency: 200,
-        octaves:       2.5,
+        attack:        0.04,
+        decay:         0.15,
+        sustain:       0.35,
+        release:       0.5,
+        baseFrequency: 80,
+        octaves:       2.0,
       },
     })
+    this.synth.volume.value = -4
 
     this.synth.connect(this.filter)
-    this.filter.connect(this.output)
+    this.filter.connect(this.distortion)
+    this.distortion.connect(this.compressor)
+    this.compressor.connect(this.output)
 
     this.setOutputLevel(0)
   }
@@ -123,10 +133,10 @@ export class BassGenerator extends GeneratorBase {
     }
   }
 
-  private rebuildPart(physics: PhysicsState): void {
+  private rebuildPart(_physics: PhysicsState): void {
     this.stopPart()
 
-    const notes = this.generateNotes(physics)
+    const notes = this.generateNotes()
     if (notes.length === 0) return
 
     const events = notes.map(n => ({
@@ -137,60 +147,22 @@ export class BassGenerator extends GeneratorBase {
     }))
 
     this.part = new Tone.Part((time, event) => {
-      // Apply pocket ducking dynamically at trigger time
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
       this.synth.triggerAttackRelease(event.note, event.dur, time, pocketVelocity)
     }, events)
 
     this.part.loop      = true
-    this.part.loopEnd   = '2m'  // 2 bars
+    this.part.loopEnd   = '4m'
     this.part.start(0)
   }
 
-  private generateNotes(_physics: PhysicsState): ScheduledNote[] {
-    const notes: ScheduledNote[] = []
-    const rootName = Tone.Frequency(this.rootMidi, 'midi').toNote()
-
+  private generateNotes(): ScheduledNote[] {
     switch (this.currentBehavior) {
-      case BassBehavior.Lock:
-        // Follow kick pattern: hits on beat 1 and beat 3
-        notes.push(
-          { pitch: rootName, duration: '8n', velocity: 0.85, time: '0:0:0' },
-          { pitch: rootName, duration: '8n', velocity: 0.75, time: '0:2:0' },
-        )
-        break
-
-      case BassBehavior.Walk:
-        // Stepwise motion through pentatonic minor over 2 bars
-        PENTATONIC_MINOR.slice(0, 4).forEach((interval, i) => {
-          const midi  = this.rootMidi + interval
-          const pitch = Tone.Frequency(midi, 'midi').toNote()
-          notes.push({
-            pitch, duration: '4n', velocity: 0.70,
-            time: `0:${i}:0`,
-          })
-        })
-        break
-
-      case BassBehavior.Bounce: {
-        // Repetitive 8th-note figure on root and 5th
-        const fifth = Tone.Frequency(this.rootMidi + 7, 'midi').toNote()
-        for (let beat = 0; beat < 4; beat++) {
-          notes.push({ pitch: rootName, duration: '16n', velocity: 0.80, time: `0:${beat}:0` })
-          notes.push({ pitch: fifth,    duration: '16n', velocity: 0.65, time: `0:${beat}:2` })
-        }
-        break
-      }
-
-      case BassBehavior.Breathe:
-        // Long sustained root, minimal motion
-        notes.push(
-          { pitch: rootName, duration: '1m', velocity: 0.60, time: '0:0:0' },
-        )
-        break
+      case BassBehavior.Lock:    return buildLockNotes(this.rootMidi)
+      case BassBehavior.Walk:    return buildWalkNotes(this.rootMidi)
+      case BassBehavior.Bounce:  return buildBounceNotes(this.rootMidi)
+      case BassBehavior.Breathe: return buildBreatheNotes(this.rootMidi)
     }
-
-    return notes
   }
 
   private startSubBassRise(): void {
@@ -212,7 +184,8 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const db = level <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, level))
+    const shaped = level * this.arrangementMultiplier
+    const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     this.synth.volume.rampTo(db, 0.1)
   }
 }

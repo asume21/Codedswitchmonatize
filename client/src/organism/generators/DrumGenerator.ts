@@ -15,10 +15,27 @@ import { OState }              from '../state/types'
 export class DrumGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private kick:  Tone.MembraneSynth
-  private snare: Tone.NoiseSynth
-  private hat:   Tone.MetalSynth
-  private perc:  Tone.NoiseSynth
+  // Kick: sub layer + click transient
+  private kickSub:   Tone.MembraneSynth
+  private kickClick: Tone.NoiseSynth
+  private kickBus:   Tone.Gain
+  private kickDist:  Tone.Distortion
+
+  // Snare: noise body + tonal ring
+  private snareBody: Tone.NoiseSynth
+  private snareTone: Tone.MembraneSynth
+  private snareBus:  Tone.Gain
+
+  // Hat: filtered metal
+  private hat:       Tone.MetalSynth
+  private hatFilter: Tone.Filter
+
+  // Perc: bandpass noise
+  private perc:       Tone.NoiseSynth
+  private percFilter: Tone.Filter
+
+  // Master drum bus
+  private compressor: Tone.Compressor
 
   private part: Tone.Part | null = null
 
@@ -34,36 +51,76 @@ export class DrumGenerator extends GeneratorBase {
   constructor() {
     super(GeneratorName.Drum)
 
-    this.output = new Tone.Gain(1)
+    this.output     = new Tone.Gain(1)
+    this.compressor = new Tone.Compressor({ threshold: -18, ratio: 4, attack: 0.003, release: 0.15 })
+    this.compressor.connect(this.output)
 
-    this.kick = new Tone.MembraneSynth({
-      pitchDecay:  0.05,
-      octaves:     6,
+    // ── Kick: sub + click layered ──
+    this.kickBus  = new Tone.Gain(1)
+    this.kickDist = new Tone.Distortion({ distortion: 0.15, wet: 0.3 })
+    this.kickBus.connect(this.kickDist)
+    this.kickDist.connect(this.compressor)
+
+    this.kickSub = new Tone.MembraneSynth({
+      pitchDecay:  0.08,
+      octaves:     8,
       oscillator:  { type: 'sine' },
-      envelope:    { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 },
+      envelope:    { attack: 0.001, decay: 0.5, sustain: 0.0, release: 0.8 },
     })
-    this.kick.connect(this.output)
+    this.kickSub.volume.value = -3
+    this.kickSub.connect(this.kickBus)
 
-    this.snare = new Tone.NoiseSynth({
+    this.kickClick = new Tone.NoiseSynth({
       noise:    { type: 'white' },
-      envelope: { attack: 0.001, decay: 0.15, sustain: 0 },
+      envelope: { attack: 0.001, decay: 0.03, sustain: 0 },
     })
-    this.snare.connect(this.output)
+    this.kickClick.volume.value = -10
+    this.kickClick.connect(this.kickBus)
+
+    // ── Snare: body + tonal ring ──
+    this.snareBus = new Tone.Gain(1)
+    this.snareBus.connect(this.compressor)
+
+    this.snareBody = new Tone.NoiseSynth({
+      noise:    { type: 'pink' },
+      envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
+    })
+    this.snareBody.volume.value = -6
+    this.snareBody.connect(this.snareBus)
+
+    this.snareTone = new Tone.MembraneSynth({
+      pitchDecay: 0.01,
+      octaves:    4,
+      oscillator: { type: 'triangle' },
+      envelope:   { attack: 0.001, decay: 0.12, sustain: 0, release: 0.1 },
+    })
+    this.snareTone.volume.value = -12
+    this.snareTone.connect(this.snareBus)
+
+    // ── Hat: gentler metallic with highpass ──
+    this.hatFilter = new Tone.Filter(6000, 'highpass')
+    this.hatFilter.connect(this.compressor)
 
     this.hat = new Tone.MetalSynth({
-      envelope:   { attack: 0.001, decay: 0.08, release: 0.01 },
-      harmonicity: 5.1,
-      modulationIndex: 32,
-      resonance:  4000,
-      octaves:    1.5,
+      envelope:        { attack: 0.001, decay: 0.06, release: 0.008 },
+      harmonicity:     3.5,
+      modulationIndex: 18,
+      resonance:       5500,
+      octaves:         1.0,
     })
-    this.hat.connect(this.output)
+    this.hat.volume.value = -8
+    this.hat.connect(this.hatFilter)
+
+    // ── Perc: bandpass noise for rim/shaker ──
+    this.percFilter = new Tone.Filter({ frequency: 2500, type: 'bandpass', Q: 2 })
+    this.percFilter.connect(this.compressor)
 
     this.perc = new Tone.NoiseSynth({
       noise:    { type: 'pink' },
-      envelope: { attack: 0.001, decay: 0.1, sustain: 0 },
+      envelope: { attack: 0.001, decay: 0.08, sustain: 0 },
     })
-    this.perc.connect(this.output)
+    this.perc.volume.value = -14
+    this.perc.connect(this.percFilter)
 
     this.setOutputLevel(0)
   }
@@ -93,7 +150,7 @@ export class DrumGenerator extends GeneratorBase {
 
     // Breathing or Flow → rebuild pattern from current mode
     const kit     = getDrumKit(physics.mode)
-    const pattern = buildDrumPattern(kit)
+    const pattern = buildDrumPattern(kit, physics.mode)
     this.rebuildPart(pattern.hits)
   }
 
@@ -142,7 +199,7 @@ export class DrumGenerator extends GeneratorBase {
     }, events)
 
     this.part.loop    = true
-    this.part.loopEnd = '2m'
+    this.part.loopEnd = '4m'
     this.part.start(0)
   }
 
@@ -165,10 +222,12 @@ export class DrumGenerator extends GeneratorBase {
   private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
     switch (instrument) {
       case DrumInstrument.Kick:
-        this.kick.triggerAttackRelease('C1', '8n', time, velocity)
+        this.kickSub.triggerAttackRelease('C1', '8n', time, velocity)
+        this.kickClick.triggerAttackRelease('32n', time, velocity * 0.6)
         break
       case DrumInstrument.Snare:
-        this.snare.triggerAttackRelease('8n', time, velocity)
+        this.snareBody.triggerAttackRelease('8n', time, velocity)
+        this.snareTone.triggerAttackRelease('E3', '16n', time, velocity * 0.7)
         break
       case DrumInstrument.Hat:
         this.hat.triggerAttackRelease('32n', time, velocity)
@@ -181,7 +240,7 @@ export class DrumGenerator extends GeneratorBase {
 
   private startSubKickRise(): void {
     // Very soft kick pulse during awakening
-    this.kick.volume.rampTo(-24, 2)
+    this.kickSub.volume.rampTo(-24, 2)
   }
 
   private stopPart(): void {
@@ -193,10 +252,8 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const db = level <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, level))
-    this.kick.volume.rampTo(db, 0.1)
-    this.snare.volume.rampTo(db, 0.1)
-    this.hat.volume.rampTo(db, 0.1)
-    this.perc.volume.rampTo(db, 0.1)
+    const shaped = level * this.arrangementMultiplier
+    const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
+    this.output.gain.rampTo(Math.pow(10, db / 20), 0.1)
   }
 }
