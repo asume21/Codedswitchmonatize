@@ -56,7 +56,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['F', 'A', 'C'],
       'V': ['G', 'B', 'D'],
       'vi': ['A', 'C', 'E'],
-      'vii°': ['B', 'D', 'F']
+      'vii°': ['B', 'D', 'F'],
+      'VII': ['A#', 'D', 'F']   // bVII borrowed chord (Bb major) — used in reggae, blues, rock
     }
   },
   'G': {
@@ -69,7 +70,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['C', 'E', 'G'],
       'V': ['D', 'F#', 'A'],
       'vi': ['E', 'G', 'B'],
-      'vii°': ['F#', 'A', 'C']
+      'vii°': ['F#', 'A', 'C'],
+      'VII': ['F', 'A', 'C']    // bVII (F major)
     }
   },
   'D': {
@@ -82,7 +84,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['G', 'B', 'D'],
       'V': ['A', 'C#', 'E'],
       'vi': ['B', 'D', 'F#'],
-      'vii°': ['C#', 'E', 'G']
+      'vii°': ['C#', 'E', 'G'],
+      'VII': ['C', 'E', 'G']    // bVII (C major)
     }
   },
   'A': {
@@ -95,7 +98,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['D', 'F#', 'A'],
       'V': ['E', 'G#', 'B'],
       'vi': ['F#', 'A', 'C#'],
-      'vii°': ['G#', 'B', 'D']
+      'vii°': ['G#', 'B', 'D'],
+      'VII': ['G', 'B', 'D']    // bVII (G major)
     }
   },
   'E': {
@@ -108,7 +112,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['A', 'C#', 'E'],
       'V': ['B', 'D#', 'F#'],
       'vi': ['C#', 'E', 'G#'],
-      'vii°': ['D#', 'F#', 'A']
+      'vii°': ['D#', 'F#', 'A'],
+      'VII': ['D', 'F#', 'A']   // bVII (D major)
     }
   },
   'B': {
@@ -121,7 +126,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['E', 'G#', 'B'],
       'V': ['F#', 'A#', 'C#'],
       'vi': ['G#', 'B', 'D#'],
-      'vii°': ['A#', 'C#', 'E']
+      'vii°': ['A#', 'C#', 'E'],
+      'VII': ['A', 'C#', 'E']   // bVII (A major)
     }
   },
   'F#': {
@@ -134,7 +140,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['B', 'D#', 'F#'],
       'V': ['C#', 'E#', 'G#'],
       'vi': ['D#', 'F#', 'A#'],
-      'vii°': ['E#', 'G#', 'B']
+      'vii°': ['E#', 'G#', 'B'],
+      'VII': ['E', 'G#', 'B']   // bVII (E major)
     }
   },
   'C#': {
@@ -147,7 +154,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['F#', 'A#', 'C#'],
       'V': ['G#', 'B#', 'D#'],
       'vi': ['A#', 'C#', 'E#'],
-      'vii°': ['B#', 'D#', 'F#']
+      'vii°': ['B#', 'D#', 'F#'],
+      'VII': ['B', 'D#', 'F#']  // bVII (B major)
     }
   },
   'F': {
@@ -160,7 +168,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['Bb', 'D', 'F'],
       'V': ['C', 'E', 'G'],
       'vi': ['D', 'F', 'A'],
-      'vii°': ['E', 'G', 'Bb']
+      'vii°': ['E', 'G', 'Bb'],
+      'VII': ['D#', 'G', 'A#']  // bVII (Eb major)
     }
   },
   'Bb': {
@@ -173,7 +182,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['Eb', 'G', 'Bb'],
       'V': ['F', 'A', 'C'],
       'vi': ['G', 'Bb', 'D'],
-      'vii°': ['A', 'C', 'Eb']
+      'vii°': ['A', 'C', 'Eb'],
+      'VII': ['G#', 'C', 'D#']  // bVII (Ab major)
     }
   },
   'Eb': {
@@ -186,7 +196,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['Ab', 'C', 'Eb'],
       'V': ['Bb', 'D', 'F'],
       'vi': ['C', 'Eb', 'G'],
-      'vii°': ['D', 'F', 'Ab']
+      'vii°': ['D', 'F', 'Ab'],
+      'VII': ['C#', 'F', 'G#']  // bVII (Db major)
     }
   },
   'Ab': {
@@ -199,7 +210,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['Db', 'F', 'Ab'],
       'V': ['Eb', 'G', 'Bb'],
       'vi': ['F', 'Ab', 'C'],
-      'vii°': ['G', 'Bb', 'Db']
+      'vii°': ['G', 'Bb', 'Db'],
+      'VII': ['F#', 'A#', 'C#'] // bVII (Gb major)
     }
   },
   'Db': {
@@ -212,7 +224,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['Gb', 'Bb', 'Db'],
       'V': ['Ab', 'C', 'Eb'],
       'vi': ['Bb', 'Db', 'F'],
-      'vii°': ['C', 'Eb', 'Gb']
+      'vii°': ['C', 'Eb', 'Gb'],
+      'VII': ['B', 'D#', 'F#']  // bVII (Cb/B major)
     }
   },
   'Gb': {
@@ -225,7 +238,8 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['Cb', 'Eb', 'Gb'],
       'V': ['Db', 'F', 'Ab'],
       'vi': ['Eb', 'Gb', 'Bb'],
-      'vii°': ['F', 'Ab', 'Cb']
+      'vii°': ['F', 'Ab', 'Cb'],
+      'VII': ['E', 'G#', 'B']   // bVII (Fb/E major)
     }
   },
   'Cb': {
@@ -238,7 +252,61 @@ export const DEFAULT_customKeys: Record<string, KeyData> = {
       'IV': ['Fb', 'Ab', 'Cb'],
       'V': ['Gb', 'Bb', 'Db'],
       'vi': ['Ab', 'Cb', 'Eb'],
-      'vii°': ['Bb', 'Db', 'Fb']
+      'vii°': ['Bb', 'Db', 'Fb'],
+      'VII': ['A#', 'D', 'F']   // bVII (Bbb/Bb major)
+    }
+  },
+  // ── Natural minor keys ───────────────────────────────────────────────
+  'Am': {
+    name: 'A Minor',
+    notes: ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+    chords: {
+      'i': ['A', 'C', 'E'],
+      'iio': ['B', 'D', 'F'],
+      'III': ['C', 'E', 'G'],
+      'iv': ['D', 'F', 'A'],
+      'v': ['E', 'G', 'B'],
+      'VI': ['F', 'A', 'C'],
+      'VII': ['G', 'B', 'D'],
+      // Major aliases for progressions that mix major/minor symbols
+      'I': ['A', 'C', 'E'],
+      'IV': ['D', 'F', 'A'],
+      'V': ['E', 'G', 'B'],
+      'vi': ['F', 'A', 'C']
+    }
+  },
+  'Em': {
+    name: 'E Minor',
+    notes: ['E', 'F#', 'G', 'A', 'B', 'C', 'D'],
+    chords: {
+      'i': ['E', 'G', 'B'],
+      'iio': ['F#', 'A', 'C'],
+      'III': ['G', 'B', 'D'],
+      'iv': ['A', 'C', 'E'],
+      'v': ['B', 'D', 'F#'],
+      'VI': ['C', 'E', 'G'],
+      'VII': ['D', 'F#', 'A'],
+      'I': ['E', 'G', 'B'],
+      'IV': ['A', 'C', 'E'],
+      'V': ['B', 'D', 'F#'],
+      'vi': ['C', 'E', 'G']
+    }
+  },
+  'Dm': {
+    name: 'D Minor',
+    notes: ['D', 'E', 'F', 'G', 'A', 'Bb', 'C'],
+    chords: {
+      'i': ['D', 'F', 'A'],
+      'iio': ['E', 'G', 'Bb'],
+      'III': ['F', 'A', 'C'],
+      'iv': ['G', 'Bb', 'D'],
+      'v': ['A', 'C', 'E'],
+      'VI': ['Bb', 'D', 'F'],
+      'VII': ['C', 'E', 'G'],
+      'I': ['D', 'F', 'A'],
+      'IV': ['G', 'Bb', 'D'],
+      'V': ['A', 'C', 'E'],
+      'vi': ['Bb', 'D', 'F']
     }
   },
   'G#': {

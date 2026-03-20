@@ -594,6 +594,9 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   const audioCtx = useRef<AudioContext | null>(null);
   const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Drift compensation: track when the scheduling effect last ran so we can
+  // subtract elapsed React/render time from the next step's delay.
+  const lastScheduleRef = useRef<number | null>(null);
 
   useEffect(() => {
     audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -715,10 +718,19 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   }, [masterVol, useRealisticDrums, selectedKit]);
 
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying) {
+      lastScheduleRef.current = null;
+      return;
+    }
     const baseMs = (60 / bpm / 4) * 1000;
     const ms = currentStep % 2 === 1 && swing > 0 ? baseMs + baseMs * swing / 100 * 0.33 : baseMs;
-    
+
+    // Drift compensation: subtract time already elapsed since last schedule
+    const now = performance.now();
+    const alreadyElapsed = lastScheduleRef.current !== null ? (now - lastScheduleRef.current) : 0;
+    lastScheduleRef.current = now;
+    const adjustedMs = Math.max(1, ms - alreadyElapsed);
+
     intervalRef.current = setTimeout(() => {
       const hasSolo = tracks.some(t => t.solo);
       tracks.forEach(track => {
@@ -745,7 +757,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         }
       });
       setCurrentStep(s => (s + 1) % patternLength);
-    }, ms);
+    }, adjustedMs);
     
     return () => { if (intervalRef.current) clearTimeout(intervalRef.current); };
   }, [isPlaying, currentStep, tracks, bpm, swing, groove, patternLength, playSound]);
@@ -1127,15 +1139,15 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
     toast({ title: 'MIDI Command Captured', description: `${MIDI_NOTE_NAMES[lastNote.note]} mapped to ${midiLearnTarget}` });
   }, [lastNote, midiLearnMode, midiLearnTarget, toast]);
 
-  // MIDI trigger logic
+  // MIDI trigger logic — only active when Beat Lab tab is the foreground view
   useEffect(() => {
-    if (!lastNote || midiLearnMode) return;
+    if (!lastNote || midiLearnMode || !isActive) return;
     const drumId = midiDrumMapping[lastNote.note];
     if (drumId) {
       const matchingTrack = tracks.find(t => t.id === drumId);
       playSound(drumId, lastNote.velocity, matchingTrack?.volume ?? 80);
     }
-  }, [lastNote, midiDrumMapping, midiLearnMode, playSound, tracks]);
+  }, [lastNote, midiDrumMapping, midiLearnMode, isActive, playSound, tracks]);
 
   return (
     <Card className="bg-white/5 border-white/10 backdrop-blur-xl rounded-3xl relative overflow-hidden shadow-2xl group p-6">
