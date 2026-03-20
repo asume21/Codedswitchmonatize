@@ -571,7 +571,7 @@ export default function UnifiedStudioWorkspace() {
   const [pianoRollExpanded, setPianoRollExpanded] = useState(false);
   const [lyricsExpanded, setLyricsExpanded] = useState(false);
   const [mixerExpanded, setMixerExpanded] = useState(false);
-  const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [timelineExpanded, setTimelineExpanded] = useState(true);
   const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
   const [showSampleBrowser, setShowSampleBrowser] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
@@ -2222,6 +2222,8 @@ export default function UnifiedStudioWorkspace() {
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
+    setActiveView('arrangement');
+    setTimelineExpanded(true);
     toast({ title: "MIDI Track Created", description: newTrack.name });
   };
 
@@ -2248,6 +2250,8 @@ export default function UnifiedStudioWorkspace() {
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
+    setActiveView('arrangement');
+    setTimelineExpanded(true);
     toast({ title: "Audio Track Created", description: newTrack.name });
   };
 
@@ -2274,6 +2278,8 @@ export default function UnifiedStudioWorkspace() {
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
+    setActiveView('arrangement');
+    setTimelineExpanded(true);
     toast({ title: "Instrument Track Created", description: newTrack.name });
   };
 
@@ -2300,6 +2306,8 @@ export default function UnifiedStudioWorkspace() {
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
+    setActiveView('arrangement');
+    setTimelineExpanded(true);
     toast({ title: "Return Track Created", description: newTrack.name });
   };
 
@@ -2350,6 +2358,8 @@ export default function UnifiedStudioWorkspace() {
     if (selectedTrack) {
       setTracks(prev => prev.map(t => t.id === selectedTrack ? { ...t, data: { ...(t.data ?? {}), sends: [...((t.data as any)?.sends ?? []), { targetId: sendTrack.id, level: 0.5 }] } } : t));
     }
+    setActiveView('arrangement');
+    setTimelineExpanded(true);
     toast({ title: "Send Created", description: sendTrack.name });
   };
 
@@ -2375,6 +2385,8 @@ export default function UnifiedStudioWorkspace() {
       sendB: -60,
     };
     setTracks([...tracks, busTrack]);
+    setActiveView('arrangement');
+    setTimelineExpanded(true);
     toast({ title: "Bus Created", description: busTrack.name });
   };
 
@@ -2957,75 +2969,75 @@ export default function UnifiedStudioWorkspace() {
                   <span>{activeView === 'arrangement' ? '✓' : '  '} Arrangement</span>
                   <span className="text-xs text-cyan-400">F1</span>
                 </button>
-                <button onClick={() => setActiveView('beat-lab')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('beat-lab'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'beat-lab' ? '✓' : '  '} Beat Lab</span>
                   <span className="text-xs text-cyan-400">F2</span>
                 </button>
-                <button onClick={() => setActiveView('piano-roll')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('piano-roll'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'piano-roll' ? '✓' : '  '} Piano Roll</span>
                   <span className="text-xs text-cyan-400">F3</span>
                 </button>
-                <button onClick={() => setActiveView('mixer')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('mixer'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'mixer' ? '✓' : '  '} Mixer</span>
                   <span className="text-xs text-cyan-400">F4</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={() => setActiveView('ai-studio')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('ai-studio'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'ai-studio' ? '✓' : '  '} AI Studio</span>
                   <span className="text-xs text-cyan-400">F5</span>
                 </button>
-                <button onClick={() => setActiveView('code-to-music')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item" data-testid="tab-code-to-music">
+                <button onClick={menuAction(() => setActiveView('code-to-music'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item" data-testid="tab-code-to-music">
                   <span>{activeView === 'code-to-music' ? '✓' : '  '} Code to Music</span>
                   <span className="text-xs text-cyan-400">F6</span>
                 </button>
-                <button onClick={() => setActiveView('lyrics')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('lyrics'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'lyrics' ? '✓' : '  '} Lyrics</span>
                   <span className="text-xs text-cyan-400">F7</span>
                 </button>
-                <button onClick={() => setActiveView('audio-tools')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('audio-tools'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'audio-tools' ? '✓' : '  '} Audio Tools</span>
                   <span className="text-xs text-cyan-400">F8</span>
                 </button>
-                <button onClick={() => setActiveView('song-uploader')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('song-uploader'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'song-uploader' ? '✓' : '  '} Upload</span>
                   <span className="text-xs text-cyan-400">F9</span>
                 </button>
-                <button onClick={() => setActiveView('organism')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setActiveView('organism'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'organism' ? '✓' : '  '} Organism</span>
                   <span className="text-xs text-cyan-400">F10</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={() => setInstrumentsExpanded(!instrumentsExpanded)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setInstrumentsExpanded(!instrumentsExpanded))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{instrumentsExpanded ? '✓' : '  '} Instrument Library</span>
                   <span className="text-xs text-cyan-400">Ctrl+1</span>
                 </button>
-                <button onClick={() => { setShowSampleBrowser(!showSampleBrowser); toast({ title: showSampleBrowser ? "Sample Browser Hidden" : "Sample Browser Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => { setShowSampleBrowser(!showSampleBrowser); toast({ title: showSampleBrowser ? "Sample Browser Hidden" : "Sample Browser Shown" }); })} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{showSampleBrowser ? '✓' : '  '} Sample Browser</span>
                   <span className="text-xs text-cyan-400">Ctrl+2</span>
                 </button>
-                <button onClick={() => { setShowInspector(!showInspector); toast({ title: showInspector ? "Inspector Hidden" : "Inspector Shown" }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => { setShowInspector(!showInspector); toast({ title: showInspector ? "Inspector Hidden" : "Inspector Shown" }); })} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{showInspector ? '✓' : '  '} Inspector</span>
                   <span className="text-xs text-cyan-400">Ctrl+3</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleZoomIn} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleZoomIn)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Zoom In</span>
                   <span className="text-xs text-cyan-400">Ctrl++</span>
                 </button>
-                <button onClick={handleZoomOut} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleZoomOut)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Zoom Out</span>
                   <span className="text-xs text-cyan-400">Ctrl+-</span>
                 </button>
-                <button onClick={handleZoomToFit} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleZoomToFit)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Zoom to Fit</span>
                   <span className="text-xs text-cyan-400">Ctrl+0</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleToggleFullScreen} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleToggleFullScreen)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Full Screen</span>
                   <span className="text-xs text-cyan-400">F11</span>
                 </button>
-                <button onClick={() => { setFocusModeEnabled(!focusModeEnabled); toast({ title: focusModeEnabled ? "Focus Mode Off" : "Focus Mode On", description: focusModeEnabled ? "UI elements restored" : "Distraction-free mode enabled" }); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => { setFocusModeEnabled(!focusModeEnabled); toast({ title: focusModeEnabled ? "Focus Mode Off" : "Focus Mode On", description: focusModeEnabled ? "UI elements restored" : "Distraction-free mode enabled" }); })} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{focusModeEnabled ? '✓' : '  '} Focus Mode</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+F</span>
                 </button>
@@ -3042,39 +3054,39 @@ export default function UnifiedStudioWorkspace() {
                   <span>New MIDI Track</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+T</span>
                 </button>
-                <button onClick={handleNewAudioTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleNewAudioTrack)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>New Audio Track</span>
                   <span className="text-xs text-cyan-400">Ctrl+T</span>
                 </button>
-                <button onClick={handleNewInstrumentTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleNewInstrumentTrack)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Instrument Track
                 </button>
-                <button onClick={handleNewReturnTrack} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleNewReturnTrack)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Return Track
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={() => handleInsertEffect('EQ', 'audio')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => handleInsertEffect('EQ', 'audio'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Insert Audio Effect...
                 </button>
-                <button onClick={() => handleInsertEffect('Compressor', 'midi')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => handleInsertEffect('Compressor', 'midi'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Insert MIDI Effect...
                 </button>
-                <button onClick={() => handleInsertEffect('Reverb', 'midi')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => handleInsertEffect('Reverb', 'midi'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Insert Instrument...
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleNewSend} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleNewSend)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Send
                 </button>
-                <button onClick={handleNewBus} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleNewBus)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   New Bus
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={() => handleInsertClip('Empty Clip')} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => handleInsertClip('Empty Clip'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Empty Clip</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+M</span>
                 </button>
-                <button onClick={() => handleInsertClip('Recording Clip', true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => handleInsertClip('Recording Clip', true))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Recording Clip
                 </button>
               </div>
@@ -3086,54 +3098,54 @@ export default function UnifiedStudioWorkspace() {
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'arrange' ? null : 'arrange')}>Arrange ▼</Button>
               {openMenu === 'arrange' && (
               <div className="absolute top-full left-0 bg-black/90 backdrop-blur-md border border-cyan-500/40 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] w-56 z-[9999] astutely-panel">
-                <button onClick={() => { setTimeDialogMode('insert'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => { setTimeDialogMode('insert'); setShowInsertTimeDialog(true); })} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Insert Time...</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+I</span>
                 </button>
-                <button onClick={() => { setTimeDialogMode('delete'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => { setTimeDialogMode('delete'); setShowInsertTimeDialog(true); })} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Delete Time...</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+Del</span>
                 </button>
-                <button onClick={() => { setTimeDialogMode('duplicate'); setShowInsertTimeDialog(true); }} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => { setTimeDialogMode('duplicate'); setShowInsertTimeDialog(true); })} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Duplicate Time...</span>
                   <span className="text-xs text-cyan-400">Ctrl+Shift+D</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={handleLoopSelection} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleLoopSelection)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Loop Selection</span>
                   <span className="text-xs text-cyan-400">Ctrl+L</span>
                 </button>
-                <button onClick={() => handleSetLoopLength(4)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => handleSetLoopLength(4))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Set Loop Length...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleAddMarker} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleAddMarker)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Add Marker</span>
                   <span className="text-xs text-cyan-400">M</span>
                 </button>
-                <button onClick={() => setShowMarkerListDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setShowMarkerListDialog(true))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Marker List...
                 </button>
                 <div className="border-t border-gray-700 my-1"></div>
-                <button onClick={handleSnapToGrid} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleSnapToGrid)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{snapToGridEnabled ? '✓' : '  '} Snap to Grid</span>
                   <span className="text-xs text-cyan-400">Ctrl+G</span>
                 </button>
-                <button onClick={handleToggleGrid} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(handleToggleGrid)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{showGrid ? '✓' : '  '} Show Grid</span>
                   <span className="text-xs text-cyan-400">G</span>
                 </button>
-                <button onClick={() => setShowGridSettingsDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setShowGridSettingsDialog(true))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Grid Settings...
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={() => setShowTempoMapDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setShowTempoMapDialog(true))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Tempo Map...
                 </button>
-                <button onClick={() => setShowTimeSignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setShowTimeSignatureDialog(true))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Time Signature...
                 </button>
-                <button onClick={() => setShowKeySignatureDialog(true)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setShowKeySignatureDialog(true))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer bg-transparent border-none text-cyan-100 astutely-menu-item">
                   Key Signature...
                 </button>
               </div>

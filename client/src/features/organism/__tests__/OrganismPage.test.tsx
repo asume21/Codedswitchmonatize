@@ -30,6 +30,11 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     isRunning: false,
     isCapturing: false,
     error: null,
+    transcription: null,
+    transcriptionEnabled: false,
+    setTranscriptionEnabled: vi.fn(),
+    copyLyrics: vi.fn().mockResolvedValue(false),
+    exportLyrics: vi.fn(),
     ...overrides,
   }
 }

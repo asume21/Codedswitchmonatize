@@ -386,9 +386,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const toastRef = useRef(toast);
   toastRef.current = toast;
 
-  // 🎹 MIDI RECORDING - Capture notes from MIDI controller when recording
+  // 🎹 MIDI RECORDING - Capture notes from MIDI controller at the current playhead position
   useEffect(() => {
-    if (!midiLastNote || !isRecording) return;
+    if (!midiLastNote || !isRecording || !isPlaying) return;
     
     const { note: midiNote, velocity } = midiLastNote;
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -396,25 +396,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const noteIndex = midiNote % 12;
     const noteName = noteNames[noteIndex];
     
-    const now = Date.now();
-    
-    // Start timer on first note
-    let actualStartTime = recordingStartTime;
-    if (actualStartTime === 0) {
-      actualStartTime = now;
-      setRecordingStartTime(now);
-      toast({
-        title: "🎵 MIDI Recording Started!",
-        description: "Timer started - keep playing!",
-        duration: 1500,
-      });
-    }
-    
-    // Calculate step position based on elapsed time
-    const elapsedMs = now - actualStartTime;
-    const msPerBeat = 60000 / bpm;
-    const msPerStep = msPerBeat / 4; // 16th notes
-    const step = Math.round(elapsedMs / msPerStep);
+    // Use the current playhead position — the playhead is already running
+    const step = currentStep % patternSteps;
     
     const newNote: Note = {
       id: `midi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -426,10 +409,19 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     };
     
     recordingNotesRef.current.push(newNote);
-    setCurrentStep(step);
+    
+    // Live-add to the track so the note appears immediately on the grid
+    setTracks(prev => prev.map((track, idx) =>
+      idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
+    ));
+    
+    // Play the sound through the audio engine
+    const instrument = selectedTrack?.instrument || 'piano';
+    const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
+    realisticAudio.playNote(noteName, octave, 0.3, instrument, (velocity / 127) * 0.8, true, channel?.input);
     
     console.log(`🎹 MIDI Recorded: ${noteName}${octave} at step ${step}`);
-  }, [midiLastNote, isRecording, recordingStartTime, bpm, toast]);
+  }, [midiLastNote, isRecording, isPlaying, currentStep, patternSteps, selectedTrackIndex, selectedTrack]);
 
   // 🔄 Listen for loop loading from Loop Library
   useEffect(() => {
@@ -840,48 +832,35 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // 🎙️ RECORDING CONTROLS
   const startRecording = useCallback(() => {
     setIsRecording(true);
-    setRecordingStartTime(0); // Will be set on first note!
+    setRecordingStartTime(Date.now());
     recordingNotesRef.current = [];
+    // Start the playhead from the beginning so notes land on the grid
     setCurrentStep(0);
+    if (!isPlaying) {
+      handlePlay();
+    }
     toast({
-      title: "🔴 Recording Armed",
-      description: "Play your first note to start - timing begins when you play!",
+      title: "🔴 Recording",
+      description: "Playhead running — play your MIDI keyboard or click piano keys!",
     });
-  }, [toast]);
+  }, [toast, isPlaying, handlePlay]);
 
   const stopRecording = useCallback(() => {
     setIsRecording(false);
     
-    // CRITICAL: Store notes in local variable BEFORE clearing ref!
-    const recordedNotes = [...recordingNotesRef.current];
-    console.log('🎵 Stopping recording with notes:', recordedNotes);
+    // Stop the playhead
+    handleStop();
     
-    // Clear the ref immediately
+    // Notes were already live-added to the track via handlePianoKeyPlay / MIDI effect,
+    // so we just report count and reset the buffer.
+    const recordedCount = recordingNotesRef.current.length;
+    console.log('🎵 Recording stopped. Notes captured:', recordedCount);
     recordingNotesRef.current = [];
     
-    // 🔄 RETURN TO BEGINNING when recording stops
-    setCurrentStep(0);
-    
-    // Add all recorded notes to the track
-    if (recordedNotes.length > 0) {
-      setTracks(prev => {
-        const newTracks = prev.map((track, index) => {
-          if (index === selectedTrackIndex) {
-            const updatedTrack = { 
-              ...track, 
-              notes: [...track.notes, ...recordedNotes] 
-            };
-            console.log('✅ Updated track:', updatedTrack.name, 'Total notes:', updatedTrack.notes.length);
-            return updatedTrack;
-          }
-          return track;
-        });
-        return newTracks;
-      });
-      
+    if (recordedCount > 0) {
       toast({
         title: "✅ Recording Saved",
-        description: `${recordedNotes.length} notes added to track! Press PLAY to hear it back.`,
+        description: `${recordedCount} notes added to track! Press PLAY to hear it back.`,
       });
     } else {
       toast({
@@ -890,7 +869,16 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         variant: "default"
       });
     }
-  }, [selectedTrackIndex, toast]);
+  }, [handleStop, toast]);
+
+  // Toggle function for the Record button
+  const handleRecord = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
 
   // 🔄 RETURN TO BEGINNING button
   const goToBeginning = useCallback(() => {
@@ -1832,28 +1820,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     toast({ title: 'Notes Sliced', description: `Split ${notesToSlice.length} note(s) at step ${sliceStep}` });
   }, [currentStep, selectedTrack, selectedTrackIndex, addToHistory, toast]);
 
-  // RECORDING MODE FUNCTION
-  const toggleRecording = useCallback(() => {
-    if (isRecording) {
-      // Stop recording
-      setIsRecording(false);
-      toast({ 
-        title: '⏹️ Recording Stopped', 
-        description: `Captured ${recordingNotesRef.current.length} notes`,
-        duration: 2000 
-      });
-    } else {
-      // Start recording
-      setIsRecording(true);
-      recordingNotesRef.current = [];
-      setRecordingStartTime(Date.now());
-      toast({ 
-        title: '🔴 Recording Started', 
-        description: 'Play notes on your keyboard or click the piano keys',
-        duration: 2000 
-      });
-    }
-  }, [isRecording, toast]);
+  // RECORDING MODE FUNCTION — delegates to handleRecord which starts playhead + arms
+  const toggleRecording = handleRecord;
 
   // LOOP PLAYBACK FUNCTION
   const toggleLoop = useCallback(() => {
@@ -2494,8 +2462,10 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       bpm={bpm}
       metronomeEnabled={metronomeEnabled}
       countInEnabled={countInEnabled}
+      isRecording={isRecording}
       onPlay={handlePlay}
       onStop={handleStop}
+      onRecord={handleRecord}
       onClear={clearAll}
       onGoToBeginning={goToBeginning}
       onToggleChordMode={() => setChordMode(!chordMode)}
@@ -2505,7 +2475,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       chordMode={chordMode}
       draggable={true}
     />
-  ), [isPlaying, bpm, metronomeEnabled, countInEnabled, handlePlay, handleStop, clearAll, goToBeginning, chordMode]);
+  ), [isPlaying, bpm, metronomeEnabled, countInEnabled, isRecording, handlePlay, handleStop, handleRecord, clearAll, goToBeginning, chordMode]);
 
   const keyScaleSelector = useMemo(() => (
     <KeyScaleSelector
@@ -2604,6 +2574,14 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
+            {isRecording && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-red-600/20 border border-red-500/60 animate-pulse">
+                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                <span className="text-[10px] font-black tracking-widest uppercase text-red-400">
+                  REC {midiConnected ? '• MIDI' : '• Keys'}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-cyan-500/30">
               <div className={cn("w-2 h-2 rounded-full", isPlaying ? "bg-cyan-500 animate-pulse shadow-glow-cyan" : "bg-cyan-950")} />
               <span className="text-[10px] font-black tabular-nums tracking-widest uppercase">
