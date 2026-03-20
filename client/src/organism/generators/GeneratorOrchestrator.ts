@@ -176,7 +176,7 @@ export class GeneratorOrchestrator {
     }
 
     // Thinning: if density requests thinning, tell texture generator
-    if (physics.density > 0.85) {
+    if (physics.density > 0.78) {
       this.texture.setThinning(true)
     } else {
       this.texture.setThinning(false)

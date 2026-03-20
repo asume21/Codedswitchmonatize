@@ -36,17 +36,17 @@ export function getMelodyBehavior(
   voiceActive: boolean,
   flowDepth: number,
 ): MelodyBehavior {
-  // While voice is active with low flow depth, melody rests
-  if (voiceActive && flowDepth < 0.3) return MelodyBehavior.Rest
+  // While voice is active with very low flow depth, melody rests
+  if (voiceActive && flowDepth < 0.15) return MelodyBehavior.Rest
 
-  // Voice active with high flow depth → hint (gentle accompaniment)
+  // Voice active → hint (gentle accompaniment)
   if (voiceActive) return MelodyBehavior.Hint
 
   // No voice, moderate flow → respond
-  if (flowDepth >= 0.3 && flowDepth < 0.7) return MelodyBehavior.Respond
+  if (flowDepth >= 0.2 && flowDepth < 0.5) return MelodyBehavior.Respond
 
   // No voice, deep flow → lead
-  if (flowDepth >= 0.7) return MelodyBehavior.Lead
+  if (flowDepth >= 0.5) return MelodyBehavior.Lead
 
   // Default: rest
   return MelodyBehavior.Rest

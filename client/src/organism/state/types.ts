@@ -69,18 +69,18 @@ export interface StateMachineConfig {
 }
 
 export const DEFAULT_STATE_MACHINE_CONFIG: StateMachineConfig = {
-  voiceOnsetRmsThreshold:   0.02,
-  pulseConfidenceThreshold:  0.4,
-  syllabicDensityThreshold: 1.5,
-  cadenceLockBarsRequired:  2,
-  awakeningToSilenceMs:     8000,
-  breathingToAwakeningMs:   4000,
-  breathingToDormantMs:     30000,
-  flowToBreathingMs:        4000,
-  flowToDormantMs:          30000,
-  awakeningMinBars:         2,
-  awakeningMaxBars:         4,
-  syllabicDensityWindowBars: 2,
+  voiceOnsetRmsThreshold:   0.015,
+  pulseConfidenceThreshold:  0.35,
+  syllabicDensityThreshold: 1.0,
+  cadenceLockBarsRequired:  1.2,
+  awakeningToSilenceMs:     12000,
+  breathingToAwakeningMs:   6000,
+  breathingToDormantMs:     45000,
+  flowToBreathingMs:        3000,
+  flowToDormantMs:          45000,
+  awakeningMinBars:         1.5,
+  awakeningMaxBars:         3,
+  syllabicDensityWindowBars: 3,
 }
 
 export type OrganismStateCallback    = (state: OrganismState)    => void

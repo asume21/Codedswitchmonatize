@@ -44,9 +44,9 @@ export class TextureGenerator extends GeneratorBase {
 
     // Target level based on state + density thinning
     let targetLevel = this.computeTargetLevel(organism)
-    if (this.thinningActive) targetLevel *= 0.3   // organism breathing out
+    if (this.thinningActive) targetLevel *= 0.4   // organism breathing out
 
-    this.activityLevel += this.smoothingCoeff(200) * (targetLevel - this.activityLevel)
+    this.activityLevel += this.smoothingCoeff(130) * (targetLevel - this.activityLevel)
 
     // Apply gain (texture is always soft — max -12 dB)
     const db = this.activityLevel <= 0
@@ -89,9 +89,9 @@ export class TextureGenerator extends GeneratorBase {
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
       case OState.Dormant:    return 0
-      case OState.Awakening:  return 0.05 * organism.awakeningProgress
-      case OState.Breathing:  return 0.40 * organism.breathingWarmth
-      case OState.Flow:       return 0.65 + (0.20 * organism.flowDepth)
+      case OState.Awakening:  return 0.10 * organism.awakeningProgress
+      case OState.Breathing:  return 0.50 * organism.breathingWarmth
+      case OState.Flow:       return 0.70 + (0.25 * organism.flowDepth)
     }
   }
 }

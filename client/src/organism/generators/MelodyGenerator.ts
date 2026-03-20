@@ -71,7 +71,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     // Output level
     const targetLevel = this.computeTargetLevel(organism, newBehavior)
-    this.activityLevel += this.smoothingCoeff(150) * (targetLevel - this.activityLevel)
+    this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
   }
 
@@ -119,9 +119,9 @@ export class MelodyGenerator extends GeneratorBase {
     if (behavior === MelodyBehavior.Rest)       return 0
 
     switch (behavior) {
-      case MelodyBehavior.Hint:    return 0.25 * organism.breathingWarmth
-      case MelodyBehavior.Respond: return 0.55 * organism.flowDepth
-      case MelodyBehavior.Lead:    return 0.70 * organism.flowDepth
+      case MelodyBehavior.Hint:    return 0.35 * organism.breathingWarmth
+      case MelodyBehavior.Respond: return 0.60 + (0.15 * organism.flowDepth)
+      case MelodyBehavior.Lead:    return 0.75 + (0.20 * organism.flowDepth)
       default:                     return 0
     }
   }
@@ -141,7 +141,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       // Presence-based velocity scaling — melody quiets during voice peaks
-      const presenceDuck = Math.max(0.2, 1 - this.currentPresence * 0.7)
+      const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
       this.synth.triggerAttackRelease(
         event.note,
         event.dur,

@@ -150,7 +150,7 @@ export class StateMachine {
         this.config.cadenceLockBarsRequired + 1
       )
     } else {
-      this.state.cadenceLockBars = Math.max(0, this.state.cadenceLockBars - 0.01)
+      this.state.cadenceLockBars = Math.max(0, this.state.cadenceLockBars - 0.005)
     }
 
   }
@@ -179,11 +179,11 @@ export class StateMachine {
     }
 
     if (this.state.current === OState.Breathing || this.state.current === OState.Flow) {
-      this.state.breathingWarmth = Math.min(1, this.state.breathingWarmth + 0.001)
+      this.state.breathingWarmth = Math.min(1, this.state.breathingWarmth + 0.003)
     }
 
     if (this.state.current === OState.Flow) {
-      this.state.flowDepth = Math.min(1, this.state.flowDepth + 0.0005)
+      this.state.flowDepth = Math.min(1, this.state.flowDepth + 0.002)
     }
   }
 

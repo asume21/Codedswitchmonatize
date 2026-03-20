@@ -74,7 +74,7 @@ export class DrumGenerator extends GeneratorBase {
     this.currentPocket   = physics.pocket
 
     const targetLevel = this.computeTargetLevel(organism)
-    this.activityLevel += this.smoothingCoeff(120) * (targetLevel - this.activityLevel)
+    this.activityLevel += this.smoothingCoeff(80) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
   }
 
@@ -121,9 +121,9 @@ export class DrumGenerator extends GeneratorBase {
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
       case OState.Dormant:   return 0
-      case OState.Awakening: return 0.15 * organism.awakeningProgress
-      case OState.Breathing: return 0.55 * organism.breathingWarmth
-      case OState.Flow:      return 0.85
+      case OState.Awakening: return 0.25 * organism.awakeningProgress
+      case OState.Breathing: return 0.65 * organism.breathingWarmth
+      case OState.Flow:      return 0.92
     }
   }
 
@@ -151,12 +151,12 @@ export class DrumGenerator extends GeneratorBase {
 
     // Bounce → boost kick + reactive multiplier
     if (instrument === DrumInstrument.Kick) {
-      vel *= (1 + this.currentBounce * 0.3) * this.kickVelocityMult
+      vel *= (1 + this.currentBounce * 0.5) * this.kickVelocityMult
     }
 
     // Pocket → duck hats during voice presence + reactive density multiplier
     if (instrument === DrumInstrument.Hat) {
-      vel *= Math.max(0.2, 1 - this.currentPresence * 0.6) * this.hatDensityMult
+      vel *= Math.max(0.3, 1 - this.currentPresence * 0.4) * this.hatDensityMult
     }
 
     return Math.min(1, Math.max(0, vel))

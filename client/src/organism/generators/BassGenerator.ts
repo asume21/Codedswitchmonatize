@@ -69,7 +69,7 @@ export class BassGenerator extends GeneratorBase {
 
     // Output level
     const targetLevel = this.computeTargetLevel(organism)
-    this.activityLevel += this.smoothingCoeff(150) * (targetLevel - this.activityLevel)
+    this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
   }
 
@@ -117,9 +117,9 @@ export class BassGenerator extends GeneratorBase {
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
       case OState.Dormant:   return 0
-      case OState.Awakening: return 0.05 * organism.awakeningProgress
-      case OState.Breathing: return 0.50 * organism.breathingWarmth
-      case OState.Flow:      return 0.75 + (0.15 * organism.flowDepth)
+      case OState.Awakening: return 0.12 * organism.awakeningProgress
+      case OState.Breathing: return 0.60 * organism.breathingWarmth
+      case OState.Flow:      return 0.80 + (0.18 * organism.flowDepth)
     }
   }
 
@@ -138,7 +138,7 @@ export class BassGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       // Apply pocket ducking dynamically at trigger time
-      const pocketVelocity = event.vel * Math.max(0.3, 1 - this.currentPocket * 0.6)
+      const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
       this.synth.triggerAttackRelease(event.note, event.dur, time, pocketVelocity)
     }, events)
 

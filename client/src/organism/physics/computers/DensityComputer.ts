@@ -8,8 +8,8 @@ export class DensityComputer {
   private smoothed:      number   = 0
 
   private highDensityFrameCount: number = 0
-  private readonly highDensityThreshold  = 0.85
-  private readonly highDensityFrameLimit = 172
+  private readonly highDensityThreshold  = 0.78
+  private readonly highDensityFrameLimit = 96
 
   constructor(windowFrames: number, smoothing: number) {
     this.windowFrames = windowFrames

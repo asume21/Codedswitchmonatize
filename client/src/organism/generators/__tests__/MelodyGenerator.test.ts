@@ -51,8 +51,8 @@ describe('MelodyGenerator', () => {
     expect(mockPartStart).not.toHaveBeenCalled()
   })
 
-  it('voiceActive=false, flowDepth=0.6 → behavior = Respond', () => {
-    const behavior = getMelodyBehavior(OrganismMode.Glow, false, 0.6)
+  it('voiceActive=false, flowDepth=0.35 → behavior = Respond', () => {
+    const behavior = getMelodyBehavior(OrganismMode.Glow, false, 0.35)
     expect(behavior).toBe(MelodyBehavior.Respond)
   })
 
