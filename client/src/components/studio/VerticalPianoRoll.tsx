@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { 
-  Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1, X, Volume2, FolderOpen, Sliders, Drum, Piano, Waves, Mic2, Sparkles, Download, Square, RotateCcw, VolumeX, Headphones, Settings, BarChart3, TrendingUp, Radio, FileMusic, Filter
+  Music, Link2, Link2Off, Info, Play, Pause, RotateCw, GripVertical, Plus, Trash2, Circle, Repeat, Wand2, Send, Zap, Undo2, Redo2, Copy, Clipboard, Scissors, ArrowUp, ArrowDown, Grid3X3, Magnet, Eye, EyeOff, Shuffle, MousePointer2, Pencil, Eraser, ZoomIn, ZoomOut, Layers, Guitar, Link, SplitSquareVertical, Repeat1, X, Volume2, FolderOpen, Sliders, Drum, Piano, Waves, Mic2, Sparkles, Download, Square, RotateCcw, VolumeX, Headphones, Settings, BarChart3, TrendingUp, Radio, FileMusic, Filter, Plug2, Activity
 } from "lucide-react";
 import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
@@ -314,6 +314,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const [mixerPanelOpen, setMixerPanelOpen] = useState(false);
   const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
   const [inspectorPanelOpen, setInspectorPanelOpen] = useState(false);
+  const [showMidiPanel, setShowMidiPanel] = useState(false);
+  const [midiChannel, setMidiChannel] = useState<number>(0); // 0 = all channels
   
   // ISSUE #1: Pattern save/load state
   const [savedPatterns, setSavedPatterns] = useState<Array<{id: string; name: string; tracks: Track[]; bpm: number; key: string}>>(() => {
@@ -467,6 +469,22 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       };
     }));
   }, [midiLastNoteOff, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex]);
+
+  // 🎹 MIDI LIVE PREVIEW — play instrument sound immediately on every MIDI key press
+  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  useEffect(() => {
+    if (!midiLastNote) return;
+    const { note: midiNote, velocity } = midiLastNote;
+    const octave = Math.floor(midiNote / 12) - 1;
+    const noteName = noteNames[midiNote % 12];
+    const instrument = selectedTrack?.instrument || 'piano';
+    realisticAudio.playNote(noteName, octave, velocity / 127, instrument, 0.8);
+  }, [midiLastNote]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update MIDI channel setting when changed
+  useEffect(() => {
+    updateMIDISettings({ activeChannel: midiChannel });
+  }, [midiChannel, updateMIDISettings]);
 
   // 🔄 Listen for loop loading from Loop Library
   useEffect(() => {
@@ -2699,12 +2717,30 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setShowMidiPanel(v => !v)}
+              className={cn(
+                "h-8 px-4 rounded-none font-black tracking-widest border",
+                showMidiPanel
+                  ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/60"
+                  : midiConnected
+                    ? "bg-green-500/10 text-green-400 border-green-500/40"
+                    : "bg-black/60 text-cyan-500/60 border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400"
+              )}
+              title="MIDI controller interface"
+            >
+              <Plug2 className="w-4 h-4 mr-2" />
+              <span className={cn("w-1.5 h-1.5 rounded-full mr-2", midiConnected ? "bg-green-400" : "bg-red-500/60")} />
+              MIDI
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={importMIDI}
               className="h-8 px-4 rounded-none font-black tracking-widest bg-black/60 text-cyan-500/60 border border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400"
               title="Import .mid file into piano roll"
             >
               <FolderOpen className="w-4 h-4 mr-2" />
-              MIDI
+              IMPORT
             </Button>
             <Button
               variant="ghost"
@@ -2733,6 +2769,85 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           </div>
         </div>
       </div>
+
+      {/* MIDI Interface Panel */}
+      {showMidiPanel && (
+        <div className="border-b border-cyan-500/30 bg-black/80 px-3 py-3 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Plug2 className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-black tracking-widest uppercase text-cyan-300">MIDI Controller</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border",
+                midiConnected
+                  ? "bg-green-500/20 text-green-400 border-green-500/40"
+                  : "bg-red-500/20 text-red-400 border-red-500/40"
+              )}>
+                {midiConnected ? '● Connected' : '○ No Device'}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowMidiPanel(false)}
+              className="h-6 w-6 p-0 text-cyan-500/40 hover:text-cyan-300"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Channel selector */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-black text-cyan-400/60 uppercase tracking-widest">MIDI Channel</span>
+              <select
+                value={midiChannel}
+                onChange={(e) => setMidiChannel(Number(e.target.value))}
+                className="w-full h-8 bg-black/60 border border-cyan-500/30 text-cyan-200 text-xs px-2 rounded-none focus:outline-none focus:border-cyan-400"
+              >
+                <option value={0}>All Channels</option>
+                {Array.from({ length: 16 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>Channel {i + 1}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Active notes monitor */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <Activity className="w-3 h-3 text-cyan-400/60" />
+                <span className="text-[10px] font-black text-cyan-400/60 uppercase tracking-widest">Live Notes</span>
+              </div>
+              <div className="h-8 flex items-center gap-1 flex-wrap overflow-hidden">
+                {midiActiveNotes.size > 0 ? (
+                  Array.from(midiActiveNotes).map(midiNote => {
+                    const octave = Math.floor(midiNote / 12) - 1;
+                    const name = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][midiNote % 12];
+                    return (
+                      <span key={midiNote} className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 text-[10px] font-black rounded border border-cyan-500/40 animate-pulse">
+                        {name}{octave}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span className="text-[10px] text-cyan-500/30">— none —</span>
+                )}
+              </div>
+            </div>
+
+            {/* Recording tip */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-black text-cyan-400/60 uppercase tracking-widest">How To Record</span>
+              <div className="text-[10px] text-cyan-500/50 leading-relaxed">
+                Keys always preview sound. Press{' '}
+                <span className="text-red-400 font-black">REC</span> + {' '}
+                <span className="text-cyan-400 font-black">PLAY</span>{' '}
+                to capture MIDI notes onto the selected track.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Key / Scale selector + Chord progression row */}
       <div className="flex items-center gap-2 px-2 py-1 border-b border-cyan-500/20 bg-black/60 overflow-x-auto">
