@@ -42,6 +42,9 @@ import {
   type InsertVoiceConvertJob,
   type UserApiKey,
   type InsertUserApiKey,
+  type SocialPost,
+  type SocialConnection,
+  type ChatMessage,
   users,
   userSubscriptions,
   projects,
@@ -66,6 +69,9 @@ import {
   projectShares,
   voiceConvertJobs,
   userApiKeys,
+  socialPosts,
+  socialConnections,
+  chatMessages,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -252,6 +258,18 @@ export interface IStorage {
   getSocialFeed(userId: string): Promise<any[]>;
   createSocialPost(userId: string, data: any): Promise<any>;
   createSocialConnection(userId: string, data: any): Promise<any>;
+  getUserSocialConnections(userId: string): Promise<any[]>;
+  disconnectSocialPlatform(userId: string, platform: string): Promise<void>;
+
+  // Chat Messages
+  sendChatMessage(senderId: string, recipientId: string, content: string, messageType?: string, attachmentUrl?: string): Promise<any>;
+  getChatConversation(userId1: string, userId2: string, limit?: number): Promise<any[]>;
+  getUserConversations(userId: string): Promise<any[]>;
+  markMessagesRead(userId: string, conversationId: string): Promise<void>;
+  getUnreadMessageCount(userId: string): Promise<number>;
+
+  // Discover Users
+  discoverUsers(userId: string, limit?: number): Promise<any[]>;
 
   // Voice Convert Jobs
   createVoiceConvertJob(userId: string, data: InsertVoiceConvertJob): Promise<VoiceConvertJob>;
@@ -1179,6 +1197,14 @@ export class MemStorage implements IStorage {
   async getSocialFeed(_userId: string): Promise<any[]> { return []; }
   async createSocialPost(_userId: string, _data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
   async createSocialConnection(_userId: string, _data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
+  async getUserSocialConnections(_userId: string): Promise<any[]> { return []; }
+  async disconnectSocialPlatform(_userId: string, _platform: string): Promise<void> { }
+  async sendChatMessage(_senderId: string, _recipientId: string, _content: string, _messageType?: string, _attachmentUrl?: string): Promise<any> { throw new Error("Not implemented in MemStorage"); }
+  async getChatConversation(_userId1: string, _userId2: string, _limit?: number): Promise<any[]> { return []; }
+  async getUserConversations(_userId: string): Promise<any[]> { return []; }
+  async markMessagesRead(_userId: string, _conversationId: string): Promise<void> { }
+  async getUnreadMessageCount(_userId: string): Promise<number> { return 0; }
+  async discoverUsers(_userId: string, _limit?: number): Promise<any[]> { return []; }
 
   // Voice Convert Jobs (MemStorage stubs)
   async createVoiceConvertJob(_userId: string, _data: InsertVoiceConvertJob): Promise<VoiceConvertJob> { throw new Error("Not implemented in MemStorage"); }
@@ -2155,46 +2181,165 @@ export class DatabaseStorage implements IStorage {
 
   // ============ SOCIAL FEATURES - POSTS & FEED ============
   async getSocialFeed(userId: string): Promise<any[]> {
-    // Get posts from followed users and own posts
     const follows = await db.select().from(userFollows).where(eq(userFollows.followerId, userId));
-    const followingIds = follows.map((f: typeof follows[number]) => f.followingId);
-    const userIds = [userId, ...followingIds];
-    
-    // Return empty feed for now - can be expanded with actual post storage
-    return [];
+    const followingIds = follows.map((f: typeof follows[number]) => f.followingId).filter(Boolean) as string[];
+
+    // Get own posts + posts from people we follow
+    const allPosts = await db.select().from(socialPosts).orderBy(desc(socialPosts.createdAt)).limit(50);
+    const relevantPosts = allPosts.filter((p: any) => p.userId === userId || followingIds.includes(p.userId || ''));
+
+    // Enrich with user info
+    const enriched = [];
+    for (const post of relevantPosts) {
+      const user = post.userId ? await this.getUser(post.userId) : null;
+      enriched.push({
+        ...post,
+        username: user?.username || 'Anonymous',
+        displayName: user?.username || 'Anonymous',
+        avatar: '',
+      });
+    }
+    return enriched;
   }
 
   async createSocialPost(userId: string, data: any): Promise<any> {
-    // Store social post - for now return a mock object
-    // In production, this would insert into a socialPosts table
-    return {
-      id: `post-${Date.now()}`,
-      userId,
-      platform: data.platform,
-      content: data.content,
-      type: data.type,
-      title: data.title,
-      url: data.url,
-      likes: data.likes || 0,
-      comments: data.comments || 0,
-      shares: data.shares || 0,
-      views: data.views || 0,
-      createdAt: new Date(),
-    };
+    const [post] = await db
+      .insert(socialPosts)
+      .values({
+        userId,
+        platform: data.platform || 'codedswitch',
+        content: data.content,
+        type: data.type || 'share',
+        title: data.title || '',
+        url: data.url || '',
+        mediaUrl: data.mediaUrl || null,
+        projectId: data.projectId || null,
+        likes: data.likes || 0,
+        comments: data.comments || 0,
+        shares: data.shares || 0,
+        views: data.views || 0,
+      })
+      .returning();
+    return post;
   }
 
   async createSocialConnection(userId: string, data: any): Promise<any> {
-    // Store social platform connection - for now return a mock object
-    // In production, this would insert into a socialConnections table
-    return {
-      id: `conn-${Date.now()}`,
-      userId,
-      platform: data.platform,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      connected: data.connected,
-      createdAt: new Date(),
-    };
+    // Upsert: if connection for this platform exists, update it
+    const existing = await db.select().from(socialConnections)
+      .where(and(eq(socialConnections.userId, userId), eq(socialConnections.platform, data.platform)));
+
+    if (existing.length > 0) {
+      const [updated] = await db.update(socialConnections)
+        .set({ connected: true, accessToken: data.accessToken || '', refreshToken: data.refreshToken || '', updatedAt: new Date() })
+        .where(eq(socialConnections.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+
+    const [conn] = await db
+      .insert(socialConnections)
+      .values({
+        userId,
+        platform: data.platform,
+        platformUserId: data.platformUserId || null,
+        platformUsername: data.platformUsername || null,
+        accessToken: data.accessToken || '',
+        refreshToken: data.refreshToken || '',
+        connected: true,
+        followers: 0,
+      })
+      .returning();
+    return conn;
+  }
+
+  async getUserSocialConnections(userId: string): Promise<any[]> {
+    return db.select().from(socialConnections).where(eq(socialConnections.userId, userId));
+  }
+
+  async disconnectSocialPlatform(userId: string, platform: string): Promise<void> {
+    await db.update(socialConnections)
+      .set({ connected: false, updatedAt: new Date() })
+      .where(and(eq(socialConnections.userId, userId), eq(socialConnections.platform, platform)));
+  }
+
+  // ============ CHAT MESSAGES ============
+  async sendChatMessage(senderId: string, recipientId: string, content: string, messageType: string = 'text', attachmentUrl?: string): Promise<any> {
+    const conversationId = [senderId, recipientId].sort().join(':');
+    const [msg] = await db
+      .insert(chatMessages)
+      .values({ senderId, recipientId, conversationId, content, messageType, attachmentUrl: attachmentUrl || null })
+      .returning();
+    return msg;
+  }
+
+  async getChatConversation(userId1: string, userId2: string, limit: number = 50): Promise<any[]> {
+    const conversationId = [userId1, userId2].sort().join(':');
+    return db.select().from(chatMessages)
+      .where(eq(chatMessages.conversationId, conversationId))
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(limit);
+  }
+
+  async getUserConversations(userId: string): Promise<any[]> {
+    // Get distinct conversation IDs for this user, with latest message
+    const sent = await db.select().from(chatMessages).where(eq(chatMessages.senderId, userId));
+    const received = await db.select().from(chatMessages).where(eq(chatMessages.recipientId, userId));
+    const allMessages = [...sent, ...received];
+
+    // Group by conversationId, pick latest
+    const convMap = new Map<string, any>();
+    for (const msg of allMessages) {
+      const existing = convMap.get(msg.conversationId);
+      if (!existing || new Date(msg.createdAt || 0) > new Date(existing.createdAt || 0)) {
+        convMap.set(msg.conversationId, msg);
+      }
+    }
+
+    const conversations = [];
+    for (const [convId, lastMsg] of convMap.entries()) {
+      const otherId = lastMsg.senderId === userId ? lastMsg.recipientId : lastMsg.senderId;
+      const otherUser = otherId ? await this.getUser(otherId) : null;
+      const unread = received.filter((m: any) => m.conversationId === convId && !m.readAt).length;
+      conversations.push({
+        conversationId: convId,
+        otherUserId: otherId,
+        otherUserName: otherUser?.username || 'Unknown',
+        lastMessage: lastMsg.content,
+        lastMessageAt: lastMsg.createdAt,
+        unreadCount: unread,
+      });
+    }
+    return conversations.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
+  }
+
+  async markMessagesRead(userId: string, conversationId: string): Promise<void> {
+    await db.update(chatMessages)
+      .set({ readAt: new Date() })
+      .where(and(eq(chatMessages.conversationId, conversationId), eq(chatMessages.recipientId, userId)));
+  }
+
+  async getUnreadMessageCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(chatMessages)
+      .where(and(eq(chatMessages.recipientId, userId), sql`${chatMessages.readAt} IS NULL`));
+    return result[0]?.count || 0;
+  }
+
+  // ============ DISCOVER USERS ============
+  async discoverUsers(userId: string, limit: number = 20): Promise<any[]> {
+    // Get users the current user is NOT already following
+    const following = await db.select().from(userFollows).where(eq(userFollows.followerId, userId));
+    const followingIds = new Set(following.map((f: any) => f.followingId));
+    followingIds.add(userId); // exclude self
+
+    const allUsers = await db.select({ id: users.id, username: users.username, email: users.email })
+      .from(users)
+      .limit(limit + followingIds.size);
+
+    return allUsers
+      .filter((u: any) => !followingIds.has(u.id))
+      .slice(0, limit)
+      .map((u: any) => ({ id: u.id, name: u.username, email: u.email }));
   }
 
   // Voice Convert Jobs

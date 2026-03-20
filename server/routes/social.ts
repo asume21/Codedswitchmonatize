@@ -375,5 +375,153 @@ export function createSocialRoutes(storage: IStorage) {
     }
   });
 
+  /**
+   * GET /api/social/connections
+   * Get user's connected social platforms
+   */
+  router.get('/connections', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const connections = await storage.getUserSocialConnections(req.userId);
+      res.json({ connections });
+    } catch (error) {
+      console.error('Get connections error:', error);
+      res.status(500).json({ error: 'Failed to fetch connections' });
+    }
+  });
+
+  /**
+   * DELETE /api/social/connect/:platform
+   * Disconnect a social platform
+   */
+  router.delete('/connect/:platform', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      await storage.disconnectSocialPlatform(req.userId, req.params.platform);
+      res.json({ message: 'Platform disconnected' });
+    } catch (error) {
+      console.error('Disconnect platform error:', error);
+      res.status(500).json({ error: 'Failed to disconnect platform' });
+    }
+  });
+
+  /**
+   * POST /api/social/chat/send
+   * Send a chat message to another user
+   */
+  router.post('/chat/send', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const schema = z.object({
+        recipientId: z.string(),
+        content: z.string().min(1).max(5000),
+        messageType: z.string().optional(),
+        attachmentUrl: z.string().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
+      }
+      const { recipientId, content, messageType, attachmentUrl } = parsed.data;
+      const message = await storage.sendChatMessage(req.userId, recipientId, content, messageType, attachmentUrl);
+      res.json({ message });
+    } catch (error) {
+      console.error('Send chat message error:', error);
+      res.status(500).json({ error: 'Failed to send message' });
+    }
+  });
+
+  /**
+   * GET /api/social/chat/conversation/:userId
+   * Get chat conversation with a specific user
+   */
+  router.get('/chat/conversation/:userId', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const messages = await storage.getChatConversation(req.userId, req.params.userId);
+      res.json({ messages });
+    } catch (error) {
+      console.error('Get conversation error:', error);
+      res.status(500).json({ error: 'Failed to fetch conversation' });
+    }
+  });
+
+  /**
+   * GET /api/social/chat/conversations
+   * Get all conversations for the current user
+   */
+  router.get('/chat/conversations', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const conversations = await storage.getUserConversations(req.userId);
+      res.json({ conversations });
+    } catch (error) {
+      console.error('Get conversations error:', error);
+      res.status(500).json({ error: 'Failed to fetch conversations' });
+    }
+  });
+
+  /**
+   * POST /api/social/chat/read/:conversationId
+   * Mark messages in a conversation as read
+   */
+  router.post('/chat/read/:conversationId', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      await storage.markMessagesRead(req.userId, req.params.conversationId);
+      res.json({ message: 'Messages marked as read' });
+    } catch (error) {
+      console.error('Mark read error:', error);
+      res.status(500).json({ error: 'Failed to mark messages as read' });
+    }
+  });
+
+  /**
+   * GET /api/social/chat/unread
+   * Get unread message count
+   */
+  router.get('/chat/unread', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const count = await storage.getUnreadMessageCount(req.userId);
+      res.json({ unreadCount: count });
+    } catch (error) {
+      console.error('Get unread count error:', error);
+      res.status(500).json({ error: 'Failed to fetch unread count' });
+    }
+  });
+
+  /**
+   * GET /api/social/discover
+   * Discover other CodedSwitch users to follow
+   */
+  router.get('/discover', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const limit = parseInt(req.query.limit as string) || 20;
+      const users = await storage.discoverUsers(req.userId, limit);
+      res.json({ users });
+    } catch (error) {
+      console.error('Discover users error:', error);
+      res.status(500).json({ error: 'Failed to discover users' });
+    }
+  });
+
   return router;
 }

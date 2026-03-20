@@ -13,6 +13,18 @@ import type { SessionDNA }             from '../../organism/session/types'
 import type { InputSourceType }        from '../../organism/input/types'
 import type { TranscriptionState }     from './FreestyleTranscriber'
 
+/** Saved session bundle — everything captured from a freestyle */
+export interface SavedSession {
+  sessionId:    string
+  createdAt:    number
+  durationMs:   number
+  dna:          SessionDNA | null
+  midiBlob:     Blob | null
+  beatBlob:     Blob | null      // master bus audio (webm)
+  vocalBlob:    Blob | null      // raw mic recording (webm)
+  lyrics:       string | null
+}
+
 export interface OrganismContextValue {
   // Engines (null until initialized)
   analysisEngine:    AudioAnalysisEngine    | null
@@ -47,6 +59,14 @@ export interface OrganismContextValue {
   setTranscriptionEnabled: (enabled: boolean) => void
   copyLyrics:            () => Promise<boolean>
   exportLyrics:          () => void
+
+  // Recording — captures everything for permanent save
+  isRecording:       boolean
+  startRecording:    () => Promise<void>
+  stopRecording:     () => Promise<SavedSession | null>
+  lastSavedSession:  SavedSession | null
+  savedSessions:     SavedSession[]
+  downloadSession:   (session: SavedSession) => void
 
   // Status
   isRunning:    boolean

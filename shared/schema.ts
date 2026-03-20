@@ -355,6 +355,56 @@ export const userFollows = pgTable("user_follows", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const socialPosts = pgTable("social_posts", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  platform: varchar("platform").notNull(),
+  content: text("content").notNull(),
+  type: varchar("type").notNull(),
+  title: varchar("title"),
+  url: varchar("url"),
+  mediaUrl: varchar("media_url"),
+  projectId: varchar("project_id").references(() => projects.id),
+  likes: integer("likes").default(0),
+  comments: integer("comments").default(0),
+  shares: integer("shares").default(0),
+  views: integer("views").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const socialConnections = pgTable("social_connections", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  platform: varchar("platform").notNull(),
+  platformUserId: varchar("platform_user_id"),
+  platformUsername: varchar("platform_username"),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  connected: boolean("connected").default(true),
+  followers: integer("followers").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id").references(() => users.id),
+  recipientId: varchar("recipient_id").references(() => users.id),
+  conversationId: varchar("conversation_id").notNull(),
+  content: text("content").notNull(),
+  messageType: varchar("message_type").default("text"),
+  attachmentUrl: varchar("attachment_url"),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const projectVersions = pgTable("project_versions", {
   id: varchar("id")
     .primaryKey()
@@ -504,6 +554,31 @@ export const insertProjectLikeSchema = createInsertSchema(projectLikes);
 
 export const insertUserFollowSchema = createInsertSchema(userFollows);
 
+export const insertSocialPostSchema = createInsertSchema(socialPosts).pick({
+  platform: true,
+  content: true,
+  type: true,
+  title: true,
+  url: true,
+  mediaUrl: true,
+  projectId: true,
+});
+
+export const insertSocialConnectionSchema = createInsertSchema(socialConnections).pick({
+  platform: true,
+  platformUserId: true,
+  platformUsername: true,
+  accessToken: true,
+  refreshToken: true,
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).pick({
+  recipientId: true,
+  content: true,
+  messageType: true,
+  attachmentUrl: true,
+});
+
 export const insertProjectVersionSchema = createInsertSchema(projectVersions).pick({
   version: true,
   data: true,
@@ -552,6 +627,12 @@ export type ProjectCollaboration = typeof projectCollaborations.$inferSelect;
 export type ProjectComment = typeof projectComments.$inferSelect;
 export type ProjectLike = typeof projectLikes.$inferSelect;
 export type ProjectVersion = typeof projectVersions.$inferSelect;
+export type SocialPost = typeof socialPosts.$inferSelect;
+export type InsertSocialPost = z.infer<typeof insertSocialPostSchema>;
+export type SocialConnection = typeof socialConnections.$inferSelect;
+export type InsertSocialConnection = z.infer<typeof insertSocialConnectionSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 
 // Basic table inferred types
 export type User = typeof users.$inferSelect;

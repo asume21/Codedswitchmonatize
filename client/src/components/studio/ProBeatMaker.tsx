@@ -520,6 +520,21 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
     window.addEventListener('load-loop-to-beat-lab', handleLoadLoop as EventListener);
     window.addEventListener('ai:loadBeatPattern', handleAIBeatPattern as EventListener);
     window.addEventListener('astutely:generated', handleAstutelyForBeats as EventListener);
+
+    // Pick up any pending drum pattern that was stored while Beat Maker wasn't mounted
+    // (e.g. user clicked "Edit in Piano Roll" from AI Studio, which stores the drum
+    // pattern in localStorage so it survives the tab switch)
+    try {
+      const stored = localStorage.getItem('ast-beat-pattern-pending');
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+          handleAIBeatPattern(new CustomEvent('ai:loadBeatPattern', { detail: data }) as any);
+        }
+        localStorage.removeItem('ast-beat-pattern-pending');
+      }
+    } catch { /* corrupt storage — ignore */ }
+
     return () => {
       window.removeEventListener('load-loop-to-beat-lab', handleLoadLoop as EventListener);
       window.removeEventListener('ai:loadBeatPattern', handleAIBeatPattern as EventListener);

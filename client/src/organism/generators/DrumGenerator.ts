@@ -184,6 +184,11 @@ export class DrumGenerator extends GeneratorBase {
     }
   }
 
+  /** Load an AI-generated pattern externally (Gap 2 — generative patterns). */
+  loadGeneratedPattern(hits: DrumHit[]): void {
+    this.rebuildPart(hits)
+  }
+
   private rebuildPart(hits: DrumHit[]): void {
     this.stopPart()
 
@@ -201,6 +206,56 @@ export class DrumGenerator extends GeneratorBase {
     this.part.loop    = true
     this.part.loopEnd = '4m'
     this.part.start(0)
+
+    // Gap 3 — mirror current pattern into ProBeatMaker for visual display
+    this.broadcastToBeatMaker(hits)
+  }
+
+  /**
+   * Converts organism drum hits to the ProBeatMaker step format and dispatches
+   * 'ai:loadBeatPattern' so the Beat Maker tab shows what the Organism is playing.
+   */
+  private broadcastToBeatMaker(hits: DrumHit[]): void {
+    const STEPS = 64 // 4 bars × 16 steps per bar
+    // DrumInstrument 'hat' → ProBeatMaker track id 'hihat'
+    const instToId: Record<string, string> = {
+      [DrumInstrument.Kick]:  'kick',
+      [DrumInstrument.Snare]: 'snare',
+      [DrumInstrument.Hat]:   'hihat',
+      [DrumInstrument.Perc]:  'perc',
+    }
+
+    const trackMap: Record<string, { active: boolean; velocity: number }[]> = {
+      kick:  Array.from({ length: STEPS }, () => ({ active: false, velocity: 100 })),
+      snare: Array.from({ length: STEPS }, () => ({ active: false, velocity: 100 })),
+      hihat: Array.from({ length: STEPS }, () => ({ active: false, velocity: 100 })),
+      perc:  Array.from({ length: STEPS }, () => ({ active: false, velocity: 100 })),
+    }
+
+    for (const h of hits) {
+      const id = instToId[h.instrument]
+      if (!id || !trackMap[id]) continue
+      // Parse "bar:beat:sub" — sub may have swing decimal e.g. "0:1:1.35"
+      const parts = h.time.split(':')
+      const bar  = parseInt(parts[0] ?? '0', 10)
+      const beat = parseInt(parts[1] ?? '0', 10)
+      const sub  = Math.floor(parseFloat(parts[2] ?? '0'))
+      const step = bar * 16 + beat * 4 + sub
+      if (step >= 0 && step < STEPS) {
+        trackMap[id][step] = { active: true, velocity: Math.round(h.velocity * 127) }
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('ai:loadBeatPattern', {
+      detail: {
+        tracks: Object.entries(trackMap).map(([id, pattern]) => ({
+          id,
+          name: id.charAt(0).toUpperCase() + id.slice(1),
+          pattern,
+        })),
+        bpm: Tone.getTransport().bpm.value,
+      },
+    }))
   }
 
   private applyDynamics(instrument: DrumInstrument, baseVelocity: number): number {

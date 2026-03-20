@@ -37,7 +37,7 @@ import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
 import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
 import { OrganismPage } from '@/features/organism/OrganismPage';
-import { OrganismProvider } from '@/features/organism/OrganismProvider';
+import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 import AIMasteringCard from './AIMasteringCard';
 import AIArrangementBuilder from './AIArrangementBuilder';
 import AIVocalMelody from './AIVocalMelody';
@@ -65,6 +65,34 @@ import { WindowManagerProvider } from '@/contexts/WindowManagerContext';
 import WindowLauncher from './WindowLauncher';
 import StudioWindowRenderer from './StudioWindowRenderer';
 import UndoRedoControls from './UndoRedoControls';
+
+/**
+ * Auto-activates the global OrganismProvider when the user opens the Organism tab.
+ * If already activated, renders OrganismPage immediately.
+ */
+function OrganismAutoActivate() {
+  const { isActivated, activate } = useOrganismActivation();
+  const organism = useOrganismSafe();
+
+  // Auto-activate on mount if not yet booted
+  React.useEffect(() => {
+    if (!isActivated) activate();
+  }, [isActivated, activate]);
+
+  // Still booting
+  if (!organism) {
+    return (
+      <div className="flex items-center justify-center h-full text-cyan-300">
+        <div className="text-center">
+          <Zap className="w-8 h-8 mx-auto mb-2 animate-pulse" />
+          <p className="text-sm font-semibold">Booting Organism engines...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <OrganismPage />;
+}
 
 // Workflow Configuration Types
 interface WorkflowConfig {
@@ -1014,6 +1042,24 @@ export default function UnifiedStudioWorkspace() {
     return () => window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener);
   }, [toast]);
 
+  // Handle stem-separator navigation
+  useEffect(() => {
+    const handler = () => setActiveView('audio-tools');
+    window.addEventListener('navigate-to-stem-separator', handler);
+    return () => window.removeEventListener('navigate-to-stem-separator', handler);
+  }, []);
+
+  // Handle AI assistant panel open/close
+  useEffect(() => {
+    const open  = () => setShowAIAssistant(true);
+    const close = () => setShowAIAssistant(false);
+    window.addEventListener('astutely:open-panel', open);
+    window.addEventListener('astutely:close-panel', close);
+    return () => {
+      window.removeEventListener('astutely:open-panel', open);
+      window.removeEventListener('astutely:close-panel', close);
+    };
+  }, []);
 
   // Arrange / timeline actions
   const getCurrentBar = () => Math.max(1, Math.floor(position / 4) + 1);
@@ -4519,12 +4565,10 @@ export default function UnifiedStudioWorkspace() {
             </div>
           )}
 
-          {/* HIP-HOP ORGANISM */}
+          {/* HIP-HOP ORGANISM — uses global OrganismProvider (activated on demand) */}
           {activeView === 'organism' && (
             <div className="flex-1 overflow-hidden bg-gray-900 h-full pt-14">
-              <OrganismProvider userId="default-user">
-                <OrganismPage />
-              </OrganismProvider>
+              <OrganismAutoActivate />
             </div>
           )}
         </div>

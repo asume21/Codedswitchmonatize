@@ -2,7 +2,7 @@ import React, {
   useState, useEffect, useRef, useCallback, useMemo
 } from 'react'
 import { OrganismContext }         from './OrganismContext'
-import type { OrganismContextValue } from './OrganismContext'
+import type { OrganismContextValue, SavedSession } from './OrganismContext'
 
 import { AudioAnalysisEngine }    from '../../organism/analysis/AudioAnalysisEngine'
 import { PhysicsEngine }          from '../../organism/physics/PhysicsEngine'
@@ -23,6 +23,8 @@ import type { MixMeterReading } from '../../organism/mix/types'
 import type { SessionDNA }      from '../../organism/session/types'
 import { FreestyleTranscriber }  from './FreestyleTranscriber'
 import type { TranscriptionState } from './FreestyleTranscriber'
+import { useProfile }             from '../../organism/evolution/useProfile'
+import * as Tone from 'tone'
 
 interface Props {
   children:  React.ReactNode
@@ -52,6 +54,9 @@ function createInputSource(
 }
 
 export function OrganismProvider({ children, userId }: Props) {
+  // Load persisted user profile (weighted average of past sessions)
+  const { profile, recompute: recomputeProfile } = useProfile(userId, null)
+
   // Input source state
   const [inputSource,  setInputSourceType] = useState<InputSourceType>('mic')
   const [autoEnergy,   setAutoEnergy]      = useState<'chill' | 'medium' | 'intense'>('medium')
@@ -80,6 +85,23 @@ export function OrganismProvider({ children, userId }: Props) {
   const [transcription,         setTranscription]         = useState<TranscriptionState | null>(null)
   const [transcriptionEnabled,  setTranscriptionEnabled]  = useState(true)
 
+  // Recording state — captures beat audio + vocal audio + MIDI + lyrics
+  const [isRecording,      setIsRecording]      = useState(false)
+  const [lastSavedSession, setLastSavedSession] = useState<SavedSession | null>(null)
+  const [savedSessions,    setSavedSessions]    = useState<SavedSession[]>(() => {
+    try {
+      const stored = localStorage.getItem('organism:savedSessions:meta')
+      return stored ? JSON.parse(stored) : []
+    } catch { return [] }
+  })
+  const recordingStartRef  = useRef<number>(0)
+  const vocalRecorderRef   = useRef<MediaRecorder | null>(null)
+  const vocalChunksRef     = useRef<Blob[]>([])
+  const vocalStreamRef     = useRef<MediaStream | null>(null)
+  const beatRecorderRef    = useRef<MediaRecorder | null>(null)
+  const beatChunksRef      = useRef<Blob[]>([])
+  const beatDestRef        = useRef<MediaStreamAudioDestinationNode | null>(null)
+
   // Boot engines on mount — wiring order is critical
   // Re-runs when userId, inputSource, or autoEnergy changes
   useEffect(() => {
@@ -95,6 +117,10 @@ export function OrganismProvider({ children, userId }: Props) {
     // 2. Store refs
     inputRef.current     = input
     physicsRef.current   = physics
+
+    // Seed physics with user's historical groove profile so the organism
+    // starts in the user's natural pocket rather than from neutral defaults
+    if (profile) physics.setProfile(profile)
     stateMachRef.current = machine
     orchestrRef.current  = orchestr
     reactiveRef.current  = reactive
@@ -113,22 +139,31 @@ export function OrganismProvider({ children, userId }: Props) {
       physics.processFrame(frame)
     })
 
-    // physics → state machine + UI state + broadcast
+    // physics → state machine (always) + throttled UI state + broadcast
+    // The state machine must receive every frame for accurate transitions,
+    // but React re-renders + CustomEvent dispatches are throttled to ~15fps
+    // to prevent main-thread overload that causes audio crackling.
+    let lastPhysicsUIUpdate = 0
+    const PHYSICS_UI_INTERVAL_MS = 66 // ~15fps — visually smooth, CPU friendly
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
-      setPhysicsState(state)
 
-      // Broadcast physics to external listeners (OrganismBridge, Astutely, etc.)
-      window.dispatchEvent(new CustomEvent('organism:physics-update', {
-        detail: {
-          bounce:   state.bounce,
-          swing:    state.swing,
-          presence: state.presence,
-          pocket:   state.pocket,
-          density:  state.density,
-          mode:     state.mode,
-        },
-      }))
+      const now = performance.now()
+      if (now - lastPhysicsUIUpdate >= PHYSICS_UI_INTERVAL_MS) {
+        lastPhysicsUIUpdate = now
+        setPhysicsState(state)
+
+        window.dispatchEvent(new CustomEvent('organism:physics-update', {
+          detail: {
+            bounce:   state.bounce,
+            swing:    state.swing,
+            presence: state.presence,
+            pocket:   state.pocket,
+            density:  state.density,
+            mode:     state.mode,
+          },
+        }))
+      }
     })
 
     // state machine → UI state + broadcast
@@ -193,6 +228,28 @@ export function OrganismProvider({ children, userId }: Props) {
       setTranscription(state)
     })
 
+    // Gap 2 — Generative patterns: when the arrangement enters a musically
+    // interesting section, request a novel AI-generated drum pattern so the
+    // organism's vocabulary expands beyond the hardcoded library.
+    const GENERATIVE_SECTIONS = new Set(['verse', 'build', 'drop', 'verse2', 'drop2'])
+    const handleSectionChange = async (e: Event) => {
+      const { section, physics, bpm } = (e as CustomEvent).detail ?? {}
+      if (!GENERATIVE_SECTIONS.has(section)) return
+      try {
+        const res = await fetch('/api/organism/generate-pattern', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ section, physics, bpm }),
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.hits?.length && orchestr) {
+          orchestr.loadGeneratedDrumPattern(data.hits)
+        }
+      } catch { /* non-blocking — hardcoded patterns remain as fallback */ }
+    }
+    window.addEventListener('organism:section-change', handleSectionChange)
+
     // Reset running state when input source changes
     setIsRunning(false)
     setError(null)
@@ -213,8 +270,9 @@ export function OrganismProvider({ children, userId }: Props) {
       capture.reset()
       transcriber.reset()
       unsubTranscription()
+      window.removeEventListener('organism:section-change', handleSectionChange)
     }
-  }, [userId, inputSource, autoEnergy])
+  }, [userId, inputSource, autoEnergy, profile])
 
   // ── Actions ───────────────────────────────────────────────────────
 
@@ -256,6 +314,208 @@ export function OrganismProvider({ children, userId }: Props) {
     captureRef.current?.downloadMidi()
   }, [])
 
+  // ── Recording: captures beat audio (master bus) + vocal audio (mic) ──
+
+  const startRecording = useCallback(async () => {
+    if (isRecording) return
+
+    // If organism isn't running yet, start it first
+    if (!isRunning) {
+      await start()
+    }
+
+    recordingStartRef.current = Date.now()
+    vocalChunksRef.current = []
+    beatChunksRef.current = []
+
+    // 1. Vocal recording — get a fresh mic stream for MediaRecorder
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      })
+      vocalStreamRef.current = micStream
+      const vocalRecorder = new MediaRecorder(micStream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus' : 'audio/webm',
+      })
+      vocalRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) vocalChunksRef.current.push(e.data)
+      }
+      vocalRecorderRef.current = vocalRecorder
+      vocalRecorder.start(200)
+    } catch (err) {
+      console.warn('[OrganismProvider] Vocal recording failed (mic access):', err)
+    }
+
+    // 2. Beat recording — tap into Tone.js audio context master output
+    try {
+      const toneCtx = Tone.getContext()
+      const rawCtx = toneCtx.rawContext as AudioContext
+      const dest = rawCtx.createMediaStreamDestination()
+      beatDestRef.current = dest
+
+      // Connect Tone.js master output to the recording destination
+      Tone.getDestination().connect(dest)
+
+      const beatRecorder = new MediaRecorder(dest.stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus' : 'audio/webm',
+      })
+      beatRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) beatChunksRef.current.push(e.data)
+      }
+      beatRecorderRef.current = beatRecorder
+      beatRecorder.start(200)
+    } catch (err) {
+      console.warn('[OrganismProvider] Beat recording failed:', err)
+    }
+
+    setIsRecording(true)
+    window.dispatchEvent(new CustomEvent('organism:recording-started'))
+  }, [isRecording, isRunning, start])
+
+  const stopRecording = useCallback(async (): Promise<SavedSession | null> => {
+    if (!isRecording) return null
+
+    const durationMs = Date.now() - recordingStartRef.current
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+    // Stop vocal recorder
+    let vocalBlob: Blob | null = null
+    if (vocalRecorderRef.current && vocalRecorderRef.current.state !== 'inactive') {
+      await new Promise<void>((resolve) => {
+        vocalRecorderRef.current!.onstop = () => resolve()
+        vocalRecorderRef.current!.stop()
+      })
+      if (vocalChunksRef.current.length > 0) {
+        vocalBlob = new Blob(vocalChunksRef.current, { type: 'audio/webm' })
+      }
+    }
+    // Release mic stream
+    vocalStreamRef.current?.getTracks().forEach(t => t.stop())
+    vocalStreamRef.current = null
+    vocalRecorderRef.current = null
+
+    // Stop beat recorder
+    let beatBlob: Blob | null = null
+    if (beatRecorderRef.current && beatRecorderRef.current.state !== 'inactive') {
+      await new Promise<void>((resolve) => {
+        beatRecorderRef.current!.onstop = () => resolve()
+        beatRecorderRef.current!.stop()
+      })
+      if (beatChunksRef.current.length > 0) {
+        beatBlob = new Blob(beatChunksRef.current, { type: 'audio/webm' })
+      }
+    }
+    // Disconnect recording destination from Tone master
+    if (beatDestRef.current) {
+      try { Tone.getDestination().disconnect(beatDestRef.current) } catch { /* ok */ }
+      beatDestRef.current = null
+    }
+    beatRecorderRef.current = null
+
+    // Capture session DNA + MIDI
+    const dna = captureRef.current ? await captureRef.current.capture() : null
+    const midiResult = captureRef.current?.exportMidi()
+    const midiBlob = midiResult?.blob ?? null
+
+    // Get lyrics from transcriber
+    const lyrics = transcriberRef.current?.getLyricsText() || null
+
+    const session: SavedSession = {
+      sessionId,
+      createdAt: recordingStartRef.current,
+      durationMs,
+      dna,
+      midiBlob,
+      beatBlob,
+      vocalBlob,
+      lyrics: lyrics && lyrics.length > 0 ? lyrics : null,
+    }
+
+    // Persist DNA to server so profile can learn from this session
+    if (dna && userId) {
+      fetch('/api/organism/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...dna, userId }),
+      })
+        .then(r => r.ok ? recomputeProfile() : null)
+        .catch(() => {}) // Non-blocking — local session still saved
+    }
+
+    // Persist session metadata to localStorage (blobs stay in memory)
+    setLastSavedSession(session)
+    setSavedSessions(prev => {
+      const next = [session, ...prev].slice(0, 50)
+      try {
+        const meta = next.map(s => ({
+          sessionId: s.sessionId,
+          createdAt: s.createdAt,
+          durationMs: s.durationMs,
+          hasVocals: !!s.vocalBlob,
+          hasBeat: !!s.beatBlob,
+          hasMidi: !!s.midiBlob,
+          hasLyrics: !!s.lyrics,
+        }))
+        localStorage.setItem('organism:savedSessions:meta', JSON.stringify(meta))
+      } catch { /* storage full — ok */ }
+      return next
+    })
+
+    setIsRecording(false)
+    setLastSessionDNA(dna)
+    window.dispatchEvent(new CustomEvent('organism:recording-stopped', { detail: session }))
+
+    return session
+  }, [isRecording])
+
+  const downloadSession = useCallback((session: SavedSession) => {
+    const timestamp = new Date(session.createdAt).toISOString().replace(/[:.]/g, '-')
+    const prefix = `organism-${timestamp}`
+
+    // Download beat audio
+    if (session.beatBlob) {
+      const url = URL.createObjectURL(session.beatBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${prefix}-beat.webm`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    // Download vocal audio
+    if (session.vocalBlob) {
+      const url = URL.createObjectURL(session.vocalBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${prefix}-vocals.webm`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    // Download MIDI
+    if (session.midiBlob) {
+      const url = URL.createObjectURL(session.midiBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${prefix}-session.mid`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    // Download lyrics
+    if (session.lyrics) {
+      const blob = new Blob([session.lyrics], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${prefix}-lyrics.txt`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }, [])
+
   // ── Inbound command listener ────────────────────────────────────────
   // Allows Astutely (or any external system) to control the organism
   // by dispatching: window.dispatchEvent(new CustomEvent('organism:command', { detail: { action: 'start' } }))
@@ -282,12 +542,18 @@ export function OrganismProvider({ children, userId }: Props) {
         case 'download-midi':
           downloadMidi()
           break
+        case 'start-recording':
+          startRecording()
+          break
+        case 'stop-recording':
+          stopRecording()
+          break
       }
     }
 
     window.addEventListener('organism:command', handleCommand)
     return () => window.removeEventListener('organism:command', handleCommand)
-  }, [start, stop, captureSession, downloadMidi])
+  }, [start, stop, captureSession, downloadMidi, startRecording, stopRecording])
 
   const handleSetInputSource = useCallback((type: InputSourceType, file?: File) => {
     // Stop current session before switching
@@ -337,6 +603,12 @@ export function OrganismProvider({ children, userId }: Props) {
     exportLyrics: () => {
       transcriberRef.current?.exportLyrics()
     },
+    isRecording,
+    startRecording,
+    stopRecording,
+    lastSavedSession,
+    savedSessions,
+    downloadSession,
     isRunning,
     isCapturing,
     error,
@@ -345,6 +617,8 @@ export function OrganismProvider({ children, userId }: Props) {
     start, stop, captureSession, downloadMidi,
     inputSource, handleSetInputSource, autoEnergy,
     transcription, transcriptionEnabled,
+    isRecording, startRecording, stopRecording,
+    lastSavedSession, savedSessions, downloadSession,
     isRunning, isCapturing, error,
   ])
 

@@ -60,6 +60,7 @@ export class GeneratorOrchestrator {
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
   private lastArrangementBar: number = -1
+  private lastArrangementSection: string = ''
 
   constructor() {
     this.drum    = new DrumGenerator()
@@ -99,6 +100,12 @@ export class GeneratorOrchestrator {
   async start(): Promise<void> {
     if (this.running) return
     await Tone.start()
+
+    // Increase look-ahead so main-thread jank doesn't starve the audio graph.
+    // Default is ~0.1 s; bumping to 0.15 s adds buffer against React re-renders
+    // and physics computation spikes that cause crackling / underruns.
+    Tone.getContext().lookAhead = 0.15
+
     Tone.getTransport().bpm.value = 90
     Tone.getTransport().start()
     this.running = true
@@ -247,5 +254,23 @@ export class GeneratorOrchestrator {
     this.bass.applyArrangementMultiplier(section.bass)
     this.melody.applyArrangementMultiplier(section.melody)
     this.texture.applyArrangementMultiplier(section.texture)
+
+    // Gap 2 — notify listeners that a new arrangement section has started
+    // so they can request an AI-generated pattern variation
+    if (section.name !== this.lastArrangementSection) {
+      this.lastArrangementSection = section.name
+      window.dispatchEvent(new CustomEvent('organism:section-change', {
+        detail: {
+          section:  section.name,
+          physics:  this.lastPhysics,
+          bpm:      transport.bpm.value,
+        },
+      }))
+    }
+  }
+
+  /** Load an AI-generated drum pattern into the drum generator (Gap 2). */
+  loadGeneratedDrumPattern(hits: import('./types').DrumHit[]): void {
+    this.drum.loadGeneratedPattern(hits)
   }
 }

@@ -169,10 +169,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const globalInstrument = useInstrumentOptional();
   
   // Get MIDI hook for recording from MIDI controller
-  const { 
-    isConnected: midiConnected, 
+  const {
+    isConnected: midiConnected,
     activeNotes: midiActiveNotes,
     lastNote: midiLastNote,
+    lastNoteOff: midiLastNoteOff,
     updateSettings: updateMIDISettings
   } = useMIDI();
   
@@ -339,6 +340,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const isSyncingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingNotesRef = useRef<Note[]>([]);
+  // Tracks in-progress MIDI key holds: midiNote → { noteId, startStep, startTime }
+  const activeRecordingRef = useRef<Map<number, { noteId: string; startStep: number; startTimeMs: number }>>(new Map());
   const selectedTrack = useMemo(() => 
     (tracks[selectedTrackIndex] || tracks[0] || internalTracks[0]) as Track,
     [tracks, selectedTrackIndex, internalTracks]
@@ -386,42 +389,65 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const toastRef = useRef(toast);
   toastRef.current = toast;
 
-  // 🎹 MIDI RECORDING - Capture notes from MIDI controller at the current playhead position
+  // 🎹 MIDI RECORDING — note-ON: place the note at current step with length 1 (will be updated on noteOff)
   useEffect(() => {
     if (!midiLastNote || !isRecording || !isPlaying) return;
-    
+
     const { note: midiNote, velocity } = midiLastNote;
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const octave = Math.floor(midiNote / 12) - 1;
-    const noteIndex = midiNote % 12;
-    const noteName = noteNames[noteIndex];
-    
-    // Use the current playhead position — the playhead is already running
+    const noteName = noteNames[midiNote % 12];
     const step = currentStep % patternSteps;
-    
+    const noteId = `midi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
     const newNote: Note = {
-      id: `midi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: noteId,
       note: noteName,
       octave,
       step,
       velocity: Math.round((velocity / 127) * 127),
-      length: 1
+      length: 1,
     };
-    
+
     recordingNotesRef.current.push(newNote);
-    
-    // Live-add to the track so the note appears immediately on the grid
+    activeRecordingRef.current.set(midiNote, { noteId, startStep: step, startTimeMs: Date.now() });
+
     setTracks(prev => prev.map((track, idx) =>
       idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
     ));
-    
-    // Play the sound through the audio engine
+
     const instrument = selectedTrack?.instrument || 'piano';
     const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
     realisticAudio.playNote(noteName, octave, 0.3, instrument, (velocity / 127) * 0.8, true, channel?.input);
-    
-    console.log(`🎹 MIDI Recorded: ${noteName}${octave} at step ${step}`);
   }, [midiLastNote, isRecording, isPlaying, currentStep, patternSteps, selectedTrackIndex, selectedTrack]);
+
+  // 🎹 MIDI RECORDING — note-OFF: update the length of the held note based on elapsed steps
+  useEffect(() => {
+    if (!midiLastNoteOff || !isRecording || !isPlaying) return;
+
+    const { note: midiNote } = midiLastNoteOff;
+    const active = activeRecordingRef.current.get(midiNote);
+    if (!active) return;
+
+    activeRecordingRef.current.delete(midiNote);
+
+    // Calculate duration in steps from hold time
+    const holdMs = Date.now() - active.startTimeMs;
+    const secondsPerStep = 60 / bpm / 4; // 1/16th note
+    const heldSteps = Math.max(1, Math.round(holdMs / (secondsPerStep * 1000)));
+    const clampedLength = Math.min(heldSteps, patternSteps - active.startStep);
+
+    // Update the note length in the track
+    setTracks(prev => prev.map((track, idx) => {
+      if (idx !== selectedTrackIndex) return track;
+      return {
+        ...track,
+        notes: track.notes.map(n =>
+          n.id === active.noteId ? { ...n, length: clampedLength } : n
+        ),
+      };
+    }));
+  }, [midiLastNoteOff, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex]);
 
   // 🔄 Listen for loop loading from Loop Library
   useEffect(() => {
@@ -2542,10 +2568,30 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     if (onPlayNoteOff) {
       onPlayNoteOff(note, octave, selectedTrack?.instrument || 'piano');
     } else {
-      const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
       realisticAudio.noteOff(note, octave, selectedTrack?.instrument || 'piano');
     }
-  }, [onPlayNoteOff, selectedTrack]);
+
+    // Update duration for on-screen key presses during recording
+    if (isRecording && isPlaying) {
+      const keyActive = activeRecordingRef.current.get(-(note.charCodeAt(0) * 100 + octave));
+      if (keyActive) {
+        activeRecordingRef.current.delete(-(note.charCodeAt(0) * 100 + octave));
+        const holdMs = Date.now() - keyActive.startTimeMs;
+        const secondsPerStep = 60 / bpm / 4;
+        const heldSteps = Math.max(1, Math.round(holdMs / (secondsPerStep * 1000)));
+        const clampedLength = Math.min(heldSteps, patternSteps - keyActive.startStep);
+        setTracks(prev => prev.map((track, idx) => {
+          if (idx !== selectedTrackIndex) return track;
+          return {
+            ...track,
+            notes: track.notes.map(n =>
+              n.id === keyActive.noteId ? { ...n, length: clampedLength } : n
+            ),
+          };
+        }));
+      }
+    }
+  }, [onPlayNoteOff, selectedTrack, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex]);
 
   // Callback for piano key playback - uses current track's instrument
   // Also records notes to the grid when recording + playing
@@ -2554,11 +2600,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const instrument = selectedTrack?.instrument || 'piano';
     realisticAudio.playNote(note, octave, 0.5, instrument, 0.8, true, channel?.input);
 
-    // Record the note at the current playhead position if recording is active
     if (isRecording && isPlaying) {
       const step = currentStep % STEPS;
+      const noteId = `rec-${note}${octave}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       const newNote: Note = {
-        id: `rec-${note}${octave}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        id: noteId,
         note,
         octave,
         step,
@@ -2566,8 +2612,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         length: 1,
       };
       recordingNotesRef.current.push(newNote);
+      // Store for duration tracking on mouseup (use a negative hash to avoid colliding with MIDI note numbers)
+      activeRecordingRef.current.set(-(note.charCodeAt(0) * 100 + octave), { noteId, startStep: step, startTimeMs: Date.now() });
 
-      // Live-add to the track so the note appears immediately on the grid
       setTracks(prev => prev.map((track, idx) =>
         idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
       ));

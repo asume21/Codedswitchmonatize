@@ -6,7 +6,7 @@ import type { AnalysisFrame } from '../../analysis/types'
 function createMockMIDIAccess(): MIDIAccess {
   const inputs = new Map<string, Partial<MIDIInput>>()
   const mockInput: Partial<MIDIInput> = {
-    onmidimessage: null as MIDIMessageEvent['target'] | null,
+    onmidimessage: null as ((this: MIDIInput, ev: MIDIMessageEvent) => any) | null,
     id: 'test-input',
     name: 'Test MIDI Device',
   }
