@@ -575,7 +575,47 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       });
     };
     
+    // Listen for pre-converted notes from aiToEditorBridge or other AI sources
+    const handleAILoadNotes = (e: CustomEvent<{ notes: Note[]; trackName: string; instrument: string }>) => {
+      const { notes: incomingNotes, trackName, instrument } = e.detail;
+      if (!incomingNotes || incomingNotes.length === 0) return;
+
+      console.log(`🤖 ai:loadNotes — ${incomingNotes.length} notes for "${trackName}"`);
+
+      let targetIdx = 0;
+      setTracks((prev: Track[]) => {
+        const newTracks = [...prev];
+        let idx = newTracks.findIndex(t => t.name.toLowerCase() === trackName.toLowerCase());
+        if (idx === -1) {
+          // Create the track
+          const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-amber-500', 'bg-cyan-500'];
+          newTracks.push({
+            id: `ai-track-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            name: trackName,
+            color: colors[newTracks.length % colors.length],
+            notes: incomingNotes as Note[],
+            muted: false,
+            volume: 80,
+            instrument: instrument || 'piano',
+          });
+          idx = newTracks.length - 1;
+        } else {
+          // Replace notes on existing track
+          newTracks[idx] = { ...newTracks[idx], notes: incomingNotes as Note[] };
+        }
+        targetIdx = idx;
+        return newTracks;
+      });
+
+      setTimeout(() => setSelectedTrackIndex(targetIdx), 50);
+      toastRef.current({
+        title: '🤖 AI Notes Loaded',
+        description: `${incomingNotes.length} notes added to "${trackName}"`,
+      });
+    };
+
     window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+    window.addEventListener('ai:loadNotes', handleAILoadNotes as EventListener);
     
     // Check localStorage on mount for any pending notes
     const stored = localStorage.getItem('astutely-generated');
@@ -594,6 +634,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     
     return () => {
       window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+      window.removeEventListener('ai:loadNotes', handleAILoadNotes as EventListener);
     };
   }, []); // Empty deps - only run once on mount
 

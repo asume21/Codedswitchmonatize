@@ -460,8 +460,71 @@ export default function ProBeatMaker({ onPatternChange }: Props) {
       });
     };
     
+    // Listen for AI-generated beat patterns (from aiToEditorBridge or astutely)
+    const handleAIBeatPattern = (e: CustomEvent<{ tracks: Array<{ id: string; name: string; pattern: Array<{ active: boolean; velocity: number }> }>; bpm: number }>) => {
+      const { tracks: aiTracks, bpm: aiBpm } = e.detail;
+      if (!aiTracks || aiTracks.length === 0) return;
+
+      setBpm(aiBpm || 90);
+      setTracks(prev => prev.map(track => {
+        const aiTrack = aiTracks.find(at => at.id === track.id);
+        if (!aiTrack) return track;
+        return {
+          ...track,
+          pattern: track.pattern.map((step, i) => {
+            const aiStep = aiTrack.pattern[i];
+            if (!aiStep) return step;
+            return { ...step, active: aiStep.active, velocity: aiStep.velocity || 100 };
+          }),
+        };
+      }));
+
+      toast({ title: '🤖 AI Beat Loaded', description: `AI-generated drum pattern loaded into Beat Lab at ${aiBpm} BPM` });
+    };
+
+    // Listen for astutely:generated and extract drum data for Beat Lab
+    const handleAstutelyForBeats = (e: CustomEvent<{ notes?: any[]; bpm?: number }>) => {
+      const { notes, bpm: aiBpm } = e.detail || {};
+      if (!notes || notes.length === 0) return;
+
+      const drumNotes = notes.filter((n: any) => n.trackType === 'drums');
+      if (drumNotes.length === 0) return;
+
+      if (aiBpm) setBpm(aiBpm);
+
+      // Convert astutely drum notes to step pattern
+      const pitchToTrack: Record<number, string> = { 36: 'kick', 38: 'snare', 42: 'hihat', 46: 'perc' };
+      setTracks(prev => {
+        const newTracks = prev.map(t => ({
+          ...t,
+          pattern: t.pattern.map(s => ({ ...s, active: false })),
+        }));
+        for (const dn of drumNotes) {
+          const trackId = pitchToTrack[dn.pitch] || dn.drumType;
+          if (!trackId) continue;
+          const trackIdx = newTracks.findIndex(t => t.id === trackId);
+          if (trackIdx === -1) continue;
+          const stepIdx = (dn.startStep ?? dn.step ?? 0) % newTracks[trackIdx].pattern.length;
+          newTracks[trackIdx].pattern[stepIdx] = {
+            ...newTracks[trackIdx].pattern[stepIdx],
+            active: true,
+            velocity: dn.velocity || 100,
+          };
+        }
+        return newTracks;
+      });
+
+      toast({ title: '🤖 AI Drums Loaded', description: `${drumNotes.length} drum hits loaded from AI generation` });
+    };
+
     window.addEventListener('load-loop-to-beat-lab', handleLoadLoop as EventListener);
-    return () => window.removeEventListener('load-loop-to-beat-lab', handleLoadLoop as EventListener);
+    window.addEventListener('ai:loadBeatPattern', handleAIBeatPattern as EventListener);
+    window.addEventListener('astutely:generated', handleAstutelyForBeats as EventListener);
+    return () => {
+      window.removeEventListener('load-loop-to-beat-lab', handleLoadLoop as EventListener);
+      window.removeEventListener('ai:loadBeatPattern', handleAIBeatPattern as EventListener);
+      window.removeEventListener('astutely:generated', handleAstutelyForBeats as EventListener);
+    };
   }, [toast]);
   
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
