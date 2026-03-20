@@ -52,74 +52,77 @@ export class DrumGenerator extends GeneratorBase {
     super(GeneratorName.Drum)
 
     this.output     = new Tone.Gain(1)
-    this.compressor = new Tone.Compressor({ threshold: -18, ratio: 4, attack: 0.003, release: 0.15 })
+    // Lighter drum bus compression — master bus handles the glue
+    this.compressor = new Tone.Compressor({ threshold: -24, ratio: 3, attack: 0.008, release: 0.2 })
     this.compressor.connect(this.output)
 
     // ── Kick: sub + click layered ──
-    this.kickBus  = new Tone.Gain(1)
-    this.kickDist = new Tone.Distortion({ distortion: 0.15, wet: 0.3 })
+    this.kickBus  = new Tone.Gain(0.85)
+    // Remove kick distortion — saturator on master bus is sufficient
+    this.kickDist = new Tone.Distortion({ distortion: 0.0, wet: 0.0 })
     this.kickBus.connect(this.kickDist)
     this.kickDist.connect(this.compressor)
 
     this.kickSub = new Tone.MembraneSynth({
-      pitchDecay:  0.08,
-      octaves:     8,
+      pitchDecay:  0.05,
+      octaves:     4,          // was 8 — 8 octaves causes massive low-end impulse overload
       oscillator:  { type: 'sine' },
-      envelope:    { attack: 0.001, decay: 0.5, sustain: 0.0, release: 0.8 },
+      envelope:    { attack: 0.001, decay: 0.4, sustain: 0.0, release: 0.5 },
     })
-    this.kickSub.volume.value = -3
+    this.kickSub.volume.value = -6   // was -3
     this.kickSub.connect(this.kickBus)
 
     this.kickClick = new Tone.NoiseSynth({
       noise:    { type: 'white' },
-      envelope: { attack: 0.001, decay: 0.03, sustain: 0 },
+      envelope: { attack: 0.001, decay: 0.02, sustain: 0 },
     })
-    this.kickClick.volume.value = -10
+    this.kickClick.volume.value = -14  // was -10
     this.kickClick.connect(this.kickBus)
 
     // ── Snare: body + tonal ring ──
-    this.snareBus = new Tone.Gain(1)
+    this.snareBus = new Tone.Gain(0.9)
     this.snareBus.connect(this.compressor)
 
     this.snareBody = new Tone.NoiseSynth({
       noise:    { type: 'pink' },
-      envelope: { attack: 0.001, decay: 0.18, sustain: 0 },
+      envelope: { attack: 0.001, decay: 0.15, sustain: 0 },
     })
-    this.snareBody.volume.value = -6
+    this.snareBody.volume.value = -9   // was -6
     this.snareBody.connect(this.snareBus)
 
     this.snareTone = new Tone.MembraneSynth({
       pitchDecay: 0.01,
-      octaves:    4,
+      octaves:    2,           // was 4
       oscillator: { type: 'triangle' },
-      envelope:   { attack: 0.001, decay: 0.12, sustain: 0, release: 0.1 },
+      envelope:   { attack: 0.001, decay: 0.1, sustain: 0, release: 0.08 },
     })
-    this.snareTone.volume.value = -12
+    this.snareTone.volume.value = -15  // was -12
     this.snareTone.connect(this.snareBus)
 
-    // ── Hat: gentler metallic with highpass ──
-    this.hatFilter = new Tone.Filter(6000, 'highpass')
+    // ── Hat: tamed MetalSynth + bandpass to kill screech ──
+    // Bandpass instead of highpass so we keep the snap but cut the FM screech
+    this.hatFilter = new Tone.Filter({ frequency: 8000, type: 'bandpass', Q: 0.8 })
     this.hatFilter.connect(this.compressor)
 
     this.hat = new Tone.MetalSynth({
-      envelope:        { attack: 0.001, decay: 0.06, release: 0.008 },
-      harmonicity:     3.5,
-      modulationIndex: 18,
-      resonance:       5500,
-      octaves:         1.0,
+      envelope:        { attack: 0.001, decay: 0.05, release: 0.006 },
+      harmonicity:     5.1,
+      modulationIndex: 8,      // was 18 — the main source of harsh noise
+      resonance:       4000,   // was 5500
+      octaves:         0.5,    // was 1.0
     })
-    this.hat.volume.value = -8
+    this.hat.volume.value = -14  // was -8
     this.hat.connect(this.hatFilter)
 
     // ── Perc: bandpass noise for rim/shaker ──
-    this.percFilter = new Tone.Filter({ frequency: 2500, type: 'bandpass', Q: 2 })
+    this.percFilter = new Tone.Filter({ frequency: 2000, type: 'bandpass', Q: 1.5 })
     this.percFilter.connect(this.compressor)
 
     this.perc = new Tone.NoiseSynth({
       noise:    { type: 'pink' },
-      envelope: { attack: 0.001, decay: 0.08, sustain: 0 },
+      envelope: { attack: 0.001, decay: 0.07, sustain: 0 },
     })
-    this.perc.volume.value = -14
+    this.perc.volume.value = -18   // was -14
     this.perc.connect(this.percFilter)
 
     this.setOutputLevel(0)
@@ -149,6 +152,8 @@ export class DrumGenerator extends GeneratorBase {
     }
 
     // Breathing or Flow → rebuild pattern from current mode
+    // Skip if pattern is locked — user has frozen the groove
+    if (this.patternLocked) return
     const kit     = getDrumKit(physics.mode)
     const pattern = buildDrumPattern(kit, physics.mode)
     this.rebuildPart(pattern.hits)
@@ -162,6 +167,36 @@ export class DrumGenerator extends GeneratorBase {
     this.currentPocket   = 0
     this.setOutputLevel(0)
   }
+
+  // ── Pattern lock ─────────────────────────────────────────────────
+  // When locked, the drum pattern is frozen — physics/state transitions
+  // no longer rebuild it. The user can still tweak individual parameters
+  // (hat density, kick velocity, tempo) without losing the groove.
+
+  private patternLocked = false
+  private lockedHits: DrumHit[] = []
+
+  lockPattern(): DrumHit[] {
+    this.patternLocked = true
+    // Snapshot the current hits from the running Part
+    this.lockedHits = this.part
+      ? (this.part as any)._events?.map((e: any) => ({
+          time:       e.time,
+          instrument: e.value?.instrument ?? e.value,
+          velocity:   e.value?.velocity   ?? 0.8,
+        })) ?? []
+      : []
+    return this.lockedHits
+  }
+
+  unlockPattern(): void {
+    this.patternLocked = false
+    this.lockedHits = []
+  }
+
+  isPatternLocked(): boolean { return this.patternLocked }
+
+  getLockedHits(): DrumHit[] { return this.lockedHits }
 
   // ── Reactive mutation methods (Section 05) ────────────────────────
 

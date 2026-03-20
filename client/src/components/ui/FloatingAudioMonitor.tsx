@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Volume2, VolumeX, X, ChevronUp, ChevronDown, Square,
-  Play, Mic2, Circle, Download, Zap,
+  Play, Mic2, Circle, Download, Zap, Lock, Unlock,
 } from 'lucide-react';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
@@ -86,7 +86,14 @@ function OrganismMiniControls() {
     );
   }
 
-  const { isRunning, isRecording, start, stop, startRecording, stopRecording, downloadSession, lastSavedSession } = organism;
+  const {
+    isRunning, isRecording, start, stop, startRecording, stopRecording,
+    downloadSession, lastSavedSession,
+    latchMode, setLatchMode,
+    isPatternLocked, lockPattern, unlockPattern,
+    hatDensity, kickVelocity, bassVolume, melodyVolume,
+    setHatDensity, setKickVelocity, setBassVolume, setMelodyVolume,
+  } = organism;
 
   return (
     <div className="px-3 py-2.5 border-b border-cyan-500/20 space-y-2">
@@ -109,7 +116,7 @@ function OrganismMiniControls() {
       </div>
 
       {/* Control buttons */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap">
         {/* Start / Stop */}
         <button
           onClick={isRunning ? stop : start}
@@ -153,7 +160,94 @@ function OrganismMiniControls() {
             <Download className="w-3 h-3" />
           </button>
         )}
+
+        {/* Latch toggle — keeps organism alive when MIDI keys are released */}
+        <button
+          onClick={() => setLatchMode(!latchMode)}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
+            latchMode
+              ? 'bg-yellow-500/25 border border-yellow-400/50 text-yellow-200 hover:bg-yellow-500/35'
+              : 'bg-gray-700/50 border border-gray-600/50 text-gray-400 hover:bg-gray-700'
+          }`}
+          title={latchMode ? 'Latch ON — organism holds energy when keys release. Click to turn off.' : 'Latch OFF — organism fades when you stop playing. Click to hold energy.'}
+        >
+          {latchMode ? 'LATCH ON' : 'LATCH'}
+        </button>
+
+        {/* Pattern lock — freeze the groove */}
+        {isRunning && (
+          <button
+            onClick={isPatternLocked ? unlockPattern : lockPattern}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
+              isPatternLocked
+                ? 'bg-cyan-500/25 border border-cyan-400/50 text-cyan-200 hover:bg-cyan-500/35'
+                : 'bg-gray-700/50 border border-gray-600/50 text-gray-400 hover:bg-gray-700'
+            }`}
+            title={isPatternLocked ? 'Pattern LOCKED — groove is frozen. Click to unlock.' : 'Lock Pattern — freeze the current groove so it loops unchanged.'}
+          >
+            {isPatternLocked ? (
+              <><Lock className="w-3 h-3" /> LOCKED</>
+            ) : (
+              <><Unlock className="w-3 h-3" /> Lock</>
+            )}
+          </button>
+        )}
       </div>
+
+      {/* Tweak sliders — only visible when pattern is locked */}
+      {isPatternLocked && (
+        <div className="space-y-1.5 pt-1 border-t border-cyan-500/15">
+          <p className="text-[9px] text-cyan-400/70 font-semibold uppercase tracking-wider">Groove Tweaks</p>
+
+          {/* Hat density */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 w-16 shrink-0">Hats</span>
+            <input
+              type="range" min={0} max={2} step={0.05}
+              value={hatDensity}
+              onChange={e => setHatDensity(parseFloat(e.target.value))}
+              className="flex-1 h-1 accent-cyan-400 cursor-pointer"
+            />
+            <span className="text-[10px] text-gray-500 w-6 text-right">{hatDensity.toFixed(1)}</span>
+          </div>
+
+          {/* Kick velocity */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 w-16 shrink-0">Kick</span>
+            <input
+              type="range" min={0} max={2} step={0.05}
+              value={kickVelocity}
+              onChange={e => setKickVelocity(parseFloat(e.target.value))}
+              className="flex-1 h-1 accent-cyan-400 cursor-pointer"
+            />
+            <span className="text-[10px] text-gray-500 w-6 text-right">{kickVelocity.toFixed(1)}</span>
+          </div>
+
+          {/* Bass volume */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 w-16 shrink-0">Bass</span>
+            <input
+              type="range" min={0} max={2} step={0.05}
+              value={bassVolume}
+              onChange={e => setBassVolume(parseFloat(e.target.value))}
+              className="flex-1 h-1 accent-cyan-400 cursor-pointer"
+            />
+            <span className="text-[10px] text-gray-500 w-6 text-right">{bassVolume.toFixed(1)}</span>
+          </div>
+
+          {/* Melody volume */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 w-16 shrink-0">Melody</span>
+            <input
+              type="range" min={0} max={2} step={0.05}
+              value={melodyVolume}
+              onChange={e => setMelodyVolume(parseFloat(e.target.value))}
+              className="flex-1 h-1 accent-cyan-400 cursor-pointer"
+            />
+            <span className="text-[10px] text-gray-500 w-6 text-right">{melodyVolume.toFixed(1)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Last session info */}
       {lastSavedSession && (

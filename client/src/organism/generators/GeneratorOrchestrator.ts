@@ -171,6 +171,10 @@ export class GeneratorOrchestrator {
 
   // ── Mix engine connection methods (Section 06) ────────────────────
 
+  lockDrumPattern(): void   { this.drum.lockPattern() }
+  unlockDrumPattern(): void { this.drum.unlockPattern() }
+  isDrumPatternLocked(): boolean { return this.drum.isPatternLocked() }
+
   connectDrumOutput(destination: Tone.InputNode): void {
     this.drum.output.connect(destination)
   }

@@ -407,20 +407,24 @@ const initTracks = (len: number, kitId: string = '808'): DrumTrack[] => {
 
 interface Props {
   onPatternChange?: (tracks: DrumTrack[], bpm: number) => void;
+  /** True when Beat Lab tab is the active view — controls MIDI drum mode routing */
+  isActive?: boolean;
 }
 
-export default function ProBeatMaker({ onPatternChange }: Props) {
+export default function ProBeatMaker({ onPatternChange, isActive = false }: Props) {
   const { toast } = useToast();
   const { tempo } = useTransport();
   const { addAndSaveTrack } = useTracks();
   const { requestDestination } = useSessionDestination();
   const [, setLocation] = useLocation();
   const { lastNote, activeNotes, isConnected: midiConnected, setDrumMode } = useMIDI();
-  
+
+  // Switch drum mode on/off based on whether Beat Lab is the visible tab.
+  // Previously used mount/unmount but Beat Lab is now always-mounted (CSS hidden),
+  // so we watch the isActive prop instead.
   useEffect(() => {
-    setDrumMode(true);
-    return () => setDrumMode(false);
-  }, [setDrumMode]);
+    setDrumMode(isActive);
+  }, [isActive, setDrumMode]);
 
   // 🔄 Listen for loop loading from Loop Library
   useEffect(() => {

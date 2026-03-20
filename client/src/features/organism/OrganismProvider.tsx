@@ -85,6 +85,14 @@ export function OrganismProvider({ children, userId }: Props) {
   const [transcription,         setTranscription]         = useState<TranscriptionState | null>(null)
   const [transcriptionEnabled,  setTranscriptionEnabled]  = useState(true)
 
+  // Latch + pattern lock state
+  const [latchMode,        setLatchModeState]   = useState(false)
+  const [isPatternLocked,  setIsPatternLocked]  = useState(false)
+  const [hatDensity,       setHatDensityState]  = useState(1)
+  const [kickVelocity,     setKickVelocityState]= useState(1)
+  const [bassVolume,       setBassVolumeState]  = useState(1)
+  const [melodyVolume,     setMelodyVolumeState]= useState(1)
+
   // Recording state — captures beat audio + vocal audio + MIDI + lyrics
   const [isRecording,      setIsRecording]      = useState(false)
   const [lastSavedSession, setLastSavedSession] = useState<SavedSession | null>(null)
@@ -609,6 +617,48 @@ export function OrganismProvider({ children, userId }: Props) {
     lastSavedSession,
     savedSessions,
     downloadSession,
+
+    // Latch mode
+    latchMode,
+    setLatchMode: (enabled: boolean) => {
+      setLatchModeState(enabled)
+      const src = inputRef.current
+      if (src && 'setLatch' in src) (src as any).setLatch(enabled)
+    },
+
+    // Pattern lock
+    isPatternLocked,
+    lockPattern: () => {
+      orchestrRef.current?.lockDrumPattern()
+      setIsPatternLocked(true)
+    },
+    unlockPattern: () => {
+      orchestrRef.current?.unlockDrumPattern()
+      setIsPatternLocked(false)
+    },
+
+    // Tweak controls
+    hatDensity,
+    kickVelocity,
+    bassVolume,
+    melodyVolume,
+    setHatDensity: (v: number) => {
+      setHatDensityState(v)
+      orchestrRef.current?.setHatDensityMultiplier(v)
+    },
+    setKickVelocity: (v: number) => {
+      setKickVelocityState(v)
+      orchestrRef.current?.setKickVelocityMultiplier(v)
+    },
+    setBassVolume: (v: number) => {
+      setBassVolumeState(v)
+      orchestrRef.current?.setBassVolumeMultiplier(v)
+    },
+    setMelodyVolume: (v: number) => {
+      setMelodyVolumeState(v)
+      orchestrRef.current?.setMelodyVolumeMultiplier(v)
+    },
+
     isRunning,
     isCapturing,
     error,
@@ -619,6 +669,8 @@ export function OrganismProvider({ children, userId }: Props) {
     transcription, transcriptionEnabled,
     isRecording, startRecording, stopRecording,
     lastSavedSession, savedSessions, downloadSession,
+    latchMode, isPatternLocked,
+    hatDensity, kickVelocity, bassVolume, melodyVolume,
     isRunning, isCapturing, error,
   ])
 

@@ -28,6 +28,24 @@ export class MidiInputSource implements InputSource {
   private noteOnWindow: number[] = []
   private decayRate = 0.92
 
+  // Latch mode — holds last energy level when keys are released
+  // so the organism keeps running without continuous input
+  private latchEnabled = false
+  private latchedVelocity = 0        // energy snapshot taken at latch-on
+  private latchedNote = 0
+  private latchedAftertouch = 0
+  private hasPlayedSinceLatch = false // don't latch at zero if user never played
+
+  setLatch(enabled: boolean): void {
+    this.latchEnabled = enabled
+    if (!enabled) {
+      // Releasing latch — let velocity decay naturally from wherever it is
+      this.hasPlayedSinceLatch = false
+    }
+  }
+
+  isLatched(): boolean { return this.latchEnabled }
+
   private static readonly FRAME_INTERVAL_MS = 23 // ~43 fps
   private static readonly NOTE_WINDOW_MS = 1000
 
@@ -105,8 +123,14 @@ export class MidiInputSource implements InputSource {
           this.currentNote = value1
           this.currentVelocity = value2 / 127
           this.noteOnWindow.push(performance.now())
+          // Snapshot energy for latch every time a note plays
+          if (this.latchEnabled) {
+            this.latchedVelocity    = this.currentVelocity
+            this.latchedNote        = this.currentNote
+            this.latchedAftertouch  = this.currentAftertouch
+            this.hasPlayedSinceLatch = true
+          }
         } else {
-          // Note On with velocity 0 = Note Off
           this.currentVelocity = Math.max(0, this.currentVelocity - 0.3)
         }
         break
@@ -134,6 +158,14 @@ export class MidiInputSource implements InputSource {
 
     // Decay velocity when no new notes
     this.currentVelocity *= this.decayRate
+
+    // Latch: if enabled and user has played at least once, floor velocity at
+    // the latched snapshot so the organism stays alive when keys are released
+    if (this.latchEnabled && this.hasPlayedSinceLatch && this.currentVelocity < this.latchedVelocity * 0.5) {
+      this.currentVelocity = this.latchedVelocity * 0.5  // hold at half the peak energy
+      this.currentNote     = this.latchedNote
+      this.currentAftertouch = this.latchedAftertouch
+    }
 
     // Prune note-on window to last 1 second
     this.noteOnWindow = this.noteOnWindow.filter(

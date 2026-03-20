@@ -25,7 +25,10 @@ import SongUploader from './SongUploader';
 import WorkflowSelector from './WorkflowSelector';
 import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useMIDI } from '@/hooks/use-midi';
+import { useInstrumentOptional } from '@/contexts/InstrumentContext';
+import { AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { AudioEngine } from '@/lib/audio';
 import { AudioPremixCache } from '@/lib/audioPremix';
@@ -660,7 +663,9 @@ export default function UnifiedStudioWorkspace() {
     updateSettings: updateMIDISettings,
     setMasterVolume: setMIDIMasterVolume,
   } = useMIDI();
-  
+
+  const globalInstrument = useInstrumentOptional();
+
   // Convert Set<number> to Set<string> for display
   const midiActiveNotes = new Set(Array.from(midiActiveNotesSet).map(n => String(n)));
   
@@ -1340,19 +1345,75 @@ export default function UnifiedStudioWorkspace() {
 
       if (focusTrackId) {
         setSelectedTrack(focusTrackId);
-        window.dispatchEvent(new CustomEvent('studio:focusTrack', {
-          detail: { trackId: focusTrackId, view: 'piano-roll' }
+      }
+
+      // ── Route drums to Beat Lab (always-mounted, no localStorage needed) ──
+      const drumNotes = detail.notes.filter((n: any) => n.trackType === 'drums');
+      if (drumNotes.length > 0) {
+        const pitchToTrack: Record<number, string> = { 36: 'kick', 38: 'snare', 42: 'hihat', 46: 'perc' };
+        const patternLength = 16;
+        const emptyStep = () => ({ active: false, velocity: 100, probability: 100, swing: 0, pitch: 0 });
+        const trackDefs = [
+          { id: 'kick', name: 'Kick' },
+          { id: 'snare', name: 'Snare' },
+          { id: 'hihat', name: 'Hi-Hat' },
+          { id: 'perc', name: 'Perc' },
+        ];
+        const trackMap: Record<string, ReturnType<typeof emptyStep>[]> = {};
+        trackDefs.forEach(td => { trackMap[td.id] = Array.from({ length: patternLength }, emptyStep); });
+        for (const dn of drumNotes) {
+          const trackId = pitchToTrack[dn.pitch as number] || (dn as any).drumType;
+          if (!trackId || !trackMap[trackId]) continue;
+          const stepIdx = ((dn as any).startStep ?? (dn as any).step ?? 0) % patternLength;
+          trackMap[trackId][stepIdx] = { ...trackMap[trackId][stepIdx], active: true, velocity: (dn as any).velocity || 100 };
+        }
+        const beatTracks = trackDefs.map(td => ({ id: td.id, name: td.name, pattern: trackMap[td.id] }));
+        window.dispatchEvent(new CustomEvent('ai:loadBeatPattern', {
+          detail: { tracks: beatTracks, bpm: detail.bpm || 90, timestamp: Date.now() },
         }));
       }
 
-      setActiveView('piano-roll');
-      setPianoRollExpanded(true);
-      setTransportBarCollapsed(true);
+      // ── Tell the user what was loaded and where — let THEM choose where to go ──
+      const melodicCount = grouped.melody.length + grouped.bass.length + grouped.chords.length;
+      const drumCount = grouped.drums.length;
 
-      toast({
-        title: 'Astutely Pattern Loaded',
-        description: `${detail.notes.length} notes added across AI tracks`
-      });
+      const destinations: string[] = [];
+      if (melodicCount > 0) destinations.push(`${melodicCount} notes → Piano Roll`);
+      if (drumCount > 0) destinations.push(`${drumCount} hits → Beat Lab`);
+
+      // Toast for melodic content
+      if (melodicCount > 0) {
+        toast({
+          title: '🎹 Piano Roll Ready',
+          description: `Melody, bass & chords loaded (${melodicCount} notes)`,
+          action: (
+            <ToastAction altText="Open Piano Roll" onClick={() => {
+              setActiveView('piano-roll');
+              setPianoRollExpanded(true);
+            }}>
+              Open
+            </ToastAction>
+          ),
+        });
+      }
+
+      // Toast for drum content
+      if (drumCount > 0) {
+        toast({
+          title: '🥁 Beat Lab Ready',
+          description: `Drum pattern loaded (${drumCount} hits)`,
+          action: (
+            <ToastAction altText="Open Beat Lab" onClick={() => setActiveView('beat-lab')}>
+              Open
+            </ToastAction>
+          ),
+        });
+      }
+
+      // Fallback if somehow nothing categorised
+      if (melodicCount === 0 && drumCount === 0) {
+        toast({ title: 'AI Pattern Loaded', description: `${detail.notes.length} notes ready` });
+      }
     };
 
     window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
@@ -2918,7 +2979,7 @@ export default function UnifiedStudioWorkspace() {
           {activeView === 'piano-roll' && (
             <VerticalPianoRoll />
           )}
-          {activeView === 'beat-lab' && <BeatLab />}
+          {activeView === 'beat-lab' && <BeatLab isActive={true} />}
           {activeView === 'lyrics' && <LyricLab />}
           {activeView === 'ai-studio' && (
             <div className="p-4">
@@ -3463,22 +3524,34 @@ export default function UnifiedStudioWorkspace() {
                   </div>
                 )}
 
-                {/* Current Instrument */}
+                {/* Current Instrument — synced with Piano Roll */}
                 {midiConnected && (
                   <div className="pt-2 border-t border-cyan-500/30">
                     <div className="text-xs text-cyan-400 mb-1">Current Instrument:</div>
                     <select
-                      value={midiSettings?.currentInstrument || 'piano'}
-                      onChange={(e) => updateMIDISettings({ currentInstrument: e.target.value })}
+                      value={globalInstrument?.currentInstrument || midiSettings?.currentInstrument || 'piano'}
+                      onChange={(e) => {
+                        const inst = e.target.value;
+                        // Update both the MIDI hook AND the global instrument context
+                        // so Piano Roll, mouse clicks, and keyboard shortcuts all use the same instrument
+                        updateMIDISettings({ currentInstrument: inst });
+                        globalInstrument?.setCurrentInstrument(inst);
+                      }}
                       className="w-full px-2 py-1 bg-black/60 border border-cyan-500/40 rounded text-sm text-cyan-100 astutely-input"
                     >
-                      <option value="piano">🎹 Piano</option>
-                      <option value="guitar">🎸 Guitar</option>
-                      <option value="violin">🎻 Violin</option>
-                      <option value="flute">🎵 Flute</option>
-                      <option value="trumpet">🎺 Trumpet</option>
-                      <option value="bass">🎸 Bass</option>
-                      <option value="organ">🎹 Organ</option>
+                      {Object.entries(
+                        AVAILABLE_INSTRUMENTS.reduce((acc, inst) => {
+                          if (!acc[inst.category]) acc[inst.category] = [];
+                          acc[inst.category].push(inst);
+                          return acc;
+                        }, {} as Record<string, typeof AVAILABLE_INSTRUMENTS>)
+                      ).map(([category, instruments]) => (
+                        <optgroup key={category} label={category}>
+                          {instruments.map(inst => (
+                            <option key={inst.value} value={inst.value}>{inst.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -4400,70 +4473,64 @@ export default function UnifiedStudioWorkspace() {
           </>
           )}
 
-          {/* BEAT LAB VIEW */}
-          {activeView === 'beat-lab' && (
-            <div className="flex-1 min-h-0 overflow-y-auto bg-gray-900 pt-14 flex flex-col">
-              <div className="flex-1 min-h-0">
-                <BeatLab initialTab={beatLabTab} />
-              </div>
+          {/* BEAT LAB VIEW — always mounted so event listeners survive tab switches */}
+          <div
+            className="flex-1 min-h-0 overflow-y-auto bg-gray-900 pt-14 flex flex-col"
+            style={{ display: activeView === 'beat-lab' ? 'flex' : 'none' }}
+          >
+            <div className="flex-1 min-h-0">
+              <BeatLab initialTab={beatLabTab} isActive={activeView === 'beat-lab'} />
             </div>
-          )}
+          </div>
 
-          {/* PIANO ROLL VIEW */}
-          {activeView === 'piano-roll' && (
-            <div className="flex-1 overflow-auto bg-gray-900 pt-14">
-              {(() => {
-                const selectedTrackData = tracks.find(t => t.id === selectedTrack);
-                const isAudioTrack = selectedTrackData?.type === 'audio';
-                
-                if (isAudioTrack) {
-                  return (
-                    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-                      <div className="bg-gray-800 rounded-lg p-8 max-w-md">
-                        <Music className="w-12 h-12 mx-auto mb-4 text-gray-500" />
-                        <h3 className="text-lg font-semibold mb-2">Audio Track Selected</h3>
-                        <p className="text-gray-400 mb-4">
-                          "{selectedTrackData?.name}" is an audio file. Piano Roll editing is only available for MIDI/instrument tracks.
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Use the Arrangement view to see the waveform, or select a MIDI track to edit notes.
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }
-                
+          {/* PIANO ROLL VIEW — always mounted so MIDI listeners + note state survive tab switches */}
+          <div
+            className="flex-1 overflow-auto bg-gray-900 pt-14"
+            style={{ display: activeView === 'piano-roll' ? 'block' : 'none' }}
+          >
+            {(() => {
+              const selectedTrackData = tracks.find(t => t.id === selectedTrack);
+              const isAudioTrack = selectedTrackData?.type === 'audio';
+              if (isAudioTrack) {
                 return (
-                  <>
-                    {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
-                    <VerticalPianoRoll 
-                      {...({ tracks: tracks as any } as any)}
-                      selectedTrack={selectedTrack || undefined}
-                      isPlaying={transportPlaying}
-                      currentTime={playheadPosition}
-                      onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
-                        // Play note using the instrument selected in the Piano Roll
-                        playNote(note, octave, instrument, duration);
-                      }}
-                      onPlayNoteOff={(note: string, octave: number, instrument: string) => {
-                        playNoteOff(note, octave, instrument);
-                      }}
-                      onNotesChange={(updatedNotes: any[]) => {
-                        // Update the notes for the selected track
-                        if (selectedTrack) {
-                          setTracks(tracks.map(t => 
-                            t.id === selectedTrack 
-                              ? { ...t, notes: updatedNotes }
-                              : t
-                          ));
-                        }
-                      }}
-                    />
-                  </>
+                  <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                    <div className="bg-gray-800 rounded-lg p-8 max-w-md">
+                      <Music className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+                      <h3 className="text-lg font-semibold mb-2">Audio Track Selected</h3>
+                      <p className="text-gray-400 mb-4">
+                        "{selectedTrackData?.name}" is an audio file. Piano Roll editing is only available for MIDI/instrument tracks.
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Use the Arrangement view to see the waveform, or select a MIDI track to edit notes.
+                      </p>
+                    </div>
+                  </div>
                 );
-              })()}
-            </div>
-          )}
+              }
+              return (
+                /* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */
+                <VerticalPianoRoll
+                  {...({ tracks: tracks as any } as any)}
+                  selectedTrack={selectedTrack || undefined}
+                  isPlaying={transportPlaying}
+                  currentTime={playheadPosition}
+                  onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
+                    playNote(note, octave, instrument, duration);
+                  }}
+                  onPlayNoteOff={(note: string, octave: number, instrument: string) => {
+                    playNoteOff(note, octave, instrument);
+                  }}
+                  onNotesChange={(updatedNotes: any[]) => {
+                    if (selectedTrack) {
+                      setTracks(tracks.map(t =>
+                        t.id === selectedTrack ? { ...t, notes: updatedNotes } : t
+                      ));
+                    }
+                  }}
+                />
+              );
+            })()}
+          </div>
 
           {/* MIXER VIEW */}
           {activeView === 'mixer' && (

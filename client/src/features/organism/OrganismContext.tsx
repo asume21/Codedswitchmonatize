@@ -68,6 +68,25 @@ export interface OrganismContextValue {
   savedSessions:     SavedSession[]
   downloadSession:   (session: SavedSession) => void
 
+  // Latch mode — keeps organism alive when MIDI keys are released
+  latchMode:    boolean
+  setLatchMode: (enabled: boolean) => void
+
+  // Pattern lock — freeze the current drum groove so it loops unchanged
+  isPatternLocked:  boolean
+  lockPattern:      () => void
+  unlockPattern:    () => void
+
+  // Tweak controls (active even when locked)
+  hatDensity:         number   // 0–2, default 1
+  kickVelocity:       number   // 0–2, default 1
+  bassVolume:         number   // 0–2, default 1
+  melodyVolume:       number   // 0–2, default 1
+  setHatDensity:      (v: number) => void
+  setKickVelocity:    (v: number) => void
+  setBassVolume:      (v: number) => void
+  setMelodyVolume:    (v: number) => void
+
   // Status
   isRunning:    boolean
   isCapturing:  boolean

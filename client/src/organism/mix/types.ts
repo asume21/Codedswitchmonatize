@@ -51,10 +51,10 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
     },
   },
   master: {
-    gainDb: 0,
-    limiterThreshDb: -1.0,
+    gainDb: -3,              // pull master down 3dB — headroom for transients
+    limiterThreshDb: -2.0,   // slightly harder limiter ceiling
     limiterLookaheadMs: 5,
-    saturationAmount: 0.15,
+    saturationAmount: 0.04,  // was 0.15 — subtle warmth only, not distortion
   },
   meterIntervalMs: 250,
 }

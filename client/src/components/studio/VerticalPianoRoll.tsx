@@ -328,7 +328,10 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   
   // ISSUE #6: Pattern length control
   const [patternSteps, setPatternSteps] = useState(64);
-  
+  // Ref so the playback interval closure always sees the latest pattern length
+  // without being re-created every time patternSteps changes
+  const patternStepsRef = useRef(64);
+
   const { toast } = useToast();
   const { currentSession, updateSession } = useSongWorkSession();
   // Use useTracks hook for persistence
@@ -350,6 +353,22 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // Keep tracksRef updated with latest tracks for playback interval
   useEffect(() => {
     tracksRef.current = tracks;
+  }, [tracks]);
+
+  // Auto-expand patternSteps to fit all loaded notes.
+  // This fires whenever tracks change (e.g. AI loads a long pattern).
+  // We only expand — never shrink automatically — so the user doesn't lose
+  // grid space when deleting a note.
+  useEffect(() => {
+    const allNoteEnds = tracks.flatMap(t => t.notes.map((n: Note) => n.step + n.length));
+    if (allNoteEnds.length === 0) return;
+    const needed = Math.max(...allNoteEnds);
+    // Round up to nearest multiple of 16 (one bar) for a clean grid
+    const rounded = Math.ceil(needed / 16) * 16;
+    if (rounded > patternStepsRef.current) {
+      patternStepsRef.current = rounded;
+      setPatternSteps(rounded);
+    }
   }, [tracks]);
   const pianoTrackIdRef = useRef<string>(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `piano-${Date.now()}`);
   const hasRegisteredTrackRef = useRef(false);
@@ -786,7 +805,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   useEffect(() => {
     if (!isExternallyControlled || !propIsPlaying) return;
     
-    const newStep = Math.floor(propCurrentTime * 4) % STEPS;
+    const newStep = Math.floor(propCurrentTime * 4) % patternStepsRef.current;
     if (newStep === prevStepRef.current) return;
     
     prevStepRef.current = newStep;
@@ -852,7 +871,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
       intervalRef.current = setInterval(() => {
         setCurrentStep(prev => {
-          const nextStep = (prev + 1) % STEPS;
+          const nextStep = (prev + 1) % patternStepsRef.current;
           
           // Use tracksRef.current to always get latest tracks (not stale closure)
           const currentTracks = tracksRef.current;
@@ -2713,6 +2732,13 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Key / Scale selector + Chord progression row */}
+      <div className="flex items-center gap-2 px-2 py-1 border-b border-cyan-500/20 bg-black/60 overflow-x-auto">
+        {keyScaleSelector}
+        <div className="h-4 w-px bg-cyan-500/20 flex-shrink-0" />
+        {chordProgressionDisplay}
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
