@@ -538,7 +538,7 @@ export default function VoiceConvertPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="convert">
             <Mic2 className="w-4 h-4 mr-2" />
             Convert

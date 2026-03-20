@@ -181,7 +181,7 @@ export default function SampleLibraryPage() {
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <div className="border-b border-cyan-500/20 bg-black/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <Music2 className="w-8 h-8 text-cyan-400" />
@@ -195,7 +195,7 @@ export default function SampleLibraryPage() {
           </div>
 
           {/* Search and Filters */}
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/60" />
               <input
@@ -222,7 +222,7 @@ export default function SampleLibraryPage() {
       </div>
 
       {/* Sample Grid */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
         {filteredSamples.length === 0 ? (
           <div className="text-center py-16">
             <Music2 className="w-16 h-16 text-cyan-500/40 mx-auto mb-4" />

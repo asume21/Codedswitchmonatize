@@ -1652,7 +1652,7 @@ export default function UnifiedStudioWorkspace() {
 
     return (
       <Dialog open={showWaveformEditor} onOpenChange={setShowWaveformEditor}>
-        <DialogContent className="max-w-3xl bg-gray-900 border-gray-700">
+        <DialogContent className="max-w-[95vw] md:max-w-3xl bg-gray-900 border-gray-700">
           <DialogTitle className="text-lg font-semibold">Waveform Editor · {track.name}</DialogTitle>
           <div className="space-y-4">
             <div className="bg-gray-800 rounded p-3 border border-gray-700">
@@ -3046,10 +3046,10 @@ export default function UnifiedStudioWorkspace() {
         onBounceComplete={handleWindowBounceComplete}
       />
       {/* Top Bar */}
-      <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-black tracking-[0.3em] astutely-gradient-text uppercase">CodedSwitch</h1>
-          <div className="flex space-x-0.5" ref={menuBarRef}>
+      <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-2 sm:px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
+        <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+          <h1 className="text-base sm:text-xl font-black tracking-[0.2em] sm:tracking-[0.3em] astutely-gradient-text uppercase hidden sm:block">CodedSwitch</h1>
+          <div className="flex space-x-0.5 overflow-x-auto" ref={menuBarRef}>
             <div className="relative">
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
               {openMenu === 'file' && (
@@ -3737,9 +3737,10 @@ export default function UnifiedStudioWorkspace() {
         </div>
 
       {/* DAW-Style Tab Bar - All tabs together */}
-      <div className="bg-black/60 border-b border-cyan-500/40 px-2 py-2 flex flex-wrap items-center justify-between gap-2 astutely-panel relative z-10">
-        {/* All Tabs - Left Side */}
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="bg-black/60 border-b border-cyan-500/40 px-2 py-2 flex items-center justify-between gap-2 astutely-panel relative z-10 overflow-hidden">
+        {/* All Tabs - horizontally scrollable on mobile */}
+        <div className="flex items-center gap-1 overflow-x-auto flex-nowrap min-w-0 flex-1 pb-0.5 scrollbar-none"
+             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <Button
             variant={activeView === 'arrangement' ? 'default' : 'ghost'}
             size="sm"
@@ -3863,44 +3864,44 @@ export default function UnifiedStudioWorkspace() {
         </div>
 
         {/* Right Side - Compact Action Buttons & Volume */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="px-2 py-1 rounded border border-cyan-500/40 bg-black/60 text-xs text-cyan-100 astutely-panel">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-1">
+          <div className="hidden sm:block px-2 py-1 rounded border border-cyan-500/40 bg-black/60 text-xs text-cyan-100 astutely-panel">
             Snap: <span className={snapToGridEnabled ? 'text-green-400 font-semibold' : 'text-cyan-400'}>{snapToGridEnabled ? 'On' : 'Off'}</span>
           </div>
           <Button
             onClick={() => setShowAstutely(true)}
-            className="h-8 px-4 font-bold text-white transition-all hover:scale-105 astutely-button"
-            style={{ 
+            className="h-8 px-2 sm:px-4 font-bold text-white transition-all hover:scale-105 astutely-button"
+            style={{
               background: 'linear-gradient(135deg, #0891B2, #2563EB)',
               boxShadow: '0 0 20px rgba(37, 99, 235, 0.4)'
             }}
             size="sm"
             title="Astutely Brain - Neural control center"
           >
-            <Sparkles className="w-4 h-4 mr-1.5" />
-            Astutely Core
+            <Sparkles className="w-4 h-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Astutely Core</span>
           </Button>
           <Button
             onClick={() => setShowAstutelyArchitect(true)}
-            className="h-8 px-4 font-bold text-white transition-all hover:scale-105 astutely-button"
-            style={{ 
+            className="h-8 px-2 sm:px-4 font-bold text-white transition-all hover:scale-105 astutely-button"
+            style={{
               background: 'linear-gradient(135deg, #F59E0B, #EF4444)',
               boxShadow: '0 0 20px rgba(245, 158, 11, 0.4)'
             }}
             size="sm"
             title="Astutely Beat Architect (Beta)"
           >
-            <Sparkles className="w-4 h-4 mr-1.5" />
-            Architect
+            <Sparkles className="w-4 h-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Architect</span>
           </Button>
           <Button
             onClick={() => setShowMusicGen(!showMusicGen)}
-            className="bg-cyan-600 hover:bg-cyan-500 h-8 px-3 astutely-button"
+            className="bg-cyan-600 hover:bg-cyan-500 h-8 px-2 sm:px-3 astutely-button"
             size="sm"
             title="Generate Music"
           >
-            <Music className="w-3 h-3 mr-1" />
-            Generate
+            <Music className="w-3 h-3 sm:mr-1" />
+            <span className="hidden sm:inline">Generate</span>
           </Button>
           <Button
             onClick={() => setShowWorkflowSelector(true)}
@@ -4685,7 +4686,7 @@ export default function UnifiedStudioWorkspace() {
 
       {/* Workflow Selector Modal */}
       <Dialog open={showWorkflowSelector} onOpenChange={setShowWorkflowSelector}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 bg-background">
+        <DialogContent className="max-w-[95vw] md:max-w-6xl max-h-[90vh] overflow-y-auto p-0 bg-background">
           <DialogTitle className="sr-only">Select Workflow</DialogTitle>
           <WorkflowSelector
             onSelectWorkflow={handleSelectWorkflow}
@@ -4695,7 +4696,7 @@ export default function UnifiedStudioWorkspace() {
       </Dialog>
 
       <Dialog open={effectsDialogOpen} onOpenChange={setEffectsDialogOpen}>
-        <DialogContent className="max-w-4xl bg-gray-900 border border-gray-700">
+        <DialogContent className="max-w-[95vw] md:max-w-4xl bg-gray-900 border border-gray-700">
           <DialogTitle className="sr-only">Audio Effects</DialogTitle>
           {activeEffectTool === 'EQ' && (
             <EQPlugin

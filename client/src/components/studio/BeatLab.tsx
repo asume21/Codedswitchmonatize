@@ -19,9 +19,10 @@ type BeatLabTab = "pro" | "bass-studio" | "loop-library" | "pack-generator";
 
 interface BeatLabProps {
   initialTab?: BeatLabTab;
+  isActive?: boolean;
 }
 
-export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
+export default function BeatLab({ initialTab = "pro", isActive = false }: BeatLabProps) {
   const { addTrack } = useTracks();
   const { tempo } = useTransport();
   const { toast } = useToast();
@@ -227,7 +228,8 @@ export default function BeatLab({ initialTab = "pro" }: BeatLabProps) {
             {/* Pro Beat Maker - Full-featured drum machine with all professional features */}
             <TabsContent value="pro" className="mt-4 outline-none">
               <div className="bg-black/20 rounded-2xl border border-white/5 p-1">
-                <ProBeatMaker 
+                <ProBeatMaker
+                  isActive={isActive}
                   onPatternChange={(tracks, bpm) => {
                     // Convert tracks to pattern format for timeline
                     const pattern: Record<string, boolean[]> = {};

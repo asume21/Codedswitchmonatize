@@ -129,7 +129,7 @@ function FeedTab() {
       </div>
 
       {/* Quick Stats Bar */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Posts', value: stats.totalShares, icon: <Share2 className="h-4 w-4" />, color: 'cyan' },
           { label: 'Views', value: stats.totalViews, icon: <Eye className="h-4 w-4" />, color: 'blue' },

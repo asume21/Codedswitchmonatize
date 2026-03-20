@@ -347,7 +347,7 @@ export default function FloatingAudioMonitor() {
     <div className="fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2">
       {/* Expanded panel */}
       {isExpanded && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-80 max-h-[28rem] overflow-hidden">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-[min(20rem,calc(100vw-2rem))] max-h-[80vh] overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
             <span className="text-xs font-semibold text-gray-300">
               Audio &amp; Organism

@@ -86,7 +86,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
         {isOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-            <div className="absolute top-full right-0 mt-2 w-56 bg-black/90 border border-cyan-500/40 rounded-xl py-2 z-50 shadow-[0_0_30px_rgba(6,182,212,0.25)] backdrop-blur-md astutely-panel">
+            <div className="absolute top-full right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] bg-black/90 border border-cyan-500/40 rounded-xl py-2 z-50 shadow-[0_0_30px_rgba(6,182,212,0.25)] backdrop-blur-md astutely-panel">
               {NAV_ITEMS.slice(6).map(item => (
                 <button
                   key={item.path}
@@ -164,8 +164,8 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div 
-            className="absolute top-full left-0 mt-2 w-64 bg-black/90 border border-cyan-500/40 rounded-xl py-2 z-50 shadow-[0_0_40px_rgba(6,182,212,0.25)] backdrop-blur-md astutely-panel"
+          <div
+            className="absolute top-full left-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-black/90 border border-cyan-500/40 rounded-xl py-2 z-50 shadow-[0_0_40px_rgba(6,182,212,0.25)] backdrop-blur-md astutely-panel"
             style={{ backdropFilter: 'blur(20px)' }}
           >
             <div className="px-4 py-2 text-xs font-black uppercase tracking-widest text-cyan-400/80">

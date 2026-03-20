@@ -71,7 +71,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-6 space-y-6 min-w-[1400px]">
+    <div className="p-4 sm:p-6 space-y-6 w-full max-w-screen">
       <div className="w-full">
       <div className="flex items-center justify-between">
         <div>

@@ -148,7 +148,7 @@ export default function Settings() {
   }, [settings.gpuAcceleration, settings.multiThreading, settings.cacheSize]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black p-3 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -168,7 +168,7 @@ export default function Settings() {
 
         {/* Tabbed Settings */}
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid grid-cols-6 w-full bg-gray-800">
+          <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full bg-gray-800">
             <TabsTrigger value="general" className="data-[state=active]:bg-blue-600">
               <User className="h-4 w-4 mr-2" />
               General
@@ -203,7 +203,7 @@ export default function Settings() {
                 <CardDescription className="text-gray-400">Manage your profile and preferences</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="displayName" className="text-gray-300">Display Name</Label>
                     <Input 
@@ -288,7 +288,7 @@ export default function Settings() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="latency" className="text-gray-300">Latency Mode</Label>
                     <Select value={settings.latency} onValueChange={(value) => setSettings({...settings, latency: value})}>
@@ -619,7 +619,7 @@ export default function Settings() {
                       {subscription?.hasActiveSubscription ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-400">Credits balance</p>
                       <p className="text-white font-medium">{isAuthenticated ? creditBalance : 'Sign in'}</p>
@@ -657,7 +657,7 @@ export default function Settings() {
 
                 <div className="space-y-2">
                   <h4 className="text-white font-medium">Usage This Month</h4>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-4 bg-gray-700 rounded-lg">
                       <p className="text-gray-400 text-sm">Music Generations</p>
                       <p className="text-white font-bold text-xl">{subscription?.monthlyGenerations ?? 0}</p>
