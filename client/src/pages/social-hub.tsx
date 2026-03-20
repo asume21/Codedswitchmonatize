@@ -108,17 +108,17 @@ export default function SocialHub() {
 
   const isAuthenticated = auth?.isAuthenticated || false;
 
-  // Fetch social stats
-  const { data: socialData, refetch: refetchSocial } = useQuery({
-    queryKey: ['/api/social/stats'],
-    queryFn: () => apiRequest('GET', '/api/social/stats').then(res => res.json()),
-    enabled: isAuthenticated,
-  });
-
-  // Fetch recent posts
-  const { data: postsData } = useQuery({
+  // Fetch social feed (posts + stats in one call)
+  const { data: feedData, refetch: refetchSocial } = useQuery({
     queryKey: ['/api/social/posts'],
-    queryFn: () => apiRequest('GET', '/api/social/posts').then(res => res.json()),
+    queryFn: async () => {
+      try {
+        const res = await apiRequest('GET', '/api/social/posts');
+        return await res.json();
+      } catch {
+        return { posts: [], stats: null };
+      }
+    },
     enabled: isAuthenticated,
   });
 
@@ -171,17 +171,15 @@ export default function SocialHub() {
   });
 
   useEffect(() => {
-    if (socialData) {
-      setStats(socialData.stats);
-      setRecentPosts(socialData.posts || []);
+    if (feedData) {
+      if (feedData.stats) {
+        setStats(prev => ({ ...prev, ...feedData.stats }));
+      }
+      if (Array.isArray(feedData.posts)) {
+        setRecentPosts(feedData.posts);
+      }
     }
-  }, [socialData]);
-
-  useEffect(() => {
-    if (postsData) {
-      setRecentPosts(postsData.posts || []);
-    }
-  }, [postsData]);
+  }, [feedData]);
 
   const handleShare = async (platform: string, content: string, type: string, title: string) => {
     if (!isAuthenticated) {
