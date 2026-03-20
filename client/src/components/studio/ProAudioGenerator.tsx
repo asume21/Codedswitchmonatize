@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { apiRequest } from '@/lib/queryClient';
+import { transcribeAudioUrl } from '@/lib/audioTranscriber';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -713,24 +714,75 @@ export function ProAudioGenerator() {
     setExtractingPatterns(true);
     setPatternsLoaded(false);
     try {
-      const response = await apiRequest('POST', '/api/songs/extract-patterns', {
-        audioUrl: generatedSong.audioUrl,
-        bpm: generatedSong.bpm || bpm[0] || 120,
-      });
-      const data = await response.json();
-      if (!data.success || !data.notes || data.notes.length === 0) {
-        toast({ title: 'No Patterns Found', description: data.message || 'Could not extract editable patterns from this audio.', variant: 'destructive' });
+      const resolvedBpm = generatedSong.bpm || bpm[0] || 120;
+
+      // Primary path: client-side transcription — free, no server needed.
+      // Falls back to the server's extract-patterns endpoint (which uses the
+      // local Python analysis API at port 7871, or an estimated pattern).
+      let data: { success: boolean; notes: any[]; bpm: number; source?: string; totalDuration?: number; noteCount?: number } | null = null;
+
+      try {
+        const result = await transcribeAudioUrl(
+          generatedSong.audioUrl,
+          resolvedBpm,
+          (pct) => { /* could wire to a progress bar here */ void pct },
+        );
+        if (result.notes.length > 0) {
+          data = { success: true, notes: result.notes, bpm: result.bpm, source: 'client' };
+        }
+      } catch (clientErr) {
+        console.warn('[audioTranscriber] Client-side transcription failed, falling back to server:', clientErr);
+      }
+
+      if (!data) {
+        const response = await apiRequest('POST', '/api/songs/extract-patterns', {
+          audioUrl: generatedSong.audioUrl,
+          bpm: resolvedBpm,
+        });
+        data = await response.json();
+      }
+
+      if (!data?.success || !data.notes || data.notes.length === 0) {
+        toast({ title: 'No Patterns Found', description: 'Could not extract editable patterns from this audio.', variant: 'destructive' });
         return;
       }
       // Dispatch to piano roll via the astutely:generated event bridge
-      const resolvedBpm = data.bpm || bpm[0] || 120;
-      window.dispatchEvent(new CustomEvent('astutely:generated', {
-        detail: {
-          notes: data.notes,
-          bpm: resolvedBpm,
-          key: generatedSong.key || key,
+      const astPayload = {
+        notes: data.notes,
+        bpm: resolvedBpm,
+        key: generatedSong.key || key,
+        timestamp: Date.now(),
+      };
+
+      // Persist to localStorage so Piano Roll and Beat Maker pick it up when
+      // their tabs mount — the event alone is lost if the component isn't rendered yet.
+      try {
+        localStorage.setItem('astutely-generated', JSON.stringify(astPayload));
+
+        // Extract drum notes → separate key for Beat Maker's localStorage read
+        const drumNotes = (data.notes as any[]).filter((n: any) => n.trackType === 'drums');
+        if (drumNotes.length > 0) {
+          const PITCH_TO_ID: Record<number, string> = { 36: 'kick', 35: 'kick', 38: 'snare', 40: 'snare', 42: 'hihat', 44: 'hihat', 46: 'hihat', 37: 'perc', 39: 'perc' };
+          const trackMap: Record<string, { active: boolean; velocity: number }[]> = {
+            kick: Array.from({ length: 64 }, () => ({ active: false, velocity: 100 })),
+            snare: Array.from({ length: 64 }, () => ({ active: false, velocity: 100 })),
+            hihat: Array.from({ length: 64 }, () => ({ active: false, velocity: 100 })),
+            perc: Array.from({ length: 64 }, () => ({ active: false, velocity: 100 })),
+          };
+          for (const dn of drumNotes) {
+            const id = PITCH_TO_ID[dn.pitch] ?? 'perc';
+            const step = (dn.startStep ?? 0) % 64;
+            if (trackMap[id]) trackMap[id][step] = { active: true, velocity: dn.velocity ?? 100 };
+          }
+          localStorage.setItem('ast-beat-pattern-pending', JSON.stringify({
+            tracks: Object.entries(trackMap).map(([id, pattern]) => ({ id, name: id.charAt(0).toUpperCase() + id.slice(1), pattern })),
+            bpm: resolvedBpm,
+            timestamp: Date.now(),
+          }));
         }
-      }));
+      } catch { /* storage full — live event still fires */ }
+
+      window.dispatchEvent(new CustomEvent('astutely:generated', { detail: astPayload }));
 
       // Also inject the original generated audio as a playable reference track
       const durationSeconds = Number(data.totalDuration) || Number(generatedSong.duration) || 0;
@@ -749,9 +801,14 @@ export function ProAudioGenerator() {
       }));
 
       setPatternsLoaded(true);
+
+      // Navigate to Piano Roll so the user lands there with notes already loaded.
+      // Beat Maker (beat-lab) will pick up drums from localStorage when that tab is opened.
+      window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'piano-roll' }));
+
       toast({
         title: 'Patterns Loaded!',
-        description: `${data.noteCount || data.notes.length} notes loaded and a playable reference track was added. ${data.source === 'estimated' ? '(Estimated — audio analysis API offline)' : ''}`,
+        description: `${data.noteCount || data.notes.length} notes loaded. Opening Piano Roll — drum pattern saved for Beat Maker. ${data.source === 'estimated' ? '(Estimated — audio analysis API offline)' : ''}`,
       });
     } catch (err: any) {
       toast({ title: 'Extraction Failed', description: err?.message || 'Could not extract patterns.', variant: 'destructive' });

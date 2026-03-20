@@ -1,3 +1,4 @@
+// @ts-ignore — midi-writer-js types exist but package.json "exports" prevents resolution
 import MidiWriter from 'midi-writer-js'
 import type { GeneratorEvent } from './types'
 

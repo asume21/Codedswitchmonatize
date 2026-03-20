@@ -56,7 +56,7 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
     limiterLookaheadMs: 5,
     saturationAmount: 0.15,
   },
-  meterIntervalMs: 100,
+  meterIntervalMs: 250,
 }
 
 // ── Metering ─────────────────────────────────────────────────────────

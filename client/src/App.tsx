@@ -14,6 +14,7 @@ import { GlobalNav } from "@/components/layout/GlobalNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
 import FloatingAudioMonitor from "@/components/ui/FloatingAudioMonitor";
+import { GlobalOrganismWrapper } from "@/features/organism/GlobalOrganismWrapper";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
@@ -184,6 +185,7 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <GlobalOrganismWrapper>
           <TooltipProvider>
             <Toaster />
             {/* GLOBAL NAVIGATION - Available on ALL pages */}
@@ -296,15 +298,15 @@ function App() {
               <Route path="/pro-audio"><Redirect to="/studio" /></Route>
               <Route path="/codebeat-studio-direct"><Redirect to="/studio" /></Route>
               <Route path="/piano-roll"><Redirect to="/studio" /></Route>
-              <Route path="/design-playground"><Redirect to="/studio" /></Route>
               
               {/* 404 */}
               <Route component={NotFound} />
               </Switch>
             </Suspense>
           </TooltipProvider>
+          <FloatingAudioMonitor />
+          </GlobalOrganismWrapper>
         </AuthProvider>
-        <FloatingAudioMonitor />
       </QueryClientProvider>
     </ErrorBoundary>
   );

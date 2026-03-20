@@ -1,12 +1,21 @@
 /**
- * Floating Audio Monitor — Shows ALL currently playing audio in the app.
- * Appears as a small widget in the bottom-right corner.
- * Lets users see what's playing and stop individual sources or kill all.
+ * Floating Audio Monitor + Organism Controller
+ *
+ * Bottom-right widget that shows:
+ * 1. Organism mini-controls (start/stop/record) — available on ANY page
+ * 2. All currently playing audio elements with kill switches
+ *
+ * The Organism section only appears once the organism has been activated
+ * (via the "Activate" button or the dedicated Organism tab in the studio).
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Volume2, VolumeX, X, ChevronUp, ChevronDown, Square } from 'lucide-react';
+import {
+  Volume2, VolumeX, X, ChevronUp, ChevronDown, Square,
+  Play, Mic2, Circle, Download, Zap,
+} from 'lucide-react';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
+import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 
 interface TrackedAudio {
   id: number;
@@ -19,23 +28,165 @@ interface TrackedAudio {
 
 let audioIdCounter = 0;
 
+function OrganismMiniControls() {
+  const organism = useOrganismSafe();
+  const { isActivated, activate } = useOrganismActivation();
+  const [elapsed, setElapsed] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Track recording elapsed time
+  useEffect(() => {
+    if (organism?.isRecording) {
+      const start = Date.now();
+      elapsedRef.current = setInterval(() => setElapsed(Date.now() - start), 500);
+    } else {
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+      setElapsed(0);
+    }
+    return () => { if (elapsedRef.current) clearInterval(elapsedRef.current); };
+  }, [organism?.isRecording]);
+
+  const formatElapsed = (ms: number) => {
+    const totalSec = Math.floor(ms / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  // Not yet activated — show activate button
+  if (!isActivated) {
+    return (
+      <div className="px-3 py-2.5 border-b border-cyan-500/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-xs font-semibold text-cyan-300">Organism</span>
+          </div>
+          <button
+            onClick={activate}
+            className="px-2.5 py-1 rounded bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 text-[10px] font-bold hover:bg-cyan-500/30 transition-colors"
+          >
+            ACTIVATE
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-500 mt-1">Boot the beat engine to freestyle anywhere</p>
+      </div>
+    );
+  }
+
+  // Activated but provider not ready yet
+  if (!organism) {
+    return (
+      <div className="px-3 py-2.5 border-b border-cyan-500/20">
+        <div className="flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+          <span className="text-xs text-cyan-300">Booting engines...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const { isRunning, isRecording, start, stop, startRecording, stopRecording, downloadSession, lastSavedSession } = organism;
+
+  return (
+    <div className="px-3 py-2.5 border-b border-cyan-500/20 space-y-2">
+      {/* Header row */}
+      <div className="flex items-center gap-2">
+        <Zap className={`w-3.5 h-3.5 ${isRunning ? 'text-green-400' : 'text-cyan-400'}`} />
+        <span className="text-xs font-semibold text-cyan-300">Organism</span>
+        {isRunning && (
+          <span className="ml-auto flex items-center gap-1 text-[10px] text-green-400 font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            LIVE
+          </span>
+        )}
+        {isRecording && (
+          <span className="flex items-center gap-1 text-[10px] text-red-400 font-bold">
+            <Circle className="w-2.5 h-2.5 fill-red-500 text-red-500 animate-pulse" />
+            REC {formatElapsed(elapsed)}
+          </span>
+        )}
+      </div>
+
+      {/* Control buttons */}
+      <div className="flex items-center gap-1.5">
+        {/* Start / Stop */}
+        <button
+          onClick={isRunning ? stop : start}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
+            isRunning
+              ? 'bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30'
+              : 'bg-green-500/20 border border-green-500/40 text-green-300 hover:bg-green-500/30'
+          }`}
+        >
+          {isRunning ? (
+            <><Square className="w-3 h-3" /> Stop</>
+          ) : (
+            <><Play className="w-3 h-3" /> Start</>
+          )}
+        </button>
+
+        {/* Record / Stop Recording */}
+        <button
+          onClick={isRecording ? () => stopRecording() : startRecording}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
+            isRecording
+              ? 'bg-red-600/30 border border-red-500/50 text-red-200 hover:bg-red-600/40 animate-pulse'
+              : 'bg-orange-500/15 border border-orange-500/30 text-orange-300 hover:bg-orange-500/25'
+          }`}
+          title={isRecording ? 'Stop recording (saves beat + vocals + MIDI + lyrics)' : 'Record everything (beat + vocals + MIDI + lyrics)'}
+        >
+          {isRecording ? (
+            <><Square className="w-3 h-3" /> Save</>
+          ) : (
+            <><Circle className="w-3 h-3" /> Record</>
+          )}
+        </button>
+
+        {/* Download last session */}
+        {lastSavedSession && (
+          <button
+            onClick={() => downloadSession(lastSavedSession)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25 transition-colors"
+            title="Download last recorded session (beat + vocals + MIDI + lyrics)"
+          >
+            <Download className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {/* Last session info */}
+      {lastSavedSession && (
+        <div className="text-[10px] text-gray-500 flex items-center gap-2 flex-wrap">
+          <span>Last: {Math.round(lastSavedSession.durationMs / 1000)}s</span>
+          {lastSavedSession.beatBlob && <span className="text-cyan-500">Beat</span>}
+          {lastSavedSession.vocalBlob && <span className="text-orange-500">Vocals</span>}
+          {lastSavedSession.midiBlob && <span className="text-purple-500">MIDI</span>}
+          {lastSavedSession.lyrics && <span className="text-yellow-500">Lyrics</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FloatingAudioMonitor() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [trackedAudios, setTrackedAudios] = useState<TrackedAudio[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Read organism state for the floating button appearance
+  const organism = useOrganismSafe();
+  const organismRunning = organism?.isRunning ?? false;
+  const organismRecording = organism?.isRecording ?? false;
+
   // Poll all tracked audio elements every 500ms
   const pollAudio = useCallback(() => {
-    // Access the private set via the singleton — we read it through a
-    // helper we'll attach below.
     const elements = (globalAudioKillSwitch as any).audioElements as Set<HTMLAudioElement> | undefined;
     if (!elements) return;
 
     const list: TrackedAudio[] = [];
     elements.forEach((el: HTMLAudioElement) => {
-      // Only show elements that have a src and are not silent stubs
       if (!el.src || el.src === '' || el.src === 'about:blank') return;
-      // Assign a stable id
       if (!(el as any).__monitorId) {
         (el as any).__monitorId = ++audioIdCounter;
       }
@@ -95,23 +246,30 @@ export default function FloatingAudioMonitor() {
     }
   };
 
+  // Determine floating button state
+  const buttonState = organismRecording ? 'recording' : organismRunning ? 'organism-live' : playingCount > 0 ? 'audio-playing' : 'idle';
+
   return (
     <div className="fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2">
       {/* Expanded panel */}
       {isExpanded && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-80 max-h-80 overflow-hidden">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-80 max-h-[28rem] overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
             <span className="text-xs font-semibold text-gray-300">
-              Audio Monitor ({trackedAudios.length} tracked, {playingCount} playing)
+              Audio &amp; Organism
             </span>
             <button onClick={() => setIsExpanded(false)} className="text-gray-400 hover:text-white">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="overflow-y-auto max-h-56 p-2 space-y-1.5">
+          {/* Organism mini-controls — always visible at top */}
+          <OrganismMiniControls />
+
+          {/* Tracked audio elements */}
+          <div className="overflow-y-auto max-h-44 p-2 space-y-1.5">
             {trackedAudios.length === 0 && (
-              <p className="text-xs text-gray-500 text-center py-4">No audio elements tracked</p>
+              <p className="text-xs text-gray-500 text-center py-2">No audio elements tracked</p>
             )}
             {trackedAudios.map(a => (
               <div
@@ -158,16 +316,32 @@ export default function FloatingAudioMonitor() {
         </div>
       )}
 
-      {/* Floating button */}
+      {/* Floating button — reflects organism + audio state */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={`flex items-center gap-1.5 px-3 py-2 rounded-full shadow-lg text-xs font-bold transition-all ${
-          playingCount > 0
+          buttonState === 'recording'
+            ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
+            : buttonState === 'organism-live'
+            ? 'bg-green-600 hover:bg-green-500 text-white'
+            : buttonState === 'audio-playing'
             ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
             : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600'
         }`}
       >
-        {playingCount > 0 ? (
+        {buttonState === 'recording' ? (
+          <>
+            <Circle className="w-3.5 h-3.5 fill-white" />
+            REC
+            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+          </>
+        ) : buttonState === 'organism-live' ? (
+          <>
+            <Mic2 className="w-4 h-4" />
+            Live
+            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+          </>
+        ) : playingCount > 0 ? (
           <>
             <Volume2 className="w-4 h-4" />
             {playingCount} Playing
@@ -175,7 +349,7 @@ export default function FloatingAudioMonitor() {
           </>
         ) : (
           <>
-            <VolumeX className="w-4 h-4" />
+            <Zap className="w-4 h-4" />
             Audio
             {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
           </>

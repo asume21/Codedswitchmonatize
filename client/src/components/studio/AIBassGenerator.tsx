@@ -129,6 +129,37 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm
     updateMIDISettings({ currentInstrument: 'bass' });
     toast({ title: '🎸 Bass Mode Active', description: 'MIDI keyboard set to bass instrument' });
   }, [updateMIDISettings, toast]);
+
+  // Listen for AI-generated bass data from astutely:generated events
+  useEffect(() => {
+    const handleAstutelyBass = (e: CustomEvent<{ notes?: any[]; bpm?: number }>) => {
+      const { notes, bpm: aiBpm } = e.detail || {};
+      if (!notes || notes.length === 0) return;
+
+      const bassNotes = notes.filter((n: any) => n.trackType === 'bass');
+      if (bassNotes.length === 0) return;
+
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const converted = bassNotes.map((n: any) => {
+        const midiPitch = n.pitch || 36;
+        const oct = Math.floor(midiPitch / 12) - 1;
+        const noteIdx = midiPitch % 12;
+        return {
+          note: noteNames[noteIdx] || 'C',
+          octave: Math.min(Math.max(oct, 1), 3),
+          time: ((n.startStep ?? n.step ?? 0) / 4) * (60 / (aiBpm || effectiveBpm)),
+          duration: ((n.duration || 1) / 4) * (60 / (aiBpm || effectiveBpm)),
+          velocity: (n.velocity || 90) / 127,
+        };
+      });
+
+      setGeneratedBass(converted);
+      toast({ title: '🎸 AI Bass Loaded', description: `${converted.length} bass notes loaded from AI generation` });
+    };
+
+    window.addEventListener('astutely:generated', handleAstutelyBass as EventListener);
+    return () => window.removeEventListener('astutely:generated', handleAstutelyBass as EventListener);
+  }, [effectiveBpm, toast]);
   
   // Handle MIDI input for bass playing
   useEffect(() => {

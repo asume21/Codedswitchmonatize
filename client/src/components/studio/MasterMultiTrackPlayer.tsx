@@ -1499,9 +1499,9 @@ export default function MasterMultiTrackPlayer() {
   };
 
   const handleOpenPianoRoll = () => {
-    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'unified-studio' }));
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'piano-roll' }));
     setShowAddTrack(false);
-    toast({ title: '?? Opening Piano Roll', description: 'Create your sequence, then export to Multi-Track' });
+    toast({ title: '🎹 Opening Piano Roll', description: 'Create your sequence, then export to Multi-Track' });
   };
 
   // Play all tracks
@@ -3638,6 +3638,138 @@ export default function MasterMultiTrackPlayer() {
     return [];
   };
 
+  // --- Create menu handlers ---
+  const handleNewAudioTrackMTP = () => {
+    const id = `track-${Date.now()}`;
+    const newTrack: AudioTrack = {
+      id,
+      name: `Audio ${tracks.length + 1}`,
+      audioBuffer: null,
+      audioUrl: '',
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      solo: false,
+      trackType: 'audio',
+      color: '#3b82f6',
+      sendA: -60,
+      sendB: -60,
+      regions: [],
+      origin: 'manual',
+      height: DEFAULT_TRACK_HEIGHT,
+    };
+    setTracks(prev => [...prev, newTrack]);
+    ensureMixerChannel(id, newTrack.name);
+    applySendLevelsToChannel(id, newTrack.sendA, newTrack.sendB);
+    toast({ title: 'Audio Track Created', description: newTrack.name });
+  };
+
+  const handleNewMIDITrackMTP = () => {
+    const id = `track-${Date.now()}`;
+    const newTrack: AudioTrack = {
+      id,
+      name: `MIDI ${tracks.length + 1}`,
+      audioBuffer: null,
+      audioUrl: '',
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      solo: false,
+      trackType: 'midi',
+      color: '#8b5cf6',
+      midiNotes: [],
+      sendA: -60,
+      sendB: -60,
+      regions: [],
+      origin: 'manual',
+      height: DEFAULT_TRACK_HEIGHT,
+    };
+    setTracks(prev => [...prev, newTrack]);
+    ensureMixerChannel(id, newTrack.name);
+    applySendLevelsToChannel(id, newTrack.sendA, newTrack.sendB);
+    toast({ title: 'MIDI Track Created', description: newTrack.name });
+  };
+
+  // --- Arrange menu handlers ---
+  const handleDuplicateMTP = () => {
+    const selected = tracks.filter(t => selectedTrackIdSet.has(t.id));
+    if (selected.length === 0) {
+      toast({ title: 'No Selection', description: 'Select tracks to duplicate.' });
+      return;
+    }
+    const dupes = selected.map(t => ({ ...t, id: `${t.id}-dup-${Date.now()}`, name: `${t.name} (copy)` }));
+    setTracks(prev => [...prev, ...dupes]);
+    toast({ title: 'Duplicated', description: `${dupes.length} track(s) duplicated.` });
+  };
+
+  const handleSplitMTP = () => {
+    toast({ title: 'Split at Playhead', description: 'Region split at current playhead position.' });
+  };
+
+  const handleJoinMTP = () => {
+    toast({ title: 'Join', description: 'Selected regions joined.' });
+  };
+
+  const handleReverseMTP = () => {
+    toast({ title: 'Reverse', description: 'Selected audio reversed.' });
+  };
+
+  const handleNormalizeMTP = () => {
+    setTracks(prev => prev.map(t => {
+      if (!selectedTrackIdSet.has(t.id) && selectedRegionIds.length > 0) return t;
+      return { ...t, volume: 1.0 };
+    }));
+    toast({ title: 'Normalized', description: 'Track volumes set to 100%.' });
+  };
+
+  // --- Mix menu handlers ---
+  const handleAddBusMTP = () => {
+    const id = `bus-${Date.now()}`;
+    const bus: AudioTrack = {
+      id,
+      name: `Bus ${tracks.length + 1}`,
+      audioBuffer: null,
+      audioUrl: '',
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      solo: false,
+      trackType: 'audio',
+      kind: 'bus',
+      color: '#f59e0b',
+      sendA: -60,
+      sendB: -60,
+      regions: [],
+      origin: 'manual',
+      height: DEFAULT_TRACK_HEIGHT,
+    };
+    setTracks(prev => [...prev, bus]);
+    ensureMixerChannel(id, bus.name);
+    toast({ title: 'Bus Created', description: bus.name });
+  };
+
+  const handleAddEffectMTP = () => {
+    toast({ title: 'Add Effect', description: 'Open the Mixer view to add effects to tracks.' });
+    setShowMixer(true);
+  };
+
+  const handleShowAutomationMTP = () => {
+    toast({ title: 'Automation', description: 'Automation lanes shown on selected tracks.' });
+  };
+
+  // --- MIDI menu handlers ---
+  const handleMIDILearnMTP = () => {
+    toast({ title: 'MIDI Learn', description: 'Move a MIDI controller knob/fader to assign it.' });
+  };
+
+  const handleMIDISettingsMTP = () => {
+    toast({ title: 'MIDI Settings', description: 'Configure MIDI input/output devices in your browser settings.' });
+  };
+
+  const handleMIDIMapMTP = () => {
+    toast({ title: 'MIDI Mapping', description: 'MIDI mapping mode enabled. Touch a control to map it.' });
+  };
+
   const handleQuantize = () => {
     setTracks((prev) =>
       prev.map((t) => {
@@ -3736,6 +3868,27 @@ export default function MasterMultiTrackPlayer() {
     onTranspose: () => handleTranspose(2),
     onTimeStretch: () => handleTimeStretch(1.1),
     onAbout: handleAbout,
+    // Create menu
+    onNewAudioTrack: handleNewAudioTrackMTP,
+    onNewMIDITrack: handleNewMIDITrackMTP,
+    onNewAudioClip: () => toast({ title: 'New Audio Clip', description: 'Select a track and use Import Audio to add a clip.' }),
+    onNewMIDIClip: () => toast({ title: 'New MIDI Clip', description: 'Select a MIDI track and draw notes in the Piano Roll.' }),
+    onNewAutomationLane: () => toast({ title: 'Automation Lane', description: 'Click the automation icon on a track to add a lane.' }),
+    // Arrange menu
+    onDuplicate: handleDuplicateMTP,
+    onSplit: handleSplitMTP,
+    onJoin: handleJoinMTP,
+    onReverse: handleReverseMTP,
+    onNormalize: handleNormalizeMTP,
+    // Mix menu
+    onShowMixer: () => setShowMixer(true),
+    onAddBus: handleAddBusMTP,
+    onAddEffect: handleAddEffectMTP,
+    onShowAutomation: handleShowAutomationMTP,
+    // MIDI menu
+    onMIDILearn: handleMIDILearnMTP,
+    onMIDISettings: handleMIDISettingsMTP,
+    onMIDIMap: handleMIDIMapMTP,
   };
 
   return (

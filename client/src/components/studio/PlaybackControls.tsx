@@ -8,7 +8,8 @@ import {
   RotateCcw, 
   Timer,
   SkipBack,
-  Music
+  Music,
+  Circle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -19,10 +20,12 @@ interface PlaybackControlsProps {
   metronomeEnabled: boolean;
   countInEnabled: boolean;
   chordMode: boolean;
+  isRecording?: boolean;
   onPlay: () => void;
   onStop: () => void;
   onClear: () => void;
   onGoToBeginning?: () => void;
+  onRecord?: () => void;
   onToggleChordMode: () => void;
   onBpmChange: (bpm: number) => void;
   onToggleMetronome: (enabled: boolean) => void;
@@ -40,10 +43,12 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   metronomeEnabled = false,
   countInEnabled = true,
   chordMode = false,
+  isRecording = false,
   onPlay,
   onStop,
   onClear,
   onGoToBeginning,
+  onRecord,
   onToggleChordMode,
   onBpmChange,
   onToggleMetronome,
@@ -59,6 +64,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
 
   useHotkeys('escape', onStop, [onStop]);
   useHotkeys('home', () => onGoToBeginning?.(), [onGoToBeginning]);
+  useHotkeys('r', (e) => {
+    e.preventDefault();
+    onRecord?.();
+  }, [onRecord]);
 
   return (
     <div className={cn("flex items-center gap-2", className)} data-testid="playback-controls">
@@ -82,6 +91,22 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <Button size="sm" variant="ghost" onClick={onStop} title="Stop" className="h-8 w-8 p-0">
           <Square className="h-4 w-4" />
         </Button>
+        
+        {onRecord && (
+          <Button
+            size="sm"
+            onClick={onRecord}
+            title={isRecording ? 'Stop Recording (R)' : 'Record (R)'}
+            className={cn(
+              "h-8 w-8 p-0",
+              isRecording
+                ? "bg-red-600 hover:bg-red-500 text-white animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.6)]"
+                : "text-red-400 hover:text-red-300 hover:bg-red-500/20"
+            )}
+          >
+            <Circle className={cn("h-4 w-4", isRecording && "fill-current")} />
+          </Button>
+        )}
         
         <Button size="sm" variant="ghost" onClick={onClear} title="Clear" className="h-8 w-8 p-0 text-red-400 hover:text-red-300">
           <RotateCcw className="h-4 w-4" />

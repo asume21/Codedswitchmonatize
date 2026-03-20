@@ -80,6 +80,7 @@ export function useMIDI() {
   const [isSupported, setIsSupported] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [lastNote, setLastNote] = useState<MIDINote | null>(null);
+  const [lastNoteOff, setLastNoteOff] = useState<MIDINote | null>(null);
   const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
   const [currentPitchBend, setCurrentPitchBend] = useState<number>(0);
   const [currentModulation, setCurrentModulation] = useState<number>(0);
@@ -345,6 +346,7 @@ export function useMIDI() {
       newSet.delete(midiNote);
       return newSet;
     });
+    setLastNoteOff({ note: midiNote, velocity: 0, channel });
   }, []);
 
   // Handle MIDI messages
@@ -824,6 +826,7 @@ export function useMIDI() {
     isConnected,
     connectedDevices,
     lastNote,
+    lastNoteOff,
     activeNotes,
     initializeMIDI,
     refreshDevices,
