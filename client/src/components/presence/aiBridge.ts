@@ -7,6 +7,7 @@
 
 import { getSignalCollector } from './signalCollector';
 import { getPresenceEngine } from './presenceEngine';
+import { OrganismBridge } from './organismBridge';
 import {
   ASTUTELY_COMMAND_CHANNEL,
   ASTUTELY_EVENT_CHANNEL,
@@ -45,6 +46,9 @@ export class AIBridge {
    * Initialize the AI Bridge and set up event listeners
    */
   initialize(): void {
+    // Connect the Organism Bridge so organism state drives the Living Glyph
+    OrganismBridge.getInstance().connect();
+
     // Listen for Astutely panel open/close
     window.addEventListener('astutely:panel-opened', this.handlePanelOpened as EventListener);
     window.addEventListener('astutely:panel-closed', this.handlePanelClosed as EventListener);
@@ -66,6 +70,9 @@ export class AIBridge {
    * Clean up event listeners
    */
   destroy(): void {
+    // Disconnect the Organism Bridge
+    OrganismBridge.getInstance().disconnect();
+
     // Clear any pending completion timers
     if (this.pendingCompletionTimer) {
       clearTimeout(this.pendingCompletionTimer);

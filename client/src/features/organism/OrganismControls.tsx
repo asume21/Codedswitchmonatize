@@ -5,7 +5,14 @@ export function OrganismControls() {
     start, stop, capture, downloadMidi,
     isRunning, isCapturing, error,
     lastSessionDNA,
+    transcription,
+    transcriptionEnabled,
+    setTranscriptionEnabled,
+    copyLyrics,
+    exportLyrics,
   } = useOrganism()
+
+  const hasLyrics = (transcription?.lines.length ?? 0) > 0
 
   return (
     <div style={{
@@ -73,6 +80,67 @@ export function OrganismControls() {
           }}
         >
           Download MIDI
+        </button>
+      )}
+
+      {/* Transcription toggle */}
+      {transcription?.isSupported && (
+        <button
+          onClick={() => setTranscriptionEnabled(!transcriptionEnabled)}
+          style={{
+            padding: '7px 14px',
+            borderRadius: 'var(--border-radius-md)',
+            border: transcriptionEnabled
+              ? '1px solid rgba(251, 191, 36, 0.5)'
+              : '1px solid rgba(100, 116, 139, 0.3)',
+            background: transcriptionEnabled
+              ? 'rgba(251, 191, 36, 0.12)'
+              : 'transparent',
+            color: transcriptionEnabled ? '#fbbf24' : 'var(--color-text-tertiary)',
+            cursor: 'pointer',
+            fontWeight: 500,
+            fontSize: 13,
+          }}
+        >
+          {transcriptionEnabled ? '🎤 Lyrics On' : '🎤 Lyrics Off'}
+        </button>
+      )}
+
+      {/* Copy Lyrics */}
+      {hasLyrics && (
+        <button
+          onClick={() => copyLyrics()}
+          style={{
+            padding: '7px 14px',
+            borderRadius: 'var(--border-radius-md)',
+            border: '1px solid rgba(148, 163, 184, 0.3)',
+            background: 'transparent',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            fontWeight: 500,
+            fontSize: 13,
+          }}
+        >
+          Copy Lyrics
+        </button>
+      )}
+
+      {/* Export Lyrics */}
+      {hasLyrics && (
+        <button
+          onClick={exportLyrics}
+          style={{
+            padding: '7px 14px',
+            borderRadius: 'var(--border-radius-md)',
+            border: '1px solid rgba(148, 163, 184, 0.3)',
+            background: 'transparent',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            fontWeight: 500,
+            fontSize: 13,
+          }}
+        >
+          Export .txt
         </button>
       )}
 

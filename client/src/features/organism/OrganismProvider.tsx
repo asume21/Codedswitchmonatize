@@ -21,6 +21,8 @@ import type { PhysicsState }    from '../../organism/physics/types'
 import type { OrganismState }   from '../../organism/state/types'
 import type { MixMeterReading } from '../../organism/mix/types'
 import type { SessionDNA }      from '../../organism/session/types'
+import { FreestyleTranscriber }  from './FreestyleTranscriber'
+import type { TranscriptionState } from './FreestyleTranscriber'
 
 interface Props {
   children:  React.ReactNode
@@ -73,6 +75,11 @@ export function OrganismProvider({ children, userId }: Props) {
   const [isCapturing,    setIsCapturing]    = useState(false)
   const [error,          setError]          = useState<string | null>(null)
 
+  // Transcription state
+  const transcriberRef = useRef<FreestyleTranscriber | null>(null)
+  const [transcription,         setTranscription]         = useState<TranscriptionState | null>(null)
+  const [transcriptionEnabled,  setTranscriptionEnabled]  = useState(true)
+
   // Boot engines on mount — wiring order is critical
   // Re-runs when userId, inputSource, or autoEnergy changes
   useEffect(() => {
@@ -106,15 +113,42 @@ export function OrganismProvider({ children, userId }: Props) {
       physics.processFrame(frame)
     })
 
-    // physics → state machine + UI state
+    // physics → state machine + UI state + broadcast
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
       setPhysicsState(state)
+
+      // Broadcast physics to external listeners (OrganismBridge, Astutely, etc.)
+      window.dispatchEvent(new CustomEvent('organism:physics-update', {
+        detail: {
+          bounce:   state.bounce,
+          swing:    state.swing,
+          presence: state.presence,
+          pocket:   state.pocket,
+          density:  state.density,
+          mode:     state.mode,
+        },
+      }))
     })
 
-    // state machine → UI state
+    // state machine → UI state + broadcast
+    let prevOrganismState: OrganismState | null = null
     const unsubOrganism = machine.subscribe((state) => {
       setOrganismState(state)
+
+      // Broadcast state changes to external listeners
+      if (!prevOrganismState || state.current !== prevOrganismState.current) {
+        window.dispatchEvent(new CustomEvent('organism:state-change', {
+          detail: {
+            current:  state.current,
+            previous: prevOrganismState?.current ?? null,
+            flowDepth:        state.flowDepth,
+            breathingWarmth:  state.breathingWarmth,
+            cadenceLockBars:  state.cadenceLockBars,
+          },
+        }))
+      }
+      prevOrganismState = state
     })
 
     // Wire generators, reactive, mix
@@ -152,6 +186,13 @@ export function OrganismProvider({ children, userId }: Props) {
       }
     })
 
+    // Create transcriber
+    const transcriber = new FreestyleTranscriber()
+    transcriberRef.current = transcriber
+    const unsubTranscription = transcriber.subscribe((state) => {
+      setTranscription(state)
+    })
+
     // Reset running state when input source changes
     setIsRunning(false)
     setError(null)
@@ -170,6 +211,8 @@ export function OrganismProvider({ children, userId }: Props) {
       orchestr.reset()
       mix.dispose()
       capture.reset()
+      transcriber.reset()
+      unsubTranscription()
     }
   }, [userId, inputSource, autoEnergy])
 
@@ -182,26 +225,69 @@ export function OrganismProvider({ children, userId }: Props) {
       await inputRef.current.start()
       await orchestrRef.current.start()
       setIsRunning(true)
+      if (transcriptionEnabled && transcriberRef.current) {
+        transcriberRef.current.start()
+      }
+      window.dispatchEvent(new CustomEvent('organism:started'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start organism')
     }
-  }, [])
+  }, [transcriptionEnabled])
 
   const stop = useCallback(() => {
     inputRef.current?.stop()
     orchestrRef.current?.stop()
+    transcriberRef.current?.stop()
     setIsRunning(false)
+    window.dispatchEvent(new CustomEvent('organism:stopped'))
   }, [])
 
   const captureSession = useCallback(async (): Promise<SessionDNA | null> => {
     if (!captureRef.current) return null
     setIsCapturing(true)
-    return captureRef.current.capture()
+    const dna = await captureRef.current.capture()
+    if (dna) {
+      window.dispatchEvent(new CustomEvent('organism:session-captured', { detail: dna }))
+    }
+    return dna
   }, [])
 
   const downloadMidi = useCallback(() => {
     captureRef.current?.downloadMidi()
   }, [])
+
+  // ── Inbound command listener ────────────────────────────────────────
+  // Allows Astutely (or any external system) to control the organism
+  // by dispatching: window.dispatchEvent(new CustomEvent('organism:command', { detail: { action: 'start' } }))
+
+  useEffect(() => {
+    const handleCommand = async (e: Event) => {
+      const detail = (e as CustomEvent).detail as { action: string; inputSource?: InputSourceType } | undefined
+      if (!detail) return
+
+      switch (detail.action) {
+        case 'start':
+          if (detail.inputSource) {
+            setInputSourceType(detail.inputSource)
+          }
+          // Small delay to let inputSource state propagate if changed
+          setTimeout(() => start(), detail.inputSource ? 100 : 0)
+          break
+        case 'stop':
+          stop()
+          break
+        case 'capture':
+          captureSession()
+          break
+        case 'download-midi':
+          downloadMidi()
+          break
+      }
+    }
+
+    window.addEventListener('organism:command', handleCommand)
+    return () => window.removeEventListener('organism:command', handleCommand)
+  }, [start, stop, captureSession, downloadMidi])
 
   const handleSetInputSource = useCallback((type: InputSourceType, file?: File) => {
     // Stop current session before switching
@@ -237,6 +323,20 @@ export function OrganismProvider({ children, userId }: Props) {
     setInputSource: handleSetInputSource,
     autoEnergy,
     setAutoEnergy,
+    transcription,
+    transcriptionEnabled,
+    setTranscriptionEnabled: (enabled: boolean) => {
+      setTranscriptionEnabled(enabled)
+      if (!enabled) transcriberRef.current?.stop()
+      else if (isRunning) transcriberRef.current?.start()
+    },
+    copyLyrics: async () => {
+      if (!transcriberRef.current) return false
+      return transcriberRef.current.copyLyrics()
+    },
+    exportLyrics: () => {
+      transcriberRef.current?.exportLyrics()
+    },
     isRunning,
     isCapturing,
     error,
@@ -244,6 +344,7 @@ export function OrganismProvider({ children, userId }: Props) {
     physicsState, organismState, meterReading, lastSessionDNA,
     start, stop, captureSession, downloadMidi,
     inputSource, handleSetInputSource, autoEnergy,
+    transcription, transcriptionEnabled,
     isRunning, isCapturing, error,
   ])
 

@@ -124,6 +124,12 @@ export interface AstutelyCoreValue {
 
   // ── Download ──
   downloadAudio: (audioUrl: string, filename: string) => void;
+
+  // ── Organism Control ──
+  organismMode: boolean;
+  startOrganism: (inputSource?: string) => void;
+  stopOrganism: () => void;
+  captureOrganism: () => void;
 }
 
 const AstutelyCoreContext = createContext<AstutelyCoreValue | undefined>(undefined);
@@ -731,6 +737,34 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ORGANISM CONTROL
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const [organismMode, setOrganismMode] = useState(false);
+
+  const startOrganism = useCallback((inputSource?: string) => {
+    setOrganismMode(true);
+    window.dispatchEvent(new CustomEvent('organism:command', {
+      detail: { action: 'start', inputSource: inputSource ?? 'mic' },
+    }));
+    dispatchAstutelyEvent('organism-started', {});
+  }, []);
+
+  const stopOrganism = useCallback(() => {
+    setOrganismMode(false);
+    window.dispatchEvent(new CustomEvent('organism:command', {
+      detail: { action: 'stop' },
+    }));
+    dispatchAstutelyEvent('organism-stopped', {});
+  }, []);
+
+  const captureOrganism = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('organism:command', {
+      detail: { action: 'capture' },
+    }));
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // CONTEXT VALUE
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -790,6 +824,12 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
 
     // Download
     downloadAudio,
+
+    // Organism Control
+    organismMode,
+    startOrganism,
+    stopOrganism,
+    captureOrganism,
   }), [
     isGeneratingPattern,
     isGeneratingAudio,
@@ -825,6 +865,10 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     emitEvent,
     emitCommand,
     downloadAudio,
+    organismMode,
+    startOrganism,
+    stopOrganism,
+    captureOrganism,
   ]);
 
   return (

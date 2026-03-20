@@ -11,6 +11,7 @@ import type { OrganismState }          from '../../organism/state/types'
 import type { MixMeterReading }        from '../../organism/mix/types'
 import type { SessionDNA }             from '../../organism/session/types'
 import type { InputSourceType }        from '../../organism/input/types'
+import type { TranscriptionState }     from './FreestyleTranscriber'
 
 export interface OrganismContextValue {
   // Engines (null until initialized)
@@ -39,6 +40,13 @@ export interface OrganismContextValue {
   setInputSource:    (type: InputSourceType, file?: File) => void
   autoEnergy:        'chill' | 'medium' | 'intense'
   setAutoEnergy:     (energy: 'chill' | 'medium' | 'intense') => void
+
+  // Transcription
+  transcription:         TranscriptionState | null
+  transcriptionEnabled:  boolean
+  setTranscriptionEnabled: (enabled: boolean) => void
+  copyLyrics:            () => Promise<boolean>
+  exportLyrics:          () => void
 
   // Status
   isRunning:    boolean

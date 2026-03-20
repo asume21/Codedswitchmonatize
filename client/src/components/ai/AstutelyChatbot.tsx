@@ -706,6 +706,60 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
         return;
       }
       
+      // ORGANISM / FREESTYLE COMMANDS
+      if (lowerInput.includes('start listening') || lowerInput.includes('freestyle mode') || lowerInput.includes('start freestyle') || lowerInput.includes('start organism')) {
+        window.dispatchEvent(new CustomEvent('organism:command', {
+          detail: { action: 'start', inputSource: 'mic' },
+        }));
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `🎤 **Freestyle Mode Activated**\n\nThe Organism is now listening to your mic. Start freestyling — the beat will follow your flow, cadence, and energy in real-time.\n\n- Say **"stop listening"** when you're done\n- Say **"capture that"** to save the session\n- Your lyrics are being transcribed live`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        toast({ title: '🎤 Freestyle Mode', description: 'Organism is listening...' });
+        return;
+      }
+
+      if (lowerInput.includes('stop listening') || lowerInput.includes('stop freestyle') || lowerInput.includes('stop organism')) {
+        window.dispatchEvent(new CustomEvent('organism:command', {
+          detail: { action: 'stop' },
+        }));
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `⏹️ **Freestyle Stopped**\n\nThe Organism has stopped listening. Your lyrics were captured — use the **Copy Lyrics** or **Export .txt** buttons on the Organism page to save them.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        return;
+      }
+
+      if (lowerInput.includes('capture that') || lowerInput.includes('capture session') || lowerInput.includes('save session')) {
+        window.dispatchEvent(new CustomEvent('organism:command', {
+          detail: { action: 'capture' },
+        }));
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `💾 **Session Captured**\n\nYour freestyle session DNA has been saved. Check the sidebar for details — mode, BPM, flow %, energy profile, and more.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        return;
+      }
+
+      if (lowerInput.includes('download midi') && (lowerInput.includes('organism') || lowerInput.includes('freestyle') || lowerInput.includes('session'))) {
+        window.dispatchEvent(new CustomEvent('organism:command', {
+          detail: { action: 'download-midi' },
+        }));
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `🎹 **MIDI Download Started**\n\nYour freestyle session MIDI file is being prepared for download.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        return;
+      }
+
       // BPM COMMANDS
       const bpmMatch = lowerInput.match(/(?:set\s+)?(?:bpm|tempo)\s*(?:to\s+)?(\d+)/i) || 
                        lowerInput.match(/(\d+)\s*bpm/i);
