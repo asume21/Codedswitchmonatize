@@ -136,6 +136,105 @@ function trapPattern(): DrumHit[] {
   return h
 }
 
+// ── Boom-Bap 2: Dilla-influenced, heavy pocket (4 bars) ──────────────
+
+function boomBapPattern2(): DrumHit[] {
+  const h: DrumHit[] = []
+  for (let bar = 0; bar < 4; bar++) {
+    const isFill = bar === 3
+
+    // Kick: beat 1, syncopated "and" of 3 — late and heavy
+    h.push(hit(K, bar, 0, 0, 0.92))
+    h.push(hit(K, bar, 1, 1, 0.35))  // ghost before 2-and
+    h.push(hit(K, bar, 2, 2, 0.80))  // "and" of 3
+    h.push(hit(K, bar, 3, 1, 0.42))  // ghost before 4
+    if (isFill) {
+      h.push(hit(K, bar, 3, 0, 0.82))
+      h.push(hit(K, bar, 3, 2, 0.70))
+    }
+
+    // Snare: beats 2 and 4 + heavier ghost pocket
+    h.push(hit(S, bar, 1, 0, 0.90))
+    h.push(hit(S, bar, 3, 0, 0.86))
+    h.push(hit(S, bar, 0, 3, 0.18))  // ghost
+    h.push(hit(S, bar, 1, 3, 0.22))  // ghost
+    h.push(hit(S, bar, 2, 3, 0.20))  // ghost
+    if (isFill) {
+      h.push(hit(S, bar, 3, 1, 0.48))
+      h.push(hit(S, bar, 3, 2, 0.58))
+      h.push(hit(S, bar, 3, 3, 0.70))
+    }
+
+    // Hats: quarter notes — open, lazy feel
+    for (let beat = 0; beat < 4; beat++) {
+      h.push(hit(H, bar, beat, 0, beat % 2 === 0 ? 0.55 : 0.42))
+    }
+
+    // Perc: rim on "and" of 1 and "and" of 3
+    h.push(hit(P, bar, 0, 2, 0.22))
+    h.push(hit(P, bar, 2, 2, 0.20))
+  }
+  return h
+}
+
+// ── Trap 2: sparse hi-hat triplet feel (4 bars) ───────────────────────
+
+function trapPattern2(): DrumHit[] {
+  const h: DrumHit[] = []
+  for (let bar = 0; bar < 4; bar++) {
+    const isFill = bar === 3
+
+    // Kick: simple 1 and 3 with ghost before 3
+    h.push(hit(K, bar, 0, 0, 1.0))
+    h.push(hit(K, bar, 2, 0, 0.85))
+    if (!isFill) h.push(hit(K, bar, 2, 3, 0.42))  // ghost
+    if (isFill) {
+      for (let s = 0; s < 4; s++) h.push(hit(K, bar, 3, s, 0.55 + s * 0.1))
+    }
+
+    // Snare/clap: 2 and 4
+    h.push(hit(S, bar, 1, 0, 0.95))
+    h.push(hit(S, bar, 3, 0, 0.92))
+
+    // Hats: sparse — off-beat double hits for triplet trap feel
+    for (let beat = 0; beat < 4; beat++) {
+      if ((beat === 1 || beat === 3) && !isFill) {
+        h.push(hit(H, bar, beat, 1, 0.28))
+        h.push(hit(H, bar, beat, 2, 0.35))
+      } else {
+        h.push(hit(H, bar, beat, 0, 0.40))
+        h.push(hit(H, bar, beat, 2, 0.25))
+      }
+    }
+
+    // Perc: rim on "a" of 2 and 4
+    h.push(hit(P, bar, 1, 3, 0.28))
+    h.push(hit(P, bar, 3, 3, 0.24))
+  }
+  return h
+}
+
+// ── Glow / dream groove: sparse quarter-note hats, wide kicks ─────────
+
+function glowPattern(): DrumHit[] {
+  const h: DrumHit[] = []
+  for (let bar = 0; bar < 4; bar++) {
+    // Kick: beat 1 only; every other bar adds beat 3
+    h.push(hit(K, bar, 0, 0, 0.80))
+    if (bar % 2 === 1) h.push(hit(K, bar, 2, 0, 0.65))
+
+    // Snare: beat 3 only (half-time feel)
+    h.push(hit(S, bar, 2, 0, 0.75))
+
+    // Hats: light quarter notes
+    for (let beat = 0; beat < 4; beat++) {
+      h.push(hit(H, bar, beat, 0, 0.30))
+    }
+    // No perc — dreaminess through space
+  }
+  return h
+}
+
 // ── Minimal / Lo-fi groove (4 bars) ──────────────────────────────────
 
 function minimalPattern(): DrumHit[] {
@@ -208,14 +307,14 @@ function grittyPattern(): DrumHit[] {
   return h
 }
 
-// ── Mode mapping ────────────────────────────────────────────────────
+// ── Mode mapping — multiple variants picked randomly ─────────────────
 
-const MODE_PATTERN_BUILDERS: Record<string, () => DrumHit[]> = {
-  heat:   trapPattern,
-  ice:    minimalPattern,
-  smoke:  boomBapPattern,
-  gravel: grittyPattern,
-  glow:   minimalPattern,
+const MODE_PATTERN_VARIANTS: Record<string, Array<() => DrumHit[]>> = {
+  heat:   [trapPattern, trapPattern2],
+  ice:    [minimalPattern],
+  smoke:  [boomBapPattern, boomBapPattern2],
+  gravel: [grittyPattern, boomBapPattern2],
+  glow:   [glowPattern, minimalPattern],
 }
 
 export function getDrumKit(_mode: OrganismMode | string): DrumKit {
@@ -225,6 +324,7 @@ export function getDrumKit(_mode: OrganismMode | string): DrumKit {
 
 export function buildDrumPattern(kit: DrumKit, mode?: OrganismMode | string): DrumPattern {
   const modeStr = mode?.toString() ?? 'glow'
-  const builder = MODE_PATTERN_BUILDERS[modeStr] ?? minimalPattern
+  const variants = MODE_PATTERN_VARIANTS[modeStr] ?? [minimalPattern]
+  const builder = variants[Math.floor(Math.random() * variants.length)]
   return { hits: builder(), length: '4m' }
 }

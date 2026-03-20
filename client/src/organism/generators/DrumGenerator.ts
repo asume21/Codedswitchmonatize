@@ -44,6 +44,9 @@ export class DrumGenerator extends GeneratorBase {
   private currentPresence: number = 0
   private currentPocket:   number = 0
 
+  // Kit preset — timbre varies per pattern rebuild for sound variety
+  private currentKickNote: string = 'C1'
+
   // Reactive multipliers (Section 05)
   private hatDensityMult:      number = 1.0
   private kickVelocityMult:    number = 1.0
@@ -224,8 +227,36 @@ export class DrumGenerator extends GeneratorBase {
     this.rebuildPart(hits)
   }
 
+  // ── Kit presets — timbre variations applied on pattern rebuild ────────
+
+  private static readonly KIT_PRESETS = [
+    // Classic — warm boom-bap feel
+    { kickNote: 'C1',  kickPitchDecay: 0.05, kickVol: -6,  snareDecay: 0.15, snareVol: -9,  hatDecay: 0.05, hatVol: -14, hatResonance: 4000, percDecay: 0.07, percVol: -18 },
+    // Punchy — tighter transients, brighter hat
+    { kickNote: 'D1',  kickPitchDecay: 0.03, kickVol: -5,  snareDecay: 0.10, snareVol: -8,  hatDecay: 0.03, hatVol: -12, hatResonance: 5000, percDecay: 0.05, percVol: -16 },
+    // Lo-fi / dusty — deep kick, long snare, muffled hat
+    { kickNote: 'A#0', kickPitchDecay: 0.08, kickVol: -8,  snareDecay: 0.22, snareVol: -11, hatDecay: 0.08, hatVol: -17, hatResonance: 3000, percDecay: 0.10, percVol: -20 },
+    // Hard — higher pitch kick, crispy hat, tight snare
+    { kickNote: 'E1',  kickPitchDecay: 0.04, kickVol: -4,  snareDecay: 0.12, snareVol: -7,  hatDecay: 0.04, hatVol: -13, hatResonance: 4500, percDecay: 0.06, percVol: -17 },
+  ] as const
+
+  private applyKitPreset(): void {
+    const preset = DrumGenerator.KIT_PRESETS[Math.floor(Math.random() * DrumGenerator.KIT_PRESETS.length)]
+    this.currentKickNote          = preset.kickNote
+    this.kickSub.pitchDecay       = preset.kickPitchDecay
+    this.kickSub.volume.rampTo(preset.kickVol, 0.1)
+    this.snareBody.envelope.decay = preset.snareDecay
+    this.snareBody.volume.rampTo(preset.snareVol, 0.1)
+    this.hat.envelope.decay       = preset.hatDecay
+    this.hat.volume.rampTo(preset.hatVol, 0.1)
+    this.hat.resonance            = preset.hatResonance
+    this.perc.envelope.decay      = preset.percDecay
+    this.perc.volume.rampTo(preset.percVol, 0.1)
+  }
+
   private rebuildPart(hits: DrumHit[]): void {
     this.stopPart()
+    this.applyKitPreset()
 
     const events = hits.map(h => ({
       time:       h.time,
@@ -312,7 +343,7 @@ export class DrumGenerator extends GeneratorBase {
   private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
     switch (instrument) {
       case DrumInstrument.Kick:
-        this.kickSub.triggerAttackRelease('C1', '8n', time, velocity)
+        this.kickSub.triggerAttackRelease(this.currentKickNote, '8n', time, velocity)
         this.kickClick.triggerAttackRelease('32n', time, velocity * 0.6)
         break
       case DrumInstrument.Snare:

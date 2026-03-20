@@ -96,8 +96,9 @@ export class BassGenerator extends GeneratorBase {
       return
     }
 
-    // Breathing or Flow → rebuild bass line
+    // Breathing or Flow → rebuild bass line with a fresh sound preset
     this.currentBehavior = getBassBehavior(physics.mode, to)
+    this.applyBassPreset()
     this.rebuildPart(physics)
   }
 
@@ -107,6 +108,31 @@ export class BassGenerator extends GeneratorBase {
     this.currentBehavior = BassBehavior.Breathe
     this.currentPocket   = 0
     this.setOutputLevel(0)
+  }
+
+  // ── Bass presets — sound variety on state transitions ─────────────
+
+  private static readonly BASS_PRESETS = [
+    // Fat Saw — default: wide, mid-heavy
+    { filterQ: 3,   filterOctaves: 2.0, attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3, distWet: 0.20, volume: -4 },
+    // Smooth Sub — low rumble, slow attack, minimal distortion
+    { filterQ: 1.5, filterOctaves: 1.2, attack: 0.015, decay: 0.35, sustain: 0.7, release: 0.4, distWet: 0.05, volume: -3 },
+    // Growl — high resonance filter, aggressive distortion
+    { filterQ: 5,   filterOctaves: 2.5, attack: 0.003, decay: 0.18, sustain: 0.6, release: 0.2, distWet: 0.35, volume: -5 },
+    // Pluck — tight envelope, fast filter decay, articulate
+    { filterQ: 4,   filterOctaves: 3.0, attack: 0.002, decay: 0.12, sustain: 0.3, release: 0.2, distWet: 0.15, volume: -4 },
+  ] as const
+
+  private applyBassPreset(): void {
+    const p = BassGenerator.BASS_PRESETS[Math.floor(Math.random() * BassGenerator.BASS_PRESETS.length)]
+    this.synth.filter.Q.value                = p.filterQ
+    this.synth.filterEnvelope.octaves        = p.filterOctaves
+    this.synth.envelope.attack               = p.attack
+    this.synth.envelope.decay                = p.decay
+    this.synth.envelope.sustain              = p.sustain
+    this.synth.envelope.release              = p.release
+    this.distortion.wet.rampTo(p.distWet, 0.1)
+    this.synth.volume.rampTo(p.volume, 0.1)
   }
 
   // ── Reactive mutation methods (Section 05) ────────────────────────
