@@ -945,6 +945,7 @@ export default function UnifiedStudioWorkspace() {
           setActiveView('lyrics');
           break;
         case 'mixer':
+        case 'mix-studio':
           setActiveView('mixer');
           break;
         case 'audio-tools':
@@ -954,9 +955,57 @@ export default function UnifiedStudioWorkspace() {
           setActiveView('organism');
           break;
         case 'uploader':
+        case 'song-uploader':
           setActiveView('song-uploader');
           break;
+        case 'code-to-music':
+        case 'codebeat':
+          setActiveView('code-to-music');
+          break;
+        case 'ai-studio':
+        case 'assistant':
+          setActiveView('ai-studio');
+          break;
+        case 'multitrack':
+          setActiveView('multitrack');
+          break;
+        case 'arrangement':
+          setActiveView('arrangement');
+          break;
+        // PluginHub and legacy aliases
+        case 'musicmixer':
+        case 'professionalmixer':
+          setActiveView('mixer');
+          break;
+        case 'translator':
+        case 'musiccode':
+        case 'layers':
+          setActiveView('code-to-music');
+          break;
+        case 'midi':
+        case 'advanced-sequencer':
+          setActiveView('piano-roll');
+          break;
+        case 'pack-generator':
+          setActiveView('beat-lab');
+          break;
+        case 'metrics':
+        case 'song-structure':
+          setActiveView('audio-tools');
+          break;
+        case 'security':
+          setActiveView('ai-studio');
+          break;
+        case 'granular-engine':
+        case 'wavetable-oscillator':
+          setActiveView('ai-studio');
+          toast({ title: 'Synth Engine', description: 'Opening AI Studio for synthesis tools' });
+          break;
         default:
+          // Try direct match as activeView value
+          if (['arrangement', 'beat-lab', 'piano-roll', 'mixer', 'ai-studio', 'lyrics', 'song-uploader', 'code-to-music', 'audio-tools', 'multitrack', 'organism'].includes(detail)) {
+            setActiveView(detail as any);
+          }
           break;
       }
     };

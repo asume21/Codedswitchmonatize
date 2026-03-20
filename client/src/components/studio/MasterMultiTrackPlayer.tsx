@@ -1499,9 +1499,9 @@ export default function MasterMultiTrackPlayer() {
   };
 
   const handleOpenPianoRoll = () => {
-    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'unified-studio' }));
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'piano-roll' }));
     setShowAddTrack(false);
-    toast({ title: '?? Opening Piano Roll', description: 'Create your sequence, then export to Multi-Track' });
+    toast({ title: '🎹 Opening Piano Roll', description: 'Create your sequence, then export to Multi-Track' });
   };
 
   // Play all tracks
