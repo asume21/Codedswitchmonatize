@@ -2699,14 +2699,21 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            {isRecording && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-red-600/20 border border-red-500/60 animate-pulse">
-                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                <span className="text-[10px] font-black tracking-widest uppercase text-red-400">
-                  REC {midiConnected ? '• MIDI' : '• Keys'}
-                </span>
-              </div>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRecord}
+              className={cn(
+                "h-8 px-4 rounded-none font-black tracking-widest border transition-all",
+                isRecording
+                  ? "bg-red-600/30 text-red-300 border-red-500/70 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
+                  : "bg-black/60 text-cyan-500/60 border-cyan-500/30 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40"
+              )}
+              title="Toggle MIDI/keyboard recording (starts playback automatically)"
+            >
+              <Circle className={cn("w-3 h-3 mr-2", isRecording ? "fill-red-400 text-red-400" : "text-current")} />
+              {isRecording ? `REC ${midiConnected ? '• MIDI' : '• KEYS'}` : 'REC'}
+            </Button>
             <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-cyan-500/30">
               <div className={cn("w-2 h-2 rounded-full", isPlaying ? "bg-cyan-500 animate-pulse shadow-glow-cyan" : "bg-cyan-950")} />
               <span className="text-[10px] font-black tabular-nums tracking-widest uppercase">
