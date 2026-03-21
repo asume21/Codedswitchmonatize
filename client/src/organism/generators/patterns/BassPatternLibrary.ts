@@ -149,6 +149,107 @@ export function buildBounceNotes(rootMidi: number): ScheduledNote[] {
   return notes
 }
 
+/** Trap 808 style — long sustained notes, heavy sub, occasional slides */
+export function buildTrapNotes(rootMidi: number): ScheduledNote[] {
+  const notes: ScheduledNote[] = []
+  const fifth   = rootMidi + 7
+  const minor7  = rootMidi + 10
+  const octDown = rootMidi - 12
+
+  // Pattern: long 808 hits on beat 1 and 3, sub fills on offbeats
+  for (let bar = 0; bar < 4; bar++) {
+    const isLastBar = bar === 3
+    // Beat 1: heavy root — long hold
+    notes.push({ pitch: midiToNote(octDown), duration: isLastBar ? '2n.' : '2n', velocity: hv(0.95), time: swingTime(bar, 0, 0) })
+    // "and" of 2: subtle ghost sub
+    if (Math.random() < 0.5) {
+      notes.push({ pitch: midiToNote(octDown), duration: '16n', velocity: hv(0.35), time: swingTime(bar, 1, 2) })
+    }
+    // Beat 3: 5th or root variation
+    const p3 = bar % 2 === 0 ? fifth : rootMidi
+    notes.push({ pitch: midiToNote(p3 - 12), duration: '4n', velocity: hv(0.80), time: swingTime(bar, 2, 0) })
+    // "and" of 3: slide indicator (approach)
+    notes.push({ pitch: midiToNote(minor7 - 12), duration: '16n', velocity: hv(0.50), time: swingTime(bar, 2, 2) })
+    // Beat 4 "and": setup for next bar
+    if (!isLastBar) {
+      notes.push({ pitch: midiToNote(octDown), duration: '16n', velocity: hv(0.60), time: swingTime(bar, 3, 2) })
+    } else {
+      // Fill: 16th run up
+      notes.push({ pitch: midiToNote(octDown),    duration: '16n', velocity: hv(0.55), time: swingTime(bar, 3, 0) })
+      notes.push({ pitch: midiToNote(rootMidi - 7), duration: '16n', velocity: hv(0.60), time: swingTime(bar, 3, 1) })
+      notes.push({ pitch: midiToNote(rootMidi),   duration: '16n', velocity: hv(0.70), time: swingTime(bar, 3, 2) })
+    }
+  }
+  return notes
+}
+
+/** Funk style — 16th note syncopation, call-and-response, lots of ghost notes */
+export function buildFunkNotes(rootMidi: number): ScheduledNote[] {
+  const notes: ScheduledNote[] = []
+  const pent = PENTATONIC_MINOR
+  const octDown = rootMidi - 12
+
+  for (let bar = 0; bar < 4; bar++) {
+    // Beat 1: pop on root
+    notes.push({ pitch: midiToNote(rootMidi), duration: '16n', velocity: hv(0.88), time: swingTime(bar, 0, 0) })
+    // "e" of 1: ghost
+    notes.push({ pitch: midiToNote(octDown),  duration: '16n', velocity: hv(0.28), time: swingTime(bar, 0, 1) })
+    // "and" of 1: movement note
+    notes.push({ pitch: midiToNote(rootMidi + pent[2]), duration: '16n', velocity: hv(0.62), time: swingTime(bar, 0, 2) })
+    // "a" of 1
+    notes.push({ pitch: midiToNote(rootMidi + pent[1]), duration: '16n', velocity: hv(0.40), time: swingTime(bar, 0, 3) })
+    // Beat 2: rest (snare)
+    // "and" of 2: syncopated hit
+    notes.push({ pitch: midiToNote(rootMidi + pent[3]), duration: '8n', velocity: hv(0.72), time: swingTime(bar, 1, 2) })
+    // Beat 3: root octave down
+    notes.push({ pitch: midiToNote(octDown),  duration: '16n', velocity: hv(0.84), time: swingTime(bar, 2, 0) })
+    // "e" of 3
+    notes.push({ pitch: midiToNote(octDown),  duration: '16n', velocity: hv(0.30), time: swingTime(bar, 2, 1) })
+    // "and" of 3
+    notes.push({ pitch: midiToNote(rootMidi + pent[pickFrom([1, 2, 4])]), duration: '16n', velocity: hv(0.60), time: swingTime(bar, 2, 2) })
+    // Beat 4: anticipation
+    notes.push({ pitch: midiToNote(rootMidi), duration: '8n', velocity: hv(0.65), time: swingTime(bar, 3, 0) })
+    // "and" of 4: anticipate next bar
+    if (bar < 3) {
+      notes.push({ pitch: midiToNote(rootMidi + pent[1]), duration: '16n', velocity: hv(0.55), time: swingTime(bar, 3, 2) })
+    }
+  }
+  return notes
+}
+
+/** Dub/reggae style — heavy on 1, skip beat 2, hit on "and" of 2 and beat 3 */
+export function buildDubNotes(rootMidi: number): ScheduledNote[] {
+  const notes: ScheduledNote[] = []
+  const fifth  = rootMidi + 7
+  const fourth = rootMidi + 5
+  const octDown = rootMidi - 12
+
+  for (let bar = 0; bar < 4; bar++) {
+    // Bar alternates between two sub-patterns
+    if (bar % 2 === 0) {
+      // Pattern A: root emphasis
+      notes.push({ pitch: midiToNote(rootMidi), duration: '4n', velocity: hv(0.90), time: swingTime(bar, 0, 0) })
+      // "and" of 2: offbeat skank hit
+      notes.push({ pitch: midiToNote(fifth),    duration: '8n', velocity: hv(0.72), time: swingTime(bar, 1, 2) })
+      // Beat 3: sub
+      notes.push({ pitch: midiToNote(octDown),  duration: '4n', velocity: hv(0.78), time: swingTime(bar, 2, 0) })
+      // "and" of 3
+      notes.push({ pitch: midiToNote(fifth),    duration: '8n', velocity: hv(0.58), time: swingTime(bar, 2, 2) })
+    } else {
+      // Pattern B: 4th movement
+      notes.push({ pitch: midiToNote(rootMidi), duration: '8n', velocity: hv(0.85), time: swingTime(bar, 0, 0) })
+      notes.push({ pitch: midiToNote(fourth),   duration: '8n', velocity: hv(0.60), time: swingTime(bar, 0, 2) })
+      // "and" of 2: syncopated
+      notes.push({ pitch: midiToNote(octDown),  duration: '4n', velocity: hv(0.75), time: swingTime(bar, 1, 2) })
+      // Beat 3
+      notes.push({ pitch: midiToNote(fifth),    duration: '4n', velocity: hv(0.70), time: swingTime(bar, 2, 0) })
+      // "and" of 3: resolve
+      notes.push({ pitch: midiToNote(rootMidi), duration: '8n', velocity: hv(0.55), time: swingTime(bar, 2, 2) })
+    }
+  }
+  return notes
+}
+
 function midiToNote(midi: number): string {
   const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
   const octave = Math.floor(midi / 12) - 1
@@ -159,11 +260,11 @@ function midiToNote(midi: number): string {
 // ── Mode / state mapping ───────────────────────────────────────────
 
 const MODE_BASS_MAP: Record<string, Record<string, BassBehavior>> = {
-  heat:   { BREATHING: BassBehavior.Bounce,  FLOW: BassBehavior.Walk },
-  ice:    { BREATHING: BassBehavior.Breathe, FLOW: BassBehavior.Lock },
-  smoke:  { BREATHING: BassBehavior.Lock,    FLOW: BassBehavior.Walk },
-  gravel: { BREATHING: BassBehavior.Bounce,  FLOW: BassBehavior.Bounce },
-  glow:   { BREATHING: BassBehavior.Breathe, FLOW: BassBehavior.Lock },
+  heat:   { BREATHING: BassBehavior.Trap,    FLOW: BassBehavior.Funk },
+  ice:    { BREATHING: BassBehavior.Breathe, FLOW: BassBehavior.Walk },
+  smoke:  { BREATHING: BassBehavior.Dub,     FLOW: BassBehavior.Walk },
+  gravel: { BREATHING: BassBehavior.Bounce,  FLOW: BassBehavior.Lock },
+  glow:   { BREATHING: BassBehavior.Trap,    FLOW: BassBehavior.Dub  },
 }
 
 export function getBassBehavior(

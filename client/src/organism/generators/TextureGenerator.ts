@@ -105,9 +105,9 @@ export class TextureGenerator extends GeneratorBase {
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
       case OState.Dormant:    return 0
-      case OState.Awakening:  return 0.10 * organism.awakeningProgress
-      case OState.Breathing:  return 0.50 * organism.breathingWarmth
-      case OState.Flow:       return 0.70 + (0.25 * organism.flowDepth)
+      case OState.Awakening:  return 0.04 * organism.awakeningProgress
+      case OState.Breathing:  return 0.15 * organism.breathingWarmth
+      case OState.Flow:       return 0.20 + (0.08 * organism.flowDepth)
     }
   }
 }

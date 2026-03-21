@@ -307,14 +307,94 @@ function grittyPattern(): DrumHit[] {
   return h
 }
 
+// ── UK Drill groove (4 bars) ──────────────────────────────────────────
+
+function drillPattern(): DrumHit[] {
+  const h: DrumHit[] = []
+  for (let bar = 0; bar < 4; bar++) {
+    const isFill = bar === 3
+
+    // Kick: offbeat — "and" of 1, beat 2-and, "a" of 3
+    h.push(hit(K, bar, 0, 2, 0.92))   // "and" of 1
+    h.push(hit(K, bar, 1, 2, 0.78))   // "and" of 2
+    h.push(hit(K, bar, 2, 3, 0.85))   // "a" of 3
+    if (isFill) {
+      h.push(hit(K, bar, 3, 0, 0.80))
+      h.push(hit(K, bar, 3, 2, 0.70))
+    }
+
+    // Snare/clap: only beat 3 (half-time)
+    h.push(hit(S, bar, 2, 0, 0.95))
+    // Ghost snares — very subdued
+    h.push(hit(S, bar, 0, 3, 0.15))
+    h.push(hit(S, bar, 1, 3, 0.18))
+    if (isFill) {
+      h.push(hit(S, bar, 3, 2, 0.50))
+      h.push(hit(S, bar, 3, 3, 0.65))
+    }
+
+    // Hats: 16th roll but gaps for pocket
+    for (let beat = 0; beat < 4; beat++) {
+      if (beat === 2 && bar % 2 === 0) continue  // skip beat 3 every other bar
+      for (let sub = 0; sub < 4; sub++) {
+        if (sub === 0 && (beat === 1 || beat === 3)) continue  // skip on snare beats
+        const accent = sub === 0 ? 0.42 : sub === 2 ? 0.30 : 0.18
+        h.push(hit(H, bar, beat, sub, accent))
+      }
+    }
+
+    // Perc: dark rim on "and" of 2
+    h.push(hit(P, bar, 1, 2, 0.32))
+    if (bar % 2 === 1) h.push(hit(P, bar, 3, 2, 0.26))
+  }
+  return h
+}
+
+// ── Afrobeat groove (4 bars) ──────────────────────────────────────────
+
+function afrobeatPattern(): DrumHit[] {
+  const h: DrumHit[] = []
+  for (let bar = 0; bar < 4; bar++) {
+    const isFill = bar === 3
+
+    // Kick: 1, "a" of 1, "and" of 2 — offbeat heavy
+    h.push(hit(K, bar, 0, 0, 0.90))
+    h.push(hit(K, bar, 0, 3, 0.52))   // "a" of 1
+    h.push(hit(K, bar, 1, 2, 0.82))   // "and" of 2
+    h.push(hit(K, bar, 3, 0, 0.75))   // beat 4
+    if (isFill) {
+      h.push(hit(K, bar, 3, 2, 0.68))
+      h.push(hit(K, bar, 3, 3, 0.72))
+    }
+
+    // Snare: beat 2 + beat 4 with ghost grace notes
+    h.push(hit(S, bar, 1, 0, 0.88))
+    h.push(hit(S, bar, 3, 0, 0.85))
+    h.push(hit(S, bar, 0, 3, 0.22))   // ghost
+    h.push(hit(S, bar, 2, 3, 0.20))   // ghost
+
+    // Hats: 8th notes with accent on "and" beats
+    for (let beat = 0; beat < 4; beat++) {
+      h.push(hit(H, bar, beat, 0, beat % 2 === 1 ? 0.52 : 0.38))   // offbeat accent
+      h.push(hit(H, bar, beat, 2, 0.32))
+    }
+
+    // Perc: clave-inspired — "e" of 2 and "and" of 3
+    h.push(hit(P, bar, 1, 1, 0.45))
+    h.push(hit(P, bar, 2, 2, 0.40))
+    if (bar % 2 === 0) h.push(hit(P, bar, 3, 1, 0.35))
+  }
+  return h
+}
+
 // ── Mode mapping — multiple variants picked randomly ─────────────────
 
 const MODE_PATTERN_VARIANTS: Record<string, Array<() => DrumHit[]>> = {
-  heat:   [trapPattern, trapPattern2],
-  ice:    [minimalPattern],
-  smoke:  [boomBapPattern, boomBapPattern2],
-  gravel: [grittyPattern, boomBapPattern2],
-  glow:   [glowPattern, minimalPattern],
+  heat:   [trapPattern, trapPattern2, drillPattern],
+  ice:    [minimalPattern, glowPattern],
+  smoke:  [boomBapPattern, boomBapPattern2, afrobeatPattern],
+  gravel: [grittyPattern, boomBapPattern2, drillPattern],
+  glow:   [glowPattern, minimalPattern, afrobeatPattern],
 }
 
 export function getDrumKit(_mode: OrganismMode | string): DrumKit {

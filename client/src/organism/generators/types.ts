@@ -12,6 +12,9 @@ export enum BassBehavior {
   Walk    = 'walk',
   Bounce  = 'bounce',
   Breathe = 'breathe',
+  Trap    = 'trap',
+  Funk    = 'funk',
+  Dub     = 'dub',
 }
 
 export enum MelodyBehavior {

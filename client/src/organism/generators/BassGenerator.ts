@@ -11,6 +11,9 @@ import {
   buildLockNotes,
   buildWalkNotes,
   buildBounceNotes,
+  buildTrapNotes,
+  buildFunkNotes,
+  buildDubNotes,
 }                              from './patterns/BassPatternLibrary'
 import type { PhysicsState }   from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -26,8 +29,11 @@ export class BassGenerator extends GeneratorBase {
   private part:       Tone.Part | null = null
 
   // Musical state
-  private rootMidi:        number       = 36   // C2
+  private rootMidi:        number       = 36   // C2 — rotates on state transitions
   private currentBehavior: BassBehavior = BassBehavior.Breathe
+
+  // Hip-hop friendly root notes (pentatonic minor roots at octave 2)
+  private static readonly ROOT_POOL = [33, 36, 38, 40, 41, 43, 45, 48] // A1,C2,D2,E2,F2,G2,A2,C3
 
   // Physics cache
   private currentPocket: number = 0
@@ -96,7 +102,8 @@ export class BassGenerator extends GeneratorBase {
       return
     }
 
-    // Breathing or Flow → rebuild bass line with a fresh sound preset
+    // Breathing or Flow → pick a new root + fresh preset + rebuild
+    this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
     this.currentBehavior = getBassBehavior(physics.mode, to)
     this.applyBassPreset()
     this.rebuildPart(physics)
@@ -121,6 +128,12 @@ export class BassGenerator extends GeneratorBase {
     { filterQ: 5,   filterOctaves: 2.5, attack: 0.003, decay: 0.18, sustain: 0.6, release: 0.2, distWet: 0.35, volume: -5 },
     // Pluck — tight envelope, fast filter decay, articulate
     { filterQ: 4,   filterOctaves: 3.0, attack: 0.002, decay: 0.12, sustain: 0.3, release: 0.2, distWet: 0.15, volume: -4 },
+    // 808 — very slow release, minimal distortion, deep sub
+    { filterQ: 1,   filterOctaves: 0.8, attack: 0.001, decay: 0.80, sustain: 0.6, release: 1.2, distWet: 0.02, volume: -2 },
+    // Funk — punchy, mid-forward, medium release
+    { filterQ: 3.5, filterOctaves: 2.8, attack: 0.003, decay: 0.14, sustain: 0.45, release: 0.18, distWet: 0.25, volume: -4 },
+    // Dub — warm round tone, low filter, long release
+    { filterQ: 2,   filterOctaves: 1.5, attack: 0.010, decay: 0.40, sustain: 0.65, release: 0.6, distWet: 0.08, volume: -3 },
   ] as const
 
   private applyBassPreset(): void {
@@ -188,6 +201,9 @@ export class BassGenerator extends GeneratorBase {
       case BassBehavior.Walk:    return buildWalkNotes(this.rootMidi)
       case BassBehavior.Bounce:  return buildBounceNotes(this.rootMidi)
       case BassBehavior.Breathe: return buildBreatheNotes(this.rootMidi)
+      case BassBehavior.Trap:    return buildTrapNotes(this.rootMidi)
+      case BassBehavior.Funk:    return buildFunkNotes(this.rootMidi)
+      case BassBehavior.Dub:     return buildDubNotes(this.rootMidi)
     }
   }
 

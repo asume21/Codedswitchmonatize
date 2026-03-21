@@ -45,7 +45,7 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       compReleaseMs: 200, compKneeDb: 8,
     },
     texture: {
-      name: 'texture', pan: 0, gainDb: -6,
+      name: 'texture', pan: 0, gainDb: -14,
       compThresholdDb: -30, compRatio: 2, compAttackMs: 50,
       compReleaseMs: 500, compKneeDb: 10,
     },

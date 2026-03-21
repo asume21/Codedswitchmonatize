@@ -238,6 +238,12 @@ export class DrumGenerator extends GeneratorBase {
     { kickNote: 'A#0', kickPitchDecay: 0.08, kickVol: -8,  snareDecay: 0.22, snareVol: -11, hatDecay: 0.08, hatVol: -17, hatResonance: 3000, percDecay: 0.10, percVol: -20 },
     // Hard — higher pitch kick, crispy hat, tight snare
     { kickNote: 'E1',  kickPitchDecay: 0.04, kickVol: -4,  snareDecay: 0.12, snareVol: -7,  hatDecay: 0.04, hatVol: -13, hatResonance: 4500, percDecay: 0.06, percVol: -17 },
+    // Deep 808 — very sub-heavy kick, dry snare snap, minimal hat
+    { kickNote: 'G0',  kickPitchDecay: 0.12, kickVol: -3,  snareDecay: 0.08, snareVol: -7,  hatDecay: 0.02, hatVol: -18, hatResonance: 6000, percDecay: 0.04, percVol: -22 },
+    // Crispy Trap — short punchy kick, sharp snare, sparkly hat
+    { kickNote: 'F1',  kickPitchDecay: 0.02, kickVol: -5,  snareDecay: 0.09, snareVol: -6,  hatDecay: 0.025, hatVol: -11, hatResonance: 5500, percDecay: 0.04, percVol: -15 },
+    // Vinyl — wide pitch decay, long dusty snare, rolled-off hat
+    { kickNote: 'B0',  kickPitchDecay: 0.10, kickVol: -7,  snareDecay: 0.28, snareVol: -12, hatDecay: 0.10, hatVol: -19, hatResonance: 2500, percDecay: 0.12, percVol: -21 },
   ] as const
 
   private applyKitPreset(): void {
