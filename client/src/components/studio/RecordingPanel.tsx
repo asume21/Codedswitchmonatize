@@ -45,20 +45,54 @@ export default function RecordingPanel({
   const [latencyMs, setLatencyMs] = useState(0);
   const [punchIn, setPunchIn] = useState<number | null>(null);
   const [punchOut, setPunchOut] = useState<number | null>(null);
+  const [micPermission, setMicPermission] = useState<'unknown' | 'granted' | 'denied' | 'requesting'>('unknown');
 
   useEffect(() => {
     const unsub = subscribeRecording(setState);
     return unsub;
   }, []);
 
+  // Check mic permission status on mount
   useEffect(() => {
+    if (!navigator.mediaDevices) {
+      setMicPermission('denied');
+      return;
+    }
+    navigator.permissions?.query({ name: 'microphone' as PermissionName }).then(result => {
+      setMicPermission(result.state === 'granted' ? 'granted' : result.state === 'denied' ? 'denied' : 'unknown');
+      result.onchange = () => {
+        setMicPermission(result.state === 'granted' ? 'granted' : result.state === 'denied' ? 'denied' : 'unknown');
+      };
+    }).catch(() => setMicPermission('unknown'));
+  }, []);
+
+  // Load devices once permission is granted
+  useEffect(() => {
+    if (micPermission !== 'granted') return;
     getInputDevices().then(devs => {
       setDevices(devs);
       if (devs.length > 0 && !selectedDevice) {
         setSelectedDevice(devs[0].deviceId);
+        setRecordingConfig({ inputDeviceId: devs[0].deviceId });
       }
     });
-  }, [selectedDevice]);
+  }, [micPermission, selectedDevice]);
+
+  const handleRequestPermission = useCallback(async () => {
+    setMicPermission('requesting');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop()); // release immediately
+      setMicPermission('granted');
+    } catch (err: any) {
+      setMicPermission('denied');
+      toast({
+        title: 'Microphone Access Denied',
+        description: 'Click the 🔒 icon in your browser address bar → Site settings → Allow Microphone, then refresh.',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
 
   const handleDeviceChange = useCallback((deviceId: string) => {
     setSelectedDevice(deviceId);
@@ -95,14 +129,27 @@ export default function RecordingPanel({
       stopMonitoring();
       setIsMonitoring(false);
     } else {
+      if (micPermission !== 'granted') {
+        await handleRequestPermission();
+        return;
+      }
       try {
         await startMonitoring();
         setIsMonitoring(true);
-      } catch (err) {
-        toast({ title: 'Monitoring Failed', description: String(err), variant: 'destructive' });
+      } catch (err: any) {
+        if (err?.name === 'NotAllowedError') {
+          setMicPermission('denied');
+          toast({
+            title: 'Microphone Blocked',
+            description: 'Click the 🔒 icon in your browser address bar → Site settings → Allow Microphone, then refresh.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({ title: 'Monitoring Failed', description: String(err), variant: 'destructive' });
+        }
       }
     }
-  }, [isMonitoring, toast]);
+  }, [isMonitoring, micPermission, handleRequestPermission, toast]);
 
   const handleMeasureLatency = useCallback(async () => {
     const ms = await measureLatency();
@@ -148,22 +195,44 @@ export default function RecordingPanel({
         )}
       </div>
 
-      {/* Input device selector */}
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Input Device</span>
-        <Select value={selectedDevice} onValueChange={handleDeviceChange}>
-          <SelectTrigger className="h-7 text-xs bg-zinc-800 border-zinc-600">
-            <SelectValue placeholder="Select input..." />
-          </SelectTrigger>
-          <SelectContent className="bg-zinc-800 border-zinc-600">
-            {devices.map(d => (
-              <SelectItem key={d.deviceId} value={d.deviceId} className="text-xs">
-                {d.label || `Input ${d.deviceId.slice(0, 8)}`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Permission gate */}
+      {micPermission === 'denied' && (
+        <div className="rounded-lg bg-red-950/60 border border-red-500/40 p-3 text-xs text-red-300 space-y-2">
+          <p className="font-bold flex items-center gap-1"><MicOff className="w-3 h-3" /> Microphone blocked</p>
+          <p className="text-red-400/80">Click the <span className="font-mono bg-red-900/60 px-1 rounded">🔒</span> in your browser address bar → <strong>Site settings</strong> → set Microphone to <strong>Allow</strong>, then refresh the page.</p>
+        </div>
+      )}
+
+      {(micPermission === 'unknown' || micPermission === 'requesting') && (
+        <Button
+          size="sm"
+          className="w-full gap-2 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-300 text-xs h-8"
+          onClick={handleRequestPermission}
+          disabled={micPermission === 'requesting'}
+        >
+          <Mic className="w-3 h-3" />
+          {micPermission === 'requesting' ? 'Waiting for permission…' : 'Allow Microphone Access'}
+        </Button>
+      )}
+
+      {/* Input device selector — only shown once permission granted */}
+      {micPermission === 'granted' && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Input Device</span>
+          <Select value={selectedDevice} onValueChange={handleDeviceChange}>
+            <SelectTrigger className="h-7 text-xs bg-zinc-800 border-zinc-600">
+              <SelectValue placeholder="Select input..." />
+            </SelectTrigger>
+            <SelectContent className="bg-zinc-800 border-zinc-600">
+              {devices.map(d => (
+                <SelectItem key={d.deviceId} value={d.deviceId} className="text-xs">
+                  {d.label || `Input ${d.deviceId.slice(0, 8)}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Monitor controls */}
       <div className="flex items-center gap-2">
