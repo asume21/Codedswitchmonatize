@@ -7,7 +7,8 @@ export const profileRouter = Router();
 profileRouter.get("/:userId", async (req, res) => {
   try {
     const profile = await profileService.getProfile(req.params.userId);
-    if (!profile) return res.status(404).json({ error: "No profile yet" });
+    // Return empty neutral profile instead of 404 — organism starts fresh
+    if (!profile) return res.json({ userId: req.params.userId, grooveProfile: null, history: [] });
     return res.json(profile);
   } catch (err) {
     console.error("[profileRouter] GET error:", err);

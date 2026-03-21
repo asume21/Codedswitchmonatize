@@ -13,10 +13,11 @@
  *   </GlobalOrganismWrapper>
  */
 
-import React, { useState, useCallback, createContext, useContext } from 'react'
+import React, { useState, useCallback, createContext, useContext, useMemo } from 'react'
 import { OrganismProvider } from './OrganismProvider'
 import { OrganismContext } from './OrganismContext'
 import type { OrganismContextValue } from './OrganismContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface GlobalOrganismState {
   /** Whether the heavy OrganismProvider is mounted */
@@ -48,6 +49,7 @@ interface Props {
 
 export function GlobalOrganismWrapper({ children }: Props) {
   const [isActivated, setIsActivated] = useState(false)
+  const { isAuthenticated } = useAuth()
 
   const activate = useCallback(() => {
     if (!isActivated) setIsActivated(true)
@@ -55,10 +57,18 @@ export function GlobalOrganismWrapper({ children }: Props) {
 
   const activationValue = { isActivated, activate }
 
+  // Derive user ID from stored auth token (format: "Bearer <userId>") or fall back to guest
+  const userId = useMemo(() => {
+    if (!isAuthenticated) return 'guest-user'
+    const token = localStorage.getItem('authToken') ?? ''
+    const id = token.startsWith('Bearer ') ? token.slice(7).trim() : token.trim()
+    return id || 'guest-user'
+  }, [isAuthenticated])
+
   return (
     <GlobalOrganismActivationContext.Provider value={activationValue}>
       {isActivated ? (
-        <OrganismProvider userId="default-user">
+        <OrganismProvider userId={userId}>
           {children}
         </OrganismProvider>
       ) : (
