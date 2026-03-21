@@ -12,10 +12,43 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Volume2, VolumeX, X, ChevronUp, ChevronDown, Square,
-  Play, Mic2, Circle, Download, Zap, Lock, Unlock,
+  Play, Mic2, Circle, Download, Zap, Lock, Unlock, Headphones,
 } from 'lucide-react';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
+
+// ─── Mic Monitor (hear yourself in headphones) ───────────────────────────────
+let monitorStream: MediaStream | null = null;
+let monitorSource: MediaStreamAudioSourceNode | null = null;
+let monitorGain: GainNode | null = null;
+let monitorCtx: AudioContext | null = null;
+
+async function startMicMonitor(volume: number): Promise<void> {
+  if (monitorStream) return; // already running
+  monitorCtx = new AudioContext();
+  monitorStream = await navigator.mediaDevices.getUserMedia({ audio: {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+  }});
+  monitorSource = monitorCtx.createMediaStreamSource(monitorStream);
+  monitorGain = monitorCtx.createGain();
+  monitorGain.gain.value = volume;
+  monitorSource.connect(monitorGain);
+  monitorGain.connect(monitorCtx.destination);
+}
+
+function stopMicMonitor(): void {
+  monitorGain?.disconnect();
+  monitorSource?.disconnect();
+  monitorStream?.getTracks().forEach(t => t.stop());
+  monitorCtx?.close();
+  monitorStream = null;
+  monitorSource = null;
+  monitorGain = null;
+  monitorCtx = null;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface TrackedAudio {
   id: number;
@@ -267,6 +300,30 @@ export default function FloatingAudioMonitor() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [trackedAudios, setTrackedAudios] = useState<TrackedAudio[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [monitorVolume, setMonitorVolume] = useState(0.8);
+
+  const toggleMonitor = useCallback(async () => {
+    if (isMonitoring) {
+      stopMicMonitor();
+      setIsMonitoring(false);
+    } else {
+      try {
+        await startMicMonitor(monitorVolume);
+        setIsMonitoring(true);
+      } catch {
+        alert('Could not access microphone. Check browser permissions.');
+      }
+    }
+  }, [isMonitoring, monitorVolume]);
+
+  // Sync volume changes live
+  useEffect(() => {
+    if (monitorGain) monitorGain.gain.value = monitorVolume;
+  }, [monitorVolume]);
+
+  // Stop monitor if component unmounts
+  useEffect(() => () => stopMicMonitor(), []);
 
   // Read organism state for the floating button appearance
   const organism = useOrganismSafe();
@@ -362,6 +419,37 @@ export default function FloatingAudioMonitor() {
 
           {/* Organism mini-controls — always visible at top */}
           <OrganismMiniControls />
+
+          {/* Mic Monitor — hear yourself in headphones */}
+          <div className="px-3 py-2.5 border-b border-gray-700/60">
+            <div className="flex items-center gap-2">
+              <Headphones className={`w-3.5 h-3.5 ${isMonitoring ? 'text-green-400' : 'text-gray-400'}`} />
+              <span className="text-xs font-semibold text-gray-300">Mic Monitor</span>
+              <button
+                onClick={toggleMonitor}
+                className={`ml-auto px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                  isMonitoring
+                    ? 'bg-green-500/20 border border-green-500/40 text-green-300 hover:bg-green-500/30'
+                    : 'bg-gray-700/60 border border-gray-600/50 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {isMonitoring ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            {isMonitoring && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-[10px] text-gray-400 w-12 shrink-0">Volume</span>
+                <input
+                  type="range" min={0} max={1} step={0.05}
+                  value={monitorVolume}
+                  onChange={e => setMonitorVolume(parseFloat(e.target.value))}
+                  className="flex-1 h-1 accent-green-400 cursor-pointer"
+                />
+                <span className="text-[10px] text-gray-500 w-8 text-right">{Math.round(monitorVolume * 100)}%</span>
+              </div>
+            )}
+            <p className="text-[10px] text-gray-600 mt-1">Hear your mic in headphones (no effects)</p>
+          </div>
 
           {/* Tracked audio elements — only shows <audio> file players, not Organism/Tone.js */}
           {trackedAudios.length > 0 && (

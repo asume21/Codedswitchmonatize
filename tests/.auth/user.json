@@ -1,0 +1,55 @@
+{
+  "cookies": [
+    {
+      "name": "__cf_bm",
+      "value": "iP1qvf93cLxR_WDlw7FoiytPRfjh_aXNI1zPu7vzQBg-1774034572-1.0.1.1-jOdyZ12M1q8rO.M1AiDvkm34Z1sqkXqbVIVT80.eEJgEE2pWzx8RpEPrC.2h9gQZ5dza80MOJStFsbFC8JP8RP_MMKhM0zcsZmCKbvcRvOk",
+      "domain": ".replit.com",
+      "path": "/",
+      "expires": 1774036371.919258,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_ga",
+      "value": "GA1.1.1111961999.1774034573",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1808594572.594638,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga_9RQVP7EW7S",
+      "value": "GS2.1.s1774034572$o1$g0$t1774034573$j59$l0$h0",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1808594573.952561,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "codedswitch.sid",
+      "value": "s%3AXorVy_yZgf6wtML2kpAuKTZDtqHgtrsd.8X1m0lmJNkmsSmW8pIM3FhDPvQkfuFjDf3Gnk8MxNuU",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1776626574.293323,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:5000",
+      "localStorage": [
+        {
+          "name": "authToken",
+          "value": "Bearer 89eddf82-3eb2-4326-a3af-6b90e4248ce2"
+        }
+      ]
+    }
+  ]
+}

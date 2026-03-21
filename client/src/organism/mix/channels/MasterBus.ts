@@ -23,18 +23,18 @@ export class MasterBus {
     this.masterGain = new Tone.Gain(Tone.dbToGain(gainDb))
 
     // 3-band master EQ + high-frequency rolloff
-    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 120, gain: 2.5 })
-    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 800, gain: -1.5, Q: 0.8 })
-    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 8000, gain: 1.5 })
-    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 12000, rolloff: -24 })
+    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 120,  gain: 1.5 })  // less bass boost
+    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 800,  gain: -2.0, Q: 0.8 })
+    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 8000, gain: -1.0 }) // roll off highs
+    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 9000, rolloff: -48 }) // tighter cut, steeper slope
 
-    // Glue compressor — gentle bus compression for cohesion
+    // Glue compressor — much gentler; drum bus already compresses
     this.compressor = new Tone.Compressor({
-      threshold: -16,
-      ratio:     3,
-      attack:    0.01,
-      release:   0.15,
-      knee:      6,
+      threshold: -24,   // was -16
+      ratio:     2,     // was 3
+      attack:    0.02,
+      release:   0.25,
+      knee:      8,
     })
 
     this.saturator = new Tone.Distortion({
