@@ -363,11 +363,9 @@ export default function FloatingAudioMonitor() {
           {/* Organism mini-controls — always visible at top */}
           <OrganismMiniControls />
 
-          {/* Tracked audio elements */}
+          {/* Tracked audio elements — only shows <audio> file players, not Organism/Tone.js */}
+          {trackedAudios.length > 0 && (
           <div className="overflow-y-auto max-h-44 p-2 space-y-1.5">
-            {trackedAudios.length === 0 && (
-              <p className="text-xs text-gray-500 text-center py-2">No audio elements tracked</p>
-            )}
             {trackedAudios.map(a => (
               <div
                 key={a.id}
@@ -398,6 +396,7 @@ export default function FloatingAudioMonitor() {
               </div>
             ))}
           </div>
+          )}
 
           {playingCount > 0 && (
             <div className="px-3 py-2 border-t border-gray-700">
