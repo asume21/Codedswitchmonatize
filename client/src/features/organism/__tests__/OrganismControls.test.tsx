@@ -2,7 +2,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import React from 'react'
-import { OrganismContext } from '../OrganismContext'
+import { OrganismContext, OrganismPhysicsContext } from '../OrganismContext'
 import type { OrganismContextValue } from '../OrganismContext'
 import { OrganismControls } from '../OrganismControls'
 import { OrganismMode } from '../../../organism/physics/types'
@@ -16,9 +16,6 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     reactiveBehaviors: null,
     mixEngine: null,
     captureEngine: null,
-    physicsState: null,
-    organismState: null,
-    meterReading: null,
     lastSessionDNA: null,
     start: vi.fn(),
     stop: vi.fn(),
@@ -81,10 +78,14 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
   }
 }
 
+const nullPhysics = { physicsState: null, organismState: null, meterReading: null }
+
 function renderWithCtx(ctx: OrganismContextValue) {
   return render(
     <OrganismContext.Provider value={ctx}>
-      <OrganismControls />
+      <OrganismPhysicsContext.Provider value={nullPhysics}>
+        <OrganismControls />
+      </OrganismPhysicsContext.Provider>
     </OrganismContext.Provider>
   )
 }

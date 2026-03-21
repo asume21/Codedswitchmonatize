@@ -18,6 +18,17 @@ import type { CallResponsePhase }      from './CallResponseEngine'
 import type { VibeClassification }     from './VibeMatcher'
 import type { FreestyleReport }        from './FreestyleReportCard'
 
+/**
+ * High-frequency physics context — updates at ~15fps as the organism runs.
+ * Kept separate so components that only need controls/callbacks are not
+ * re-rendered on every physics tick.
+ */
+export interface OrganismPhysicsContextValue {
+  physicsState:  PhysicsState  | null
+  organismState: OrganismState | null
+  meterReading:  MixMeterReading | null
+}
+
 /** Saved session bundle — everything captured from a freestyle */
 export interface SavedSession {
   sessionId:    string
@@ -40,11 +51,8 @@ export interface OrganismContextValue {
   mixEngine:         MixEngine              | null
   captureEngine:     CaptureEngine          | null
 
-  // Live state (updated via subscriptions)
-  physicsState:   PhysicsState    | null
-  organismState:  OrganismState   | null
-  meterReading:   MixMeterReading | null
-  lastSessionDNA: SessionDNA      | null
+  // Session DNA (updated when a session is captured)
+  lastSessionDNA: SessionDNA | null
 
   // Actions
   start:       () => Promise<void>
@@ -138,10 +146,21 @@ export interface OrganismContextValue {
 
 const OrganismContext = createContext<OrganismContextValue | null>(null)
 
+const OrganismPhysicsContext = createContext<OrganismPhysicsContextValue>({
+  physicsState:  null,
+  organismState: null,
+  meterReading:  null,
+})
+
 export function useOrganism(): OrganismContextValue {
   const ctx = useContext(OrganismContext)
   if (!ctx) throw new Error('useOrganism must be used inside OrganismProvider')
   return ctx
 }
 
-export { OrganismContext }
+/** Subscribe only to high-frequency physics/meter/state updates (~15fps). */
+export function useOrganismPhysics(): OrganismPhysicsContextValue {
+  return useContext(OrganismPhysicsContext)
+}
+
+export { OrganismContext, OrganismPhysicsContext }

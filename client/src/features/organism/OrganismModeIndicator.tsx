@@ -1,4 +1,4 @@
-import { useOrganism } from './OrganismContext'
+import { useOrganism, useOrganismPhysics } from './OrganismContext'
 import { OrganismMode } from '../../organism/physics/types'
 
 const MODE_LABELS: Record<OrganismMode, string> = {
@@ -18,7 +18,8 @@ const MODE_COLORS: Record<OrganismMode, string> = {
 }
 
 export function OrganismModeIndicator() {
-  const { physicsState, isRunning } = useOrganism()
+  const { isRunning }    = useOrganism()
+  const { physicsState } = useOrganismPhysics()
 
   if (!isRunning || !physicsState) return null
 

@@ -1,4 +1,4 @@
-import { useOrganism }    from './OrganismContext'
+import { useOrganism, useOrganismPhysics } from './OrganismContext'
 import { OrganismMode }   from '../../organism/physics/types'
 import { OState }         from '../../organism/state/types'
 
@@ -61,7 +61,8 @@ function PhysicsBar({ label, value, max = 1 }: {
 }
 
 export function OrganismVisualizer() {
-  const { physicsState, organismState, meterReading, isRunning } = useOrganism()
+  const { isRunning }                              = useOrganism()
+  const { physicsState, organismState, meterReading } = useOrganismPhysics()
 
   if (!isRunning || !physicsState || !organismState) {
     return (
