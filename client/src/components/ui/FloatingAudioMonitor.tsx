@@ -340,11 +340,14 @@ export default function FloatingAudioMonitor() {
     }
   };
 
+  const { isActivated } = useOrganismActivation();
   // Determine floating button state
   const buttonState = organismRecording ? 'recording' : organismRunning ? 'organism-live' : playingCount > 0 ? 'audio-playing' : 'idle';
 
   return (
-    <div className="fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2">
+    <div className="fixed z-[200] flex flex-col items-end gap-2"
+      style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))', right: 'calc(1rem + env(safe-area-inset-right))' }}
+    >
       {/* Expanded panel */}
       {isExpanded && (
         <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-[min(20rem,calc(100vw-2rem))] max-h-[80vh] overflow-hidden">
@@ -413,15 +416,18 @@ export default function FloatingAudioMonitor() {
       {/* Floating button — reflects organism + audio state */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-full shadow-lg text-xs font-bold transition-all ${
+        className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full shadow-lg text-xs font-bold transition-all ${
           buttonState === 'recording'
             ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
             : buttonState === 'organism-live'
             ? 'bg-green-600 hover:bg-green-500 text-white'
             : buttonState === 'audio-playing'
             ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
+            : !isActivated
+            ? 'bg-cyan-700 hover:bg-cyan-600 text-white border border-cyan-500/60 animate-pulse'
             : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600'
         }`}
+        style={{ minHeight: '44px', minWidth: '44px' }}
       >
         {buttonState === 'recording' ? (
           <>
@@ -444,7 +450,7 @@ export default function FloatingAudioMonitor() {
         ) : (
           <>
             <Zap className="w-4 h-4" />
-            Audio
+            {isActivated ? 'Organism' : 'Start Organism'}
             {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
           </>
         )}
