@@ -1,8 +1,8 @@
 import React, {
   useState, useEffect, useRef, useCallback, useMemo
 } from 'react'
-import { OrganismContext }         from './OrganismContext'
-import type { OrganismContextValue, SavedSession } from './OrganismContext'
+import { OrganismContext, OrganismPhysicsContext } from './OrganismContext'
+import type { OrganismContextValue, OrganismPhysicsContextValue, SavedSession } from './OrganismContext'
 
 import { AudioAnalysisEngine }    from '../../organism/analysis/AudioAnalysisEngine'
 import { PhysicsEngine }          from '../../organism/physics/PhysicsEngine'
@@ -1196,6 +1196,14 @@ export function OrganismProvider({ children, userId }: Props) {
 
   // ── Context value ─────────────────────────────────────────────────
 
+  // Physics context — separate memo so it only invalidates consumers that
+  // actually need high-frequency physics data (Visualizer, ModeIndicator).
+  const physicsValue = useMemo<OrganismPhysicsContextValue>(() => ({
+    physicsState,
+    organismState,
+    meterReading,
+  }), [physicsState, organismState, meterReading])
+
   const value: OrganismContextValue = useMemo(() => ({
     analysisEngine:    inputSource === 'mic' ? inputRef.current as unknown as AudioAnalysisEngine : null,
     physicsEngine:     physicsRef.current,
@@ -1204,9 +1212,6 @@ export function OrganismProvider({ children, userId }: Props) {
     reactiveBehaviors: reactiveRef.current,
     mixEngine:         mixRef.current,
     captureEngine:     captureRef.current,
-    physicsState,
-    organismState,
-    meterReading,
     lastSessionDNA,
     start,
     stop,
@@ -1321,7 +1326,7 @@ export function OrganismProvider({ children, userId }: Props) {
     isCapturing,
     error,
   }), [
-    physicsState, organismState, meterReading, lastSessionDNA,
+    lastSessionDNA,
     start, stop, captureSession, downloadMidi,
     quickStart, activePresetId,
     countInStart, countInBeat,
@@ -1342,7 +1347,9 @@ export function OrganismProvider({ children, userId }: Props) {
 
   return (
     <OrganismContext.Provider value={value}>
-      {children}
+      <OrganismPhysicsContext.Provider value={physicsValue}>
+        {children}
+      </OrganismPhysicsContext.Provider>
     </OrganismContext.Provider>
   )
 }
