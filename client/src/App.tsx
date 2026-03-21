@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
 import FloatingAudioMonitor from "@/components/ui/FloatingAudioMonitor";
 import { GlobalOrganismWrapper } from "@/features/organism/GlobalOrganismWrapper";
+import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
@@ -305,6 +306,7 @@ function App() {
             </Suspense>
           </TooltipProvider>
           <FloatingAudioMonitor />
+          <IOSAudioEnable />
           </GlobalOrganismWrapper>
         </AuthProvider>
       </QueryClientProvider>

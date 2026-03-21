@@ -116,7 +116,9 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4 overflow-y-auto"
+      style={{ minHeight: '100dvh' }}
+    >
       <Card className="w-full max-w-md bg-gray-900 border-gray-700">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
