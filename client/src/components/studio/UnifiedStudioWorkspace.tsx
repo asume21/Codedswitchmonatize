@@ -822,6 +822,19 @@ export default function UnifiedStudioWorkspace() {
   const [timeSignatureDraft, setTimeSignatureDraft] = useState(sessionSettings.timeSignature);
   const [keySignatureDraft, setKeySignatureDraft] = useState(sessionSettings.key);
   const [insertTimeError, setInsertTimeError] = useState<string | null>(null);
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const [tabScrollPos, setTabScrollPos] = useState(0);
+  const [tabScrollMax, setTabScrollMax] = useState(0);
+  useEffect(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const update = () => setTabScrollMax(el.scrollWidth - el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const undoManagerRef = useRef<UndoManager<StudioTrack[]> | null>(null);
   const isRestoringTracksRef = useRef(false);
   const [trackHistory, setTrackHistory] = useState<StudioTrack[][]>([]);
@@ -3739,8 +3752,16 @@ export default function UnifiedStudioWorkspace() {
       {/* DAW-Style Tab Bar - All tabs together */}
       <div className="bg-black/60 border-b border-cyan-500/40 px-2 py-2 flex items-center justify-between gap-2 astutely-panel relative z-10 overflow-hidden">
         {/* All Tabs - horizontally scrollable on mobile */}
-        <div className="flex items-center gap-1 overflow-x-auto flex-nowrap min-w-0 flex-1 pb-0.5 scrollbar-none"
-             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div
+          ref={tabScrollRef}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setTabScrollPos(el.scrollLeft);
+            setTabScrollMax(el.scrollWidth - el.clientWidth);
+          }}
+          className="flex items-center gap-1 overflow-x-auto flex-nowrap min-w-0 flex-1 pb-0.5 scrollbar-none"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
           <Button
             variant={activeView === 'arrangement' ? 'default' : 'ghost'}
             size="sm"
@@ -3935,6 +3956,25 @@ export default function UnifiedStudioWorkspace() {
           </div>
         </div>
       </div>
+
+      {/* Tab Scroll Strip — only visible when tabs overflow */}
+      {tabScrollMax > 0 && (
+        <div className="px-3 py-0.5 bg-black/40 border-b border-cyan-500/10">
+          <input
+            type="range"
+            min={0}
+            max={tabScrollMax}
+            step={1}
+            value={tabScrollPos}
+            onChange={(e) => {
+              const el = tabScrollRef.current;
+              if (el) el.scrollLeft = Number(e.target.value);
+            }}
+            className="w-full h-1 accent-cyan-500 cursor-pointer"
+            style={{ display: 'block' }}
+          />
+        </div>
+      )}
 
       {/* Global BPM Strip — always visible below tabs */}
       <div className="flex items-center gap-3 px-3 py-1.5 bg-black/50 border-b border-cyan-500/20">
