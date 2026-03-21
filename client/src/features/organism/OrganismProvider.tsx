@@ -37,6 +37,7 @@ import { VibeMatcher }           from './VibeMatcher'
 import type { VibeClassification } from './VibeMatcher'
 import { FreestyleReportCard }   from './FreestyleReportCard'
 import type { FreestyleReport }  from './FreestyleReportCard'
+import { ScaleSnapEngine }       from '../../organism/scale/ScaleSnapEngine'
 import { OState }                from '../../organism/state/types'
 import * as Tone from 'tone'
 
@@ -147,6 +148,9 @@ export function OrganismProvider({ children, userId }: Props) {
   // Freestyle Report Card state
   const [lastReport, setLastReport] = useState<FreestyleReport | null>(null)
   const reportCardRef = useRef<FreestyleReportCard | null>(null)
+
+  // Scale Snap Engine — detects musical key from pitch and locks melody to it
+  const scaleSnapRef = useRef<ScaleSnapEngine | null>(null)
 
   // Latch + pattern lock state
   const [latchMode,        setLatchModeState]   = useState(false)
@@ -1134,6 +1138,49 @@ export function OrganismProvider({ children, userId }: Props) {
       )
     }
   }, [physicsState, vibeMatchEnabled])
+
+  // ── Scale Snap Engine ──
+  // Detects the musical key from pitch input and locks the melody to it.
+  // Created once on mount and fed pitch frames from the physics subscription.
+  useEffect(() => {
+    const snap = new ScaleSnapEngine()
+
+    snap.onScaleChange((detection) => {
+      // Push detected scale straight to the melody generator
+      const orch = orchestrRef.current
+      if (orch && isRunningRef.current) {
+        orch.setDetectedScale(detection.rootPitchClass, detection.intervals)
+      }
+    })
+
+    scaleSnapRef.current = snap
+
+    return () => {
+      snap.dispose()
+      scaleSnapRef.current = null
+    }
+  }, [])
+
+  // Feed pitch frames to ScaleSnapEngine — piggyback on the existing
+  // 150ms throttle so it runs at the same ~6fps as DropDetector/VibeMatcher.
+  // physicsState gives us the mode; we get the raw pitch from input.getLastFrame().
+  useEffect(() => {
+    if (!physicsState) return
+    const snap  = scaleSnapRef.current
+    const input = inputRef.current
+    if (!snap || !input) return
+
+    const frame = input.getLastFrame()
+    if (!frame || frame.pitchConfidence < 0.3) return  // skip low-confidence frames early
+
+    snap.processPitchFrame({
+      pitchHz:    frame.pitch,
+      pitchMidi:  frame.pitchMidi,
+      confidence: frame.pitchConfidence,
+      mode:       physicsState.mode,
+      voiceActive: physicsState.voiceActive,
+    })
+  }, [physicsState])  // runs at same rate as physics UI updates (~15fps, ~150ms effective via existing throttle)
 
   // ── Freestyle Report Card ──
   // Initialize on session start, feed data throughout, generate on stop.

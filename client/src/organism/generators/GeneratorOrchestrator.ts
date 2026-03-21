@@ -300,4 +300,15 @@ export class GeneratorOrchestrator {
   loadGeneratedDrumPattern(hits: import('./types').DrumHit[]): void {
     this.drum.loadGeneratedPattern(hits)
   }
+
+  /**
+   * Apply a detected scale from ScaleSnapEngine to the melody generator.
+   * The melody will rebuild its next phrase in the new key.
+   *
+   * @param rootPitchClass - 0-11 (C=0, C#=1 ... B=11)
+   * @param intervals      - semitone intervals from root
+   */
+  setDetectedScale(rootPitchClass: number, intervals: number[]): void {
+    this.melody.setRootAndScale(rootPitchClass, intervals)
+  }
 }

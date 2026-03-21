@@ -24,10 +24,11 @@ export class MelodyGenerator extends GeneratorBase {
   private pitchOffsetSemitones: number = 0
 
   // Musical state
-  private rootMidi:        number         = 60   // C4
+  private rootPitchClass:  number         = 0    // 0-11, detected by ScaleSnapEngine
   private currentBehavior: MelodyBehavior = MelodyBehavior.Rest
   private lastBehavior:    MelodyBehavior = MelodyBehavior.Rest
   private currentScale:    number[]       = MODE_SCALES.glow
+  private scaleDirty:      boolean        = false // rebuild phrase on next behavior cycle
 
   // Physics cache
   private currentPresence: number  = 0
@@ -77,10 +78,11 @@ export class MelodyGenerator extends GeneratorBase {
       organism.flowDepth
     )
 
-    // Rebuild phrase when behavior changes
-    if (newBehavior !== this.currentBehavior) {
+    // Rebuild phrase when behavior changes OR when scale was updated mid-phrase
+    if (newBehavior !== this.currentBehavior || this.scaleDirty) {
       this.lastBehavior    = this.currentBehavior
       this.currentBehavior = newBehavior
+      this.scaleDirty      = false
       this.rebuildPhrase(physics, organism)
     }
 
@@ -97,7 +99,8 @@ export class MelodyGenerator extends GeneratorBase {
     }
     if (to === OState.Breathing || to === OState.Flow) {
       this.currentScale = MODE_SCALES[physics.mode] ?? MODE_SCALES.glow
-      this.rootMidi     = 60   // C4 default — refined in Section 05
+      // rootPitchClass is intentionally NOT reset here — keep the detected key
+      // across state transitions so the melody stays in the user's key
     }
   }
 
@@ -113,6 +116,23 @@ export class MelodyGenerator extends GeneratorBase {
 
   applyPitchOffset(semitones: number): void {
     this.pitchOffsetSemitones = Math.round(semitones)
+  }
+
+  /**
+   * Set the detected root pitch class and scale intervals from ScaleSnapEngine.
+   * The phrase will be rebuilt at the next behavior cycle.
+   *
+   * @param rootPitchClass - 0-11 (C=0, C#=1 ... B=11)
+   * @param intervals      - semitone intervals from root (e.g. [0,3,5,7,10])
+   */
+  setRootAndScale(rootPitchClass: number, intervals: number[]): void {
+    const newRoot  = ((rootPitchClass % 12) + 12) % 12  // clamp to 0-11
+    const changed  = newRoot !== this.rootPitchClass
+                  || JSON.stringify(intervals) !== JSON.stringify(this.currentScale)
+    if (!changed) return
+    this.rootPitchClass = newRoot
+    this.currentScale   = intervals
+    this.scaleDirty     = true   // signal processFrame to rebuild
   }
 
   applyVolumeMultiplier(multiplier: number): void {
@@ -202,7 +222,7 @@ export class MelodyGenerator extends GeneratorBase {
       prev = Math.max(0, Math.min(scale.length - 1, prev + stepDelta))
 
       const semitone = scale[prev]
-      const midi     = (octave * 12) + 12 + semitone + this.pitchOffsetSemitones
+      const midi     = (octave * 12) + 12 + semitone + this.rootPitchClass + this.pitchOffsetSemitones
       const pitch    = Tone.Frequency(midi, 'midi').toNote()
 
       // Duration variety: 1-4 16ths with musical bias
