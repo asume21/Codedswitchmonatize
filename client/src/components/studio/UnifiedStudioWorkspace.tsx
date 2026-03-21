@@ -591,7 +591,15 @@ export default function UnifiedStudioWorkspace() {
   const [timelinePlayingTrack, setTimelinePlayingTrack] = useState<string | null>(null);
   const timelinePlayingTrackRef = useRef<string | null>(null);
   const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
-  const [activeView, setActiveView] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism'>('arrangement');
+  const [activeView, setActiveViewRaw] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism'>(() => {
+    const saved = sessionStorage.getItem('studio:activeView');
+    const valid = ['arrangement','piano-roll','mixer','ai-studio','lyrics','song-uploader','code-to-music','audio-tools','beat-lab','multitrack','organism'];
+    return (saved && valid.includes(saved) ? saved : 'arrangement') as any;
+  });
+  const setActiveView = useCallback((v: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism') => {
+    sessionStorage.setItem('studio:activeView', v);
+    setActiveViewRaw(v);
+  }, []);
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [showAstutely, setShowAstutely] = useState(false);
   const [showAstutelyArchitect, setShowAstutelyArchitect] = useState(false);

@@ -126,6 +126,17 @@ function LyricLabRoute() {
   return <UnifiedStudioWorkspace />;
 }
 
+function OrganismRoute() {
+  useEffect(() => {
+    const fire = () =>
+      window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'organism' }));
+    fire();
+    window.setTimeout(fire, 0);
+  }, []);
+
+  return <UnifiedStudioWorkspace />;
+}
+
 function App() {
   // Initialize Google Analytics when app loads
   useEffect(() => {
@@ -274,7 +285,16 @@ function App() {
                   </AIMessageProvider>
                 </StudioProviders>
               </Route>
-              
+
+              {/* Organism - opens studio directly on Organism tab */}
+              <Route path="/organism">
+                <StudioProviders>
+                  <AIMessageProvider>
+                    <AppLayout><OrganismRoute /></AppLayout>
+                  </AIMessageProvider>
+                </StudioProviders>
+              </Route>
+
               {/* ============================================
                   LEGACY STUDIO ROUTES - Redirect to /studio
                   Keeps old bookmarks working
