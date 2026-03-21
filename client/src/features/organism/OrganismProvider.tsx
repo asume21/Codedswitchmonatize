@@ -57,8 +57,11 @@ export function OrganismProvider({ children, userId }: Props) {
   // Load persisted user profile (weighted average of past sessions)
   const { profile, recompute: recomputeProfile } = useProfile(userId, null)
 
-  // Input source state
-  const [inputSource,  setInputSourceType] = useState<InputSourceType>('mic')
+  // Input source state — default to autoGenerate so mic is never opened automatically.
+  // Opening the mic on iOS causes a second AudioContext + audio session conflict that
+  // produces wind/distortion artifacts in Tone.js output. Users can switch to 'mic'
+  // explicitly if they want reactive-to-voice mode.
+  const [inputSource,  setInputSourceType] = useState<InputSourceType>('autoGenerate')
   const [autoEnergy,   setAutoEnergy]      = useState<'chill' | 'medium' | 'intense'>('medium')
   const audioFileRef = useRef<File | null>(null)
 
