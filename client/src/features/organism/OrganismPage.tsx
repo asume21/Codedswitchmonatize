@@ -125,8 +125,8 @@ export function OrganismPage() {
                   </div>
                 ) : (
                   <>
-                    {transcription.lines.map((line, i) => (
-                      <div key={i} style={{ color: 'var(--color-text-primary)', marginBottom: 2 }}>
+                    {transcription.lines.map((line) => (
+                      <div key={line.barNumber} style={{ color: 'var(--color-text-primary)', marginBottom: 2 }}>
                         <span style={{ color: 'var(--color-text-tertiary)', fontSize: 10, marginRight: 6 }}>
                           {line.barNumber}.
                         </span>

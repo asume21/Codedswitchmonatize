@@ -318,11 +318,13 @@ export function OrganismProvider({ children, userId }: Props) {
 
       patternGenInFlight = true
       lastPatternGenTime = now
+      patternGenAbort = new AbortController()
       try {
         const res = await fetch('/api/organism/generate-pattern', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ section, physics: sectionPhysics, bpm }),
+          signal: patternGenAbort.signal,
         })
         if (!res.ok) return
         const data = await res.json()
@@ -338,7 +340,10 @@ export function OrganismProvider({ children, userId }: Props) {
     setIsRunning(false)
     setError(null)
 
+    let patternGenAbort: AbortController | null = null
+
     return () => {
+      patternGenAbort?.abort()
       unsubPhysics()
       unsubPhysicsState()
       unsubOrganism()

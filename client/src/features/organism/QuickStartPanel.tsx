@@ -18,6 +18,10 @@ export function QuickStartPanel() {
     isRunning,
   } = useOrganism()
 
+  const activePreset = activePresetId
+    ? quickStartPresets.find(p => p.id === activePresetId) ?? null
+    : null
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{
@@ -39,7 +43,7 @@ export function QuickStartPanel() {
             textTransform: 'none' as const,
             letterSpacing: 'normal',
           }}>
-            — {quickStartPresets.find(p => p.id === activePresetId)?.label ?? 'Custom'}
+            — {activePreset?.label ?? 'Custom'}
           </span>
         )}
       </div>
@@ -107,12 +111,9 @@ export function QuickStartPanel() {
         }}>
           {activePresetId ? (
             <>
-              <span style={{ fontSize: 16 }}>
-                {quickStartPresets.find(p => p.id === activePresetId)?.icon ?? '🎵'}
-              </span>
+              <span style={{ fontSize: 16 }}>{activePreset?.icon ?? '🎵'}</span>
               <span>
-                {quickStartPresets.find(p => p.id === activePresetId)?.genre ?? 'Custom'} —{' '}
-                {quickStartPresets.find(p => p.id === activePresetId)?.bpm ?? '?'} BPM
+                {activePreset?.genre ?? 'Custom'} — {activePreset?.bpm ?? '?'} BPM
               </span>
             </>
           ) : (

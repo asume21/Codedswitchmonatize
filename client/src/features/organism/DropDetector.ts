@@ -49,15 +49,22 @@ export class DropDetector {
   private config:          DropDetectorConfig
   private callbacks:       DropCallback[] = []
   private enabled:         boolean = true
-  private energyWindow:    number[] = []
   private buildupCount:    number = 0
   private buildupStart:    number = 0
   private lastDropTime:    number = 0
   private dropCount:       number = 0
   private inBuildup:       boolean = false
 
+  // Ring buffer for O(1) push/pop and incremental mean/variance
+  private ringBuf:         Float32Array
+  private ringHead:        number = 0   // next write position
+  private ringFill:        number = 0   // how many slots are filled
+  private rollingSum:      number = 0   // Σx
+  private rollingSumSq:    number = 0   // Σx²
+
   constructor(config?: Partial<DropDetectorConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config }
+    this.ringBuf = new Float32Array(this.config.windowSize)
   }
 
   /** Register a callback for drop events. Returns unsubscribe function. */
@@ -101,18 +108,26 @@ export class DropDetector {
     // Compute composite energy
     const energy = (bounce * 0.4 + density * 0.35 + presence * 0.25)
 
-    // Add to rolling window
-    this.energyWindow.push(energy)
-    if (this.energyWindow.length > this.config.windowSize) {
-      this.energyWindow.shift()
+    // Ring buffer push — evict oldest value first to keep running sums accurate
+    if (this.ringFill === this.config.windowSize) {
+      const evicted = this.ringBuf[this.ringHead]
+      this.rollingSum   -= evicted
+      this.rollingSumSq -= evicted * evicted
+    } else {
+      this.ringFill++
     }
+    this.ringBuf[this.ringHead] = energy
+    this.ringHead = (this.ringHead + 1) % this.config.windowSize
+    this.rollingSum   += energy
+    this.rollingSumSq += energy * energy
 
     // Need enough data for statistics
-    if (this.energyWindow.length < 10) return null
+    if (this.ringFill < 10) return null
 
-    // Compute mean and stddev
-    const mean = this.energyWindow.reduce((a, b) => a + b, 0) / this.energyWindow.length
-    const variance = this.energyWindow.reduce((a, b) => a + (b - mean) ** 2, 0) / this.energyWindow.length
+    // O(1) mean and variance from running sums
+    const n = this.ringFill
+    const mean = this.rollingSum / n
+    const variance = Math.max(0, this.rollingSumSq / n - mean * mean)
     const stddev = Math.sqrt(variance)
 
     // Threshold for "high energy"
@@ -210,12 +225,16 @@ export class DropDetector {
 
   /** Reset all state. */
   reset(): void {
-    this.energyWindow = []
+    this.ringBuf.fill(0)
+    this.ringHead     = 0
+    this.ringFill     = 0
+    this.rollingSum   = 0
+    this.rollingSumSq = 0
     this.buildupCount = 0
     this.buildupStart = 0
-    this.inBuildup = false
+    this.inBuildup    = false
     this.lastDropTime = 0
-    this.dropCount = 0
+    this.dropCount    = 0
   }
 
   /** Clean up. */
