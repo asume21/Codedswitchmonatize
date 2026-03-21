@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react'
 import { OrganismControls }       from './OrganismControls'
 import { OrganismVisualizer }     from './OrganismVisualizer'
 import { InputSourceSelector }    from './InputSourceSelector'
+import { QuickStartPanel }        from './QuickStartPanel'
 import { useOrganism }            from './OrganismContext'
 import { useOrganismShortcuts }   from './useOrganismShortcuts'
 
@@ -66,8 +67,17 @@ export function OrganismPage() {
           <OrganismVisualizer />
         </div>
 
-        {/* Sidebar: input source + session info */}
+        {/* Sidebar: quick start + input source + session info */}
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Quick Start Panel — instant beat presets */}
+          <QuickStartPanel />
+
+          {/* Divider */}
+          <div style={{
+            height: 1,
+            background: 'var(--color-border-tertiary)',
+          }} />
+
           {/* Input source selector */}
           <InputSourceSelector
             current={inputSource}

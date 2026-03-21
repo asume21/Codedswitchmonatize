@@ -24,6 +24,20 @@ import type { SessionDNA }      from '../../organism/session/types'
 import { FreestyleTranscriber }  from './FreestyleTranscriber'
 import type { TranscriptionState } from './FreestyleTranscriber'
 import { useProfile }             from '../../organism/evolution/useProfile'
+import { QUICK_START_PRESETS, getQuickStartPreset } from './QuickStartPresets'
+import { CountInEngine }         from './CountInEngine'
+import { TriggerWordDetector }   from './TriggerWordDetector'
+import { VoiceCommandRouter }    from './VoiceCommandRouter'
+import { CadenceLock }           from './CadenceLock'
+import type { CadenceSnapshot }  from './CadenceLock'
+import { CallResponseEngine }    from './CallResponseEngine'
+import type { CallResponsePhase } from './CallResponseEngine'
+import { DropDetector }          from './DropDetector'
+import { VibeMatcher }           from './VibeMatcher'
+import type { VibeClassification } from './VibeMatcher'
+import { FreestyleReportCard }   from './FreestyleReportCard'
+import type { FreestyleReport }  from './FreestyleReportCard'
+import { OState }                from '../../organism/state/types'
 import * as Tone from 'tone'
 
 interface Props {
@@ -65,6 +79,12 @@ export function OrganismProvider({ children, userId }: Props) {
   const [autoEnergy,   setAutoEnergy]      = useState<'chill' | 'medium' | 'intense'>('medium')
   const audioFileRef = useRef<File | null>(null)
 
+  // Stable refs for values used in callbacks but not needed as deps
+  const userIdRef = useRef(userId)
+  const recomputeProfileRef = useRef(recomputeProfile)
+  userIdRef.current = userId
+  recomputeProfileRef.current = recomputeProfile
+
   // Engine refs — created once, never recreated
   const inputRef       = useRef<InputSource              | null>(null)
   const physicsRef     = useRef<PhysicsEngine            | null>(null)
@@ -87,6 +107,46 @@ export function OrganismProvider({ children, userId }: Props) {
   const transcriberRef = useRef<FreestyleTranscriber | null>(null)
   const [transcription,         setTranscription]         = useState<TranscriptionState | null>(null)
   const [transcriptionEnabled,  setTranscriptionEnabled]  = useState(true)
+
+  // Quick Start state
+  const [activePresetId, setActivePresetId] = useState<string | null>(null)
+
+  // Count-In state
+  const [countInBeat, setCountInBeat] = useState<number | null>(null)
+  const countInRef = useRef<CountInEngine | null>(null)
+
+  // Sound Trigger state — when armed, any loud mic sound triggers the beat
+  const [soundTriggerArmed, setSoundTriggerArmed] = useState(false)
+  const soundTriggerPresetRef = useRef<string | null>(null)
+  const soundTriggerCleanupRef = useRef<(() => void) | null>(null)
+
+  // Voice command engine refs
+  const triggerDetectorRef = useRef<TriggerWordDetector | null>(null)
+  const voiceRouterRef = useRef<VoiceCommandRouter | null>(null)
+
+  // Cadence Lock state
+  const [cadenceLockEnabled, setCadenceLockEnabled] = useState(false)
+  const [cadenceSnapshot, setCadenceSnapshot] = useState<CadenceSnapshot | null>(null)
+  const cadenceLockRef = useRef<CadenceLock | null>(null)
+
+  // Call & Response state
+  const [callResponseEnabled, setCallResponseEnabled] = useState(false)
+  const [callResponsePhase, setCallResponsePhase] = useState<CallResponsePhase>('idle')
+  const callResponseRef = useRef<CallResponseEngine | null>(null)
+
+  // Drop Detector state
+  const [dropDetectorEnabled, setDropDetectorEnabled] = useState(true)
+  const [lastDropIntensity, setLastDropIntensity] = useState<number | null>(null)
+  const dropDetectorRef = useRef<DropDetector | null>(null)
+
+  // Vibe Matcher state
+  const [vibeMatchEnabled, setVibeMatchEnabled] = useState(true)
+  const [currentVibe, setCurrentVibe] = useState<VibeClassification | null>(null)
+  const vibeMatcherRef = useRef<VibeMatcher | null>(null)
+
+  // Freestyle Report Card state
+  const [lastReport, setLastReport] = useState<FreestyleReport | null>(null)
+  const reportCardRef = useRef<FreestyleReportCard | null>(null)
 
   // Latch + pattern lock state
   const [latchMode,        setLatchModeState]   = useState(false)
@@ -242,15 +302,27 @@ export function OrganismProvider({ children, userId }: Props) {
     // Gap 2 — Generative patterns: when the arrangement enters a musically
     // interesting section, request a novel AI-generated drum pattern so the
     // organism's vocabulary expands beyond the hardcoded library.
-    const GENERATIVE_SECTIONS = new Set(['verse', 'build', 'drop', 'verse2', 'drop2'])
+    // Cooldown: only generate a new pattern at most once every 30 seconds
+    // to avoid toast/pattern spam from rapid section changes.
+    const GENERATIVE_SECTIONS = new Set(['drop', 'drop2'])
+    const PATTERN_GEN_COOLDOWN_MS = 30_000
+    let lastPatternGenTime = 0
+    let patternGenInFlight = false
     const handleSectionChange = async (e: Event) => {
-      const { section, physics, bpm } = (e as CustomEvent).detail ?? {}
+      const { section, physics: sectionPhysics, bpm } = (e as CustomEvent).detail ?? {}
       if (!GENERATIVE_SECTIONS.has(section)) return
+
+      const now = performance.now()
+      if (now - lastPatternGenTime < PATTERN_GEN_COOLDOWN_MS) return
+      if (patternGenInFlight) return
+
+      patternGenInFlight = true
+      lastPatternGenTime = now
       try {
         const res = await fetch('/api/organism/generate-pattern', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ section, physics, bpm }),
+          body: JSON.stringify({ section, physics: sectionPhysics, bpm }),
         })
         if (!res.ok) return
         const data = await res.json()
@@ -258,6 +330,7 @@ export function OrganismProvider({ children, userId }: Props) {
           orchestr.loadGeneratedDrumPattern(data.hits)
         }
       } catch { /* non-blocking — hardcoded patterns remain as fallback */ }
+      finally { patternGenInFlight = false }
     }
     window.addEventListener('organism:section-change', handleSectionChange)
 
@@ -291,6 +364,8 @@ export function OrganismProvider({ children, userId }: Props) {
     if (!inputRef.current || !orchestrRef.current) return
     try {
       setError(null)
+      cadenceLastLineIndexRef.current   = -1
+      reportCardLastLineIndexRef.current = -1
       await inputRef.current.start()
       await orchestrRef.current.start()
       setIsRunning(true)
@@ -323,6 +398,187 @@ export function OrganismProvider({ children, userId }: Props) {
 
   const downloadMidi = useCallback(() => {
     captureRef.current?.downloadMidi()
+  }, [])
+
+  /**
+   * Quick Start — skip the cold start entirely.
+   *
+   * 1. Start the input source + Transport at the preset BPM
+   * 2. Force the state machine straight to Breathing (skipping Dormant → Awakening)
+   * 3. Feed the synthetic physics snapshot so generators build patterns immediately
+   * 4. Beat is playing in <500ms. Reactive behaviors still work from bar 1.
+   */
+  const quickStart = useCallback(async (presetId: string) => {
+    const preset = getQuickStartPreset(presetId)
+    if (!preset) {
+      setError(`Unknown quick start preset: ${presetId}`)
+      return
+    }
+    if (!inputRef.current || !orchestrRef.current || !stateMachRef.current || !physicsRef.current) {
+      setError('Engines not initialized')
+      return
+    }
+
+    try {
+      setError(null)
+      setActivePresetId(presetId)
+      cadenceLastLineIndexRef.current   = -1
+      reportCardLastLineIndexRef.current = -1
+
+      // 1. Start the input source (mic, auto, etc.)
+      await inputRef.current.start()
+
+      // 2. Start the Transport at the preset's BPM
+      await orchestrRef.current.start(preset.bpm)
+
+      // 3. Stamp the synthetic physics with a fresh timestamp
+      const syntheticPhysics = {
+        ...preset.physics,
+        timestamp:  performance.now(),
+        frameIndex: 0,
+      }
+
+      // 4. Feed the physics engine one synthetic AnalysisFrame so all subscribers
+      //    (state machine, generators, reactive behaviors) get seeded
+      physicsRef.current.processFrame({
+        rms:              syntheticPhysics.presence * 0.5,
+        rmsRaw:           syntheticPhysics.presence * 0.5,
+        pitch:            220,
+        pitchConfidence:  0.8,
+        pitchMidi:        57,
+        pitchCents:       0,
+        spectralCentroid: preset.mode === 'heat' || preset.mode === 'gravel' ? 3500 : 1800,
+        spectralFlux:     syntheticPhysics.bounce * 0.3,
+        hnr:              preset.mode === 'glow' || preset.mode === 'ice' ? 12 : 5,
+        onsetDetected:    true,
+        onsetStrength:    0.7,
+        onsetTimestamp:   performance.now(),
+        voiceActive:      false,
+        voiceConfidence:  0,
+        sampleRate:       44100,
+        timestamp:        performance.now(),
+        frameIndex:       0,
+      })
+
+      // 5. Force state machine straight to Breathing — skip Dormant + Awakening
+      //    forceState() chains through transitions so generators get their
+      //    onStateTransition callbacks with the synthetic physics
+      stateMachRef.current.forceState(OState.Awakening, syntheticPhysics)
+      stateMachRef.current.forceState(OState.Breathing, syntheticPhysics)
+
+      setIsRunning(true)
+
+      // 6. Start transcription if enabled
+      if (transcriptionEnabled && transcriberRef.current) {
+        transcriberRef.current.start()
+      }
+
+      window.dispatchEvent(new CustomEvent('organism:started', {
+        detail: { quickStart: true, presetId, preset: preset.label },
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Quick start failed')
+      setActivePresetId(null)
+    }
+  }, [transcriptionEnabled])
+
+  /**
+   * Count-In Start — plays a "1, 2, 3, 4" metronome at the preset BPM,
+   * then drops the beat on the downbeat of bar 2 via quickStart.
+   */
+  const countInStart = useCallback(async (presetId: string) => {
+    const preset = getQuickStartPreset(presetId)
+    if (!preset) {
+      setError(`Unknown preset: ${presetId}`)
+      return
+    }
+
+    // Dispose any existing count-in
+    countInRef.current?.dispose()
+
+    setCountInBeat(0)
+    setActivePresetId(presetId)
+
+    const engine = new CountInEngine()
+    countInRef.current = engine
+
+    await engine.start({
+      bpm: preset.bpm,
+      beats: 4,
+      onBeat: (beat) => {
+        setCountInBeat(beat)
+      },
+      onComplete: () => {
+        setCountInBeat(null)
+        countInRef.current = null
+        // Now drop the beat via quickStart
+        quickStart(presetId)
+      },
+    })
+  }, [quickStart])
+
+  /**
+   * Sound Trigger — arm the mic so any loud sound triggers the beat.
+   *
+   * Opens the mic via the AudioAnalysisEngine, subscribes to its frames,
+   * and watches for any frame with RMS above a threshold. When triggered,
+   * the initial RMS determines the energy level:
+   *   - RMS > 0.3 → high energy (loud clap)
+   *   - RMS > 0.1 → medium energy
+   *   - RMS < 0.1 → low energy (soft "hey")
+   *
+   * Uses the specified preset but may override the energy based on trigger volume.
+   */
+  const armSoundTrigger = useCallback((presetId: string) => {
+    // Disarm any previous trigger
+    soundTriggerCleanupRef.current?.()
+
+    soundTriggerPresetRef.current = presetId
+    setSoundTriggerArmed(true)
+
+    // We need to listen to the input source's frames for a loud sound
+    const input = inputRef.current
+    if (!input) {
+      setError('Input source not initialized — cannot arm sound trigger')
+      setSoundTriggerArmed(false)
+      return
+    }
+
+    let triggered = false
+    const TRIGGER_THRESHOLD = 0.025  // Intentional sound above noise floor
+
+    const unsubscribe = input.subscribe((frame) => {
+      if (triggered) return
+      const rms = frame.rms ?? 0
+      if (rms < TRIGGER_THRESHOLD) return
+
+      // Triggered!
+      triggered = true
+      setSoundTriggerArmed(false)
+      soundTriggerCleanupRef.current = null
+
+      // Use the preset, and launch quickStart
+      const pid = soundTriggerPresetRef.current ?? presetId
+      quickStart(pid)
+    })
+
+    // Start the input source so mic is active
+    input.start().catch((err) => {
+      setError(err instanceof Error ? err.message : 'Failed to start mic for sound trigger')
+      setSoundTriggerArmed(false)
+    })
+
+    soundTriggerCleanupRef.current = () => {
+      unsubscribe()
+      triggered = true  // prevent late triggers
+    }
+  }, [quickStart])
+
+  const disarmSoundTrigger = useCallback(() => {
+    soundTriggerCleanupRef.current?.()
+    soundTriggerCleanupRef.current = null
+    soundTriggerPresetRef.current = null
+    setSoundTriggerArmed(false)
   }, [])
 
   // ── Recording: captures beat audio (master bus) + vocal audio (mic) ──
@@ -445,13 +701,13 @@ export function OrganismProvider({ children, userId }: Props) {
     }
 
     // Persist DNA to server so profile can learn from this session
-    if (dna && userId) {
+    if (dna && userIdRef.current) {
       fetch('/api/organism/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...dna, userId }),
+        body: JSON.stringify({ ...dna, userId: userIdRef.current }),
       })
-        .then(r => r.ok ? recomputeProfile() : null)
+        .then(r => r.ok ? recomputeProfileRef.current() : null)
         .catch(() => {}) // Non-blocking — local session still saved
     }
 
@@ -544,6 +800,11 @@ export function OrganismProvider({ children, userId }: Props) {
           // Small delay to let inputSource state propagate if changed
           setTimeout(() => start(), detail.inputSource ? 100 : 0)
           break
+        case 'quick-start': {
+          const presetId = (detail as Record<string, unknown>).presetId as string | undefined
+          if (presetId) quickStart(presetId)
+          break
+        }
         case 'stop':
           stop()
           break
@@ -564,7 +825,357 @@ export function OrganismProvider({ children, userId }: Props) {
 
     window.addEventListener('organism:command', handleCommand)
     return () => window.removeEventListener('organism:command', handleCommand)
-  }, [start, stop, captureSession, downloadMidi, startRecording, stopRecording])
+  }, [start, stop, captureSession, downloadMidi, startRecording, stopRecording, quickStart])
+
+  // ── Voice Command Engine: TriggerWordDetector + VoiceCommandRouter ──
+  // Initializes on mount, processes transcription text, routes detected
+  // commands to quickStart / orchestrator actions.
+  useEffect(() => {
+    const detector = new TriggerWordDetector()
+    const router = new VoiceCommandRouter()
+
+    router.connect(detector)
+    router.setHandler((action, _event) => {
+      if (action.type === 'quick-start') {
+        quickStart(action.presetId)
+        return
+      }
+
+      // On-the-fly commands — read live values from refs so this effect
+      // never needs to be recreated when isRunning/volume changes.
+      const orch = orchestrRef.current
+      if (!orch || !isRunningRef.current) return
+
+      switch (action.command) {
+        case 'shuffle':
+          orch.regenerateAll()
+          break
+        case 'bpm-up': {
+          const delta = typeof action.value === 'number' ? action.value : 10
+          orch.setBpm(orch.getBpm() + delta)
+          break
+        }
+        case 'bpm-down': {
+          const delta = typeof action.value === 'number' ? action.value : 10
+          orch.setBpm(orch.getBpm() - delta)
+          break
+        }
+        case 'drop':
+          // Force to Flow state with high energy
+          if (stateMachRef.current && physicsRef.current) {
+            const currentPhysics = physicsRef.current.getLastState()
+            if (currentPhysics) {
+              const dropPhysics = {
+                ...currentPhysics,
+                bounce: 0.85,
+                density: 0.9,
+                presence: 0.95,
+              }
+              stateMachRef.current.forceState(OState.Flow, dropPhysics)
+            }
+          }
+          break
+        case 'strip':
+          orch.setBassVolumeMultiplier(0)
+          orch.setMelodyVolumeMultiplier(0)
+          break
+        case 'restore':
+          orch.setBassVolumeMultiplier(bassVolumeRef.current)
+          orch.setMelodyVolumeMultiplier(melodyVolumeRef.current)
+          break
+      }
+    })
+
+    triggerDetectorRef.current = detector
+    voiceRouterRef.current = router
+
+    return () => {
+      detector.dispose()
+      router.dispose()
+      triggerDetectorRef.current = null
+      voiceRouterRef.current = null
+    }
+  }, [quickStart])  // stable — isRunning/volume read from refs
+
+  // Feed transcription text to the TriggerWordDetector on every update
+  useEffect(() => {
+    if (!transcription || !triggerDetectorRef.current) return
+
+    // Process both interim and final text
+    const textToScan = transcription.currentInterim
+      || (transcription.lines.length > 0
+        ? transcription.lines[transcription.lines.length - 1].text
+        : '')
+
+    if (textToScan) {
+      triggerDetectorRef.current.processText(textToScan)
+    }
+  }, [transcription])
+
+  // ── Cadence Lock Engine ──
+  // Created once on mount so accumulated samples survive start/stop cycles.
+  // cadenceLockEnabled and isRunning are read from refs inside the callback.
+  const cadenceLockEnabledRef = useRef(cadenceLockEnabled)
+  cadenceLockEnabledRef.current = cadenceLockEnabled
+
+  useEffect(() => {
+    const lock = new CadenceLock({ sensitivity: 0.3 })
+
+    lock.onUpdate((snapshot) => {
+      setCadenceSnapshot(snapshot)
+
+      // Read live values from refs so this closure never goes stale
+      if (cadenceLockEnabledRef.current && snapshot.confidence >= 0.5 && !snapshot.isLocked) {
+        const orch = orchestrRef.current
+        if (orch && isRunningRef.current) {
+          orch.setBpm(snapshot.smoothedBpm)
+        }
+      }
+    })
+
+    cadenceLockRef.current = lock
+
+    return () => {
+      lock.dispose()
+      cadenceLockRef.current = null
+    }
+  }, [])  // stable — cadenceLockEnabled/isRunning read from refs
+
+  // Sync enabled state without recreating the engine
+  useEffect(() => {
+    cadenceLockRef.current?.setEnabled(cadenceLockEnabled)
+  }, [cadenceLockEnabled])
+
+  // Feed finalized transcription lines to CadenceLock — only new lines
+  useEffect(() => {
+    const lock = cadenceLockRef.current
+    if (!lock || !transcription) return
+
+    // Update the lock with current BPM
+    const orch = orchestrRef.current
+    if (orch) lock.setCurrentBpm(orch.getBpm())
+
+    // Only feed lines we haven't seen yet
+    const lines = transcription.lines
+    const nextIndex = cadenceLastLineIndexRef.current + 1
+    if (lines.length > nextIndex) {
+      const newLine = lines[nextIndex]
+      lock.processLine(newLine.text, newLine.startTime, newLine.endTime)
+      cadenceLastLineIndexRef.current = nextIndex
+    }
+  }, [transcription])
+
+  // ── Call & Response Engine ──
+  // Detects rapper pauses and boosts melody during gaps for natural call & response.
+  // Use refs for volume values so the callback closure doesn't force engine recreation.
+  const melodyVolumeRef = useRef(melodyVolume)
+  const bassVolumeRef = useRef(bassVolume)
+  const callResponseEnabledRef = useRef(callResponseEnabled)
+  const isRunningRef = useRef(isRunning)
+  const dropDetectorEnabledRef = useRef(dropDetectorEnabled)
+  melodyVolumeRef.current = melodyVolume
+  bassVolumeRef.current = bassVolume
+  callResponseEnabledRef.current = callResponseEnabled
+  isRunningRef.current = isRunning
+  dropDetectorEnabledRef.current = dropDetectorEnabled
+
+  // Track how many transcription lines we've already processed, so we never
+  // feed the same finalized line to CadenceLock or FreestyleReportCard twice.
+  const cadenceLastLineIndexRef   = useRef(-1)
+  const reportCardLastLineIndexRef = useRef(-1)
+
+  useEffect(() => {
+    const engine = new CallResponseEngine()
+
+    engine.onPhaseChange((state) => {
+      setCallResponsePhase(state.phase)
+
+      const orch = orchestrRef.current
+      if (!orch || !callResponseEnabledRef.current) return
+
+      if (state.phase === 'responding') {
+        const cfg = engine.getConfig()
+        orch.setMelodyVolumeMultiplier(melodyVolumeRef.current * cfg.melodyBoost)
+        orch.setBassVolumeMultiplier(bassVolumeRef.current * cfg.bassReduction)
+      } else if (state.phase === 'cooldown' || state.phase === 'idle') {
+        orch.setMelodyVolumeMultiplier(melodyVolumeRef.current)
+        orch.setBassVolumeMultiplier(bassVolumeRef.current)
+      }
+    })
+
+    callResponseRef.current = engine
+
+    return () => {
+      engine.dispose()
+      callResponseRef.current = null
+    }
+  }, [])  // stable — callResponseEnabled/volume read from refs
+
+  // Sync enabled state so the gap timer stops when the feature is toggled off
+  useEffect(() => {
+    callResponseRef.current?.setEnabled(callResponseEnabled)
+  }, [callResponseEnabled])
+
+  // Feed transcription text to CallResponseEngine
+  useEffect(() => {
+    const engine = callResponseRef.current
+    if (!engine || !transcription) return
+
+    const hasInterim = !!transcription.currentInterim
+    const lastLine = transcription.lines.length > 0
+      ? transcription.lines[transcription.lines.length - 1].text
+      : ''
+
+    const text = transcription.currentInterim || lastLine
+    engine.processText(text, hasInterim)
+  }, [transcription])
+
+  // ── Drop Detector Engine ──
+  // Created once on mount so rolling window survives toggle cycles.
+  // dropDetectorEnabled is read from a ref inside the callback.
+  useEffect(() => {
+    const detector = new DropDetector()
+
+    detector.onDrop((event) => {
+      setLastDropIntensity(event.intensity)
+
+      // Feed to report card
+      reportCardRef.current?.addDrop(event.intensity)
+
+      // Force state machine to Flow with boosted physics on drop
+      // Guard: skip if already in Flow to avoid pattern regeneration spam
+      if (dropDetectorEnabledRef.current && stateMachRef.current && physicsRef.current) {
+        const sm = stateMachRef.current
+        const currentState = sm.getCurrentState()
+        if (currentState.current !== OState.Flow) {
+          const current = physicsRef.current.getLastState()
+          if (current) {
+            sm.forceState(OState.Flow, {
+              ...current,
+              bounce:   Math.min(1, current.bounce + event.intensity * 0.3),
+              density:  Math.min(1, current.density + event.intensity * 0.2),
+              presence: Math.min(1, current.presence + event.intensity * 0.25),
+            })
+          }
+        }
+      }
+    })
+
+    dropDetectorRef.current = detector
+
+    return () => {
+      detector.dispose()
+      dropDetectorRef.current = null
+    }
+  }, [])  // stable — dropDetectorEnabled read from ref
+
+  // Sync enabled state without resetting the rolling window
+  useEffect(() => {
+    dropDetectorRef.current?.setEnabled(dropDetectorEnabled)
+  }, [dropDetectorEnabled])
+
+  // ── Vibe Matcher Engine ──
+  // Classifies the current beat into a genre label from physics + BPM.
+  useEffect(() => {
+    const matcher = new VibeMatcher()
+
+    matcher.onVibeChange((event) => {
+      setCurrentVibe(event.current)
+
+      // Feed to report card
+      if (event.previous) {
+        reportCardRef.current?.addVibeChange(event.previous.genre, event.current.genre)
+      }
+    })
+
+    vibeMatcherRef.current = matcher
+
+    return () => {
+      matcher.dispose()
+      vibeMatcherRef.current = null
+    }
+  }, [])
+
+  // ── Throttled physics feeding for DropDetector + VibeMatcher ──
+  // Instead of feeding every frame (~43fps), throttle to ~6fps (every 150ms).
+  // This dramatically reduces React state updates and re-renders.
+  const lastPhysicsFeedRef = useRef<number>(0)
+  const PHYSICS_FEED_INTERVAL_MS = 150
+
+  useEffect(() => {
+    if (!physicsState) return
+
+    const now = performance.now()
+    if (now - lastPhysicsFeedRef.current < PHYSICS_FEED_INTERVAL_MS) return
+    lastPhysicsFeedRef.current = now
+
+    // Feed DropDetector
+    dropDetectorRef.current?.processFrame(
+      physicsState.bounce,
+      physicsState.density,
+      physicsState.presence,
+    )
+
+    // Feed VibeMatcher
+    if (vibeMatchEnabled && vibeMatcherRef.current) {
+      const orch = orchestrRef.current
+      const bpm = orch ? orch.getBpm() : 120
+      vibeMatcherRef.current.processFrame(
+        bpm,
+        physicsState.bounce,
+        physicsState.density,
+        physicsState.swing,
+        physicsState.pocket,
+      )
+    }
+  }, [physicsState, vibeMatchEnabled])
+
+  // ── Freestyle Report Card ──
+  // Initialize on session start, feed data throughout, generate on stop.
+  useEffect(() => {
+    const card = new FreestyleReportCard()
+    reportCardRef.current = card
+
+    return () => {
+      card.dispose()
+      reportCardRef.current = null
+    }
+  }, [])
+
+  // Start/stop report card with the organism
+  useEffect(() => {
+    const card = reportCardRef.current
+    if (!card) return
+
+    if (isRunning) {
+      const orch = orchestrRef.current
+      card.startSession(orch ? orch.getBpm() : 120)
+    }
+  }, [isRunning])
+
+  // Feed finalized transcription lines to report card — only new lines
+  useEffect(() => {
+    const card = reportCardRef.current
+    if (!card || !transcription) return
+
+    const lines = transcription.lines
+    const nextIndex = reportCardLastLineIndexRef.current + 1
+    if (lines.length > nextIndex) {
+      const newLine = lines[nextIndex]
+      card.addLine(newLine.text, newLine.startTime, newLine.endTime)
+      reportCardLastLineIndexRef.current = nextIndex
+    }
+  }, [transcription])
+
+  // generateReport callback
+  const generateReport = useCallback((): FreestyleReport | null => {
+    const card = reportCardRef.current
+    if (!card || !card.getIsActive()) return null
+
+    const report = card.endSession()
+    setLastReport(report)
+    return report
+  }, [])
 
   const handleSetInputSource = useCallback((type: InputSourceType, file?: File) => {
     // Stop current session before switching
@@ -596,6 +1207,45 @@ export function OrganismProvider({ children, userId }: Props) {
     stop,
     capture: captureSession,
     downloadMidi,
+
+    // Quick Start
+    quickStart,
+    quickStartPresets: QUICK_START_PRESETS,
+    activePresetId,
+
+    // Count-In Start
+    countInStart,
+    countInBeat,
+
+    // Sound Trigger Start
+    soundTriggerArmed,
+    armSoundTrigger,
+    disarmSoundTrigger,
+
+    // Cadence Lock
+    cadenceLockEnabled,
+    setCadenceLockEnabled,
+    cadenceSnapshot,
+
+    // Call & Response
+    callResponseEnabled,
+    setCallResponseEnabled,
+    callResponsePhase,
+
+    // Drop Detector
+    dropDetectorEnabled,
+    setDropDetectorEnabled,
+    lastDropIntensity,
+
+    // Vibe Match
+    vibeMatchEnabled,
+    setVibeMatchEnabled,
+    currentVibe,
+
+    // Freestyle Report Card
+    lastReport,
+    generateReport,
+
     inputSource,
     setInputSource: handleSetInputSource,
     autoEnergy,
@@ -626,7 +1276,7 @@ export function OrganismProvider({ children, userId }: Props) {
     setLatchMode: (enabled: boolean) => {
       setLatchModeState(enabled)
       const src = inputRef.current
-      if (src && 'setLatch' in src) (src as any).setLatch(enabled)
+      if (src && 'setLatch' in src) (src as unknown as { setLatch: (v: boolean) => void }).setLatch(enabled)
     },
 
     // Pattern lock
@@ -668,6 +1318,14 @@ export function OrganismProvider({ children, userId }: Props) {
   }), [
     physicsState, organismState, meterReading, lastSessionDNA,
     start, stop, captureSession, downloadMidi,
+    quickStart, activePresetId,
+    countInStart, countInBeat,
+    soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
+    cadenceLockEnabled, cadenceSnapshot,
+    callResponseEnabled, callResponsePhase,
+    dropDetectorEnabled, lastDropIntensity,
+    vibeMatchEnabled, currentVibe,
+    lastReport, generateReport,
     inputSource, handleSetInputSource, autoEnergy,
     transcription, transcriptionEnabled,
     isRecording, startRecording, stopRecording,

@@ -12,6 +12,11 @@ import type { MixMeterReading }        from '../../organism/mix/types'
 import type { SessionDNA }             from '../../organism/session/types'
 import type { InputSourceType }        from '../../organism/input/types'
 import type { TranscriptionState }     from './FreestyleTranscriber'
+import type { QuickStartPreset }       from './QuickStartPresets'
+import type { CadenceSnapshot }        from './CadenceLock'
+import type { CallResponsePhase }      from './CallResponseEngine'
+import type { VibeClassification }     from './VibeMatcher'
+import type { FreestyleReport }        from './FreestyleReportCard'
 
 /** Saved session bundle — everything captured from a freestyle */
 export interface SavedSession {
@@ -46,6 +51,44 @@ export interface OrganismContextValue {
   stop:        () => void
   capture:     () => Promise<SessionDNA | null>
   downloadMidi: () => void
+
+  // Quick Start — skip cold start, instant beat
+  quickStart:         (presetId: string) => Promise<void>
+  quickStartPresets:  QuickStartPreset[]
+  activePresetId:     string | null
+
+  // Count-In Start — "1, 2, 3, 4" then beat drops
+  countInStart:       (presetId: string) => Promise<void>
+  countInBeat:        number | null    // current beat during count-in (1-4), null when inactive
+
+  // Sound Trigger Start — any loud sound triggers the beat
+  soundTriggerArmed:      boolean
+  armSoundTrigger:        (presetId: string) => void
+  disarmSoundTrigger:     () => void
+
+  // Cadence Lock — beat syncs to your flow
+  cadenceLockEnabled:    boolean
+  setCadenceLockEnabled: (enabled: boolean) => void
+  cadenceSnapshot:       CadenceSnapshot | null
+
+  // Call & Response — melody answers your bars
+  callResponseEnabled:    boolean
+  setCallResponseEnabled: (enabled: boolean) => void
+  callResponsePhase:      CallResponsePhase
+
+  // Drop Detector — audio-based beat drops
+  dropDetectorEnabled:    boolean
+  setDropDetectorEnabled: (enabled: boolean) => void
+  lastDropIntensity:      number | null
+
+  // Vibe Match — genre labels + mode announcements
+  vibeMatchEnabled:       boolean
+  setVibeMatchEnabled:    (enabled: boolean) => void
+  currentVibe:            VibeClassification | null
+
+  // Freestyle Report Card — session stats
+  lastReport:             FreestyleReport | null
+  generateReport:         () => FreestyleReport | null
 
   // Input source
   inputSource:       InputSourceType

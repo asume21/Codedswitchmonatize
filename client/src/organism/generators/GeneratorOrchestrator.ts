@@ -9,6 +9,7 @@ import type { PhysicsEngine }  from '../physics/PhysicsEngine'
 import type { StateMachine }   from '../state/StateMachine'
 import type { PhysicsState }   from '../physics/types'
 import type { OrganismState }  from '../state/types'
+import { OState }              from '../state/types'
 import type { GeneratorOutput } from './types'
 
 export class GeneratorOrchestrator {
@@ -97,7 +98,7 @@ export class GeneratorOrchestrator {
     })
   }
 
-  async start(): Promise<void> {
+  async start(bpm?: number): Promise<void> {
     if (this.running) return
     await Tone.start()
 
@@ -106,7 +107,7 @@ export class GeneratorOrchestrator {
     // and physics computation spikes that cause crackling / underruns.
     Tone.getContext().lookAhead = 0.15
 
-    Tone.getTransport().bpm.value = 90
+    Tone.getTransport().bpm.value = bpm ?? 90
     Tone.getTransport().start()
     this.running = true
   }
@@ -114,6 +115,28 @@ export class GeneratorOrchestrator {
   stop(): void {
     Tone.getTransport().stop()
     this.running = false
+  }
+
+  /** Smoothly ramp BPM to a new value over 0.5 seconds. */
+  setBpm(bpm: number): void {
+    const clamped = Math.max(40, Math.min(200, bpm))
+    Tone.getTransport().bpm.rampTo(clamped, 0.5)
+  }
+
+  /** Get current BPM from Tone Transport. */
+  getBpm(): number {
+    return Tone.getTransport().bpm.value
+  }
+
+  /** Force all generators to rebuild their patterns with current physics. */
+  regenerateAll(): void {
+    if (!this.lastPhysics) return
+    const physics = this.lastPhysics
+    const state = this.lastOrganism?.current ?? OState.Breathing
+    this.drum.onStateTransition(state, physics)
+    this.bass.onStateTransition(state, physics)
+    this.melody.onStateTransition(state, physics)
+    this.texture.onStateTransition(state, physics)
   }
 
   reset(): void {
