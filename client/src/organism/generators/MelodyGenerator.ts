@@ -56,7 +56,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
     this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.25, wet: 0.2 })
-    this.reverb = new Tone.Reverb({ decay: 3.0, wet: 0.35 })
+    this.reverb = new Tone.Reverb({ decay: 1.5, wet: 0.15 })
 
     this.synth.connect(this.chorus)
     this.chorus.connect(this.delay)

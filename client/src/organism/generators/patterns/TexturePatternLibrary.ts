@@ -7,35 +7,38 @@ export interface TextureLayer {
   gainLevel:  number
 }
 
+// Gain levels are intentionally low — texture should be felt, not heard.
+// Filter cutoffs stay below 400Hz so noise reads as sub-rumble, not wind.
+// Reverb wet kept minimal to prevent ambient wash building up over time.
 export const TEXTURE_BY_MODE: Record<string, TextureLayer> = {
   heat: {
-    noiseType:  'white',
-    filterFreq: 2000,
-    reverbWet:  0.2,
-    gainLevel:  0.12,
+    noiseType:  'pink',
+    filterFreq: 300,
+    reverbWet:  0.08,
+    gainLevel:  0.04,
   },
   ice: {
     noiseType:  'pink',
-    filterFreq: 800,
-    reverbWet:  0.4,
-    gainLevel:  0.08,
+    filterFreq: 250,
+    reverbWet:  0.10,
+    gainLevel:  0.03,
   },
   smoke: {
     noiseType:  'brown',
-    filterFreq: 600,
-    reverbWet:  0.35,
-    gainLevel:  0.10,
+    filterFreq: 200,
+    reverbWet:  0.08,
+    gainLevel:  0.04,
   },
   gravel: {
     noiseType:  'pink',
-    filterFreq: 1200,
-    reverbWet:  0.25,
-    gainLevel:  0.10,
+    filterFreq: 280,
+    reverbWet:  0.07,
+    gainLevel:  0.04,
   },
   glow: {
     noiseType:  'pink',
-    filterFreq: 1000,
-    reverbWet:  0.3,
-    gainLevel:  0.08,
+    filterFreq: 250,
+    reverbWet:  0.08,
+    gainLevel:  0.03,
   },
 }

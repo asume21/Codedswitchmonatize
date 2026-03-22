@@ -115,6 +115,12 @@ export class GeneratorOrchestrator {
   stop(): void {
     Tone.getTransport().stop()
     this.running = false
+    // Silence all generators immediately — Transport.stop() does not stop
+    // continuous sources like the pink noise in TextureGenerator.
+    this.texture.reset()
+    this.drum.reset()
+    this.bass.reset()
+    this.melody.reset()
   }
 
   /** Smoothly ramp BPM to a new value over 0.5 seconds. */
@@ -140,11 +146,7 @@ export class GeneratorOrchestrator {
   }
 
   reset(): void {
-    this.stop()
-    this.drum.reset()
-    this.bass.reset()
-    this.melody.reset()
-    this.texture.reset()
+    this.stop()   // stop() now resets all generators
     this.lastPhysics  = null
     this.lastOrganism = null
   }
