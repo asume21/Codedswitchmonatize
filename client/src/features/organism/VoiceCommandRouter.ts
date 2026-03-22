@@ -35,9 +35,15 @@ export interface VoiceCommandLog {
 export class VoiceCommandRouter {
   private handler:       CommandHandler | null = null
   private unsubscribe:   (() => void) | null = null
-  private log:           VoiceCommandLog[] = []
-  private maxLogSize:    number = 100
+  private ringBuffer:    (VoiceCommandLog | null)[]
+  private ringHead:      number = 0       // next write position
+  private ringCount:     number = 0       // items written (capped at capacity)
+  private readonly ringCapacity: number = 100
   private enabled:       boolean = true
+
+  constructor() {
+    this.ringBuffer = new Array(this.ringCapacity).fill(null)
+  }
 
   /** Connect to a TriggerWordDetector instance. */
   connect(detector: TriggerWordDetector): void {
@@ -64,14 +70,23 @@ export class VoiceCommandRouter {
     this.enabled = enabled
   }
 
-  /** Get the command history log. */
-  getLog(): readonly VoiceCommandLog[] {
-    return this.log
+  /** Get the command history log (ordered oldest → newest). */
+  getLog(): VoiceCommandLog[] {
+    const result: VoiceCommandLog[] = []
+    const len = Math.min(this.ringCount, this.ringCapacity)
+    for (let i = 0; i < len; i++) {
+      const idx = (this.ringHead - len + i + this.ringCapacity) % this.ringCapacity
+      const entry = this.ringBuffer[idx]
+      if (entry) result.push(entry)
+    }
+    return result
   }
 
   /** Clear the command history log. */
   clearLog(): void {
-    this.log = []
+    this.ringBuffer.fill(null)
+    this.ringHead  = 0
+    this.ringCount = 0
   }
 
   /** Emit a window event so other components can react to voice commands. */
@@ -101,18 +116,17 @@ export class VoiceCommandRouter {
     // Always emit window event for UI/logging consumers
     this.emitEvent(event)
 
-    // Log
-    this.log.push({ event, handled, timestamp: performance.now() })
-    if (this.log.length > this.maxLogSize) {
-      this.log = this.log.slice(-this.maxLogSize)
-    }
+    // Log into ring buffer — O(1), no allocations
+    this.ringBuffer[this.ringHead] = { event, handled, timestamp: performance.now() }
+    this.ringHead = (this.ringHead + 1) % this.ringCapacity
+    if (this.ringCount < this.ringCapacity) this.ringCount++
   }
 
   /** Clean up. */
   dispose(): void {
     this.disconnect()
     this.handler = null
-    this.log = []
+    this.clearLog()
     this.enabled = false
   }
 }

@@ -121,28 +121,58 @@ Vary the rhythm placement, note choices, chord inversions, and melodic contour.
 Randomize which steps have hits, shift the groove, use different scale degrees for melody.
 Do NOT fall back to the most common or obvious pattern for this genre.`;
 
-  systemPrompt += `\n📦 OUTPUT: Return ONLY valid JSON. No markdown, no commentary. Copy this structure exactly:
+  systemPrompt += `\n📦 OUTPUT: Return ONLY valid JSON. No markdown, no commentary. Use this structure (this is a FORMAT reference only — do NOT copy these specific notes or rhythms):
 {
-  "style":"${style}","bpm":120,"key":"C","timeSignature":{"numerator":4,"denominator":4},
-  "instruments":{"bass":"electric_bass_finger","chords":"acoustic_grand_piano","melody":"flute","drumKit":"default"},
+  "style":"${style}","bpm":140,"key":"Am","timeSignature":{"numerator":4,"denominator":4},
+  "instruments":{"bass":"synth_bass_1","chords":"pad_2_warm","melody":"lead_2_sawtooth","drumKit":"808"},
   "drums":[
-    {"step":0,"type":"kick"},{"step":4,"type":"snare"},{"step":8,"type":"kick"},{"step":12,"type":"snare"},
-    {"step":2,"type":"hihat"},{"step":6,"type":"hihat"},{"step":10,"type":"hihat"},{"step":14,"type":"hihat"}
+    {"step":0,"type":"kick","velocity":0.95},{"step":3,"type":"kick","velocity":0.55},
+    {"step":4,"type":"snare","velocity":0.90},{"step":6,"type":"hihat","velocity":0.40},
+    {"step":8,"type":"kick","velocity":0.88},{"step":10,"type":"hihat","velocity":0.30},
+    {"step":11,"type":"kick","velocity":0.50},{"step":12,"type":"snare","velocity":0.92},
+    {"step":14,"type":"hihat","velocity":0.35},{"step":15,"type":"perc","velocity":0.28},
+    {"step":16,"type":"kick","velocity":0.95},{"step":18,"type":"hihat","velocity":0.42},
+    {"step":20,"type":"snare","velocity":0.88},{"step":22,"type":"hihat","velocity":0.32},
+    {"step":24,"type":"kick","velocity":0.80},{"step":27,"type":"kick","velocity":0.48},
+    {"step":28,"type":"snare","velocity":0.90},{"step":30,"type":"hihat","velocity":0.38},
+    {"step":32,"type":"kick","velocity":0.95},{"step":34,"type":"hihat","velocity":0.28},
+    {"step":36,"type":"snare","velocity":0.85},{"step":38,"type":"perc","velocity":0.30},
+    {"step":40,"type":"kick","velocity":0.72},{"step":42,"type":"hihat","velocity":0.45},
+    {"step":44,"type":"snare","velocity":0.92},{"step":46,"type":"hihat","velocity":0.22}
   ],
   "bass":[
-    {"step":0,"note":36,"duration":4},{"step":8,"note":38,"duration":4},
-    {"step":16,"note":36,"duration":4},{"step":24,"note":41,"duration":4}
+    {"step":0,"note":33,"duration":3,"velocity":0.92},{"step":3,"note":33,"duration":1,"velocity":0.65},
+    {"step":6,"note":36,"duration":2,"velocity":0.80},{"step":10,"note":35,"duration":2,"velocity":0.75},
+    {"step":16,"note":33,"duration":4,"velocity":0.90},{"step":22,"note":31,"duration":2,"velocity":0.70},
+    {"step":26,"note":33,"duration":2,"velocity":0.85},{"step":32,"note":36,"duration":3,"velocity":0.88},
+    {"step":37,"note":35,"duration":3,"velocity":0.72},{"step":42,"note":33,"duration":4,"velocity":0.90},
+    {"step":48,"note":31,"duration":2,"velocity":0.78},{"step":52,"note":33,"duration":4,"velocity":0.85}
   ],
   "chords":[
-    {"step":0,"notes":[60,64,67],"duration":16},{"step":16,"notes":[65,69,72],"duration":16},
-    {"step":32,"notes":[67,71,74],"duration":16},{"step":48,"notes":[60,64,67],"duration":16}
+    {"step":0,"notes":[57,60,64],"duration":16,"velocity":0.65},
+    {"step":16,"notes":[55,59,62],"duration":8,"velocity":0.60},
+    {"step":24,"notes":[53,57,60],"duration":8,"velocity":0.62},
+    {"step":32,"notes":[52,55,59],"duration":16,"velocity":0.68},
+    {"step":48,"notes":[57,60,64],"duration":16,"velocity":0.58}
   ],
   "melody":[
-    {"step":0,"note":72,"duration":2},{"step":4,"note":74,"duration":2},
-    {"step":8,"note":76,"duration":4},{"step":16,"note":79,"duration":2}
+    {"step":0,"note":69,"duration":2,"velocity":0.88},{"step":3,"note":72,"duration":1,"velocity":0.70},
+    {"step":5,"note":71,"duration":3,"velocity":0.82},{"step":10,"note":69,"duration":2,"velocity":0.75},
+    {"step":14,"note":67,"duration":2,"velocity":0.78},{"step":18,"note":69,"duration":3,"velocity":0.85},
+    {"step":22,"note":71,"duration":2,"velocity":0.72},{"step":26,"note":72,"duration":4,"velocity":0.90},
+    {"step":32,"note":74,"duration":2,"velocity":0.80},{"step":36,"note":72,"duration":2,"velocity":0.68},
+    {"step":40,"note":69,"duration":3,"velocity":0.85},{"step":45,"note":67,"duration":3,"velocity":0.75}
   ]
 }
-RULES: steps 0-63 (4 bars × 16 steps). drums use "type" (kick/snare/hihat/perc). bass/melody use MIDI "note" (36-96) + "duration". chords use "notes" array of MIDI values + "duration". Generate at least 16 drum hits, 8 bass notes, 4 chords, 8 melody notes. Match the user's instrument requests.`;
+RULES:
+- steps 0-63 (4 bars × 16 steps per bar)
+- drums: "type" must be kick/snare/hihat/perc — include "velocity" (0.1-1.0) on every hit
+- bass/melody: MIDI "note" (28-96), "duration" (steps), "velocity" (0.1-1.0) on every note
+- chords: "notes" array of MIDI values, "duration", "velocity" on every chord
+- MINIMUM COUNTS: 24 drum hits across all 4 types, 12 bass notes, 5 chords, 12 melody notes
+- Vary velocity meaningfully — downbeats louder, ghost notes soft (0.15-0.35), accents strong (0.85-1.0)
+- Distribute hits across all 64 steps — do not cluster everything in steps 0-16
+- The FORMAT above is structural reference only. Generate completely original rhythm, notes, and placement for "${style}"`;
 
   const timeSigLine = options.timeSignature
     ? ` Keep the rhythm feeling ${options.timeSignature.numerator}/${options.timeSignature.denominator}.`

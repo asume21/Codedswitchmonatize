@@ -67,7 +67,7 @@ export class ModeClassifier {
     const rmsVariance = this.variance(this.rmsBuffer, avgRms)
     const avgPitch    = this.pitchBuffer.length > 0 ? this.mean(this.pitchBuffer) : 0
     const pitchRange  = this.pitchBuffer.length > 0
-      ? Math.max(...this.pitchBuffer) - Math.min(...this.pitchBuffer)
+      ? this.arrayMax(this.pitchBuffer) - this.arrayMin(this.pitchBuffer)
       : 0
     const avgCentroid = this.mean(this.centroidBuffer)
     const avgHnr      = this.mean(this.hnrBuffer)
@@ -75,20 +75,54 @@ export class ModeClassifier {
     return { avgRms, rmsVariance, avgPitch, pitchRange, avgCentroid, avgHnr }
   }
 
+  // Weighted scoring — each mode accumulates a score from partial matches
+  // instead of requiring ALL conditions to be true simultaneously
   private classify(f: ModeFeatures): OrganismMode {
-    if (f.avgRms > 0.6 && f.rmsVariance > 0.05 && f.avgCentroid > 2500 && f.avgHnr < 5) {
-      return OrganismMode.Heat
+    const scores: Record<OrganismMode, number> = {
+      [OrganismMode.Heat]:   0,
+      [OrganismMode.Gravel]: 0,
+      [OrganismMode.Ice]:    0,
+      [OrganismMode.Smoke]:  0,
+      [OrganismMode.Glow]:   0,
     }
-    if (f.avgRms > 0.4 && f.pitchRange < 100 && f.avgCentroid < 2000 && f.avgHnr < 3) {
-      return OrganismMode.Gravel
+
+    // Heat — loud, variable, bright, noisy
+    if (f.avgRms > 0.5)       scores[OrganismMode.Heat] += 2.0
+    if (f.rmsVariance > 0.04) scores[OrganismMode.Heat] += 1.5
+    if (f.avgCentroid > 2200) scores[OrganismMode.Heat] += 1.5
+    if (f.avgHnr < 6)        scores[OrganismMode.Heat] += 1.0
+
+    // Gravel — mid-loud, narrow pitch, dark, rough
+    if (f.avgRms > 0.35)      scores[OrganismMode.Gravel] += 1.5
+    if (f.pitchRange < 120)   scores[OrganismMode.Gravel] += 2.0
+    if (f.avgCentroid < 2200) scores[OrganismMode.Gravel] += 1.5
+    if (f.avgHnr < 4)        scores[OrganismMode.Gravel] += 1.0
+
+    // Ice — quiet, stable, wide pitch, tonal
+    if (f.avgRms < 0.4)       scores[OrganismMode.Ice] += 1.5
+    if (f.rmsVariance < 0.025) scores[OrganismMode.Ice] += 1.5
+    if (f.pitchRange > 120)   scores[OrganismMode.Ice] += 2.0
+    if (f.avgHnr > 7)        scores[OrganismMode.Ice] += 1.0
+
+    // Smoke — quiet, dark, stable
+    if (f.avgRms < 0.5)       scores[OrganismMode.Smoke] += 1.0
+    if (f.avgCentroid < 2000) scores[OrganismMode.Smoke] += 2.0
+    if (f.rmsVariance < 0.035) scores[OrganismMode.Smoke] += 1.5
+
+    // Glow — moderate baseline (default bias)
+    scores[OrganismMode.Glow] += 2.5
+    if (f.avgHnr > 5)        scores[OrganismMode.Glow] += 1.0
+
+    // Find highest score
+    let best = OrganismMode.Glow
+    let bestScore = 0
+    for (const [mode, score] of Object.entries(scores)) {
+      if (score > bestScore) {
+        bestScore = score
+        best = mode as OrganismMode
+      }
     }
-    if (f.avgRms < 0.35 && f.rmsVariance < 0.02 && f.pitchRange > 150 && f.avgHnr > 8) {
-      return OrganismMode.Ice
-    }
-    if (f.avgRms < 0.45 && f.avgCentroid < 1800 && f.rmsVariance < 0.03) {
-      return OrganismMode.Smoke
-    }
-    return OrganismMode.Glow
+    return best
   }
 
   private mean(arr: number[]): number {
@@ -98,6 +132,22 @@ export class ModeClassifier {
   private variance(arr: number[], mean: number): number {
     if (arr.length === 0) return 0
     return arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length
+  }
+
+  private arrayMax(arr: number[]): number {
+    let max = -Infinity
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] > max) max = arr[i]
+    }
+    return max
+  }
+
+  private arrayMin(arr: number[]): number {
+    let min = Infinity
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] < min) min = arr[i]
+    }
+    return min
   }
 
   getCurrentMode(): OrganismMode { return this.currentMode }

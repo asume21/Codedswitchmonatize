@@ -66,7 +66,7 @@ const GENRE_RULES: GenreRule[] = [
   },
   {
     genre: 'Boom Bap',
-    bpmMin: 80, bpmMax: 100,
+    bpmMin: 85, bpmMax: 100,       // tightened: was 80-100, now 85-100 to separate from Lo-fi
     bounceMin: 0.3, bounceMax: 0.7,
     densityMin: 0.2, densityMax: 0.6,
     swingMin: 0.0, swingMax: 0.4,
@@ -75,16 +75,16 @@ const GENRE_RULES: GenreRule[] = [
   },
   {
     genre: 'Lo-fi',
-    bpmMin: 70, bpmMax: 90,
+    bpmMin: 70, bpmMax: 85,        // tightened: was 70-90, now 70-85
     bounceMin: 0.1, bounceMax: 0.4,
-    densityMin: 0.1, densityMax: 0.4,
+    densityMin: 0.1, densityMax: 0.35,
     swingMin: 0.2, swingMax: 0.8,
     pocketMin: 0.5, pocketMax: 1.0,
     mood: 'chill',
   },
   {
     genre: 'Drill',
-    bpmMin: 135, bpmMax: 145,
+    bpmMin: 135, bpmMax: 148,      // widened slightly: was 135-145
     bounceMin: 0.3, bounceMax: 0.7,
     densityMin: 0.6, densityMax: 1.0,
     swingMin: 0.0, swingMax: 0.3,
@@ -93,7 +93,7 @@ const GENRE_RULES: GenreRule[] = [
   },
   {
     genre: 'R&B',
-    bpmMin: 60, bpmMax: 85,
+    bpmMin: 55, bpmMax: 70,        // tightened: was 60-85, now 55-70 (slow groove zone)
     bounceMin: 0.2, bounceMax: 0.6,
     densityMin: 0.2, densityMax: 0.5,
     swingMin: 0.4, swingMax: 1.0,
@@ -102,7 +102,7 @@ const GENRE_RULES: GenreRule[] = [
   },
   {
     genre: 'Funk',
-    bpmMin: 95, bpmMax: 115,
+    bpmMin: 100, bpmMax: 118,      // tightened: was 95-115, now 100-118 to avoid Boom Bap overlap
     bounceMin: 0.5, bounceMax: 1.0,
     densityMin: 0.3, densityMax: 0.7,
     swingMin: 0.5, swingMax: 1.0,
@@ -120,7 +120,7 @@ const GENRE_RULES: GenreRule[] = [
   },
   {
     genre: 'Ambient',
-    bpmMin: 40, bpmMax: 80,
+    bpmMin: 40, bpmMax: 55,        // tightened: was 40-80, now 40-55 (very slow = ambient)
     bounceMin: 0.0, bounceMax: 0.3,
     densityMin: 0.0, densityMax: 0.3,
     swingMin: 0.0, swingMax: 1.0,
@@ -129,7 +129,7 @@ const GENRE_RULES: GenreRule[] = [
   },
   {
     genre: 'Hype',
-    bpmMin: 150, bpmMax: 220,
+    bpmMin: 155, bpmMax: 220,      // raised min: was 150, now 155 to separate from Trap
     bounceMin: 0.6, bounceMax: 1.0,
     densityMin: 0.6, densityMax: 1.0,
     swingMin: 0.0, swingMax: 0.5,
@@ -138,9 +138,9 @@ const GENRE_RULES: GenreRule[] = [
   },
   {
     genre: 'Chill',
-    bpmMin: 65, bpmMax: 85,
-    bounceMin: 0.1, bounceMax: 0.4,
-    densityMin: 0.1, densityMax: 0.4,
+    bpmMin: 60, bpmMax: 75,        // tightened: was 65-85, now 60-75 (distinct from Lo-fi)
+    bounceMin: 0.1, bounceMax: 0.35,
+    densityMin: 0.1, densityMax: 0.35,
     swingMin: 0.1, swingMax: 0.6,
     pocketMin: 0.3, pocketMax: 0.8,
     mood: 'chill',

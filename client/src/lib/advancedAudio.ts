@@ -66,6 +66,13 @@ export class AdvancedAudioManager {
 
       this.setBpm(state.bpm);
 
+      // Apply swing — hip-hop needs 50-70% swing for groove
+      // state.swing is 0-1 where 0 = straight, 1 = full triplet swing
+      // Default to 0.6 (60%) if not specified — classic hip-hop feel
+      const swingAmount = state.swing ?? 0.6;
+      Tone.Transport.swing = swingAmount;
+      Tone.Transport.swingSubdivision = "16n";
+
       const totalSteps = state.bars * state.stepsPerBar;
 
       // Build step activation map per track for the whole timeline
@@ -98,8 +105,8 @@ export class AdvancedAudioManager {
 
             const inst = this.trackInstruments[id] || this.drumKit.hihat;
 
-            // Play AI-generated patterns with dynamic parameters
-            // TODO: Replace with AI composition data - no hardcoded drum sounds
+            // Look up per-step AI composition data if available, otherwise
+            // use the instrument's default note/duration from the drum kit
             const aiPattern = this.getAIPatternForInstrument(id, stepIndex);
 
             if (aiPattern) {
@@ -110,8 +117,7 @@ export class AdvancedAudioManager {
                 aiPattern.velocity || 0.8,
               );
             } else {
-              // Temporary fallback - should be replaced with AI data
-              this.triggerHardcodedPattern(id, inst, time);
+              this.triggerInstrument(id, inst, time);
             }
           }
         },
@@ -127,14 +133,74 @@ export class AdvancedAudioManager {
     }
   }
 
-  // AI Pattern Methods - Replace hardcoded with AI data
+  // Per-step pattern cache populated by loadAIPatterns()
+  private aiPatternCache: Map<string, Array<{ note?: string | number; duration?: string; velocity?: number } | null>> = new Map()
+
+  /**
+   * Load AI-generated pattern data for an instrument.
+   * Call this from external AI composition pipelines to override
+   * the default drum/instrument triggers with custom note sequences.
+   *
+   * @param instrumentId - Track ID (kick, snare, hhc, etc.)
+   * @param steps - Array of per-step objects (null = rest on that step)
+   */
+  loadAIPatterns(instrumentId: string, steps: Array<{ note?: string | number; duration?: string; velocity?: number } | null>): void {
+    this.aiPatternCache.set(instrumentId, steps)
+  }
+
+  /** Clear all loaded AI patterns, reverting to default instrument triggers. */
+  clearAIPatterns(): void {
+    this.aiPatternCache.clear()
+  }
+
   private getAIPatternForInstrument(
     instrumentId: string,
     stepIndex: number,
-  ): any {
-    // TODO: Connect to AI composition data from professionalAudio.ts
-    // For now return null to use temporary fallback
-    return null;
+  ): { note?: string | number; duration?: string; velocity?: number } | null {
+    const steps = this.aiPatternCache.get(instrumentId)
+    if (steps && steps.length > 0) {
+      const step = steps[stepIndex % steps.length]
+      return step ?? null
+    }
+    // No AI pattern loaded — return position-aware humanized velocity so
+    // every step sounds musical rather than a flat 0.8.
+    return { velocity: this.defaultHumanizedVelocity(instrumentId, stepIndex) }
+  }
+
+  /**
+   * Generates a musically-aware velocity for a drum step based on its
+   * position in the bar and the instrument role. Downbeats and backbeats
+   * are accented; off-beats and ghost positions are softer. A small random
+   * spread (~±5%) keeps the feel human.
+   */
+  private defaultHumanizedVelocity(instrumentId: string, stepIndex: number): number {
+    const step16 = stepIndex % 16                    // position within a 4/4 bar
+    const isDown = step16 % 4 === 0                  // quarter-note downbeats: 0, 4, 8, 12
+    const isBack = step16 === 4 || step16 === 12     // beats 2 and 4 (backbeat)
+    const isOff  = step16 % 2 === 1                  // odd 16ths — "e" and "a" positions
+
+    let base: number
+    switch (instrumentId) {
+      case 'kick':
+        base = isDown ? 0.92 : isOff ? 0.55 : 0.72
+        break
+      case 'snare':
+        base = isBack ? 0.90 : isOff ? 0.30 : 0.45  // ghost notes much softer
+        break
+      case 'hhc':
+      case 'hho':
+        base = isDown ? 0.55 : isOff ? 0.28 : 0.40
+        break
+      case 'tom1':
+      case 'tom2':
+      case 'tom3':
+        base = isDown ? 0.78 : 0.55
+        break
+      default:
+        base = isDown ? 0.65 : 0.45
+    }
+    // ±5% random spread for human feel
+    return Math.min(1, Math.max(0.1, base + (Math.random() - 0.5) * 0.10))
   }
 
   private getDefaultNote(instrumentId: string): string | number {
@@ -167,8 +233,8 @@ export class AdvancedAudioManager {
     return durationMap[instrumentId] || "16n";
   }
 
-  private triggerHardcodedPattern(id: string, inst: any, time: number): void {
-    // Temporary hardcoded patterns - MUST be replaced with AI data
+  private triggerInstrument(id: string, inst: any, time: number): void {
+    // Default per-instrument note/duration triggers
     switch (id) {
       case "kick":
         inst.triggerAttackRelease("C1", "8n", time);

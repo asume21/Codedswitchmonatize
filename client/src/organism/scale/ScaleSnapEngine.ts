@@ -254,25 +254,39 @@ export class ScaleSnapEngine {
     if (!this.current.locked) return midiNote   // not locked = don't force anything
 
     const { rootPitchClass, intervals } = this.current
+    if (intervals.length === 0) return midiNote
 
-    let closest    = midiNote
-    let minDist    = Infinity
+    // O(scale_size) modular arithmetic approach:
+    // 1. Find the note's pitch class relative to the scale root
+    const pc = ((midiNote - rootPitchClass) % 12 + 12) % 12
 
-    // Check all octaves 0-10 (MIDI 0-127 range)
-    for (let oct = 0; oct <= 10; oct++) {
-      for (const interval of intervals) {
-        const candidate = oct * 12 + rootPitchClass + interval
-        if (candidate < 0 || candidate > 127) continue
+    // 2. Find the nearest scale interval to this pitch class
+    let bestInterval = intervals[0]
+    let bestDist     = Infinity
 
-        const dist = Math.abs(candidate - midiNote)
-        if (dist < minDist || (dist === minDist && candidate > closest)) {
-          minDist = dist
-          closest = candidate
-        }
+    for (const interval of intervals) {
+      // Distance wrapping around the octave
+      const dist = Math.min(
+        Math.abs(pc - interval),
+        12 - Math.abs(pc - interval)
+      )
+      if (dist < bestDist || (dist === bestDist && interval > bestInterval)) {
+        bestDist     = dist
+        bestInterval = interval
       }
     }
 
-    return closest
+    // 3. Reconstruct the MIDI note: same octave region, snapped pitch class
+    const snappedPc   = (rootPitchClass + bestInterval) % 12
+    const noteOctBase = midiNote - (midiNote % 12)  // start of octave
+    let snapped       = noteOctBase + snappedPc
+
+    // If snapping pushed us more than 6 semitones away, try adjacent octave
+    if (snapped - midiNote > 6)  snapped -= 12
+    if (midiNote - snapped > 6)  snapped += 12
+
+    // Clamp to valid MIDI range
+    return Math.max(0, Math.min(127, snapped))
   }
 
   /** Reset all accumulated pitch history. */

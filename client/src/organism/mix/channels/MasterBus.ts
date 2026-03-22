@@ -22,11 +22,11 @@ export class MasterBus {
     this.input      = new Tone.Gain(1)
     this.masterGain = new Tone.Gain(Tone.dbToGain(gainDb))
 
-    // 3-band master EQ + high-frequency rolloff
-    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 120,  gain: 1.5 })  // less bass boost
-    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 800,  gain: -2.0, Q: 0.8 })
-    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 8000, gain: -1.0 }) // roll off highs
-    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 9000, rolloff: -48 }) // tighter cut, steeper slope
+    // Hip-hop master EQ: sub warmth, mud cut, air presence, gentle LP safety net
+    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 60,   gain: 1.0 })   // subtle sub warmth (kick/bass)
+    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 350,  gain: -2.5, Q: 0.6 }) // scoop 200-500Hz mud zone
+    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: 1.0 })  // restore air/presence for hats
+    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 16000, rolloff: -24 }) // gentle LP — protect from harsh aliasing only
 
     // Glue compressor — much gentler; drum bus already compresses
     this.compressor = new Tone.Compressor({

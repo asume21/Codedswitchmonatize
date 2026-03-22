@@ -1,3 +1,5 @@
+import { countSyllables } from './utils/countSyllables'
+
 /**
  * FREESTYLE REPORT CARD
  *
@@ -67,24 +69,6 @@ interface LineData {
   endMs:      number
   syllables:  number
   words:      number
-}
-
-function countSyllables(text: string): number {
-  const cleaned = text.toLowerCase().replace(/[^a-z\s]/g, '').trim()
-  if (!cleaned) return 0
-
-  const words = cleaned.split(/\s+/)
-  let total = 0
-
-  for (const w of words) {
-    if (w.length <= 2) { total += 1; continue }
-    const vowelGroups = w.match(/[aeiouy]+/g)
-    let count = vowelGroups ? vowelGroups.length : 1
-    if (w.endsWith('e') && count > 1) count--
-    total += Math.max(1, count)
-  }
-
-  return total
 }
 
 function generateSessionId(): string {

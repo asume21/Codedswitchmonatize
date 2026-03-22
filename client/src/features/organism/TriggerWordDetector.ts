@@ -210,6 +210,25 @@ export class TriggerWordDetector {
 
     for (const mapping of this.mappings) {
       for (const phrase of mapping.phrases) {
+        // Pre-filter: skip phrases that are way longer than the scan window
+        // (they can't match above threshold if length ratio is too extreme)
+        if (phrase.length > scanWindow.length * 2) continue
+        // Quick exact substring check before expensive fuzzy match
+        if (scanWindow.includes(phrase)) {
+          const confidence = 1.0
+          if (confidence > bestConfidence) {
+            const key = this.actionKey(mapping.action)
+            const lastTime = this.lastFired.get(key) ?? 0
+            if (now - lastTime < mapping.cooldownMs) continue
+            bestConfidence = confidence
+            bestEvent = {
+              matchedPhrase: phrase, spokenText: scanWindow,
+              action: mapping.action, confidence, timestamp: now,
+            }
+          }
+          continue
+        }
+
         const confidence = fuzzyMatch(scanWindow, phrase)
 
         if (confidence >= this.threshold && confidence > bestConfidence) {

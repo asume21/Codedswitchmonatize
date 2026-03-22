@@ -96,10 +96,10 @@ export function validateAIOutput(output: any, genre?: string): ValidationResult 
 
   // 4. Validate Arrays (chords, melody, drums, bass)
   const sequenceValidations: SequenceValidationConfig[] = [
-    { field: 'drums', minItems: 4, requireType: true },
-    { field: 'bass', minItems: 2, requireNote: true, requireDuration: true },
-    { field: 'chords', minItems: 2, requireNotesArray: true, requireDuration: true },
-    { field: 'melody', minItems: 2, requireNote: true, requireDuration: true },
+    { field: 'drums', minItems: 16, requireType: true },
+    { field: 'bass', minItems: 8, requireNote: true, requireDuration: true },
+    { field: 'chords', minItems: 4, requireNotesArray: true, requireDuration: true },
+    { field: 'melody', minItems: 8, requireNote: true, requireDuration: true },
   ];
 
   sequenceValidations.forEach((config) => {

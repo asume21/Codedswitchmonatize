@@ -59,26 +59,27 @@ export class PulseTracker {
   private estimateBpmFromIois(iois: number[]): number | null {
     if (iois.length === 0) return null
 
-    const candidates: number[] = []
+    // Pass 1: generate candidate BPMs and bin them in O(n)
+    const binWidth = 5
+    const histogram = new Map<number, number>()
+
     for (const ioi of iois) {
       for (const multiplier of [0.25, 0.5, 1, 2, 4]) {
         const period = ioi * multiplier
         const bpm    = 60000 / period
         if (bpm >= this.minBpm && bpm <= this.maxBpm) {
-          candidates.push(bpm)
+          const bin = Math.round(bpm / binWidth) * binWidth
+          histogram.set(bin, (histogram.get(bin) ?? 0) + 1)
         }
       }
     }
 
-    if (candidates.length === 0) return null
+    if (histogram.size === 0) return null
 
-    const binWidth = 5
-    let bestBin    = 0
-    let bestCount  = 0
-
-    for (const candidate of candidates) {
-      const bin   = Math.round(candidate / binWidth) * binWidth
-      const count = candidates.filter(c => Math.abs(c - bin) < binWidth).length
+    // Pass 2: find the bin with the highest count in O(bins)
+    let bestBin   = 0
+    let bestCount = 0
+    for (const [bin, count] of histogram) {
       if (count > bestCount) {
         bestCount = count
         bestBin   = bin

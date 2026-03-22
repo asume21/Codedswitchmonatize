@@ -12,6 +12,7 @@ export class TextureGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
   private noiseSource: Tone.Noise
+  private highpass:    Tone.Filter      // keeps pink noise out of sub/bass range
   private filter:      Tone.Filter
   private reverb:      Tone.Reverb
   private gain:        Tone.Gain
@@ -24,13 +25,16 @@ export class TextureGenerator extends GeneratorBase {
     super(GeneratorName.Texture)
 
     this.noiseSource = new Tone.Noise('pink')
+    this.highpass    = new Tone.Filter({ type: 'highpass', frequency: 200, rolloff: -24 })  // keep noise out of bass
     this.filter      = new Tone.Filter(400, 'lowpass')    // start low, opens as organism warms up
     this.reverb      = new Tone.Reverb({ decay: 1.5, wet: 0.35 })  // shorter tail to reduce noise bleed
     this.gain        = new Tone.Gain(0)
 
     this.output = new Tone.Gain(1)
 
-    this.noiseSource.connect(this.filter)
+    // Signal chain: noise → highpass → lowpass → reverb → gain → output
+    this.noiseSource.connect(this.highpass)
+    this.highpass.connect(this.filter)
     this.filter.connect(this.reverb)
     this.reverb.connect(this.gain)
     this.gain.connect(this.output)
@@ -109,5 +113,17 @@ export class TextureGenerator extends GeneratorBase {
       case OState.Breathing:  return 0.15 * organism.breathingWarmth
       case OState.Flow:       return 0.20 + (0.08 * organism.flowDepth)
     }
+  }
+
+  dispose(): void {
+    if (this.noiseStarted) {
+      this.noiseSource.stop()
+    }
+    this.noiseSource.dispose()
+    this.highpass.dispose()
+    this.filter.dispose()
+    this.reverb.dispose()
+    this.gain.dispose()
+    this.output.dispose()
   }
 }

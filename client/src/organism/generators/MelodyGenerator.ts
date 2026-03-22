@@ -22,6 +22,7 @@ export class MelodyGenerator extends GeneratorBase {
 
   // Reactive state (Section 05)
   private pitchOffsetSemitones: number = 0
+  private volumeMultiplier:     number = 1.0
 
   // Musical state
   private rootPitchClass:  number         = 0    // 0-11, detected by ScaleSnapEngine
@@ -35,9 +36,12 @@ export class MelodyGenerator extends GeneratorBase {
   private voiceActive:     boolean = false
   private flowDepth:       number  = 0
 
-  private reverb:  Tone.Reverb
-  private delay:   Tone.FeedbackDelay
-  private chorus:  Tone.Chorus
+  private reverb:    Tone.Reverb
+  private delay:     Tone.FeedbackDelay
+  private chorus:    Tone.Chorus
+  private dryBus:    Tone.Gain
+  private delaySend: Tone.Gain
+  private reverbSend: Tone.Gain
 
   constructor() {
     super(GeneratorName.Melody)
@@ -55,12 +59,25 @@ export class MelodyGenerator extends GeneratorBase {
     this.synth.volume.value = -6
 
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
-    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.25, wet: 0.2 })
-    this.reverb = new Tone.Reverb({ decay: 1.5, wet: 0.15 })
+
+    // Parallel send routing — prevents reverb'd delays from accumulating
+    // synth → chorus → dry bus → output
+    //                 → delay send → delay → output
+    //                 → reverb send → reverb → output
+    this.dryBus     = new Tone.Gain(0.7)    // dry level
+    this.delaySend  = new Tone.Gain(0.2)    // delay send level
+    this.reverbSend = new Tone.Gain(0.15)   // reverb send level
+    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.25, wet: 1.0 })  // 100% wet on send
+    this.reverb = new Tone.Reverb({ decay: 1.5, wet: 1.0 })  // 100% wet on send
 
     this.synth.connect(this.chorus)
-    this.chorus.connect(this.delay)
-    this.delay.connect(this.reverb)
+    this.chorus.connect(this.dryBus)
+    this.chorus.connect(this.delaySend)
+    this.chorus.connect(this.reverbSend)
+    this.dryBus.connect(this.output)
+    this.delaySend.connect(this.delay)
+    this.delay.connect(this.output)
+    this.reverbSend.connect(this.reverb)
     this.reverb.connect(this.output)
 
     this.chorus.start()
@@ -136,17 +153,11 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   applyVolumeMultiplier(multiplier: number): void {
-    const m = Math.max(0, multiplier)
-    const db = m <= 0 ? -Infinity : 20 * Math.log10(m)
-    this.synth.volume.rampTo(this.baseDb() + db, 0.05)
+    this.volumeMultiplier = Math.max(0, multiplier)
+    this.setOutputLevel(this.activityLevel)
   }
 
   // ── Private ──────────────────────────────────────────────────────
-
-  private baseDb(): number {
-    const level = this.activityLevel
-    return level <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, level))
-  }
 
   private computeTargetLevel(organism: OrganismState, behavior: MelodyBehavior): number {
     if (organism.current === OState.Dormant)   return 0
@@ -265,8 +276,20 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const shaped = level * this.arrangementMultiplier
+    const shaped = level * this.arrangementMultiplier * this.volumeMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
-    this.synth.volume.rampTo(db, 0.1)
+    this.output.gain.rampTo(Math.pow(10, db / 20), 0.1)
+  }
+
+  dispose(): void {
+    this.stopPart()
+    this.synth.dispose()
+    this.chorus.dispose()
+    this.dryBus.dispose()
+    this.delaySend.dispose()
+    this.reverbSend.dispose()
+    this.delay.dispose()
+    this.reverb.dispose()
+    this.output.dispose()
   }
 }

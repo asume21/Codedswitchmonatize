@@ -128,9 +128,35 @@ export default function SampleLibraryPage() {
     audioRef.current = audio;
   };
 
-  // Add sample to project
+  // Add sample to project — dispatches event for studio integration and
+  // stores in sessionStorage so the studio can pick it up on next mount
   const handleAddSample = (sample: SampleFile) => {
-    // TODO: Integrate with studio to add sample to current track
+    // Dispatch event for any open studio instance to receive
+    window.dispatchEvent(new CustomEvent('sample-library:add-sample', {
+      detail: {
+        id: sample.id,
+        name: sample.name,
+        url: sample.url,
+        category: sample.category,
+        subcategory: sample.subcategory,
+      },
+    }));
+
+    // Persist to sessionStorage so the studio can load it even if opened later
+    try {
+      const pending = JSON.parse(sessionStorage.getItem('pendingSamples') || '[]');
+      pending.push({
+        id: sample.id,
+        name: sample.name,
+        url: sample.url,
+        category: sample.category,
+        addedAt: Date.now(),
+      });
+      sessionStorage.setItem('pendingSamples', JSON.stringify(pending));
+    } catch {
+      // sessionStorage full or unavailable — event dispatch is primary path
+    }
+
     toast({
       title: "Sample Added",
       description: `${sample.name} ready to use in studio`,

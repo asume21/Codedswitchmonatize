@@ -30,6 +30,7 @@ import { useMIDI } from '@/hooks/use-midi';
 import { useInstrumentOptional } from '@/contexts/InstrumentContext';
 import { AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
+import { getAudioContext } from '@/lib/audioContext';
 import { AudioEngine } from '@/lib/audio';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
@@ -1915,12 +1916,35 @@ export default function UnifiedStudioWorkspace() {
     return mapping[uiName] || 'acoustic_grand_piano';
   };
 
+  // Per-track StereoPannerNode cache for applying pan to note playback
+  const trackPanners = useRef<Map<string, StereoPannerNode>>(new Map());
+
+  // Get or create a StereoPannerNode for a track, connected to the shared AudioContext destination
+  const getTrackPanner = (trackId: string, panValue: number): StereoPannerNode | null => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return null;
+
+      let panner = trackPanners.current.get(trackId);
+      if (!panner) {
+        panner = ctx.createStereoPanner();
+        panner.connect(ctx.destination);
+        trackPanners.current.set(trackId, panner);
+      }
+      panner.pan.value = Math.max(-1, Math.min(1, panValue));
+      return panner;
+    } catch {
+      return null;
+    }
+  };
+
   // Play a note with the REAL audio engines (Synthesis for instruments, realisticAudio for drums)
   const playNote = async (note: string, octave: number, instrumentType?: string, durationSeconds: number = 0.5) => {
     try {
       const currentTrack = tracks.find(t => t.id === selectedTrack);
       const uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       const trackVolume = currentTrack?.volume ?? 0.8;
+      const trackPan = currentTrack?.pan ?? 0;
 
       const drumMap: Record<string, string> = { Kick: 'kick', Snare: 'snare', 'Hi-Hat': 'hihat', Tom: 'tom', Cymbal: 'crash', 'Full Kit': 'kick' };
       if (drumMap[uiInstrument]) {
@@ -1935,16 +1959,20 @@ export default function UnifiedStudioWorkspace() {
       
       console.log(`🎹 Playing ${note}${octave} with instrument: ${uiInstrument} → ${midiInstrument}`);
       
-      // realisticAudio.playNote(note, octave, duration, instrument, velocity)
+      // Apply pan via StereoPannerNode when the track has a non-zero pan value
+      const pannerNode = (trackPan !== 0 && currentTrack)
+        ? getTrackPanner(currentTrack.id, trackPan)
+        : null;
+
+      // realisticAudio.playNote(note, octave, duration, instrument, velocity, targetNode)
       await realisticAudio.playNote(
         note,
         octave,
         durationSeconds,
         midiInstrument,
-        Math.min(1, Math.max(0, trackVolume))
+        Math.min(1, Math.max(0, trackVolume)),
+        pannerNode ?? undefined
       );
-      
-      // TODO: Apply pan using Web Audio API StereoPannerNode
     } catch (error) {
       console.error('Error playing note:', error);
     }

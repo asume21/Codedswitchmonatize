@@ -51,6 +51,15 @@ export class DrumGenerator extends GeneratorBase {
   private hatDensityMult:      number = 1.0
   private kickVelocityMult:    number = 1.0
 
+  // Sidechain callback — fired on every kick hit so the bass channel can duck
+  private onKickTrigger: ((time: number) => void) | null = null
+
+  // Micro-timing humanization — adds ±jitter to each hit for human feel
+  private readonly humanizeJitterMs: number = 8  // ±8ms
+
+  // Track last kick time for hat-on-kick ducking
+  private lastKickTime: number = 0
+
   constructor() {
     super(GeneratorName.Drum)
 
@@ -67,19 +76,19 @@ export class DrumGenerator extends GeneratorBase {
     this.kickDist.connect(this.compressor)
 
     this.kickSub = new Tone.MembraneSynth({
-      pitchDecay:  0.05,
+      pitchDecay:  0.09,       // slower pitch glide for 808 sub sweep
       octaves:     4,          // was 8 — 8 octaves causes massive low-end impulse overload
       oscillator:  { type: 'sine' },
-      envelope:    { attack: 0.001, decay: 0.4, sustain: 0.0, release: 0.5 },
+      envelope:    { attack: 0.001, decay: 1.2, sustain: 0.0, release: 0.8 },  // longer sustain for 808 weight
     })
-    this.kickSub.volume.value = -6   // was -3
+    this.kickSub.volume.value = -6
     this.kickSub.connect(this.kickBus)
 
     this.kickClick = new Tone.NoiseSynth({
       noise:    { type: 'white' },
       envelope: { attack: 0.001, decay: 0.02, sustain: 0 },
     })
-    this.kickClick.volume.value = -14  // was -10
+    this.kickClick.volume.value = -10  // louder click for transient definition on small speakers
     this.kickClick.connect(this.kickBus)
 
     // ── Snare: body + tonal ring ──
@@ -178,17 +187,12 @@ export class DrumGenerator extends GeneratorBase {
 
   private patternLocked = false
   private lockedHits: DrumHit[] = []
+  private currentHits: DrumHit[] = []   // snapshot updated by rebuildPart
 
   lockPattern(): DrumHit[] {
     this.patternLocked = true
-    // Snapshot the current hits from the running Part
-    this.lockedHits = this.part
-      ? (this.part as any)._events?.map((e: any) => ({
-          time:       e.time,
-          instrument: e.value?.instrument ?? e.value,
-          velocity:   e.value?.velocity   ?? 0.8,
-        })) ?? []
-      : []
+    // Use the snapshot stored by rebuildPart — no Tone.js internal access needed
+    this.lockedHits = [...this.currentHits]
     return this.lockedHits
   }
 
@@ -263,6 +267,7 @@ export class DrumGenerator extends GeneratorBase {
   private rebuildPart(hits: DrumHit[]): void {
     this.stopPart()
     this.applyKitPreset()
+    this.currentHits = [...hits]   // snapshot for lockPattern()
 
     const events = hits.map(h => ({
       time:       h.time,
@@ -338,29 +343,41 @@ export class DrumGenerator extends GeneratorBase {
       vel *= (1 + this.currentBounce * 0.5) * this.kickVelocityMult
     }
 
-    // Pocket → duck hats during voice presence + reactive density multiplier
+    // Duck hats when kick fires (sidechain-style groove breathing)
+    // Uses time-based proximity to last kick hit rather than voice presence
     if (instrument === DrumInstrument.Hat) {
-      vel *= Math.max(0.3, 1 - this.currentPresence * 0.4) * this.hatDensityMult
+      const now = Tone.now()
+      const msSinceKick = (now - this.lastKickTime) * 1000
+      // Fast duck near kick, recover over ~80ms
+      const kickDuck = msSinceKick < 80 ? Math.max(0.35, msSinceKick / 80) : 1.0
+      vel *= kickDuck * this.hatDensityMult
     }
 
     return Math.min(1, Math.max(0, vel))
   }
 
   private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
+    // Micro-timing humanization — add small random jitter for human feel
+    const jitterSec = ((Math.random() * 2 - 1) * this.humanizeJitterMs) / 1000
+    const t = Math.max(0, time + jitterSec)
+
     switch (instrument) {
       case DrumInstrument.Kick:
-        this.kickSub.triggerAttackRelease(this.currentKickNote, '8n', time, velocity)
-        this.kickClick.triggerAttackRelease('32n', time, velocity * 0.6)
+        this.kickSub.triggerAttackRelease(this.currentKickNote, '8n', t, velocity)
+        this.kickClick.triggerAttackRelease('32n', t, velocity * 0.6)
+        this.lastKickTime = t
+        // Fire sidechain callback so bass channel ducks on kick
+        if (this.onKickTrigger) this.onKickTrigger(t)
         break
       case DrumInstrument.Snare:
-        this.snareBody.triggerAttackRelease('8n', time, velocity)
-        this.snareTone.triggerAttackRelease('E3', '16n', time, velocity * 0.7)
+        this.snareBody.triggerAttackRelease('8n', t, velocity)
+        this.snareTone.triggerAttackRelease('E3', '16n', t, velocity * 0.7)
         break
       case DrumInstrument.Hat:
-        this.hat.triggerAttackRelease('32n', time, velocity)
+        this.hat.triggerAttackRelease('32n', t, velocity)
         break
       case DrumInstrument.Perc:
-        this.perc.triggerAttackRelease('16n', time, velocity)
+        this.perc.triggerAttackRelease('16n', t, velocity)
         break
     }
   }
@@ -378,9 +395,31 @@ export class DrumGenerator extends GeneratorBase {
     }
   }
 
+  /** Register a callback fired on every kick hit — used for sidechain ducking. */
+  setKickTriggerCallback(cb: ((time: number) => void) | null): void {
+    this.onKickTrigger = cb
+  }
+
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     this.output.gain.rampTo(Math.pow(10, db / 20), 0.1)
+  }
+
+  dispose(): void {
+    this.stopPart()
+    this.kickSub.dispose()
+    this.kickClick.dispose()
+    this.kickBus.dispose()
+    this.kickDist.dispose()
+    this.snareBody.dispose()
+    this.snareTone.dispose()
+    this.snareBus.dispose()
+    this.hat.dispose()
+    this.hatFilter.dispose()
+    this.perc.dispose()
+    this.percFilter.dispose()
+    this.compressor.dispose()
+    this.output.dispose()
   }
 }

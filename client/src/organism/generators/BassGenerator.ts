@@ -24,6 +24,7 @@ export class BassGenerator extends GeneratorBase {
 
   private synth:      Tone.MonoSynth
   private filter:     Tone.Filter
+  private monoSub:    Tone.Filter      // lowpass mono enforcement for sub frequencies
   private compressor: Tone.Compressor
   private distortion: Tone.Distortion
   private part:       Tone.Part | null = null
@@ -43,6 +44,9 @@ export class BassGenerator extends GeneratorBase {
 
     this.output     = new Tone.Gain(1)
     this.filter     = new Tone.Filter(350, 'lowpass')
+    // Mono enforcement for sub frequencies — lowpass at 120Hz prevents stereo spread
+    // from the FatSawtooth oscillator from causing phase cancellation on mono systems
+    this.monoSub    = new Tone.Filter({ type: 'lowpass', frequency: 120, rolloff: -24 })
     this.compressor = new Tone.Compressor({ threshold: -20, ratio: 6, attack: 0.005, release: 0.12 })
     this.distortion = new Tone.Distortion({ distortion: 0.08, wet: 0.2 })
 
@@ -61,8 +65,10 @@ export class BassGenerator extends GeneratorBase {
     })
     this.synth.volume.value = -4
 
+    // Signal chain: synth → filter → monoSub → distortion → compressor → output
     this.synth.connect(this.filter)
-    this.filter.connect(this.distortion)
+    this.filter.connect(this.monoSub)
+    this.monoSub.connect(this.distortion)
     this.distortion.connect(this.compressor)
     this.compressor.connect(this.output)
 
@@ -150,18 +156,18 @@ export class BassGenerator extends GeneratorBase {
 
   // ── Reactive mutation methods (Section 05) ────────────────────────
 
+  // Volume multiplier from ReactiveBehaviorEngine — applied to the output gain
+  // node (NOT synth.volume) to avoid race with setOutputLevel which also uses
+  // synth.volume. This keeps the two concerns separated.
+  private volumeMultiplier: number = 1.0
+
   applyVolumeMultiplier(multiplier: number): void {
-    const m = Math.max(0, multiplier)
-    const db = m <= 0 ? -Infinity : 20 * Math.log10(m)
-    this.synth.volume.rampTo(this.baseDb() + db, 0.05)
+    this.volumeMultiplier = Math.max(0, multiplier)
+    // Re-apply current output level with the new multiplier
+    this.setOutputLevel(this.activityLevel)
   }
 
   // ── Private ──────────────────────────────────────────────────────
-
-  private baseDb(): number {
-    const level = this.activityLevel
-    return level <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, level))
-  }
 
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
@@ -226,8 +232,18 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const shaped = level * this.arrangementMultiplier
+    const shaped = level * this.arrangementMultiplier * this.volumeMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
-    this.synth.volume.rampTo(db, 0.1)
+    this.output.gain.rampTo(Math.pow(10, db / 20), 0.1)
+  }
+
+  dispose(): void {
+    this.stopPart()
+    this.synth.dispose()
+    this.filter.dispose()
+    this.monoSub.dispose()
+    this.compressor.dispose()
+    this.distortion.dispose()
+    this.output.dispose()
   }
 }

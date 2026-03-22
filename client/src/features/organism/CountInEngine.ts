@@ -23,6 +23,7 @@ export class CountInEngine {
   private transport: typeof Tone.Transport | null = null
   private eventIds:  number[] = []
   private disposed:  boolean = false
+  private savedBpm:  number  = 0    // saved BPM to restore after count-in
 
   /**
    * Start the count-in. Returns immediately — beats are scheduled
@@ -35,6 +36,10 @@ export class CountInEngine {
 
     this.transport = Tone.getTransport()
 
+    // Save current BPM so we can restore it after count-in
+    // (avoids conflicting with organism's running BPM)
+    this.savedBpm = this.transport.bpm.value
+
     // Create a short, clicky synth for the metronome
     this.synth = new Tone.MembraneSynth({
       pitchDecay:  0.008,
@@ -44,7 +49,7 @@ export class CountInEngine {
       volume:      -12,
     }).toDestination()
 
-    // Set BPM
+    // Temporarily set BPM for count-in timing
     this.transport.bpm.value = bpm
 
     // Schedule each beat
@@ -100,6 +105,10 @@ export class CountInEngine {
     if (this.transport) {
       for (const id of this.eventIds) {
         this.transport.clear(id)
+      }
+      // Restore the BPM that was active before the count-in
+      if (this.savedBpm > 0) {
+        this.transport.bpm.value = this.savedBpm
       }
     }
     this.eventIds = []

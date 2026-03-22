@@ -90,6 +90,11 @@ export class FreestyleTranscriber {
   private state: TranscriptionState = { ...INITIAL_STATE }
   private callbacks: Set<TranscriptionCallback> = new Set()
 
+  // Rate limiting — max one emit per 50ms to prevent flooding downstream
+  private lastEmitTime: number = 0
+  private emitPending:  ReturnType<typeof setTimeout> | null = null
+  private readonly emitThrottleMs: number = 50
+
   constructor() {
     const Ctor = getSpeechRecognitionCtor()
 
@@ -268,8 +273,27 @@ export class FreestyleTranscriber {
   }
 
   private emit(): void {
-    const snapshot = { ...this.state, lines: [...this.state.lines] }
-    this.callbacks.forEach((cb) => cb(snapshot))
+    const now = performance.now()
+    const elapsed = now - this.lastEmitTime
+
+    if (elapsed >= this.emitThrottleMs) {
+      // Enough time has passed — emit immediately
+      this.lastEmitTime = now
+      if (this.emitPending) {
+        clearTimeout(this.emitPending)
+        this.emitPending = null
+      }
+      const snapshot = { ...this.state, lines: [...this.state.lines] }
+      this.callbacks.forEach((cb) => cb(snapshot))
+    } else if (!this.emitPending) {
+      // Schedule a deferred emit so the latest state is always delivered
+      this.emitPending = setTimeout(() => {
+        this.emitPending = null
+        this.lastEmitTime = performance.now()
+        const snapshot = { ...this.state, lines: [...this.state.lines] }
+        this.callbacks.forEach((cb) => cb(snapshot))
+      }, this.emitThrottleMs - elapsed)
+    }
   }
 
   private formatTime(ms: number): string {

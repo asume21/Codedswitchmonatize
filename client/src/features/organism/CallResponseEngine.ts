@@ -193,6 +193,9 @@ export class CallResponseEngine {
       },
     }))
 
+    // Clear any existing timer (e.g. a cooldown→idle timer) before setting new one
+    this.clearResponseTimer()
+
     // Auto-end response after duration
     this.responseTimer = setTimeout(() => {
       this.endResponse()
