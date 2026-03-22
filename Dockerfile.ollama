@@ -1,46 +1,33 @@
 # Dockerfile.ollama
-# Docker container with CodedSwitch + Ollama + Phi3 for Railway deployment
+# Standalone Ollama service for the Railway "ollama" service.
+# Overrides the default entrypoint so the model is pulled once on first boot
+# and persisted on the Railway volume at /root/.ollama.
+#
+# NOTE: In Railway Settings → Source → Watch Paths, set this to "Dockerfile.ollama"
+# so that normal code pushes do NOT trigger an Ollama redeploy.
 
-FROM node:20-bullseye
+FROM ollama/ollama
 
-ARG OLLAMA_MODEL=llama3.1:8b
-
-# Install Ollama dependencies (including zstd required by Ollama installer)
-RUN apt-get update && apt-get install -y \
-    curl \
-    ca-certificates \
-    zstd \
-    ffmpeg \
+# Install curl for the health-check loop (not present in the base image)
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ollama and pull model (start server temporarily for pull)
-RUN curl -fsSL https://ollama.com/install.sh | sh \
-  && (OLLAMA_HOST=127.0.0.1:11434 ollama serve >/tmp/ollama.log 2>&1 &) \
-  && sleep 8 \
-  && OLLAMA_HOST=127.0.0.1:11434 ollama pull ${OLLAMA_MODEL} \
-  && pkill ollama || true
+# Override the default /bin/ollama entrypoint with bash so we can run a script
+ENTRYPOINT ["/bin/bash", "-c"]
 
-# Set working directory
-WORKDIR /app
-
-# Copy package files
-COPY package*.json npm-shrinkwrap.json ./
-
-# Install Node dependencies
-RUN npm install --omit=dev
-
-# Copy application code
-COPY . .
-
-# Build TypeScript
-RUN npm run build
-
-# Expose ports
-EXPOSE 5000
-
-# Startup script
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh
-
-ENTRYPOINT ["/bin/bash", "/usr/local/bin/docker-entrypoint.sh"]
+# 1. Start Ollama server in background
+# 2. Poll until the REST API responds (server ready)
+# 3. Pull the model only if it isn't already on the volume
+# 4. Keep the server running as PID 1 (wait)
+CMD ["ollama serve & SERVER_PID=$!; \
+      echo '[ollama-init] Waiting for server...'; \
+      until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do sleep 2; done; \
+      echo '[ollama-init] Server ready.'; \
+      if ollama list 2>/dev/null | grep -q 'codellama:7b'; then \
+        echo '[ollama-init] codellama:7b already on volume — skipping pull.'; \
+      else \
+        echo '[ollama-init] Pulling codellama:7b (~3.8 GB, one-time)...'; \
+        ollama pull codellama:7b; \
+        echo '[ollama-init] Pull complete.'; \
+      fi; \
+      wait $SERVER_PID"]
