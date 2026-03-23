@@ -8,7 +8,8 @@ import {
   Music, Zap, MessageSquare, Code, Shield, Sparkles, ChevronRight,
   CheckCircle2, Globe, Github, Twitter, Instagram, LogIn, UserPlus,
   Activity, Mic, Brain, Flame, Snowflake, Wind, Layers, Radio,
-  BarChart2, Repeat, Hash, Volume2,
+  BarChart2, Repeat, Hash, Volume2, Users, Heart, Wifi, Search,
+  BookOpen, Handshake,
 } from "lucide-react";
 
 // UNDER CONSTRUCTION MODE - Set to false to show full landing page
@@ -88,6 +89,7 @@ export default function Landing() {
             <a href="#organism" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Organism</a>
             <a href="#features" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-purple-400 transition-colors">Features</a>
             <a href="#modes" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-emerald-400 transition-colors">Modes</a>
+            <a href="#social" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-pink-400 transition-colors">Social</a>
             <a href="#waitlist" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-yellow-400 transition-colors">Waitlist</a>
             <Link href="/studio">
               <Button variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 uppercase tracking-widest font-bold">
@@ -397,6 +399,103 @@ export default function Landing() {
                 </ul>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ SOCIAL HUB — THE COMMUNITY ═══ */}
+      <section id="social" className="py-32 relative bg-black overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-pink-500/5 to-transparent" />
+        <div className="absolute top-1/3 left-0 w-[600px] h-[600px] bg-pink-500/10 rounded-full blur-[150px] animate-pulse" />
+        <div className="absolute bottom-1/4 right-0 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] animate-pulse delay-1000" />
+
+        <div className="container mx-auto px-6 relative z-10">
+          <div className="text-center mb-20 space-y-6">
+            <Badge variant="outline" className="border-pink-500/50 text-pink-400 uppercase tracking-[0.3em] font-black py-1.5 px-6 text-sm">Community Platform</Badge>
+            <h2 className="text-5xl md:text-8xl font-black tracking-tighter uppercase leading-none">
+              The <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-cyan-400 to-purple-500">Social Hub</span>
+            </h2>
+            <p className="max-w-2xl mx-auto text-xl text-white/50">
+              More than a studio. It's a community. Connect with producers worldwide, share your beats, chat in real time, collaborate on projects, and grow your audience — all inside CodedSwitch.
+            </p>
+          </div>
+
+          {/* Feature Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-16">
+            {[
+              {
+                icon: Globe,
+                color: "cyan",
+                title: "Activity Feed",
+                desc: "Share beats, melodies, projects, and status updates. See what other producers are creating. Like, comment, and reshare.",
+              },
+              {
+                icon: MessageSquare,
+                color: "pink",
+                title: "In-App Chat",
+                desc: "Direct message any producer on the platform. Share audio clips, project invites, and collaborate in real time.",
+              },
+              {
+                icon: Wifi,
+                color: "blue",
+                title: "Social Connections",
+                desc: "Link your Twitter, Instagram, YouTube, and Facebook. Share your creations across all platforms with one click.",
+              },
+              {
+                icon: Handshake,
+                color: "emerald",
+                title: "Collaborations",
+                desc: "Share projects with other producers. Set permissions, track contributions, and build together.",
+              },
+              {
+                icon: Search,
+                color: "purple",
+                title: "Discover Producers",
+                desc: "Find new talent. Follow producers whose style inspires you. Build your network and grow together.",
+              },
+              {
+                icon: BarChart2,
+                color: "yellow",
+                title: "Analytics Dashboard",
+                desc: "Track your reach — followers, engagement, views, likes. See which creations resonate and double down.",
+              },
+            ].map((card) => (
+              <div key={card.title} className={`group p-7 rounded-2xl bg-${card.color}-500/5 border border-${card.color}-500/15 hover:border-${card.color}-500/40 hover:bg-${card.color}-500/10 transition-all duration-300 hover:-translate-y-1`}>
+                <div className={`w-12 h-12 rounded-2xl bg-${card.color}-500/10 border border-${card.color}-500/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+                  <card.icon className={`w-6 h-6 text-${card.color}-400`} />
+                </div>
+                <h3 className="text-lg font-black uppercase tracking-tight mb-2">{card.title}</h3>
+                <p className="text-sm text-white/40 leading-relaxed">{card.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Blog callout */}
+          <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-8 mb-16 flex flex-col md:flex-row items-center gap-8">
+            <div className="w-16 h-16 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-8 h-8 text-yellow-400" />
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <h3 className="text-xl font-black uppercase tracking-tight mb-1">Integrated Blog</h3>
+              <p className="text-white/40 text-sm">Tutorials, production tips, artist spotlights, and platform updates — all accessible right inside the Social Hub. Stay informed without leaving the studio.</p>
+            </div>
+            <Link href="/blog">
+              <Button variant="outline" className="border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 uppercase tracking-widest font-bold whitespace-nowrap">
+                Read the Blog
+              </Button>
+            </Link>
+          </div>
+
+          {/* Big CTA */}
+          <div className="text-center">
+            <Link href="/social-hub">
+              <Button size="lg" className="h-16 px-12 text-lg bg-gradient-to-r from-pink-600 via-purple-600 to-cyan-600 hover:from-pink-500 hover:via-purple-500 hover:to-cyan-500 text-white rounded-2xl shadow-[0_0_40px_rgba(236,72,153,0.3)] group font-black uppercase tracking-widest">
+                <Users className="w-6 h-6 mr-3" />
+                Enter the Social Hub
+                <ChevronRight className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+            <p className="mt-4 text-sm text-white/30 font-bold uppercase tracking-widest">Free for all CodedSwitch members</p>
           </div>
         </div>
       </section>

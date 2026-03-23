@@ -12,15 +12,15 @@ import { apiRequest } from '@/lib/queryClient';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 
 const NAV_ITEMS = [
-  { icon: Home, label: 'Home', path: '/' },
-  { icon: LayoutDashboard, label: 'Studio', path: '/studio' },
-  { icon: Mic2, label: 'Lyrics', path: '/lyric-lab' },
-  { icon: Music2, label: 'Samples', path: '/sample-library' },
-  { icon: BookOpen, label: 'Blog', path: '/blog' },
-  { icon: Shield, label: 'Security', path: '/vulnerability-scanner' },
-  { icon: Users, label: 'Social Hub', path: '/social-hub' },
-  { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant' },
-  { icon: Mic2, label: 'Voice Convert', path: '/voice-convert' },
+  { icon: Home, label: 'Home', path: '/', featured: false },
+  { icon: LayoutDashboard, label: 'Studio', path: '/studio', featured: false },
+  { icon: Users, label: 'Social Hub', path: '/social-hub', featured: true },
+  { icon: Mic2, label: 'Lyrics', path: '/lyric-lab', featured: false },
+  { icon: Music2, label: 'Samples', path: '/sample-library', featured: false },
+  { icon: BookOpen, label: 'Blog', path: '/blog', featured: false },
+  { icon: Shield, label: 'Security', path: '/vulnerability-scanner', featured: false },
+  { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant', featured: false },
+  { icon: Mic2, label: 'Voice Convert', path: '/voice-convert', featured: false },
 ];
 
 interface GlobalNavProps {
@@ -48,17 +48,21 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
   if (variant === 'topbar') {
     return (
       <nav className={`flex items-center gap-1 overflow-x-auto ${className}`}>
-        {NAV_ITEMS.slice(0, 6).map(item => (
+        {NAV_ITEMS.slice(0, 7).map(item => (
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-all ${
-              location === item.path 
-                ? 'bg-cyan-600/25 border border-cyan-500/40 text-white' 
-                : 'text-cyan-100/70 hover:text-white hover:bg-cyan-500/10 border border-transparent'
+              item.featured
+                ? location === item.path
+                  ? 'bg-gradient-to-r from-pink-600/30 to-cyan-600/30 border border-pink-500/50 text-white shadow-[0_0_12px_rgba(236,72,153,0.3)]'
+                  : 'bg-gradient-to-r from-pink-500/10 to-cyan-500/10 border border-pink-500/25 text-pink-200 hover:text-white hover:border-pink-400/50 hover:shadow-[0_0_16px_rgba(236,72,153,0.25)]'
+                : location === item.path 
+                  ? 'bg-cyan-600/25 border border-cyan-500/40 text-white' 
+                  : 'text-cyan-100/70 hover:text-white hover:bg-cyan-500/10 border border-transparent'
             }`}
           >
-            <item.icon className="w-4 h-4 text-cyan-300" />
+            <item.icon className={`w-4 h-4 ${item.featured ? 'text-pink-300' : 'text-cyan-300'}`} />
             <span className="hidden md:inline">{item.label}</span>
           </button>
         ))}
@@ -178,14 +182,19 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
                 key={item.path}
                 onClick={() => { navigate(item.path); setIsOpen(false); }}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all ${
-                  location === item.path
-                    ? 'bg-cyan-500/20 text-white'
-                    : 'text-cyan-100/80 hover:bg-cyan-500/10 hover:text-white'
+                  item.featured
+                    ? location === item.path
+                      ? 'bg-gradient-to-r from-pink-500/20 to-cyan-500/20 text-white'
+                      : 'text-pink-200/80 hover:bg-gradient-to-r hover:from-pink-500/10 hover:to-cyan-500/10 hover:text-white'
+                    : location === item.path
+                      ? 'bg-cyan-500/20 text-white'
+                      : 'text-cyan-100/80 hover:bg-cyan-500/10 hover:text-white'
                 }`}
               >
-                <item.icon className={`w-4 h-4 ${location === item.path ? 'text-cyan-300' : 'text-cyan-500/60'}`} />
+                <item.icon className={`w-4 h-4 ${item.featured ? 'text-pink-400' : location === item.path ? 'text-cyan-300' : 'text-cyan-500/60'}`} />
                 <span>{item.label}</span>
-                {location === item.path && (
+                {item.featured && <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-pink-400/70 bg-pink-500/10 px-1.5 py-0.5 rounded">New</span>}
+                {!item.featured && location === item.path && (
                   <span className="ml-auto text-xs text-cyan-400">●</span>
                 )}
               </button>
@@ -250,10 +259,15 @@ export function FloatingNavButton() {
                 <button
                   key={item.path}
                   onClick={() => { navigate(item.path); setIsOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-cyan-100/80 hover:bg-cyan-500/10 hover:text-white transition-all"
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all ${
+                    item.featured
+                      ? 'text-pink-200 hover:bg-gradient-to-r hover:from-pink-500/10 hover:to-cyan-500/10 hover:text-white'
+                      : 'text-cyan-100/80 hover:bg-cyan-500/10 hover:text-white'
+                  }`}
                 >
-                  <item.icon className="w-5 h-5 text-cyan-300" />
+                  <item.icon className={`w-5 h-5 ${item.featured ? 'text-pink-400' : 'text-cyan-300'}`} />
                   <span>{item.label}</span>
+                  {item.featured && <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-pink-400/70 bg-pink-500/10 px-1.5 py-0.5 rounded">New</span>}
                 </button>
               ))}
             </div>
