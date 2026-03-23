@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import { 
   Home, LayoutDashboard, Mic2, Shield, MessageSquare, 
-  ChevronDown, Menu, LogIn, Coins, X, BookOpen, VolumeX, Music2
+  ChevronDown, Menu, LogIn, Coins, X, BookOpen, VolumeX, Music2, Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { icon: Music2, label: 'Samples', path: '/sample-library' },
   { icon: BookOpen, label: 'Blog', path: '/blog' },
   { icon: Shield, label: 'Security', path: '/vulnerability-scanner' },
+  { icon: Users, label: 'Social Hub', path: '/social-hub' },
   { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant' },
   { icon: Mic2, label: 'Voice Convert', path: '/voice-convert' },
 ];
