@@ -2091,6 +2091,7 @@ export default function UnifiedStudioWorkspace() {
         durationSeconds,
         midiInstrument,
         Math.min(1, Math.max(0, trackVolume)),
+        false,
         pannerNode ?? undefined
       );
     } catch (error) {
