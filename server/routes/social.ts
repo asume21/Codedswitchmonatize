@@ -5,6 +5,10 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { randomUUID } from 'crypto';
 import type { IStorage } from '../storage';
 
 export function createSocialRoutes(storage: IStorage) {
@@ -228,18 +232,20 @@ export function createSocialRoutes(storage: IStorage) {
 
   /**
    * GET /api/social/posts
-   * Get social feed of posts from followed users
+   * Get social feed of posts. Public for guests (returns organism sessions);
+   * authenticated users also see posts from people they follow.
    */
   router.get('/posts', async (req: Request, res: Response) => {
     try {
-      if (!req.userId) {
-        return res.status(401).json({ error: 'Authentication required' });
+      let posts: any[];
+      if (req.userId) {
+        posts = await storage.getSocialFeed(req.userId);
+      } else {
+        // Guests see only public organism-session posts
+        posts = await storage.getPublicOrganismFeed(50);
       }
 
-      // Get posts from followed users and own posts
-      const posts = await storage.getSocialFeed(req.userId);
-      
-      res.json({ 
+      res.json({
         posts,
         stats: {
           totalShares: posts.length,
@@ -253,6 +259,76 @@ export function createSocialRoutes(storage: IStorage) {
     } catch (error) {
       console.error('Get posts error:', error);
       res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+  });
+
+  /**
+   * GET /api/social/feed/public
+   * Public organism-session feed (no auth required).
+   */
+  router.get('/feed/public', async (_req: Request, res: Response) => {
+    try {
+      const posts = await storage.getPublicOrganismFeed(30);
+      res.json({ posts });
+    } catch (error) {
+      console.error('Public feed error:', error);
+      res.status(500).json({ error: 'Failed to fetch feed' });
+    }
+  });
+
+  /**
+   * POST /api/social/share-organism-session
+   * Upload a beat audio blob and create an organism-session social post.
+   * Auth is optional — guests can share anonymously.
+   */
+  const sessionUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+  });
+
+  router.post('/share-organism-session', sessionUpload.single('audio'), async (req: Request, res: Response) => {
+    try {
+      const caption = (req.body.caption as string | undefined) || '';
+      const bpm     = parseFloat(req.body.bpm as string) || 0;
+      const key     = (req.body.key as string | undefined) || '';
+      const dnaRaw  = (req.body.dna as string | undefined) || null;
+
+      // Write audio file to local objects dir if provided
+      let mediaUrl: string | null = null;
+      if (req.file) {
+        const objDir = process.env.LOCAL_OBJECTS_DIR || path.join(process.cwd(), 'objects');
+        const sessDir = path.join(objDir, 'organism-sessions');
+        if (!fs.existsSync(sessDir)) fs.mkdirSync(sessDir, { recursive: true });
+
+        const filename = `${randomUUID()}.webm`;
+        fs.writeFileSync(path.join(sessDir, filename), req.file.buffer);
+        mediaUrl = `/objects/organism-sessions/${filename}`;
+      }
+
+      const titleParts: string[] = [];
+      if (bpm)  titleParts.push(`${Math.round(bpm)} BPM`);
+      if (key)  titleParts.push(key);
+      const title = titleParts.length ? `Organism Session — ${titleParts.join(', ')}` : 'Organism Session';
+
+      // Store DNA metadata in content as JSON if present, otherwise just the caption
+      const content = dnaRaw
+        ? JSON.stringify({ caption, bpm, key, dna: JSON.parse(dnaRaw) })
+        : JSON.stringify({ caption, bpm, key });
+
+      const post = await storage.createSocialPost(req.userId || null as unknown as string, {
+        platform: 'organism',
+        type:     'organism-session',
+        title,
+        content,
+        url:      `${process.env.PUBLIC_URL || ''}/social-hub`,
+        mediaUrl,
+        likes: 0, comments: 0, shares: 0, views: 0,
+      });
+
+      res.json({ post, postUrl: `/social-hub` });
+    } catch (error) {
+      console.error('Share organism session error:', error);
+      res.status(500).json({ error: 'Failed to share session' });
     }
   });
 

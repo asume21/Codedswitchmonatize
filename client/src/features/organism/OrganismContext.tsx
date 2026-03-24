@@ -138,6 +138,16 @@ export interface OrganismContextValue {
   setBassVolume:      (v: number) => void
   setMelodyVolume:    (v: number) => void
 
+  // Guest experience
+  guestSecondsRemaining: number      // 60→0 countdown while guest is playing
+  isGuestNudgeVisible:   boolean     // true once countdown hits 0
+  dismissGuestNudge:     () => void
+
+  // Session sharing
+  shareSession:       (caption: string) => Promise<{ postUrl: string } | null>
+  isSharingSession:   boolean
+  lastSharedPostUrl:  string | null
+
   // Status
   isRunning:    boolean
   isCapturing:  boolean

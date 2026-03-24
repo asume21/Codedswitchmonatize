@@ -68,7 +68,7 @@ export function GlobalOrganismWrapper({ children }: Props) {
   return (
     <GlobalOrganismActivationContext.Provider value={activationValue}>
       {isActivated ? (
-        <OrganismProvider userId={userId}>
+        <OrganismProvider userId={userId} isGuest={!isAuthenticated}>
           {children}
         </OrganismProvider>
       ) : (

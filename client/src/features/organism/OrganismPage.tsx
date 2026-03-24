@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback } from 'react'
+import { Link } from 'wouter'
 import { OrganismControls }       from './OrganismControls'
 import { OrganismVisualizer }     from './OrganismVisualizer'
 import { InputSourceSelector }    from './InputSourceSelector'
@@ -23,10 +24,25 @@ export function OrganismPage() {
     melodyVolume, setMelodyVolume,
     // Report card
     lastReport, generateReport,
+    // Guest experience
+    guestSecondsRemaining,
+    isGuestNudgeVisible,
+    dismissGuestNudge,
+    // Session sharing
+    shareSession,
+    isSharingSession,
+    lastSharedPostUrl,
   } = useOrganism()
 
   const lyricsEndRef = useRef<HTMLDivElement>(null)
   const [showReport, setShowReport] = useState(false)
+  const [shareCaption, setShareCaption] = useState('')
+  const [shareConfirmed, setShareConfirmed] = useState(false)
+
+  const handleShare = useCallback(async () => {
+    const result = await shareSession(shareCaption)
+    if (result) setShareConfirmed(true)
+  }, [shareSession, shareCaption])
 
   // Auto-scroll lyrics panel to latest line
   useEffect(() => {
@@ -81,6 +97,33 @@ export function OrganismPage() {
       height: '100%',
       background: 'var(--color-background-primary)',
     }}>
+      {/* Guest nudge banner */}
+      {isGuestNudgeVisible && (
+        <div style={{
+          background: 'linear-gradient(90deg, #0e7490, #7c3aed)',
+          padding: '10px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <span style={{ fontSize: 13, color: '#fff', fontWeight: 500 }}>
+            🔥 You've been jamming for 60s — share your session or sign up to save it forever.
+          </span>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <Link href="/signup">
+              <button style={{
+                fontSize: 12, fontWeight: 700, padding: '4px 12px',
+                background: '#fff', color: '#0e7490', borderRadius: 6, border: 'none', cursor: 'pointer',
+              }}>Sign Up Free</button>
+            </Link>
+            <button onClick={dismissGuestNudge} style={{
+              fontSize: 12, padding: '4px 8px',
+              background: 'transparent', color: 'rgba(255,255,255,0.6)',
+              border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6, cursor: 'pointer',
+            }}>✕</button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ padding: '16px 20px 12px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
         <h1 style={{ fontSize: 20, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>
@@ -295,6 +338,77 @@ export function OrganismPage() {
                         <span>→</span><span>{s}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+              {divider}
+            </>
+          )}
+
+          {/* Share Panel — shown after session stops */}
+          {!isRunning && (lastSessionDNA || lastReport) && (
+            <>
+              <div>
+                <div style={sectionLabel}>Share Session</div>
+                {shareConfirmed ? (
+                  <div style={{
+                    padding: '10px 12px',
+                    background: 'rgba(16,185,129,0.12)',
+                    border: '0.5px solid rgba(16,185,129,0.3)',
+                    borderRadius: 8, fontSize: 13,
+                  }}>
+                    <div style={{ color: '#4ade80', fontWeight: 600, marginBottom: 4 }}>🎉 Session shared!</div>
+                    <Link href={lastSharedPostUrl || '/social-hub'}>
+                      <span style={{ color: '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontSize: 12 }}>
+                        View in Social Hub →
+                      </span>
+                    </Link>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <textarea
+                      placeholder="Describe your session... (optional)"
+                      value={shareCaption}
+                      onChange={(e) => setShareCaption(e.target.value)}
+                      rows={2}
+                      style={{
+                        width: '100%', resize: 'none', fontSize: 12,
+                        background: 'var(--color-background-secondary)',
+                        border: '0.5px solid var(--color-border-secondary)',
+                        borderRadius: 6, padding: '6px 8px',
+                        color: 'var(--color-text-primary)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={handleShare}
+                        disabled={isSharingSession}
+                        style={{
+                          flex: 1, fontSize: 12, fontWeight: 600,
+                          padding: '6px 0',
+                          background: isSharingSession ? 'rgba(6,182,212,0.3)' : '#0e7490',
+                          color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer',
+                        }}
+                      >
+                        {isSharingSession ? 'Sharing…' : '⬆ Share to Feed'}
+                      </button>
+                      <Link href="/signup">
+                        <button style={{
+                          fontSize: 12, fontWeight: 600, padding: '6px 10px',
+                          background: 'rgba(124,58,237,0.3)',
+                          color: '#c4b5fd', border: '0.5px solid rgba(124,58,237,0.4)',
+                          borderRadius: 6, cursor: 'pointer',
+                        }}>
+                          Save →
+                        </button>
+                      </Link>
+                    </div>
+                    {guestSecondsRemaining > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
+                        Guest session · {guestSecondsRemaining}s remaining
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

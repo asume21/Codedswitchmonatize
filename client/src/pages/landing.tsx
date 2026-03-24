@@ -170,17 +170,17 @@ export default function Landing() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-in fade-in slide-in-from-bottom-16 duration-1000 delay-500">
-            <Link href="/studio">
+            <Link href="/organism">
               <Button size="lg" className="h-16 px-10 text-lg bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl shadow-[0_0_30px_rgba(6,182,212,0.4)] group">
-                Enter the Studio
+                Try the Organism Free
                 <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
-            <a href="#organism">
+            <Link href="/social-hub">
               <Button size="lg" variant="ghost" className="h-16 px-10 text-lg border border-white/10 hover:bg-white/5 rounded-2xl text-white">
-                See How It Works
+                See what people are making →
               </Button>
-            </a>
+            </Link>
           </div>
         </div>
 

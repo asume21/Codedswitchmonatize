@@ -36,6 +36,117 @@ const PLATFORMS = [
   { id: 'facebook', name: 'Facebook', icon: <Facebook className="h-5 w-5" />, description: 'Share with your network', color: 'blue' },
 ];
 
+/* ═══════════════════════════════════════
+   ORGANISM SESSION CARD
+   ═══════════════════════════════════════ */
+function OrganismSessionCard({ post, isAuthenticated }: { post: any; isAuthenticated: boolean }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Parse metadata from content
+  let caption = '';
+  let bpm = 0;
+  let key = '';
+  try {
+    const parsed = JSON.parse(post.content || '{}');
+    caption = parsed.caption || '';
+    bpm = parsed.bpm || 0;
+    key = parsed.key || '';
+  } catch {
+    caption = post.content || '';
+  }
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(() => {});
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  return (
+    <div className="rounded-xl border border-cyan-500/15 bg-black/40 p-4 hover:border-cyan-500/30 transition-colors">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-3">
+        <Avatar className="h-9 w-9">
+          <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-purple-700 text-white text-xs font-bold">
+            {(post.displayName || 'A').charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-cyan-100 font-bold text-sm">{post.displayName || 'Anonymous'}</span>
+            <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/30 text-[10px] px-1.5 py-0">Organism</Badge>
+            <span className="text-cyan-500/30 text-xs ml-auto">{formatTimeAgo(post.createdAt)}</span>
+          </div>
+          {caption && <p className="text-cyan-200/70 text-xs mt-0.5 truncate">{caption}</p>}
+        </div>
+      </div>
+
+      {/* DNA pills */}
+      <div className="flex gap-2 mb-3 flex-wrap">
+        {bpm > 0 && (
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+            {Math.round(bpm)} BPM
+          </span>
+        )}
+        {key && (
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
+            {key}
+          </span>
+        )}
+      </div>
+
+      {/* Audio player */}
+      {post.mediaUrl ? (
+        <div className="flex items-center gap-3 mb-3 bg-black/30 rounded-lg p-2.5">
+          <button
+            onClick={togglePlay}
+            className="w-8 h-8 rounded-full bg-cyan-600 hover:bg-cyan-500 flex items-center justify-center text-white shrink-0 transition-colors"
+          >
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <audio
+            ref={audioRef}
+            src={post.mediaUrl}
+            onEnded={() => setIsPlaying(false)}
+            className="flex-1 h-6"
+            controls
+            style={{ height: 24, opacity: 0.7 }}
+          />
+        </div>
+      ) : (
+        <div className="mb-3 bg-black/20 rounded-lg p-2.5 text-center text-xs text-cyan-500/40">
+          No audio recorded
+        </div>
+      )}
+
+      {/* Actions + CTA */}
+      <div className="flex items-center gap-3">
+        {isAuthenticated ? (
+          <>
+            <button className="flex items-center gap-1 text-cyan-500/40 hover:text-pink-400 text-xs transition-colors">
+              <Heart className="h-3.5 w-3.5" /> {post.likes || 0}
+            </button>
+            <button className="flex items-center gap-1 text-cyan-500/40 hover:text-cyan-300 text-xs transition-colors">
+              <MessageCircle className="h-3.5 w-3.5" /> {post.comments || 0}
+            </button>
+          </>
+        ) : (
+          <span className="text-cyan-500/30 text-xs">{post.likes || 0} likes</span>
+        )}
+        <Link href="/organism" className="ml-auto">
+          <Button size="sm" className="h-7 text-[11px] px-3 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold border-0">
+            Try Organism →
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function formatTimeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return 'just now';
   const now = Date.now();
@@ -52,7 +163,7 @@ function formatTimeAgo(dateStr: string | null | undefined): string {
 /* ═══════════════════════════════════════
    FEED TAB
    ═══════════════════════════════════════ */
-function FeedTab() {
+function FeedTab({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [postContent, setPostContent] = useState('');
@@ -150,6 +261,9 @@ function FeedTab() {
       ) : posts.length > 0 ? (
         <div className="space-y-3">
           {posts.map((post: any) => (
+            post.type === 'organism-session' ? (
+              <OrganismSessionCard key={post.id} post={post} isAuthenticated={isAuthenticated} />
+            ) : (
             <div key={post.id} className="rounded-xl border border-cyan-500/10 bg-black/30 p-4 hover:border-cyan-500/25 transition-colors">
               <div className="flex items-start gap-3">
                 <Avatar className="h-9 w-9">
@@ -165,19 +279,24 @@ function FeedTab() {
                   </div>
                   <p className="text-cyan-200/80 text-sm leading-relaxed">{post.content}</p>
                   <div className="flex items-center gap-4 mt-3">
-                    <button className="flex items-center gap-1 text-cyan-500/40 hover:text-pink-400 text-xs transition-colors">
-                      <Heart className="h-3.5 w-3.5" /> {post.likes || 0}
-                    </button>
-                    <button className="flex items-center gap-1 text-cyan-500/40 hover:text-cyan-300 text-xs transition-colors">
-                      <MessageCircle className="h-3.5 w-3.5" /> {post.comments || 0}
-                    </button>
-                    <button className="flex items-center gap-1 text-cyan-500/40 hover:text-green-400 text-xs transition-colors">
-                      <Share2 className="h-3.5 w-3.5" /> {post.shares || 0}
-                    </button>
+                    {isAuthenticated && (
+                      <>
+                        <button className="flex items-center gap-1 text-cyan-500/40 hover:text-pink-400 text-xs transition-colors">
+                          <Heart className="h-3.5 w-3.5" /> {post.likes || 0}
+                        </button>
+                        <button className="flex items-center gap-1 text-cyan-500/40 hover:text-cyan-300 text-xs transition-colors">
+                          <MessageCircle className="h-3.5 w-3.5" /> {post.comments || 0}
+                        </button>
+                        <button className="flex items-center gap-1 text-cyan-500/40 hover:text-green-400 text-xs transition-colors">
+                          <Share2 className="h-3.5 w-3.5" /> {post.shares || 0}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
+            )
           ))}
         </div>
       ) : (
@@ -794,17 +913,42 @@ export default function SocialHub() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-black/95 astutely-app astutely-scanlines astutely-grid-bg flex items-center justify-center p-6">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-            <Share2 className="h-10 w-10 text-white" />
+      <div className="min-h-screen bg-black/95 astutely-app astutely-scanlines astutely-grid-bg">
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+              <Share2 className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-2xl font-black text-white tracking-tight">Social Hub</h1>
+              <p className="text-cyan-400/50 text-xs tracking-wider">What producers are creating right now</p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => setLocation('/login')} variant="outline" className="border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 text-xs">Sign In</Button>
+              <Button size="sm" onClick={() => setLocation('/signup')} className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold">Sign Up Free</Button>
+            </div>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight mb-2">Social Hub</h1>
-          <p className="text-cyan-400/60 mb-8">Connect, share, chat, and collaborate with other producers</p>
-          <div className="flex gap-3 justify-center">
-            <Button onClick={() => setLocation('/login')} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold tracking-wider">Sign In</Button>
-            <Button onClick={() => setLocation('/signup')} variant="outline" className="border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10">Sign Up</Button>
+
+          {/* Public feed */}
+          <FeedTab isAuthenticated={false} />
+
+          {/* Sticky CTA banner */}
+          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-cyan-900/95 to-purple-900/95 border-t border-cyan-500/20 backdrop-blur-xl p-4 z-50">
+            <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+              <div>
+                <div className="text-white font-bold text-sm">Create your own →</div>
+                <div className="text-cyan-400/60 text-xs">Try the AI Organism for free. No account needed.</div>
+              </div>
+              <Link href="/organism">
+                <Button className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-sm border-0 shrink-0">
+                  Try Organism Free
+                </Button>
+              </Link>
+            </div>
           </div>
+          {/* Spacer for sticky CTA */}
+          <div className="h-24" />
         </div>
       </div>
     );
@@ -814,7 +958,7 @@ export default function SocialHub() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'feed': return <FeedTab />;
+      case 'feed': return <FeedTab isAuthenticated={isAuthenticated} />;
       case 'connections': return <ConnectionsTab />;
       case 'chat': return <ChatTab />;
       case 'collabs': return <CollabsTab />;

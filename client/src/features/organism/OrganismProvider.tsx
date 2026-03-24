@@ -47,6 +47,7 @@ import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 interface Props {
   children:  React.ReactNode
   userId:    string
+  isGuest?:  boolean
 }
 
 /**
@@ -71,7 +72,7 @@ function createInputSource(
   }
 }
 
-export function OrganismProvider({ children, userId }: Props) {
+export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Load persisted user profile (weighted average of past sessions)
   const { profile, recompute: recomputeProfile } = useProfile(userId, null)
 
@@ -106,6 +107,15 @@ export function OrganismProvider({ children, userId }: Props) {
   const [isRunning,      setIsRunning]      = useState(false)
   const [isCapturing,    setIsCapturing]    = useState(false)
   const [error,          setError]          = useState<string | null>(null)
+
+  // Guest timer — 60s countdown while playing
+  const [guestSecondsRemaining, setGuestSecondsRemaining] = useState(60)
+  const [isGuestNudgeVisible,   setIsGuestNudgeVisible]   = useState(false)
+  const guestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Session sharing state
+  const [isSharingSession,  setIsSharingSession]  = useState(false)
+  const [lastSharedPostUrl, setLastSharedPostUrl]  = useState<string | null>(null)
 
   // Transcription state
   const transcriberRef = useRef<FreestyleTranscriber | null>(null)
@@ -1280,6 +1290,74 @@ export function OrganismProvider({ children, userId }: Props) {
     return report
   }, [])
 
+  // Guest timer — tick down while guest is playing
+  useEffect(() => {
+    if (!isGuest) return
+    if (isRunning) {
+      if (!guestTimerRef.current) {
+        guestTimerRef.current = setInterval(() => {
+          setGuestSecondsRemaining(prev => {
+            if (prev <= 1) {
+              setIsGuestNudgeVisible(true)
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+      }
+    } else {
+      if (guestTimerRef.current) {
+        clearInterval(guestTimerRef.current)
+        guestTimerRef.current = null
+      }
+    }
+    return () => {
+      if (guestTimerRef.current) {
+        clearInterval(guestTimerRef.current)
+        guestTimerRef.current = null
+      }
+    }
+  }, [isGuest, isRunning])
+
+  const dismissGuestNudge = useCallback(() => setIsGuestNudgeVisible(false), [])
+
+  const shareSession = useCallback(async (caption: string): Promise<{ postUrl: string } | null> => {
+    if (isSharingSession) return null
+    setIsSharingSession(true)
+    try {
+      const dna = captureRef.current ? await captureRef.current.capture() : null
+
+      // Get beat blob if available — reuse lastSavedSession if exists, else try live capture
+      let beatBlob: Blob | null = null
+      if (lastSavedSession?.beatBlob) {
+        beatBlob = lastSavedSession.beatBlob
+      }
+
+      const orch = orchestrRef.current
+      const bpm  = orch ? orch.getBpm() : useStudioStore.getState().bpm
+      const key  = useStudioStore.getState().key
+
+      const form = new FormData()
+      form.append('caption', caption)
+      form.append('bpm', String(bpm))
+      form.append('key', key)
+      if (dna) form.append('dna', JSON.stringify(dna))
+      if (beatBlob) form.append('audio', beatBlob, 'session.webm')
+
+      const res = await fetch('/api/social/share-organism-session', { method: 'POST', body: form })
+      if (!res.ok) throw new Error('Share failed')
+
+      const data = await res.json()
+      const url: string = data.postUrl || '/social-hub'
+      setLastSharedPostUrl(url)
+      return { postUrl: url }
+    } catch {
+      return null
+    } finally {
+      setIsSharingSession(false)
+    }
+  }, [isSharingSession, lastSavedSession])
+
   const handleSetInputSource = useCallback((type: InputSourceType, file?: File) => {
     // Stop current session before switching
     inputRef.current?.stop()
@@ -1420,6 +1498,16 @@ export function OrganismProvider({ children, userId }: Props) {
       orchestrRef.current?.setMelodyVolumeMultiplier(v)
     },
 
+    // Guest experience
+    guestSecondsRemaining,
+    isGuestNudgeVisible,
+    dismissGuestNudge,
+
+    // Session sharing
+    shareSession,
+    isSharingSession,
+    lastSharedPostUrl,
+
     isRunning,
     isCapturing,
     error,
@@ -1440,6 +1528,8 @@ export function OrganismProvider({ children, userId }: Props) {
     lastSavedSession, savedSessions, downloadSession,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, bassVolume, melodyVolume,
+    guestSecondsRemaining, isGuestNudgeVisible, dismissGuestNudge,
+    shareSession, isSharingSession, lastSharedPostUrl,
     isRunning, isCapturing, error,
   ])
 

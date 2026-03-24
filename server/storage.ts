@@ -256,6 +256,7 @@ export interface IStorage {
 
   // Social Features - Posts & Feed
   getSocialFeed(userId: string): Promise<any[]>;
+  getPublicOrganismFeed(limit: number): Promise<any[]>;
   createSocialPost(userId: string, data: any): Promise<any>;
   createSocialConnection(userId: string, data: any): Promise<any>;
   getUserSocialConnections(userId: string): Promise<any[]>;
@@ -1195,6 +1196,7 @@ export class MemStorage implements IStorage {
   async getProjectShares(_projectId: string): Promise<ProjectShare[]> { return []; }
   async getUserSharedProjects(_userId: string): Promise<ProjectShare[]> { return []; }
   async getSocialFeed(_userId: string): Promise<any[]> { return []; }
+  async getPublicOrganismFeed(_limit: number): Promise<any[]> { return []; }
   async createSocialPost(_userId: string, _data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
   async createSocialConnection(_userId: string, _data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
   async getUserSocialConnections(_userId: string): Promise<any[]> { return []; }
@@ -2191,6 +2193,27 @@ export class DatabaseStorage implements IStorage {
     // Enrich with user info
     const enriched = [];
     for (const post of relevantPosts) {
+      const user = post.userId ? await this.getUser(post.userId) : null;
+      enriched.push({
+        ...post,
+        username: user?.username || 'Anonymous',
+        displayName: user?.username || 'Anonymous',
+        avatar: '',
+      });
+    }
+    return enriched;
+  }
+
+  async getPublicOrganismFeed(limit: number): Promise<any[]> {
+    const posts = await db
+      .select()
+      .from(socialPosts)
+      .where(eq(socialPosts.type, 'organism-session'))
+      .orderBy(desc(socialPosts.createdAt))
+      .limit(limit);
+
+    const enriched = [];
+    for (const post of posts) {
       const user = post.userId ? await this.getUser(post.userId) : null;
       enriched.push({
         ...post,

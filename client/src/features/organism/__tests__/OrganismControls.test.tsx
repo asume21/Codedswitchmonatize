@@ -74,6 +74,12 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     currentVibe: null,
     lastReport: null,
     generateReport: vi.fn().mockReturnValue(null),
+    guestSecondsRemaining: 60,
+    isGuestNudgeVisible: false,
+    dismissGuestNudge: vi.fn(),
+    shareSession: vi.fn().mockResolvedValue(null),
+    isSharingSession: false,
+    lastSharedPostUrl: null,
     ...overrides,
   }
 }

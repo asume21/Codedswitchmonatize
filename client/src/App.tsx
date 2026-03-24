@@ -76,7 +76,8 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen w-full bg-black/95 text-cyan-100 overflow-hidden">
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <main id="main-content" className="flex-1 overflow-x-auto overflow-y-auto" role="main">
+        {/* Allow dropdowns/menus to escape vertically; keep horizontal scroll for wide layouts. */}
+        <main id="main-content" className="flex-1 overflow-x-auto overflow-y-visible" role="main">
           <div className="w-full h-full">{children}</div>
         </main>
       </div>
