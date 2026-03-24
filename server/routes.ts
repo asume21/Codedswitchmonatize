@@ -32,7 +32,6 @@ import { sunoApiService } from "./services/sunoApiService";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { callAI } from "./services/aiGateway";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
-import { generateChatMusicianMelody } from "./services/chatMusician";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
 import { convertCodeToMusic, convertCodeToMusicEnhanced } from "./services/codeToMusic";
 import { transcribeAudio } from "./services/transcriptionService";
@@ -5129,30 +5128,6 @@ Return this exact JSON format:
     }
   );
 
-    app.post(
-    "/api/chatmusician/generate",
-    async (req: Request, res: Response) => {
-      try {
-        // Check authentication
-        if (!req.userId) {
-          return sendError(res, 401, "Authentication required - please log in");
-        }
-
-        const { prompt, style } = req.body;
-
-        if (!prompt) {
-          return sendError(res, 400, "Prompt is required");
-        }
-
-        const generatedMelody = await generateChatMusicianMelody(prompt, style || 'classical');
-
-        res.json(generatedMelody);
-      } catch (err: any) {
-        console.error("ChatMusician error:", err);
-        sendError(res, 500, err?.message || "Failed to generate melody");
-      }
-    }
-  );
 
   // ============================================
   // ASTUTELY AI BEAT GENERATOR

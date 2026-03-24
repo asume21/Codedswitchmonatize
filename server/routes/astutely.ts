@@ -14,7 +14,6 @@ import { recordAIGenerationMetric } from '../services/aiRouteMetrics';
 import { astutelyDiagnostics } from '../services/astutelyDiagnostics';
 import { extractJSON, mergePartialWithFallback } from '../ai/utils/robustJsonParser';
 import { generatePerTrack } from '../ai/strategies/perTrackGeneration';
-import { generateChatMusicianMelody } from '../services/chatMusician';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -152,29 +151,6 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
     const trackFields = ['drums', 'bass', 'chords', 'melody'] as const;
     const trackMinItems: Record<string, number> = { drums: 4, bass: 2, chords: 2, melody: 2 };
 
-    // Helper: convert ChatMusician ABC notation to MIDI-like melody events
-    function abcToMelodyEvents(abc: string): any[] {
-      const noteMap: Record<string, number> = {
-        'C': 60, 'D': 62, 'E': 64, 'F': 65, 'G': 67, 'A': 69, 'B': 71,
-        'c': 72, 'd': 74, 'e': 76, 'f': 77, 'g': 79, 'a': 81, 'b': 83,
-      };
-      const events: any[] = [];
-      let step = 0;
-      const tokens = abc.replace(/[^A-Ga-gz0-9,/]/g, ' ').split(/\s+/).filter(Boolean);
-      for (const token of tokens) {
-        const noteLetter = token.charAt(0);
-        const midi = noteMap[noteLetter];
-        if (midi !== undefined) {
-          const durChar = token.slice(1);
-          const duration = durChar ? Math.max(1, Math.min(8, parseInt(durChar) || 2)) : 2;
-          events.push({ step, note: midi, duration });
-          step += duration;
-          if (step >= 64) break;
-        }
-      }
-      return events;
-    }
-
     // Step 1: Phi3 creates first (the artist/rapper)
     console.log('🎤 Step 1: Phi3 lays down the raw idea...');
     const phi3Result = await tryAIProvider('Phi3 (Local)', () =>
@@ -226,53 +202,10 @@ router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) =>
         }
       }
 
-      // Step 2a: ChatMusician (actual music AI) — try to fill missing melody/chords
-      if (phi3Missing.includes('melody') || phi3Missing.includes('chords')) {
-        console.log('🎵 Step 2a: ChatMusician (music AI) generating melody...');
-        try {
-          const musicianResult = await generateChatMusicianMelody(safePrompt || `${style} instrumental`, style);
-          if (musicianResult?.abcNotation) {
-            const melodyEvents = abcToMelodyEvents(musicianResult.abcNotation);
-            if (melodyEvents.length >= 4 && !child.melody) {
-              child.melody = melodyEvents;
-              sources.push(`melody:ChatMusician(${melodyEvents.length})`);
-              console.log(`✅ ChatMusician generated ${melodyEvents.length} melody events`);
-            }
-            // ChatMusician can also inform chord choices
-            if (!child.chords && melodyEvents.length >= 2) {
-              // Derive simple chords from melody notes
-              const chordEvents = [];
-              for (let i = 0; i < melodyEvents.length && i < 8; i += 2) {
-                const root = melodyEvents[i]?.note || 60;
-                chordEvents.push({
-                  step: melodyEvents[i].step,
-                  notes: [root - 12, root - 8, root - 5],
-                  duration: Math.min(16, (melodyEvents[i + 1]?.step || 64) - melodyEvents[i].step),
-                });
-              }
-              if (chordEvents.length >= 2) {
-                child.chords = chordEvents;
-                sources.push(`chords:ChatMusician(${chordEvents.length})`);
-              }
-            }
-          }
-        } catch (cmErr: any) {
-          console.warn('⚠️ ChatMusician failed:', cmErr.message);
-          allWarnings.push(`ChatMusician failed: ${cmErr.message}`);
-          astutelyDiagnostics.log({
-            severity: 'warn',
-            category: 'cloud_ai_call',
-            message: `ChatMusician failed: ${cmErr.message}`,
-            requestId,
-            provider: 'ChatMusician',
-          });
-        }
-      }
-
-      // Step 2b: Grok (text LLM backup) — fills any tracks still missing
+      // Step 2: Grok (text LLM backup) — fills any tracks still missing
       const stillMissing = trackFields.filter(f => !child[f] || (Array.isArray(child[f]) && child[f].length < trackMinItems[f]));
       if (stillMissing.length > 0) {
-        console.log(`🎛️ Step 2b: Grok (text LLM backup) filling: [${stillMissing.join(', ')}]`);
+        console.log(`🎛️ Step 2: Grok (text LLM backup) filling: [${stillMissing.join(', ')}]`);
         const grokResult = await tryAIProvider('Grok-3 (Cloud)', () =>
           makeAICall(
             [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
