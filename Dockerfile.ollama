@@ -3,6 +3,9 @@
 # Overrides the default entrypoint so the model is pulled once on first boot
 # and persisted on the Railway volume at /root/.ollama.
 #
+# CRITICAL: Railway assigns a dynamic $PORT. Ollama must bind to it via
+# OLLAMA_HOST so the Network healthcheck can reach the API.
+#
 # NOTE: In Railway Settings → Source → Watch Paths, set this to "Dockerfile.ollama"
 # so that normal code pushes do NOT trigger an Ollama redeploy.
 
@@ -15,19 +18,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 # Override the default /bin/ollama entrypoint with bash so we can run a script
 ENTRYPOINT ["/bin/bash", "-c"]
 
-# 1. Start Ollama server in background
-# 2. Poll until the REST API responds (server ready)
-# 3. Pull the model only if it isn't already on the volume
-# 4. Keep the server running as PID 1 (wait)
-CMD ["ollama serve & SERVER_PID=$!; \
-      echo '[ollama-init] Waiting for server...'; \
-      until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do sleep 2; done; \
-      echo '[ollama-init] Server ready.'; \
-      if ollama list 2>/dev/null | grep -q 'codellama:7b'; then \
-        echo '[ollama-init] codellama:7b already on volume — skipping pull.'; \
+# FIX 1: OLLAMA_HOST=0.0.0.0:$PORT makes Ollama listen on Railway's dynamic port
+# FIX 2: Use phi3:mini (2.3GB) — the model Astutely actually uses as "the rapper"
+# FIX 3: Start server first (healthcheck passes immediately), pull model in background
+#         so Railway's healthcheck window isn't blocked by a multi-GB download
+CMD ["export OLLAMA_HOST=0.0.0.0:${PORT:-11434}; \
+      ollama serve & SERVER_PID=$!; \
+      echo \"[ollama-init] Waiting for server on port ${PORT:-11434}...\"; \
+      until curl -sf http://localhost:${PORT:-11434}/api/tags > /dev/null 2>&1; do sleep 2; done; \
+      echo \"[ollama-init] Server ready — healthcheck will pass.\"; \
+      MODEL=${OLLAMA_MODEL:-phi3:mini}; \
+      if ollama list 2>/dev/null | grep -q \"$MODEL\"; then \
+        echo \"[ollama-init] $MODEL already on volume — skipping pull.\"; \
       else \
-        echo '[ollama-init] Pulling codellama:7b (~3.8 GB, one-time)...'; \
-        ollama pull codellama:7b; \
-        echo '[ollama-init] Pull complete.'; \
+        echo \"[ollama-init] Pulling $MODEL in background (one-time)...\"; \
+        nohup sh -c \"ollama pull $MODEL && echo '[ollama-init] Pull complete.'\" > /tmp/ollama-pull.log 2>&1 & \
       fi; \
       wait $SERVER_PID"]
