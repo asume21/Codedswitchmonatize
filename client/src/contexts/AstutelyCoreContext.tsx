@@ -255,11 +255,8 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
         channelMapping: ASTUTELY_CHANNEL_MAPPING,
       };
       window.dispatchEvent(new CustomEvent('astutely:generated', { detail: payload }));
-      try {
-        localStorage.setItem('astutely-generated', JSON.stringify(payload));
-      } catch {
-        // storage full — non-critical
-      }
+      // Astutely output is now preserved in useStudioStore.organismSnapshots
+      // via the handler in UnifiedStudioWorkspace — no localStorage needed.
 
       // Focus the most interesting track
       const priorityOrder: Array<keyof typeof ASTUTELY_CHANNEL_MAPPING> = ['melody', 'chords', 'bass', 'drums'];
@@ -448,7 +445,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
         channelMapping: ASTUTELY_CHANNEL_MAPPING,
       };
       window.dispatchEvent(new CustomEvent('astutely:generated', { detail: broadcastPayload }));
-      try { localStorage.setItem('astutely-generated', JSON.stringify(broadcastPayload)); } catch { /* */ }
+      // Astutely output is now preserved in useStudioStore.organismSnapshots — no localStorage needed.
 
       // Focus the most relevant track
       const priorityOrder: Array<keyof typeof ASTUTELY_CHANNEL_MAPPING> = ['melody', 'chords', 'bass', 'drums'];

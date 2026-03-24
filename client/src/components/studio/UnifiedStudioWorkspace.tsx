@@ -51,6 +51,8 @@ import { PresenceAmbientLight } from '@/components/presence';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
+import { useStudioStore } from '@/stores/useStudioStore';
+import type { MusicalKey } from '@/stores/useStudioStore';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { createTrackPayload } from '@/types/studioTracks';
 import { UndoManager } from '@/lib/UndoManager';
@@ -788,15 +790,7 @@ export default function UnifiedStudioWorkspace() {
       setTransportTempo(result.bpm);
     }
 
-    try {
-      localStorage.setItem('astutely-generated', JSON.stringify({
-        notes,
-        bpm: result.bpm,
-        timestamp: Date.now(),
-      }));
-    } catch (error) {
-      console.warn('Failed to cache Astutely payload', error);
-    }
+    // Astutely output is now preserved in useStudioStore.organismSnapshots — no localStorage needed.
 
     setActiveView('piano-roll');
 
@@ -810,11 +804,33 @@ export default function UnifiedStudioWorkspace() {
   const [clips, setClips] = useState<TrackClip[]>([]);
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [gridSettings, setGridSettings] = useState<GridSettings>({ division: '1/16', triplet: false });
-  const [sessionSettings, setSessionSettings] = useState<SessionSettings>({
-    bpm: 120,
-    timeSignature: { numerator: 4, denominator: 4 },
-    key: 'C',
-  });
+
+  // ── sessionSettings reads from the Zustand store (single source of truth) ──
+  const storeBpm = useStudioStore((s) => s.bpm);
+  const storeKey = useStudioStore((s) => s.key);
+  const storeTimeSignature = useStudioStore((s) => s.timeSignature);
+  const storeSetBpm = useStudioStore((s) => s.setBpm);
+  const storeSetKey = useStudioStore((s) => s.setKey);
+  const storeSetTimeSignature = useStudioStore((s) => s.setTimeSignature);
+
+  const sessionSettings: SessionSettings = useMemo(() => ({
+    bpm: storeBpm,
+    timeSignature: storeTimeSignature,
+    key: storeKey,
+  }), [storeBpm, storeTimeSignature, storeKey]);
+
+  // Shim so existing code that calls setSessionSettings still works
+  const setSessionSettings = useCallback((updater: SessionSettings | ((prev: SessionSettings) => SessionSettings)) => {
+    const prev: SessionSettings = {
+      bpm: useStudioStore.getState().bpm,
+      timeSignature: useStudioStore.getState().timeSignature,
+      key: useStudioStore.getState().key,
+    };
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    if (next.bpm !== undefined) storeSetBpm(next.bpm);
+    if (next.key !== undefined) storeSetKey(next.key as MusicalKey);
+    if (next.timeSignature !== undefined) storeSetTimeSignature(next.timeSignature);
+  }, [storeSetBpm, storeSetKey, storeSetTimeSignature]);
   const [showGridSettingsDialog, setShowGridSettingsDialog] = useState(false);
   const [showTempoMapDialog, setShowTempoMapDialog] = useState(false);
   const [showTimeSignatureDialog, setShowTimeSignatureDialog] = useState(false);
@@ -830,6 +846,12 @@ export default function UnifiedStudioWorkspace() {
   const [tempoMap, setTempoMap] = useState(sessionSettings.bpm);
   const [timeSignatureDraft, setTimeSignatureDraft] = useState(sessionSettings.timeSignature);
   const [keySignatureDraft, setKeySignatureDraft] = useState(sessionSettings.key);
+
+  // Keep dialog drafts in sync when the store is updated from an external source
+  // (e.g. Organism detects a new key/BPM, or another tab updates the store).
+  useEffect(() => { setTempoMap(storeBpm); }, [storeBpm]);
+  useEffect(() => { setTimeSignatureDraft(storeTimeSignature); }, [storeTimeSignature]);
+  useEffect(() => { setKeySignatureDraft(storeKey); }, [storeKey]);
   const [insertTimeError, setInsertTimeError] = useState<string | null>(null);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const [tabScrollPos, setTabScrollPos] = useState(0);
@@ -1395,6 +1417,24 @@ export default function UnifiedStudioWorkspace() {
         }));
       }
 
+      // ── Preserve Astutely output in the Zustand store history ──
+      const snapshotBpm = detail.bpm || sessionSettings.bpm;
+      const astutelySnapshot: import('@/stores/useStudioStore').OrganismSnapshot = {
+        id: `astutely-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        bpm: snapshotBpm,
+        key: useStudioStore.getState().key,
+        keyMode: useStudioStore.getState().keyMode,
+        source: 'astutely',
+        tracks: {
+          drum:    grouped.drums  as import('@/stores/useStudioStore').StudioNote[],
+          bass:    grouped.bass   as import('@/stores/useStudioStore').StudioNote[],
+          melody:  [...grouped.melody, ...grouped.chords] as import('@/stores/useStudioStore').StudioNote[],
+          texture: [],
+        },
+      };
+      useStudioStore.getState().pushOrganismSnapshot(astutelySnapshot);
+
       // ── Tell the user what was loaded and where — let THEM choose where to go ──
       const melodicCount = grouped.melody.length + grouped.bass.length + grouped.chords.length;
       const drumCount = grouped.drums.length;
@@ -1440,23 +1480,103 @@ export default function UnifiedStudioWorkspace() {
 
     window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
 
-    try {
-      const stored = localStorage.getItem('astutely-generated');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && Date.now() - parsed.timestamp < 5 * 60 * 1000) {
-          handleAstutelyGenerated(new CustomEvent('astutely:generated', { detail: parsed }));
-        }
-        localStorage.removeItem('astutely-generated');
-      }
-    } catch (error) {
-      console.warn('Failed to hydrate Astutely payload from storage', error);
-    }
+    // Hydration from localStorage removed — Astutely output is now persisted
+    // in useStudioStore.organismSnapshots via Zustand persist middleware.
 
     return () => {
       window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
     };
   }, [setTracks, setTransportTempo, sessionSettings.bpm, toast]);
+
+  // ── Organism → Studio bridge: merge snapshot notes into workspace tracks ──
+  useEffect(() => {
+    const handleSnapshotReady = (event: Event) => {
+      const snapshot = (event as CustomEvent).detail as import('@/stores/useStudioStore').OrganismSnapshot | undefined;
+      if (!snapshot) return;
+
+      const generatorToTrackType: Record<string, string> = {
+        drum: 'beat', bass: 'midi', melody: 'midi', texture: 'midi',
+      };
+      const generatorToName: Record<string, string> = {
+        drum: 'Organism Drums', bass: 'Organism Bass', melody: 'Organism Melody', texture: 'Organism Texture',
+      };
+      const generatorToInstrument: Record<string, string> = {
+        drum: 'drums', bass: 'bass', melody: 'piano', texture: 'synth',
+      };
+
+      setTracks((prev: StudioTrack[]) => {
+        let updated = [...prev];
+        for (const gen of ['drum', 'bass', 'melody', 'texture'] as const) {
+          const notes = snapshot.tracks[gen];
+          if (!notes || notes.length === 0) continue;
+
+          const existingIdx = updated.findIndex(t => t.name === generatorToName[gen]);
+          const trackData: StudioTrack = {
+            id: existingIdx >= 0 ? updated[existingIdx].id : `organism-${gen}-${Date.now()}`,
+            name: generatorToName[gen],
+            kind: gen === 'drum' ? 'beat' : 'midi',
+            type: generatorToTrackType[gen] as any,
+            instrument: generatorToInstrument[gen],
+            notes: notes as any[],
+            volume: 0.8,
+            pan: 0,
+            muted: false,
+            solo: false,
+            lengthBars: Math.max(4, Math.ceil(Math.max(...notes.map(n => n.step + n.length)) / 16)),
+            startBar: 0,
+            source: 'organism',
+            bpm: snapshot.bpm,
+            payload: createTrackPayload({ type: generatorToTrackType[gen] as any }),
+            data: { organismSnapshotId: snapshot.id },
+            sendA: -60,
+            sendB: -60,
+          };
+
+          if (existingIdx >= 0) {
+            updated[existingIdx] = trackData;
+          } else {
+            updated.push(trackData);
+          }
+        }
+        return updated;
+      });
+
+      const totalNotes = Object.values(snapshot.tracks).reduce((sum, arr) => sum + arr.length, 0);
+      const drumCount = snapshot.tracks.drum.length;
+      const melodicCount = totalNotes - drumCount;
+
+      if (melodicCount > 0) {
+        toast({
+          title: '🎹 Organism → Piano Roll',
+          description: `${melodicCount} melodic notes loaded from ${snapshot.source}`,
+          action: (
+            <ToastAction altText="Open Piano Roll" onClick={() => {
+              setActiveView('piano-roll');
+              setPianoRollExpanded(true);
+            }}>
+              Open
+            </ToastAction>
+          ),
+        });
+      }
+      if (drumCount > 0) {
+        toast({
+          title: '🥁 Organism → Beat Lab',
+          description: `${drumCount} drum hits loaded from ${snapshot.source}`,
+          action: (
+            <ToastAction altText="Open Beat Lab" onClick={() => setActiveView('beat-lab')}>
+              Open
+            </ToastAction>
+          ),
+        });
+      }
+    };
+
+    window.addEventListener('organism:snapshot-ready', handleSnapshotReady as EventListener);
+    return () => {
+      window.removeEventListener('organism:snapshot-ready', handleSnapshotReady as EventListener);
+    };
+  }, [setTracks, toast]);
 
   const openEffectEditor = useCallback((tool: ToolType) => {
     if (!selectedTrack) {
@@ -3098,7 +3218,7 @@ export default function UnifiedStudioWorkspace() {
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-2 sm:px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           <h1 className="text-base sm:text-xl font-black tracking-[0.2em] sm:tracking-[0.3em] astutely-gradient-text uppercase hidden sm:block">CodedSwitch</h1>
-          <div className="flex space-x-0.5 overflow-x-auto" ref={menuBarRef}>
+          <div className="flex space-x-0.5 overflow-x-auto overflow-y-visible" ref={menuBarRef}>
             <div className="relative">
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
               {openMenu === 'file' && (

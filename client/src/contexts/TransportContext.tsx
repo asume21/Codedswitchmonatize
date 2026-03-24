@@ -1,15 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useStudioStore } from '../stores/useStudioStore';
+import type { LoopRegion as StoreLoopRegion, TimeSignature as StoreTimeSignature } from '../stores/useStudioStore';
 
-export interface LoopRegion {
-  enabled: boolean;
-  start: number;
-  end: number;
-}
-
-export interface TimeSignature {
-  numerator: number;
-  denominator: number;
-}
+// Re-export types so existing consumers don't need to change imports
+export type LoopRegion = StoreLoopRegion;
+export type TimeSignature = StoreTimeSignature;
 
 export interface TransportContextValue {
   tempo: number;
@@ -29,38 +24,62 @@ export interface TransportContextValue {
 
 const TransportContext = createContext<TransportContextValue | undefined>(undefined);
 
-const DEFAULT_LOOP: LoopRegion = {
-  enabled: false,
-  start: 0,
-  end: 8,
-};
-
 interface TransportProviderProps {
   children: ReactNode;
   initialTempo?: number;
 }
 
+/**
+ * TransportProvider — thin bridge over useStudioStore.
+ *
+ * All state (BPM, key, time signature, transport) lives in the Zustand store.
+ * This provider adds the RAF-based position ticker and exposes the same API
+ * that existing useTransport() consumers expect, so nothing breaks.
+ */
 export function TransportProvider({ children, initialTempo = 120 }: TransportProviderProps) {
-  const [tempo, setTempoState] = useState(initialTempo);
-  const [position, setPosition] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [loop, setLoopState] = useState<LoopRegion>(DEFAULT_LOOP);
-  const [timeSignature, setTimeSignatureState] = useState<TimeSignature>({ numerator: 4, denominator: 4 });
+  // Seed store with initialTempo on first mount (only if it differs from default)
+  useEffect(() => {
+    if (initialTempo !== 120) {
+      useStudioStore.getState().setBpm(initialTempo);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Subscribe to store slices
+  const tempo         = useStudioStore((s) => s.bpm);
+  const isPlaying     = useStudioStore((s) => s.isPlaying);
+  const position      = useStudioStore((s) => s.position);
+  const loop          = useStudioStore((s) => s.loop);
+  const timeSignature = useStudioStore((s) => s.timeSignature);
+
+  // Store actions (stable references from Zustand)
+  const storeBpm    = useStudioStore((s) => s.setBpm);
+  const storePlay   = useStudioStore((s) => s.play);
+  const storePause  = useStudioStore((s) => s.pause);
+  const storeStop   = useStudioStore((s) => s.stop);
+  const storeSeek   = useStudioStore((s) => s.seek);
+  const storeSetLoop   = useStudioStore((s) => s.setLoop);
+  const storeClearLoop = useStudioStore((s) => s.clearLoop);
+  const storeSetTs     = useStudioStore((s) => s.setTimeSignature);
+
+  // ── RAF position ticker ──
+  // This runs a requestAnimationFrame loop that advances `position` in the
+  // store while `isPlaying` is true. It reads BPM and loop from the store
+  // directly (via refs) to avoid stale closures.
   const rafRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number | null>(null);
 
-  const clearRaf = () => {
+  const clearRaf = useCallback(() => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
     lastTimestampRef.current = null;
-  };
+  }, []);
 
   const advancePosition = useCallback(() => {
     rafRef.current = requestAnimationFrame((timestamp) => {
-      if (!isPlaying) {
+      const state = useStudioStore.getState();
+      if (!state.isPlaying) {
         clearRaf();
         return;
       }
@@ -71,67 +90,21 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
 
       const deltaMs = timestamp - (lastTimestampRef.current ?? timestamp);
       lastTimestampRef.current = timestamp;
-      const beatsPerMs = tempo / 60 / 1000;
-      setPosition((prev) => {
-        let next = prev + deltaMs * beatsPerMs;
+      const beatsPerMs = state.bpm / 60 / 1000;
+      let next = state.position + deltaMs * beatsPerMs;
 
-        if (loop.enabled && loop.end > loop.start) {
-          const loopLength = loop.end - loop.start;
-          if (next >= loop.end) {
-            const overflow = next - loop.end;
-            next = loop.start + (overflow % loopLength);
-          }
+      if (state.loop.enabled && state.loop.end > state.loop.start) {
+        const loopLength = state.loop.end - state.loop.start;
+        if (next >= state.loop.end) {
+          const overflow = next - state.loop.end;
+          next = state.loop.start + (overflow % loopLength);
         }
+      }
 
-        return next;
-      });
-
+      useStudioStore.setState({ position: next });
       advancePosition();
     });
-  }, [isPlaying, loop, tempo]);
-
-  const play = useCallback(() => {
-    if (isPlaying) return;
-    setIsPlaying(true);
-  }, [isPlaying]);
-
-  const pause = useCallback(() => {
-    setIsPlaying(false);
-    clearRaf();
-  }, []);
-
-  const stop = useCallback(() => {
-    setIsPlaying(false);
-    clearRaf();
-    setPosition(loop.enabled ? loop.start : 0);
-  }, [loop.enabled, loop.start]);
-
-  const setTempo = useCallback((nextTempo: number) => {
-    setTempoState(Math.max(20, Math.min(nextTempo, 300)));
-  }, []);
-
-  const seek = useCallback((nextPosition: number) => {
-    setPosition(Math.max(0, nextPosition));
-  }, []);
-
-  const setLoop = useCallback((loopConfig: Partial<LoopRegion>) => {
-    setLoopState((prev) => ({
-      enabled: loopConfig.enabled ?? prev.enabled,
-      start: loopConfig.start ?? prev.start,
-      end: loopConfig.end ?? prev.end,
-    }));
-  }, []);
-
-  const clearLoop = useCallback(() => {
-    setLoopState(DEFAULT_LOOP);
-  }, []);
-
-  const setTimeSignature = useCallback((signature: Partial<TimeSignature>) => {
-    setTimeSignatureState((prev) => ({
-      numerator: signature.numerator && signature.numerator > 0 ? signature.numerator : prev.numerator,
-      denominator: signature.denominator && signature.denominator > 0 ? signature.denominator : prev.denominator,
-    }));
-  }, []);
+  }, [clearRaf]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -139,11 +112,18 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     } else {
       clearRaf();
     }
+    return () => { clearRaf(); };
+  }, [isPlaying, advancePosition, clearRaf]);
 
-    return () => {
-      clearRaf();
-    };
-  }, [isPlaying, advancePosition]);
+  // Wrap store actions to match TransportContextValue signature exactly
+  const play = useCallback(() => { storePlay(); }, [storePlay]);
+  const pause = useCallback(() => { clearRaf(); storePause(); }, [clearRaf, storePause]);
+  const stop = useCallback(() => { clearRaf(); storeStop(); }, [clearRaf, storeStop]);
+  const setTempo = useCallback((v: number) => { storeBpm(v); }, [storeBpm]);
+  const seek = useCallback((v: number) => { storeSeek(v); }, [storeSeek]);
+  const setLoop = useCallback((cfg: Partial<LoopRegion>) => { storeSetLoop(cfg); }, [storeSetLoop]);
+  const clearLoop = useCallback(() => { storeClearLoop(); }, [storeClearLoop]);
+  const setTimeSignature = useCallback((sig: Partial<TimeSignature>) => { storeSetTs(sig); }, [storeSetTs]);
 
   const value = useMemo<TransportContextValue>(() => ({
     tempo,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,6 +11,7 @@ import { StudioAudioContext } from '@/pages/studio';
 import { useStudioSession } from '@/contexts/StudioSessionContext';
 import type { Note } from './types/pianoRollTypes';
 import { AudioPlayer } from '@/components/ui/audio-player';
+import { useStudioStore } from '@/stores/useStudioStore';
 
 interface Track {
   id: string;
@@ -32,7 +33,8 @@ function MelodyComposerV2() {
   // Core state (notes mirror the currently selected track and are also stored in the shared session)
   const [notes, setNotes] = useState<Note[]>(session.melody as Note[] || []);
   const [selectedTrack, setSelectedTrack] = useState('track1');
-  const [tempo, setTempo] = useState(studioContext.bpm);
+  const tempo = useStudioStore((s) => s.bpm);
+  const setTempo = useStudioStore((s) => s.setBpm);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
 
   const isPlaying = studioContext.isPlaying;

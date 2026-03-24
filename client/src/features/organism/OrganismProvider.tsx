@@ -40,6 +40,9 @@ import type { FreestyleReport }  from './FreestyleReportCard'
 import { ScaleSnapEngine }       from '../../organism/scale/ScaleSnapEngine'
 import { OState }                from '../../organism/state/types'
 import * as Tone from 'tone'
+import { useStudioStore } from '../../stores/useStudioStore'
+import type { MusicalKey, KeyMode } from '../../stores/useStudioStore'
+import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 
 interface Props {
   children:  React.ReactNode
@@ -392,6 +395,20 @@ export function OrganismProvider({ children, userId }: Props) {
     orchestrRef.current?.stop()
     transcriberRef.current?.stop()
     setIsRunning(false)
+
+    // Auto-bridge any accumulated generator events into the studio store
+    // so they appear in Beat Lab / Piano Roll even when the user just hits Stop
+    // without explicitly capturing a session.
+    if (captureRef.current) {
+      captureRef.current.capture().then((dna) => {
+        if (dna && dna.generatorEvents && dna.generatorEvents.length > 0) {
+          const orch = orchestrRef.current
+          const bpm = orch ? orch.getBpm() : useStudioStore.getState().bpm
+          bridgeOrganismToStore(dna.generatorEvents, bpm, 'organism')
+        }
+      }).catch(() => { /* capture failed — no-op */ })
+    }
+
     window.dispatchEvent(new CustomEvent('organism:stopped'))
   }, [])
 
@@ -401,6 +418,13 @@ export function OrganismProvider({ children, userId }: Props) {
     const dna = await captureRef.current.capture()
     if (dna) {
       window.dispatchEvent(new CustomEvent('organism:session-captured', { detail: dna }))
+
+      // Bridge captured generator events into the store
+      if (dna.generatorEvents && dna.generatorEvents.length > 0) {
+        const orch = orchestrRef.current
+        const sessionBpm = orch ? orch.getBpm() : useStudioStore.getState().bpm
+        bridgeOrganismToStore(dna.generatorEvents, sessionBpm, 'organism')
+      }
     }
     return dna
   }, [])
@@ -739,6 +763,14 @@ export function OrganismProvider({ children, userId }: Props) {
       return next
     })
 
+    // Bridge generator events into the global store so Piano Roll / Beat Maker
+    // can display the notes the user just freestyled over.
+    if (dna && dna.generatorEvents && dna.generatorEvents.length > 0) {
+      const orch = orchestrRef.current
+      const sessionBpm = orch ? orch.getBpm() : useStudioStore.getState().bpm
+      bridgeOrganismToStore(dna.generatorEvents, sessionBpm, 'organism')
+    }
+
     setIsRecording(false)
     setLastSessionDNA(dna)
     window.dispatchEvent(new CustomEvent('organism:recording-stopped', { detail: session }))
@@ -861,12 +893,16 @@ export function OrganismProvider({ children, userId }: Props) {
           break
         case 'bpm-up': {
           const delta = typeof action.value === 'number' ? action.value : 10
-          orch.setBpm(orch.getBpm() + delta)
+          const newBpm = orch.getBpm() + delta
+          orch.setBpm(newBpm)
+          useStudioStore.getState().setBpm(newBpm)
           break
         }
         case 'bpm-down': {
           const delta = typeof action.value === 'number' ? action.value : 10
-          orch.setBpm(orch.getBpm() - delta)
+          const newBpm = orch.getBpm() - delta
+          orch.setBpm(newBpm)
+          useStudioStore.getState().setBpm(newBpm)
           break
         }
         case 'drop':
@@ -938,6 +974,7 @@ export function OrganismProvider({ children, userId }: Props) {
         const orch = orchestrRef.current
         if (orch && isRunningRef.current) {
           orch.setBpm(snapshot.smoothedBpm)
+          useStudioStore.getState().setBpm(snapshot.smoothedBpm)
         }
       }
     })
@@ -1150,6 +1187,20 @@ export function OrganismProvider({ children, userId }: Props) {
       const orch = orchestrRef.current
       if (orch && isRunningRef.current) {
         orch.setDetectedScale(detection.rootPitchClass, detection.intervals)
+      }
+
+      // Sync detected key to the global store so Piano Roll / Beat Maker see it
+      if (detection.locked && detection.confidence >= 0.6) {
+        const keyName = detection.rootName as MusicalKey
+        const mode: KeyMode = detection.scaleType.includes('major') ? 'major' : 'minor'
+        useStudioStore.getState().setDetectedKey(keyName, mode, detection.confidence)
+
+        // Auto-promote to active key when confidence is very high (≥ 0.82).
+        // Below that threshold the key is stored as "detected" only — the user
+        // can manually accept it via the Key Signature dialog.
+        if (detection.confidence >= 0.82) {
+          useStudioStore.getState().acceptDetectedKey()
+        }
       }
     })
 

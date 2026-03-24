@@ -1,4 +1,4 @@
-import { useState, createContext, useEffect } from "react";
+import { useState, useCallback, createContext, useEffect } from "react";
 import { useLocation } from "wouter";
 import Header from "@/components/studio/Header";
 import TransportControls from "@/components/studio/TransportControls";
@@ -10,6 +10,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAudio } from "@/hooks/use-audio";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { TransportProvider, useTransport } from "@/contexts/TransportContext";
+import { useStudioStore } from "@/stores/useStudioStore";
+import type { MusicalKey } from "@/stores/useStudioStore";
 import {
   DEFAULT_STUDIO_TAB,
   getStudioTabById,
@@ -69,7 +71,9 @@ function StudioLayout() {
   const [currentCodeMusic, setCurrentCodeMusic] = useState({});
   const [currentLayers, setCurrentLayers] = useState<any[]>([]);
   const [currentTracks, setCurrentTracks] = useState<any[]>([]);
-  const [currentKey, setCurrentKey] = useState("C");
+  const currentKey = useStudioStore((s) => s.key);
+  const storeSetKey = useStudioStore((s) => s.setKey);
+  const setCurrentKey = useCallback((k: string) => storeSetKey(k as MusicalKey), [storeSetKey]);
   const [currentUploadedSong, setCurrentUploadedSong] = useState<any>(null);
   const [uploadedSongAudio, setUploadedSongAudio] = useState<HTMLAudioElement | null>(null);
   const [isStudioPlaying, setIsStudioPlaying] = useState(false);
