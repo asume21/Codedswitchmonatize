@@ -361,7 +361,7 @@ export function OrganismProvider({ children, userId }: Props) {
       unsubReactive()
 
       input.stop()
-      orchestr.reset()
+      orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
       mix.dispose()
       capture.reset()
       transcriber.reset()

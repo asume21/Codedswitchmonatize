@@ -84,6 +84,12 @@ export class MixEngine {
 
   dispose(): void {
     this.stopMetering()
+    // Explicitly disconnect channel outputs from master before disposing so
+    // stale audio edges don't linger in the Web Audio graph across re-mounts.
+    try { this.drumChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
+    try { this.bassChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
+    try { this.melodyChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
+    try { this.textureChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
     this.drumChannel.dispose()
     this.bassChannel.dispose()
     this.melodyChannel.dispose()

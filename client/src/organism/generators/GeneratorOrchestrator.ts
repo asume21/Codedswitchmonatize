@@ -145,6 +145,21 @@ export class GeneratorOrchestrator {
     this.texture.onStateTransition(state, physics)
   }
 
+  /**
+   * Fully dispose all four generators and free their Tone.js audio nodes.
+   * Call this in the useEffect cleanup instead of reset() to prevent node leaks
+   * when OrganismProvider re-mounts (userId / inputSource / autoEnergy change).
+   */
+  dispose(): void {
+    this.stop()
+    this.drum.dispose()
+    this.bass.dispose()
+    this.melody.dispose()
+    this.texture.dispose()
+    this.lastPhysics  = null
+    this.lastOrganism = null
+  }
+
   reset(): void {
     this.stop()   // stop() now resets all generators
     this.lastPhysics  = null
