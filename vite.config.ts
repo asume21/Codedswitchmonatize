@@ -27,18 +27,18 @@ export default defineConfig({
   },
   envDir: __dirname,
   server: {
-    port: 5000,
+    port: 5001,
     host: '0.0.0.0',
     strictPort: true,
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:4001',
         changeOrigin: true,
         secure: false,
       },
       '/data': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:4001',
         changeOrigin: true,
         secure: false,
       },

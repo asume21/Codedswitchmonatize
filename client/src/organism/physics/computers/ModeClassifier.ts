@@ -109,8 +109,11 @@ export class ModeClassifier {
     if (f.avgCentroid < 2000) scores[OrganismMode.Smoke] += 2.0
     if (f.rmsVariance < 0.035) scores[OrganismMode.Smoke] += 1.5
 
+    // Smoke extra: very quiet AND very dark (distinguishes from Gravel)
+    if (f.avgRms < 0.35 && f.avgCentroid < 1800) scores[OrganismMode.Smoke] += 0.6
+
     // Glow — moderate baseline (default bias)
-    scores[OrganismMode.Glow] += 2.5
+    scores[OrganismMode.Glow] += 3.0
     if (f.avgHnr > 5)        scores[OrganismMode.Glow] += 1.0
 
     // Find highest score

@@ -27,6 +27,38 @@ function makeSynth() {
   }
 }
 
+function makeMonoSynth() {
+  return {
+    ...makeSynth(),
+    filter: { Q: { value: 1 }, frequency: { value: 400, rampTo: vi.fn() } },
+    filterEnvelope: { octaves: 2, decay: 0.5, attack: 0.01, release: 2, baseFrequency: 200 },
+    envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 1 },
+  }
+}
+
+function makeMembraneSynth() {
+  return {
+    ...makeSynth(),
+    pitchDecay: 0.05,
+    envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 },
+  }
+}
+
+function makeNoiseSynth() {
+  return {
+    ...makeSynth(),
+    envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 },
+  }
+}
+
+function makeMetalSynth() {
+  return {
+    ...makeSynth(),
+    envelope: { attack: 0.001, decay: 0.1, release: 0.2 },
+    resonance: 3200,
+  }
+}
+
 export function createToneMock() {
   return {
     start: mockToneStart,
@@ -35,18 +67,19 @@ export function createToneMock() {
       start: mockTransportStart,
       stop: mockTransportStop,
     }),
+    getContext: vi.fn().mockReturnValue({ lookAhead: 0 }),
     // Use function() constructors so `new` works
     MembraneSynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
-      return Object.assign(this, makeSynth())
+      return Object.assign(this, makeMembraneSynth())
     }),
     NoiseSynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
-      return Object.assign(this, makeSynth())
+      return Object.assign(this, makeNoiseSynth())
     }),
     MetalSynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
-      return Object.assign(this, makeSynth())
+      return Object.assign(this, makeMetalSynth())
     }),
     MonoSynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
-      return Object.assign(this, makeSynth())
+      return Object.assign(this, makeMonoSynth())
     }),
     PolySynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, makeSynth())

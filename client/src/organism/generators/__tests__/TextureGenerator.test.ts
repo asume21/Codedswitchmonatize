@@ -68,7 +68,7 @@ describe('TextureGenerator', () => {
     expect(report.activityLevel).toBeLessThan(0.1)
   })
 
-  it('FLOW with flowDepth=1.0 → activity approaches 0.85', () => {
+  it('FLOW with flowDepth=1.0 → activity converges toward 0.28', () => {
     const physics = makePhysics()
     const organism = makeOrganism({
       current: OState.Flow,
@@ -80,12 +80,12 @@ describe('TextureGenerator', () => {
     }
 
     const report = gen.getActivityReport(Date.now())
-    // Target: 0.65 + 0.20 * 1.0 = 0.85
-    expect(report.activityLevel).toBeGreaterThan(0.70)
-    expect(report.activityLevel).toBeLessThan(0.95)
+    // Target: 0.20 + 0.08 * 1.0 = 0.28
+    expect(report.activityLevel).toBeGreaterThan(0.20)
+    expect(report.activityLevel).toBeLessThan(0.35)
   })
 
-  it('setThinning(true) → target level reduced to 30%', () => {
+  it('setThinning(true) → target level reduced to 40%', () => {
     const physics = makePhysics()
     const organism = makeOrganism({
       current: OState.Flow,
@@ -99,9 +99,9 @@ describe('TextureGenerator', () => {
     }
 
     const report = gen.getActivityReport(Date.now())
-    // Target: 0.85 * 0.3 = 0.255
-    expect(report.activityLevel).toBeLessThan(0.40)
-    expect(report.activityLevel).toBeGreaterThan(0.15)
+    // Target: 0.28 * 0.4 = 0.112
+    expect(report.activityLevel).toBeLessThan(0.15)
+    expect(report.activityLevel).toBeGreaterThan(0.05)
   })
 
   it('mode change → filter frequency morphs toward new mode target', () => {
@@ -110,16 +110,16 @@ describe('TextureGenerator', () => {
 
     gen.processFrame(physicsHeat, organism)
 
-    // Heat mode filter target = 2000 Hz
-    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(2000, 1.0)
+    // Heat mode filter target = 300 Hz
+    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(300, 1.0)
 
     mockFilterFreqRampTo.mockClear()
 
     const physicsIce = makePhysics({ mode: OrganismMode.Ice })
     gen.processFrame(physicsIce, organism)
 
-    // Ice mode filter target = 800 Hz
-    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(800, 1.0)
+    // Ice mode filter target = 250 Hz
+    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(250, 1.0)
   })
 
   it('reset() zeros activity and disables thinning', () => {

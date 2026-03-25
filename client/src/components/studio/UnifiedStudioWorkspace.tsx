@@ -25,7 +25,6 @@ import SongUploader from './SongUploader';
 import WorkflowSelector from './WorkflowSelector';
 import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
-import { ToastAction } from '@/components/ui/toast';
 import { useMIDI } from '@/hooks/use-midi';
 import { useInstrumentOptional } from '@/contexts/InstrumentContext';
 import { AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
@@ -798,6 +797,7 @@ export default function UnifiedStudioWorkspace() {
       title: '🔥 Astutely Generated!',
       description: `${notes.length} notes at ${result.bpm} BPM added to Piano Roll.`,
       duration: 5000,
+      onClick: () => { setActiveView('piano-roll'); setPianoRollExpanded(true); },
     });
   }, [setTransportTempo, setActiveView, toast]);
   // Clips, markers, and session/grid state
@@ -1076,7 +1076,7 @@ export default function UnifiedStudioWorkspace() {
         case 'granular-engine':
         case 'wavetable-oscillator':
           setActiveView('ai-studio');
-          toast({ title: 'Synth Engine', description: 'Opening AI Studio for synthesis tools' });
+          toast({ title: 'Synth Engine', description: 'Opening AI Studio for synthesis tools', onClick: () => setActiveView('ai-studio') });
           break;
         default:
           // Try direct match as activeView value
@@ -1339,6 +1339,7 @@ export default function UnifiedStudioWorkspace() {
       toast({
         title: "Imported Audio",
         description: `Added ${newTrack.name} and opened Piano Roll.`,
+        onClick: () => { setActiveView('piano-roll'); setPianoRollExpanded(true); },
       });
     };
 
@@ -1448,14 +1449,7 @@ export default function UnifiedStudioWorkspace() {
         toast({
           title: '🎹 Piano Roll Ready',
           description: `Melody, bass & chords loaded (${melodicCount} notes)`,
-          action: (
-            <ToastAction altText="Open Piano Roll" onClick={() => {
-              setActiveView('piano-roll');
-              setPianoRollExpanded(true);
-            }}>
-              Open
-            </ToastAction>
-          ),
+          onClick: () => { setActiveView('piano-roll'); setPianoRollExpanded(true); },
         });
       }
 
@@ -1464,17 +1458,13 @@ export default function UnifiedStudioWorkspace() {
         toast({
           title: '🥁 Beat Lab Ready',
           description: `Drum pattern loaded (${drumCount} hits)`,
-          action: (
-            <ToastAction altText="Open Beat Lab" onClick={() => setActiveView('beat-lab')}>
-              Open
-            </ToastAction>
-          ),
+          onClick: () => setActiveView('beat-lab'),
         });
       }
 
       // Fallback if somehow nothing categorised
       if (melodicCount === 0 && drumCount === 0) {
-        toast({ title: 'AI Pattern Loaded', description: `${detail.notes.length} notes ready` });
+        toast({ title: 'AI Pattern Loaded', description: `${detail.notes.length} notes ready`, onClick: () => { setActiveView('piano-roll'); setPianoRollExpanded(true); } });
       }
     };
 
@@ -1549,25 +1539,14 @@ export default function UnifiedStudioWorkspace() {
         toast({
           title: '🎹 Organism → Piano Roll',
           description: `${melodicCount} melodic notes loaded from ${snapshot.source}`,
-          action: (
-            <ToastAction altText="Open Piano Roll" onClick={() => {
-              setActiveView('piano-roll');
-              setPianoRollExpanded(true);
-            }}>
-              Open
-            </ToastAction>
-          ),
+          onClick: () => { setActiveView('piano-roll'); setPianoRollExpanded(true); },
         });
       }
       if (drumCount > 0) {
         toast({
           title: '🥁 Organism → Beat Lab',
           description: `${drumCount} drum hits loaded from ${snapshot.source}`,
-          action: (
-            <ToastAction altText="Open Beat Lab" onClick={() => setActiveView('beat-lab')}>
-              Open
-            </ToastAction>
-          ),
+          onClick: () => setActiveView('beat-lab'),
         });
       }
     };

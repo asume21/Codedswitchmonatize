@@ -21,7 +21,7 @@ describe('MixEngine', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
-    engine = new MixEngine()
+    engine = new MixEngine({ meterIntervalMs: 100 })
   })
 
   afterEach(() => {

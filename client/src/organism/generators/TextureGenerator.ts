@@ -19,7 +19,7 @@ export class TextureGenerator extends GeneratorBase {
 
   // Thinning state (responds to DensityComputer.thinningRequested)
   private thinningActive: boolean = false
-  private noiseStarted:  boolean = false
+  private noiseStarted:   boolean = false
 
   constructor() {
     super(GeneratorName.Texture)
@@ -77,13 +77,11 @@ export class TextureGenerator extends GeneratorBase {
     if (to === OState.Dormant) {
       this.activityLevel = 0
       this.gain.gain.rampTo(0, 1.0)
-      // Stop noise source to eliminate any bleed during silence
-      if (this.noiseStarted) {
-        this.noiseSource.stop()
-        this.noiseStarted = false
-      }
+      // Do NOT stop the noise source — Tone.Noise.stop()+start() creates a new
+      // AudioBufferSourceNode each time without freeing the old one, leaking ~4MB
+      // per cycle. Silence via gain instead; the noise source runs continuously.
     } else if (!this.noiseStarted) {
-      // Start noise only when organism first leaves Dormant
+      // Start noise once on first non-Dormant transition; reuse forever after.
       this.noiseSource.start()
       this.noiseStarted = true
     }
@@ -93,10 +91,8 @@ export class TextureGenerator extends GeneratorBase {
     this.activityLevel  = 0
     this.thinningActive = false
     this.gain.gain.rampTo(0, 0.5)
-    if (this.noiseStarted) {
-      this.noiseSource.stop()
-      this.noiseStarted = false
-    }
+    // Do NOT stop noiseSource here — same leak as onStateTransition.
+    // Gain ramp to 0 provides silence; source is disposed in dispose().
   }
 
   // ── Reactive mutation methods (Section 05) ────────────────────────
@@ -116,9 +112,7 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   dispose(): void {
-    if (this.noiseStarted) {
-      this.noiseSource.stop()
-    }
+    try { if (this.noiseStarted) this.noiseSource.stop() } catch { /* already stopped */ }
     this.noiseSource.dispose()
     this.highpass.dispose()
     this.filter.dispose()

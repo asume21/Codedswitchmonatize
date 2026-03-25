@@ -24,6 +24,7 @@ import { createVoiceConvertRoutes } from "./routes/voiceConvert";
 import { createStemGenerationRoutes } from "./routes/stemGeneration";
 import { createSampleLibraryRoutes } from "./routes/sampleLibrary";
 import { createBlogRouter } from "./routes/blog";
+import { createAudioDebugRoutes } from "./routes/audioDebug";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -334,6 +335,11 @@ ${urls
   // Mount Organism routes (Session Capture + Evolution Profile)
   app.use("/api/organism/sessions", sessionRouter);
   app.use("/api/organism/profile", profileRouter);
+
+  // Audio Debug Bridge — dev only, gives Claude Code ears
+  if (process.env.NODE_ENV !== 'production') {
+    app.use("/api/audio-debug", createAudioDebugRoutes());
+  }
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation

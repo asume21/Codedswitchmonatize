@@ -116,12 +116,12 @@ describe('OrganismControls', () => {
     expect(btn.hasAttribute('disabled')).toBe(true)
   })
 
-  it('Download MIDI button absent when lastSessionDNA=null', () => {
+  it('MIDI button absent when lastSessionDNA=null', () => {
     renderWithCtx(makeCtx({ lastSessionDNA: null }))
-    expect(screen.queryByText('Download MIDI')).toBeNull()
+    expect(screen.queryByText('MIDI')).toBeNull()
   })
 
-  it('Download MIDI button present when lastSessionDNA is set', () => {
+  it('MIDI button present when lastSessionDNA is set', () => {
     renderWithCtx(makeCtx({
       lastSessionDNA: {
         sessionId: 'test', userId: 'u1', createdAt: 0, durationMs: 5000,
@@ -137,7 +137,7 @@ describe('OrganismControls', () => {
         transitions: [], generatorEvents: [],
       },
     }))
-    expect(screen.getByText('Download MIDI')).toBeDefined()
+    expect(screen.getByText('MIDI')).toBeDefined()
   })
 
   it('Error message renders when error is non-null', () => {

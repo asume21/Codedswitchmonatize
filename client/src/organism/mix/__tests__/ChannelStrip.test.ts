@@ -42,7 +42,7 @@ describe('ChannelStrip', () => {
 
   it('dispose() cleans up all Tone.js nodes without error', () => {
     expect(() => strip.dispose()).not.toThrow()
-    // 6 nodes: input, compressor, panner, fader, analyser, output
-    expect(mockDispose).toHaveBeenCalledTimes(6)
+    // 10 nodes: input, highpass, lowShelf, midPeak, highShelf, compressor, panner, fader, analyser, output
+    expect(mockDispose).toHaveBeenCalledTimes(10)
   })
 })

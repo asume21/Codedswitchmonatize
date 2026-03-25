@@ -323,6 +323,7 @@ export class DrumGenerator extends GeneratorBase {
       }
     }
 
+    if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent('ai:loadBeatPattern', {
       detail: {
         tracks: Object.entries(trackMap).map(([id, pattern]) => ({

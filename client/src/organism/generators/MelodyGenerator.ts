@@ -272,6 +272,7 @@ export class MelodyGenerator extends GeneratorBase {
       this.part.stop()
       this.part.dispose()
       this.part = null
+      try { this.synth.releaseAll() } catch { /* context not yet started */ }
     }
   }
 

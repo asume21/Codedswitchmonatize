@@ -24,6 +24,12 @@ export class GeneratorOrchestrator {
   private physicsEngineRef: PhysicsEngine | null = null
   private running: boolean = false
 
+  // Unsub functions saved from wire() — called in dispose() to break the
+  // circular reference cycle: physics.callbacks → orchestrator → generators
+  private unsubPhysics:     (() => void) | null = null
+  private unsubOrganism:    (() => void) | null = null
+  private unsubTransition:  (() => void) | null = null
+
   // Reactive multiplier state (Section 05)
   private hatDensityMultiplier:   number = 1.0
   private kickVelocityMultiplier: number = 1.0
@@ -77,19 +83,20 @@ export class GeneratorOrchestrator {
     // Store reference for density feedback loop (avoids circular import)
     this.physicsEngineRef = physicsEngine
 
-    // Subscribe to physics updates
-    physicsEngine.subscribe((physics) => {
+    // Subscribe to physics updates — store unsub so dispose() can break the
+    // circular reference: physics.callbacks → orchestrator → generators
+    this.unsubPhysics = physicsEngine.subscribe((physics) => {
       this.lastPhysics = physics
       this.onFrame(physics, this.lastOrganism)
     })
 
     // Subscribe to organism state updates
-    stateMachine.subscribe((organism) => {
+    this.unsubOrganism = stateMachine.subscribe((organism) => {
       this.lastOrganism = organism
     })
 
     // Subscribe to transition events
-    stateMachine.onTransition((event) => {
+    this.unsubTransition = stateMachine.onTransition((event) => {
       if (!this.lastPhysics) return
       this.drum.onStateTransition(event.to, event.physicsSnapshot)
       this.bass.onStateTransition(event.to, event.physicsSnapshot)
@@ -151,13 +158,23 @@ export class GeneratorOrchestrator {
    * when OrganismProvider re-mounts (userId / inputSource / autoEnergy change).
    */
   dispose(): void {
+    // Unsubscribe from physics/state before disposing generators so the
+    // circular reference (physics → orchestrator → generators) is broken.
+    this.unsubPhysics?.()
+    this.unsubOrganism?.()
+    this.unsubTransition?.()
+    this.unsubPhysics    = null
+    this.unsubOrganism   = null
+    this.unsubTransition = null
+
     this.stop()
     this.drum.dispose()
     this.bass.dispose()
     this.melody.dispose()
     this.texture.dispose()
-    this.lastPhysics  = null
-    this.lastOrganism = null
+    this.lastPhysics     = null
+    this.lastOrganism    = null
+    this.physicsEngineRef = null
   }
 
   reset(): void {

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm:dev:client\" \"npm:dev:server\"",
     "dev:client": "vite dev",
-    "dev:server": "set PORT=4000 && set NODE_ENV=development && tsx server/index.ts",
+    "dev:server": "set PORT=4001 && set NODE_ENV=development && tsx server/index.ts",
     "dev:ngrok": "node start-with-ngrok.js",
     "dev:tunnel": "node start-with-localtunnel.cjs",
     "build": "vite build --config vite.config.prod.ts && node esbuild.config.js",

@@ -1,0 +1,64 @@
+{
+  "name": "audio-debug-mcp",
+  "version": "1.0.0",
+  "description": "Give your AI coding assistant ears — capture, analyze, and describe live audio from any web app. Works with Windsurf, Cursor, Claude Code, and any MCP-compatible IDE.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "audio-debug-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./middleware": "./dist/middleware.js",
+    "./client": "./client-snippet.js"
+  },
+  "files": [
+    "dist/**/*",
+    "client-snippet.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --import tsx/esm src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "audio",
+    "debug",
+    "model-context-protocol",
+    "ai",
+    "web-audio",
+    "music",
+    "sound",
+    "analysis",
+    "windsurf",
+    "cursor",
+    "claude",
+    "copilot",
+    "coding-assistant",
+    "developer-tools"
+  ],
+  "author": "asume21",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asume21/audio-debug-mcp"
+  },
+  "homepage": "https://github.com/asume21/audio-debug-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/asume21/audio-debug-mcp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

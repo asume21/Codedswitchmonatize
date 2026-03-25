@@ -1,0 +1,35 @@
+Initializing MCP...
+[MCP STDERR]: [audio-debug-mcp] Audio Debug MCP server running. Waiting for tool calls...
+
+Initialize Result: {
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "tools": {
+        "listChanged": true
+      }
+    },
+    "serverInfo": {
+      "name": "audio-debug",
+      "version": "1.0.0"
+    }
+  },
+  "jsonrpc": "2.0",
+  "id": 1774402519357
+}
+\nCalling capture_audio (3 seconds)...
+[MCP STDERR]: [audio-debug-mcp] Capture command sent ΓÇö id: 4ada672e-a028-47c0-942b-e1f40c3f72cd, queued: true
+
+Capture Result: {
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Capture timed out: Timed out waiting for capture 4ada672e-a028-47c0-942b-e1f40c3f72cd after 11000ms. Is the app open in a browser tab?"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1774402519838
+}
+Could not extract capture ID
