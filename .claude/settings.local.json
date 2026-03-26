@@ -4,5 +4,9 @@
       "Bash(npm run:*)",
       "Bash(git add:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "audio-debug"
+  ],
+  "enableAllProjectMcpServers": false
 }

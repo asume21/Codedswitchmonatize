@@ -48,7 +48,11 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.output = new Tone.Gain(1)
 
+    // maxPolyphony capped at 6 — melody lines are monophonic/thin-chord phrases
+    // (never more than 3-4 simultaneous notes). Default of 32 allocates ~256
+    // FMSynth voice nodes upfront which falsely registers as a memory leak.
     this.synth = new Tone.PolySynth(Tone.FMSynth, {
+      maxPolyphony: 6,
       harmonicity: 2,
       modulationIndex: 1.5,
       oscillator:    { type: 'sine' },

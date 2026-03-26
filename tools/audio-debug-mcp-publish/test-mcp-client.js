@@ -3,9 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const baseUrl = process.env.AUDIO_DEBUG_BASE_URL || 'http://localhost:4001';
 
 const mcpServer = spawn('node', [path.join(__dirname, 'dist/index.js')], {
-  env: { ...process.env, AUDIO_DEBUG_BASE_URL: 'http://localhost:5050' },
+  env: { ...process.env, AUDIO_DEBUG_BASE_URL: baseUrl },
   stdio: ['pipe', 'pipe', 'pipe']
 });
 
@@ -44,7 +45,7 @@ function sendRequest(method, params = {}) {
 }
 
 async function run() {
-  console.log('Initializing MCP...');
+  console.log(`Initializing MCP connected to ${baseUrl}...`);
   const initRes = await sendRequest("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
@@ -72,6 +73,8 @@ async function run() {
               arguments: { capture_id: capId }
           });
           console.log('Analyze Result:', JSON.stringify(analyzeRes, null, 2));
+          
+          // Also call describe_audio if desired, but we'll stick to analyze for now to avoid needing API keys here.
       } else {
           console.log('Could not extract capture ID');
       }

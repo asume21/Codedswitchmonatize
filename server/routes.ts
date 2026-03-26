@@ -25,6 +25,7 @@ import { createStemGenerationRoutes } from "./routes/stemGeneration";
 import { createSampleLibraryRoutes } from "./routes/sampleLibrary";
 import { createBlogRouter } from "./routes/blog";
 import { createAudioDebugRoutes } from "./routes/audioDebug";
+import { createMcpApiRoutes } from "./routes/mcpApi";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -340,6 +341,9 @@ ${urls
   if (process.env.NODE_ENV !== 'production') {
     app.use("/api/audio-debug", createAudioDebugRoutes());
   }
+
+  // MCP Cloud API endpoints for monetization
+  app.use("/api/mcp", createMcpApiRoutes());
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation

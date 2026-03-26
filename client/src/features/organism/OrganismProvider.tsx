@@ -378,7 +378,19 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unsubTranscription()
       window.removeEventListener('organism:section-change', handleSectionChange)
     }
-  }, [userId, inputSource, autoEnergy, profile])
+  // profile is intentionally excluded: it loads async and must NOT trigger
+  // a full engine teardown. Profile updates are applied via the effect below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, inputSource, autoEnergy])
+
+  // Apply profile updates to the live physics engine without recreating engines.
+  // This prevents the async profile fetch (~2-8s network) from tearing down
+  // an already-running organism session.
+  useEffect(() => {
+    if (physicsRef.current && profile) {
+      physicsRef.current.setProfile(profile)
+    }
+  }, [profile])
 
   // ── Actions ───────────────────────────────────────────────────────
 
