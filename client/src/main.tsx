@@ -6,6 +6,6 @@ import App from "./App";
 import "./index.css";
 import { initAudioDebugBridge } from './lib/audioDebugBridge';
 
-if (import.meta.env.DEV) initAudioDebugBridge();
+initAudioDebugBridge();
 
 createRoot(document.getElementById("root")!).render(<App />);

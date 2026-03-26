@@ -1,73 +1,50 @@
 /**
- * Audio Debug Bridge — browser side (dev mode only)
+ * WebEar browser bridge — taps Tone.js audio and relays to the cloud relay.
  *
- * Taps the Tone.js master output via a side-channel MediaStreamDestination,
- * listens for capture commands from the dev server via SSE, records audio
- * using MediaRecorder, and posts the captured blob back to the server.
+ * Listens for capture commands from the webear relay via SSE,
+ * records audio using MediaRecorder, and posts the blob back.
  *
- * Enabled only when import.meta.env.DEV is true.
- * Exposed on window.__audioDebug for manual console testing.
+ * Works in dev and production.
  */
 
 import * as Tone from 'tone'
 
-const BRIDGE_BASE = '/api/audio-debug'
+const API_KEY  = 'wbr_d461677168c417c329e0ea2e8342a44f8bb1169d506d99078ab53643d1065267'
+const CONNECT  = `/api/webear/connect?key=${API_KEY}`
+const BLOB_URL = (id: string) => `/api/webear/blob/${id}`
 
-interface CaptureCommand {
-  type: 'capture'
-  captureId: string
-  durationMs: number
-}
-
-interface AudioDebugBridgeAPI {
-  startCapture: (durationMs?: number) => Promise<string>
-  getLastCaptureId: () => string | null
-  status: () => 'connected' | 'disconnected' | 'capturing'
-}
-
-declare global {
-  interface Window {
-    __audioDebug?: AudioDebugBridgeAPI
-  }
-}
-
-let tapNode: MediaStreamAudioDestinationNode | null = null
-let recorder: MediaRecorder | null = null
-let sseSource: EventSource | null = null
+let tapNode:     MediaStreamAudioDestinationNode | null = null
+let recorder:    MediaRecorder | null = null
+let sseSource:   EventSource   | null = null
+let isCapturing  = false
+let isConnected  = false
 let lastCaptureId: string | null = null
-let isCapturing = false
-let isConnected = false
 
 function log(msg: string) {
-  console.debug(`[audio-debug-bridge] ${msg}`)
+  console.debug(`[webear-bridge] ${msg}`)
 }
 
 function ensureTap(): MediaStreamAudioDestinationNode {
   if (tapNode) return tapNode
 
-  // Strategy: passively connect Tone's output to a MediaStreamDestination
-  // WITHOUT breaking Tone's existing connection to ctx.destination.
-  // Web Audio allows multiple .connect() calls — they fan out, not replace.
-  // This way Tone keeps playing to speakers AND we get a copy for recording.
   try {
-    const ctx = Tone.getContext().rawContext as AudioContext
-    tapNode = ctx.createMediaStreamDestination()
+    const ctx  = Tone.getContext().rawContext as AudioContext
+    tapNode    = ctx.createMediaStreamDestination()
 
-    // Tone.getDestination() is the master volume ToneAudioNode.
-    // Find its underlying Web Audio output node.
-    const toneDest = Tone.getDestination() as any
-    const toneOutputNode: AudioNode | null =
-      toneDest?.output?.output ||  // Tone v14+
-      toneDest?.output ||          // Tone v13
-      toneDest?._output ||         // internal
+    const toneDest     = Tone.getDestination() as any
+    const toneOutput: AudioNode | null =
+      toneDest?.output?.output ||
+      toneDest?.output          ||
+      toneDest?._output         ||
       null
 
-    if (toneOutputNode) {
-      // Just add a parallel connection — don't disconnect anything
-      toneOutputNode.connect(tapNode)
-      log('Tap connected in parallel to Tone.js master output (non-destructive)')
+    if (toneOutput) {
+      toneOutput.connect(tapNode)
+      log('Tapped Tone.js master output ✓')
     } else {
-      log('Warning: could not find Tone output node — tap may not capture audio')
+      // Fallback: tap ctx.destination directly
+      ctx.destination.connect(tapNode)
+      log('Tapped AudioContext destination (fallback) ✓')
     }
   } catch (e) {
     log(`ensureTap error: ${e}`)
@@ -75,23 +52,19 @@ function ensureTap(): MediaStreamAudioDestinationNode {
 
   if (!tapNode) {
     const ctx = Tone.getContext().rawContext as AudioContext
-    tapNode = ctx.createMediaStreamDestination()
+    tapNode   = ctx.createMediaStreamDestination()
   }
 
   return tapNode
 }
 
 async function doCapture(captureId: string, durationMs: number): Promise<void> {
-  if (isCapturing) {
-    log(`Capture ${captureId} skipped — already capturing`)
-    return
-  }
+  if (isCapturing) { log(`Skipping ${captureId} — already capturing`); return }
 
-  isCapturing = true
+  isCapturing   = true
   lastCaptureId = captureId
 
-  const tap = ensureTap()
-
+  const tap      = ensureTap()
   const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
     ? 'audio/webm;codecs=opus'
     : 'audio/webm'
@@ -99,73 +72,58 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
   const chunks: Blob[] = []
   recorder = new MediaRecorder(tap.stream, { mimeType })
 
-  recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) chunks.push(e.data)
-  }
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
 
-  log(`Starting capture ${captureId} for ${durationMs}ms`)
+  log(`Capturing ${durationMs}ms (id: ${captureId})`)
 
   await new Promise<void>((resolve) => {
     recorder!.onstop = () => resolve()
-    recorder!.start(200) // 200ms timeslice so we get data even for short captures
-    setTimeout(() => {
-      if (recorder?.state === 'recording') recorder.stop()
-    }, durationMs)
+    recorder!.start(200)
+    setTimeout(() => { if (recorder?.state === 'recording') recorder.stop() }, durationMs)
   })
 
-  const blob = new Blob(chunks, { type: mimeType })
-  log(`Capture ${captureId} complete — ${blob.size} bytes, posting to server`)
+  const blob   = new Blob(chunks, { type: mimeType })
+  const buffer = await blob.arrayBuffer()
 
-  const form = new FormData()
-  form.append('audio', blob, 'capture.webm')
-  form.append('captureId', captureId)
-  form.append('durationMs', String(durationMs))
+  log(`Uploading ${blob.size} bytes...`)
 
-  await fetch(`${BRIDGE_BASE}/capture`, { method: 'POST', body: form })
-  log(`Capture ${captureId} uploaded`)
+  await fetch(BLOB_URL(captureId), {
+    method:  'POST',
+    headers: { 'Content-Type': 'audio/webm' },
+    body:    buffer,
+  })
+
+  log(`Delivered — capture_id: ${captureId}`)
   isCapturing = false
 }
 
 function connectSSE() {
   if (sseSource) return
 
-  sseSource = new EventSource(`${BRIDGE_BASE}/events`)
+  sseSource = new EventSource(CONNECT)
 
-  sseSource.onopen = () => {
+  sseSource.addEventListener('connected', () => {
     isConnected = true
-    log('SSE connected')
-    // Drain any commands that arrived while we were disconnected
-    fetch(`${BRIDGE_BASE}/pending-commands`)
-      .then(r => r.json())
-      .then((cmds: CaptureCommand[]) => {
-        for (const cmd of cmds) {
-          if (cmd.type === 'capture') doCapture(cmd.captureId, cmd.durationMs)
-        }
-      })
-      .catch(() => {})
-  }
+    log('Connected to webear relay ✓')
+  })
 
   sseSource.addEventListener('capture', (e: MessageEvent) => {
-    const cmd = JSON.parse(e.data) as CaptureCommand
-    doCapture(cmd.captureId, cmd.durationMs)
+    const { captureId, durationMs } = JSON.parse(e.data)
+    doCapture(captureId, durationMs ?? 3000)
   })
 
   sseSource.onerror = () => {
     isConnected = false
     sseSource?.close()
     sseSource = null
-    // EventSource auto-reconnects, but we clear the ref and re-call after delay
     setTimeout(connectSSE, 3000)
   }
 }
 
 export function initAudioDebugBridge(): void {
-  if (!import.meta.env.DEV) return
-
   connectSSE()
   ensureTap()
 
-  // Also expose a manual API on window for console testing
   window.__audioDebug = {
     startCapture: async (durationMs = 3000) => {
       const captureId = crypto.randomUUID()
@@ -176,5 +134,5 @@ export function initAudioDebugBridge(): void {
     status: () => isCapturing ? 'capturing' : isConnected ? 'connected' : 'disconnected',
   }
 
-  log('Audio Debug Bridge initialised. window.__audioDebug is available.')
+  log('Bridge ready. window.__audioDebug available.')
 }
