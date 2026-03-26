@@ -54,6 +54,7 @@ const VoiceConvertPage = React.lazy(() => import("@/pages/voice-convert").catch(
 const SampleLibraryPage = React.lazy(() => import("@/pages/sample-library").catch(() => ({ default: () => <NotFound /> })));
 const BlogPage = React.lazy(() => import("@/pages/blog").catch(() => ({ default: () => <NotFound /> })));
 const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => ({ default: () => <NotFound /> })));
+const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -259,6 +260,9 @@ function App() {
               </Route>
               <Route path="/sample-library">
                 <AppLayout><SampleLibraryPage /></AppLayout>
+              </Route>
+              <Route path="/developer">
+                <DeveloperPage />
               </Route>
               <Route path="/ai-assistant">
                 <AIMessageProvider>

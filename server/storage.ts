@@ -41,6 +41,7 @@ import {
   type VoiceConvertJob,
   type InsertVoiceConvertJob,
   type UserApiKey,
+  type WebearApiKey,
   type InsertUserApiKey,
   type SocialPost,
   type SocialConnection,
@@ -69,11 +70,12 @@ import {
   projectShares,
   voiceConvertJobs,
   userApiKeys,
+  webearApiKeys,
   socialPosts,
   socialConnections,
   chatMessages,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { db } from "./db";
 import { eq, desc, sql, and } from "drizzle-orm";
 
@@ -283,6 +285,13 @@ export interface IStorage {
   getUserApiKey(userId: string, service: string): Promise<UserApiKey | undefined>;
   upsertUserApiKey(userId: string, data: InsertUserApiKey): Promise<UserApiKey>;
   deleteUserApiKey(userId: string, service: string): Promise<void>;
+
+  // WebEar API Keys
+  getWebearKeyByValue(key: string): Promise<WebearApiKey | undefined>;
+  getWebearKeyByUserId(userId: string): Promise<WebearApiKey | undefined>;
+  createWebearKey(userId: string): Promise<WebearApiKey>;
+  revokeWebearKey(userId: string): Promise<void>;
+  incrementWebearKeyUsage(keyId: string): Promise<void>;
 
   // Blog Posts
   getBlogPosts(): Promise<any[]>;
@@ -1219,6 +1228,13 @@ export class MemStorage implements IStorage {
   async getUserApiKey(_userId: string, _service: string): Promise<UserApiKey | undefined> { return undefined; }
   async upsertUserApiKey(_userId: string, _data: InsertUserApiKey): Promise<UserApiKey> { throw new Error("Not implemented in MemStorage"); }
   async deleteUserApiKey(_userId: string, _service: string): Promise<void> {}
+
+  // WebEar API Keys (MemStorage stubs)
+  async getWebearKeyByValue(_key: string): Promise<WebearApiKey | undefined> { return undefined; }
+  async getWebearKeyByUserId(_userId: string): Promise<WebearApiKey | undefined> { return undefined; }
+  async createWebearKey(_userId: string): Promise<WebearApiKey> { throw new Error("Not implemented in MemStorage"); }
+  async revokeWebearKey(_userId: string): Promise<void> {}
+  async incrementWebearKeyUsage(_keyId: string): Promise<void> {}
 
   // Blog Posts (MemStorage stubs)
   async getBlogPosts(): Promise<any[]> { return []; }
@@ -2489,6 +2505,53 @@ export class DatabaseStorage implements IStorage {
     if (post) {
       post.views += 1;
     }
+  }
+
+  // WebEar API Keys
+  async getWebearKeyByValue(key: string): Promise<WebearApiKey | undefined> {
+    const [row] = await db
+      .select()
+      .from(webearApiKeys)
+      .where(and(eq(webearApiKeys.key, key), eq(webearApiKeys.isActive, true)));
+    return row || undefined;
+  }
+
+  async getWebearKeyByUserId(userId: string): Promise<WebearApiKey | undefined> {
+    const [row] = await db
+      .select()
+      .from(webearApiKeys)
+      .where(and(eq(webearApiKeys.userId, userId), eq(webearApiKeys.isActive, true)))
+      .orderBy(desc(webearApiKeys.createdAt));
+    return row || undefined;
+  }
+
+  async createWebearKey(userId: string): Promise<WebearApiKey> {
+    // Revoke any existing active key first
+    await db
+      .update(webearApiKeys)
+      .set({ isActive: false })
+      .where(eq(webearApiKeys.userId, userId));
+
+    const key = 'wbr_' + randomBytes(32).toString('hex');
+    const [row] = await db
+      .insert(webearApiKeys)
+      .values({ userId, key, name: 'Default' })
+      .returning();
+    return row;
+  }
+
+  async revokeWebearKey(userId: string): Promise<void> {
+    await db
+      .update(webearApiKeys)
+      .set({ isActive: false })
+      .where(eq(webearApiKeys.userId, userId));
+  }
+
+  async incrementWebearKeyUsage(keyId: string): Promise<void> {
+    await db
+      .update(webearApiKeys)
+      .set({ usageCount: sql`usage_count + 1`, lastUsedAt: new Date() })
+      .where(eq(webearApiKeys.id, keyId));
   }
 }
 

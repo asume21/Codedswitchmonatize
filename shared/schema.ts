@@ -752,6 +752,24 @@ export type InsertVoiceConvertJob = z.infer<typeof insertVoiceConvertJobSchema>;
 export type UserApiKey = typeof userApiKeys.$inferSelect;
 export type InsertUserApiKey = z.infer<typeof insertUserApiKeySchema>;
 
+// WebEar API Keys — per-user keys for the webear MCP monetization
+export const webearApiKeys = pgTable("webear_api_keys", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  key: text("key").notNull().unique(), // wbr_<random64>
+  name: varchar("name").default("Default"),
+  usageCount: integer("usage_count").default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type WebearApiKey = typeof webearApiKeys.$inferSelect;
+
 // AI Recommendation System for Song Analysis
 export enum RecommendationCategory {
   MIX_BALANCE = "mix_balance",

@@ -51,6 +51,8 @@ export class MelodyGenerator extends GeneratorBase {
     // maxPolyphony capped at 6 — melody lines are monophonic/thin-chord phrases
     // (never more than 3-4 simultaneous notes). Default of 32 allocates ~256
     // FMSynth voice nodes upfront which falsely registers as a memory leak.
+    // Tone.js types omit maxPolyphony from the merged FMSynthOptions generic, hence the cast.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.synth = new Tone.PolySynth(Tone.FMSynth, {
       maxPolyphony: 6,
       harmonicity: 2,
@@ -59,7 +61,7 @@ export class MelodyGenerator extends GeneratorBase {
       modulation:    { type: 'triangle' },
       envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
       modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
-    })
+    } as any)
     this.synth.volume.value = -6
 
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
