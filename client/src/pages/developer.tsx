@@ -75,15 +75,12 @@ export default function DeveloperPage() {
   const displayKey = revealed && fullKey ? fullKey : (keyData?.maskedKey || "No key generated yet");
   const hasKey = !!keyData?.id;
 
+  const apiKey = fullKey || keyData?.maskedKey || 'YOUR_API_KEY';
   const claudeCodeConfig = `{
   "mcpServers": {
     "webear": {
-      "command": "npx",
-      "args": ["webear"],
-      "env": {
-        "WEBEAR_BASE_URL": "http://localhost:4000",
-        "CODEDSWITCH_API_KEY": "${fullKey || keyData?.maskedKey || 'YOUR_API_KEY'}"
-      }
+      "type": "sse",
+      "url": "https://www.codedswitch.com/api/webear/mcp/sse?key=${apiKey}"
     }
   }
 }`;
@@ -242,27 +239,20 @@ export default function DeveloperPage() {
             <CardTitle className="flex items-center gap-2">
               <Terminal className="h-4 w-4" /> Quick Setup
             </CardTitle>
-            <CardDescription>Add webear to Claude Code in 3 steps</CardDescription>
+            <CardDescription>Add webear to Claude Code in 2 steps — no local server needed</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
 
             <div className="space-y-1">
-              <p className="font-medium">1. Install the package in your project</p>
-              <code className="block bg-muted px-3 py-2 rounded font-mono text-xs">
-                npm install webear
-              </code>
+              <p className="font-medium">1. Add the browser snippet to your app</p>
+              <code className="block bg-muted px-3 py-2 rounded font-mono text-xs whitespace-pre">{`npm install webear\n\nimport { WebEar } from 'webear/browser'\nWebEar.init({ apiKey: '${apiKey}' })`}</code>
+              <p className="text-muted-foreground text-xs">Paste this once — auto-detects Tone.js, Howler.js, or raw Web Audio API.</p>
             </div>
 
             <div className="space-y-1">
-              <p className="font-medium">2. Add to your Express dev server</p>
-              <code className="block bg-muted px-3 py-2 rounded font-mono text-xs whitespace-pre">{`import { webearMiddleware } from 'webear/middleware'
-app.use('/api/webear', webearMiddleware())`}</code>
-            </div>
-
-            <div className="space-y-1">
-              <p className="font-medium">3. Add to your IDE MCP config</p>
+              <p className="font-medium">2. Add to your Claude Code MCP config</p>
               <p className="text-muted-foreground text-xs mb-1">
-                Claude Code: <code className="bg-muted px-1 rounded">~/.claude/claude.json</code> or project-level <code className="bg-muted px-1 rounded">.claude/settings.json</code>
+                File: <code className="bg-muted px-1 rounded">~/.claude/claude.json</code> or project <code className="bg-muted px-1 rounded">.claude/settings.json</code>
               </p>
               <div className="relative">
                 <pre className="bg-muted px-3 py-2 rounded font-mono text-xs overflow-x-auto">
@@ -280,12 +270,7 @@ app.use('/api/webear', webearMiddleware())`}</code>
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
-            </div>
-
-            <div className="space-y-1">
-              <p className="font-medium">4. Add the browser snippet</p>
-              <code className="block bg-muted px-3 py-2 rounded font-mono text-xs whitespace-pre">{`import { WebEar } from 'webear/client'
-WebEar.init()  // auto-detects Tone.js, Howler.js, or raw AudioContext`}</code>
+              <p className="text-muted-foreground text-xs">No local server required — everything runs on the cloud.</p>
             </div>
 
             <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded text-green-600 dark:text-green-400">

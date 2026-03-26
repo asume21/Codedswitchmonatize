@@ -1,6 +1,6 @@
 {
   "name": "webear",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Give your AI coding assistant ears — capture, analyze, and describe live audio from any web app. Works with Windsurf, Cursor, Claude Code, and any MCP-compatible IDE.",
   "type": "module",
   "main": "dist/index.js",
@@ -9,6 +9,7 @@
   },
   "exports": {
     ".": "./dist/index.js",
+    "./browser": "./dist/browser.js",
     "./middleware": "./dist/middleware.js",
     "./client": "./client-snippet.js"
   },

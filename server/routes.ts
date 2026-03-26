@@ -27,6 +27,7 @@ import { createBlogRouter } from "./routes/blog";
 import { createAudioDebugRoutes } from "./routes/audioDebug";
 import { createMcpApiRoutes } from "./routes/mcpApi";
 import { createWebearKeyRoutes } from "./routes/webearKeys";
+import { createWebearRelayRoutes } from "./routes/webearRelay";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -343,11 +344,14 @@ ${urls
     app.use("/api/audio-debug", createAudioDebugRoutes());
   }
 
-  // MCP Cloud API endpoints for monetization
+  // MCP Cloud API endpoints for monetization (legacy — kept for backward compat)
   app.use("/api/mcp", createMcpApiRoutes(storage));
 
   // WebEar API key management (generate, reveal, revoke)
   app.use("/api/webear-keys", createWebearKeyRoutes(storage));
+
+  // WebEar relay + remote MCP SSE server (browser capture bridge + Claude Code MCP transport)
+  app.use("/api/webear", createWebearRelayRoutes(storage));
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation
