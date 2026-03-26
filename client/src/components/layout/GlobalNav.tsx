@@ -1,9 +1,9 @@
 // Global Navigation Component - Appears on ALL views
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { 
-  Home, LayoutDashboard, Mic2, Shield, MessageSquare, 
-  ChevronDown, Menu, LogIn, Coins, X, BookOpen, VolumeX, Music2, Users
+import {
+  Home, LayoutDashboard, Mic2, Shield, MessageSquare,
+  ChevronDown, Menu, LogIn, Coins, X, BookOpen, VolumeX, Music2, Users, Key
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { icon: Shield, label: 'Security', path: '/vulnerability-scanner', featured: false },
   { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant', featured: false },
   { icon: Mic2, label: 'Voice Convert', path: '/voice-convert', featured: false },
+  { icon: Key, label: 'Developer API', path: '/developer', featured: false },
 ];
 
 interface GlobalNavProps {

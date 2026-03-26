@@ -21,7 +21,13 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Expose GC so tests can call gc() between cycles for deterministic counts
+        launchOptions: {
+          args: ['--js-flags=--expose-gc'],
+        },
+      },
     },
   ],
 

@@ -1,16 +1,16 @@
 /**
- * HTTP client for communicating with the Express audio-debug bridge.
+ * HTTP client for communicating with the Express webear bridge.
  * Handles commands, polling for captures, and retrieval.
  */
 
-const BASE = process.env.AUDIO_DEBUG_BASE_URL ?? 'http://localhost:4000'
+const BASE = process.env.WEBEAR_BASE_URL ?? 'http://localhost:4000'
 
 function log(msg: string) {
-  process.stderr.write(`[audio-debug-mcp] ${msg}\n`)
+  process.stderr.write(`[webear] ${msg}\n`)
 }
 
 export async function triggerCapture(durationMs: number): Promise<string> {
-  const res = await fetch(`${BASE}/api/audio-debug/command`, {
+  const res = await fetch(`${BASE}/api/webear/command`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ duration_ms: durationMs }),
@@ -31,7 +31,7 @@ export async function waitForCapture(
   const deadline = Date.now() + timeoutMs
 
   while (Date.now() < deadline) {
-    const res = await fetch(`${BASE}/api/audio-debug/capture/${captureId}`)
+    const res = await fetch(`${BASE}/api/webear/capture/${captureId}`)
 
     if (res.status === 404) {
       await sleep(pollIntervalMs)
@@ -50,7 +50,7 @@ export async function waitForCapture(
 export async function listCaptures(): Promise<Array<{
   id: string; durationMs: number; bytes: number; createdAt: string
 }>> {
-  const res = await fetch(`${BASE}/api/audio-debug/captures`)
+  const res = await fetch(`${BASE}/api/webear/captures`)
   if (!res.ok) throw new Error(`List captures returned ${res.status}`)
   return res.json()
 }

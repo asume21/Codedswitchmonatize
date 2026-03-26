@@ -35,6 +35,8 @@ export class AudioAnalysisEngine {
   private lastFrame: AnalysisFrame | null = null
   private readonly frequencyData: Float32Array<ArrayBuffer>
 
+  private readonly linearSpectrumData: Float32Array<ArrayBuffer>
+
   constructor(config: Partial<AnalysisConfig> = {}) {
     this.config = {
       ...DEFAULT_ANALYSIS_CONFIG,
@@ -67,6 +69,7 @@ export class AudioAnalysisEngine {
     )
 
     this.frequencyData = new Float32Array(new ArrayBuffer(this.config.frameSize / 2 * Float32Array.BYTES_PER_ELEMENT))
+    this.linearSpectrumData = new Float32Array(new ArrayBuffer(this.config.frameSize / 2 * Float32Array.BYTES_PER_ELEMENT))
   }
 
   async start(): Promise<void> {
@@ -172,7 +175,7 @@ export class AudioAnalysisEngine {
     }
 
     const now = performance.now()
-    const linearSpectrum = new Float32Array(this.frequencyData.length)
+    const linearSpectrum = this.linearSpectrumData
 
     this.analyserNode.getFloatFrequencyData(this.frequencyData)
     for (let index = 0; index < this.frequencyData.length; index += 1) {

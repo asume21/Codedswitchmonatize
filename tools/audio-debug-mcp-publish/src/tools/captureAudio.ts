@@ -16,7 +16,7 @@ export async function captureAudioHandler(args: { duration_ms?: number }) {
     return {
       content: [{
         type: 'text' as const,
-        text: `Failed to send capture command: ${err instanceof Error ? err.message : String(err)}\n\nMake sure the dev server is running and the app is open in a browser tab.\nSee https://github.com/asume21/audio-debug-mcp#setup for setup instructions.`,
+        text: `Failed to send capture command: ${err instanceof Error ? err.message : String(err)}\n\nMake sure the dev server is running and the app is open in a browser tab.\nSee https://github.com/asume21/webear#setup for setup instructions.`,
       }],
     }
   }

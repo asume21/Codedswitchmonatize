@@ -22,9 +22,9 @@ export class MasterBus {
     this.input      = new Tone.Gain(1)
     this.masterGain = new Tone.Gain(Tone.dbToGain(gainDb))
 
-    // Hip-hop master EQ: sub warmth, mud cut, air presence, gentle LP safety net
-    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 60,   gain: 1.0 })   // subtle sub warmth (kick/bass)
-    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 350,  gain: -2.5, Q: 0.6 }) // scoop 200-500Hz mud zone
+    // Hip-hop master EQ: sub bass cleanup, mud cut, air presence, gentle LP safety net
+    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 45,   gain: -12.0 }) // aggressively cut sub-45Hz rumble that eats headroom
+    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 200,  gain: -3.0, Q: 0.8 }) // target exact 200Hz mud zone identified by WEBEAR
     this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: 1.0 })  // restore air/presence for hats
     this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 16000, rolloff: -24 }) // gentle LP — protect from harsh aliasing only
 

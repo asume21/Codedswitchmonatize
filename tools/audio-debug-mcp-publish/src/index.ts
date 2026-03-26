@@ -30,11 +30,11 @@ import { describeAudioSchema, describeAudioHandler } from './tools/describeAudio
 import { diffAudioSchema,     diffAudioHandler     } from './tools/diffAudio.js'
 
 function log(msg: string) {
-  process.stderr.write(`[audio-debug-mcp] ${msg}\n`)
+  process.stderr.write(`[webear] ${msg}\n`)
 }
 
 const server = new McpServer({
-  name:    'audio-debug',
+  name:    'webear',
   version: '1.0.0',
 })
 

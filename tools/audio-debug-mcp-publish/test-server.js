@@ -1,5 +1,5 @@
 import express from 'express';
-import { audioDebugMiddleware } from './dist/middleware.js';
+import { webearMiddleware } from './dist/middleware.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
-app.use('/api/audio-debug', audioDebugMiddleware({ devOnly: false }));
+app.use('/api/webear', webearMiddleware({ devOnly: false }));
 
 app.get('/client-snippet.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'client-snippet.js'));
@@ -52,7 +52,7 @@ app.get('/', (req, res) => {
                  gain.connect(audioCtx.destination);
                  
                  // Init the MCP bridge on this audio context
-                 AudioDebugBridge.init({
+                 WebEar.init({
                    audioContext: audioCtx,
                    outputNode: gain,
                    devOnly: false

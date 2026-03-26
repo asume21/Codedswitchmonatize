@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface StudioMenuBarProps {
@@ -86,12 +86,37 @@ interface DropdownMenuProps {
 }
 
 function DropdownMenu({ label, children }: DropdownMenuProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
   return (
-    <div className="relative group">
-      <Button variant="ghost" size="sm">{label} ▼</Button>
-      <div className="hidden group-hover:block absolute top-full left-0 bg-gray-800 border border-gray-700 rounded shadow-lg mt-1 w-56 z-[100]">
-        {children}
-      </div>
+    <div className="relative" ref={ref}>
+      <Button variant="ghost" size="sm" onClick={() => setOpen(o => !o)}>
+        {label} ▼
+      </Button>
+      {open && (
+        <div
+          className="fixed bg-gray-800 border border-gray-700 rounded shadow-lg w-56 z-[9999]"
+          style={{
+            top: ref.current ? ref.current.getBoundingClientRect().bottom + 4 : 0,
+            left: ref.current ? ref.current.getBoundingClientRect().left : 0,
+          }}
+          onMouseLeave={() => setOpen(false)}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,16 +1,16 @@
 /**
- * audio-debug-mcp Express Middleware
+ * webear Express Middleware
  *
  * Drop-in middleware that adds the audio debug bridge to any Express server.
  * Handles SSE for browser communication, capture command dispatch, and
  * audio blob storage/retrieval for the MCP server.
  *
  * Usage:
- *   import { audioDebugMiddleware } from 'audio-debug-mcp/middleware'
- *   app.use('/api/audio-debug', audioDebugMiddleware())
+ *   import { webearMiddleware } from 'webear/middleware'
+ *   app.use('/api/webear', webearMiddleware())
  *
  * Or with options:
- *   app.use('/api/audio-debug', audioDebugMiddleware({
+ *   app.use('/api/webear', webearMiddleware({
  *     maxCaptures: 50,
  *     maxAgeMins: 15,
  *     devOnly: true,
@@ -20,7 +20,7 @@
 import { Router, type Request, type Response } from 'express'
 import crypto from 'crypto'
 
-export interface AudioDebugMiddlewareOptions {
+export interface WebEarMiddlewareOptions {
   /** Maximum number of captures to keep in memory (default: 50) */
   maxCaptures?: number
   /** Auto-evict captures older than this many minutes (default: 10) */
@@ -46,7 +46,7 @@ interface PendingCommand {
   queuedAt:   Date
 }
 
-export function audioDebugMiddleware(options: AudioDebugMiddlewareOptions = {}): Router {
+export function webearMiddleware(options: WebEarMiddlewareOptions = {}): Router {
   const {
     maxCaptures    = 50,
     maxAgeMins     = 10,
@@ -58,7 +58,7 @@ export function audioDebugMiddleware(options: AudioDebugMiddlewareOptions = {}):
 
   if (devOnly && process.env.NODE_ENV === 'production') {
     router.use((_req: Request, res: Response) => {
-      res.status(404).json({ error: 'audio-debug is disabled in production' })
+      res.status(404).json({ error: 'webear is disabled in production' })
     })
     return router
   }
@@ -322,4 +322,4 @@ function parseMultipartBasic(raw: Buffer, boundary: string): MultipartResult {
   return result
 }
 
-export default audioDebugMiddleware
+export default webearMiddleware

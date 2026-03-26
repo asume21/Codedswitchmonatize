@@ -63,7 +63,7 @@ export class BassGenerator extends GeneratorBase {
         octaves:       2.0,
       },
     })
-    this.synth.volume.value = -4
+    this.synth.volume.value = -7
 
     // Signal chain: synth → filter → monoSub → distortion → compressor → output
     this.synth.connect(this.filter)
@@ -127,19 +127,19 @@ export class BassGenerator extends GeneratorBase {
 
   private static readonly BASS_PRESETS = [
     // Fat Saw — default: wide, mid-heavy
-    { filterQ: 3,   filterOctaves: 2.0, attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3, distWet: 0.20, volume: -4 },
+    { filterQ: 3,   filterOctaves: 2.0, attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3, distWet: 0.20, volume: -7 },
     // Smooth Sub — low rumble, slow attack, minimal distortion
-    { filterQ: 1.5, filterOctaves: 1.2, attack: 0.015, decay: 0.35, sustain: 0.7, release: 0.4, distWet: 0.05, volume: -3 },
+    { filterQ: 1.5, filterOctaves: 1.2, attack: 0.015, decay: 0.35, sustain: 0.7, release: 0.4, distWet: 0.05, volume: -6 },
     // Growl — high resonance filter, aggressive distortion
-    { filterQ: 5,   filterOctaves: 2.5, attack: 0.003, decay: 0.18, sustain: 0.6, release: 0.2, distWet: 0.35, volume: -5 },
+    { filterQ: 5,   filterOctaves: 2.5, attack: 0.003, decay: 0.18, sustain: 0.6, release: 0.2, distWet: 0.35, volume: -8 },
     // Pluck — tight envelope, fast filter decay, articulate
-    { filterQ: 4,   filterOctaves: 3.0, attack: 0.002, decay: 0.12, sustain: 0.3, release: 0.2, distWet: 0.15, volume: -4 },
+    { filterQ: 4,   filterOctaves: 3.0, attack: 0.002, decay: 0.12, sustain: 0.3, release: 0.2, distWet: 0.15, volume: -7 },
     // 808 — very slow release, minimal distortion, deep sub
-    { filterQ: 1,   filterOctaves: 0.8, attack: 0.001, decay: 0.80, sustain: 0.6, release: 1.2, distWet: 0.02, volume: -2 },
+    { filterQ: 1,   filterOctaves: 0.8, attack: 0.001, decay: 0.80, sustain: 0.6, release: 1.2, distWet: 0.02, volume: -6 },
     // Funk — punchy, mid-forward, medium release
-    { filterQ: 3.5, filterOctaves: 2.8, attack: 0.003, decay: 0.14, sustain: 0.45, release: 0.18, distWet: 0.25, volume: -4 },
+    { filterQ: 3.5, filterOctaves: 2.8, attack: 0.003, decay: 0.14, sustain: 0.45, release: 0.18, distWet: 0.25, volume: -7 },
     // Dub — warm round tone, low filter, long release
-    { filterQ: 2,   filterOctaves: 1.5, attack: 0.010, decay: 0.40, sustain: 0.65, release: 0.6, distWet: 0.08, volume: -3 },
+    { filterQ: 2,   filterOctaves: 1.5, attack: 0.010, decay: 0.40, sustain: 0.65, release: 0.6, distWet: 0.08, volume: -6 },
   ] as const
 
   private applyBassPreset(): void {

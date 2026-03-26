@@ -79,7 +79,7 @@ export class DrumGenerator extends GeneratorBase {
       pitchDecay:  0.09,       // slower pitch glide for 808 sub sweep
       octaves:     4,          // was 8 — 8 octaves causes massive low-end impulse overload
       oscillator:  { type: 'sine' },
-      envelope:    { attack: 0.001, decay: 1.2, sustain: 0.0, release: 0.8 },  // longer sustain for 808 weight
+      envelope:    { attack: 0.001, decay: 0.4, sustain: 0.0, release: 0.3 },  // tightened envelope to eliminate sub-bass bleed
     })
     this.kickSub.volume.value = -6
     this.kickSub.connect(this.kickBus)

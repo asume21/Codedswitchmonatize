@@ -87,9 +87,15 @@ test.describe('Organism — audio node leak detection', () => {
     });
   });
 
-  // ─── helper: read live structural node count ──────────────────────────
+  // ─── helper: read live structural node count (after forced GC) ───────
   async function getLiveNodes(page: any): Promise<number> {
     return page.evaluate(() => {
+      // Force V8 GC if --expose-gc flag is present so node counts are
+      // deterministic rather than depending on GC scheduling.
+      if (typeof (globalThis as any).gc === 'function') {
+        (globalThis as any).gc();
+        (globalThis as any).gc(); // twice to collect WeakRef cycles
+      }
       const s = (window as any).__audioNodeStats;
       return s ? s.created - s.disposed : -1;
     });

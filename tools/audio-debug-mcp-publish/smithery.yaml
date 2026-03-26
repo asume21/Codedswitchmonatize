@@ -1,0 +1,88 @@
+name: webear
+displayName: WebEar
+description: >
+  Give your AI coding assistant ears. Capture, analyze, and describe live audio
+  from any running web application via the Web Audio API — not a file on disk,
+  not the microphone. Works with Claude Code, Cursor, Windsurf, and any
+  MCP-compatible IDE.
+version: 1.0.0
+license: MIT
+author: asume21
+homepage: https://github.com/asume21/webear
+repository: https://github.com/asume21/webear
+npm: webear
+
+categories:
+  - developer-tools
+  - audio
+  - debugging
+
+tags:
+  - web-audio
+  - tone-js
+  - audio-analysis
+  - music
+  - debugging
+  - browser
+  - real-time
+
+tools:
+  - name: capture_audio
+    description: >
+      Record a short clip (500ms–30s) of what the running web app is currently
+      outputting via its Web Audio API context. Returns a capture ID for use
+      with analyze_audio or describe_audio.
+
+  - name: analyze_audio
+    description: >
+      Run signal analysis on a captured clip. Returns RMS, peak dB, clipping
+      status, spectral centroid, frequency band energy (sub/bass/mid/hi-mid/high),
+      estimated BPM, onset count, and timing jitter.
+
+  - name: describe_audio
+    description: >
+      Get a plain-English AI description of a capture — useful when something
+      sounds wrong but you cannot describe it in technical terms.
+
+  - name: diff_audio
+    description: >
+      Compare two captures and flag what changed: loudness delta, tonal shift,
+      clipping introduced/removed, timing changes. Use before and after a code
+      change to catch audio regressions.
+
+setup:
+  steps:
+    - title: Install the package
+      description: Run `npm install webear` in your project.
+
+    - title: Add Express middleware
+      description: >
+        Import `webearMiddleware` from `webear/middleware` and
+        mount it at `/api/webear` in your dev server.
+
+    - title: Add the client snippet
+      description: >
+        Import `WebEar` from `webear/client` and call
+        `WebEar.init()` in your web app. Supports raw Web Audio API,
+        Tone.js, and custom AudioContext.
+
+    - title: Get an API key
+      description: >
+        Get a free CODEDSWITCH_API_KEY at https://www.codedswitch.com.
+        Free tier: 50 analyses/day.
+
+    - title: Configure your IDE
+      description: >
+        Add the MCP server config to your IDE (see README for Cursor, Claude
+        Code, and Windsurf examples). Set WEBEAR_BASE_URL to your dev
+        server URL and CODEDSWITCH_API_KEY to your key.
+
+config:
+  env:
+    WEBEAR_BASE_URL:
+      description: URL of your Express dev server (where middleware is mounted)
+      default: "http://localhost:4000"
+      required: false
+    CODEDSWITCH_API_KEY:
+      description: API key from codedswitch.com — required for analyze_audio and describe_audio
+      required: true

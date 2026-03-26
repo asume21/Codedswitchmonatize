@@ -256,8 +256,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     // state machine → UI state + broadcast
     let prevOrganismState: OrganismState | null = null
+    let lastOrganismUIUpdate = 0
     const unsubOrganism = machine.subscribe((state) => {
-      setOrganismState(state)
+      // Throttle React state updates to match physics (15fps)
+      const now = performance.now()
+      if (now - lastOrganismUIUpdate >= PHYSICS_UI_INTERVAL_MS) {
+        lastOrganismUIUpdate = now
+        setOrganismState(state)
+      }
 
       // Broadcast state changes to external listeners
       if (!prevOrganismState || state.current !== prevOrganismState.current) {

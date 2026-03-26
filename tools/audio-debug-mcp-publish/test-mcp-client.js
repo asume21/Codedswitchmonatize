@@ -3,10 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const baseUrl = process.env.AUDIO_DEBUG_BASE_URL || 'http://localhost:4001';
+const baseUrl = process.env.WEBEAR_BASE_URL || 'http://localhost:4001';
 
 const mcpServer = spawn('node', [path.join(__dirname, 'dist/index.js')], {
-  env: { ...process.env, AUDIO_DEBUG_BASE_URL: baseUrl },
+  env: { ...process.env, WEBEAR_BASE_URL: baseUrl },
   stdio: ['pipe', 'pipe', 'pipe']
 });
 

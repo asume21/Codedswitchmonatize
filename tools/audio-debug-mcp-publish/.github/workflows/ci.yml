@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build & Smoke Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Verify dist output exists
+        run: |
+          test -f dist/index.js      || (echo "dist/index.js missing" && exit 1)
+          test -f dist/middleware.js  || (echo "dist/middleware.js missing" && exit 1)
+          test -f dist/client.js      || (echo "dist/client.js missing" && exit 1)
+          echo "All dist files present."
+
+      - name: Smoke test — MCP server starts and exits cleanly
+        run: |
+          # The server reads from stdin. Sending an empty close should cause it
+          # to exit without crashing. We allow exit code 0 or 1 (MCP SDK may
+          # exit 1 on stdin close — that's fine; crash = exit 2+).
+          timeout 5 node dist/index.js < /dev/null; code=$?
+          if [ $code -ge 2 ]; then
+            echo "Server crashed with exit code $code"
+            exit 1
+          fi
+          echo "Server started and exited cleanly (exit $code)."
+
+      - name: Verify package exports resolve
+        run: |
+          node -e "
+            import('file://$PWD/dist/middleware.js')
+              .then(m => {
+                if (typeof m.webearMiddleware !== 'function')
+                  throw new Error('webearMiddleware not exported');
+                console.log('middleware export OK');
+              })
+          "
+
+  publish-dry-run:
+    name: npm pack dry-run
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Check packed files
+        run: |
+          npm pack --dry-run 2>&1 | tee pack-output.txt
+          # Ensure critical files are included
+          grep "dist/index.js"     pack-output.txt || (echo "dist/index.js not in pack" && exit 1)
+          grep "dist/middleware.js" pack-output.txt || (echo "dist/middleware.js not in pack" && exit 1)
+          grep "client-snippet.js"  pack-output.txt || (echo "client-snippet.js not in pack" && exit 1)
+          grep "README.md"          pack-output.txt || (echo "README.md not in pack" && exit 1)
+          echo "Pack contents verified."

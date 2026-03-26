@@ -1,10 +1,25 @@
-# audio-debug-mcp
+# webear
+
+[![npm version](https://img.shields.io/npm/v/webear.svg)](https://www.npmjs.com/package/webear)
+[![npm downloads](https://img.shields.io/npm/dm/webear.svg)](https://www.npmjs.com/package/webear)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![MCP Compatible](https://img.shields.io/badge/MCP-compatible-blue.svg)](https://modelcontextprotocol.io)
 
 **Give your AI coding assistant ears.**
 
-An [MCP](https://modelcontextprotocol.io) server that lets AI coding assistants capture, analyze, and describe live audio from any web application. Works with **Windsurf**, **Cursor**, **Claude Code**, **VS Code + Copilot**, and any MCP-compatible IDE.
+An [MCP](https://modelcontextprotocol.io) server that lets AI coding assistants capture, analyze, and describe **live audio from a running web application** — not a file on disk, not the physical microphone. The actual `AudioContext` output your app is rendering right now.
 
-> *"The beat sounds muddy"* — now your AI can actually measure why and tell you the spectral centroid is at 600 Hz with 45% energy below 250 Hz.
+> *"The beat sounds muddy"* → your AI captures 3 seconds, measures the spectral centroid at 580 Hz with 45% energy below 250 Hz, and tells you exactly why.
+
+---
+
+<!-- DEMO GIF — record a 15-second clip showing:
+     1. Dev app playing audio in browser
+     2. Asking Claude/Cursor: "capture 3s and tell me why the bass sounds muddy"
+     3. Claude calls capture_audio then analyze_audio
+     4. Claude explains: bass band is 42%, spectral centroid 620Hz, no clipping
+     Replace this comment with: ![demo](./demo.gif)
+-->
 
 ---
 
@@ -12,95 +27,104 @@ An [MCP](https://modelcontextprotocol.io) server that lets AI coding assistants 
 
 | Tool | Description |
 |------|-------------|
-| `capture_audio` | Record a short clip (500ms–30s) of what your web app is outputting |
+| `capture_audio` | Record a short clip (500ms–30s) of what your web app is outputting right now |
 | `analyze_audio` | Signal analysis: RMS, peak dB, clipping, spectral centroid, frequency bands, BPM, timing jitter |
-| `describe_audio` | Send the clip to Gemini or GPT-4o for a plain-English description |
+| `describe_audio` | Plain-English AI description — *"the kick is boomy with heavy sub buildup around 80 Hz"* |
 | `diff_audio` | Compare two captures and flag what changed — loudness, tone, timing, clipping |
 
 ## How It Works
 
 ```
 Browser (Web Audio API)
-    ↓ MediaRecorder captures audio
-    ↓ Uploads WebM blob via HTTP
-Express Server (middleware)
-    ↓ Stores captures in memory
-    ↓ SSE dispatches capture commands
-MCP Server (stdio)
-    ↓ Retrieves + analyzes captures
+    ↓ MediaRecorder taps the AudioContext output node
+    ↓ Uploads WebM blob via HTTP POST
+Express Middleware (your dev server)
+    ↓ Stores captures in memory, dispatches commands via SSE
+MCP Server (stdio — runs inside your IDE)
+    ↓ Retrieves captures, sends to CodedSwitch analysis API
 AI Coding Assistant
-    → "Your bass is clipping at -0.2 dBFS, spectral centroid is 580 Hz (muddy),
-       and timing jitter is 23ms — the scheduler is drifting."
+    → "Your bass band is 42% of the mix (high), spectral centroid
+       is 580 Hz (muddy), and timing jitter is 23ms — the scheduler
+       is drifting under load."
 ```
+
+The key difference from every other audio MCP: **this taps the Web Audio graph directly**, bypassing room acoustics, microphone hardware, and the need to export files.
+
+---
 
 ## Quick Start
 
 ### 1. Install
 
 ```bash
-npm install audio-debug-mcp
+npm install webear
 ```
 
 ### 2. Add the Express middleware to your dev server
 
 ```js
 import express from 'express'
-import { audioDebugMiddleware } from 'audio-debug-mcp/middleware'
+import { webearMiddleware } from 'webear/middleware'
 
 const app = express()
 app.use(express.json())
 
-// Mount the audio debug bridge (dev only by default)
-app.use('/api/audio-debug', audioDebugMiddleware())
+// Mount the audio debug bridge (automatically disabled in production)
+app.use('/api/webear', webearMiddleware())
 
 app.listen(5000)
 ```
 
 ### 3. Add the client snippet to your web app
 
-**Option A: Script tag**
-```html
-<script src="node_modules/audio-debug-mcp/client-snippet.js"></script>
-<script>
-  AudioDebugBridge.init()
-</script>
-```
-
-**Option B: ES module import**
+**Option A — auto-detect everything (Tone.js or raw Web Audio)**
 ```js
-import AudioDebugBridge from 'audio-debug-mcp/client'
-AudioDebugBridge.init()
+import WebEar from 'webear/client'
+WebEar.init()
 ```
 
-**Option C: With a specific AudioContext**
+**Option B — explicit AudioContext**
 ```js
 const ctx = new AudioContext()
 const masterGain = ctx.createGain()
 masterGain.connect(ctx.destination)
 
-AudioDebugBridge.init({
-  audioContext: ctx,
-  outputNode: masterGain,
-})
+WebEar.init({ audioContext: ctx, outputNode: masterGain })
 ```
 
-**Option D: With Tone.js**
+**Option C — Tone.js project**
 ```js
 import * as Tone from 'tone'
-AudioDebugBridge.init({ toneJs: true })
+WebEar.init({ toneJs: true })
 ```
 
-### 4. Add the MCP server to your IDE
+**Option D — Three.js WebGL Game**
+```js
+import * as THREE from 'three'
+const listener = new THREE.AudioListener()
+camera.add(listener)
+WebEar.init({ tapNode: listener.getInput() })
+```
 
-**Windsurf** (`mcp_config.json`):
+**Option E — plain script tag**
+```html
+<script src="node_modules/webear/client-snippet.js"></script>
+<script>WebEar.init()</script>
+```
+
+### 4. Configure your IDE
+
+**Claude Code** (`.mcp.json` in project root):
 ```json
 {
-  "audio-debug": {
-    "command": "node",
-    "args": ["node_modules/audio-debug-mcp/dist/index.js"],
-    "disabled": false,
-    "env": {
-      "AUDIO_DEBUG_BASE_URL": "http://localhost:5000"
+  "mcpServers": {
+    "webear": {
+      "command": "npx",
+      "args": ["webear"],
+      "env": {
+        "WEBEAR_BASE_URL": "http://localhost:5000",
+        "CODEDSWITCH_API_KEY": "your-key-here"
+      }
     }
   }
 }
@@ -110,35 +134,46 @@ AudioDebugBridge.init({ toneJs: true })
 ```json
 {
   "mcpServers": {
-    "audio-debug": {
-      "command": "node",
-      "args": ["node_modules/audio-debug-mcp/dist/index.js"],
+    "webear": {
+      "command": "npx",
+      "args": ["webear"],
       "env": {
-        "AUDIO_DEBUG_BASE_URL": "http://localhost:5000"
+        "WEBEAR_BASE_URL": "http://localhost:5000",
+        "CODEDSWITCH_API_KEY": "your-key-here"
       }
     }
   }
 }
 ```
 
-**Claude Code** (`.mcp.json`):
+**Windsurf** (`mcp_config.json`):
 ```json
 {
-  "mcpServers": {
-    "audio-debug": {
-      "command": "node",
-      "args": ["node_modules/audio-debug-mcp/dist/index.js"],
-      "env": {
-        "AUDIO_DEBUG_BASE_URL": "http://localhost:5000"
-      }
+  "webear": {
+    "command": "npx",
+    "args": ["webear"],
+    "disabled": false,
+    "env": {
+      "WEBEAR_BASE_URL": "http://localhost:5000",
+      "CODEDSWITCH_API_KEY": "your-key-here"
     }
   }
 }
 ```
 
-### 5. Start your dev server, open the app, play some audio, and ask your AI:
+### 5. Get an API key
 
-> "Capture 3 seconds of audio and tell me if the bass sounds muddy"
+Get your free `CODEDSWITCH_API_KEY` at **[codedswitch.com](https://www.codedswitch.com)**.
+
+Free tier: 50 analyses/day. No credit card required.
+
+### 6. Start your dev server, open your app, play audio, then ask your AI:
+
+> "Capture 3 seconds and tell me why the bass sounds muddy."
+
+> "Compare the audio before and after my last commit."
+
+> "Is there any clipping in the high-frequency range?"
 
 ---
 
@@ -205,14 +240,14 @@ Tonal character changed noticeably — EQ or filter behaviour may have shifted.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUDIO_DEBUG_BASE_URL` | `http://localhost:4000` | URL of your dev server (where middleware is mounted) |
-| `GEMINI_API_KEY` | — | Google Gemini API key (for `describe_audio` tool) |
-| `OPENAI_API_KEY` | — | OpenAI API key (fallback for `describe_audio` tool) |
+| `WEBEAR_BASE_URL` | `http://localhost:4000` | URL of your dev server (where middleware is mounted) |
+| `CODEDSWITCH_API_KEY` | — | API key from [codedswitch.com](https://www.codedswitch.com) — required for `analyze_audio` and `describe_audio` |
+| `MCP_API_URL` | `https://www.codedswitch.com` | Override the analysis API base (advanced / self-hosted) |
 
 ### Middleware Options
 
 ```js
-audioDebugMiddleware({
+webearMiddleware({
   maxCaptures: 50,       // Max captures in memory (default: 50)
   maxAgeMins: 10,        // Auto-evict after N minutes (default: 10)
   maxUploadBytes: 50e6,  // Max upload size (default: 50MB)
@@ -223,12 +258,12 @@ audioDebugMiddleware({
 ### Client Options
 
 ```js
-AudioDebugBridge.init({
-  audioContext: myCtx,        // Provide your own AudioContext
-  outputNode: myGainNode,     // The audio node to tap
-  toneJs: true,               // Auto-detect Tone.js
-  bridgeBase: '/api/audio-debug',  // Override API path
-  devOnly: true,              // Only init in dev mode (default: true)
+WebEar.init({
+  audioContext: myCtx,             // Your AudioContext instance
+  outputNode: myGainNode,          // The node to tap (defaults to destination)
+  toneJs: true,                    // Auto-detect Tone.js context
+  bridgeBase: '/api/webear',  // Override API path
+  devOnly: true,                   // Only init outside of production (default: true)
 })
 ```
 
@@ -237,16 +272,30 @@ AudioDebugBridge.init({
 ## Requirements
 
 - **Node.js** >= 18
-- **ffmpeg** on PATH (for `analyze_audio` and `diff_audio` — decodes WebM to PCM)
 - A browser that supports `MediaRecorder` (Chrome, Firefox, Edge, Safari 14+)
+- A `CODEDSWITCH_API_KEY` for analysis (free at [codedswitch.com](https://www.codedswitch.com))
+
+---
 
 ## Who Is This For?
 
-- **Music app developers** — debug beats, synths, effects, and mixing in real-time
-- **Game audio developers** — verify sound effects, spatial audio, and mixing
-- **Audio tool builders** — test Web Audio API pipelines without leaving your IDE
-- **Podcast/streaming apps** — check audio quality, levels, and encoding
-- **Anyone using Web Audio API** — if your app makes sound, your AI can now hear it
+- **Web Audio / Tone.js developers** — debug beats, synths, effects, and mixing without leaving your IDE
+- **Game audio developers** — verify sound effects, spatial audio, and mixing in real-time
+- **Music app builders** — catch regressions between code changes with `diff_audio`
+- **Podcast / streaming apps** — validate audio quality, levels, and encoding
+- **Anyone whose app makes sound** — if it has a Web Audio graph, your AI can now hear it
+
+---
+
+## Why Not Just Use the Microphone?
+
+Microphone MCPs capture room sound — your fan noise, chair creaks, and room reverb are all in the recording. `webear` taps the Web Audio API **before it hits the DAC**, giving you a clean digital signal with no room artifacts.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## License
 
@@ -254,4 +303,4 @@ MIT — see [LICENSE](./LICENSE)
 
 ## Author
 
-Built by [@asume21](https://github.com/asume21)
+Built by [@asume21](https://github.com/asume21) — [CodedSwitch](https://www.codedswitch.com)

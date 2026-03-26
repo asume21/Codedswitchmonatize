@@ -1,28 +1,28 @@
 /**
- * audio-debug-mcp — Browser Client Snippet
+ * webear — Browser Client Snippet
  *
  * Drop this into any web app to enable AI audio capture.
  * Framework-agnostic — works with any AudioContext, Tone.js, Howler.js, etc.
  *
  * USAGE (script tag):
- *   <script src="node_modules/audio-debug-mcp/client-snippet.js"></script>
+ *   <script src="node_modules/webear/client-snippet.js"></script>
  *   <script>
  *     // Auto-init: taps the default AudioContext destination
- *     AudioDebugBridge.init()
+ *     WebEar.init()
  *
  *     // Or with a specific AudioContext:
- *     AudioDebugBridge.init({ audioContext: myAudioContext })
+ *     WebEar.init({ audioContext: myAudioContext })
  *
  *     // Or with Tone.js:
- *     AudioDebugBridge.init({ toneJs: true })
+ *     WebEar.init({ toneJs: true })
  *   </script>
  *
  * USAGE (ES module):
- *   import { AudioDebugBridge } from 'audio-debug-mcp/client'
- *   AudioDebugBridge.init()
+ *   import { WebEar } from 'webear/client'
+ *   WebEar.init()
  *
  * The bridge will:
- *   1. Connect to your dev server via SSE (/api/audio-debug/events)
+ *   1. Connect to your dev server via SSE (/api/webear/events)
  *   2. Listen for capture commands from the MCP server
  *   3. Record audio from your AudioContext using MediaRecorder
  *   4. Upload the recorded WebM blob back to the dev server
@@ -30,7 +30,7 @@
  * The MCP server then retrieves and analyzes the audio.
  *
  * REQUIREMENTS:
- *   - Your Express server must have the audio-debug middleware mounted
+ *   - Your Express server must have the webear middleware mounted
  *   - The browser must support MediaRecorder (all modern browsers do)
  *   - Audio must be playing through an AudioContext
  */
@@ -39,12 +39,12 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = factory();
   } else {
-    root.AudioDebugBridge = factory();
+    root.WebEar = factory();
   }
 }(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this, function () {
   'use strict';
 
-  var BRIDGE_BASE = '/api/audio-debug';
+  var BRIDGE_BASE = '/api/webear';
   var tapNode = null;
   var recorder = null;
   var sseSource = null;
@@ -55,7 +55,7 @@
 
   function log(msg) {
     if (typeof console !== 'undefined' && console.debug) {
-      console.debug('[audio-debug-bridge] ' + msg);
+      console.debug('[webear] ' + msg);
     }
   }
 
@@ -144,8 +144,8 @@
         masterGain.connect(ctx.destination);
         masterGain.connect(tapNode);
         // Store for users to connect their audio to
-        AudioDebugBridge._masterGain = masterGain;
-        log('Created master gain tap — connect your audio nodes to AudioDebugBridge._masterGain');
+        WebEar._masterGain = masterGain;
+        log('Created master gain tap — connect your audio nodes to WebEar._masterGain');
       } catch (e) {
         log('Warning: could not create master gain tap — ' + e.message);
       }
@@ -257,7 +257,7 @@
 
   // ── Public API ──────────────────────────────────────────────────────
 
-  var AudioDebugBridge = {
+  var WebEar = {
     _masterGain: null,
 
     /**
@@ -267,7 +267,7 @@
      * @param {AudioContext} [options.audioContext] - Provide your own AudioContext
      * @param {AudioNode} [options.outputNode] - The node to tap (e.g. master gain)
      * @param {boolean} [options.toneJs] - Auto-detect Tone.js context
-     * @param {string} [options.bridgeBase] - Override the API base path (default: /api/audio-debug)
+     * @param {string} [options.bridgeBase] - Override the API base path (default: /api/webear)
      * @param {boolean} [options.devOnly] - Only init in development (default: true)
      */
     init: function (options) {
@@ -310,7 +310,7 @@
 
       // Expose on window for console testing
       if (typeof window !== 'undefined') {
-        window.__audioDebug = {
+        window.__webear = {
           startCapture: function (durationMs) {
             var captureId = crypto.randomUUID();
             return doCapture(captureId, durationMs || 3000).then(function () {
@@ -324,7 +324,7 @@
         };
       }
 
-      log('Audio Debug Bridge initialised. window.__audioDebug is available.');
+      log('WebEar initialised. window.__webear is available.');
     },
 
     /**
@@ -359,9 +359,9 @@
       isCapturing = false;
       tapNode = null;
       recorder = null;
-      log('Audio Debug Bridge destroyed');
+      log('WebEar destroyed');
     },
   };
 
-  return AudioDebugBridge;
+  return WebEar;
 }));
