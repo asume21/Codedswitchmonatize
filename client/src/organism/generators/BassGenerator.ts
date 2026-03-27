@@ -215,11 +215,13 @@ export class BassGenerator extends GeneratorBase {
 
   private startSubBassRise(): void {
     this.stopPart()
-    // Single very low sustained note that fades in
-    const subRoot = Tone.Frequency(this.rootMidi - 12, 'midi').toNote()
+    // Single low sustained note that fades in — clamp to E1 (28) minimum
+    // to avoid inaudible sub-rumble that eats headroom and causes hum
+    const subMidi = Math.max(28, this.rootMidi - 12)
+    const subRoot = Tone.Frequency(subMidi, 'midi').toNote()
     this.synth.triggerAttack(subRoot, Tone.now(), 0.01)
     // Fade in over 2 seconds
-    this.synth.volume.rampTo(-12, 2)
+    this.synth.volume.rampTo(-14, 2)
   }
 
   private stopPart(): void {

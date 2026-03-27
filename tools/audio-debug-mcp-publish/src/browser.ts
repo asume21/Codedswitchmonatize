@@ -8,8 +8,9 @@
  *   import { WebEar } from 'webear/browser'
  *   WebEar.init({ apiKey: 'wbr_your_key_here' })
  *
- * Patches window.AudioContext to tap any audio the page produces.
- * Works with Tone.js, Howler.js, raw Web Audio API, or any audio framework.
+ * Intercepts AudioContext.prototype.connect to tap any audio sent to
+ * the hardware destination. Works with Tone.js, Howler.js, raw Web
+ * Audio API, or any audio framework.
  */
 
 const DEFAULT_SERVER = 'https://www.codedswitch.com'
@@ -29,38 +30,91 @@ let _tapped     = false
 
 // ── Audio tapping ─────────────────────────────────────────────────────────────
 
-function tapContext(ctx: AudioContext) {
-  if (_tapped) return
-  _tapped     = true
-  _destination = ctx.createMediaStreamDestination()
-  // Silent parallel connection — does not affect actual audio output
-  ctx.destination.connect(_destination)
-  console.log('[WebEar] AudioContext tapped ✓')
+/**
+ * Intercept connect() calls that target ctx.destination so we can
+ * fork the signal into a MediaStreamDestination for recording.
+ *
+ * AudioDestinationNode is a sink — you cannot call .connect() on it.
+ * Instead we monkey-patch AudioNode.prototype.connect to detect when
+ * any node connects to ctx.destination, and add a parallel connection
+ * to our MediaStreamDestination.
+ */
+function patchAudioContext() {
+  const NativeAudioContext = window.AudioContext ?? (window as any).webkitAudioContext
+  if (!NativeAudioContext) return
+
+  const origConnect = AudioNode.prototype.connect as unknown as Function
+
+  ;(AudioNode.prototype as any).connect = function (
+    this: AudioNode,
+    destinationParam: AudioNode | AudioParam,
+    output?: number,
+    input?: number,
+  ): any {
+    // Call the original connect first
+    const result = origConnect.call(this, destinationParam, output, input)
+
+    // If the target is an AudioDestinationNode, also connect to our tap
+    if (destinationParam instanceof AudioDestinationNode) {
+      try {
+        const ctx = this.context as AudioContext
+        if (!_destination || _destination.context !== ctx) {
+          _destination = ctx.createMediaStreamDestination()
+          console.log('[WebEar] Created tap on AudioDestinationNode connection')
+        }
+        origConnect.call(this, _destination)
+      } catch {
+        // Silently ignore — node may already be connected
+      }
+    }
+
+    return result
+  }
+
+  // Also patch any existing Tone.js context
+  const toneCtx = (window as any).Tone?.getContext?.()?.rawContext as AudioContext | undefined
+  if (toneCtx) tapToneDestination(toneCtx)
 }
 
-function patchAudioContext() {
-  const Native = window.AudioContext ?? (window as any).webkitAudioContext
-  if (!Native) return
+/**
+ * Direct tap for Tone.js — connects to the Gain node before the hardware destination.
+ */
+function tapToneDestination(ctx: AudioContext) {
+  if (_tapped) return
+  try {
+    const toneDest = (window as any).Tone?.getDestination?.() as any
+    const gainNode: AudioNode | null =
+      toneDest?.output?._gainNode      ||  // Tone 15: Destination.output is Gain; _gainNode is native
+      toneDest?.output?.output         ||  // Gain.output = _gainNode (fallback)
+      toneDest?.input?.input?._gainNode ||  // Volume.input.Gain._gainNode
+      null
 
-  ;(window as any).AudioContext = function (...args: any[]) {
-    const ctx = new Native(...args) as AudioContext
-    tapContext(ctx)
-    return ctx
+    if (gainNode && gainNode !== ctx.destination) {
+      if (!_destination || _destination.context !== ctx) {
+        _destination = ctx.createMediaStreamDestination()
+      }
+      gainNode.connect(_destination)
+      _tapped = true
+      console.log('[WebEar] Tapped Tone.js master gain ✓')
+    }
+  } catch (e) {
+    console.warn('[WebEar] Could not tap Tone.js:', e)
   }
-  ;(window as any).AudioContext.prototype = Native.prototype
-  ;(window as any).webkitAudioContext     = (window as any).AudioContext
-
-  // Tap an already-running Tone.js context if present
-  const toneCtx = (window as any).Tone?.context?.rawContext
-  if (toneCtx) tapContext(toneCtx)
 }
 
 // ── Recording ─────────────────────────────────────────────────────────────────
 
 async function record(durationMs: number): Promise<Blob> {
+  // Try Tone.js tap if not already tapped
+  if (!_tapped) {
+    const toneCtx = (window as any).Tone?.getContext?.()?.rawContext as AudioContext | undefined
+    if (toneCtx) tapToneDestination(toneCtx)
+  }
+
   if (!_destination) {
     throw new Error(
-      '[WebEar] No AudioContext detected yet — make sure your app has started playing audio before running capture_audio.'
+      '[WebEar] No audio tap available — make sure your app has started playing audio. ' +
+      'If using Tone.js, ensure Tone.start() has been called.'
     )
   }
 
@@ -76,8 +130,8 @@ async function record(durationMs: number): Promise<Blob> {
     recorder.onstop  = () => resolve(new Blob(chunks, { type: 'audio/webm' }))
     recorder.onerror = (e) => reject(new Error(`MediaRecorder error: ${String(e)}`))
 
-    recorder.start()
-    setTimeout(() => recorder.stop(), durationMs)
+    recorder.start(200)
+    setTimeout(() => { if (recorder.state === 'recording') recorder.stop() }, durationMs)
   })
 }
 
@@ -119,7 +173,7 @@ function connect() {
       })
 
       if (res.ok) {
-        console.log(`[WebEar] Delivered — capture_id: ${captureId}`)
+        console.log(`[WebEar] Delivered — capture_id: ${captureId} (${buffer.byteLength} bytes)`)
       } else {
         console.error('[WebEar] Upload failed:', res.status, await res.text().catch(() => ''))
       }

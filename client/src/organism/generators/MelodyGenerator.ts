@@ -36,12 +36,14 @@ export class MelodyGenerator extends GeneratorBase {
   private voiceActive:     boolean = false
   private flowDepth:       number  = 0
 
-  private reverb:    Tone.Reverb
-  private delay:     Tone.FeedbackDelay
-  private chorus:    Tone.Chorus
-  private dryBus:    Tone.Gain
-  private delaySend: Tone.Gain
-  private reverbSend: Tone.Gain
+  private reverb:          Tone.Reverb
+  private delay:           Tone.FeedbackDelay
+  private chorus:          Tone.Chorus
+  private dryBus:          Tone.Gain
+  private delaySend:       Tone.Gain
+  private reverbSend:      Tone.Gain
+  private delayReturnHP:   Tone.Filter
+  private reverbReturnHP:  Tone.Filter
 
   constructor() {
     super(GeneratorName.Melody)
@@ -62,19 +64,23 @@ export class MelodyGenerator extends GeneratorBase {
       envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
       modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
     } as any)
-    this.synth.volume.value = -6
+    this.synth.volume.value = -9
 
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
 
     // Parallel send routing — prevents reverb'd delays from accumulating
     // synth → chorus → dry bus → output
-    //                 → delay send → delay → output
-    //                 → reverb send → reverb → output
-    this.dryBus     = new Tone.Gain(0.7)    // dry level
-    this.delaySend  = new Tone.Gain(0.2)    // delay send level
-    this.reverbSend = new Tone.Gain(0.15)   // reverb send level
-    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.25, wet: 1.0 })  // 100% wet on send
-    this.reverb = new Tone.Reverb({ decay: 1.5, wet: 1.0 })  // 100% wet on send
+    //                 → delay send → delay → delayHP → output
+    //                 → reverb send → reverb → reverbHP → output
+    this.dryBus     = new Tone.Gain(0.75)   // dry level (primary signal)
+    this.delaySend  = new Tone.Gain(0.15)   // delay send level (reduced from 0.2)
+    this.reverbSend = new Tone.Gain(0.10)   // reverb send level (reduced from 0.15)
+    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.20, wet: 1.0 })  // feedback reduced from 0.25
+    this.reverb = new Tone.Reverb({ decay: 1.2, wet: 1.0 })  // shorter decay (was 1.5)
+
+    // Highpass on wet returns to prevent low-mid mud accumulation in tails
+    this.delayReturnHP  = new Tone.Filter({ type: 'highpass', frequency: 300, rolloff: -12 })
+    this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
     this.synth.connect(this.chorus)
     this.chorus.connect(this.dryBus)
@@ -82,9 +88,11 @@ export class MelodyGenerator extends GeneratorBase {
     this.chorus.connect(this.reverbSend)
     this.dryBus.connect(this.output)
     this.delaySend.connect(this.delay)
-    this.delay.connect(this.output)
+    this.delay.connect(this.delayReturnHP)
+    this.delayReturnHP.connect(this.output)
     this.reverbSend.connect(this.reverb)
-    this.reverb.connect(this.output)
+    this.reverb.connect(this.reverbReturnHP)
+    this.reverbReturnHP.connect(this.output)
 
     this.chorus.start()
     this.setOutputLevel(0)
@@ -295,6 +303,8 @@ export class MelodyGenerator extends GeneratorBase {
     this.dryBus.dispose()
     this.delaySend.dispose()
     this.reverbSend.dispose()
+    this.delayReturnHP.dispose()
+    this.reverbReturnHP.dispose()
     this.delay.dispose()
     this.reverb.dispose()
     this.output.dispose()

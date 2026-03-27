@@ -110,9 +110,9 @@ export class GeneratorOrchestrator {
     await Tone.start()
 
     // Increase look-ahead so main-thread jank doesn't starve the audio graph.
-    // Default is ~0.1 s; bumping to 0.15 s adds buffer against React re-renders
-    // and physics computation spikes that cause crackling / underruns.
-    Tone.getContext().lookAhead = 0.15
+    // Default is ~0.1 s; bumping to 0.2 s adds buffer against React re-renders,
+    // physics computation spikes, and the melody's FX chain when it layers in.
+    Tone.getContext().lookAhead = 0.2
 
     Tone.getTransport().bpm.value = bpm ?? 90
     Tone.getTransport().start()
@@ -248,29 +248,74 @@ export class GeneratorOrchestrator {
 
   /**
    * Apply a SelfListenReport — Astutely corrects itself based on what
-   * it hears from its own output.
+   * it hears from its own output (powered by WebEar-grade pcmAnalyzer).
    */
   applySelfListenReport(report: import('../audio/types').SelfListenReport): void {
     if (report.isSilent) return  // nothing playing yet
 
+    // ── Volume correction ──────────────────────────────────────────────────
     if (report.needsVolumeReduction) {
-      // Clipping or too loud — pull everything back 10%
-      const factor = 0.9
-      this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * factor)
-      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * factor)
-      this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * factor)
-      console.info('[SelfListen] Volume reduced — clipping/loud detected')
+      // Scale reduction by severity — light clipping gets gentle correction,
+      // heavy clipping gets aggressive pullback
+      const severity = report.clippingPercent > 0.5 ? 0.8 : 0.9
+      this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * severity)
+      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * severity)
+      this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * severity)
+      console.info(`[SelfListen] Volume reduced (${severity}x) — clipping ${report.clippingPercent.toFixed(2)}%`)
     } else if (report.needsVolumeBoost) {
-      // Too quiet — boost 15%
       const factor = 1.15
       this.bass.applyVolumeMultiplier(Math.min(1.5, this.bassVolumeMultiplier * factor))
       console.info('[SelfListen] Volume boosted — output too quiet')
     }
 
-    // Muddy mix (bass/sub heavy) → boost melody slightly for clarity
+    // ── Frequency balance correction ───────────────────────────────────────
+
+    // Muddy mix (bass/sub heavy) → boost melody for clarity
     const bassHeavy = report.bandEnergy.sub + report.bandEnergy.bass > 0.7
     if (bassHeavy) {
       this.melody.applyVolumeMultiplier(Math.min(1.3, this.melodyVolumeMultiplier * 1.1))
+      console.info('[SelfListen] Muddy mix detected — boosting melody presence')
+    }
+
+    // Sub-heavy (sub alone > 20%) → reduce bass volume to tame rumble
+    if (report.bandEnergy.sub > 0.20) {
+      this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * 0.92)
+      console.info('[SelfListen] Sub-heavy — reducing bass')
+    }
+
+    // Harsh/bright (centroid > 5kHz) → pull back hats
+    if (report.spectralCentroidHz > 5000) {
+      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * 0.85)
+      console.info('[SelfListen] Harsh mix — reducing hat density')
+    }
+
+    // Very dark (centroid < 1500Hz) → boost melody + hat presence
+    if (report.spectralCentroidHz < 1500 && !bassHeavy) {
+      this.melody.applyVolumeMultiplier(Math.min(1.3, this.melodyVolumeMultiplier * 1.08))
+      this.drum.setHatDensityMultiplier(Math.min(1.5, this.hatDensityMultiplier * 1.1))
+      console.info('[SelfListen] Dark mix — boosting melody + hats')
+    }
+
+    // ── Dynamics correction ────────────────────────────────────────────────
+
+    // Over-compressed (crest factor < 2) — transients are flattened
+    if (report.crestFactor < 2 && !report.isSilent) {
+      // Boost kick velocity to punch through the compression
+      this.drum.setKickVelocityMultiplier(Math.min(1.5, this.kickVelocityMultiplier * 1.1))
+      console.info('[SelfListen] Over-compressed — boosting kick punch')
+    }
+
+    // ── Groove tightness ───────────────────────────────────────────────────
+
+    // Timing jitter too high (> 25ms) — groove is sloppy
+    // Log for now; future: could tighten humanize jitter on DrumGenerator
+    if (report.onsetTimingStdDevMs > 25) {
+      console.info(`[SelfListen] Groove jitter high: ${report.onsetTimingStdDevMs.toFixed(1)}ms`)
+    }
+
+    // ── DC offset warning ──────────────────────────────────────────────────
+    if (report.hasDcOffset) {
+      console.warn(`[SelfListen] DC offset detected: ${report.dcOffset.toFixed(4)}`)
     }
   }
 

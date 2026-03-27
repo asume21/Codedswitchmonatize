@@ -25,9 +25,9 @@ export class TextureGenerator extends GeneratorBase {
     super(GeneratorName.Texture)
 
     this.noiseSource = new Tone.Noise('pink')
-    this.highpass    = new Tone.Filter({ type: 'highpass', frequency: 200, rolloff: -24 })  // keep noise out of bass
-    this.filter      = new Tone.Filter(400, 'lowpass')    // start low, opens as organism warms up
-    this.reverb      = new Tone.Reverb({ decay: 1.5, wet: 0.35 })  // shorter tail to reduce noise bleed
+    this.highpass    = new Tone.Filter({ type: 'highpass', frequency: 400, rolloff: -24 })  // hard cut below 400Hz — no hum
+    this.filter      = new Tone.Filter(600, 'lowpass')    // start moderate, opens as organism warms up
+    this.reverb      = new Tone.Reverb({ decay: 1.0, wet: 0.25 })  // short tail, low wet to prevent wash buildup
     this.gain        = new Tone.Gain(0)
 
     this.output = new Tone.Gain(1)

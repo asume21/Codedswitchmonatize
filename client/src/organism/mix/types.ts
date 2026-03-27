@@ -51,19 +51,19 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       name: 'bass', pan: 0, gainDb: -2,
       compThresholdDb: -20, compRatio: 5, compAttackMs: 10,
       compReleaseMs: 150, compKneeDb: 4,
-      eq: { highShelfHz: 2000, highShelfGain: -6 },  // roll off highs — bass stays below 2kHz
+      eq: { highpassHz: 35, highShelfHz: 2000, highShelfGain: -6 },  // HP kills sub-rumble; roll off highs
     },
     melody: {
-      name: 'melody', pan: 0.15, gainDb: -4,
+      name: 'melody', pan: 0.15, gainDb: -6,
       compThresholdDb: -24, compRatio: 3, compAttackMs: 20,
       compReleaseMs: 200, compKneeDb: 8,
-      eq: { highpassHz: 120 },  // keep melody out of bass territory
+      eq: { highpassHz: 150, midHz: 250, midGain: -4, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // HP + scoop 250Hz mud + add presence
     },
     texture: {
       name: 'texture', pan: 0, gainDb: -14,
       compThresholdDb: -30, compRatio: 2, compAttackMs: 50,
       compReleaseMs: 500, compKneeDb: 10,
-      eq: { highpassHz: 200, highShelfHz: 6000, highShelfGain: -3 },  // bandpass texture
+      eq: { highpassHz: 400, highShelfHz: 6000, highShelfGain: -3 },  // HP at 400Hz kills hum; bandpass texture
     },
   },
   master: {

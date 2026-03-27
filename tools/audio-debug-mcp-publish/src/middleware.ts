@@ -226,12 +226,12 @@ export function webearMiddleware(options: WebEarMiddlewareOptions = {}): Router 
   // ── Capture retrieval — MCP server GETs the blob here ─────────────
 
   router.get('/capture/:id', (req: Request, res: Response) => {
-    const cap = captures.get(req.params.id)
+    const cap = captures.get(req.params.id as string)
     if (!cap) {
       res.status(404).json({ error: 'Capture not found or not yet ready' })
       return
     }
-    res.setHeader('Content-Type', cap.mimeType)
+    res.setHeader('Content-Type', String(cap.mimeType))
     res.setHeader('X-Duration-Ms', String(cap.durationMs))
     res.send(cap.buffer)
   })

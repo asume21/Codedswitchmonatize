@@ -8,11 +8,13 @@ import {
   createContext,
   useContext,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
+import type { SelfListenReport } from '@/organism/audio/types';
 import { useTransport } from '@/contexts/TransportContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import type { TrackClip } from '@/types/studioTracks';
@@ -130,6 +132,10 @@ export interface AstutelyCoreValue {
   startOrganism: (inputSource?: string) => void;
   stopOrganism: () => void;
   captureOrganism: () => void;
+
+  // ── Audio Intelligence (WebEar-powered ears) ──
+  /** Latest self-listen report from the Organism — null if not running. */
+  latestAudioReport: SelfListenReport | null;
 }
 
 const AstutelyCoreContext = createContext<AstutelyCoreValue | undefined>(undefined);
@@ -762,6 +768,21 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // AUDIO INTELLIGENCE — WebEar-powered ears for Astutely
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const [latestAudioReport, setLatestAudioReport] = useState<SelfListenReport | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const report = (e as CustomEvent).detail as SelfListenReport;
+      setLatestAudioReport(report);
+    };
+    window.addEventListener('organism:self-listen-report', handler);
+    return () => window.removeEventListener('organism:self-listen-report', handler);
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // CONTEXT VALUE
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -827,6 +848,9 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     startOrganism,
     stopOrganism,
     captureOrganism,
+
+    // Audio Intelligence
+    latestAudioReport,
   }), [
     isGeneratingPattern,
     isGeneratingAudio,
@@ -866,6 +890,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     startOrganism,
     stopOrganism,
     captureOrganism,
+    latestAudioReport,
   ]);
 
   return (

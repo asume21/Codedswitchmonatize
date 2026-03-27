@@ -341,6 +341,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setSelfListenReport({ ...report })
       orchestr.applySelfListenReport(report)
       selfListen.setTransportBpm(orchestr.getBpm())
+
+      // Broadcast to Astutely — gives the AI brain ears
+      window.dispatchEvent(new CustomEvent('organism:self-listen-report', {
+        detail: report,
+      }))
     })
 
     // Wire capture

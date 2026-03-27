@@ -44,21 +44,43 @@ export interface PerformerState {
 }
 
 // ── Self-listen (Astutely → Astutely) ────────────────────────────────────────
+//
+// Powered by pcmAnalyzer.ts — the same WebEar-grade DSP engine that Claude Code
+// uses, but running entirely client-side with zero API calls.
 
 export interface SelfListenReport {
+  // ── Loudness ─────────────────────────────────────────────────────────────
+  /** Linear RMS (0–1 range, for math). */
+  rmsLinear: number
   /** RMS loudness of Astutely's own output in dBFS. */
   rmsDb: number
+  /** Linear peak (0–1 range). */
+  peakLinear: number
   /** Peak loudness in dBFS. */
   peakDb: number
-  /** True if any samples are clipping (|x| ≥ 0.99). */
+  /** Exact percentage of samples that are clipping. */
+  clippingPercent: number
+  /** True if clippingPercent > 0.01%. */
   hasClipping: boolean
   /** True if the output is essentially silent. */
   isSilent: boolean
-  /** BPM estimated from the output audio. Null if too short or rhythmless. */
-  estimatedBpm: number | null
-  /** Spectral centroid in Hz — < 1500 = muddy, 3000–5000 = balanced, > 6000 = harsh. */
+
+  // ── Tonality ─────────────────────────────────────────────────────────────
+  /** FFT-based spectral centroid in Hz — < 1500 = muddy, 3–5kHz = balanced, > 6kHz = harsh. */
   spectralCentroidHz: number
-  /** Fraction of energy per frequency band (sums ≈ 1). */
+  /** DC offset — should be ~0; > 0.01 indicates a filter or gain bug. */
+  dcOffset: number
+  /** True if |dcOffset| > 0.01. */
+  hasDcOffset: boolean
+
+  // ── Dynamics ─────────────────────────────────────────────────────────────
+  /** Peak dB minus RMS dB — low = crushed, high = very dynamic. */
+  dynamicRangeDb: number
+  /** Peak / RMS ratio — < 2 = over-compressed, no transients surviving. */
+  crestFactor: number
+
+  // ── Frequency bands ──────────────────────────────────────────────────────
+  /** Fraction of energy per frequency band (sums ~ 1). */
   bandEnergy: {
     sub:     number   // 20–80 Hz
     bass:    number   // 80–250 Hz
@@ -66,11 +88,25 @@ export interface SelfListenReport {
     highMid: number   // 2000–6000 Hz
     high:    number   // 6000–20 kHz
   }
-  /** Difference between Astutely's actual output BPM and the Transport BPM. */
+
+  // ── Rhythm ───────────────────────────────────────────────────────────────
+  /** BPM estimated from the output audio. Null if too short or rhythmless. */
+  estimatedBpm: number | null
+  /** Number of detected onsets — rhythmic density metric. */
+  onsetCount: number
+  /** Standard deviation of inter-onset intervals in ms — low = tight groove, high = sloppy. */
+  onsetTimingStdDevMs: number
+  /** Difference between actual output BPM and the Transport BPM. */
   bpmDrift: number
+
+  // ── Action signals ───────────────────────────────────────────────────────
   /** Auto-correction signals Astutely can act on immediately. */
   needsVolumeReduction: boolean
   needsVolumeBoost:     boolean
-  /** Unix-ish timestamp (performance.now()) when this report was generated. */
+
+  // ── Meta ─────────────────────────────────────────────────────────────────
+  /** Human-readable summary — can be fed to Astutely AI prompts. */
+  summary: string
+  /** Timestamp (performance.now()) when this report was generated. */
   timestamp: number
 }

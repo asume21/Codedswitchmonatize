@@ -95,9 +95,9 @@
     if (typeof Tone !== 'undefined' && Tone.getDestination) {
       try {
         var dest = Tone.getDestination();
-        if (dest && dest.input) {
-          log('Tapping Tone.js master output');
-          return dest.input;
+        if (dest && dest.output && dest.output._gainNode) {
+          log('Tapping Tone.js master gain node');
+          return dest.output._gainNode;
         }
       } catch (e) { /* fall through */ }
     }
