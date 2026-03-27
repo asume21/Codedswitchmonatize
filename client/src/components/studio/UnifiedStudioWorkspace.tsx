@@ -3198,7 +3198,7 @@ export default function UnifiedStudioWorkspace() {
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-2 sm:px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           <h1 className="text-base sm:text-xl font-black tracking-[0.2em] sm:tracking-[0.3em] astutely-gradient-text uppercase hidden sm:block">CodedSwitch</h1>
-          <div className="flex space-x-0.5 overflow-x-auto overflow-y-visible" ref={menuBarRef}>
+          <div className="flex space-x-0.5 flex-wrap md:flex-nowrap" ref={menuBarRef}>
             <div className="relative">
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
               {openMenu === 'file' && (
