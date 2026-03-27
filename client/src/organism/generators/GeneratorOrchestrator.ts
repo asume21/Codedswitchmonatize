@@ -194,6 +194,86 @@ export class GeneratorOrchestrator {
     }
   }
 
+  // ── Performer-driven reactions ────────────────────────────────────
+  //
+  // Called by OrganismProvider whenever a new PerformerState is available.
+  // Maps performer characteristics onto generator parameters so Astutely
+  // musically responds to the human in real time.
+
+  applyPerformerState(performer: import('../audio/types').PerformerState): void {
+    // 1. Energy → kick punch + melody presence
+    //    When the rapper goes hard, the beat hits harder.
+    //    When they pull back, Astutely breathes with them.
+    const energyBias = 0.7 + performer.energy * 0.6   // 0.7–1.3
+    this.drum.setKickVelocityMultiplier(
+      Math.min(1.5, this.kickVelocityMultiplier * energyBias)
+    )
+    this.melody.applyVolumeMultiplier(
+      Math.min(1.2, this.melodyVolumeMultiplier * (0.8 + performer.energy * 0.4))
+    )
+
+    // 2. Syllabic rate → hi-hat density
+    //    Fast rapper = dense hats. Slower, more spacious flow = sparser hats.
+    //    Syllabic rate: 0 = silence, 2-4 = slow flow, 6-10 = fast rap
+    const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
+    this.drum.setHatDensityMultiplier(
+      Math.max(0.3, Math.min(1.5, 0.5 + normalSyllabic))
+    )
+
+    // 3. Breathing / rest → call-and-response
+    //    When the performer stops, texture fills the space,
+    //    melody steps forward, drums soften so the answer is heard.
+    if (performer.breathingNow) {
+      this.texture.applyVolumeMultiplier(
+        Math.min(1.3, this.textureVolumeMultiplier * 1.25)
+      )
+      this.melody.applyVolumeMultiplier(
+        Math.min(1.4, this.melodyVolumeMultiplier * 1.3)
+      )
+      this.drum.applyArrangementMultiplier(0.6)
+    } else {
+      // Performer is rapping — restore normal arrangement multipliers
+      this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
+      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
+    }
+
+    // 4. Phrase downbeat (phraseBar === 0) → accent kick
+    //    Reinforce the top of every 4-bar phrase.
+    if (performer.phraseBar === 0 && performer.phrasePosition < 0.1) {
+      this.drum.setKickVelocityMultiplier(
+        Math.min(1.6, (this.kickVelocityMultiplier ?? 1) * 1.2)
+      )
+    }
+  }
+
+  /**
+   * Apply a SelfListenReport — Astutely corrects itself based on what
+   * it hears from its own output.
+   */
+  applySelfListenReport(report: import('../audio/types').SelfListenReport): void {
+    if (report.isSilent) return  // nothing playing yet
+
+    if (report.needsVolumeReduction) {
+      // Clipping or too loud — pull everything back 10%
+      const factor = 0.9
+      this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * factor)
+      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * factor)
+      this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * factor)
+      console.info('[SelfListen] Volume reduced — clipping/loud detected')
+    } else if (report.needsVolumeBoost) {
+      // Too quiet — boost 15%
+      const factor = 1.15
+      this.bass.applyVolumeMultiplier(Math.min(1.5, this.bassVolumeMultiplier * factor))
+      console.info('[SelfListen] Volume boosted — output too quiet')
+    }
+
+    // Muddy mix (bass/sub heavy) → boost melody slightly for clarity
+    const bassHeavy = report.bandEnergy.sub + report.bandEnergy.bass > 0.7
+    if (bassHeavy) {
+      this.melody.applyVolumeMultiplier(Math.min(1.3, this.melodyVolumeMultiplier * 1.1))
+    }
+  }
+
   // ── Reactive mutation methods (Section 05) ────────────────────────
 
   setHatDensityMultiplier(multiplier: number): void {

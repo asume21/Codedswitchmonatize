@@ -17,6 +17,8 @@ import type { CadenceSnapshot }        from './CadenceLock'
 import type { CallResponsePhase }      from './CallResponseEngine'
 import type { VibeClassification }     from './VibeMatcher'
 import type { FreestyleReport }        from './FreestyleReportCard'
+import type { PerformerState }        from '../../organism/audio/types'
+import type { SelfListenReport }      from '../../organism/audio/types'
 
 /**
  * High-frequency physics context — updates at ~15fps as the organism runs.
@@ -152,6 +154,12 @@ export interface OrganismContextValue {
   isRunning:    boolean
   isCapturing:  boolean
   error:        string | null
+
+  // Ears system — Astutely hears the performer + itself
+  /** Real-time analysis of the human performer's mic input. Null when not on mic. */
+  performerState:   PerformerState   | null
+  /** Periodic self-analysis of Astutely's own audio output. */
+  selfListenReport: SelfListenReport | null
 }
 
 const OrganismContext = createContext<OrganismContextValue | null>(null)

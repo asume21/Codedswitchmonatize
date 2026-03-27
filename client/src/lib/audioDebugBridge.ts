@@ -9,6 +9,16 @@
 
 import * as Tone from 'tone'
 
+declare global {
+  interface Window {
+    __audioDebug?: {
+      startCapture: (durationMs?: number) => Promise<string>
+      getLastCaptureId: () => string | null
+      status: () => 'connected' | 'disconnected' | 'capturing'
+    }
+  }
+}
+
 const API_KEY  = 'wbr_d461677168c417c329e0ea2e8342a44f8bb1169d506d99078ab53643d1065267'
 const CONNECT  = `/api/webear/connect?key=${API_KEY}`
 const BLOB_URL = (id: string) => `/api/webear/blob/${id}`

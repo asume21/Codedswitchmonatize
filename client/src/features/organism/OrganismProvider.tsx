@@ -38,6 +38,10 @@ import type { VibeClassification } from './VibeMatcher'
 import { FreestyleReportCard }   from './FreestyleReportCard'
 import type { FreestyleReport }  from './FreestyleReportCard'
 import { ScaleSnapEngine }       from '../../organism/scale/ScaleSnapEngine'
+import { PerformerAnalyzer }    from '../../organism/audio/PerformerAnalyzer'
+import { SelfListenAnalyzer }   from '../../organism/audio/SelfListenAnalyzer'
+import type { PerformerState }  from '../../organism/audio/types'
+import type { SelfListenReport } from '../../organism/audio/types'
 import { OState }                from '../../organism/state/types'
 import * as Tone from 'tone'
 import { useStudioStore } from '../../stores/useStudioStore'
@@ -165,6 +169,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Scale Snap Engine — detects musical key from pitch and locks melody to it
   const scaleSnapRef = useRef<ScaleSnapEngine | null>(null)
 
+  // Ears system — performer analysis + self-listen
+  const performerRef      = useRef<PerformerAnalyzer | null>(null)
+  const selfListenRef     = useRef<SelfListenAnalyzer | null>(null)
+  const [performerState,   setPerformerState]   = useState<PerformerState   | null>(null)
+  const [selfListenReport, setSelfListenReport]  = useState<SelfListenReport | null>(null)
+
+  // BPM sync: track last synced performer BPM to avoid rapid Transport changes
+  const lastSyncedBpmRef = useRef<number>(0)
+
   // Latch + pattern lock state
   const [latchMode,        setLatchModeState]   = useState(false)
   const [isPatternLocked,  setIsPatternLocked]  = useState(false)
@@ -285,6 +298,51 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     reactive.wire(orchestr)
     mix.wire(orchestr)
 
+    // ── Ears system: performer analysis ──────────────────────────────────────
+    // Subscribe directly to input frames so we get raw mic data before
+    // the physics engine smooths everything away.
+    const performer   = new PerformerAnalyzer()
+    const selfListen  = new SelfListenAnalyzer()
+    performerRef.current   = performer
+    selfListenRef.current  = selfListen
+
+    let lastPerformerUIUpdate = 0
+    const unsubPerformer = input.subscribe((frame) => {
+      const pState = performer.processFrame(frame)
+
+      // Throttle React state updates to 15fps
+      const now = performance.now()
+      if (now - lastPerformerUIUpdate >= 66) {
+        lastPerformerUIUpdate = now
+        setPerformerState({ ...pState })
+
+        // Sync Transport BPM to performer when confidence is high enough
+        // and the drift is significant (> 4 BPM). Only during mic input.
+        if (
+          inputSource === 'mic' &&
+          pState.bpmConfidence > 0.55 &&
+          pState.isInPhrase &&
+          Math.abs(pState.bpm - lastSyncedBpmRef.current) > 4
+        ) {
+          orchestr.setBpm(pState.bpm)
+          lastSyncedBpmRef.current = pState.bpm
+          window.dispatchEvent(new CustomEvent('organism:bpm-locked', {
+            detail: { bpm: pState.bpm, confidence: pState.bpmConfidence },
+          }))
+        }
+
+        // Let orchestrator react to the performer in real time
+        orchestr.applyPerformerState(pState)
+      }
+    })
+
+    // ── Ears system: self-listen ─────────────────────────────────────────────
+    const unsubSelfListen = selfListen.onReport((report) => {
+      setSelfListenReport({ ...report })
+      orchestr.applySelfListenReport(report)
+      selfListen.setTransportBpm(orchestr.getBpm())
+    })
+
     // Wire capture
     capture.setUserId(userId)
     capture.startSession()
@@ -375,6 +433,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unsubCaptureEvent()
       unsubMeter()
       unsubReactive()
+      unsubPerformer()
+      unsubSelfListen()
 
       input.stop()
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
@@ -382,6 +442,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       capture.reset()
       transcriber.reset()
       unsubTranscription()
+      performer.reset()
+      selfListen.dispose()
+      lastSyncedBpmRef.current = 0
       window.removeEventListener('organism:section-change', handleSectionChange)
     }
   // profile is intentionally excluded: it loads async and must NOT trigger
@@ -409,6 +472,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       await inputRef.current.start()
       await orchestrRef.current.start()
       setIsRunning(true)
+      // Start self-listen after audio is running
+      selfListenRef.current?.start()
       if (transcriptionEnabled && transcriberRef.current) {
         transcriberRef.current.start()
       }
@@ -1529,6 +1594,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     isRunning,
     isCapturing,
     error,
+
+    // Ears system
+    performerState,
+    selfListenReport,
   }), [
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
@@ -1549,6 +1618,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     guestSecondsRemaining, isGuestNudgeVisible, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
     isRunning, isCapturing, error,
+    performerState, selfListenReport,
   ])
 
   return (

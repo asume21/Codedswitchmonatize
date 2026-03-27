@@ -80,6 +80,8 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     shareSession: vi.fn().mockResolvedValue(null),
     isSharingSession: false,
     lastSharedPostUrl: null,
+    performerState: null,
+    selfListenReport: null,
     ...overrides,
   }
 }
