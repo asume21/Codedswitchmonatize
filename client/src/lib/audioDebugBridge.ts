@@ -24,6 +24,7 @@ const CONNECT  = `/api/webear/connect?key=${API_KEY}`
 const BLOB_URL = (id: string) => `/api/webear/blob/${id}`
 
 let tapNode:     MediaStreamAudioDestinationNode | null = null
+let tapContext:  AudioContext | null = null  // track which context the tap belongs to
 let recorder:    MediaRecorder | null = null
 let sseSource:   EventSource   | null = null
 let isCapturing  = false
@@ -34,26 +35,48 @@ function log(msg: string) {
   console.debug(`[webear-bridge] ${msg}`)
 }
 
-function ensureTap(): MediaStreamAudioDestinationNode | null {
-  if (tapNode) return tapNode
-
+async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
   try {
     const ctx  = Tone.getContext().rawContext as AudioContext
     const dest = Tone.getDestination() as any
+
+    // If context changed (Tone.start() creates a new one), invalidate cached tap
+    if (tapNode && tapContext !== ctx) {
+      log('AudioContext changed — rebuilding tap')
+      tapNode = null
+      tapContext = null
+    }
+
+    if (tapNode) return tapNode
+
+    // Resume suspended context (requires prior user gesture)
+    if (ctx.state === 'suspended') {
+      log(`AudioContext is suspended — attempting resume...`)
+      await ctx.resume()
+      // Re-read state after async resume (TS narrows to 'suspended' in this branch)
+      const stateAfter = ctx.state as AudioContextState
+      if (stateAfter !== 'running') {
+        log(`AudioContext still ${stateAfter} after resume — needs user gesture first`)
+        return null
+      }
+      log('AudioContext resumed ✓')
+    }
+
     const gainNode: AudioNode | null =
-      dest?._volume?._gainNode ||   // Volume's native GainNode (most direct)
-      dest?._volume?.input     ||   // Volume.input also equals _gainNode
-      dest?.input?._gainNode   ||   // fallback path
+      dest?.output?._gainNode      ||  // Destination.output is Gain; _gainNode is native (Tone 15)
+      dest?.input?.input?._gainNode ||  // Destination.input is Volume; .input is Gain; _gainNode is native
+      dest?.input?._gainNode        ||  // fallback
       null
 
     if (!gainNode || gainNode === ctx.destination) {
-      log('Could not locate Tone.js gain node — will retry on next capture')
+      log(`Could not locate Tone.js gain node — dest.output: ${dest?.output?.constructor?.name}, dest.input: ${dest?.input?.constructor?.name}`)
       return null
     }
 
     tapNode = ctx.createMediaStreamDestination()
+    tapContext = ctx
     gainNode.connect(tapNode)
-    log('Tapped Tone.js master gain ✓')
+    log(`Tapped Tone.js master gain ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
   } catch (e) {
     log(`ensureTap error: ${e}`)
     return null
@@ -68,9 +91,9 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
   isCapturing   = true
   lastCaptureId = captureId
 
-  const tap = ensureTap()
+  const tap = await ensureTap()
   if (!tap) {
-    log(`Aborting capture ${captureId} — Tone.js not yet initialized`)
+    log(`Aborting capture ${captureId} — Tone.js not yet initialized or context suspended`)
     isCapturing = false
     return
   }
@@ -94,7 +117,11 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
   const blob   = new Blob(chunks, { type: mimeType })
   const buffer = await blob.arrayBuffer()
 
-  log(`Uploading ${blob.size} bytes...`)
+  if (blob.size === 0) {
+    log(`WARNING: Captured 0 bytes — tap stream may be silent (ctx.state=${(Tone.getContext().rawContext as AudioContext).state})`)
+  }
+
+  log(`Uploading ${blob.size} bytes (${chunks.length} chunks)...`)
 
   await fetch(BLOB_URL(captureId), {
     method:  'POST',

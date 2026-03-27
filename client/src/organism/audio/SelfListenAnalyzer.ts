@@ -30,6 +30,7 @@ type ReportCallback = (report: SelfListenReport) => void
 
 export class SelfListenAnalyzer {
   private tapNode:    MediaStreamAudioDestinationNode | null = null
+  private tapContext: AudioContext | null = null
   private recorder:  MediaRecorder | null = null
   private interval:  ReturnType<typeof setInterval> | null = null
   private callbacks: Set<ReportCallback> = new Set()
@@ -80,28 +81,42 @@ export class SelfListenAnalyzer {
     this.stop()
     this.callbacks.clear()
     this.tapNode = null
+    this.tapContext = null
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
 
   private ensureTap(): void {
-    if (this.tapNode) return
+    if (this.tapNode) {
+      // Invalidate if the AudioContext changed (Tone.start() may create a new one)
+      const ctx = Tone.getContext().rawContext as AudioContext
+      if (this.tapContext !== ctx) {
+        this.tapNode = null
+        this.tapContext = null
+      } else {
+        return
+      }
+    }
     try {
       const ctx  = Tone.getContext().rawContext as AudioContext
+      if (ctx.state === 'suspended') return  // wait until user gesture resumes it
+
       this.tapNode = ctx.createMediaStreamDestination()
+      this.tapContext = ctx
 
       // Non-destructive parallel connection to Tone's master output
       const toneDest = Tone.getDestination() as any
-      const output: AudioNode | null =
-        toneDest?.output?.output ||
-        toneDest?.output          ||
-        toneDest?._output         ||
+      // Tone 15: Destination.output is a Gain wrapper; ._gainNode is the native GainNode
+      const gainNode: AudioNode | null =
+        toneDest?.output?._gainNode      ||  // Destination.output.Gain._gainNode (native)
+        toneDest?.output?.output         ||  // Gain.output = _gainNode (fallback)
+        toneDest?.input?.input?._gainNode ||  // Volume.input.Gain._gainNode
         null
 
-      if (output) {
-        output.connect(this.tapNode)
+      if (gainNode && gainNode !== ctx.destination) {
+        gainNode.connect(this.tapNode)
       } else {
-        ctx.destination.connect(this.tapNode)
+        console.warn('[SelfListen] Could not locate Tone.js gain node — tap may be silent')
       }
     } catch (e) {
       console.warn('[SelfListen] Could not tap Tone output:', e)
