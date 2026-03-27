@@ -12,7 +12,7 @@ import { Router, Request, Response } from 'express';
 import express from 'express';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import type { IStorage } from '../storage';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
 import { getCreditService } from '../services/credits';
@@ -192,22 +192,27 @@ async function handleMcpMessage(
       const blob = audioBlobs.get(captureId);
       if (!blob) return mcpErr(id, `Capture "${captureId}" not found or expired. Run capture_audio again.`);
 
-      if (!process.env.GEMINI_API_KEY) return mcpErr(id, 'Server configuration error: GEMINI_API_KEY missing.');
+      if (!process.env.OPENAI_API_KEY) return mcpErr(id, 'Server configuration error: OPENAI_API_KEY missing.');
 
       const balance = await creditService.getBalance(session.userId);
       if (balance < 2) return mcpErr(id, `Insufficient credits (have ${balance}, need 2). Buy more at https://www.codedswitch.com/buy-credits`);
 
       try {
-        const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model  = gemini.getGenerativeModel({ model: 'gemini-2.0-flash' });
-        const result = await model.generateContent([
-          'Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If ambient, describe the textures and frequencies. Be concise but analytical.',
-          { inlineData: { data: blob.buffer.toString('base64'), mimeType: blob.contentType || 'audio/webm' } },
-        ]);
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const result = await openai.chat.completions.create({
+          model: 'gpt-4o-audio-preview',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If ambient, describe the textures and frequencies. Be concise but analytical.' },
+              { type: 'input_audio', input_audio: { data: blob.buffer.toString('base64'), format: 'webm' } },
+            ],
+          }],
+        });
         await creditService.deductCredits(session.userId, 2, 'webear describe_audio', { tool: 'describe_audio' });
         const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
         if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
-        return mcpText(id, result.response.text());
+        return mcpText(id, result.choices[0]?.message?.content ?? 'No description returned.');
       } catch (err: any) {
         return mcpErr(id, `Description failed: ${err.message}`);
       }
