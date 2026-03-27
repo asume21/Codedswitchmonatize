@@ -34,35 +34,32 @@ function log(msg: string) {
   console.debug(`[webear-bridge] ${msg}`)
 }
 
-function ensureTap(): MediaStreamAudioDestinationNode {
+function ensureTap(): MediaStreamAudioDestinationNode | null {
   if (tapNode) return tapNode
 
   try {
     const ctx  = Tone.getContext().rawContext as AudioContext
-    tapNode    = ctx.createMediaStreamDestination()
-
     const dest = Tone.getDestination() as any
-    // In Tone.js v14, Destination.input is a Volume ToneAudioNode whose
-    // internal _gainNode (a native GainNode) routes into ctx.destination.
-    // We tap that GainNode — connecting it to tapNode too branches the signal.
-    // We must NOT connect from ctx.destination, which is a terminal sink.
     const gainNode: AudioNode | null =
       dest?._volume?._gainNode ||   // Volume's native GainNode (most direct)
       dest?._volume?.input     ||   // Volume.input also equals _gainNode
       dest?.input?._gainNode   ||   // fallback path
       null
 
-    if (gainNode && gainNode !== ctx.destination) {
-      gainNode.connect(tapNode)
-      log('Tapped Tone.js master gain ✓')
-    } else {
-      log('Could not locate Tone.js gain node — capture will be silent')
+    if (!gainNode || gainNode === ctx.destination) {
+      log('Could not locate Tone.js gain node — will retry on next capture')
+      return null
     }
+
+    tapNode = ctx.createMediaStreamDestination()
+    gainNode.connect(tapNode)
+    log('Tapped Tone.js master gain ✓')
   } catch (e) {
     log(`ensureTap error: ${e}`)
+    return null
   }
 
-  return tapNode!
+  return tapNode
 }
 
 async function doCapture(captureId: string, durationMs: number): Promise<void> {
@@ -71,7 +68,12 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
   isCapturing   = true
   lastCaptureId = captureId
 
-  const tap      = ensureTap()
+  const tap = ensureTap()
+  if (!tap) {
+    log(`Aborting capture ${captureId} — Tone.js not yet initialized`)
+    isCapturing = false
+    return
+  }
   const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
     ? 'audio/webm;codecs=opus'
     : 'audio/webm'
@@ -129,7 +131,6 @@ function connectSSE() {
 
 export function initAudioDebugBridge(): void {
   connectSSE()
-  ensureTap()
 
   window.__audioDebug = {
     startCapture: async (durationMs = 3000) => {
