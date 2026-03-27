@@ -41,31 +41,28 @@ function ensureTap(): MediaStreamAudioDestinationNode {
     const ctx  = Tone.getContext().rawContext as AudioContext
     tapNode    = ctx.createMediaStreamDestination()
 
-    const toneDest     = Tone.getDestination() as any
-    const toneOutput: AudioNode | null =
-      toneDest?.output?.output ||
-      toneDest?.output          ||
-      toneDest?._output         ||
+    const dest = Tone.getDestination() as any
+    // In Tone.js v14, Destination.input is a Volume ToneAudioNode whose
+    // internal _gainNode (a native GainNode) routes into ctx.destination.
+    // We tap that GainNode — connecting it to tapNode too branches the signal.
+    // We must NOT connect from ctx.destination, which is a terminal sink.
+    const gainNode: AudioNode | null =
+      dest?._volume?._gainNode ||   // Volume's native GainNode (most direct)
+      dest?._volume?.input     ||   // Volume.input also equals _gainNode
+      dest?.input?._gainNode   ||   // fallback path
       null
 
-    if (toneOutput) {
-      toneOutput.connect(tapNode)
-      log('Tapped Tone.js master output ✓')
+    if (gainNode && gainNode !== ctx.destination) {
+      gainNode.connect(tapNode)
+      log('Tapped Tone.js master gain ✓')
     } else {
-      // Fallback: tap ctx.destination directly
-      ctx.destination.connect(tapNode)
-      log('Tapped AudioContext destination (fallback) ✓')
+      log('Could not locate Tone.js gain node — capture will be silent')
     }
   } catch (e) {
     log(`ensureTap error: ${e}`)
   }
 
-  if (!tapNode) {
-    const ctx = Tone.getContext().rawContext as AudioContext
-    tapNode   = ctx.createMediaStreamDestination()
-  }
-
-  return tapNode
+  return tapNode!
 }
 
 async function doCapture(captureId: string, durationMs: number): Promise<void> {

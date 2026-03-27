@@ -5,8 +5,9 @@
       "Bash(git add:*)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "audio-debug"
-  ],
-  "enableAllProjectMcpServers": false
+    "audio-debug",
+    "webear"
+  ]
 }

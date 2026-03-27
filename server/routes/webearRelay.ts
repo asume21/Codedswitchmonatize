@@ -199,7 +199,7 @@ async function handleMcpMessage(
 
       try {
         const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model  = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model  = gemini.getGenerativeModel({ model: 'gemini-2.0-flash' });
         const result = await model.generateContent([
           'Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If ambient, describe the textures and frequencies. Be concise but analytical.',
           { inlineData: { data: blob.buffer.toString('base64'), mimeType: blob.contentType || 'audio/webm' } },
