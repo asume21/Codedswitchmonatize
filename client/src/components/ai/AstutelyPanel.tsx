@@ -795,6 +795,9 @@ export default function AstutelyPanel({ onClose, onGenerated }: AstutelyPanelPro
           {/* Freeform Prompt */}
           <div className="mb-6">
             <input
+              id="astutely-prompt"
+              name="astutely-prompt"
+              autoComplete="off"
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}

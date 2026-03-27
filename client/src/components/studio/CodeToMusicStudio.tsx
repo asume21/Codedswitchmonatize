@@ -253,8 +253,11 @@ function CodeToMusicStudio() {
 
             {/* Project Info */}
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-300">Project</label>
+              <label htmlFor="code-music-project" className="block text-sm font-medium mb-2 text-gray-300">Project</label>
               <input
+                id="code-music-project"
+                name="code-music-project"
+                autoComplete="off"
                 type="text"
                 value={project.name}
                 onChange={(e) => setProject(prev => ({ ...prev, name: e.target.value }))}

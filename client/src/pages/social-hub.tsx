@@ -204,6 +204,9 @@ function FeedTab({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
           </Avatar>
           <div className="flex-1 space-y-3">
             <Textarea
+              id="social-post-content"
+              name="social-post-content"
+              autoComplete="off"
               placeholder="Share what you're working on..."
               value={postContent}
               onChange={(e) => setPostContent(e.target.value)}
@@ -548,6 +551,9 @@ function ChatTab() {
             <div className="p-3 border-t border-cyan-500/10">
               <div className="flex gap-2">
                 <Input
+                  id="social-msg-input"
+                  name="social-msg-input"
+                  autoComplete="off"
                   value={msgInput}
                   onChange={(e) => setMsgInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}

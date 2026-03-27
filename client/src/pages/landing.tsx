@@ -517,6 +517,9 @@ export default function Landing() {
               <div className="max-w-md mx-auto">
                 <div className="relative group">
                   <Input
+                    id="waitlist-email"
+                    name="waitlist-email"
+                    autoComplete="email"
                     type="email"
                     placeholder="Enter your email"
                     className="h-16 rounded-2xl bg-black/40 border-white/10 px-6 text-lg focus:border-cyan-500 focus:ring-0 transition-all"

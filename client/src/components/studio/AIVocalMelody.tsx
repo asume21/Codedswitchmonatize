@@ -148,6 +148,9 @@ export default function AIVocalMelody({
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">BPM</label>
             <Input
+              id="vocal-melody-bpm"
+              name="vocal-melody-bpm"
+              autoComplete="off"
               type="number"
               value={bpm}
               onChange={(e) => setBpm(Number(e.target.value))}

@@ -35,7 +35,7 @@ function log(msg: string) {
 
 const server = new McpServer({
   name:    'webear',
-  version: '1.0.0',
+  version: '1.2.0',
 })
 
 server.tool(

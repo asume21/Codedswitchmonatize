@@ -334,10 +334,10 @@ export default function UserProfileComponent() {
 
         {/* Favorite Genres */}
         <div>
-          <Label className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 text-sm font-medium">
             <Music className="w-4 h-4" />
             Favorite Genres
-          </Label>
+          </div>
           <div className="flex flex-wrap gap-2">
             {profileData.favoriteGenres?.map(genre => (
               <Badge key={genre} variant="outline" className="bg-purple-600">
@@ -369,10 +369,10 @@ export default function UserProfileComponent() {
 
         {/* Instruments */}
         <div>
-          <Label className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 text-sm font-medium">
             <Users className="w-4 h-4" />
             Instruments
-          </Label>
+          </div>
           <div className="flex flex-wrap gap-2">
             {profileData.instruments?.map(instrument => (
               <Badge key={instrument} variant="outline" className="bg-green-600">
@@ -405,9 +405,12 @@ export default function UserProfileComponent() {
         {/* Social Links */}
         {isEditing && (
           <div className="space-y-4">
-            <Label>Social Links</Label>
+            <div className="text-sm font-medium">Social Links</div>
             <div className="grid grid-cols-2 gap-4">
               <Input
+                id="social-link-twitter"
+                name="social-link-twitter"
+                autoComplete="off"
                 placeholder="Twitter @username"
                 value={profileData.socialLinks?.twitter || ''}
                 onChange={(e) => setProfileData(prev => ({
@@ -417,6 +420,9 @@ export default function UserProfileComponent() {
                 className="bg-gray-700 border-gray-600"
               />
               <Input
+                id="social-link-instagram"
+                name="social-link-instagram"
+                autoComplete="off"
                 placeholder="Instagram @username"
                 value={profileData.socialLinks?.instagram || ''}
                 onChange={(e) => setProfileData(prev => ({
@@ -426,6 +432,9 @@ export default function UserProfileComponent() {
                 className="bg-gray-700 border-gray-600"
               />
               <Input
+                id="social-link-youtube"
+                name="social-link-youtube"
+                autoComplete="off"
                 placeholder="YouTube channel URL"
                 value={profileData.socialLinks?.youtube || ''}
                 onChange={(e) => setProfileData(prev => ({
@@ -435,6 +444,9 @@ export default function UserProfileComponent() {
                 className="bg-gray-700 border-gray-600"
               />
               <Input
+                id="social-link-soundcloud"
+                name="social-link-soundcloud"
+                autoComplete="off"
                 placeholder="SoundCloud profile URL"
                 value={profileData.socialLinks?.soundcloud || ''}
                 onChange={(e) => setProfileData(prev => ({
@@ -450,7 +462,7 @@ export default function UserProfileComponent() {
         {/* Display Social Links */}
         {!isEditing && profileData.socialLinks && Object.keys(profileData.socialLinks).length > 0 && (
           <div>
-            <Label className="mb-2 block">Social Links</Label>
+            <div className="mb-2 block text-sm font-medium">Social Links</div>
             <div className="flex gap-4">
               {profileData.socialLinks.twitter && (
                 <a href={`https://twitter.com/${profileData.socialLinks.twitter}`}

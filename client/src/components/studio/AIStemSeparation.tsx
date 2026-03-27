@@ -564,6 +564,9 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">ElevenLabs Voice ID</label>
             <Input
+              id="stem-voice-id"
+              name="stem-voice-id"
+              autoComplete="off"
               value={voiceId}
               onChange={(e) => setVoiceId(e.target.value)}
               placeholder="e.g. 0UoWMp8jHDjyEstFbfsf"

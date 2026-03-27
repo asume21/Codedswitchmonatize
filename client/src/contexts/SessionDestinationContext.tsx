@@ -116,7 +116,7 @@ export function SessionDestinationProvider({ children }: { children: React.React
 
           <div className="space-y-2">
             <div className="text-sm text-muted-foreground">Session name</div>
-            <Input value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Untitled Session" />
+            <Input id="session-dest-name" name="session-dest-name" autoComplete="off" value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Untitled Session" />
             {mode === 'appendOrCreate' && listSessions().length > 0 && (
               <div className="space-y-2 pt-2 border-t border-border">
                 <div className="flex items-center justify-between text-sm text-muted-foreground">

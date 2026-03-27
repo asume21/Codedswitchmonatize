@@ -79,13 +79,13 @@ export function MTPHeader(props: MTPHeaderProps) {
       <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between">
         <StudioMenuBar {...menuHandlers} />
         <div className="flex items-center gap-3 text-sm text-gray-300">
-          <Input className="w-48 h-8 bg-gray-800 border-gray-700" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+          <Input id="mtp-project-name" name="mtp-project-name" autoComplete="off" className="w-48 h-8 bg-gray-800 border-gray-700" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
           <span>BPM:</span>
-          <Input type="number" className="w-16 h-8 bg-gray-800 border-gray-700" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
+          <Input id="mtp-tempo" name="mtp-tempo" autoComplete="off" type="number" className="w-16 h-8 bg-gray-800 border-gray-700" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
           <span>Key:</span>
-          <Input className="w-16 h-8 bg-gray-800 border-gray-700" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
+          <Input id="mtp-key" name="mtp-key" autoComplete="off" className="w-16 h-8 bg-gray-800 border-gray-700" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
           <span>TS:</span>
-          <Input className="w-16 h-8 bg-gray-800 border-gray-700" value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} />
+          <Input id="mtp-time-sig" name="mtp-time-sig" autoComplete="off" className="w-16 h-8 bg-gray-800 border-gray-700" value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} />
           <Button size="sm" variant={metronomeOn ? "default" : "outline"} onClick={() => setMetronomeOn(!metronomeOn)}>
             {metronomeOn ? "Metronome On" : "Metronome Off"}
           </Button>
@@ -113,13 +113,13 @@ export function MTPHeader(props: MTPHeaderProps) {
             </Button>
             <div className="flex items-center gap-2 ml-4">
               <span className="text-xs text-gray-400">Punch In</span>
-              <Input type="number" value={punch.in} onChange={(e) => setPunch({ ...punch, in: Number(e.target.value) })} className="w-20" />
+              <Input id="mtp-punch-in" name="mtp-punch-in" autoComplete="off" type="number" value={punch.in} onChange={(e) => setPunch({ ...punch, in: Number(e.target.value) })} className="w-20" />
               <span className="text-xs text-gray-400">Punch Out</span>
-              <Input type="number" value={punch.out} onChange={(e) => setPunch({ ...punch, out: Number(e.target.value) })} className="w-20" />
+              <Input id="mtp-punch-out" name="mtp-punch-out" autoComplete="off" type="number" value={punch.out} onChange={(e) => setPunch({ ...punch, out: Number(e.target.value) })} className="w-20" />
             </div>
             <div className="flex items-center gap-2 ml-4">
               <span className="text-xs text-gray-400">Tempo</span>
-              <Input type="number" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} className="w-20" />
+              <Input id="mtp-tempo-ctrl" name="mtp-tempo-ctrl" autoComplete="off" type="number" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} className="w-20" />
             </div>
           </div>
         </div>

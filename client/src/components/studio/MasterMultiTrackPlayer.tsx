@@ -3985,6 +3985,9 @@ export default function MasterMultiTrackPlayer() {
               <div className="flex items-center gap-2 text-xs text-gray-300">
                 <span>In</span>
                 <Input
+                  id="mmtp-punch-in"
+                  name="mmtp-punch-in"
+                  autoComplete="off"
                   type="number"
                   value={punch.in}
                   min={0}
@@ -3999,6 +4002,9 @@ export default function MasterMultiTrackPlayer() {
                 />
                 <span>Out</span>
                 <Input
+                  id="mmtp-punch-out"
+                  name="mmtp-punch-out"
+                  autoComplete="off"
                   type="number"
                   value={punch.out}
                   min={punch.in + 0.1}
@@ -4023,6 +4029,9 @@ export default function MasterMultiTrackPlayer() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-400">Tempo:</span>
               <Input
+                id="mmtp-tempo"
+                name="mmtp-tempo"
+                autoComplete="off"
                 type="number"
                 value={tempo}
                 onChange={(e) => setTempo(Number(e.target.value))}
@@ -4124,6 +4133,9 @@ export default function MasterMultiTrackPlayer() {
           <span>Limiter</span>
           <span>Thresh</span>
           <Input
+            id="mmtp-lim-thresh"
+            name="mmtp-lim-thresh"
+            autoComplete="off"
             type="number"
             className="w-16 h-8 bg-gray-800 border-gray-700 text-xs"
             value={masterLimiter.threshold}
@@ -4131,6 +4143,9 @@ export default function MasterMultiTrackPlayer() {
           />
           <span>Release</span>
           <Input
+            id="mmtp-lim-release"
+            name="mmtp-lim-release"
+            autoComplete="off"
             type="number"
             className="w-16 h-8 bg-gray-800 border-gray-700 text-xs"
             value={masterLimiter.release}
@@ -4138,6 +4153,9 @@ export default function MasterMultiTrackPlayer() {
           />
           <span>Ceiling</span>
           <Input
+            id="mmtp-lim-ceiling"
+            name="mmtp-lim-ceiling"
+            autoComplete="off"
             type="number"
             className="w-16 h-8 bg-gray-800 border-gray-700 text-xs"
             value={masterLimiter.ceiling}
@@ -4909,31 +4927,31 @@ export default function MasterMultiTrackPlayer() {
           <div className="space-y-3 text-sm text-gray-200">
             <div className="flex items-center gap-2">
               <span className="w-32 text-gray-400">Project Name</span>
-              <Input className="bg-gray-800 border-gray-700" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+              <Input id="mmtp-dlg-name" name="mmtp-dlg-name" autoComplete="off" className="bg-gray-800 border-gray-700" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-32 text-gray-400">BPM</span>
-              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
+              <Input id="mmtp-dlg-bpm" name="mmtp-dlg-bpm" autoComplete="off" type="number" className="bg-gray-800 border-gray-700 w-24" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-32 text-gray-400">Key</span>
-              <Input className="bg-gray-800 border-gray-700 w-24" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
+              <Input id="mmtp-dlg-key" name="mmtp-dlg-key" autoComplete="off" className="bg-gray-800 border-gray-700 w-24" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-32 text-gray-400">Time Signature</span>
-              <Input className="bg-gray-800 border-gray-700 w-24" value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} />
+              <Input id="mmtp-dlg-ts" name="mmtp-dlg-ts" autoComplete="off" className="bg-gray-800 border-gray-700 w-24" value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-32 text-gray-400">Limiter Threshold</span>
-              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.threshold} onChange={(e) => setMasterLimiter((p) => ({ ...p, threshold: Number(e.target.value) }))} />
+              <Input id="mmtp-dlg-thresh" name="mmtp-dlg-thresh" autoComplete="off" type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.threshold} onChange={(e) => setMasterLimiter((p) => ({ ...p, threshold: Number(e.target.value) }))} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-32 text-gray-400">Limiter Release</span>
-              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.release} onChange={(e) => setMasterLimiter((p) => ({ ...p, release: Number(e.target.value) }))} />
+              <Input id="mmtp-dlg-release" name="mmtp-dlg-release" autoComplete="off" type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.release} onChange={(e) => setMasterLimiter((p) => ({ ...p, release: Number(e.target.value) }))} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-32 text-gray-400">Limiter Ceiling</span>
-              <Input type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.ceiling} onChange={(e) => setMasterLimiter((p) => ({ ...p, ceiling: Number(e.target.value) }))} />
+              <Input id="mmtp-dlg-ceiling" name="mmtp-dlg-ceiling" autoComplete="off" type="number" className="bg-gray-800 border-gray-700 w-24" value={masterLimiter.ceiling} onChange={(e) => setMasterLimiter((p) => ({ ...p, ceiling: Number(e.target.value) }))} />
             </div>
           </div>
         </BaseDialogContent>

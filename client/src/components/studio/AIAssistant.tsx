@@ -819,6 +819,9 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
             <div className="flex space-x-3">
               <div className="flex-1 relative">
                 <Input
+                  id="ai-assistant-chat"
+                  name="ai-assistant-chat"
+                  autoComplete="off"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyPress}

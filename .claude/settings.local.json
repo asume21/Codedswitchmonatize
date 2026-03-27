@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(npm run:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "mcp__webear__describe_audio",
+      "Bash(xargs grep:*)",
+      "mcp__webear__capture_audio",
+      "Bash(find /d/Codedswitchmonatize -type f -name .claude*)",
+      "Bash(find /d/Codedswitchmonatize -type f -name *.json -path */node_modules/*webear*)"
     ]
   },
   "enableAllProjectMcpServers": true,

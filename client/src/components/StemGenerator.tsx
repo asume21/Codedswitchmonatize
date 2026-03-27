@@ -59,8 +59,11 @@ export default function StemGenerator() {
       </div>
       <div className="flex gap-3">
         <div className="flex-1">
-          <label className="text-sm text-gray-300">BPM</label>
+          <label htmlFor="stemgen-bpm" className="text-sm text-gray-300">BPM</label>
           <input
+            id="stemgen-bpm"
+            name="stemgen-bpm"
+            autoComplete="off"
             type="number"
             value={bpm ?? ""}
             onChange={(e) => setBpm(e.target.value ? Number(e.target.value) : undefined)}
@@ -69,8 +72,11 @@ export default function StemGenerator() {
           />
         </div>
         <div className="flex-1">
-          <label className="text-sm text-gray-300">Key</label>
+          <label htmlFor="stemgen-key" className="text-sm text-gray-300">Key</label>
           <input
+            id="stemgen-key"
+            name="stemgen-key"
+            autoComplete="off"
             type="text"
             value={key}
             onChange={(e) => setKey(e.target.value)}

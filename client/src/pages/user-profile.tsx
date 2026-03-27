@@ -260,8 +260,11 @@ export default function UserProfile() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm text-gray-400">Display Name</label>
+                    <label htmlFor="profile-display-name" className="text-sm text-gray-400">Display Name</label>
                     <Input
+                      id="profile-display-name"
+                      name="profile-display-name"
+                      autoComplete="off"
                       value={profile.displayName}
                       onChange={(e) => updateProfileMutation.mutate({...profile, displayName: e.target.value})}
                       placeholder="Enter display name"
@@ -269,8 +272,11 @@ export default function UserProfile() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-gray-400">Email</label>
+                    <label htmlFor="profile-email" className="text-sm text-gray-400">Email</label>
                     <Input
+                      id="profile-email"
+                      name="profile-email"
+                      autoComplete="off"
                       value={profile.email}
                       disabled
                       className="bg-gray-700 border-gray-600 text-white mt-1 opacity-50"
@@ -278,8 +284,11 @@ export default function UserProfile() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400">Bio</label>
+                  <label htmlFor="profile-bio" className="text-sm text-gray-400">Bio</label>
                   <Input
+                    id="profile-bio"
+                    name="profile-bio"
+                    autoComplete="off"
                     value={profile.bio}
                     onChange={(e) => updateProfileMutation.mutate({...profile, bio: e.target.value})}
                     placeholder="Tell us about yourself..."

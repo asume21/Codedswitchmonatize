@@ -76,13 +76,13 @@ export function MTPHeaderContainer(props: MTPHeaderContainerProps) {
       <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between">
         <StudioMenuBar {...menuHandlers} />
         <div className="flex items-center gap-3 text-sm text-gray-300">
-          <Input className="w-48 h-8 bg-gray-800 border-gray-700" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+          <Input id="mtpc-project-name" name="mtpc-project-name" autoComplete="off" className="w-48 h-8 bg-gray-800 border-gray-700" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
           <span>BPM:</span>
-          <Input type="number" className="w-16 h-8 bg-gray-800 border-gray-700" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
+          <Input id="mtpc-tempo" name="mtpc-tempo" autoComplete="off" type="number" className="w-16 h-8 bg-gray-800 border-gray-700" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
           <span>Key:</span>
-          <Input className="w-16 h-8 bg-gray-800 border-gray-700" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
+          <Input id="mtpc-key" name="mtpc-key" autoComplete="off" className="w-16 h-8 bg-gray-800 border-gray-700" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
           <span>TS:</span>
-          <Input className="w-16 h-8 bg-gray-800 border-gray-700" value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} />
+          <Input id="mtpc-time-sig" name="mtpc-time-sig" autoComplete="off" className="w-16 h-8 bg-gray-800 border-gray-700" value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} />
           <Button size="sm" variant={metronomeOn ? 'default' : 'outline'} onClick={() => setMetronomeOn(!metronomeOn)}>
             {metronomeOn ? 'Metronome On' : 'Metronome Off'}
           </Button>

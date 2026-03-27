@@ -6,12 +6,23 @@ export const analyzeAudioSchema = {
 };
 
 const API_BASE = process.env.MCP_API_URL || 'https://www.codedswitch.com';
-const API_KEY = process.env.CODEDSWITCH_API_KEY || 'dev-key-123';
+const API_KEY = process.env.CODEDSWITCH_API_KEY || '';
+
+function log(msg: string) { process.stderr.write(`[webear] ${msg}\n`) }
 
 export async function analyzeAudioHandler(args: { capture_id: string }) {
+  if (!API_KEY) {
+    return {
+      content: [{
+        type: 'text' as const,
+        text: 'CODEDSWITCH_API_KEY is not set. Get a free key at https://www.codedswitch.com/developer and add it to your MCP env config.',
+      }],
+    };
+  }
+
   let buffer: Buffer;
   try {
-    buffer = await waitForCapture(args.capture_id, 2000);
+    buffer = await waitForCapture(args.capture_id, 5000);
   } catch {
     return {
       content: [{
@@ -22,13 +33,19 @@ export async function analyzeAudioHandler(args: { capture_id: string }) {
   }
 
   try {
-    const formData = new FormData();
-    formData.append('audio', new Blob([new Uint8Array(buffer)], { type: 'audio/webm' }), 'capture.webm');
+    // Build multipart body manually for reliable Node.js compatibility
+    const boundary = `----webear${Date.now()}`;
+    const header = `--${boundary}\r\nContent-Disposition: form-data; name="audio"; filename="capture.webm"\r\nContent-Type: audio/webm\r\n\r\n`;
+    const footer = `\r\n--${boundary}--\r\n`;
+    const body = Buffer.concat([Buffer.from(header), buffer, Buffer.from(footer)]);
 
     const res = await fetch(`${API_BASE}/api/mcp/analyze`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${API_KEY}` },
-      body: formData,
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
     });
 
     if (!res.ok) {

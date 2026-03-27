@@ -62,6 +62,20 @@ async function decodeWebmToPcm(buf: Buffer): Promise<{ samples: Float32Array; sa
   });
 }
 
+async function convertWebmToWav(buf: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'wav', '-ac', '1', '-ar', '44100', 'pipe:1']);
+    const chunks: Buffer[] = [];
+    ff.stdout.on('data', (c: Buffer) => chunks.push(c));
+    ff.stderr.on('data', () => {});
+    ff.stdout.on('end', () => resolve(Buffer.concat(chunks)));
+    ff.on('error', (e) => reject(new Error(`ffmpeg: ${e.message}`)));
+    ff.on('close', (code) => { if (code !== 0 && chunks.length === 0) reject(new Error(`ffmpeg exited ${code}`)); });
+    ff.stdin.write(buf);
+    ff.stdin.end();
+  });
+}
+
 // ── MCP Protocol ──────────────────────────────────────────────────────────────
 
 async function handleMcpMessage(
@@ -198,6 +212,7 @@ async function handleMcpMessage(
       if (balance < 2) return mcpErr(id, `Insufficient credits (have ${balance}, need 2). Buy more at https://www.codedswitch.com/buy-credits`);
 
       try {
+        const wavBuf = await convertWebmToWav(blob.buffer);
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
         const result = await openai.chat.completions.create({
           model: 'gpt-4o-audio-preview',
@@ -205,7 +220,7 @@ async function handleMcpMessage(
             role: 'user',
             content: [
               { type: 'text', text: 'Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If ambient, describe the textures and frequencies. Be concise but analytical.' },
-              { type: 'input_audio', input_audio: { data: blob.buffer.toString('base64'), format: 'webm' } },
+              { type: 'input_audio', input_audio: { data: wavBuf.toString('base64'), format: 'wav' } },
             ],
           }],
         });

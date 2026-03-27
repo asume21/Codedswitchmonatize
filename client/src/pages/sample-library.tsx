@@ -225,6 +225,9 @@ export default function SampleLibraryPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/60" />
               <input
+                id="page-sample-search"
+                name="page-sample-search"
+                autoComplete="off"
                 type="text"
                 placeholder="Search samples..."
                 value={searchQuery}
@@ -234,6 +237,8 @@ export default function SampleLibraryPage() {
             </div>
 
             <select
+              id="page-sample-category"
+              name="page-sample-category"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="px-4 py-2 bg-black/60 border border-cyan-500/40 rounded-lg text-cyan-100 focus:outline-none focus:border-cyan-400"

@@ -766,7 +766,7 @@ export default function PackGenerator() {
                         <div className="flex-1">
                           {editingPack === pack.id ? (
                             <div className="flex items-center gap-2">
-                              <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-9 bg-black/60 border-emerald-500/50 rounded-xl text-lg font-black text-white uppercase" autoFocus />
+                              <Input id="pack-edit-title" name="pack-edit-title" autoComplete="off" value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-9 bg-black/60 border-emerald-500/50 rounded-xl text-lg font-black text-white uppercase" autoFocus />
                               <Button size="sm" variant="ghost" onClick={() => savePackEdit(pack.id)} className="h-9 w-9 p-0 text-emerald-400 hover:bg-emerald-400/10 rounded-xl"><Check className="h-5 w-5" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => setEditingPack(null)} className="h-9 w-9 p-0 text-red-400 hover:bg-red-400/10 rounded-xl"><X className="h-5 w-5" /></Button>
                             </div>

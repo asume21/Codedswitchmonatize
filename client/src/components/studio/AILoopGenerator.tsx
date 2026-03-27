@@ -690,6 +690,9 @@ export default function AILoopGenerator({
             <label className="text-[10px] font-black text-green-400/80 uppercase tracking-widest ml-1">Archive Identifier</label>
             <div className="flex gap-2">
               <Input
+                id="loop-gen-name"
+                name="loop-gen-name"
+                autoComplete="off"
                 value={loopName}
                 onChange={(e) => setLoopName(e.target.value)}
                 placeholder="SEQUENCE_ID_01..."

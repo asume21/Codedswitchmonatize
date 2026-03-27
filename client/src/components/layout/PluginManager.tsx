@@ -67,6 +67,9 @@ export function PluginManager({ plugins, onTogglePlugin }: PluginManagerProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
+            id="plugin-search"
+            name="plugin-search"
+            autoComplete="off"
             placeholder="Search plugins..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

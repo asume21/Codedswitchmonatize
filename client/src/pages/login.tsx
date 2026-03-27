@@ -86,7 +86,9 @@ export default function Login() {
               <Label htmlFor="email" className="text-gray-200">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}

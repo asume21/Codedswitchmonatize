@@ -215,6 +215,9 @@ export default function SampleLibrary() {
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
+            id="sample-lib-search"
+            name="sample-lib-search"
+            autoComplete="off"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
