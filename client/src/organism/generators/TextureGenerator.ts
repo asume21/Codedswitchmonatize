@@ -98,7 +98,7 @@ export class TextureGenerator extends GeneratorBase {
   // ── Reactive mutation methods (Section 05) ────────────────────────
 
   applyVolumeMultiplier(multiplier: number): void {
-    const m = Math.max(0, multiplier)
+    const m = Math.max(0, Math.min(1.3, multiplier))  // cap at 1.3 — texture should never dominate
     this.gain.gain.rampTo(m, 0.05)
   }
 

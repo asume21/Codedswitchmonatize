@@ -140,6 +140,10 @@ export interface OrganismContextValue {
   setBassVolume:      (v: number) => void
   setMelodyVolume:    (v: number) => void
 
+  // Texture toggle — off by default for hip-hop; enable for ambient/lo-fi genres
+  textureEnabled:     boolean
+  setTextureEnabled:  (enabled: boolean) => void
+
   // Guest experience
   guestSecondsRemaining: number      // 60→0 countdown while guest is playing
   isGuestNudgeVisible:   boolean     // true once countdown hits 0

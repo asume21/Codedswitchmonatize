@@ -72,11 +72,11 @@ export class MelodyGenerator extends GeneratorBase {
     // synth → chorus → dry bus → output
     //                 → delay send → delay → delayHP → output
     //                 → reverb send → reverb → reverbHP → output
-    this.dryBus     = new Tone.Gain(0.75)   // dry level (primary signal)
-    this.delaySend  = new Tone.Gain(0.15)   // delay send level (reduced from 0.2)
-    this.reverbSend = new Tone.Gain(0.10)   // reverb send level (reduced from 0.15)
-    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.20, wet: 1.0 })  // feedback reduced from 0.25
-    this.reverb = new Tone.Reverb({ decay: 1.2, wet: 1.0 })  // shorter decay (was 1.5)
+    this.dryBus     = new Tone.Gain(0.80)   // dry level (primary signal — louder dry, quieter wet)
+    this.delaySend  = new Tone.Gain(0.10)   // delay send level (was 0.15)
+    this.reverbSend = new Tone.Gain(0.08)   // reverb send level (was 0.10)
+    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.12, wet: 1.0 })  // feedback 0.12 — tails die fast
+    this.reverb = new Tone.Reverb({ decay: 0.8, wet: 1.0 })   // short decay — prevents tail stacking
 
     // Highpass on wet returns to prevent low-mid mud accumulation in tails
     this.delayReturnHP  = new Tone.Filter({ type: 'highpass', frequency: 300, rolloff: -12 })
@@ -291,7 +291,7 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const shaped = level * this.arrangementMultiplier * this.volumeMultiplier
+    const shaped = level * this.arrangementMultiplier * Math.min(1.4, this.volumeMultiplier)
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     this.output.gain.rampTo(Math.pow(10, db / 20), 0.1)
   }

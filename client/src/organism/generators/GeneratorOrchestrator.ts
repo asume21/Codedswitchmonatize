@@ -31,12 +31,23 @@ export class GeneratorOrchestrator {
   private unsubTransition:  (() => void) | null = null
 
   // Reactive multiplier state (Section 05)
+  // These are BASE multipliers set by ReactiveBehaviorEngine.
+  // Performer and self-listen corrections are applied as TEMPORARY modifiers
+  // on top — they never write back to these fields to prevent compounding.
   private hatDensityMultiplier:   number = 1.0
   private kickVelocityMultiplier: number = 1.0
   private bassVolumeMultiplier:   number = 1.0
   private melodyPitchOffset:      number = 0
   private melodyVolumeMultiplier: number = 1.0
   private textureVolumeMultiplier: number = 1.0
+
+  // Self-listen correction factor — applied multiplicatively to all generators
+  // but stored separately so it doesn't compound with performer/reactive state.
+  // Decays toward 1.0 over time to prevent permanent volume drift.
+  private selfListenGainCorrection: number = 1.0
+
+  // Texture toggle — when false, texture generator is fully silenced
+  private textureEnabled: boolean = false  // off by default for hip-hop
 
   // ── Arrangement state ─────────────────────────────────────────────
   //
@@ -201,48 +212,43 @@ export class GeneratorOrchestrator {
   // musically responds to the human in real time.
 
   applyPerformerState(performer: import('../audio/types').PerformerState): void {
+    // Performer adjustments are computed as FRESH multipliers each frame —
+    // they do NOT compound on top of stored multipliers.
+
     // 1. Energy → kick punch + melody presence
-    //    When the rapper goes hard, the beat hits harder.
-    //    When they pull back, Astutely breathes with them.
     const energyBias = 0.7 + performer.energy * 0.6   // 0.7–1.3
-    this.drum.setKickVelocityMultiplier(
-      Math.min(1.5, this.kickVelocityMultiplier * energyBias)
-    )
+    const kickMult   = Math.min(1.4, this.kickVelocityMultiplier * energyBias)
+    this.drum.setKickVelocityMultiplier(kickMult)
+
+    const melodyEnergy = Math.min(1.2, 0.8 + performer.energy * 0.4)
+    // Apply base × performer × self-listen — all independent, no compounding
     this.melody.applyVolumeMultiplier(
-      Math.min(1.2, this.melodyVolumeMultiplier * (0.8 + performer.energy * 0.4))
+      this.melodyVolumeMultiplier * melodyEnergy * this.selfListenGainCorrection
     )
 
     // 2. Syllabic rate → hi-hat density
-    //    Fast rapper = dense hats. Slower, more spacious flow = sparser hats.
-    //    Syllabic rate: 0 = silence, 2-4 = slow flow, 6-10 = fast rap
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
     this.drum.setHatDensityMultiplier(
       Math.max(0.3, Math.min(1.5, 0.5 + normalSyllabic))
     )
 
     // 3. Breathing / rest → call-and-response
-    //    When the performer stops, texture fills the space,
-    //    melody steps forward, drums soften so the answer is heard.
     if (performer.breathingNow) {
       this.texture.applyVolumeMultiplier(
-        Math.min(1.3, this.textureVolumeMultiplier * 1.25)
+        Math.min(1.2, this.textureVolumeMultiplier * 1.15) * this.selfListenGainCorrection
       )
       this.melody.applyVolumeMultiplier(
-        Math.min(1.4, this.melodyVolumeMultiplier * 1.3)
+        Math.min(1.3, this.melodyVolumeMultiplier * 1.2) * this.selfListenGainCorrection
       )
       this.drum.applyArrangementMultiplier(0.6)
     } else {
-      // Performer is rapping — restore normal arrangement multipliers
-      this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
-      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
+      this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier * this.selfListenGainCorrection)
+      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * this.selfListenGainCorrection)
     }
 
-    // 4. Phrase downbeat (phraseBar === 0) → accent kick
-    //    Reinforce the top of every 4-bar phrase.
+    // 4. Phrase downbeat → accent kick (one-shot, not cumulative)
     if (performer.phraseBar === 0 && performer.phrasePosition < 0.1) {
-      this.drum.setKickVelocityMultiplier(
-        Math.min(1.6, (this.kickVelocityMultiplier ?? 1) * 1.2)
-      )
+      this.drum.setKickVelocityMultiplier(Math.min(1.5, kickMult * 1.15))
     }
   }
 
@@ -254,68 +260,47 @@ export class GeneratorOrchestrator {
     if (report.isSilent) return  // nothing playing yet
 
     // ── Volume correction ──────────────────────────────────────────────────
+    // Self-listen adjusts a SEPARATE gain correction factor that is applied
+    // multiplicatively alongside (not into) the reactive/performer multipliers.
+    // The correction is clamped to [0.6, 1.15] to prevent runaway gain drift.
     if (report.needsVolumeReduction) {
-      // Scale reduction by severity — light clipping gets gentle correction,
-      // heavy clipping gets aggressive pullback
-      const severity = report.clippingPercent > 0.5 ? 0.8 : 0.9
-      this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * severity)
-      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * severity)
-      this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * severity)
-      console.info(`[SelfListen] Volume reduced (${severity}x) — clipping ${report.clippingPercent.toFixed(2)}%`)
+      const reduction = report.clippingPercent > 0.5 ? 0.90 : 0.95
+      this.selfListenGainCorrection = Math.max(0.6, this.selfListenGainCorrection * reduction)
+      console.info(`[SelfListen] Gain correction: ${this.selfListenGainCorrection.toFixed(3)} — clipping ${report.clippingPercent.toFixed(2)}%`)
     } else if (report.needsVolumeBoost) {
-      const factor = 1.15
-      this.bass.applyVolumeMultiplier(Math.min(1.5, this.bassVolumeMultiplier * factor))
-      console.info('[SelfListen] Volume boosted — output too quiet')
+      this.selfListenGainCorrection = Math.min(1.15, this.selfListenGainCorrection * 1.03)
+      console.info(`[SelfListen] Gain correction: ${this.selfListenGainCorrection.toFixed(3)} — boosting`)
+    } else {
+      // No issues detected — slowly decay correction back toward 1.0
+      this.selfListenGainCorrection += (1.0 - this.selfListenGainCorrection) * 0.1
     }
 
-    // ── Frequency balance correction ───────────────────────────────────────
+    // Apply corrected volumes to generators (base × self-listen, not compounded)
+    this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * this.selfListenGainCorrection)
+    this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * this.selfListenGainCorrection)
 
-    // Muddy mix (bass/sub heavy) → boost melody for clarity
-    const bassHeavy = report.bandEnergy.sub + report.bandEnergy.bass > 0.7
-    if (bassHeavy) {
-      this.melody.applyVolumeMultiplier(Math.min(1.3, this.melodyVolumeMultiplier * 1.1))
-      console.info('[SelfListen] Muddy mix detected — boosting melody presence')
+    // ── Frequency balance — log only, no gain changes ─────────────────────
+    // Frequency corrections via gain were causing cascading feedback.
+    // These are now informational for future EQ-based corrections.
+    if (report.bandEnergy.sub + report.bandEnergy.bass > 0.7) {
+      console.info('[SelfListen] Muddy mix detected (sub+bass > 70%)')
     }
-
-    // Sub-heavy (sub alone > 20%) → reduce bass volume to tame rumble
-    if (report.bandEnergy.sub > 0.20) {
-      this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * 0.92)
-      console.info('[SelfListen] Sub-heavy — reducing bass')
-    }
-
-    // Harsh/bright (centroid > 5kHz) → pull back hats
     if (report.spectralCentroidHz > 5000) {
-      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * 0.85)
-      console.info('[SelfListen] Harsh mix — reducing hat density')
+      console.info('[SelfListen] Harsh mix detected (centroid > 5kHz)')
+    }
+    if (report.spectralCentroidHz < 1500) {
+      console.info('[SelfListen] Dark mix detected (centroid < 1.5kHz)')
     }
 
-    // Very dark (centroid < 1500Hz) → boost melody + hat presence
-    if (report.spectralCentroidHz < 1500 && !bassHeavy) {
-      this.melody.applyVolumeMultiplier(Math.min(1.3, this.melodyVolumeMultiplier * 1.08))
-      this.drum.setHatDensityMultiplier(Math.min(1.5, this.hatDensityMultiplier * 1.1))
-      console.info('[SelfListen] Dark mix — boosting melody + hats')
+    // ── Diagnostics (log only) ────────────────────────────────────────────
+    if (report.crestFactor < 2) {
+      console.info('[SelfListen] Over-compressed (crest factor < 2)')
     }
-
-    // ── Dynamics correction ────────────────────────────────────────────────
-
-    // Over-compressed (crest factor < 2) — transients are flattened
-    if (report.crestFactor < 2 && !report.isSilent) {
-      // Boost kick velocity to punch through the compression
-      this.drum.setKickVelocityMultiplier(Math.min(1.5, this.kickVelocityMultiplier * 1.1))
-      console.info('[SelfListen] Over-compressed — boosting kick punch')
-    }
-
-    // ── Groove tightness ───────────────────────────────────────────────────
-
-    // Timing jitter too high (> 25ms) — groove is sloppy
-    // Log for now; future: could tighten humanize jitter on DrumGenerator
     if (report.onsetTimingStdDevMs > 25) {
-      console.info(`[SelfListen] Groove jitter high: ${report.onsetTimingStdDevMs.toFixed(1)}ms`)
+      console.info(`[SelfListen] Groove jitter: ${report.onsetTimingStdDevMs.toFixed(1)}ms`)
     }
-
-    // ── DC offset warning ──────────────────────────────────────────────────
     if (report.hasDcOffset) {
-      console.warn(`[SelfListen] DC offset detected: ${report.dcOffset.toFixed(4)}`)
+      console.warn(`[SelfListen] DC offset: ${report.dcOffset.toFixed(4)}`)
     }
   }
 
@@ -348,7 +333,19 @@ export class GeneratorOrchestrator {
 
   setTextureVolumeMultiplier(multiplier: number): void {
     this.textureVolumeMultiplier = Math.max(0, multiplier)
-    this.texture.applyVolumeMultiplier(multiplier)
+    this.texture.applyVolumeMultiplier(this.textureEnabled ? multiplier : 0)
+  }
+
+  /** Enable or disable the texture generator entirely. */
+  setTextureEnabled(enabled: boolean): void {
+    this.textureEnabled = enabled
+    if (!enabled) {
+      this.texture.applyVolumeMultiplier(0)
+    }
+  }
+
+  isTextureEnabled(): boolean {
+    return this.textureEnabled
   }
 
   // ── Mix engine connection methods (Section 06) ────────────────────
@@ -439,7 +436,7 @@ export class GeneratorOrchestrator {
     this.drum.applyArrangementMultiplier(section.drums)
     this.bass.applyArrangementMultiplier(section.bass)
     this.melody.applyArrangementMultiplier(section.melody)
-    this.texture.applyArrangementMultiplier(section.texture)
+    this.texture.applyArrangementMultiplier(this.textureEnabled ? section.texture : 0)
 
     // Gap 2 — notify listeners that a new arrangement section has started
     // so they can request an AI-generated pattern variation

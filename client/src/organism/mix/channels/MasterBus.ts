@@ -28,13 +28,13 @@ export class MasterBus {
     this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: 1.0 })  // restore air/presence for hats
     this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 16000, rolloff: -24 }) // gentle LP — protect from harsh aliasing only
 
-    // Glue compressor — much gentler; drum bus already compresses
+    // Glue compressor — gentle bus glue; individual channels already compress
     this.compressor = new Tone.Compressor({
-      threshold: -24,   // was -16
-      ratio:     2,     // was 3
-      attack:    0.02,
-      release:   0.25,
-      knee:      8,
+      threshold: -20,   // less aggressive threshold
+      ratio:     1.8,   // gentle ratio — glue, not squash
+      attack:    0.03,  // slower attack — let transients breathe
+      release:   0.30,  // slightly longer release
+      knee:      10,    // soft knee — gradual onset
     })
 
     this.saturator = new Tone.Distortion({

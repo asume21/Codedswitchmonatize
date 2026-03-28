@@ -24,10 +24,10 @@ import * as Tone          from 'tone'
 import type { SelfListenReport } from './types'
 import { analyzePcm }     from './pcmAnalyzer'
 
-const CAPTURE_INTERVAL_MS  = 8_000   // run self-analysis every 8 seconds
-const CAPTURE_DURATION_MS  = 3_000   // capture 3 seconds per sample
-const LOUD_DB              = -3      // above this → reduce volume
-const QUIET_DB             = -30     // below this → boost volume
+const CAPTURE_INTERVAL_MS  = 15_000  // run self-analysis every 15 seconds (was 8s — less frequent = less feedback oscillation)
+const CAPTURE_DURATION_MS  = 2_000   // capture 2 seconds per sample (was 3s — less main-thread blocking)
+const LOUD_DB              = -2      // above this → reduce volume (was -3 — less trigger-happy)
+const QUIET_DB             = -35     // below this → boost volume (was -30 — wider dead zone)
 
 type ReportCallback = (report: SelfListenReport) => void
 
@@ -45,12 +45,12 @@ export class SelfListenAnalyzer {
   start(): void {
     if (this.interval) return
     this.ensureTap()
-    // Delay first capture so Tone has time to fully start
+    // Delay first capture so the mix stabilizes before self-correction kicks in
     this.initTimer = setTimeout(() => {
       this.initTimer = null
       this.runCapture()
       this.interval = setInterval(() => this.runCapture(), CAPTURE_INTERVAL_MS)
-    }, 2000)
+    }, 10_000)  // 10 seconds — let arrangement get past intro before analyzing
   }
 
   stop(): void {

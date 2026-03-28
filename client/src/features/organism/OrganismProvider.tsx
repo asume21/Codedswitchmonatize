@@ -185,6 +185,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [kickVelocity,     setKickVelocityState]= useState(1)
   const [bassVolume,       setBassVolumeState]  = useState(1)
   const [melodyVolume,     setMelodyVolumeState]= useState(1)
+  const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
 
   // Recording state — captures beat audio + vocal audio + MIDI + lyrics
   const [isRecording,      setIsRecording]      = useState(false)
@@ -1586,6 +1587,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestrRef.current?.setMelodyVolumeMultiplier(v)
     },
 
+    // Texture toggle
+    textureEnabled,
+    setTextureEnabled: (enabled: boolean) => {
+      setTextureEnabledState(enabled)
+      orchestrRef.current?.setTextureEnabled(enabled)
+    },
+
     // Guest experience
     guestSecondsRemaining,
     isGuestNudgeVisible,
@@ -1619,7 +1627,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     isRecording, startRecording, stopRecording,
     lastSavedSession, savedSessions, downloadSession,
     latchMode, isPatternLocked,
-    hatDensity, kickVelocity, bassVolume, melodyVolume,
+    hatDensity, kickVelocity, bassVolume, melodyVolume, textureEnabled,
     guestSecondsRemaining, isGuestNudgeVisible, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
     isRunning, isCapturing, error,
