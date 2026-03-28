@@ -7,6 +7,7 @@ import type { ScheduledNote } from './types'
 import {
   getBassBehavior,
   getBassFilterCutoff,
+  setBassSwing,
   buildBreatheNotes,
   buildLockNotes,
   buildWalkNotes,
@@ -16,6 +17,7 @@ import {
   buildDubNotes,
 }                              from './patterns/BassPatternLibrary'
 import type { PhysicsState }   from '../physics/types'
+import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 
@@ -38,6 +40,7 @@ export class BassGenerator extends GeneratorBase {
 
   // Physics cache
   private currentPocket: number = 0
+  private currentMode: OrganismMode = OrganismMode.Glow
 
   constructor() {
     super(GeneratorName.Bass)
@@ -77,6 +80,7 @@ export class BassGenerator extends GeneratorBase {
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
     this.currentPocket = physics.pocket
+    this.currentMode   = physics.mode
 
     const newBehavior = getBassBehavior(physics.mode, organism.current)
 
@@ -109,7 +113,9 @@ export class BassGenerator extends GeneratorBase {
     }
 
     // Breathing or Flow → pick a new root + fresh preset + rebuild
-    this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+    this.rootMidi    = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+    this.currentMode = physics.mode
+    setBassSwing(physics.mode.toString())  // sync bass swing with genre
     this.currentBehavior = getBassBehavior(physics.mode, to)
     this.applyBassPreset()
     this.rebuildPart(physics)
@@ -123,27 +129,43 @@ export class BassGenerator extends GeneratorBase {
     this.setOutputLevel(0)
   }
 
-  // ── Bass presets — sound variety on state transitions ─────────────
+  // ── Bass presets — mode-aware sound selection ────────────────────
 
-  private static readonly BASS_PRESETS = [
+  private static readonly PRESET_808 = [
+    // Classic 808 — sine sub with long decay, pitch glide feel
+    { oscType: 'sine' as const, filterQ: 1, filterOctaves: 0.5, attack: 0.001, decay: 1.0,  sustain: 0.5, release: 1.5, distWet: 0.02, volume: -5 },
+    // Hard 808 — tighter, more punch
+    { oscType: 'sine' as const, filterQ: 1.2, filterOctaves: 0.6, attack: 0.001, decay: 0.7, sustain: 0.4, release: 1.0, distWet: 0.05, volume: -5 },
+    // Distorted 808 — saturated sub for drill
+    { oscType: 'sine' as const, filterQ: 1.5, filterOctaves: 0.8, attack: 0.001, decay: 0.9, sustain: 0.5, release: 1.2, distWet: 0.15, volume: -6 },
+  ] as const
+
+  private static readonly PRESET_GENERAL = [
     // Fat Saw — default: wide, mid-heavy
-    { filterQ: 3,   filterOctaves: 2.0, attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3, distWet: 0.20, volume: -7 },
-    // Smooth Sub — low rumble, slow attack, minimal distortion
-    { filterQ: 1.5, filterOctaves: 1.2, attack: 0.015, decay: 0.35, sustain: 0.7, release: 0.4, distWet: 0.05, volume: -6 },
-    // Growl — high resonance filter, aggressive distortion
-    { filterQ: 5,   filterOctaves: 2.5, attack: 0.003, decay: 0.18, sustain: 0.6, release: 0.2, distWet: 0.35, volume: -8 },
-    // Pluck — tight envelope, fast filter decay, articulate
-    { filterQ: 4,   filterOctaves: 3.0, attack: 0.002, decay: 0.12, sustain: 0.3, release: 0.2, distWet: 0.15, volume: -7 },
-    // 808 — very slow release, minimal distortion, deep sub
-    { filterQ: 1,   filterOctaves: 0.8, attack: 0.001, decay: 0.80, sustain: 0.6, release: 1.2, distWet: 0.02, volume: -6 },
-    // Funk — punchy, mid-forward, medium release
-    { filterQ: 3.5, filterOctaves: 2.8, attack: 0.003, decay: 0.14, sustain: 0.45, release: 0.18, distWet: 0.25, volume: -7 },
-    // Dub — warm round tone, low filter, long release
-    { filterQ: 2,   filterOctaves: 1.5, attack: 0.010, decay: 0.40, sustain: 0.65, release: 0.6, distWet: 0.08, volume: -6 },
+    { oscType: 'fatsawtooth' as const, filterQ: 3,   filterOctaves: 2.0, attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3, distWet: 0.20, volume: -7 },
+    // Smooth Sub — low rumble, slow attack
+    { oscType: 'fatsawtooth' as const, filterQ: 1.5, filterOctaves: 1.2, attack: 0.015, decay: 0.35, sustain: 0.7, release: 0.4, distWet: 0.05, volume: -6 },
+    // Growl — high resonance, aggressive
+    { oscType: 'fatsawtooth' as const, filterQ: 5,   filterOctaves: 2.5, attack: 0.003, decay: 0.18, sustain: 0.6, release: 0.2, distWet: 0.35, volume: -8 },
+    // Pluck — tight envelope, articulate
+    { oscType: 'fatsawtooth' as const, filterQ: 4,   filterOctaves: 3.0, attack: 0.002, decay: 0.12, sustain: 0.3, release: 0.2, distWet: 0.15, volume: -7 },
+    // Funk — punchy, mid-forward
+    { oscType: 'fatsawtooth' as const, filterQ: 3.5, filterOctaves: 2.8, attack: 0.003, decay: 0.14, sustain: 0.45, release: 0.18, distWet: 0.25, volume: -7 },
+    // Dub — warm round, long release
+    { oscType: 'fatsawtooth' as const, filterQ: 2,   filterOctaves: 1.5, attack: 0.010, decay: 0.40, sustain: 0.65, release: 0.6, distWet: 0.08, volume: -6 },
   ] as const
 
   private applyBassPreset(): void {
-    const p = BassGenerator.BASS_PRESETS[Math.floor(Math.random() * BassGenerator.BASS_PRESETS.length)]
+    // Heat/Gravel → 808 sine presets; others → general saw presets
+    const is808 = this.currentMode === OrganismMode.Heat || this.currentMode === OrganismMode.Gravel
+    const pool  = is808 ? BassGenerator.PRESET_808 : BassGenerator.PRESET_GENERAL
+    const p     = pool[Math.floor(Math.random() * pool.length)]
+
+    // Switch oscillator type for 808 vs saw
+    try {
+      (this.synth.oscillator as any).type = p.oscType === 'sine' ? 'sine' : 'fatsawtooth'
+    } catch { /* oscillator type change may fail mid-note */ }
+
     this.synth.filter.Q.value                = p.filterQ
     this.synth.filterEnvelope.octaves        = p.filterOctaves
     this.synth.envelope.attack               = p.attack

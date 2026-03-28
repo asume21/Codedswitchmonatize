@@ -36,6 +36,12 @@ export class MelodyGenerator extends GeneratorBase {
   private voiceActive:     boolean = false
   private flowDepth:       number  = 0
 
+  // Genre-aware swing — matches drum/bass swing per mode
+  private static readonly MODE_SWING: Record<string, number> = {
+    heat: 0.20, gravel: 0.22, smoke: 0.55, ice: 0.48, glow: 0.38,
+  }
+  private currentSwing: number = 0.35
+
   private reverb:          Tone.Reverb
   private delay:           Tone.FeedbackDelay
   private chorus:          Tone.Chorus
@@ -102,6 +108,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.currentPresence = physics.presence
     this.voiceActive     = physics.voiceActive
     this.flowDepth       = organism.flowDepth
+    this.currentSwing    = MelodyGenerator.MODE_SWING[physics.mode.toString()] ?? 0.35
 
     const newBehavior = getMelodyBehavior(
       physics.mode,
@@ -261,11 +268,11 @@ export class MelodyGenerator extends GeneratorBase {
                    : dur16ths === 3 ? '8n.'
                    : '4n'
 
-      // Swing: off-16ths pushed late
+      // Swing: off-16ths pushed late — amount matches genre (drum + bass use same values)
       const bar  = Math.floor(cursor / 16)
       const beat = Math.floor((cursor % 16) / 4)
       const sub  = cursor % 4
-      const swungSub = (sub === 1 || sub === 3) ? sub + 0.35 : sub
+      const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
       const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
 
       // Velocity: accent downbeats, softer off-beats

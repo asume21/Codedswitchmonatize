@@ -557,10 +557,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       cadenceLastLineIndexRef.current   = -1
       reportCardLastLineIndexRef.current = -1
 
-      // 1. Start the input source (mic, auto, etc.)
+      // 1. Lock physics mode to the preset's genre — prevents ModeClassifier drift
+      physicsRef.current.lockMode(preset.mode)
+
+      // 2. Start the input source (mic, auto, etc.)
       await inputRef.current.start()
 
-      // 2. Start the Transport at the preset's BPM
+      // 3. Start the Transport at the preset's BPM
       await orchestrRef.current.start(preset.bpm)
 
       // 3. Stamp the synthetic physics with a fresh timestamp

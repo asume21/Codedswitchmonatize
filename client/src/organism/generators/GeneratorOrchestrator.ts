@@ -339,6 +339,7 @@ export class GeneratorOrchestrator {
   /** Enable or disable the texture generator entirely. */
   setTextureEnabled(enabled: boolean): void {
     this.textureEnabled = enabled
+    this.texture.setEnabled(enabled)
     if (!enabled) {
       this.texture.applyVolumeMultiplier(0)
     }

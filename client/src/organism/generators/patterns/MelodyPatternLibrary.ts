@@ -4,28 +4,31 @@ import { MelodyBehavior } from '../types'
 import type { OrganismMode } from '../../physics/types'
 
 // Scale intervals by mode (semitones from root)
+// Tuned for hip-hop: dark minor scales for trap/drill, soulful for boom-bap, jazzy for lo-fi
 export const MODE_SCALES: Record<string, number[]> = {
-  heat:   [0, 2, 3, 5, 7, 10, 12],       // minor pentatonic + extensions
-  ice:    [0, 2, 4, 7, 9],                 // major pentatonic
-  smoke:  [0, 3, 5, 6, 7, 10],             // blues scale
-  gravel: [0, 2, 3, 5, 7, 8, 10],          // dorian
-  glow:   [0, 2, 4, 5, 7, 9, 11],          // major (ionian)
+  heat:   [0, 3, 5, 7, 10],               // minor pentatonic — dark trap melodies
+  ice:    [0, 2, 3, 5, 7, 10, 11],        // natural minor + maj7 — jazzy lo-fi
+  smoke:  [0, 3, 5, 6, 7, 10],            // blues scale — soulful boom-bap
+  gravel: [0, 3, 5, 7, 10],               // minor pentatonic — drill, same as heat but lower octave
+  glow:   [0, 2, 4, 7, 9],                // major pentatonic — chill, warm
 }
 
 // Phrase lengths in 16th notes, indexed by behavior
+// Trap/drill: shorter, punchier phrases. Boom-bap: medium. Lo-fi/chill: longer, spacious.
 export const PHRASE_LENGTHS: Record<string, number[]> = {
-  [MelodyBehavior.Hint]:    [4, 8],
+  [MelodyBehavior.Hint]:    [4, 6, 8],
   [MelodyBehavior.Respond]: [8, 12, 16],
   [MelodyBehavior.Lead]:    [16, 24, 32],
 }
 
 // Octave range per mode [low, high]
+// Trap: mid-high for piercing leads. Boom-bap: mid for soulful. Lo-fi: higher, airy.
 export const MODE_OCTAVES: Record<string, [number, number]> = {
-  heat:   [4, 5],
-  ice:    [5, 6],
-  smoke:  [3, 5],
-  gravel: [3, 4],
-  glow:   [4, 6],
+  heat:   [4, 5],     // trap — mid-high, cutting through 808s
+  ice:    [4, 5],     // lo-fi — warm mid range, not too bright
+  smoke:  [3, 4],     // boom-bap — soulful lower register
+  gravel: [3, 4],     // drill — dark, low menacing melodies
+  glow:   [4, 5],     // chill — warm mid
 }
 
 /**

@@ -20,6 +20,7 @@ export class TextureGenerator extends GeneratorBase {
   // Thinning state (responds to DensityComputer.thinningRequested)
   private thinningActive: boolean = false
   private noiseStarted:   boolean = false
+  private enabled:        boolean = false  // controlled by orchestrator textureEnabled toggle
 
   constructor() {
     super(GeneratorName.Texture)
@@ -43,7 +44,21 @@ export class TextureGenerator extends GeneratorBase {
     // this.noiseSource.start()
   }
 
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    if (!enabled) {
+      this.activityLevel = 0
+      this.gain.gain.rampTo(0, 0.3)
+    }
+  }
+
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    // Hard gate — when disabled, keep gain at zero and skip all processing
+    if (!this.enabled) {
+      this.gain.gain.rampTo(0, 0.1)
+      return
+    }
+
     const modeName = physics.mode.toString()
     const layer    = TEXTURE_BY_MODE[modeName]
     if (!layer) return
@@ -74,7 +89,7 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   onStateTransition(to: OState, _physics: PhysicsState): void {
-    if (to === OState.Dormant) {
+    if (to === OState.Dormant || !this.enabled) {
       this.activityLevel = 0
       this.gain.gain.rampTo(0, 1.0)
       // Do NOT stop the noise source — Tone.Noise.stop()+start() creates a new

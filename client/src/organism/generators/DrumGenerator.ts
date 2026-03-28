@@ -9,6 +9,7 @@ import {
   buildDrumPattern,
 }                              from './patterns/DrumPatternLibrary'
 import type { PhysicsState }   from '../physics/types'
+import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 
@@ -166,6 +167,7 @@ export class DrumGenerator extends GeneratorBase {
     // Breathing or Flow → rebuild pattern from current mode
     // Skip if pattern is locked — user has frozen the groove
     if (this.patternLocked) return
+    this.currentPhysicsMode = physics.mode
     const kit     = getDrumKit(physics.mode)
     const pattern = buildDrumPattern(kit, physics.mode)
     this.rebuildPart(pattern.hits)
@@ -250,8 +252,22 @@ export class DrumGenerator extends GeneratorBase {
     { kickNote: 'B0',  kickPitchDecay: 0.10, kickVol: -7,  snareDecay: 0.28, snareVol: -12, hatDecay: 0.10, hatVol: -19, hatResonance: 2500, percDecay: 0.12, percVol: -21 },
   ] as const
 
+  // Map physics modes to appropriate kit preset indices
+  // Indices match KIT_PRESETS array: 0=Classic, 1=Punchy, 2=Lo-fi, 3=Hard, 4=Deep808, 5=CrispyTrap, 6=Vinyl
+  private static readonly MODE_KIT_MAP: Record<string, number[]> = {
+    [OrganismMode.Heat]:   [4, 5, 3],     // Deep 808, Crispy Trap, Hard
+    [OrganismMode.Gravel]: [4, 3, 1],     // Deep 808, Hard, Punchy
+    [OrganismMode.Smoke]:  [0, 6, 2],     // Classic, Vinyl, Lo-fi (boom-bap kits)
+    [OrganismMode.Ice]:    [2, 6, 0],     // Lo-fi, Vinyl, Classic
+    [OrganismMode.Glow]:   [2, 0, 6],     // Lo-fi, Classic, Vinyl
+  }
+
+  private currentPhysicsMode: OrganismMode = OrganismMode.Glow
+
   private applyKitPreset(): void {
-    const preset = DrumGenerator.KIT_PRESETS[Math.floor(Math.random() * DrumGenerator.KIT_PRESETS.length)]
+    const kitIndices = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? [0]
+    const idx    = kitIndices[Math.floor(Math.random() * kitIndices.length)]
+    const preset = DrumGenerator.KIT_PRESETS[idx]
     this.currentKickNote          = preset.kickNote
     this.kickSub.pitchDecay       = preset.kickPitchDecay
     this.kickSub.volume.rampTo(preset.kickVol, 0.1)

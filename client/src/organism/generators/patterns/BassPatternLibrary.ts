@@ -15,10 +15,27 @@ export const PENTATONIC_MINOR: number[] = [0, 3, 5, 7, 10]
 // Natural minor intervals for walking lines
 const NATURAL_MINOR: number[] = [0, 2, 3, 5, 7, 8, 10]
 
+// ── Genre-aware swing amounts ────────────────────────────────────────
+// Must match DrumPatternLibrary swing values so bass grooves lock with drums.
+const MODE_SWING: Record<string, number> = {
+  heat:   0.20,    // trap — nearly straight
+  gravel: 0.22,    // drill — near-straight
+  smoke:  0.55,    // boom-bap — heavy pocket
+  ice:    0.48,    // lo-fi — laid-back
+  glow:   0.38,    // chill — moderate
+}
+
+let currentSwing = 0.35  // default fallback
+
+/** Set the swing amount based on the current physics mode. */
+export function setBassSwing(mode: string): void {
+  currentSwing = MODE_SWING[mode] ?? 0.35
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function swingTime(bar: number, beat: number, sub: number): string {
-  const swungSub = (sub === 1 || sub === 3) ? sub + 0.35 : sub
+  const swungSub = (sub === 1 || sub === 3) ? sub + currentSwing : sub
   return `${bar}:${beat}:${swungSub.toFixed(2)}`
 }
 

@@ -2,6 +2,7 @@ import type { AnalysisFrame }    from '../analysis/types'
 import type { PhysicsProfile }   from '../evolution/types'
 import {
   DEFAULT_PHYSICS_CONFIG,
+  OrganismMode,
   type PhysicsConfig,
   type PhysicsState,
   type PhysicsStateCallback,
@@ -31,6 +32,7 @@ export class PhysicsEngine {
   private callbacks: Set<PhysicsStateCallback> = new Set()
   private lastState: PhysicsState | null = null
   private profile: PhysicsProfile | null = null
+  private lockedMode: OrganismMode | null = null  // when set, ModeClassifier is bypassed
 
   constructor(config: Partial<PhysicsConfig> = {}) {
     this.config = { ...DEFAULT_PHYSICS_CONFIG, ...config }
@@ -98,7 +100,8 @@ export class PhysicsEngine {
     const pocket   = clamp01(pocketRaw  + (this.profile?.pocketBias   ?? 0))
     const density  = clamp01(densityRaw + (this.profile?.densityBias  ?? 0))
 
-    const mode = this.modeClassifier.process(
+    // If a genre preset locked the mode, bypass the classifier entirely
+    const mode = this.lockedMode ?? this.modeClassifier.process(
       frame.rms,
       frame.pitch,
       frame.spectralCentroid,
@@ -143,6 +146,20 @@ export class PhysicsEngine {
 
   setProfile(profile: PhysicsProfile | null): void {
     this.profile = profile
+  }
+
+  /** Lock the mode to a specific value (genre preset). ModeClassifier is bypassed. */
+  lockMode(mode: OrganismMode): void {
+    this.lockedMode = mode
+  }
+
+  /** Unlock mode — ModeClassifier resumes control. */
+  unlockMode(): void {
+    this.lockedMode = null
+  }
+
+  getLockedMode(): OrganismMode | null {
+    return this.lockedMode
   }
 
   registerGeneratorLevel(name: string, level: number): void {
