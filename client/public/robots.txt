@@ -3,8 +3,17 @@ User-agent: *
 Allow: /
 
 # Sitemaps
-Sitemap: https://codedswitch.com/sitemap.xml
+Sitemap: https://www.codedswitch.com/sitemap.xml
 
-# Disallow admin/API routes
+# Disallow API, auth-gated, and internal routes
 Disallow: /api/
 Disallow: /admin/
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /billing
+Disallow: /buy-credits
+Disallow: /credits
+Disallow: /profile
+Disallow: /developer
+Disallow: /organism
+Disallow: /activate

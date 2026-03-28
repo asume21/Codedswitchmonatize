@@ -158,9 +158,52 @@ app.use((req, res, next) => {
     throw err;
   });
 
+  // ── SEO: canonical domain redirect ──
+  // Redirect non-www → www and http → https in production
+  app.use((req, res, next) => {
+    const host = req.hostname;
+    if (host === "codedswitch.com") {
+      return res.redirect(301, `https://www.codedswitch.com${req.originalUrl}`);
+    }
+    next();
+  });
+
+  // ── SEO: server-side 301 redirects for legacy routes ──
+  const legacyRedirects: Record<string, string> = {
+    "/music-studio": "/studio",
+    "/song-uploader": "/studio",
+    "/beat-studio": "/studio",
+    "/melody-composer": "/studio",
+    "/unified-studio": "/studio",
+    "/daw-layout": "/studio",
+    "/flow": "/studio",
+    "/code-translator": "/studio",
+    "/codebeat-studio": "/studio",
+    "/mix-studio": "/studio",
+    "/pro-console": "/studio",
+    "/midi-controller": "/studio",
+    "/advanced-sequencer": "/studio",
+    "/wavetable-oscillator": "/studio",
+    "/pack-generator": "/studio",
+    "/song-structure": "/studio",
+    "/pro-audio": "/studio",
+    "/codebeat-studio-direct": "/studio",
+    "/piano-roll": "/studio",
+    "/granular-engine": "/studio",
+    "/mid-controller": "/studio",
+  };
+
+  app.use((req, res, next) => {
+    const target = legacyRedirects[req.path];
+    if (target) {
+      return res.redirect(301, target);
+    }
+    next();
+  });
+
   // Production static file serving - look in dist/client
   const distPath = path.resolve(process.cwd(), "dist", "client");
-  
+
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,
@@ -169,7 +212,7 @@ app.use((req, res, next) => {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
+  // fall through to index.html if the file doesn't exist (SPA)
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });

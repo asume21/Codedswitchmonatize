@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { initGA } from "@/lib/analytics";
 import { useAnalytics } from "@/hooks/use-analytics";
+import { useCanonical } from "@/hooks/useCanonical";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
@@ -166,6 +167,9 @@ function App() {
 
   // Track page views when routes change
   useAnalytics();
+
+  // Keep canonical URL and robots meta in sync with current route
+  useCanonical();
 
   return (
     <ErrorBoundary
