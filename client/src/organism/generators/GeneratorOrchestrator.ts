@@ -221,10 +221,6 @@ export class GeneratorOrchestrator {
     this.drum.setKickVelocityMultiplier(kickMult)
 
     const melodyEnergy = Math.min(1.2, 0.8 + performer.energy * 0.4)
-    // Apply base × performer × self-listen — all independent, no compounding
-    this.melody.applyVolumeMultiplier(
-      this.melodyVolumeMultiplier * melodyEnergy * this.selfListenGainCorrection
-    )
 
     // 2. Syllabic rate → hi-hat density
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
@@ -233,17 +229,22 @@ export class GeneratorOrchestrator {
     )
 
     // 3. Breathing / rest → call-and-response
+    // Melody volume is computed ONCE per frame combining energy + breathing.
+    // Previous code wrote melody gain twice per frame, interrupting the 100ms
+    // ramp each time and causing crackling/distortion.
+    const breathingBoost = performer.breathingNow ? 1.2 : 1.0
+    const melodyTarget = Math.min(1.3,
+      this.melodyVolumeMultiplier * melodyEnergy * breathingBoost
+    ) * this.selfListenGainCorrection
+    this.melody.applyVolumeMultiplier(melodyTarget)
+
     if (performer.breathingNow) {
       this.texture.applyVolumeMultiplier(
         Math.min(1.2, this.textureVolumeMultiplier * 1.15) * this.selfListenGainCorrection
       )
-      this.melody.applyVolumeMultiplier(
-        Math.min(1.3, this.melodyVolumeMultiplier * 1.2) * this.selfListenGainCorrection
-      )
       this.drum.applyArrangementMultiplier(0.6)
     } else {
       this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier * this.selfListenGainCorrection)
-      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * this.selfListenGainCorrection)
     }
 
     // 4. Phrase downbeat → accent kick (one-shot, not cumulative)

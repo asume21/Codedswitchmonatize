@@ -114,7 +114,7 @@ export class TextureGenerator extends GeneratorBase {
 
   applyVolumeMultiplier(multiplier: number): void {
     const m = Math.max(0, Math.min(1.3, multiplier))  // cap at 1.3 — texture should never dominate
-    this.gain.gain.rampTo(m, 0.05)
+    this.gain.gain.rampTo(m, 0.25)
   }
 
   private computeTargetLevel(organism: OrganismState): number {
