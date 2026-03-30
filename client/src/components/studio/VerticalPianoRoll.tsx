@@ -394,17 +394,6 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     issue => issue.targetTool === 'piano-roll'
   );
 
-  // Sync local isPlaying with transport context - this makes floating transport work!
-  useEffect(() => {
-    if (transportIsPlaying && !isPlaying) {
-      // Transport started externally (e.g., floating transport bar)
-      handlePlay();
-    } else if (!transportIsPlaying && isPlaying) {
-      // Transport stopped externally
-      handleStop();
-    }
-  }, [transportIsPlaying]);
-
   // Sync BPM with transport tempo
   useEffect(() => {
     if (transportTempo && transportTempo !== bpm) {
@@ -939,6 +928,17 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     setCurrentStep(0);
     stopTransportCtx(); // Use context stop to sync with floating transport
   }, [stopTransportCtx]);
+
+  // Sync local isPlaying with transport context - this makes floating transport work!
+  useEffect(() => {
+    if (transportIsPlaying && !isPlaying) {
+      // Transport started externally (e.g., floating transport bar)
+      handlePlay();
+    } else if (!transportIsPlaying && isPlaying) {
+      // Transport stopped externally
+      handleStop();
+    }
+  }, [transportIsPlaying]);
 
   // 🎙️ RECORDING CONTROLS
   const startRecording = useCallback(() => {
