@@ -90,7 +90,7 @@ export default function Landing() {
             <a href="#features" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-purple-400 transition-colors">Features</a>
             <a href="#modes" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-emerald-400 transition-colors">Modes</a>
             <a href="#social" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-pink-400 transition-colors">Social</a>
-            <a href="#waitlist" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-yellow-400 transition-colors">Waitlist</a>
+            <Link href="/organism"><span className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-yellow-400 transition-colors cursor-pointer">Try Now</span></Link>
             <Link href="/studio">
               <Button variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 uppercase tracking-widest font-bold">
                 Launch Studio
@@ -500,46 +500,40 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Waitlist */}
-      <section id="waitlist" className="py-32 relative">
+      {/* Try the Organism Now */}
+      <section id="try-now" className="py-32 relative">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto rounded-[40px] bg-gradient-to-br from-cyan-600/20 via-blue-600/10 to-purple-600/20 border border-white/10 p-12 md:p-20 relative overflow-hidden text-center">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500" />
 
             <div className="relative z-10 space-y-8">
               <h2 className="text-4xl md:text-7xl font-black tracking-tighter uppercase leading-none">
-                Join the <span className="text-cyan-400">Vanguard</span>
+                Try the <span className="text-cyan-400">Organism</span> Now
               </h2>
               <p className="text-xl text-white/60 max-w-2xl mx-auto">
-                Be the first to perform with the Organism. Early access + exclusive AI models for waitlist members.
+                No signup required. Jump straight in — 60 seconds of live AI beats reacting to your voice, free.
               </p>
 
-              <div className="max-w-md mx-auto">
-                <div className="relative group">
-                  <Input
-                    id="waitlist-email"
-                    name="waitlist-email"
-                    autoComplete="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    className="h-16 rounded-2xl bg-black/40 border-white/10 px-6 text-lg focus:border-cyan-500 focus:ring-0 transition-all"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitWaitlist()}
-                  />
-                  <Button
-                    className="absolute right-2 top-2 bottom-2 bg-white text-black hover:bg-cyan-400 hover:text-black rounded-xl px-6 font-black uppercase tracking-widest text-xs"
-                    onClick={submitWaitlist}
-                    disabled={submitting}
-                  >
-                    {submitting ? "..." : "Join Now"}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                <Link href="/organism">
+                  <Button size="lg" className="h-16 px-12 text-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-2xl shadow-[0_0_40px_rgba(6,182,212,0.5)] font-black uppercase tracking-widest group">
+                    <Mic className="w-5 h-5 mr-3" />
+                    Try the Organism Now
+                    <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </Button>
-                </div>
-                {status && (
-                  <p className={`mt-3 text-sm font-bold uppercase tracking-widest ${status.includes("on the list") ? "text-emerald-400" : "text-red-400"}`}>
-                    {status}
-                  </p>
-                )}
+                </Link>
+                <Link href="/signup">
+                  <Button size="lg" variant="ghost" className="h-16 px-10 text-lg border border-white/10 hover:bg-white/5 rounded-2xl text-white">
+                    <UserPlus className="w-5 h-5 mr-2" />
+                    Sign Up for Unlimited
+                  </Button>
+                </Link>
+              </div>
+
+              <div className="flex items-center justify-center gap-8 pt-4 text-xs text-white/30 uppercase tracking-[0.15em] font-bold">
+                <span className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> No account needed</span>
+                <span className="flex items-center gap-2"><Zap className="w-3.5 h-3.5 text-cyan-400" /> Instant start</span>
+                <span className="flex items-center gap-2"><Activity className="w-3.5 h-3.5 text-purple-400" /> 60s free session</span>
               </div>
             </div>
 
