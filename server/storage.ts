@@ -2239,7 +2239,7 @@ export class DatabaseStorage implements IStorage {
     const followerIds = follows.map((f: typeof follows[number]) => f.followerId);
     if (followerIds.length === 0) return [];
     const followers = await db.select().from(users).where(sql`${users.id} IN ${followerIds}`);
-    return followers.map((u: typeof followers[number]) => ({ id: u.id, name: u.name, email: u.email }));
+    return followers.map((u: typeof followers[number]) => ({ id: u.id, name: u.username, email: u.email }));
   }
 
   async getUserFollowing(userId: string): Promise<any[]> {
@@ -2247,7 +2247,7 @@ export class DatabaseStorage implements IStorage {
     const followingIds = follows.map((f: typeof follows[number]) => f.followingId);
     if (followingIds.length === 0) return [];
     const following = await db.select().from(users).where(sql`${users.id} IN ${followingIds}`);
-    return following.map((u: typeof following[number]) => ({ id: u.id, name: u.name, email: u.email }));
+    return following.map((u: typeof following[number]) => ({ id: u.id, name: u.username, email: u.email }));
   }
 
 

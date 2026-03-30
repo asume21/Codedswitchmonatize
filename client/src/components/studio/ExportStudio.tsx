@@ -25,6 +25,127 @@ interface SaveData {
   key: string;
 }
 
+// ─── MIDI File Builder (Standard MIDI File Format 1) ────────────────
+// Builds a real .mid binary file from track note data.
+
+function writeVarLen(value: number): number[] {
+  const bytes: number[] = [];
+  let v = value & 0x0FFFFFFF;
+  bytes.unshift(v & 0x7F);
+  while ((v >>= 7) > 0) {
+    bytes.unshift((v & 0x7F) | 0x80);
+  }
+  return bytes;
+}
+
+function noteNameToMidi(note: string, octave: number): number {
+  const map: Record<string, number> = {
+    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+    'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8,
+    'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11,
+  };
+  return (map[note] ?? 0) + (octave + 1) * 12;
+}
+
+function buildMidiFile(tracks: any[], bpm: number): Blob {
+  const ticksPerBeat = 480;
+  const trackChunks: Uint8Array[] = [];
+
+  // Tempo track (track 0)
+  const tempoTrack: number[] = [];
+  // Set tempo meta event: FF 51 03 tt tt tt
+  const microsecondsPerBeat = Math.round(60_000_000 / bpm);
+  tempoTrack.push(0x00); // delta time
+  tempoTrack.push(0xFF, 0x51, 0x03);
+  tempoTrack.push((microsecondsPerBeat >> 16) & 0xFF);
+  tempoTrack.push((microsecondsPerBeat >> 8) & 0xFF);
+  tempoTrack.push(microsecondsPerBeat & 0xFF);
+  // End of track
+  tempoTrack.push(0x00, 0xFF, 0x2F, 0x00);
+  trackChunks.push(buildTrackChunk(tempoTrack));
+
+  // Note tracks
+  for (let t = 0; t < tracks.length; t++) {
+    const track = tracks[t];
+    const notes: Array<{ note: string; octave: number; step: number; length: number; velocity: number }> =
+      track.notes || track.data?.notes || [];
+    if (notes.length === 0) continue;
+
+    // Sort by step
+    const sorted = [...notes].sort((a, b) => a.step - b.step);
+    const events: Array<{ tick: number; data: number[] }> = [];
+
+    // Track name meta event
+    const nameBytes = Array.from(new TextEncoder().encode(track.name || `Track ${t + 1}`));
+    events.push({ tick: 0, data: [0xFF, 0x03, nameBytes.length, ...nameBytes] });
+
+    for (const n of sorted) {
+      const startTick = Math.round(n.step * (ticksPerBeat / 4)); // step = 16th note
+      const durationTicks = Math.max(1, Math.round((n.length || 1) * (ticksPerBeat / 4)));
+      const midiNote = noteNameToMidi(n.note, n.octave ?? 4);
+      const vel = Math.min(127, Math.max(1, n.velocity ?? 100));
+
+      events.push({ tick: startTick, data: [0x90 | (t % 16), midiNote, vel] }); // note on
+      events.push({ tick: startTick + durationTicks, data: [0x80 | (t % 16), midiNote, 0] }); // note off
+    }
+
+    // Sort all events by tick
+    events.sort((a, b) => a.tick - b.tick);
+
+    // Convert to delta-time bytes
+    const trackBytes: number[] = [];
+    let lastTick = 0;
+    for (const ev of events) {
+      const delta = Math.max(0, ev.tick - lastTick);
+      trackBytes.push(...writeVarLen(delta), ...ev.data);
+      lastTick = ev.tick;
+    }
+    // End of track
+    trackBytes.push(0x00, 0xFF, 0x2F, 0x00);
+    trackChunks.push(buildTrackChunk(trackBytes));
+  }
+
+  // If no note tracks were generated, add an empty track
+  if (trackChunks.length === 1) {
+    trackChunks.push(buildTrackChunk([0x00, 0xFF, 0x2F, 0x00]));
+  }
+
+  // Header chunk: MThd
+  const numTracks = trackChunks.length;
+  const header = new Uint8Array([
+    0x4D, 0x54, 0x68, 0x64, // "MThd"
+    0x00, 0x00, 0x00, 0x06, // chunk length = 6
+    0x00, 0x01,             // format 1 (multi-track)
+    (numTracks >> 8) & 0xFF, numTracks & 0xFF,
+    (ticksPerBeat >> 8) & 0xFF, ticksPerBeat & 0xFF,
+  ]);
+
+  // Concatenate header + all track chunks
+  const totalLength = header.length + trackChunks.reduce((s, c) => s + c.length, 0);
+  const file = new Uint8Array(totalLength);
+  let offset = 0;
+  file.set(header, offset); offset += header.length;
+  for (const chunk of trackChunks) {
+    file.set(chunk, offset); offset += chunk.length;
+  }
+
+  return new Blob([file], { type: 'audio/midi' });
+}
+
+function buildTrackChunk(data: number[]): Uint8Array {
+  const len = data.length;
+  const chunk = new Uint8Array(8 + len);
+  // "MTrk"
+  chunk[0] = 0x4D; chunk[1] = 0x54; chunk[2] = 0x72; chunk[3] = 0x6B;
+  // Length (big-endian 32-bit)
+  chunk[4] = (len >> 24) & 0xFF;
+  chunk[5] = (len >> 16) & 0xFF;
+  chunk[6] = (len >> 8) & 0xFF;
+  chunk[7] = len & 0xFF;
+  chunk.set(data, 8);
+  return chunk;
+}
+
 export default function ExportStudio() {
   const { toast } = useToast();
   const studioContext = useContext(StudioAudioContext);
@@ -76,19 +197,15 @@ export default function ExportStudio() {
       const bpm = studioContext.bpm || 120;
 
       if (exportOptions.format === 'midi') {
-        // MIDI export — serialize note data as JSON (MIDI file export handled elsewhere)
-        setExportProgress(50);
-        const midiData = JSON.stringify({
-          tracks,
-          bpm,
-          format: 'midi',
-          timestamp: new Date().toISOString()
-        });
-        const blob = new Blob([midiData], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
+        // MIDI export — generate a real Standard MIDI File (SMF)
+        setExportProgress(20);
+        const midiBlob = buildMidiFile(tracks, bpm);
+        setExportProgress(90);
+
+        const url = URL.createObjectURL(midiBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `codedswitch-project.midi.json`;
+        a.download = `codedswitch-project.mid`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

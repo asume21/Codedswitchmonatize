@@ -11,9 +11,14 @@ import {
   getAutomationValue,
   getParamDisplayName,
   AUTOMATABLE_PARAMS,
+  createRecordSession,
+  processAutomationFrame,
+  commitRecordSession,
   type AutomationMode,
+  type AutomationRecordSession,
 } from '@/lib/automationEngine';
 import type { AutomationPoint, AutomationLane } from '@/lib/projectManager';
+import { useTransport } from '@/contexts/TransportContext';
 
 interface AutomationLaneEditorProps {
   trackId: string;
@@ -44,7 +49,43 @@ export default function AutomationLaneEditor({
   const [dragPointTime, setDragPointTime] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Automation recording integration
+  const { position, isPlaying } = useTransport();
+  const recordSessionRef = useRef<AutomationRecordSession | null>(null);
+  const lastUserValueRef = useRef<number | null>(null);
+
   const selectedLane = useMemo(() => lanes.find(l => l.id === selectedLaneId), [lanes, selectedLaneId]);
+
+  // Start/stop recording session when mode or playback changes
+  useEffect(() => {
+    if (isPlaying && selectedLane && automationMode !== 'read') {
+      recordSessionRef.current = createRecordSession(selectedLane, automationMode);
+    } else if (!isPlaying && recordSessionRef.current) {
+      // Commit recorded automation when playback stops
+      const session = recordSessionRef.current;
+      if (session.recordedSamples.length > 0) {
+        const updatedLane = commitRecordSession(session, 'linear');
+        onLanesChange(lanes.map(l => l.id === updatedLane.id ? updatedLane : l));
+      }
+      recordSessionRef.current = null;
+      lastUserValueRef.current = null;
+    }
+  }, [isPlaying, automationMode, selectedLane?.id]);
+
+  // Process each frame during playback in write/touch/latch modes
+  useEffect(() => {
+    if (!isPlaying || !recordSessionRef.current) return;
+    const { value, session } = processAutomationFrame(
+      recordSessionRef.current,
+      position,
+      lastUserValueRef.current,
+    );
+    recordSessionRef.current = session;
+    // Reset touch value after processing (touch mode only records while held)
+    if (automationMode === 'touch') {
+      lastUserValueRef.current = null;
+    }
+  }, [position, isPlaying]);
   const laneHeight = 80;
   const canvasWidth = totalBeats * pixelsPerBeat;
 
@@ -99,6 +140,11 @@ export default function AutomationLaneEditor({
     const pos = canvasToLane(e.clientX, e.clientY);
     if (!pos) return;
 
+    // Feed value to recording session for write/touch/latch modes
+    if (recordSessionRef.current && automationMode !== 'read') {
+      lastUserValueRef.current = pos.value;
+    }
+
     if (tool === 'pencil') {
       setIsDrawing(true);
       setDrawSamples([pos]);
@@ -124,6 +170,11 @@ export default function AutomationLaneEditor({
     if (!selectedLane) return;
     const pos = canvasToLane(e.clientX, e.clientY);
     if (!pos) return;
+
+    // Update recording session with live user value
+    if (recordSessionRef.current && automationMode !== 'read') {
+      lastUserValueRef.current = pos.value;
+    }
 
     if (isDrawing && tool === 'pencil') {
       setDrawSamples(prev => [...prev, pos]);

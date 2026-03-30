@@ -15,6 +15,7 @@ import { useTracks } from '@/hooks/useTracks';
 import { cn } from '@/lib/utils';
 import { getTimelineRecorder, type RecorderState, type RecordingResult } from '@/lib/timelineRecorder';
 import { getCurrentProject, markDirty, type AudioClip } from '@/lib/projectManager';
+import { professionalAudio } from '@/lib/professionalAudio';
 
 interface TrackChannel {
   id: string;
@@ -235,21 +236,49 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     }
   };
 
-  // Channel mute/solo handlers
+  // Channel mute/solo handlers — wired to real audio engine
   const toggleChannelMute = (channelId: string) => {
-    setChannels(prev => prev.map(c => 
-      c.id === channelId ? { ...c, muted: !c.muted } : c
-    ));
+    setChannels(prev => {
+      const channel = prev.find(c => c.id === channelId);
+      if (channel) {
+        const newMuted = !channel.muted;
+        // Route matching tracks through the professional audio engine
+        const paChannels = professionalAudio.getChannels();
+        for (const paCh of paChannels) {
+          if (paCh.name?.toLowerCase().includes(channelId) || paCh.id === channelId) {
+            professionalAudio.muteChannel(paCh.id, newMuted);
+          }
+        }
+      }
+      return prev.map(c => c.id === channelId ? { ...c, muted: !c.muted } : c);
+    });
   };
 
   const toggleChannelSolo = (channelId: string) => {
-    setChannels(prev => prev.map(c => 
-      c.id === channelId ? { ...c, solo: !c.solo } : c
-    ));
+    setChannels(prev => {
+      const channel = prev.find(c => c.id === channelId);
+      if (channel) {
+        const newSolo = !channel.solo;
+        const paChannels = professionalAudio.getChannels();
+        for (const paCh of paChannels) {
+          if (paCh.name?.toLowerCase().includes(channelId) || paCh.id === channelId) {
+            professionalAudio.soloChannel(paCh.id, newSolo);
+          }
+        }
+      }
+      return prev.map(c => c.id === channelId ? { ...c, solo: !c.solo } : c);
+    });
   };
 
   const setChannelVolume = (channelId: string, volume: number) => {
-    setChannels(prev => prev.map(c => 
+    // Route to professional audio engine (normalize 0-100 to 0-1)
+    const paChannels = professionalAudio.getChannels();
+    for (const paCh of paChannels) {
+      if (paCh.name?.toLowerCase().includes(channelId) || paCh.id === channelId) {
+        professionalAudio.setChannelVolume(paCh.id, volume / 100);
+      }
+    }
+    setChannels(prev => prev.map(c =>
       c.id === channelId ? { ...c, volume } : c
     ));
   };

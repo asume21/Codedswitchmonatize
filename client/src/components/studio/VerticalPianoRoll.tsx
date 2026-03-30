@@ -1268,18 +1268,6 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           const expressiveEngine = getExpressiveEngine();
           expressiveEngine.noteOn(toneNote, selectedTrack.volume / 100);
 
-          // Also play via legacy realisticAudio for backwards compat
-          const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack.id);
-          realisticAudio.playNote(
-            pianoKey.note,
-            pianoKey.octave,
-            0.8,
-            selectedTrack.instrument,
-            selectedTrack.volume / 100,
-            true,
-            mixerChannel?.input
-          );
-
           // Track keydown timestamp for recording note length
           (window as any).__keyHoldStartTimes = (window as any).__keyHoldStartTimes || {};
           (window as any).__keyHoldStartTimes[k] = { time: Date.now(), pianoKey, toneNote };
@@ -1363,9 +1351,6 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         // ─── EXPRESSIVE ENGINE: NoteOff (triggers Release phase) ───
         const expressiveEngine = getExpressiveEngine();
         expressiveEngine.noteOff(toneNote);
-
-        // Also send noteOff to legacy realisticAudio
-        realisticAudio.noteOff(noteMapping.note, noteMapping.octave, selectedTrack.instrument);
 
         // ─── RECORDING: Calculate note length from hold duration ───
         const holdData = (window as any).__keyHoldStartTimes?.[k];

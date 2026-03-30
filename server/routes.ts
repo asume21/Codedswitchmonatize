@@ -3625,7 +3625,7 @@ ${code}
           filterRadius,
           rmsMixRate,
           protect,
-          provider: selectedProvider === "rvc" ? "rvc" : "elevenlabs",
+          provider: selectedProvider === "rvc" ? "rvc" : selectedProvider === "replicate-rvc" ? "replicate-rvc" : "elevenlabs",
           sourcePath: resolvedVocalPath,
         });
 

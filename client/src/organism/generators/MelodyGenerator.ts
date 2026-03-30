@@ -36,11 +36,98 @@ export class MelodyGenerator extends GeneratorBase {
   private voiceActive:     boolean = false
   private flowDepth:       number  = 0
 
+  // Current voice name for debugging/display
+  private currentVoiceName: string = 'Default FM'
+
   // Genre-aware swing — matches drum/bass swing per mode
   private static readonly MODE_SWING: Record<string, number> = {
     heat: 0.20, gravel: 0.22, smoke: 0.55, ice: 0.48, glow: 0.38,
   }
   private currentSwing: number = 0.35
+
+  // ─── Mode → Synth voice presets ──────────────────────────────────
+  // Each mode has a pool of synth configs randomly selected on state transitions
+  private static readonly MODE_VOICES: Record<string, Array<{
+    name: string; type: 'FM' | 'Synth' | 'Mono'; options: any
+    volume: number; chorusWet: number; reverbDecay: number; delayFeedback: number
+  }>> = {
+    heat: [
+      { name: 'Trap Lead', type: 'FM', options: {
+        harmonicity: 3, modulationIndex: 6, oscillator: { type: 'sine' }, modulation: { type: 'square' },
+        envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.3 },
+        modulationEnvelope: { attack: 0.01, decay: 0.15, sustain: 0.2, release: 0.3 },
+      }, volume: -8, chorusWet: 0.15, reverbDecay: 0.5, delayFeedback: 0.08 },
+      { name: 'Bell Lead', type: 'FM', options: {
+        harmonicity: 5.07, modulationIndex: 12, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+        envelope: { attack: 0.001, decay: 0.8, sustain: 0.1, release: 1.5 },
+        modulationEnvelope: { attack: 0.001, decay: 0.5, sustain: 0.1, release: 1.0 },
+      }, volume: -10, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.15 },
+      { name: 'Pluck', type: 'Synth', options: {
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.001, decay: 0.3, sustain: 0.0, release: 0.2 },
+      }, volume: -7, chorusWet: 0.1, reverbDecay: 0.4, delayFeedback: 0.1 },
+    ],
+    gravel: [
+      { name: 'Dark Saw', type: 'Mono', options: {
+        oscillator: { type: 'sawtooth' },
+        envelope: { attack: 0.02, decay: 0.4, sustain: 0.6, release: 0.4 },
+        filter: { type: 'lowpass', frequency: 1800, Q: 3 },
+        filterEnvelope: { attack: 0.01, decay: 0.5, sustain: 0.3, release: 0.5, baseFrequency: 200, octaves: 3 },
+      }, volume: -8, chorusWet: 0.1, reverbDecay: 0.6, delayFeedback: 0.06 },
+      { name: 'Gritty FM', type: 'FM', options: {
+        harmonicity: 1.5, modulationIndex: 10, oscillator: { type: 'sine' }, modulation: { type: 'sawtooth' },
+        envelope: { attack: 0.02, decay: 0.3, sustain: 0.5, release: 0.4 },
+        modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.3 },
+      }, volume: -9, chorusWet: 0.05, reverbDecay: 0.5, delayFeedback: 0.05 },
+    ],
+    smoke: [
+      { name: 'Rhodes Keys', type: 'FM', options: {
+        harmonicity: 2, modulationIndex: 1.5, oscillator: { type: 'sine' }, modulation: { type: 'triangle' },
+        envelope: { attack: 0.005, decay: 1.0, sustain: 0.3, release: 1.2 },
+        modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 0.8 },
+      }, volume: -9, chorusWet: 0.35, reverbDecay: 1.0, delayFeedback: 0.12 },
+      { name: 'Warm Saw', type: 'Synth', options: {
+        oscillator: { type: 'fatsawtooth', spread: 15 },
+        envelope: { attack: 0.05, decay: 0.5, sustain: 0.6, release: 0.8 },
+      }, volume: -10, chorusWet: 0.4, reverbDecay: 0.8, delayFeedback: 0.15 },
+      { name: 'Funk Organ', type: 'FM', options: {
+        harmonicity: 1, modulationIndex: 0.5, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+        envelope: { attack: 0.005, decay: 0.1, sustain: 0.9, release: 0.1 },
+        modulationEnvelope: { attack: 0.005, decay: 0.1, sustain: 0.8, release: 0.1 },
+      }, volume: -8, chorusWet: 0.3, reverbDecay: 0.6, delayFeedback: 0.08 },
+    ],
+    ice: [
+      { name: 'Lo-Fi Piano', type: 'FM', options: {
+        harmonicity: 2, modulationIndex: 1.2, oscillator: { type: 'sine' }, modulation: { type: 'triangle' },
+        envelope: { attack: 0.005, decay: 1.5, sustain: 0.2, release: 2.0 },
+        modulationEnvelope: { attack: 0.01, decay: 0.8, sustain: 0.1, release: 1.5 },
+      }, volume: -10, chorusWet: 0.25, reverbDecay: 1.8, delayFeedback: 0.18 },
+      { name: 'Soft Pad', type: 'Synth', options: {
+        oscillator: { type: 'fatsawtooth', spread: 25 },
+        envelope: { attack: 0.8, decay: 1.0, sustain: 0.8, release: 2.5 },
+      }, volume: -12, chorusWet: 0.5, reverbDecay: 2.5, delayFeedback: 0.2 },
+      { name: 'Music Box', type: 'FM', options: {
+        harmonicity: 8, modulationIndex: 2, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+        envelope: { attack: 0.001, decay: 1.5, sustain: 0.0, release: 1.5 },
+        modulationEnvelope: { attack: 0.001, decay: 0.8, sustain: 0.0, release: 1.0 },
+      }, volume: -11, chorusWet: 0.15, reverbDecay: 2.0, delayFeedback: 0.22 },
+    ],
+    glow: [
+      { name: 'Ethereal Pad', type: 'Synth', options: {
+        oscillator: { type: 'fatsawtooth', spread: 30 },
+        envelope: { attack: 1.5, decay: 1.0, sustain: 0.85, release: 3.0 },
+      }, volume: -12, chorusWet: 0.6, reverbDecay: 3.0, delayFeedback: 0.2 },
+      { name: 'Glass Bell', type: 'FM', options: {
+        harmonicity: 6, modulationIndex: 4, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+        envelope: { attack: 0.001, decay: 2.0, sustain: 0.05, release: 2.5 },
+        modulationEnvelope: { attack: 0.001, decay: 1.0, sustain: 0.05, release: 2.0 },
+      }, volume: -11, chorusWet: 0.4, reverbDecay: 2.5, delayFeedback: 0.25 },
+      { name: 'Dreamy Strings', type: 'Synth', options: {
+        oscillator: { type: 'fatsawtooth', spread: 20 },
+        envelope: { attack: 0.6, decay: 0.5, sustain: 0.9, release: 2.0 },
+      }, volume: -11, chorusWet: 0.5, reverbDecay: 2.0, delayFeedback: 0.18 },
+    ],
+  }
 
   private reverb:          Tone.Reverb
   private delay:           Tone.FeedbackDelay
@@ -56,20 +143,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.output = new Tone.Gain(1)
 
-    // maxPolyphony capped at 6 — melody lines are monophonic/thin-chord phrases
-    // (never more than 3-4 simultaneous notes). Default of 32 allocates ~256
-    // FMSynth voice nodes upfront which falsely registers as a memory leak.
-    // Tone.js types omit maxPolyphony from the merged FMSynthOptions generic, hence the cast.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.synth = new Tone.PolySynth(Tone.FMSynth, {
-      maxPolyphony: 6,
-      harmonicity: 2,
-      modulationIndex: 1.5,
-      oscillator:    { type: 'sine' },
-      modulation:    { type: 'triangle' },
-      envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
-      modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
-    } as any)
+    this.synth = this.buildDefaultSynth()
     this.synth.volume.value = -9
 
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
@@ -78,11 +152,11 @@ export class MelodyGenerator extends GeneratorBase {
     // synth → chorus → dry bus → output
     //                 → delay send → delay → delayHP → output
     //                 → reverb send → reverb → reverbHP → output
-    this.dryBus     = new Tone.Gain(0.80)   // dry level (primary signal — louder dry, quieter wet)
-    this.delaySend  = new Tone.Gain(0.10)   // delay send level (was 0.15)
-    this.reverbSend = new Tone.Gain(0.08)   // reverb send level (was 0.10)
-    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.12, wet: 1.0 })  // feedback 0.12 — tails die fast
-    this.reverb = new Tone.Reverb({ decay: 0.8, wet: 1.0 })   // short decay — prevents tail stacking
+    this.dryBus     = new Tone.Gain(0.80)
+    this.delaySend  = new Tone.Gain(0.10)
+    this.reverbSend = new Tone.Gain(0.08)
+    this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.12, wet: 1.0 })
+    this.reverb = new Tone.Reverb({ decay: 0.8, wet: 1.0 })
 
     // Highpass on wet returns to prevent low-mid mud accumulation in tails
     this.delayReturnHP  = new Tone.Filter({ type: 'highpass', frequency: 300, rolloff: -12 })
@@ -102,6 +176,139 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.chorus.start()
     this.setOutputLevel(0)
+  }
+
+  /** Build the default FM synth (used before any mode-based selection). */
+  private buildDefaultSynth(): Tone.PolySynth {
+    return new Tone.PolySynth(Tone.FMSynth, {
+      maxPolyphony: 6,
+      harmonicity: 2,
+      modulationIndex: 1.5,
+      oscillator:    { type: 'sine' },
+      modulation:    { type: 'triangle' },
+      envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
+      modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
+    } as any)
+  }
+
+  // Cached performer features for intelligent voice selection
+  private lastPerformerEnergy: number = 0.5
+  private lastPerformerBrightness: number = 0.5
+  private lastPerformerSyllabicRate: number = 4
+
+  /**
+   * Feed performer analysis into the melody generator for intelligent voice selection.
+   * Called by the orchestrator every frame.
+   */
+  setPerformerFeatures(energy: number, brightness: number, syllabicRate: number): void {
+    this.lastPerformerEnergy = energy
+    this.lastPerformerBrightness = brightness
+    this.lastPerformerSyllabicRate = syllabicRate
+  }
+
+  /**
+   * Select the best voice preset for the current mode based on what
+   * the Organism hears from the performer's voice.
+   *
+   * - High energy + fast syllables → aggressive/percussive voices (leads, plucks)
+   * - Low energy + slow delivery → warm/sustained voices (pads, keys, strings)
+   * - Bright voice → brighter instruments; dark voice → darker instruments
+   *
+   * Called on state transitions (Breathing/Flow).
+   */
+  private applyModeVoice(mode: string): void {
+    const pool = MelodyGenerator.MODE_VOICES[mode]
+    if (!pool || pool.length === 0) return
+
+    // Score each voice in the pool based on performer characteristics
+    let bestVoice = pool[0]
+    let bestScore = -Infinity
+
+    for (const voice of pool) {
+      let score = 0
+
+      // Attack time as a proxy for percussive vs sustained
+      const attack = voice.options.envelope?.attack ?? 0.1
+      const isPercussive = attack < 0.02
+      const isSustained = attack > 0.3
+
+      // High energy + fast rap → prefer percussive/bright sounds
+      if (this.lastPerformerEnergy > 0.6 && this.lastPerformerSyllabicRate > 5) {
+        if (isPercussive) score += 3
+        if (voice.chorusWet < 0.2) score += 1 // dry = punchy
+      }
+
+      // Low energy + slow delivery → prefer warm sustained sounds
+      if (this.lastPerformerEnergy < 0.4 || this.lastPerformerSyllabicRate < 3) {
+        if (isSustained) score += 3
+        if (voice.reverbDecay > 1.5) score += 1 // more reverb for atmosphere
+      }
+
+      // Match brightness: bright voice → bright instruments
+      if (this.lastPerformerBrightness > 0.6) {
+        // Prefer higher chorus wet and higher volume (brighter presence)
+        if (voice.volume > -10) score += 1
+      } else {
+        // Dark voice → prefer darker, lower instruments
+        if (voice.volume <= -10) score += 1
+        if (voice.chorusWet > 0.3) score += 1 // chorus adds warmth
+      }
+
+      // Medium energy → slight random variation to keep things interesting
+      if (this.lastPerformerEnergy >= 0.4 && this.lastPerformerEnergy <= 0.6) {
+        score += Math.random() * 1.5
+      }
+
+      if (score > bestScore) {
+        bestScore = score
+        bestVoice = voice
+      }
+    }
+
+    const voice = bestVoice
+    this.currentVoiceName = voice.name
+
+    // Disconnect old synth from chain
+    this.synth.disconnect()
+    try { this.synth.releaseAll() } catch { /* */ }
+    this.synth.dispose()
+
+    // Build new synth based on voice type
+    let newSynth: Tone.PolySynth
+    switch (voice.type) {
+      case 'Mono':
+        newSynth = new Tone.PolySynth(Tone.MonoSynth, {
+          maxPolyphony: 4,
+          ...voice.options,
+        } as any)
+        break
+      case 'Synth':
+        newSynth = new Tone.PolySynth(Tone.Synth, {
+          maxPolyphony: 6,
+          ...voice.options,
+        } as any)
+        break
+      case 'FM':
+      default:
+        newSynth = new Tone.PolySynth(Tone.FMSynth, {
+          maxPolyphony: 6,
+          ...voice.options,
+        } as any)
+        break
+    }
+
+    newSynth.volume.value = voice.volume
+    this.synth = newSynth
+
+    // Reconnect into chain
+    this.synth.connect(this.chorus)
+
+    // Adjust FX for this voice
+    this.chorus.wet.rampTo(voice.chorusWet, 0.5)
+    this.reverb.decay = voice.reverbDecay
+    this.delay.feedback.rampTo(voice.delayFeedback, 0.5)
+
+    console.log(`🎵 Melody voice: ${voice.name} (${mode})`)
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -139,6 +346,9 @@ export class MelodyGenerator extends GeneratorBase {
       this.currentScale = MODE_SCALES[physics.mode] ?? MODE_SCALES.glow
       // rootPitchClass is intentionally NOT reset here — keep the detected key
       // across state transitions so the melody stays in the user's key
+
+      // Select a genre-appropriate synth voice for this mode
+      this.applyModeVoice(physics.mode.toString())
     }
   }
 

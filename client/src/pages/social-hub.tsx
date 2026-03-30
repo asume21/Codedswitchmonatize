@@ -926,8 +926,7 @@ function BlogTab() {
                     <h4 className="text-cyan-100 font-bold text-sm group-hover:text-cyan-300 transition-colors mb-1">{post.title}</h4>
                     <p className="text-cyan-500/50 text-xs line-clamp-2 mb-2">{post.excerpt}</p>
                     <div className="flex items-center gap-3 text-[10px] text-cyan-500/30">
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(post.publishedAt).toLocaleDateString()}</span>
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {post.readTime} min read</span>
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(post.createdAt).toLocaleDateString()}</span>
                       <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {post.views} views</span>
                       <Badge className="bg-cyan-500/10 text-cyan-400/60 border-cyan-500/15 text-[9px] px-1">{post.category}</Badge>
                     </div>

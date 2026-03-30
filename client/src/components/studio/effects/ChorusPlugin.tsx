@@ -53,10 +53,21 @@ export function ChorusPlugin({ audioUrl, onClose }: ChorusPluginProps) {
     buildEffectChain();
 
     return () => {
-      // Stop all LFOs
+      // Stop and disconnect all LFOs
       lfoNodesRef.current.forEach(lfo => {
         try { lfo.stop(); } catch (e) {}
+        try { lfo.disconnect(); } catch (e) {}
       });
+      // Disconnect delay and gain nodes
+      delayNodesRef.current.forEach(node => {
+        try { node.disconnect(); } catch (e) {}
+      });
+      lfoGainsRef.current.forEach(node => {
+        try { node.disconnect(); } catch (e) {}
+      });
+      try { dryGainRef.current?.disconnect(); } catch (e) {}
+      try { wetGainRef.current?.disconnect(); } catch (e) {}
+      try { sourceNodeRef.current?.disconnect(); } catch (e) {}
       audioElementRef.current?.pause();
       audioContextRef.current?.close();
     };

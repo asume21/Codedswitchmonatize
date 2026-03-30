@@ -26,7 +26,7 @@ export interface ADSREnvelope {
 // ─── Instrument Preset ─────────────────────────────────────────────
 
 export type InstrumentMode = 'synth' | 'sampler';
-export type SynthType = 'subBass' | 'fmBass' | 'analogStrings' | 'pad' | 'lead';
+export type SynthType = 'subBass' | 'fmBass' | 'analogStrings' | 'pad' | 'lead' | 'pluck' | 'organ' | 'brass' | 'superSaw' | 'bell';
 
 export interface InstrumentPreset {
   id: string;
@@ -97,6 +97,58 @@ export const FACTORY_PRESETS: InstrumentPreset[] = [
     filterFrequency: 5000,
     filterResonance: 2,
   },
+  // ─── Additional Synth Presets ─────────────────────────────────────
+  {
+    id: 'pluck',
+    name: 'Pluck Synth',
+    mode: 'synth',
+    synthType: 'pluck',
+    envelope: { attack: 0.001, decay: 0.4, sustain: 0.0, release: 0.3 },
+    oscillatorType: 'triangle',
+    filterFrequency: 4000,
+    filterResonance: 1.5,
+  },
+  {
+    id: 'organ',
+    name: 'Drawbar Organ',
+    mode: 'synth',
+    synthType: 'organ',
+    envelope: { attack: 0.005, decay: 0.05, sustain: 1.0, release: 0.08 },
+    oscillatorType: 'sine',
+    filterFrequency: 6000,
+    filterResonance: 0.5,
+  },
+  {
+    id: 'brass-synth',
+    name: 'Brass Synth',
+    mode: 'synth',
+    synthType: 'brass',
+    envelope: { attack: 0.08, decay: 0.3, sustain: 0.75, release: 0.25 },
+    oscillatorType: 'sawtooth',
+    filterFrequency: 2500,
+    filterResonance: 2,
+  },
+  {
+    id: 'super-saw',
+    name: 'Super Saw',
+    mode: 'synth',
+    synthType: 'superSaw',
+    envelope: { attack: 0.01, decay: 0.5, sustain: 0.85, release: 0.4 },
+    oscillatorType: 'sawtooth',
+    detuneSpread: 30,
+    filterFrequency: 8000,
+    filterResonance: 0.8,
+  },
+  {
+    id: 'bell-synth',
+    name: 'Bell / Chime',
+    mode: 'synth',
+    synthType: 'bell',
+    envelope: { attack: 0.001, decay: 2.0, sustain: 0.0, release: 2.5 },
+    filterFrequency: 10000,
+    filterResonance: 0.3,
+  },
+  // ─── Sampler Presets (Real Instruments via General MIDI Soundfont) ──
   {
     id: 'violin-sampler',
     name: 'Violin (Acoustic)',
@@ -114,6 +166,120 @@ export const FACTORY_PRESETS: InstrumentPreset[] = [
     name: 'Upright Bass (Acoustic)',
     mode: 'sampler',
     envelope: { attack: 0.05, decay: 0.4, sustain: 0.7, release: 0.4 },
+  },
+  {
+    id: 'acoustic-guitar-sampler',
+    name: 'Acoustic Guitar (Nylon)',
+    mode: 'sampler',
+    envelope: { attack: 0.005, decay: 0.8, sustain: 0.3, release: 0.5 },
+  },
+  {
+    id: 'electric-guitar-sampler',
+    name: 'Electric Guitar (Clean)',
+    mode: 'sampler',
+    envelope: { attack: 0.005, decay: 0.6, sustain: 0.5, release: 0.4 },
+  },
+  {
+    id: 'distortion-guitar-sampler',
+    name: 'Electric Guitar (Distortion)',
+    mode: 'sampler',
+    envelope: { attack: 0.01, decay: 0.5, sustain: 0.8, release: 0.6 },
+  },
+  {
+    id: 'acoustic-piano-sampler',
+    name: 'Acoustic Grand Piano',
+    mode: 'sampler',
+    envelope: { attack: 0.005, decay: 1.5, sustain: 0.4, release: 0.8 },
+  },
+  {
+    id: 'electric-piano-sampler',
+    name: 'Electric Piano (Rhodes)',
+    mode: 'sampler',
+    envelope: { attack: 0.005, decay: 1.2, sustain: 0.3, release: 0.6 },
+  },
+  {
+    id: 'trumpet-sampler',
+    name: 'Trumpet',
+    mode: 'sampler',
+    envelope: { attack: 0.05, decay: 0.3, sustain: 0.9, release: 0.3 },
+  },
+  {
+    id: 'trombone-sampler',
+    name: 'Trombone',
+    mode: 'sampler',
+    envelope: { attack: 0.06, decay: 0.3, sustain: 0.85, release: 0.35 },
+  },
+  {
+    id: 'french-horn-sampler',
+    name: 'French Horn',
+    mode: 'sampler',
+    envelope: { attack: 0.1, decay: 0.4, sustain: 0.9, release: 0.5 },
+  },
+  {
+    id: 'saxophone-sampler',
+    name: 'Alto Saxophone',
+    mode: 'sampler',
+    envelope: { attack: 0.04, decay: 0.3, sustain: 0.9, release: 0.25 },
+  },
+  {
+    id: 'flute-sampler',
+    name: 'Flute',
+    mode: 'sampler',
+    envelope: { attack: 0.08, decay: 0.2, sustain: 1.0, release: 0.2 },
+  },
+  {
+    id: 'clarinet-sampler',
+    name: 'Clarinet',
+    mode: 'sampler',
+    envelope: { attack: 0.05, decay: 0.3, sustain: 0.95, release: 0.2 },
+  },
+  {
+    id: 'oboe-sampler',
+    name: 'Oboe',
+    mode: 'sampler',
+    envelope: { attack: 0.06, decay: 0.3, sustain: 0.9, release: 0.25 },
+  },
+  {
+    id: 'choir-sampler',
+    name: 'Choir Aahs',
+    mode: 'sampler',
+    envelope: { attack: 0.3, decay: 0.5, sustain: 1.0, release: 1.0 },
+  },
+  {
+    id: 'string-ensemble-sampler',
+    name: 'String Ensemble',
+    mode: 'sampler',
+    envelope: { attack: 0.4, decay: 0.5, sustain: 1.0, release: 0.8 },
+  },
+  {
+    id: 'synth-bass-sampler',
+    name: 'Synth Bass (Sampled)',
+    mode: 'sampler',
+    envelope: { attack: 0.005, decay: 0.3, sustain: 0.7, release: 0.2 },
+  },
+  {
+    id: 'marimba-sampler',
+    name: 'Marimba',
+    mode: 'sampler',
+    envelope: { attack: 0.001, decay: 1.0, sustain: 0.0, release: 0.8 },
+  },
+  {
+    id: 'vibraphone-sampler',
+    name: 'Vibraphone',
+    mode: 'sampler',
+    envelope: { attack: 0.001, decay: 2.0, sustain: 0.2, release: 1.5 },
+  },
+  {
+    id: 'harp-sampler',
+    name: 'Harp',
+    mode: 'sampler',
+    envelope: { attack: 0.005, decay: 1.5, sustain: 0.1, release: 1.0 },
+  },
+  {
+    id: 'sitar-sampler',
+    name: 'Sitar',
+    mode: 'sampler',
+    envelope: { attack: 0.01, decay: 1.0, sustain: 0.5, release: 0.5 },
   },
 ];
 
@@ -251,6 +417,11 @@ export class ExpressiveEngine {
     if (!voice) return;
 
     const releaseTime = this.currentPreset.envelope.release;
+
+    // Call extra cleanup for multi-oscillator voices (organ, superSaw, analogStrings)
+    if ((voice as any)._extraCleanup) {
+      (voice as any)._extraCleanup();
+    }
 
     if (voice.synth) {
       try {
@@ -477,6 +648,142 @@ export class ExpressiveEngine {
         break;
       }
 
+      case 'pluck': {
+        // Quick-decay triangle — percussive pluck
+        synth = new Tone.Synth({
+          oscillator: { type: (preset.oscillatorType || 'triangle') as any },
+          envelope: {
+            attack: env.attack,
+            decay: env.decay,
+            sustain: env.sustain,
+            release: env.release,
+          },
+        });
+        synth.connect(gainNode);
+        gainNode.connect(this.filter);
+        synth.triggerAttack(note, Tone.now(), velocity);
+        break;
+      }
+
+      case 'organ': {
+        // Additive sine waves simulating drawbar organ
+        const fundamental = new Tone.Synth({
+          oscillator: { type: 'sine' },
+          envelope: { attack: env.attack, decay: env.decay, sustain: env.sustain, release: env.release },
+        });
+        const second = new Tone.Synth({
+          oscillator: { type: 'sine' },
+          envelope: { attack: env.attack, decay: env.decay, sustain: env.sustain * 0.8, release: env.release },
+        });
+        const third = new Tone.Synth({
+          oscillator: { type: 'sine' },
+          envelope: { attack: env.attack, decay: env.decay, sustain: env.sustain * 0.5, release: env.release },
+        });
+
+        const mergeGain = new Tone.Gain(0.4);
+        fundamental.connect(mergeGain);
+        second.connect(mergeGain);
+        third.connect(mergeGain);
+        mergeGain.connect(gainNode);
+        gainNode.connect(this.filter);
+
+        // Play fundamental + 2nd partial (octave) + 3rd partial (octave+fifth)
+        fundamental.triggerAttack(note, Tone.now(), velocity);
+        // Detune 2nd and 3rd to harmonic partials
+        second.detune.value = 1200; // +1 octave
+        third.detune.value = 1902;  // +1 octave + fifth
+        second.triggerAttack(note, Tone.now(), velocity * 0.6);
+        third.triggerAttack(note, Tone.now(), velocity * 0.4);
+
+        synth = fundamental;
+        const voice: ActiveVoice = { noteKey: note, synth: fundamental, gainNode, startTime: Tone.now(), frequency: note };
+        this.activeVoices.set(note, voice);
+        (voice as any)._extraCleanup = () => {
+          try { second.triggerRelease(Tone.now()); third.triggerRelease(Tone.now()); } catch { /* */ }
+          setTimeout(() => { try { second.dispose(); third.dispose(); mergeGain.dispose(); } catch { /* */ } }, (env.release + 0.5) * 1000);
+        };
+        return;
+      }
+
+      case 'brass': {
+        // Filtered sawtooth with slow attack for brass feel
+        synth = new Tone.Synth({
+          oscillator: { type: (preset.oscillatorType || 'sawtooth') as any },
+          envelope: {
+            attack: env.attack,
+            decay: env.decay,
+            sustain: env.sustain,
+            release: env.release,
+          },
+        });
+        synth.connect(gainNode);
+        gainNode.connect(this.filter);
+        synth.triggerAttack(note, Tone.now(), velocity);
+        break;
+      }
+
+      case 'superSaw': {
+        // 5 detuned saw oscillators for massive unison sound
+        const voices: Tone.Synth[] = [];
+        const detunes = [-(preset.detuneSpread || 30), -(preset.detuneSpread || 30) / 2, 0, (preset.detuneSpread || 30) / 2, preset.detuneSpread || 30];
+        const mergeGain = new Tone.Gain(0.25);
+
+        for (const d of detunes) {
+          const s = new Tone.Synth({
+            oscillator: { type: 'sawtooth' as any },
+            envelope: { attack: env.attack, decay: env.decay, sustain: env.sustain, release: env.release },
+          });
+          s.detune.value = d;
+          s.connect(mergeGain);
+          s.triggerAttack(note, Tone.now(), velocity * 0.7);
+          voices.push(s);
+        }
+
+        mergeGain.connect(gainNode);
+        gainNode.connect(this.filter);
+        synth = voices[2]; // center voice as primary
+
+        const voice: ActiveVoice = { noteKey: note, synth: voices[2], gainNode, startTime: Tone.now(), frequency: note };
+        this.activeVoices.set(note, voice);
+        (voice as any)._extraCleanup = () => {
+          for (const s of voices) {
+            if (s !== voices[2]) {
+              try { s.triggerRelease(Tone.now()); } catch { /* */ }
+              setTimeout(() => { try { s.dispose(); } catch { /* */ } }, (env.release + 0.5) * 1000);
+            }
+          }
+          setTimeout(() => { try { mergeGain.dispose(); } catch { /* */ } }, (env.release + 0.5) * 1000);
+        };
+        return;
+      }
+
+      case 'bell': {
+        // FM bell — high modulation index, long decay
+        const bellSynth = new Tone.FMSynth({
+          harmonicity: 5.07,
+          modulationIndex: 14,
+          oscillator: { type: 'sine' },
+          modulation: { type: 'sine' },
+          envelope: {
+            attack: env.attack,
+            decay: env.decay,
+            sustain: env.sustain,
+            release: env.release,
+          },
+          modulationEnvelope: {
+            attack: 0.001,
+            decay: env.decay * 1.5,
+            sustain: 0.1,
+            release: env.release,
+          },
+        });
+        bellSynth.connect(gainNode);
+        gainNode.connect(this.filter);
+        bellSynth.triggerAttack(note, Tone.now(), velocity);
+        synth = bellSynth;
+        break;
+      }
+
       default: {
         // Fallback — basic sine
         synth = new Tone.Synth({
@@ -515,11 +822,30 @@ export class ExpressiveEngine {
     // This provides realistic acoustic samples with loop support
     const baseUrl = 'https://gleitz.github.io/midi-js-soundfonts/MusyngKite/';
     
-    // Map preset IDs to soundfont instrument names
+    // Map preset IDs to MusyngKite soundfont instrument folder names
     const instrumentMap: Record<string, string> = {
       'violin-sampler': 'violin',
       'cello-sampler': 'cello',
       'upright-bass-sampler': 'acoustic_bass',
+      'acoustic-guitar-sampler': 'acoustic_guitar_nylon',
+      'electric-guitar-sampler': 'electric_guitar_clean',
+      'distortion-guitar-sampler': 'distortion_guitar',
+      'acoustic-piano-sampler': 'acoustic_grand_piano',
+      'electric-piano-sampler': 'electric_piano_1',
+      'trumpet-sampler': 'trumpet',
+      'trombone-sampler': 'trombone',
+      'french-horn-sampler': 'french_horn',
+      'saxophone-sampler': 'alto_sax',
+      'flute-sampler': 'flute',
+      'clarinet-sampler': 'clarinet',
+      'oboe-sampler': 'oboe',
+      'choir-sampler': 'choir_aahs',
+      'string-ensemble-sampler': 'string_ensemble_1',
+      'synth-bass-sampler': 'synth_bass_1',
+      'marimba-sampler': 'marimba',
+      'vibraphone-sampler': 'vibraphone',
+      'harp-sampler': 'orchestral_harp',
+      'sitar-sampler': 'sitar',
     };
 
     const sfInstrument = instrumentMap[preset.id] || 'violin';

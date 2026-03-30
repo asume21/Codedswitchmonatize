@@ -126,7 +126,7 @@ class JobQueue {
       inputPath,
       voiceId: job.voiceId,
       stemMode: (job.stemMode === 4 ? 4 : 2) as 2 | 4,
-      provider: job.provider === "rvc" ? "rvc" : "elevenlabs",
+      provider: job.provider === "rvc" ? "rvc" : job.provider === "replicate-rvc" ? "replicate-rvc" : "elevenlabs",
       pitchCorrect: job.pitchCorrect ?? false,
       baseUrl: BASE_URL,
       objectsDir: LOCAL_OBJECTS_DIR,

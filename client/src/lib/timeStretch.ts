@@ -114,8 +114,8 @@ export async function stretchPreservePitch(
 }
 
 /**
- * Overlap-Add (OLA) time stretching.
- * Simple but effective for moderate stretch ratios (0.5x to 2x).
+ * Overlap-Add (OLA) time stretching with WSOLA-style best-overlap search.
+ * Uses a normalization buffer for correct amplitude across all stretch ratios.
  */
 function olaTimeStretch(input: Float32Array, stretchFactor: number): Float32Array {
   const windowSize = 2048;
@@ -123,27 +123,60 @@ function olaTimeStretch(input: Float32Array, stretchFactor: number): Float32Arra
   const hopOut = Math.floor(hopIn * stretchFactor); // Synthesis hop
   const outputLength = Math.ceil(input.length * stretchFactor);
   const output = new Float32Array(outputLength);
+  const normBuf = new Float32Array(outputLength); // per-sample normalization
   const windowFunction = hanningWindow(windowSize);
+
+  // WSOLA search range (samples) to find best overlap alignment
+  const searchRange = Math.min(hopIn, 64);
 
   let readPos = 0;
   let writePos = 0;
 
   while (readPos + windowSize < input.length && writePos + windowSize < outputLength) {
-    // Extract and window the input frame
-    for (let i = 0; i < windowSize; i++) {
-      const sample = input[readPos + i] * windowFunction[i];
-      output[writePos + i] += sample;
+    // WSOLA: find best offset within search range for minimal discontinuity
+    let bestOffset = 0;
+    if (writePos > 0 && searchRange > 0) {
+      let bestCorr = -Infinity;
+      for (let off = -searchRange; off <= searchRange; off++) {
+        const candidateRead = readPos + off;
+        if (candidateRead < 0 || candidateRead + windowSize >= input.length) continue;
+        // Cross-correlate a small segment at the overlap boundary
+        let corr = 0;
+        const checkLen = Math.min(hopOut, 128);
+        for (let j = 0; j < checkLen; j++) {
+          const outIdx = writePos + j;
+          if (outIdx < outputLength) {
+            corr += output[outIdx] * input[candidateRead + j];
+          }
+        }
+        if (corr > bestCorr) {
+          bestCorr = corr;
+          bestOffset = off;
+        }
+      }
+    }
+
+    const actualRead = readPos + bestOffset;
+    if (actualRead >= 0 && actualRead + windowSize < input.length) {
+      for (let i = 0; i < windowSize; i++) {
+        const outIdx = writePos + i;
+        if (outIdx < outputLength) {
+          const w = windowFunction[i];
+          output[outIdx] += input[actualRead + i] * w;
+          normBuf[outIdx] += w;
+        }
+      }
     }
 
     readPos += hopIn;
     writePos += hopOut;
   }
 
-  // Normalize to prevent volume buildup from overlap
-  const overlapCount = Math.ceil(windowSize / hopOut);
-  const normFactor = 1 / Math.max(1, overlapCount * 0.5);
-  for (let i = 0; i < output.length; i++) {
-    output[i] *= normFactor;
+  // Normalize using the per-sample window accumulation
+  for (let i = 0; i < outputLength; i++) {
+    if (normBuf[i] > 0.001) {
+      output[i] /= normBuf[i];
+    }
   }
 
   return output;

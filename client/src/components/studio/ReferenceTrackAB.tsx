@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { FileMusic, Play, Pause, Volume2, VolumeX, ToggleLeft, ToggleRight, Upload, X } from 'lucide-react';
+import { professionalAudio } from '@/lib/professionalAudio';
 
 interface ReferenceTrackABProps {
   className?: string;
@@ -211,9 +212,16 @@ export default function ReferenceTrackAB({ className = '' }: ReferenceTrackABPro
             size="sm"
             variant={isABActive ? 'default' : 'ghost'}
             onClick={() => {
-              setIsABActive(!isABActive);
+              const willBeActive = !isABActive;
+              setIsABActive(willBeActive);
+              // When A/B is active: play reference, mute project master
+              // When A/B is off: stop reference, restore project master
               if (gainRef.current) {
-                gainRef.current.gain.value = !isABActive ? (isMuted ? 0 : volume) : 0;
+                gainRef.current.gain.value = willBeActive ? (isMuted ? 0 : volume) : 0;
+              }
+              const masterBus = professionalAudio.getMasterBus();
+              if (masterBus) {
+                masterBus.gain.value = willBeActive ? 0 : 1;
               }
             }}
             className={`h-6 text-[10px] px-2 gap-1 ${isABActive ? 'bg-purple-600 hover:bg-purple-700' : ''}`}

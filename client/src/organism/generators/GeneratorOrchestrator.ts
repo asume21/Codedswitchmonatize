@@ -213,6 +213,13 @@ export class GeneratorOrchestrator {
   // musically responds to the human in real time.
 
   applyPerformerState(performer: import('../audio/types').PerformerState): void {
+    // Feed performer features to melody generator for intelligent voice selection
+    this.melody.setPerformerFeatures(
+      performer.energy,
+      performer.spectralBrightness,
+      performer.syllabicRate,
+    )
+
     // Performer adjustments are computed as FRESH multipliers each frame —
     // they do NOT compound on top of stored multipliers.
 

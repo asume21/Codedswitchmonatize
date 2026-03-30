@@ -269,7 +269,153 @@ export function createWebAudioEffect(
       return { input: limiter, output: limiter };
     }
 
+    case 'reverb': {
+      // Convolution-based reverb using generated impulse response
+      const convolver = ctx.createConvolver();
+      const decay = p.decay || 2.5;
+      const size = p.size || 0.7;
+      const damping = p.damping || 0.5;
+
+      // Generate impulse response
+      const sampleRate = ctx.sampleRate;
+      const length = Math.floor(sampleRate * decay);
+      const impulse = ctx.createBuffer(2, length, sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const data = impulse.getChannelData(ch);
+        for (let i = 0; i < length; i++) {
+          const t = i / sampleRate;
+          // Exponential decay with damping (high damping = faster HF rolloff)
+          const envelope = Math.exp(-t * (3 / decay));
+          const dampingFactor = Math.exp(-t * damping * 8);
+          data[i] = ((Math.random() * 2 - 1) * envelope * dampingFactor) * size;
+        }
+      }
+      convolver.buffer = impulse;
+
+      // Pre-delay
+      const preDelay = ctx.createDelay(0.2);
+      preDelay.delayTime.value = (p.preDelay || 0) / 1000;
+
+      // Wet/dry mix
+      const dry = ctx.createGain();
+      const wet = ctx.createGain();
+      const merger = ctx.createGain();
+      const splitter = ctx.createGain();
+      dry.gain.value = 1 - (p.mix || 0.3);
+      wet.gain.value = p.mix || 0.3;
+
+      splitter.connect(dry);
+      splitter.connect(preDelay);
+      preDelay.connect(convolver);
+      convolver.connect(wet);
+      dry.connect(merger);
+      wet.connect(merger);
+      return { input: splitter, output: merger };
+    }
+
+    case 'delay': {
+      const delayNode = ctx.createDelay(2.0);
+      delayNode.delayTime.value = (p.time || 375) / 1000;
+
+      const feedback = ctx.createGain();
+      feedback.gain.value = Math.min(0.95, p.feedback || 0.35);
+
+      // Feedback filters
+      const lowCut = ctx.createBiquadFilter();
+      lowCut.type = 'highpass';
+      lowCut.frequency.value = p.lowCut || 200;
+
+      const highCut = ctx.createBiquadFilter();
+      highCut.type = 'lowpass';
+      highCut.frequency.value = p.highCut || 8000;
+
+      // Feedback loop: delay → lowCut → highCut → feedback → delay
+      delayNode.connect(lowCut);
+      lowCut.connect(highCut);
+      highCut.connect(feedback);
+      feedback.connect(delayNode);
+
+      // Wet/dry mix
+      const dry = ctx.createGain();
+      const wet = ctx.createGain();
+      const merger = ctx.createGain();
+      const splitter = ctx.createGain();
+      dry.gain.value = 1 - (p.mix || 0.3);
+      wet.gain.value = p.mix || 0.3;
+
+      splitter.connect(dry);
+      splitter.connect(delayNode);
+      highCut.connect(wet); // tap after filters for wet signal
+      dry.connect(merger);
+      wet.connect(merger);
+      return { input: splitter, output: merger };
+    }
+
+    case 'chorus': {
+      const rate = p.rate || 1.5;
+      const depth = p.depth || 0.5;
+      const delayMs = p.delay || 7;
+      const fbAmount = Math.min(0.95, p.feedback || 0.2);
+
+      // Two modulated delay voices for stereo width
+      const splitter = ctx.createGain();
+      const dry = ctx.createGain();
+      const wet = ctx.createGain();
+      const merger = ctx.createGain();
+      dry.gain.value = 1 - (p.mix || 0.5);
+      wet.gain.value = p.mix || 0.5;
+
+      const delay1 = ctx.createDelay(0.05);
+      delay1.delayTime.value = delayMs / 1000;
+      const delay2 = ctx.createDelay(0.05);
+      delay2.delayTime.value = (delayMs * 1.1) / 1000;
+
+      // LFOs modulate delay times
+      const lfo1 = ctx.createOscillator();
+      lfo1.type = 'sine';
+      lfo1.frequency.value = rate;
+      const lfo1Gain = ctx.createGain();
+      lfo1Gain.gain.value = (depth * delayMs * 0.5) / 1000;
+      lfo1.connect(lfo1Gain);
+      lfo1Gain.connect(delay1.delayTime);
+      lfo1.start();
+
+      const lfo2 = ctx.createOscillator();
+      lfo2.type = 'sine';
+      lfo2.frequency.value = rate * 1.1; // slight detune between voices
+      const lfo2Gain = ctx.createGain();
+      lfo2Gain.gain.value = (depth * delayMs * 0.5) / 1000;
+      lfo2.connect(lfo2Gain);
+      lfo2Gain.connect(delay2.delayTime);
+      lfo2.start();
+
+      // Feedback
+      const fb1 = ctx.createGain();
+      fb1.gain.value = fbAmount;
+      delay1.connect(fb1);
+      fb1.connect(delay1);
+
+      const fb2 = ctx.createGain();
+      fb2.gain.value = fbAmount;
+      delay2.connect(fb2);
+      fb2.connect(delay2);
+
+      // Routing
+      const chorusMix = ctx.createGain();
+      chorusMix.gain.value = 0.5;
+      splitter.connect(dry);
+      splitter.connect(delay1);
+      splitter.connect(delay2);
+      delay1.connect(chorusMix);
+      delay2.connect(chorusMix);
+      chorusMix.connect(wet);
+      dry.connect(merger);
+      wet.connect(merger);
+      return { input: splitter, output: merger };
+    }
+
     default:
+      console.warn(`[effectsChain] Unknown effect type: ${effect.type}`);
       return null;
   }
 }

@@ -22,13 +22,17 @@ export interface PitchShiftOptions {
 /**
  * Shift pitch of an AudioBuffer by the given number of semitones (offline).
  * Returns a new AudioBuffer at the same duration and sample rate.
+ *
+ * Algorithm: resample input at the pitch ratio (which changes both pitch
+ * and duration), then time-stretch back to the original length using OLA.
+ * This is the classic "resample + OLA" pitch shifter.
  */
 export function pitchShiftBuffer(
   ctx: BaseAudioContext,
   buffer: AudioBuffer,
   options: PitchShiftOptions,
 ): AudioBuffer {
-  const { semitones, grainSize = 2048, overlap = 0.5 } = options;
+  const { semitones, grainSize = 2048, overlap = 0.75 } = options;
   if (semitones === 0) return buffer;
 
   const ratio = Math.pow(2, semitones / 12);
@@ -38,47 +42,52 @@ export function pitchShiftBuffer(
   const outputLength = inputLength; // same duration
 
   const output = ctx.createBuffer(numChannels, outputLength, sampleRate);
-
   const hopSize = Math.round(grainSize * (1 - overlap));
+
+  // Hann window (computed once)
+  const windowBuf = new Float32Array(grainSize);
+  for (let i = 0; i < grainSize; i++) {
+    windowBuf[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (grainSize - 1)));
+  }
 
   for (let ch = 0; ch < numChannels; ch++) {
     const inputData = buffer.getChannelData(ch);
     const outputData = output.getChannelData(ch);
-    const windowBuf = new Float32Array(grainSize);
 
-    // Hann window
-    for (let i = 0; i < grainSize; i++) {
-      windowBuf[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (grainSize - 1)));
+    // Step 1: Resample input at pitch ratio (changes pitch + duration)
+    const resampledLength = Math.ceil(inputLength / ratio);
+    const resampled = new Float32Array(resampledLength);
+    for (let i = 0; i < resampledLength; i++) {
+      const srcIdx = i * ratio;
+      const srcFloor = Math.floor(srcIdx);
+      const frac = srcIdx - srcFloor;
+      if (srcFloor >= inputLength - 1) {
+        resampled[i] = srcFloor < inputLength ? inputData[srcFloor] : 0;
+      } else {
+        resampled[i] = inputData[srcFloor] * (1 - frac) + inputData[srcFloor + 1] * frac;
+      }
     }
 
-    // Normalization buffer to compensate for overlapping windows
+    // Step 2: OLA time-stretch resampled back to original length
+    const stretchFactor = outputLength / resampledLength;
+    const analysisHop = hopSize;
+    const synthesisHop = Math.round(analysisHop * stretchFactor);
     const normBuf = new Float32Array(outputLength);
 
-    for (let outPos = 0; outPos < outputLength; outPos += hopSize) {
-      // Where to read from in input (accounting for pitch ratio)
-      const inCenter = outPos;
+    let readPos = 0;
+    let writePos = 0;
 
+    while (readPos + grainSize < resampledLength && writePos + grainSize < outputLength) {
       for (let i = 0; i < grainSize; i++) {
-        const outIdx = outPos + i;
-        if (outIdx >= outputLength) break;
-
-        // Map output grain sample back to input at shifted rate
-        const inIdx = inCenter + (i - grainSize / 2) * ratio + grainSize / 2;
-        const inIdxFloor = Math.floor(inIdx);
-        const frac = inIdx - inIdxFloor;
-
-        // Linear interpolation for sub-sample accuracy
-        let sample = 0;
-        if (inIdxFloor >= 0 && inIdxFloor < inputLength - 1) {
-          sample = inputData[inIdxFloor] * (1 - frac) + inputData[inIdxFloor + 1] * frac;
-        } else if (inIdxFloor >= 0 && inIdxFloor < inputLength) {
-          sample = inputData[inIdxFloor];
+        const outIdx = writePos + i;
+        if (outIdx < outputLength) {
+          const w = windowBuf[i];
+          outputData[outIdx] += resampled[readPos + i] * w;
+          normBuf[outIdx] += w;
         }
-
-        const w = windowBuf[i];
-        outputData[outIdx] += sample * w;
-        normBuf[outIdx] += w;
       }
+      readPos += analysisHop;
+      writePos += synthesisHop;
     }
 
     // Normalize by overlapping window sum
