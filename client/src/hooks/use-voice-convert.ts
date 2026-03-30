@@ -32,7 +32,7 @@ export interface SubmitJobParams {
   sourceUrl: string;
   sourceFileName?: string;
   stemMode: 2 | 4;
-  provider: "elevenlabs" | "rvc";
+  provider: "elevenlabs" | "rvc" | "replicate-rvc";
   pitchCorrect: boolean;
   executionMode: "cloud" | "byo_keys";
 }

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import Replicate from "replicate";
 
 // Storage directory for voice library
 const VOICES_DIR = path.resolve(process.cwd(), "objects", "voices");
@@ -39,7 +40,7 @@ export interface ConvertOptions {
   filterRadius?: number;
   rmsMixRate?: number;
   protect?: number;
-  provider?: "rvc" | "elevenlabs";
+  provider?: "rvc" | "elevenlabs" | "replicate-rvc";
   sourcePath?: string;
 }
 
@@ -244,14 +245,103 @@ export function deleteVoice(voiceId: string, userId: string): boolean {
 /**
  * Convert audio using a voice model via RVC API
  */
+/**
+ * Convert voice using Replicate's cloud-hosted RVC v2 model.
+ * No local server required — runs entirely via Replicate API.
+ * Cost: ~$0.03 per conversion, ~3 min runtime.
+ */
+async function convertWithReplicateRvc(
+  voiceId: string,
+  audioUrl: string,
+  options: ConvertOptions = {}
+): Promise<string> {
+  if (!process.env.REPLICATE_API_TOKEN) {
+    throw new Error("REPLICATE_API_TOKEN not configured for cloud RVC");
+  }
+
+  const voice = getVoice(voiceId);
+  const {
+    pitch = 0,
+    indexRate = 0.5,
+    filterRadius = 3,
+    rmsMixRate = 0.25,
+    protect = 0.33,
+  } = options;
+
+  // Determine audio input — use source file if available, otherwise URL
+  let songInput: string;
+  if (options.sourcePath && fs.existsSync(options.sourcePath)) {
+    const audioData = fs.readFileSync(options.sourcePath);
+    const mimeType = inferAudioMime(options.sourcePath);
+    songInput = `data:${mimeType};base64,${audioData.toString("base64")}`;
+  } else {
+    songInput = audioUrl;
+  }
+
+  // Map pitch to RVC pitch_change enum
+  let pitchChange: string = "no-change";
+  if (pitch > 0) pitchChange = "male-to-female";
+  else if (pitch < 0) pitchChange = "female-to-male";
+
+  const replicateInput: Record<string, any> = {
+    song_input: songInput,
+    pitch_change: pitchChange,
+    index_rate: indexRate,
+    filter_radius: filterRadius,
+    rms_mix_rate: rmsMixRate,
+    protect,
+    pitch_change_all: pitch,
+    output_format: "mp3",
+    pitch_detection_algorithm: "rmvpe",
+    reverb_size: 0.15,
+    reverb_wetness: 0.2,
+    reverb_dryness: 0.8,
+    reverb_damping: 0.7,
+  };
+
+  // Use custom RVC model URL if the voice has a downloadable model
+  if (voice?.localPath) {
+    // If localPath is a URL (e.g., HuggingFace), use it as custom model
+    if (voice.localPath.startsWith("http")) {
+      replicateInput.custom_rvc_model_download_url = voice.localPath;
+    }
+  }
+
+  console.log(`🎤 [Replicate RVC] Converting with voice ${voiceId}, pitch=${pitch}`);
+
+  const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+  const output = await replicate.run(
+    "zsxkib/realistic-voice-cloning:0a9c7c558af4c0f20667c1bd1260ce32a2879944a0b9e44e1398660c077b1550",
+    { input: replicateInput }
+  );
+
+  const outputUrl = typeof output === "string" ? output : (output as any)?.output;
+  if (!outputUrl) {
+    throw new Error("Replicate RVC returned no output audio");
+  }
+
+  // Download the converted audio and save locally
+  console.log(`✅ [Replicate RVC] Conversion complete, downloading result...`);
+  const audioResponse = await fetch(outputUrl, { signal: AbortSignal.timeout(60000) });
+  if (!audioResponse.ok) {
+    throw new Error("Failed to download converted audio from Replicate");
+  }
+
+  const outputBuffer = Buffer.from(await audioResponse.arrayBuffer());
+  return saveConvertedOutput(outputBuffer, "mp3");
+}
+
 export async function convertWithVoice(
   voiceId: string,
   audioUrl: string,
   options: ConvertOptions = {}
 ): Promise<string> {
-  const provider = (options.provider || "rvc").toLowerCase();
+  const provider = (options.provider || "replicate-rvc").toLowerCase();
   if (provider === "elevenlabs") {
     return convertWithElevenLabs(voiceId, audioUrl, options);
+  }
+  if (provider === "replicate-rvc") {
+    return convertWithReplicateRvc(voiceId, audioUrl, options);
   }
 
   const voice = getVoice(voiceId);
@@ -329,16 +419,23 @@ export async function convertWithVoice(
 }
 
 /**
- * Check if RVC API is available
+ * Check if RVC API is available (local or cloud)
  */
-export async function checkRvcHealth(): Promise<{ available: boolean; url: string }> {
+export async function checkRvcHealth(): Promise<{ available: boolean; url: string; cloudAvailable: boolean }> {
+  let localAvailable = false;
   try {
     const response = await fetch(`${RVC_API_URL}/health`, {
       method: "GET",
       signal: AbortSignal.timeout(2000),
     });
-    return { available: response.ok, url: RVC_API_URL };
-  } catch {
-    return { available: false, url: RVC_API_URL };
-  }
+    localAvailable = response.ok;
+  } catch {}
+
+  const cloudAvailable = !!process.env.REPLICATE_API_TOKEN;
+
+  return {
+    available: localAvailable || cloudAvailable,
+    url: localAvailable ? RVC_API_URL : "replicate-cloud",
+    cloudAvailable,
+  };
 }

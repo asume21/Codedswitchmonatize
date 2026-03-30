@@ -20,7 +20,7 @@ export interface PipelineOptions {
   inputPath: string;
   voiceId: string;
   stemMode: 2 | 4;
-  provider: "elevenlabs" | "rvc";
+  provider: "elevenlabs" | "rvc" | "replicate-rvc";
   pitchCorrect: boolean;
   baseUrl: string;
   objectsDir: string;

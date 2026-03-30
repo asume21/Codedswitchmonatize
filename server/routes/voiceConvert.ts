@@ -26,7 +26,7 @@ const submitJobSchema = z.object({
   sourceUrl: z.string().min(1, "sourceUrl is required"),
   sourceFileName: z.string().optional(),
   stemMode: z.union([z.literal(2), z.literal(4)]).default(2),
-  provider: z.enum(["elevenlabs", "rvc"]).default("elevenlabs"),
+  provider: z.enum(["elevenlabs", "rvc", "replicate-rvc"]).default("replicate-rvc"),
   pitchCorrect: z.boolean().default(false),
   executionMode: z.enum(["cloud", "byo_keys"]).default("cloud"),
 });
@@ -413,12 +413,13 @@ export function createVoiceConvertRoutes(storage: IStorage) {
 
         const services = {
           replicate: { available: replicateConfigured, type: "cloud" as const, label: "Stem Separation (Replicate)" },
+          replicateRvc: { available: replicateConfigured, type: "cloud" as const, label: "Voice Conversion (RVC Cloud)" },
           elevenlabs: { available: elevenlabsConfigured, type: "cloud" as const, label: "Voice Conversion (ElevenLabs)" },
-          rvc: { available: rvc.available, type: "local" as const, label: "Voice Conversion (RVC)", url: rvc.url },
+          rvc: { available: rvc.available, type: "local" as const, label: "Voice Conversion (RVC Local)", url: rvc.url },
           audioAnalysis: { available: audioAnalysis.available, type: "local" as const, label: "Pitch Correction", gpu: audioAnalysis.gpu },
         };
 
-        const canRunCloud = replicateConfigured && elevenlabsConfigured;
+        const canRunCloud = replicateConfigured && (elevenlabsConfigured || replicateConfigured);
         const canRunLocal = replicateConfigured && rvc.available;
 
         return res.json({

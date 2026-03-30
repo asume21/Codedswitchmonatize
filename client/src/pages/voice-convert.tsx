@@ -453,7 +453,7 @@ export default function VoiceConvertPage() {
   const [voiceId, setVoiceId] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [stemMode, setStemMode] = useState<2 | 4>(2);
-  const [provider, setProvider] = useState<"elevenlabs" | "rvc">("elevenlabs");
+  const [provider, setProvider] = useState<"elevenlabs" | "rvc" | "replicate-rvc">("replicate-rvc");
   const [pitchCorrect, setPitchCorrect] = useState(false);
   const [executionMode, setExecutionMode] = useState<"cloud" | "byo_keys">("cloud");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -613,12 +613,13 @@ export default function VoiceConvertPage() {
                     <Label>Provider</Label>
                     <Select
                       value={provider}
-                      onValueChange={(v) => setProvider(v as "elevenlabs" | "rvc")}
+                      onValueChange={(v) => setProvider(v as "elevenlabs" | "rvc" | "replicate-rvc")}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="replicate-rvc">RVC Cloud (~$0.03/run)</SelectItem>
                         <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
                         <SelectItem value="rvc" disabled={!rvcAvailable}>
                           RVC (Local){!rvcAvailable ? " - Offline" : ""}

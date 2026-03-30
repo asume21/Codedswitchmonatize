@@ -929,10 +929,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     stopTransportCtx(); // Use context stop to sync with floating transport
   }, [stopTransportCtx]);
 
-  // Refs for handlePlay/handleStop so the transport-sync effect never
-  // hits a temporal-dead-zone after minification reorders declarations.
+  // Refs for callbacks so useEffects/handlers never hit a temporal-dead-zone
+  // after minification reorders declarations.
   const handlePlayRef = useRef<() => void>(() => {});
   const handleStopRef = useRef<() => void>(() => {});
+  const handleKeyChangeRef = useRef<(key: string) => void>(() => {});
   useEffect(() => { handlePlayRef.current = handlePlay; }, [handlePlay]);
   useEffect(() => { handleStopRef.current = handleStop; }, [handleStop]);
 
@@ -1233,7 +1234,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         const next = k === 'u'
           ? keys[(idx + 1) % keys.length]
           : keys[(idx - 1 + keys.length) % keys.length];
-        handleKeyChange(next);
+        handleKeyChangeRef.current(next);
         const keyData = DEFAULT_customKeys[next as keyof typeof DEFAULT_customKeys];
         toast({ title: `Key: ${keyData?.name || next}`, duration: 1500 });
         return;
@@ -1360,7 +1361,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, handleKeyChange]);
+  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
     setTracks(prev => {
@@ -1686,6 +1687,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       setActiveKeys(new Set());
     }
   }, [currentKey, activeKeys, scaleStates]);
+  useEffect(() => { handleKeyChangeRef.current = handleKeyChange; }, [handleKeyChange]);
 
   const handleProgressionChange = useCallback((progression: ChordProgression) => {
     setSelectedProgression(progression);
