@@ -11,6 +11,7 @@ import {
   getAutomationValue,
   getParamDisplayName,
   AUTOMATABLE_PARAMS,
+  type AutomationMode,
 } from '@/lib/automationEngine';
 import type { AutomationPoint, AutomationLane } from '@/lib/projectManager';
 
@@ -37,6 +38,7 @@ export default function AutomationLaneEditor({
 }: AutomationLaneEditorProps) {
   const [selectedLaneId, setSelectedLaneId] = useState<string | null>(lanes[0]?.id || null);
   const [tool, setTool] = useState<Tool>('pointer');
+  const [automationMode, setAutomationMode] = useState<AutomationMode>('read');
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawSamples, setDrawSamples] = useState<Array<{ time: number; value: number }>>([]);
   const [dragPointTime, setDragPointTime] = useState<number | null>(null);
@@ -259,6 +261,32 @@ export default function AutomationLaneEditor({
           >
             <Pencil className="w-3 h-3" />
           </Button>
+
+          <div className="w-px h-4 bg-zinc-600 mx-1" />
+
+          {/* Automation recording modes */}
+          {(['read', 'write', 'touch', 'latch'] as AutomationMode[]).map(mode => (
+            <Button
+              key={mode}
+              size="sm"
+              variant={automationMode === mode ? 'secondary' : 'ghost'}
+              onClick={() => setAutomationMode(mode)}
+              className={`h-6 text-[10px] px-1.5 ${
+                automationMode === mode && mode === 'write' ? 'bg-red-600/80 text-white hover:bg-red-700' :
+                automationMode === mode && mode === 'touch' ? 'bg-amber-600/80 text-white hover:bg-amber-700' :
+                automationMode === mode && mode === 'latch' ? 'bg-orange-600/80 text-white hover:bg-orange-700' :
+                ''
+              }`}
+              title={{
+                read: 'Read — plays back existing automation',
+                write: 'Write — continuously records automation',
+                touch: 'Touch — records while control is held',
+                latch: 'Latch — records from first touch until stop',
+              }[mode]}
+            >
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </Button>
+          ))}
         </div>
       </div>
 

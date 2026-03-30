@@ -45,6 +45,8 @@ import AIMasteringCard from './AIMasteringCard';
 import AIArrangementBuilder from './AIArrangementBuilder';
 import AIVocalMelody from './AIVocalMelody';
 import AIStemSeparation from './AIStemSeparation';
+import SpectrumAnalyzer from './SpectrumAnalyzer';
+import ReferenceTrackAB from './ReferenceTrackAB';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PresenceAmbientLight } from '@/components/presence';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -4785,6 +4787,10 @@ export default function UnifiedStudioWorkspace() {
           {activeView === 'mixer' && (
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
               <ProfessionalMixer />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+                <SpectrumAnalyzer width={560} height={180} className="bg-zinc-900/80 rounded-lg border border-zinc-700/50 p-3" />
+                <ReferenceTrackAB />
+              </div>
             </div>
           )}
 

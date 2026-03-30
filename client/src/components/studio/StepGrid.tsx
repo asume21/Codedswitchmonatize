@@ -345,6 +345,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                       height: `${keyHeight - 6}px`,
                       top: '3px',
                     }}
+                    title={`${note.note}${note.octave} vel:${note.velocity ?? 100}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
@@ -404,6 +405,16 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                     <div className="text-[8px] text-black font-black px-1 truncate pointer-events-none mix-blend-overlay">
                       {note.note}{note.octave}
                     </div>
+
+                    {/* Velocity stalk — height + color encode velocity 0-127 */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0 pointer-events-none rounded-b-sm"
+                      style={{
+                        height: `${Math.max(2, ((note.velocity ?? 100) / 127) * 100)}%`,
+                        background: `hsl(${Math.round(200 - ((note.velocity ?? 100) / 127) * 200)}, 90%, 55%)`,
+                        opacity: 0.35,
+                      }}
+                    />
                     
                     {(onNoteResize || onMultiNoteResize) && (
                       <div

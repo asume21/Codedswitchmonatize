@@ -188,6 +188,120 @@ function perpendicularDistance(
   return Math.abs(dy * point.time - dx * point.value + lineEnd.time * lineStart.value - lineEnd.value * lineStart.time) / len;
 }
 
+// ─── Automation Recording Modes ──────────────────────────────────────
+
+export type AutomationMode = 'read' | 'write' | 'touch' | 'latch';
+
+/**
+ * Automation recording session — tracks the state of a live automation
+ * recording pass for a single lane.
+ *
+ * - **Read**: Plays back existing automation only. No recording.
+ * - **Write**: Continuously overwrites automation from the moment playback
+ *   starts until it stops.
+ * - **Touch**: Records only while the user is actively touching/dragging
+ *   a control. On release, playback reverts to existing automation.
+ * - **Latch**: Like Touch, but once the user touches a control, the last
+ *   value is held and continues recording until playback stops.
+ */
+export interface AutomationRecordSession {
+  lane: AutomationLane;
+  mode: AutomationMode;
+  isRecording: boolean;
+  isTouching: boolean;
+  latchedValue: number | null;
+  recordStartTime: number;
+  recordedSamples: Array<{ time: number; value: number }>;
+}
+
+export function createRecordSession(
+  lane: AutomationLane,
+  mode: AutomationMode,
+): AutomationRecordSession {
+  return {
+    lane,
+    mode,
+    isRecording: mode === 'write',
+    isTouching: false,
+    latchedValue: null,
+    recordStartTime: 0,
+    recordedSamples: [],
+  };
+}
+
+/**
+ * Called each frame during playback. Returns the value to apply to the
+ * parameter and updates the session state.
+ */
+export function processAutomationFrame(
+  session: AutomationRecordSession,
+  currentTime: number,
+  userValue: number | null,
+): { value: number | null; session: AutomationRecordSession } {
+  const automatedValue = getAutomationValue(session.lane, currentTime);
+
+  switch (session.mode) {
+    case 'read':
+      return { value: automatedValue, session };
+
+    case 'write': {
+      const val = userValue ?? automatedValue ?? 0;
+      const updated = {
+        ...session,
+        recordedSamples: [...session.recordedSamples, { time: currentTime, value: val }],
+      };
+      return { value: val, session: updated };
+    }
+
+    case 'touch': {
+      if (userValue !== null) {
+        const updated = {
+          ...session,
+          isTouching: true,
+          recordedSamples: [...session.recordedSamples, { time: currentTime, value: userValue }],
+        };
+        return { value: userValue, session: updated };
+      }
+      return { value: automatedValue, session: { ...session, isTouching: false } };
+    }
+
+    case 'latch': {
+      if (userValue !== null) {
+        const updated = {
+          ...session,
+          isTouching: true,
+          latchedValue: userValue,
+          recordedSamples: [...session.recordedSamples, { time: currentTime, value: userValue }],
+        };
+        return { value: userValue, session: updated };
+      }
+      if (session.latchedValue !== null) {
+        const updated = {
+          ...session,
+          recordedSamples: [...session.recordedSamples, { time: currentTime, value: session.latchedValue }],
+        };
+        return { value: session.latchedValue, session: updated };
+      }
+      return { value: automatedValue, session };
+    }
+
+    default:
+      return { value: automatedValue, session };
+  }
+}
+
+/**
+ * Commit the recorded automation samples into the lane, replacing
+ * any points in the recorded time range.
+ */
+export function commitRecordSession(
+  session: AutomationRecordSession,
+  curve: 'linear' | 'exponential' | 'step' = 'linear',
+): AutomationLane {
+  if (session.recordedSamples.length === 0) return session.lane;
+  return drawAutomationCurve(session.lane, session.recordedSamples, curve);
+}
+
 /**
  * Standard automatable parameters per track type.
  */
