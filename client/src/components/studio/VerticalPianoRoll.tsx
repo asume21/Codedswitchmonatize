@@ -929,14 +929,21 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     stopTransportCtx(); // Use context stop to sync with floating transport
   }, [stopTransportCtx]);
 
+  // Refs for handlePlay/handleStop so the transport-sync effect never
+  // hits a temporal-dead-zone after minification reorders declarations.
+  const handlePlayRef = useRef<() => void>(() => {});
+  const handleStopRef = useRef<() => void>(() => {});
+  useEffect(() => { handlePlayRef.current = handlePlay; }, [handlePlay]);
+  useEffect(() => { handleStopRef.current = handleStop; }, [handleStop]);
+
   // Sync local isPlaying with transport context - this makes floating transport work!
   useEffect(() => {
     if (transportIsPlaying && !isPlaying) {
       // Transport started externally (e.g., floating transport bar)
-      handlePlay();
+      handlePlayRef.current();
     } else if (!transportIsPlaying && isPlaying) {
       // Transport stopped externally
-      handleStop();
+      handleStopRef.current();
     }
   }, [transportIsPlaying]);
 
