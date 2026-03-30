@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Sliders, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { Sliders, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface EQBand {
   id: string;
@@ -108,42 +109,31 @@ export function EQPlugin({ audioUrl, onClose }: EQPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `EQ Preset ${new Date().toLocaleTimeString()}`,
-      bands: bands,
-    };
-    localStorage.setItem('eq-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: 'EQ settings saved to browser',
+  const handleLoadPreset = (params: Record<string, number>) => {
+    const newBands = [...bands];
+    bands.forEach((band, i) => {
+      if (params[`band${i}_freq`] !== undefined) newBands[i] = { ...newBands[i], frequency: params[`band${i}_freq`] };
+      if (params[`band${i}_gain`] !== undefined) newBands[i] = { ...newBands[i], gain: params[`band${i}_gain`] };
+      if (params[`band${i}_q`] !== undefined) newBands[i] = { ...newBands[i], q: params[`band${i}_q`] };
+    });
+    setBands(newBands);
+    newBands.forEach((band, index) => {
+      if (filtersRef.current[index]) {
+        filtersRef.current[index].frequency.value = band.frequency;
+        filtersRef.current[index].gain.value = band.gain;
+        filtersRef.current[index].Q.value = band.q;
+      }
     });
   };
 
-  // ISSUE #1: Load preset functionality
-  const loadPreset = () => {
-    try {
-      const saved = localStorage.getItem('eq-preset-last');
-      if (saved) {
-        const preset = JSON.parse(saved);
-        if (preset.bands) {
-          setBands(preset.bands);
-          // Apply to actual filters
-          preset.bands.forEach((band: EQBand, index: number) => {
-            if (filtersRef.current[index]) {
-              filtersRef.current[index].frequency.value = band.frequency;
-              filtersRef.current[index].gain.value = band.gain;
-              filtersRef.current[index].Q.value = band.q;
-            }
-          });
-          toast({ title: 'Preset Loaded', description: `Loaded: ${preset.name}` });
-        }
-      } else {
-        toast({ title: 'No Preset', description: 'No saved preset found', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Load Failed', description: 'Could not load preset', variant: 'destructive' });
-    }
+  const getCurrentParams = (): Record<string, number> => {
+    const params: Record<string, number> = {};
+    bands.forEach((band, i) => {
+      params[`band${i}_freq`] = band.frequency;
+      params[`band${i}_gain`] = band.gain;
+      params[`band${i}_q`] = band.q;
+    });
+    return params;
   };
 
   return (
@@ -189,14 +179,11 @@ export function EQPlugin({ audioUrl, onClose }: EQPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
-            <Button onClick={loadPreset} variant="outline">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Load
-            </Button>
+            <PresetBrowser
+              effectType="eq"
+              currentParams={getCurrentParams()}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

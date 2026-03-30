@@ -66,6 +66,10 @@ export interface StateMachineConfig {
   awakeningMaxBars:  number
 
   syllabicDensityWindowBars: number
+
+  /** When > 0, Breathing promotes to Flow after this many bars even without
+   *  cadence lock. Used by auto-generate mode where there is no real voice. */
+  autoBreathingToFlowBars: number
 }
 
 export const DEFAULT_STATE_MACHINE_CONFIG: StateMachineConfig = {
@@ -81,6 +85,7 @@ export const DEFAULT_STATE_MACHINE_CONFIG: StateMachineConfig = {
   awakeningMinBars:         1.5,
   awakeningMaxBars:         3,
   syllabicDensityWindowBars: 3,
+  autoBreathingToFlowBars: 0,
 }
 
 export type OrganismStateCallback    = (state: OrganismState)    => void

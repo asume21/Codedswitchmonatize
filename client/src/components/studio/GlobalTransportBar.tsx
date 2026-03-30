@@ -1,18 +1,20 @@
-import React, { useContext, useState, useEffect, useCallback } from 'react';
+import React, { useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Play, Pause, Square, SkipBack, SkipForward, 
-  Volume2, VolumeX, Repeat, Music, Drum, 
+import {
+  Play, Pause, Square, SkipBack, SkipForward,
+  Volume2, VolumeX, Repeat, Music, Drum,
   Piano, Mic2, ChevronUp, ChevronDown,
-  Settings, Layers
+  Settings, Layers, Circle
 } from 'lucide-react';
 import { StudioAudioContext } from '@/pages/studio';
 import { useTransport } from '@/contexts/TransportContext';
 import { useAudio, useSequencer } from '@/hooks/use-audio';
 import { useTracks } from '@/hooks/useTracks';
 import { cn } from '@/lib/utils';
+import { getTimelineRecorder, type RecorderState, type RecordingResult } from '@/lib/timelineRecorder';
+import { getCurrentProject, markDirty, type AudioClip } from '@/lib/projectManager';
 
 interface TrackChannel {
   id: string;
@@ -48,6 +50,69 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   const [isMuted, setIsMuted] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackMode, setPlaybackMode] = useState<'all' | 'beat' | 'melody' | 'custom'>('all');
+
+  // ─── Recording State ──────────────────────────────────────────────
+  const [recorderState, setRecorderState] = useState<RecorderState | null>(null);
+  const recorderRef = useRef(getTimelineRecorder());
+
+  useEffect(() => {
+    const unsub = recorderRef.current.subscribe(setRecorderState);
+    return unsub;
+  }, []);
+
+  const isRecording = recorderState?.isRecording ?? false;
+
+  const handleRecord = async () => {
+    await ensureAudioInit();
+    const recorder = recorderRef.current;
+
+    if (isRecording) {
+      // Stop recording → create clip on timeline
+      const result = await recorder.stopRecording();
+      if (result) {
+        addRecordingToTimeline(result);
+      }
+      return;
+    }
+
+    // Request permission if needed
+    if (!recorderState?.hasPermission) {
+      const granted = await recorder.requestPermission();
+      if (!granted) return;
+    }
+
+    // Start recording at current position, and start transport if not playing
+    await recorder.startRecording(position);
+    if (!transportPlaying) {
+      startTransport();
+    }
+  };
+
+  const addRecordingToTimeline = (result: RecordingResult) => {
+    const project = getCurrentProject();
+    if (!project) return;
+
+    const durationBeats = (result.durationSeconds / 60) * tempo;
+    const clip: AudioClip = {
+      id: crypto.randomUUID(),
+      trackId: 'recording-' + Date.now(),
+      name: `Recording @ Bar ${Math.floor(result.startBeat / timeSignature.numerator) + 1}`,
+      audioUrl: result.url,
+      startBeat: result.startBeat,
+      endBeat: result.startBeat + durationBeats,
+      offsetBeat: 0,
+      fadeInBeats: 0,
+      fadeOutBeats: 0,
+      gain: 1,
+      loop: false,
+      loopEndBeat: 0,
+      source: 'recording',
+    };
+
+    project.audioClips.push(clip);
+    markDirty();
+    console.log(`🎤 Recording added to timeline: ${clip.name} (${result.durationSeconds.toFixed(1)}s)`);
+  };
   
   // Track channels for mixing
   const [channels, setChannels] = useState<TrackChannel[]>([
@@ -122,12 +187,18 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   };
 
   // Stop handler
-  const handleStop = () => {
+  const handleStop = async () => {
+    // Stop recording if active
+    if (isRecording) {
+      const result = await recorderRef.current.stopRecording();
+      if (result) addRecordingToTimeline(result);
+    }
+
     stopTransport();
     stopPattern();
     studioContext.stopFullSong();
     seek(0);
-    
+
     if (studioContext.uploadedSongAudio) {
       studioContext.uploadedSongAudio.pause();
       studioContext.uploadedSongAudio.currentTime = 0;
@@ -288,15 +359,51 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
             <SkipForward className="w-4 h-4" />
           </Button>
           
-          <Button 
-            size="sm" 
-            variant="ghost" 
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={handleToggleLoop}
             className={cn("h-8 w-8 p-0", isLooping && "text-blue-400")}
           >
             <Repeat className="w-4 h-4" />
           </Button>
+
+          {/* Record Button */}
+          <Button
+            size="sm"
+            onClick={handleRecord}
+            className={cn(
+              "h-10 w-10 p-0 rounded-full transition-all",
+              isRecording
+                ? "bg-red-600 hover:bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]"
+                : "bg-gray-700 hover:bg-red-600/80"
+            )}
+            title={isRecording ? 'Stop Recording' : 'Record'}
+          >
+            <Circle className={cn("w-5 h-5", isRecording ? "fill-white text-white" : "fill-red-500 text-red-500")} />
+          </Button>
         </div>
+
+        {/* Recording Indicator */}
+        {isRecording && recorderState && (
+          <div className="flex items-center gap-2 border-l border-gray-700 pl-3">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-red-400 text-xs font-mono font-bold">
+              REC {recorderState.elapsedSeconds.toFixed(1)}s
+            </span>
+            {/* Input Level Meter */}
+            <div className="w-16 h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-75",
+                  recorderState.inputLevel > 0.8 ? "bg-red-500" :
+                  recorderState.inputLevel > 0.5 ? "bg-yellow-500" : "bg-green-500"
+                )}
+                style={{ width: `${Math.min(100, recorderState.inputLevel * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Quick Play Mode Buttons */}
         <div className="flex items-center gap-1 border-l border-gray-700 pl-4">
@@ -396,6 +503,11 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
           )}
           {studioContext.currentUploadedSong && (
             <Badge variant="outline" className="text-green-400 border-green-400/50">Song</Badge>
+          )}
+          {getCurrentProject()?.audioClips && getCurrentProject()!.audioClips.length > 0 && (
+            <Badge variant="outline" className="text-red-400 border-red-400/50">
+              {getCurrentProject()!.audioClips.length} Clip{getCurrentProject()!.audioClips.length > 1 ? 's' : ''}
+            </Badge>
           )}
         </div>
       </div>

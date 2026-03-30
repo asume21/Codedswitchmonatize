@@ -51,29 +51,30 @@ export class GeneratorOrchestrator {
 
   // ── Arrangement state ─────────────────────────────────────────────
   //
-  // Cycles through 16-bar arrangement sections to add dynamic variation.
+  // Cycles through 28-bar arrangement sections to add dynamic variation.
   // Each section shapes which generators are active and at what level.
+  // Texture is fully disabled — no ambient noise layer.
   //
   //   intro (4 bars)     → drums only, building
   //   verse (4 bars)     → drums + bass
   //   build (4 bars)     → drums + bass + melody
-  //   drop  (4 bars)     → everything, full energy
-  //   breakdown (2 bars) → bass + texture only (breathing room)
+  //   drop  (4 bars)     → drums + bass + melody, full energy
+  //   breakdown (2 bars) → light drums + bass (breathing room)
   //   verse2 (4 bars)    → drums + bass + melody variation
-  //   drop2  (4 bars)    → everything, peak
-  //   outro (2 bars)     → texture fade
+  //   drop2  (4 bars)    → drums + bass + melody, peak
+  //   outro (2 bars)     → light drums + bass fade
   //
   // Total cycle: 28 bars, then repeats.
 
   private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number }[] = [
-    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, texture: 0.3 },
-    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, texture: 0.5 },
-    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0.7 },
-    { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 1.0 },
-    { name: 'breakdown', bars: 2, drums: 0.3, bass: 0.7, melody: 0.0, texture: 1.0 },
-    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, texture: 0.5 },
-    { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 1.0 },
-    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.4, melody: 0.0, texture: 0.8 },
+    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, texture: 0 },
+    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, texture: 0 },
+    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0 },
+    { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0 },
+    { name: 'breakdown', bars: 2, drums: 0.4, bass: 0.7, melody: 0.0, texture: 0 },
+    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, texture: 0 },
+    { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0 },
+    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.5, melody: 0.0, texture: 0 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
@@ -370,6 +371,14 @@ export class GeneratorOrchestrator {
 
   connectTextureOutput(destination: Tone.InputNode): void {
     this.texture.output.connect(destination)
+  }
+
+  /**
+   * Wire the kick trigger callback for sidechain ducking.
+   * The MixEngine calls this to receive a callback on every kick hit.
+   */
+  setKickSidechainCallback(cb: ((time: number) => void) | null): void {
+    this.drum.setKickTriggerCallback(cb)
   }
 
   // ── Private ────────────────────────────────────────────────────────

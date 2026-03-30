@@ -17,6 +17,7 @@ const DEFAULT_CONFIG = {
   awakeningMinBars: 2,
   awakeningMaxBars: 4,
   syllabicDensityWindowBars: 2,
+  autoBreathingToFlowBars: 0,
 }
 
 const FRAME_MS = 23

@@ -36,6 +36,7 @@ const baseConfig = {
   awakeningMinBars: 2,
   awakeningMaxBars: 4,
   syllabicDensityWindowBars: 2,
+  autoBreathingToFlowBars: 0,
 }
 
 const basePhysics = (overrides: Partial<PhysicsState> = {}): PhysicsState => ({

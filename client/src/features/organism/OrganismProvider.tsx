@@ -210,7 +210,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // 1. Create all engines
     const input       = createInputSource(inputSource, audioFileRef.current, autoEnergy)
     const physics     = new PhysicsEngine()
-    const machine     = new StateMachine()
+    const machine     = new StateMachine(
+      inputSource === 'autoGenerate' ? { autoBreathingToFlowBars: 4 } : {}
+    )
     const orchestr    = new GeneratorOrchestrator()
     const reactive    = new ReactiveBehaviorEngine()
     const mix         = new MixEngine()

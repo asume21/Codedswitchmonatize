@@ -48,6 +48,10 @@ export default function AutomationLaneEditor({
 
   const allParams = useMemo((): string[] => {
     const params: string[] = [...AUTOMATABLE_PARAMS.common];
+    // Expression / instrument params (CC11, CC1, filter cutoff)
+    if ('expression' in AUTOMATABLE_PARAMS) {
+      params.push(...(AUTOMATABLE_PARAMS as any).expression);
+    }
     Object.values(AUTOMATABLE_PARAMS.effects).forEach(group => params.push(...group));
     params.push(...AUTOMATABLE_PARAMS.send);
     return params;

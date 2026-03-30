@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Radio, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { Radio, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface ReverbPluginProps {
   audioUrl?: string;
@@ -140,16 +141,9 @@ export function ReverbPlugin({ audioUrl, onClose }: ReverbPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `Reverb Preset ${new Date().toLocaleTimeString()}`,
-      settings: { roomType, wetMix, decay },
-    };
-    localStorage.setItem('reverb-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: 'Reverb settings saved to browser',
-    });
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.wetMix !== undefined) setWetMix(params.wetMix);
+    if (params.decay !== undefined) setDecay(params.decay);
   };
 
   return (
@@ -195,10 +189,11 @@ export function ReverbPlugin({ audioUrl, onClose }: ReverbPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
+            <PresetBrowser
+              effectType="reverb"
+              currentParams={{ wetMix, decay }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

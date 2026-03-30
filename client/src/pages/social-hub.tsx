@@ -11,10 +11,18 @@ import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'wouter';
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   Share2, Twitter, Facebook, Instagram, Youtube, Users, Heart,
   MessageCircle, TrendingUp, Send, Search, UserPlus, UserMinus,
   Wifi, WifiOff, BookOpen, BarChart3, Handshake, Globe, RefreshCw,
   Clock, Eye, ThumbsUp, PenLine, Calendar, Music, Code, Zap,
+  Shield, Pencil, Sparkles, Play,
+  Hash, Radio, Mail, Check, X,
 } from 'lucide-react';
 
 type TabId = 'feed' | 'connections' | 'chat' | 'collabs' | 'blog' | 'discover' | 'analytics';
@@ -67,11 +75,11 @@ function OrganismSessionCard({ post, isAuthenticated }: { post: any; isAuthentic
   };
 
   return (
-    <div className="rounded-xl border border-cyan-500/15 bg-black/40 p-4 hover:border-cyan-500/30 transition-colors">
+    <div className="rounded-xl border border-cyan-500/15 bg-black/40 p-5 hover:border-cyan-500/30 transition-all duration-300 hover:shadow-[0_0_25px_rgba(6,182,212,0.08)] group">
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
-        <Avatar className="h-9 w-9">
-          <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-purple-700 text-white text-xs font-bold">
+        <Avatar className="h-10 w-10 ring-2 ring-purple-500/20">
+          <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-purple-700 text-white text-sm font-bold">
             {(post.displayName || 'A').charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -245,55 +253,84 @@ function FeedTab({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
       {/* Quick Stats Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Posts', value: stats.totalShares, icon: <Share2 className="h-4 w-4" />, color: 'cyan' },
-          { label: 'Views', value: stats.totalViews, icon: <Eye className="h-4 w-4" />, color: 'blue' },
-          { label: 'Likes', value: stats.totalLikes, icon: <ThumbsUp className="h-4 w-4" />, color: 'purple' },
-          { label: 'Comments', value: stats.totalComments, icon: <MessageCircle className="h-4 w-4" />, color: 'pink' },
+          { label: 'Posts', value: stats.totalShares, icon: <Share2 className="h-4 w-4" />, gradient: 'from-cyan-500 to-blue-600' },
+          { label: 'Views', value: stats.totalViews, icon: <Eye className="h-4 w-4" />, gradient: 'from-blue-500 to-indigo-600' },
+          { label: 'Likes', value: stats.totalLikes, icon: <Heart className="h-4 w-4" />, gradient: 'from-purple-500 to-pink-600' },
+          { label: 'Comments', value: stats.totalComments, icon: <MessageCircle className="h-4 w-4" />, gradient: 'from-pink-500 to-rose-600' },
         ].map(s => (
-          <div key={s.label} className="rounded-lg border border-cyan-500/10 bg-black/30 p-3 text-center">
-            <div className={`text-${s.color}-400 flex justify-center mb-1`}>{s.icon}</div>
-            <div className="text-lg font-black text-white">{s.value}</div>
-            <div className="text-[10px] uppercase tracking-wider text-cyan-500/50">{s.label}</div>
+          <div key={s.label} className="rounded-xl border border-cyan-500/10 bg-black/40 p-3.5 text-center hover:border-cyan-500/20 transition-all">
+            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${s.gradient} flex items-center justify-center text-white mx-auto mb-2`}>{s.icon}</div>
+            <div className="text-xl font-black text-white">{s.value}</div>
+            <div className="text-[10px] uppercase tracking-widest text-cyan-500/40">{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Posts Feed */}
       {isLoading ? (
-        <div className="text-center py-12 text-cyan-500/50">Loading feed...</div>
+        <div className="text-center py-16">
+          <div className="w-10 h-10 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-cyan-500/50 text-sm">Loading feed...</p>
+        </div>
       ) : posts.length > 0 ? (
         <div className="space-y-3">
           {posts.map((post: any) => (
             post.type === 'organism-session' ? (
               <OrganismSessionCard key={post.id} post={post} isAuthenticated={isAuthenticated} />
             ) : (
-            <div key={post.id} className="rounded-xl border border-cyan-500/10 bg-black/30 p-4 hover:border-cyan-500/25 transition-colors">
+            <div key={post.id} className="rounded-xl border border-cyan-500/10 bg-black/40 p-5 hover:border-cyan-500/25 transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.06)] group">
               <div className="flex items-start gap-3">
-                <Avatar className="h-9 w-9">
-                  <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-purple-700 text-white text-xs font-bold">
+                <Avatar className="h-10 w-10 ring-2 ring-cyan-500/10">
+                  <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-purple-700 text-white text-sm font-bold">
                     {(post.displayName || 'A').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-cyan-100 font-bold text-sm">{post.displayName || 'Anonymous'}</span>
-                    <Badge className="bg-cyan-500/10 text-cyan-400/70 border-cyan-500/20 text-[10px] px-1.5 py-0">{post.type || 'share'}</Badge>
-                    <span className="text-cyan-500/30 text-xs ml-auto">{formatTimeAgo(post.createdAt)}</span>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-cyan-100 font-bold text-sm group-hover:text-white transition-colors">{post.displayName || 'Anonymous'}</span>
+                    <Badge className="bg-cyan-500/10 text-cyan-400/60 border-cyan-500/15 text-[10px] px-1.5 py-0">{post.type || 'share'}</Badge>
+                    <span className="text-cyan-500/25 text-[11px] ml-auto flex items-center gap-1"><Clock className="h-3 w-3" />{formatTimeAgo(post.createdAt)}</span>
                   </div>
-                  <p className="text-cyan-200/80 text-sm leading-relaxed">{post.content}</p>
-                  <div className="flex items-center gap-4 mt-3">
-                    {isAuthenticated && (
+                  <p className="text-cyan-200/80 text-sm leading-relaxed mb-3">{post.content}</p>
+
+                  {/* Audio preview bar for beat/project posts */}
+                  {(post.type === 'beat' || post.type === 'project') && post.mediaUrl && (
+                    <div className="flex items-center gap-3 mb-3 bg-black/30 rounded-lg p-2.5 border border-cyan-500/10">
+                      <button className="w-7 h-7 rounded-full bg-cyan-600 hover:bg-cyan-500 flex items-center justify-center text-white shrink-0 transition-colors">
+                        <Play className="h-3 w-3 ml-0.5" />
+                      </button>
+                      {/* Stylized waveform bars */}
+                      <div className="flex items-center gap-[2px] flex-1 h-6">
+                        {Array.from({ length: 32 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 bg-cyan-500/20 rounded-full min-w-[2px]"
+                            style={{ height: `${20 + Math.sin(i * 0.8) * 40 + Math.random() * 30}%` }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-cyan-500/30 text-[10px] font-mono shrink-0">0:00</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1 pt-2 border-t border-cyan-500/5">
+                    {isAuthenticated ? (
                       <>
-                        <button className="flex items-center gap-1 text-cyan-500/40 hover:text-pink-400 text-xs transition-colors">
+                        <button className="flex items-center gap-1.5 text-cyan-500/35 hover:text-pink-400 text-xs px-2.5 py-1.5 rounded-lg hover:bg-pink-500/5 transition-all">
                           <Heart className="h-3.5 w-3.5" /> {post.likes || 0}
                         </button>
-                        <button className="flex items-center gap-1 text-cyan-500/40 hover:text-cyan-300 text-xs transition-colors">
+                        <button className="flex items-center gap-1.5 text-cyan-500/35 hover:text-cyan-300 text-xs px-2.5 py-1.5 rounded-lg hover:bg-cyan-500/5 transition-all">
                           <MessageCircle className="h-3.5 w-3.5" /> {post.comments || 0}
                         </button>
-                        <button className="flex items-center gap-1 text-cyan-500/40 hover:text-green-400 text-xs transition-colors">
+                        <button className="flex items-center gap-1.5 text-cyan-500/35 hover:text-green-400 text-xs px-2.5 py-1.5 rounded-lg hover:bg-green-500/5 transition-all">
                           <Share2 className="h-3.5 w-3.5" /> {post.shares || 0}
                         </button>
                       </>
+                    ) : (
+                      <span className="text-cyan-500/30 text-xs flex items-center gap-3">
+                        <span className="flex items-center gap-1"><Heart className="h-3 w-3" /> {post.likes || 0}</span>
+                        <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {post.comments || 0}</span>
+                      </span>
                     )}
                   </div>
                 </div>
@@ -303,10 +340,17 @@ function FeedTab({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-cyan-500/10 bg-black/30 p-12 text-center">
-          <Share2 className="h-10 w-10 text-cyan-500/20 mx-auto mb-3" />
-          <h3 className="text-cyan-100 font-bold mb-1">No Activity Yet</h3>
-          <p className="text-cyan-500/40 text-sm">Share your first creation or follow other producers to see their posts!</p>
+        <div className="rounded-xl border border-cyan-500/10 bg-black/30 p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-purple-500/10 flex items-center justify-center mx-auto mb-4">
+            <Radio className="h-8 w-8 text-cyan-500/30" />
+          </div>
+          <h3 className="text-cyan-100 font-bold text-lg mb-2">No Activity Yet</h3>
+          <p className="text-cyan-500/40 text-sm max-w-xs mx-auto">Share your first creation or follow other producers to see their posts here.</p>
+          <div className="flex gap-2 justify-center mt-4">
+            <Button size="sm" variant="outline" className="border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs">
+              <Search className="h-3 w-3 mr-1.5" /> Discover Producers
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -567,10 +611,13 @@ function ChatTab() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-cyan-500/30 text-sm">
+          <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <MessageCircle className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p>Select a conversation or start a new one</p>
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-purple-500/10 flex items-center justify-center mx-auto mb-3">
+                <MessageCircle className="h-7 w-7 text-cyan-500/25" />
+              </div>
+              <p className="text-cyan-500/40 text-sm font-medium">Select a conversation</p>
+              <p className="text-cyan-500/25 text-xs mt-1">or find someone in Discover to chat with</p>
             </div>
           </div>
         )}
@@ -583,6 +630,9 @@ function ChatTab() {
    COLLABS TAB
    ═══════════════════════════════════════ */
 function CollabsTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
   const { data: sharedData } = useQuery({
     queryKey: ['/api/social/shared-with-me'],
     queryFn: async () => {
@@ -591,11 +641,19 @@ function CollabsTab() {
     },
   });
 
-  const { data: followersData } = useQuery({
-    queryKey: ['/api/social/followers'],
+  const { data: receivedData } = useQuery({
+    queryKey: ['/api/social/collab-invites/received'],
     queryFn: async () => {
-      try { const res = await apiRequest('GET', '/api/social/followers'); return await res.json(); }
-      catch { return { followers: [] }; }
+      try { const res = await apiRequest('GET', '/api/social/collab-invites/received'); return await res.json(); }
+      catch { return { invites: [] }; }
+    },
+  });
+
+  const { data: sentData } = useQuery({
+    queryKey: ['/api/social/collab-invites/sent'],
+    queryFn: async () => {
+      try { const res = await apiRequest('GET', '/api/social/collab-invites/sent'); return await res.json(); }
+      catch { return { invites: [] }; }
     },
   });
 
@@ -607,62 +665,222 @@ function CollabsTab() {
     },
   });
 
+  const respondMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: 'accepted' | 'declined' }) => {
+      const res = await apiRequest('PUT', `/api/social/collab-invite/${id}/respond`, { status });
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['/api/social/collab-invites/received'] });
+      qc.invalidateQueries({ queryKey: ['/api/social/collab-invites/sent'] });
+      qc.invalidateQueries({ queryKey: ['/api/social/collab-invites/count'] });
+      toast({ title: variables.status === 'accepted' ? 'Invite Accepted' : 'Invite Declined' });
+    },
+    onError: () => toast({ title: 'Failed to respond', variant: 'destructive' }),
+  });
+
   const shares = sharedData?.shares || [];
-  const followers = followersData?.followers || [];
+  const receivedInvites = receivedData?.invites || [];
+  const sentInvites = sentData?.invites || [];
   const following = followingData?.following || [];
+
+  const typeLabel = (type: string) => {
+    switch (type) {
+      case 'jam': return 'Jam Session';
+      case 'project': return 'Project Collab';
+      case 'feedback': return 'Get Feedback';
+      default: return type;
+    }
+  };
+
+  const typeBadgeColor = (type: string) => {
+    switch (type) {
+      case 'jam': return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
+      case 'project': return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+      case 'feedback': return 'bg-green-500/15 text-green-300 border-green-500/30';
+      default: return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+    }
+  };
+
+  const statusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30';
+      case 'accepted': return 'bg-green-500/15 text-green-300 border-green-500/30';
+      case 'declined': return 'bg-red-500/15 text-red-300 border-red-500/30';
+      default: return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+    }
+  };
+
+  const permissionIcon = (perm: string) => {
+    switch (perm) {
+      case 'admin': return <Shield className="h-3.5 w-3.5" />;
+      case 'edit': return <Pencil className="h-3.5 w-3.5" />;
+      default: return <Eye className="h-3.5 w-3.5" />;
+    }
+  };
+
+  const permissionStyle = (perm: string) => {
+    switch (perm) {
+      case 'admin': return 'bg-amber-500/15 text-amber-400 border-amber-500/25';
+      case 'edit': return 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25';
+      default: return 'bg-green-500/15 text-green-400 border-green-500/25';
+    }
+  };
 
   return (
     <div className="space-y-5">
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-cyan-500/10 bg-black/30 p-4 text-center">
-          <div className="text-2xl font-black text-cyan-300">{followers.length}</div>
-          <div className="text-[10px] uppercase tracking-wider text-cyan-500/50">Followers</div>
-        </div>
-        <div className="rounded-lg border border-cyan-500/10 bg-black/30 p-4 text-center">
-          <div className="text-2xl font-black text-purple-300">{following.length}</div>
-          <div className="text-[10px] uppercase tracking-wider text-cyan-500/50">Following</div>
-        </div>
-        <div className="rounded-lg border border-cyan-500/10 bg-black/30 p-4 text-center">
-          <div className="text-2xl font-black text-green-300">{shares.length}</div>
-          <div className="text-[10px] uppercase tracking-wider text-cyan-500/50">Shared Projects</div>
-        </div>
-      </div>
-
-      {/* Shared With Me */}
-      <div className="rounded-xl border border-cyan-500/15 bg-black/30 p-5">
-        <h3 className="text-cyan-100 font-bold text-sm mb-3 flex items-center gap-2"><Handshake className="h-4 w-4 text-green-400" /> Projects Shared With You</h3>
-        {shares.length > 0 ? (
+      {/* Pending Invites Received */}
+      <div className="rounded-xl border border-cyan-500/15 bg-black/40 p-5">
+        <h3 className="text-cyan-100 font-bold text-sm mb-3 flex items-center gap-2">
+          <Mail className="h-4 w-4 text-yellow-400" /> Pending Invites
+          {receivedInvites.length > 0 && (
+            <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-[10px] px-1.5 ml-1">{receivedInvites.length}</Badge>
+          )}
+        </h3>
+        {receivedInvites.length > 0 ? (
           <div className="space-y-2">
-            {shares.map((s: any) => (
-              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg border border-cyan-500/10 bg-black/20">
-                <div>
-                  <div className="text-cyan-100 text-sm font-medium">Project #{s.projectId?.slice(0, 8)}</div>
-                  <div className="text-cyan-500/40 text-xs">Permission: {s.permission} | {formatTimeAgo(s.createdAt)}</div>
+            {receivedInvites.map((inv: any) => (
+              <div key={inv.id} className="flex items-center justify-between p-3 rounded-lg border border-cyan-500/10 bg-black/20">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-purple-700 text-white text-[10px] font-bold">
+                      {(inv.fromUser?.name || '?').charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-cyan-100 text-sm font-medium truncate">{inv.fromUser?.name || 'Unknown'}</span>
+                      <Badge className={`${typeBadgeColor(inv.type)} text-[10px] px-1.5 py-0`}>{typeLabel(inv.type)}</Badge>
+                    </div>
+                    {inv.message && <p className="text-cyan-500/50 text-xs truncate mt-0.5">{inv.message}</p>}
+                    <span className="text-cyan-500/30 text-[10px]">{formatTimeAgo(inv.createdAt)}</span>
+                  </div>
                 </div>
-                <Badge className="bg-green-500/15 text-green-400 border-green-500/20 text-xs">{s.permission}</Badge>
+                <div className="flex gap-2 shrink-0 ml-2">
+                  <Button
+                    size="sm"
+                    onClick={() => respondMutation.mutate({ id: inv.id, status: 'accepted' })}
+                    disabled={respondMutation.isPending}
+                    className="bg-green-600 hover:bg-green-500 text-white text-xs font-bold h-7 px-2"
+                  >
+                    <Check className="h-3 w-3 mr-1" /> Accept
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => respondMutation.mutate({ id: inv.id, status: 'declined' })}
+                    disabled={respondMutation.isPending}
+                    className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-7 px-2"
+                  >
+                    <X className="h-3 w-3 mr-1" /> Decline
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-cyan-500/30 text-sm">No projects shared with you yet. Collaborate with others to get started!</p>
+          <p className="text-cyan-500/30 text-sm">No pending invites. Send collab requests from the Discover tab!</p>
+        )}
+      </div>
+
+      {/* Sent Invites */}
+      <div className="rounded-xl border border-cyan-500/15 bg-black/40 p-5">
+        <h3 className="text-cyan-100 font-bold text-sm mb-3 flex items-center gap-2">
+          <Send className="h-4 w-4 text-cyan-400" /> Sent Invites
+        </h3>
+        {sentInvites.length > 0 ? (
+          <div className="space-y-2">
+            {sentInvites.map((inv: any) => (
+              <div key={inv.id} className="flex items-center justify-between p-3 rounded-lg border border-cyan-500/10 bg-black/20">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="bg-gradient-to-br from-purple-600 to-pink-600 text-white text-[10px] font-bold">
+                      {(inv.toUser?.name || '?').charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-cyan-100 text-sm font-medium truncate">{inv.toUser?.name || 'Unknown'}</span>
+                      <Badge className={`${typeBadgeColor(inv.type)} text-[10px] px-1.5 py-0`}>{typeLabel(inv.type)}</Badge>
+                      <Badge className={`${statusBadgeColor(inv.status)} text-[10px] px-1.5 py-0`}>{inv.status}</Badge>
+                    </div>
+                    {inv.message && <p className="text-cyan-500/50 text-xs truncate mt-0.5">{inv.message}</p>}
+                    <span className="text-cyan-500/30 text-[10px]">{formatTimeAgo(inv.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-cyan-500/30 text-sm">No sent invites yet.</p>
+        )}
+      </div>
+
+      {/* Shared With Me */}
+      <div className="rounded-xl border border-cyan-500/15 bg-black/40 p-5">
+        <h3 className="text-cyan-100 font-bold text-sm mb-4 flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-green-500/15 flex items-center justify-center">
+            <Handshake className="h-3.5 w-3.5 text-green-400" />
+          </div>
+          Projects Shared With You
+        </h3>
+        {shares.length > 0 ? (
+          <div className="space-y-2">
+            {shares.map((s: any) => (
+              <div key={s.id} className="flex items-center justify-between p-3.5 rounded-lg border border-cyan-500/10 bg-black/30 hover:border-cyan-500/20 hover:bg-black/40 transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500/15 to-purple-500/15 flex items-center justify-center">
+                    <Music className="h-4 w-4 text-cyan-400/60" />
+                  </div>
+                  <div>
+                    <div className="text-cyan-100 text-sm font-medium group-hover:text-white transition-colors">Project #{s.projectId?.slice(0, 8)}</div>
+                    <div className="text-cyan-500/40 text-xs flex items-center gap-1.5">
+                      <Clock className="h-3 w-3" /> {formatTimeAgo(s.createdAt)}
+                    </div>
+                  </div>
+                </div>
+                <Badge className={`${permissionStyle(s.permission)} text-xs flex items-center gap-1 border`}>
+                  {permissionIcon(s.permission)} {s.permission}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center mx-auto mb-3">
+              <Handshake className="h-6 w-6 text-green-500/30" />
+            </div>
+            <p className="text-cyan-500/40 text-sm">No projects shared with you yet.</p>
+            <p className="text-cyan-500/30 text-xs mt-1">Collaborate with others to get started!</p>
+          </div>
         )}
       </div>
 
       {/* Following List */}
-      <div className="rounded-xl border border-cyan-500/15 bg-black/30 p-5">
-        <h3 className="text-cyan-100 font-bold text-sm mb-3 flex items-center gap-2"><Users className="h-4 w-4 text-purple-400" /> People You Follow</h3>
+      <div className="rounded-xl border border-cyan-500/15 bg-black/40 p-5">
+        <h3 className="text-cyan-100 font-bold text-sm mb-4 flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-purple-500/15 flex items-center justify-center">
+            <Users className="h-3.5 w-3.5 text-purple-400" />
+          </div>
+          People You Follow
+        </h3>
         {following.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {following.map((u: any) => (
-              <div key={u.id} className="flex items-center gap-2 p-2 rounded-lg border border-cyan-500/10 bg-black/20">
-                <Avatar className="h-7 w-7"><AvatarFallback className="bg-gradient-to-br from-purple-600 to-pink-600 text-white text-[10px] font-bold">{(u.name || '?').charAt(0).toUpperCase()}</AvatarFallback></Avatar>
-                <span className="text-cyan-200 text-xs truncate">{u.name || u.email}</span>
+              <div key={u.id} className="flex items-center gap-2.5 p-2.5 rounded-lg border border-cyan-500/10 bg-black/30 hover:border-cyan-500/20 hover:bg-black/40 transition-all group">
+                <Avatar className="h-8 w-8"><AvatarFallback className="bg-gradient-to-br from-purple-600 to-pink-600 text-white text-[10px] font-bold">{(u.name || '?').charAt(0).toUpperCase()}</AvatarFallback></Avatar>
+                <span className="text-cyan-200 text-xs truncate group-hover:text-white transition-colors">{u.name || u.email}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-cyan-500/30 text-sm">You're not following anyone yet. Visit Discover to find producers!</p>
+          <div className="text-center py-8">
+            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center mx-auto mb-3">
+              <Users className="h-6 w-6 text-purple-500/30" />
+            </div>
+            <p className="text-cyan-500/40 text-sm">You're not following anyone yet.</p>
+            <p className="text-cyan-500/30 text-xs mt-1">Visit Discover to find producers!</p>
+          </div>
         )}
       </div>
     </div>
@@ -689,7 +907,10 @@ function BlogTab() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-cyan-500/50">Loading posts...</div>
+        <div className="text-center py-16">
+          <div className="w-10 h-10 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-cyan-500/50 text-sm">Loading posts...</p>
+        </div>
       ) : posts && posts.length > 0 ? (
         <div className="space-y-3">
           {posts.slice(0, 6).map((post: any) => (
@@ -717,10 +938,12 @@ function BlogTab() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-cyan-500/10 bg-black/30 p-12 text-center">
-          <BookOpen className="h-10 w-10 text-cyan-500/20 mx-auto mb-3" />
-          <h3 className="text-cyan-100 font-bold mb-1">No Blog Posts Yet</h3>
-          <p className="text-cyan-500/40 text-sm">Check back soon for tutorials, tips, and music production insights!</p>
+        <div className="rounded-xl border border-cyan-500/10 bg-black/30 p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-500/10 to-orange-500/10 flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="h-8 w-8 text-yellow-500/30" />
+          </div>
+          <h3 className="text-cyan-100 font-bold text-lg mb-2">No Blog Posts Yet</h3>
+          <p className="text-cyan-500/40 text-sm max-w-xs mx-auto">Check back soon for tutorials, tips, and music production insights!</p>
         </div>
       )}
     </div>
@@ -733,6 +956,9 @@ function BlogTab() {
 function DiscoverTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [inviteTarget, setInviteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [inviteType, setInviteType] = useState<'jam' | 'project' | 'feedback'>('jam');
+  const [inviteMessage, setInviteMessage] = useState('');
 
   const { data: discoverData, isLoading } = useQuery({
     queryKey: ['/api/social/discover'],
@@ -755,47 +981,219 @@ function DiscoverTab() {
     onError: (e: any) => toast({ title: 'Follow Failed', description: e?.message || 'Could not follow user.', variant: 'destructive' }),
   });
 
+  const inviteMutation = useMutation({
+    mutationFn: async (data: { toUserId: string; type: string; message?: string }) => {
+      const res = await apiRequest('POST', '/api/social/collab-invite', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['/api/social/collab-invites/sent'] });
+      qc.invalidateQueries({ queryKey: ['/api/social/collab-invites/count'] });
+      setInviteTarget(null);
+      setInviteMessage('');
+      setInviteType('jam');
+      toast({ title: 'Invite Sent!', description: 'Your collab invite has been sent.' });
+    },
+    onError: () => toast({ title: 'Invite Failed', description: 'Could not send invite.', variant: 'destructive' }),
+  });
+
+  const handleSendInvite = () => {
+    if (!inviteTarget) return;
+    inviteMutation.mutate({
+      toUserId: inviteTarget.id,
+      type: inviteType,
+      message: inviteMessage.trim() || undefined,
+    });
+  };
+
   const users = discoverData?.users || [];
 
+  // Deterministic gradient + genre tags based on username
+  const AVATAR_GRADIENTS = [
+    'from-cyan-500 to-blue-600',
+    'from-purple-500 to-pink-600',
+    'from-emerald-500 to-cyan-600',
+    'from-orange-500 to-red-600',
+    'from-violet-500 to-indigo-600',
+    'from-rose-500 to-purple-600',
+    'from-teal-500 to-emerald-600',
+    'from-fuchsia-500 to-violet-600',
+  ];
+  const GENRE_SETS = [
+    ['Hip Hop', 'Trap'],
+    ['Electronic', 'House'],
+    ['R&B', 'Soul'],
+    ['Lo-Fi', 'Chill'],
+    ['Pop', 'Synth'],
+    ['Drill', 'Grime'],
+    ['Ambient', 'Downtempo'],
+    ['Jazz', 'Neo-Soul'],
+  ];
+  const ROLES = ['Producer', 'Beatmaker', 'Artist', 'Songwriter', 'Sound Designer', 'Composer'];
+
+  const getUserHash = (name: string) => {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-cyan-400/60 mb-2">Find other CodedSwitch producers to follow, chat with, and collaborate.</div>
+    <div className="space-y-5">
+      {/* Section header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-cyan-100 font-bold text-base flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-purple-400" />
+            Discover Producers
+          </h3>
+          <p className="text-cyan-500/50 text-xs mt-0.5">Find creators to follow, chat with, and collaborate.</p>
+        </div>
+        <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 text-xs">
+          {users.length} creators
+        </Badge>
+      </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-cyan-500/50">Discovering users...</div>
+        <div className="text-center py-16">
+          <div className="w-12 h-12 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-cyan-500/50 text-sm">Discovering producers...</p>
+        </div>
       ) : users.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {users.map((u: any) => (
-            <div key={u.id} className="rounded-xl border border-cyan-500/10 bg-black/30 p-4 flex items-center justify-between hover:border-cyan-500/20 transition-colors">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-gradient-to-br from-cyan-600 to-purple-700 text-white text-sm font-bold">
-                    {(u.name || u.email || '?').charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="text-cyan-100 font-bold text-sm">{u.name || 'Producer'}</div>
-                  <div className="text-cyan-500/40 text-xs">{u.email}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {users.map((u: any) => {
+            const name = u.name || 'Producer';
+            const initial = (name || u.email || '?').charAt(0).toUpperCase();
+            const hash = getUserHash(name + (u.id || ''));
+            const gradient = AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
+            const genres = GENRE_SETS[hash % GENRE_SETS.length];
+            const role = ROLES[hash % ROLES.length];
+
+            return (
+              <div
+                key={u.id}
+                className="group relative rounded-xl border border-cyan-500/10 bg-black/40 overflow-hidden hover:border-cyan-500/30 transition-all duration-300 hover:shadow-[0_0_25px_rgba(6,182,212,0.12)]"
+              >
+                {/* Gradient banner */}
+                <div className={`h-16 bg-gradient-to-r ${gradient} opacity-30`} />
+
+                {/* Avatar - overlaps banner */}
+                <div className="px-4 -mt-8">
+                  <Avatar className="h-14 w-14 border-[3px] border-black/80 shadow-lg">
+                    <AvatarFallback className={`bg-gradient-to-br ${gradient} text-white text-lg font-black`}>
+                      {initial}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+
+                {/* Content */}
+                <div className="px-4 pt-2 pb-4">
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <h4 className="text-cyan-100 font-bold text-sm group-hover:text-white transition-colors">{name}</h4>
+                      <p className="text-cyan-500/50 text-xs">{role}</p>
+                    </div>
+                    {u.followers > 0 && (
+                      <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/20 text-[10px] px-1.5 py-0">
+                        <Users className="h-2.5 w-2.5 mr-0.5" /> {u.followers}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <p className="text-cyan-400/40 text-xs mt-1 mb-3 line-clamp-1">
+                    {u.bio || 'Music Creator on CodedSwitch'}
+                  </p>
+
+                  {/* Genre tags */}
+                  <div className="flex gap-1.5 mb-3 flex-wrap">
+                    {genres.map(g => (
+                      <span key={g} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-cyan-500/8 text-cyan-400/70 border border-cyan-500/15">
+                        <Hash className="h-2.5 w-2.5 inline mr-0.5 opacity-50" />{g}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => followMutation.mutate(u.id)}
+                      disabled={followMutation.isPending}
+                      className="flex-1 h-8 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white text-xs font-bold border-0 transition-all duration-200 group-hover:shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+                    >
+                      <UserPlus className="h-3 w-3 mr-1.5" /> Follow
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setInviteTarget({ id: u.id, name })}
+                      className="h-8 border-purple-500/30 text-purple-300 hover:bg-purple-500/10 text-xs font-bold px-3"
+                    >
+                      <Handshake className="h-3 w-3 mr-1" /> Collab
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <Button
-                size="sm"
-                onClick={() => followMutation.mutate(u.id)}
-                disabled={followMutation.isPending}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
-              >
-                <UserPlus className="h-3 w-3 mr-1" /> Follow
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
-        <div className="rounded-xl border border-cyan-500/10 bg-black/30 p-12 text-center">
-          <Users className="h-10 w-10 text-cyan-500/20 mx-auto mb-3" />
-          <h3 className="text-cyan-100 font-bold mb-1">No New Users to Discover</h3>
-          <p className="text-cyan-500/40 text-sm">You're following everyone! Invite friends to join CodedSwitch.</p>
+        <div className="rounded-xl border border-cyan-500/10 bg-black/30 p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-purple-500/10 flex items-center justify-center mx-auto mb-4">
+            <Users className="h-8 w-8 text-cyan-500/30" />
+          </div>
+          <h3 className="text-cyan-100 font-bold text-lg mb-2">No New Creators to Discover</h3>
+          <p className="text-cyan-500/40 text-sm max-w-xs mx-auto">You're following everyone! Invite friends to join CodedSwitch and grow the community.</p>
+          <Button size="sm" variant="outline" className="mt-4 border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs">
+            <Share2 className="h-3 w-3 mr-1.5" /> Invite Friends
+          </Button>
         </div>
       )}
+
+      {/* Invite Dialog */}
+      <Dialog open={!!inviteTarget} onOpenChange={(open) => { if (!open) setInviteTarget(null); }}>
+        <DialogContent className="bg-black/95 border-cyan-500/20 text-cyan-100 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white font-bold">Invite {inviteTarget?.name} to Collaborate</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-cyan-400/70 text-xs font-bold uppercase tracking-wider mb-1.5 block">Collab Type</label>
+              <Select value={inviteType} onValueChange={(v: 'jam' | 'project' | 'feedback') => setInviteType(v)}>
+                <SelectTrigger className="bg-black/30 border-cyan-500/20 text-cyan-100">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black/95 border-cyan-500/20">
+                  <SelectItem value="jam" className="text-cyan-100">Jam Session</SelectItem>
+                  <SelectItem value="project" className="text-cyan-100">Project Collab</SelectItem>
+                  <SelectItem value="feedback" className="text-cyan-100">Get Feedback</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-cyan-400/70 text-xs font-bold uppercase tracking-wider mb-1.5 block">Message (optional)</label>
+              <Textarea
+                value={inviteMessage}
+                onChange={(e) => setInviteMessage(e.target.value)}
+                placeholder="Hey, want to jam together?"
+                className="bg-black/30 border-cyan-500/20 text-cyan-100 placeholder:text-cyan-500/30 min-h-[80px] resize-none"
+                maxLength={500}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteTarget(null)} className="border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10 text-xs">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendInvite}
+              disabled={inviteMutation.isPending}
+              className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-xs"
+            >
+              <Send className="h-3 w-3 mr-1" /> {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -917,6 +1315,16 @@ export default function SocialHub() {
     refetchInterval: 10000,
   });
 
+  const { data: inviteCountData } = useQuery({
+    queryKey: ['/api/social/collab-invites/count'],
+    queryFn: async () => {
+      try { const res = await apiRequest('GET', '/api/social/collab-invites/count'); return await res.json(); }
+      catch { return { count: 0 }; }
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 15000,
+  });
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black/95 astutely-app astutely-scanlines astutely-grid-bg">
@@ -961,6 +1369,7 @@ export default function SocialHub() {
   }
 
   const unreadCount = unreadData?.unreadCount || 0;
+  const inviteCount = inviteCountData?.count || 0;
 
   const renderTab = () => {
     switch (activeTab) {
@@ -978,39 +1387,53 @@ export default function SocialHub() {
     <div className="min-h-screen bg-black/95 astutely-app astutely-scanlines astutely-grid-bg">
       <div className="max-w-5xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center shadow-[0_0_25px_rgba(6,182,212,0.3)] ring-1 ring-cyan-500/20">
             <Share2 className="h-6 w-6 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-black text-white tracking-tight">Social Hub</h1>
             <p className="text-cyan-400/50 text-xs tracking-wider">Connect. Share. Collaborate. Create.</p>
           </div>
+          <Link href="/studio">
+            <Button size="sm" variant="outline" className="border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs hidden sm:flex">
+              <Music className="h-3 w-3 mr-1.5" /> Open Studio
+            </Button>
+          </Link>
         </div>
 
         {/* Tab Bar */}
-        <div className="flex gap-1 mb-6 overflow-x-auto pb-1 border-b border-cyan-500/10">
+        <div className="flex gap-0.5 mb-6 overflow-x-auto pb-0 border-b border-cyan-500/10">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all rounded-t-lg relative ${
+              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all relative ${
                 activeTab === tab.id
-                  ? 'text-cyan-300 bg-cyan-500/10 border-b-2 border-cyan-400'
-                  : 'text-cyan-500/40 hover:text-cyan-400 hover:bg-cyan-500/5'
+                  ? 'text-cyan-300'
+                  : 'text-cyan-500/40 hover:text-cyan-300/70'
               }`}
             >
               {tab.icon}
-              {tab.label}
+              <span className="hidden sm:inline">{tab.label}</span>
               {tab.id === 'chat' && unreadCount > 0 && (
-                <Badge className="bg-cyan-500 text-white text-[8px] px-1 py-0 min-w-[16px] text-center ml-1">{unreadCount}</Badge>
+                <Badge className="bg-cyan-500 text-white text-[8px] px-1 py-0 min-w-[16px] text-center ml-1 animate-pulse">{unreadCount}</Badge>
+              )}
+              {tab.id === 'collabs' && inviteCount > 0 && (
+                <Badge className="bg-yellow-500 text-white text-[8px] px-1 py-0 min-w-[16px] text-center ml-1 animate-pulse">{inviteCount}</Badge>
+              )}
+              {/* Active indicator line */}
+              {activeTab === tab.id && (
+                <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full" />
               )}
             </button>
           ))}
         </div>
 
         {/* Tab Content */}
-        {renderTab()}
+        <div key={activeTab} className="animate-in fade-in duration-200">
+          {renderTab()}
+        </div>
       </div>
     </div>
   );

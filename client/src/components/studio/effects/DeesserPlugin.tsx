@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Mic, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { Mic, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface DeesserPluginProps {
   audioUrl?: string;
@@ -110,16 +111,11 @@ export function DeesserPlugin({ audioUrl, onClose }: DeesserPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `Deesser Preset ${new Date().toLocaleTimeString()}`,
-      settings: { frequency, threshold, ratio, bandwidth },
-    };
-    localStorage.setItem('deesser-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: 'Deesser settings saved to browser',
-    });
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.frequency !== undefined) setFrequency(params.frequency);
+    if (params.threshold !== undefined) setThreshold(params.threshold);
+    if (params.ratio !== undefined) setRatio(params.ratio);
+    if (params.bandwidth !== undefined) setBandwidth(params.bandwidth);
   };
 
   return (
@@ -165,10 +161,11 @@ export function DeesserPlugin({ audioUrl, onClose }: DeesserPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
+            <PresetBrowser
+              effectType="deesser"
+              currentParams={{ frequency, threshold, ratio, bandwidth }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

@@ -43,7 +43,7 @@ describe('DormantTransition', () => {
   it('returns null when voice is inactive', () => {
     const organism = defaultState()
     const physics = defaultPhysics({ voiceActive: false, presence: 0 })
-    expect(evaluateDormantTransition(organism, physics, { voiceOnsetRmsThreshold: 0.02, pulseConfidenceThreshold: 0.4, syllabicDensityThreshold: 1.5, cadenceLockBarsRequired: 2, awakeningToSilenceMs: 8000, breathingToAwakeningMs: 4000, breathingToDormantMs: 30000, flowToBreathingMs: 4000, flowToDormantMs: 30000, awakeningMinBars: 2, awakeningMaxBars: 4, syllabicDensityWindowBars: 2 }))
+    expect(evaluateDormantTransition(organism, physics, { voiceOnsetRmsThreshold: 0.02, pulseConfidenceThreshold: 0.4, syllabicDensityThreshold: 1.5, cadenceLockBarsRequired: 2, awakeningToSilenceMs: 8000, breathingToAwakeningMs: 4000, breathingToDormantMs: 30000, flowToBreathingMs: 4000, flowToDormantMs: 30000, awakeningMinBars: 2, awakeningMaxBars: 4, syllabicDensityWindowBars: 2, autoBreathingToFlowBars: 0 }))
       .toBeNull()
   })
 
@@ -63,6 +63,7 @@ describe('DormantTransition', () => {
       awakeningMinBars: 2,
       awakeningMaxBars: 4,
       syllabicDensityWindowBars: 2,
+      autoBreathingToFlowBars: 0,
     }
 
     expect(evaluateDormantTransition(organism, physics, config)).toBeNull()
@@ -84,6 +85,7 @@ describe('DormantTransition', () => {
       awakeningMinBars: 2,
       awakeningMaxBars: 4,
       syllabicDensityWindowBars: 2,
+      autoBreathingToFlowBars: 0,
     }
 
     expect(evaluateDormantTransition(organism, physics, config)).toBe(OTransition.DormantToAwakening)

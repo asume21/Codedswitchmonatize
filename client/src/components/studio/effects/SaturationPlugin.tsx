@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Flame, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { Flame, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface SaturationPluginProps {
   audioUrl?: string;
@@ -219,16 +220,11 @@ export function SaturationPlugin({ audioUrl, onClose }: SaturationPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `${satType} Preset ${new Date().toLocaleTimeString()}`,
-      settings: { drive, tone, wetMix, satType, outputLevel },
-    };
-    localStorage.setItem('saturation-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: `${satType} settings saved to browser`,
-    });
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.drive !== undefined) setDrive(params.drive);
+    if (params.tone !== undefined) setTone(params.tone);
+    if (params.wetMix !== undefined) setWetMix(params.wetMix);
+    if (params.outputLevel !== undefined) setOutputLevel(params.outputLevel);
   };
 
   return (
@@ -274,10 +270,11 @@ export function SaturationPlugin({ audioUrl, onClose }: SaturationPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
+            <PresetBrowser
+              effectType="saturation"
+              currentParams={{ drive, tone, wetMix, outputLevel }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

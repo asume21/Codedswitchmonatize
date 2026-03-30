@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { ShieldOff, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { ShieldOff, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface NoiseGatePluginProps {
   audioUrl?: string;
@@ -102,16 +103,11 @@ export function NoiseGatePlugin({ audioUrl, onClose }: NoiseGatePluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `Gate Preset ${new Date().toLocaleTimeString()}`,
-      settings: { threshold, ratio, attack, release },
-    };
-    localStorage.setItem('gate-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: 'Noise gate settings saved to browser',
-    });
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.threshold !== undefined) setThreshold(params.threshold);
+    if (params.ratio !== undefined) setRatio(params.ratio);
+    if (params.attack !== undefined) setAttack(params.attack);
+    if (params.release !== undefined) setRelease(params.release);
   };
 
   return (
@@ -157,10 +153,11 @@ export function NoiseGatePlugin({ audioUrl, onClose }: NoiseGatePluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
+            <PresetBrowser
+              effectType="noisegate"
+              currentParams={{ threshold, ratio, attack, release }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

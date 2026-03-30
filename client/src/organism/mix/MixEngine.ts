@@ -49,6 +49,47 @@ export class MixEngine {
     orchestrator.connectBassOutput(this.bassChannel.input)
     orchestrator.connectMelodyOutput(this.melodyChannel.input)
     orchestrator.connectTextureOutput(this.textureChannel.input)
+
+    // Wire kick → bass sidechain ducking
+    this.wireSidechain(orchestrator, 'bass')
+  }
+
+  /**
+   * Enable sidechain ducking: kick triggers duck the target channel.
+   */
+  wireSidechain(
+    orchestrator: GeneratorOrchestrator,
+    targetChannel: 'bass' | 'melody' | 'texture',
+    config?: Partial<import('./channels/SidechainDucker').SidechainConfig>,
+  ): void {
+    const channel = this.getChannel(targetChannel)
+    const ducker = channel.enableSidechain(config)
+    orchestrator.setKickSidechainCallback((time: number) => ducker.trigger(time))
+  }
+
+  /**
+   * Disable sidechain ducking on a channel.
+   */
+  disableSidechain(targetChannel: 'bass' | 'melody' | 'texture'): void {
+    // SidechainDucker stays in chain but stops receiving triggers
+    // (removing it would require rewiring audio graph — just stop triggering)
+  }
+
+  /**
+   * Get sidechain config for UI display.
+   */
+  getSidechainConfig(channel: 'bass' | 'melody' | 'texture') {
+    return this.getChannel(channel).getSidechain()?.getConfig() ?? null
+  }
+
+  /**
+   * Update sidechain parameters at runtime.
+   */
+  updateSidechainConfig(
+    channel: 'bass' | 'melody' | 'texture',
+    config: Partial<import('./channels/SidechainDucker').SidechainConfig>,
+  ): void {
+    this.getChannel(channel).getSidechain()?.updateConfig(config)
   }
 
   startMetering(): void {

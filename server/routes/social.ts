@@ -599,5 +599,132 @@ export function createSocialRoutes(storage: IStorage) {
     }
   });
 
+  // ============ COLLAB INVITES ============
+
+  router.post('/collab-invite', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const schema = z.object({
+        toUserId: z.string(),
+        type: z.enum(['jam', 'project', 'feedback']),
+        message: z.string().max(500).optional(),
+        projectId: z.number().optional(),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
+      }
+
+      const { toUserId, type, message, projectId } = parsed.data;
+
+      if (req.userId === toUserId) {
+        return res.status(400).json({ error: 'Cannot invite yourself' });
+      }
+
+      const targetUser = await storage.getUser(toUserId);
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const invite = await storage.createCollabInvite({
+        fromUserId: req.userId,
+        toUserId,
+        type,
+        message: message || null,
+        projectId: projectId || null,
+        expiresAt: null,
+      });
+
+      res.json({ message: 'Invite sent', invite });
+    } catch (error) {
+      console.error('Send collab invite error:', error);
+      res.status(500).json({ error: 'Failed to send invite' });
+    }
+  });
+
+  router.get('/collab-invites/received', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const invites = await storage.getUserPendingInvites(req.userId);
+      res.json({ invites });
+    } catch (error) {
+      console.error('Get received invites error:', error);
+      res.status(500).json({ error: 'Failed to fetch invites' });
+    }
+  });
+
+  router.get('/collab-invites/sent', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const invites = await storage.getUserSentInvites(req.userId);
+      res.json({ invites });
+    } catch (error) {
+      console.error('Get sent invites error:', error);
+      res.status(500).json({ error: 'Failed to fetch sent invites' });
+    }
+  });
+
+  router.put('/collab-invite/:id/respond', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'Invalid invite ID' });
+      }
+
+      const schema = z.object({
+        status: z.enum(['accepted', 'declined']),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
+      }
+
+      const invite = await storage.getCollabInvite(id);
+      if (!invite) {
+        return res.status(404).json({ error: 'Invite not found' });
+      }
+
+      if (invite.toUserId !== req.userId) {
+        return res.status(403).json({ error: 'Not authorized to respond to this invite' });
+      }
+
+      if (invite.status !== 'pending') {
+        return res.status(400).json({ error: 'Invite has already been responded to' });
+      }
+
+      const updated = await storage.updateCollabInviteStatus(id, parsed.data.status);
+      res.json({ message: `Invite ${parsed.data.status}`, invite: updated });
+    } catch (error) {
+      console.error('Respond to invite error:', error);
+      res.status(500).json({ error: 'Failed to respond to invite' });
+    }
+  });
+
+  router.get('/collab-invites/count', async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const count = await storage.getInviteCount(req.userId);
+      res.json({ count });
+    } catch (error) {
+      console.error('Get invite count error:', error);
+      res.status(500).json({ error: 'Failed to fetch invite count' });
+    }
+  });
+
   return router;
 }

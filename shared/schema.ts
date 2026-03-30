@@ -405,6 +405,18 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const collabInvites = pgTable("collab_invites", {
+  id: serial("id").primaryKey(),
+  fromUserId: text("from_user_id").notNull(),
+  toUserId: text("to_user_id").notNull(),
+  projectId: integer("project_id"),
+  type: text("type").notNull(), // 'jam', 'project', 'feedback'
+  message: text("message"),
+  status: text("status").notNull().default("pending"), // 'pending', 'accepted', 'declined', 'expired'
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
 export const projectVersions = pgTable("project_versions", {
   id: varchar("id")
     .primaryKey()
@@ -541,6 +553,15 @@ export const insertProjectShareSchema = createInsertSchema(projectShares).pick({
   permission: true,
 });
 
+export const insertCollabInviteSchema = createInsertSchema(collabInvites).pick({
+  fromUserId: true,
+  toUserId: true,
+  projectId: true,
+  type: true,
+  message: true,
+  expiresAt: true,
+});
+
 export const insertProjectCollaborationSchema = createInsertSchema(projectCollaborations).pick({
   role: true,
 });
@@ -618,6 +639,9 @@ export const insertJamContributionSchema = createInsertSchema(jamContributions).
   position: true,
   duration: true,
 });
+
+export type CollabInvite = typeof collabInvites.$inferSelect;
+export type InsertCollabInvite = z.infer<typeof insertCollabInviteSchema>;
 
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
@@ -804,3 +828,36 @@ export const recommendationSchema = z.object({
 });
 
 export type Recommendation = z.infer<typeof recommendationSchema>;
+
+// Blog Posts
+export const blogPosts = pgTable("blog_posts", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  excerpt: text("excerpt").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull(),
+  tags: text("tags"), // comma-separated
+  imageUrl: text("image_url"),
+  isPublished: boolean("is_published").default(false),
+  views: integer("views").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertBlogPostSchema = createInsertSchema(blogPosts).pick({
+  title: true,
+  slug: true,
+  excerpt: true,
+  content: true,
+  category: true,
+  tags: true,
+  imageUrl: true,
+  isPublished: true,
+});
+
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;

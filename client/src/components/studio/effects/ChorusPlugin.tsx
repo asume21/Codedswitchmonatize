@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Waves, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { Waves, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface ChorusPluginProps {
   audioUrl?: string;
@@ -204,16 +205,11 @@ export function ChorusPlugin({ audioUrl, onClose }: ChorusPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `${effectType} Preset ${new Date().toLocaleTimeString()}`,
-      settings: { rate, depth, wetMix, voices, effectType },
-    };
-    localStorage.setItem('chorus-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: `${effectType} settings saved to browser`,
-    });
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.rate !== undefined) setRate(params.rate);
+    if (params.depth !== undefined) setDepth(params.depth);
+    if (params.wetMix !== undefined) setWetMix(params.wetMix);
+    if (params.voices !== undefined) setVoices(params.voices);
   };
 
   return (
@@ -259,10 +255,11 @@ export function ChorusPlugin({ audioUrl, onClose }: ChorusPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
+            <PresetBrowser
+              effectType="chorus"
+              currentParams={{ rate, depth, wetMix, voices }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

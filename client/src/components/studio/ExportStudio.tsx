@@ -57,7 +57,7 @@ export default function ExportStudio() {
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Export functionality
+  // Export functionality — REAL audio rendering via OfflineAudioContext
   const handleExport = async () => {
     if (!studioContext?.currentTracks || studioContext.currentTracks.length === 0) {
       toast({
@@ -72,35 +72,60 @@ export default function ExportStudio() {
     setExportProgress(0);
 
     try {
-      // Simulate export process
-      for (let i = 0; i <= 100; i += 10) {
-        setExportProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 200));
+      const tracks = studioContext.currentTracks;
+      const bpm = studioContext.bpm || 120;
+
+      if (exportOptions.format === 'midi') {
+        // MIDI export — serialize note data as JSON (MIDI file export handled elsewhere)
+        setExportProgress(50);
+        const midiData = JSON.stringify({
+          tracks,
+          bpm,
+          format: 'midi',
+          timestamp: new Date().toISOString()
+        });
+        const blob = new Blob([midiData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `codedswitch-project.midi.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setExportProgress(100);
+      } else {
+        // WAV / MP3 — Real audio rendering using stemExport
+        setExportProgress(10);
+
+        // Dynamic import to avoid circular deps
+        const { renderMasterMix } = await import('@/lib/stemExport');
+        setExportProgress(30);
+
+        const wavBlob = await renderMasterMix(tracks, {
+          sampleRate: exportOptions.sampleRate,
+          bpm,
+          normalize: true,
+        });
+        setExportProgress(90);
+
+        const url = URL.createObjectURL(wavBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `codedswitch-project.wav`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setExportProgress(100);
       }
-
-      // Create a dummy file for demonstration
-      const dummyData = JSON.stringify({
-        tracks: studioContext.currentTracks,
-        bpm: studioContext.bpm || 120,
-        format: exportOptions.format,
-        timestamp: new Date().toISOString()
-      });
-
-      const blob = new Blob([dummyData], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `codedswitch-project.${exportOptions.format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
 
       toast({
         title: "Export Complete",
         description: `Your project has been exported as ${exportOptions.format.toUpperCase()}`
       });
     } catch (error) {
+      console.error('Export failed:', error);
       toast({
         title: "Export Failed",
         description: "There was an error exporting your project.",

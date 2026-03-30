@@ -193,6 +193,7 @@ function perpendicularDistance(
  */
 export const AUTOMATABLE_PARAMS = {
   common: ['volume', 'pan', 'mute'],
+  expression: ['expression', 'modulation', 'filter.cutoff'],
   effects: {
     eq: ['eq.low', 'eq.mid', 'eq.high'],
     compressor: ['compressor.threshold', 'compressor.ratio'],
@@ -213,6 +214,9 @@ export function getParamDisplayName(param: string): string {
     'volume': 'Volume',
     'pan': 'Pan',
     'mute': 'Mute',
+    'expression': 'Expression (CC11)',
+    'modulation': 'Vibrato / Mod (CC1)',
+    'filter.cutoff': 'Filter Cutoff',
     'eq.low': 'EQ Low',
     'eq.mid': 'EQ Mid',
     'eq.high': 'EQ High',

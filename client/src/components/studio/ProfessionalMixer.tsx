@@ -17,7 +17,7 @@ import {
   Volume2, VolumeX, Headphones, Settings, 
   Play, Pause, Square, RotateCcw, Download,
   Zap, Waves, Filter, Sliders, 
-  BarChart3, TrendingUp, Radio, Wand2, FileMusic, Sparkles, Upload
+  BarChart3, TrendingUp, Radio, Wand2, FileMusic, Sparkles, Upload, Activity
 } from 'lucide-react';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { useTransport } from '@/contexts/TransportContext';
@@ -28,6 +28,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
 import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import SidechainControl from './SidechainControl';
 
 interface ChannelMeterData {
   peak: number;
@@ -70,6 +71,13 @@ export default function ProfessionalMixer() {
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [meterData, setMeterData] = useState<Map<string, ChannelMeterData>>(new Map());
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Sidechain state — tracks which channels have sidechain enabled and their configs
+  const [sidechainState, setSidechainState] = useState<Record<string, {
+    enabled: boolean;
+    source: string;
+    config: { depthDb: number; attackMs: number; releaseMs: number; holdMs: number };
+  }>>({});
   const [activeTab, setActiveTab] = useState('channels');
   const [aiPrompt, setAiPrompt] = useState("");
   
@@ -935,9 +943,62 @@ export default function ProfessionalMixer() {
                     <p className="text-sm text-white/40">No channels have send routes yet.</p>
                   )}
                 </div>
+
+                {/* Sidechain Ducking */}
+                <div className="mt-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Activity className="h-5 w-5 text-cyan-400" />
+                    <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">Sidechain Ducking</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {mixerState.channels
+                      .filter(ch => ch.name.toLowerCase() !== 'drums' && ch.name.toLowerCase() !== 'kick')
+                      .map(channel => {
+                        const sc = sidechainState[channel.id];
+                        return (
+                          <SidechainControl
+                            key={`sc-${channel.id}`}
+                            channelName={channel.name}
+                            enabled={sc?.enabled ?? false}
+                            config={sc?.config ?? null}
+                            source={sc?.source ?? 'kick'}
+                            onToggle={(enabled) => {
+                              setSidechainState(prev => ({
+                                ...prev,
+                                [channel.id]: {
+                                  enabled,
+                                  source: prev[channel.id]?.source ?? 'kick',
+                                  config: prev[channel.id]?.config ?? { depthDb: -6, attackMs: 2, releaseMs: 120, holdMs: 30 },
+                                },
+                              }));
+                            }}
+                            onConfigChange={(partial) => {
+                              setSidechainState(prev => ({
+                                ...prev,
+                                [channel.id]: {
+                                  ...prev[channel.id],
+                                  config: { ...prev[channel.id]?.config, ...partial } as any,
+                                },
+                              }));
+                            }}
+                            onSourceChange={(source) => {
+                              setSidechainState(prev => ({
+                                ...prev,
+                                [channel.id]: { ...prev[channel.id], source },
+                              }));
+                            }}
+                          />
+                        );
+                      })
+                    }
+                    {mixerState.channels.length === 0 && (
+                      <p className="text-sm text-white/40">Add channels to configure sidechain routing.</p>
+                    )}
+                  </div>
+                </div>
               </div>
             </TabsContent>
-            
+
             <TabsContent value="master" className="mt-6 space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="bg-white/5 border border-white/10 rounded-3xl backdrop-blur-xl overflow-hidden">

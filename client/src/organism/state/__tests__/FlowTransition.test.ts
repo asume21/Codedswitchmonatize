@@ -51,6 +51,7 @@ const config = {
   awakeningMinBars: 2,
   awakeningMaxBars: 4,
   syllabicDensityWindowBars: 2,
+  autoBreathingToFlowBars: 0,
 }
 
 describe('FlowTransition', () => {

@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { TrendingDown, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { TrendingDown, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface LimiterPluginProps {
   audioUrl?: string;
@@ -99,16 +100,10 @@ export function LimiterPlugin({ audioUrl, onClose }: LimiterPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `Limiter Preset ${new Date().toLocaleTimeString()}`,
-      settings: { ceiling, release, makeupGain },
-    };
-    localStorage.setItem('limiter-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: 'Limiter settings saved to browser',
-    });
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.ceiling !== undefined) setCeiling(params.ceiling);
+    if (params.release !== undefined) setRelease(params.release);
+    if (params.makeupGain !== undefined) setMakeupGain(params.makeupGain);
   };
 
   return (
@@ -154,10 +149,11 @@ export function LimiterPlugin({ audioUrl, onClose }: LimiterPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
+            <PresetBrowser
+              effectType="limiter"
+              currentParams={{ ceiling, release, makeupGain }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

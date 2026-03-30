@@ -23,5 +23,14 @@ export function evaluateBreathingTransition(
     return OTransition.BreathingToFlow
   }
 
+  // Auto-generate fallback: promote to Flow after N bars in Breathing
+  // even without cadence lock, since there is no real voice to lock onto.
+  if (
+    config.autoBreathingToFlowBars > 0 &&
+    organism.barsInState >= config.autoBreathingToFlowBars
+  ) {
+    return OTransition.BreathingToFlow
+  }
+
   return null
 }

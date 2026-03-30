@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Timer, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { Timer, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface DelayPluginProps {
   audioUrl?: string;
@@ -193,16 +194,10 @@ export function DelayPlugin({ audioUrl, onClose }: DelayPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `Delay Preset ${new Date().toLocaleTimeString()}`,
-      settings: { delayTime, feedback, wetMix, delayType },
-    };
-    localStorage.setItem('delay-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: 'Delay settings saved to browser',
-    });
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.delayTime !== undefined) setDelayTime(params.delayTime);
+    if (params.feedback !== undefined) setFeedback(params.feedback);
+    if (params.wetMix !== undefined) setWetMix(params.wetMix);
   };
 
   // Convert delay time to ms for display
@@ -251,10 +246,11 @@ export function DelayPlugin({ audioUrl, onClose }: DelayPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
+            <PresetBrowser
+              effectType="delay"
+              currentParams={{ delayTime, feedback, wetMix }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

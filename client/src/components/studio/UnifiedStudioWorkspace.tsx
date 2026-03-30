@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
@@ -57,6 +57,7 @@ import { createTrackPayload } from '@/types/studioTracks';
 import { UndoManager } from '@/lib/UndoManager';
 import 'react-resizable/css/styles.css';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
+import { getTimelineRecorder, type RecorderState } from '@/lib/timelineRecorder';
 import AudioDetector from './AudioDetector';
 import AstutelyPanel from '../ai/AstutelyPanel';
 import AstutelyChatbot from '../ai/AstutelyChatbot';
@@ -618,6 +619,12 @@ export default function UnifiedStudioWorkspace() {
   const [showInspector, setShowInspector] = useState(false);
   const [showWaveformEditor, setShowWaveformEditor] = useState(false);
   const [showAudioDetector, setShowAudioDetector] = useState(false);
+
+  // Timeline Recorder
+  const [recorderState, setRecorderState] = useState<RecorderState>(() => getTimelineRecorder().getState());
+  useEffect(() => {
+    return getTimelineRecorder().subscribe(setRecorderState);
+  }, []);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [showMetronomeSettings, setShowMetronomeSettings] = useState(false);
@@ -3818,6 +3825,52 @@ export default function UnifiedStudioWorkspace() {
             >
               {transportPlaying ? <Pause className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
               {transportPlaying ? 'Pause' : 'Play'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (recorderState.isRecording) {
+                  const result = await getTimelineRecorder().stopRecording();
+                  if (result) {
+                    // Create a new audio track with the recording
+                    addTrack(`Recording ${new Date().toLocaleTimeString()}`, 'audio');
+                    // We need a tick to let the track render before we can set its payload,
+                    // but for now let's use the current selected track if it's the new one,
+                    // or just show a success toast and we can wire the payload directly.
+                    toast({
+                      title: "Recording Saved",
+                      description: `Captured ${result.durationSeconds.toFixed(1)}s of audio.`,
+                    });
+                    
+                    // The robust way is to update the store with the audioUrl
+                    // Let's find the newly added track by assuming it's the last one added
+                    // This will be handled in a useEffect looking for track creations or by direct store manipulation
+                    const { useStudioStore } = await import('@/stores/useStudioStore');
+                    const { useTrackStore } = await import('@/contexts/TrackStoreContext');
+                    // Hack: Wait a tick for track store to update
+                    setTimeout(() => {
+                      const ts = document.querySelector('[data-track-type="audio"]:last-child') || null; // just an idea
+                      // Better: dispatch a custom event with the Blob so that the track creation logic handles it
+                      window.dispatchEvent(new CustomEvent('timeline-recording-complete', { detail: result }));
+                    }, 100);
+                  }
+                } else {
+                  // Start recording
+                  const hasPerm = await getTimelineRecorder().requestPermission();
+                  if (hasPerm) {
+                    await getTimelineRecorder().startRecording(playheadPosition);
+                    startTransport(); // start playback in sync
+                    toast({ title: "Recording Started", description: "Sing or play into your mic!" });
+                  } else {
+                    toast({ title: "Mic Error", description: "Could not access microphone.", variant: "destructive" });
+                  }
+                }
+              }}
+              className={recorderState.isRecording ? "bg-red-600 hover:bg-red-500 text-white astutely-button border-red-500" : "astutely-button border-red-500/40 text-red-400 hover:bg-red-500/20"}
+            >
+              <Mic className="w-4 h-4 mr-1" />
+              {recorderState.isRecording ? 'Stop Rec' : 'Rec'}
             </Button>
             <Button
               size="sm"

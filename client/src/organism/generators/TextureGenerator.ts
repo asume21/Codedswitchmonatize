@@ -117,13 +117,9 @@ export class TextureGenerator extends GeneratorBase {
     this.gain.gain.rampTo(m, 0.25)
   }
 
-  private computeTargetLevel(organism: OrganismState): number {
-    switch (organism.current) {
-      case OState.Dormant:    return 0
-      case OState.Awakening:  return 0.04 * organism.awakeningProgress
-      case OState.Breathing:  return 0.15 * organism.breathingWarmth
-      case OState.Flow:       return 0.20 + (0.08 * organism.flowDepth)
-    }
+  private computeTargetLevel(_organism: OrganismState): number {
+    // Texture is fully disabled — drums, bass, and melody only
+    return 0
   }
 
   dispose(): void {

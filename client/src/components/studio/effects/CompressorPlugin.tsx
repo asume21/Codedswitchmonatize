@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Gauge, RotateCcw, Save, Play, Pause } from 'lucide-react';
+import { Gauge, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PresetBrowser from './PresetBrowser';
 
 interface CompressorPluginProps {
   audioUrl?: string;
@@ -106,38 +107,12 @@ export function CompressorPlugin({ audioUrl, onClose }: CompressorPluginProps) {
     setIsPlaying(!isPlaying);
   };
 
-  const savePreset = () => {
-    const preset = {
-      name: `Compressor Preset ${new Date().toLocaleTimeString()}`,
-      settings: { threshold, knee, ratio, attack, release },
-    };
-    localStorage.setItem('compressor-preset-last', JSON.stringify(preset));
-    toast({
-      title: 'Preset Saved',
-      description: 'Compressor settings saved to browser',
-    });
-  };
-
-  // ISSUE #1: Load preset functionality
-  const loadPreset = () => {
-    try {
-      const saved = localStorage.getItem('compressor-preset-last');
-      if (saved) {
-        const preset = JSON.parse(saved);
-        if (preset.settings) {
-          updateParameter('threshold', preset.settings.threshold);
-          updateParameter('knee', preset.settings.knee);
-          updateParameter('ratio', preset.settings.ratio);
-          updateParameter('attack', preset.settings.attack);
-          updateParameter('release', preset.settings.release);
-          toast({ title: 'Preset Loaded', description: `Loaded: ${preset.name}` });
-        }
-      } else {
-        toast({ title: 'No Preset', description: 'No saved preset found', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Load Failed', description: 'Could not load preset', variant: 'destructive' });
-    }
+  const handleLoadPreset = (params: Record<string, number>) => {
+    if (params.threshold !== undefined) updateParameter('threshold', params.threshold);
+    if (params.knee !== undefined) updateParameter('knee', params.knee);
+    if (params.ratio !== undefined) updateParameter('ratio', params.ratio);
+    if (params.attack !== undefined) updateParameter('attack', params.attack);
+    if (params.release !== undefined) updateParameter('release', params.release);
   };
 
   return (
@@ -183,14 +158,11 @@ export function CompressorPlugin({ audioUrl, onClose }: CompressorPluginProps) {
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset
             </Button>
-            <Button onClick={savePreset} variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
-            <Button onClick={loadPreset} variant="outline">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Load
-            </Button>
+            <PresetBrowser
+              effectType="compressor"
+              currentParams={{ threshold, knee, ratio, attack, release }}
+              onLoadPreset={handleLoadPreset}
+            />
           </div>
         )}
 

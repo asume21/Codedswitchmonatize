@@ -2,14 +2,14 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { spawn } from 'child_process';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from 'openai';
 import type { IStorage } from '../storage';
 import { getCreditService } from '../services/credits';
 
 // Credit costs for webear API calls
 const WEBEAR_CREDIT_COSTS = {
   analyze: 1,   // pure signal analysis — cheap
-  describe: 2,  // Gemini AI description — costs real money
+  describe: 2,  // OpenAI GPT-4o AI description — costs real money
 } as const;
 
 export function createMcpApiRoutes(storage: IStorage): Router {
@@ -121,8 +121,8 @@ export function createMcpApiRoutes(storage: IStorage): Router {
       return res.status(400).json({ error: 'No audio file provided' });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY not configured on server' });
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'OPENAI_API_KEY not configured on server' });
     }
 
     const cost = WEBEAR_CREDIT_COSTS.describe;
@@ -137,18 +137,34 @@ export function createMcpApiRoutes(storage: IStorage): Router {
     }
 
     try {
-      const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      const result = await model.generateContent([
-        "Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If it's ambient or structural, describe the textures and frequencies. Keep the description concise but highly analytical.",
-        {
-          inlineData: {
-            data: req.file.buffer.toString("base64"),
-            mimeType: req.file.mimetype || "audio/webm",
+      const base64Audio = req.file.buffer.toString('base64');
+      const mimeType = req.file.mimetype || 'audio/webm';
+
+      const result = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If it\'s ambient or structural, describe the textures and frequencies. Keep the description concise but highly analytical.',
+              },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: base64Audio,
+                  format: mimeType.includes('wav') ? 'wav' : 'mp3',
+                },
+              },
+            ],
           },
-        },
-      ]);
+        ],
+      });
+
+      const description = result.choices[0]?.message?.content || 'No description generated.';
 
       // Deduct credits + track usage
       await creditService.deductCredits(userId, cost, 'webear describe_audio', { tool: 'describe_audio' });
@@ -157,7 +173,7 @@ export function createMcpApiRoutes(storage: IStorage): Router {
       );
       if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
 
-      res.json({ description: result.response.text() });
+      res.json({ description });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

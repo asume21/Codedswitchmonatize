@@ -46,6 +46,10 @@ import {
   type SocialPost,
   type SocialConnection,
   type ChatMessage,
+  type CollabInvite,
+  type InsertCollabInvite,
+  type BlogPost,
+  type InsertBlogPost,
   users,
   userSubscriptions,
   projects,
@@ -74,6 +78,8 @@ import {
   socialPosts,
   socialConnections,
   chatMessages,
+  collabInvites,
+  blogPosts,
 } from "@shared/schema";
 import { randomUUID, randomBytes } from "crypto";
 import { db } from "./db";
@@ -274,6 +280,14 @@ export interface IStorage {
   // Discover Users
   discoverUsers(userId: string, limit?: number): Promise<any[]>;
 
+  // Collab Invites
+  createCollabInvite(data: InsertCollabInvite): Promise<CollabInvite>;
+  getCollabInvite(id: number): Promise<CollabInvite | undefined>;
+  getUserPendingInvites(userId: string): Promise<any[]>;
+  getUserSentInvites(userId: string): Promise<any[]>;
+  updateCollabInviteStatus(id: number, status: string): Promise<CollabInvite>;
+  getInviteCount(userId: string): Promise<number>;
+
   // Voice Convert Jobs
   createVoiceConvertJob(userId: string, data: InsertVoiceConvertJob): Promise<VoiceConvertJob>;
   getVoiceConvertJob(id: string): Promise<VoiceConvertJob | undefined>;
@@ -294,11 +308,15 @@ export interface IStorage {
   incrementWebearKeyUsage(keyId: string): Promise<void>;
 
   // Blog Posts
-  getBlogPosts(): Promise<any[]>;
-  getBlogPostBySlug(slug: string): Promise<any | undefined>;
-  getRelatedBlogPosts(category: string, excludeSlug: string): Promise<any[]>;
-  createBlogPost(data: any): Promise<any>;
-  incrementBlogPostViews(slug: string): Promise<void>;
+  createBlogPost(userId: string, data: InsertBlogPost): Promise<BlogPost>;
+  updateBlogPost(postId: string, data: Partial<InsertBlogPost>): Promise<BlogPost>;
+  deleteBlogPost(postId: string): Promise<void>;
+  getBlogPost(id: string): Promise<BlogPost | null>;
+  getBlogPostBySlug(slug: string): Promise<BlogPost | null>;
+  getUserBlogPosts(userId: string): Promise<BlogPost[]>;
+  getPublishedBlogPosts(limit?: number, offset?: number): Promise<BlogPost[]>;
+  getRelatedBlogPosts(category: string, excludeSlug: string): Promise<BlogPost[]>;
+  incrementBlogPostViews(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -1217,6 +1235,14 @@ export class MemStorage implements IStorage {
   async getUnreadMessageCount(_userId: string): Promise<number> { return 0; }
   async discoverUsers(_userId: string, _limit?: number): Promise<any[]> { return []; }
 
+  // Collab Invites (MemStorage stubs)
+  async createCollabInvite(_data: InsertCollabInvite): Promise<CollabInvite> { throw new Error("Not implemented in MemStorage"); }
+  async getCollabInvite(_id: number): Promise<CollabInvite | undefined> { return undefined; }
+  async getUserPendingInvites(_userId: string): Promise<any[]> { return []; }
+  async getUserSentInvites(_userId: string): Promise<any[]> { return []; }
+  async updateCollabInviteStatus(_id: number, _status: string): Promise<CollabInvite> { throw new Error("Not implemented in MemStorage"); }
+  async getInviteCount(_userId: string): Promise<number> { return 0; }
+
   // Voice Convert Jobs (MemStorage stubs)
   async createVoiceConvertJob(_userId: string, _data: InsertVoiceConvertJob): Promise<VoiceConvertJob> { throw new Error("Not implemented in MemStorage"); }
   async getVoiceConvertJob(_id: string): Promise<VoiceConvertJob | undefined> { return undefined; }
@@ -1237,11 +1263,60 @@ export class MemStorage implements IStorage {
   async incrementWebearKeyUsage(_keyId: string): Promise<void> {}
 
   // Blog Posts (MemStorage stubs)
-  async getBlogPosts(): Promise<any[]> { return []; }
-  async getBlogPostBySlug(_slug: string): Promise<any | undefined> { return undefined; }
-  async getRelatedBlogPosts(_category: string, _excludeSlug: string): Promise<any[]> { return []; }
-  async createBlogPost(_data: any): Promise<any> { throw new Error("Not implemented in MemStorage"); }
-  async incrementBlogPostViews(_slug: string): Promise<void> {}
+  private memBlogPosts: BlogPost[] = [];
+  async createBlogPost(userId: string, data: InsertBlogPost): Promise<BlogPost> {
+    const post: BlogPost = {
+      id: randomUUID(),
+      userId,
+      title: data.title,
+      slug: data.slug,
+      excerpt: data.excerpt,
+      content: data.content,
+      category: data.category,
+      tags: data.tags ?? null,
+      imageUrl: data.imageUrl ?? null,
+      isPublished: data.isPublished ?? false,
+      views: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.memBlogPosts.push(post);
+    return post;
+  }
+  async updateBlogPost(postId: string, data: Partial<InsertBlogPost>): Promise<BlogPost> {
+    const idx = this.memBlogPosts.findIndex(p => p.id === postId);
+    if (idx === -1) throw new Error("Blog post not found");
+    this.memBlogPosts[idx] = { ...this.memBlogPosts[idx], ...data, updatedAt: new Date() };
+    return this.memBlogPosts[idx];
+  }
+  async deleteBlogPost(postId: string): Promise<void> {
+    this.memBlogPosts = this.memBlogPosts.filter(p => p.id !== postId);
+  }
+  async getBlogPost(id: string): Promise<BlogPost | null> {
+    return this.memBlogPosts.find(p => p.id === id) ?? null;
+  }
+  async getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+    return this.memBlogPosts.find(p => p.slug === slug) ?? null;
+  }
+  async getUserBlogPosts(userId: string): Promise<BlogPost[]> {
+    return this.memBlogPosts.filter(p => p.userId === userId).sort((a, b) =>
+      new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+  }
+  async getPublishedBlogPosts(limit = 50, offset = 0): Promise<BlogPost[]> {
+    return this.memBlogPosts
+      .filter(p => p.isPublished)
+      .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime())
+      .slice(offset, offset + limit);
+  }
+  async getRelatedBlogPosts(category: string, excludeSlug: string): Promise<BlogPost[]> {
+    return this.memBlogPosts
+      .filter(p => p.category === category && p.slug !== excludeSlug && p.isPublished)
+      .slice(0, 3);
+  }
+  async incrementBlogPostViews(id: string): Promise<void> {
+    const post = this.memBlogPosts.find(p => p.id === id);
+    if (post) post.views = (post.views ?? 0) + 1;
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2381,6 +2456,71 @@ export class DatabaseStorage implements IStorage {
       .map((u: any) => ({ id: u.id, name: u.username, email: u.email }));
   }
 
+  // ============ COLLAB INVITES ============
+  async createCollabInvite(data: InsertCollabInvite): Promise<CollabInvite> {
+    const [invite] = await db
+      .insert(collabInvites)
+      .values(data)
+      .returning();
+    return invite;
+  }
+
+  async getCollabInvite(id: number): Promise<CollabInvite | undefined> {
+    const [invite] = await db.select().from(collabInvites).where(eq(collabInvites.id, id));
+    return invite || undefined;
+  }
+
+  async getUserPendingInvites(userId: string): Promise<any[]> {
+    const invites = await db
+      .select()
+      .from(collabInvites)
+      .where(and(eq(collabInvites.toUserId, userId), eq(collabInvites.status, 'pending')))
+      .orderBy(desc(collabInvites.createdAt));
+    const enriched = [];
+    for (const inv of invites) {
+      const sender = await db.select({ id: users.id, username: users.username, email: users.email }).from(users).where(eq(users.id, inv.fromUserId));
+      enriched.push({
+        ...inv,
+        fromUser: sender[0] ? { id: sender[0].id, name: sender[0].username, email: sender[0].email } : null,
+      });
+    }
+    return enriched;
+  }
+
+  async getUserSentInvites(userId: string): Promise<any[]> {
+    const invites = await db
+      .select()
+      .from(collabInvites)
+      .where(eq(collabInvites.fromUserId, userId))
+      .orderBy(desc(collabInvites.createdAt));
+    const enriched = [];
+    for (const inv of invites) {
+      const recipient = await db.select({ id: users.id, username: users.username, email: users.email }).from(users).where(eq(users.id, inv.toUserId));
+      enriched.push({
+        ...inv,
+        toUser: recipient[0] ? { id: recipient[0].id, name: recipient[0].username, email: recipient[0].email } : null,
+      });
+    }
+    return enriched;
+  }
+
+  async updateCollabInviteStatus(id: number, status: string): Promise<CollabInvite> {
+    const [invite] = await db
+      .update(collabInvites)
+      .set({ status })
+      .where(eq(collabInvites.id, id))
+      .returning();
+    return invite;
+  }
+
+  async getInviteCount(userId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(collabInvites)
+      .where(and(eq(collabInvites.toUserId, userId), eq(collabInvites.status, 'pending')));
+    return result[0]?.count || 0;
+  }
+
   // Voice Convert Jobs
   async createVoiceConvertJob(userId: string, data: InsertVoiceConvertJob): Promise<VoiceConvertJob> {
     const [job] = await db
@@ -2455,56 +2595,66 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  // Blog Posts - Using in-memory storage for now (can migrate to DB later)
-  private blogPosts: any[] = [
-    {
-      id: 1,
-      slug: 'how-to-make-beats-online-free',
-      title: 'How to Make Beats Online Free - Complete Guide 2026',
-      excerpt: 'Learn how to create professional beats online for free using CodedSwitch\'s AI-powered tools. No downloads, no experience needed.',
-      content: '<h2>Introduction</h2><p>Making beats online has never been easier...</p>',
-      author: 'CodedSwitch Team',
-      publishedAt: '2026-03-15T00:00:00Z',
-      readTime: 8,
-      category: 'Tutorial',
-      tags: ['beat making', 'tutorial', 'free tools', 'online daw'],
-      imageUrl: '/images/blog/beat-making-guide.jpg',
-      views: 1250
-    }
-  ];
-
-  async getBlogPosts(): Promise<any[]> {
-    return this.blogPosts.sort((a, b) => 
-      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-    );
-  }
-
-  async getBlogPostBySlug(slug: string): Promise<any | undefined> {
-    return this.blogPosts.find(post => post.slug === slug);
-  }
-
-  async getRelatedBlogPosts(category: string, excludeSlug: string): Promise<any[]> {
-    return this.blogPosts
-      .filter(post => post.category === category && post.slug !== excludeSlug)
-      .slice(0, 3);
-  }
-
-  async createBlogPost(data: any): Promise<any> {
-    const post = {
-      id: this.blogPosts.length + 1,
-      ...data,
-      publishedAt: new Date().toISOString(),
-      views: 0
-    };
-    this.blogPosts.push(post);
+  // Blog Posts
+  async createBlogPost(userId: string, data: InsertBlogPost): Promise<BlogPost> {
+    const [post] = await db
+      .insert(blogPosts)
+      .values({ ...data, userId })
+      .returning();
     return post;
   }
 
-  async incrementBlogPostViews(slug: string): Promise<void> {
-    const post = this.blogPosts.find(p => p.slug === slug);
-    if (post) {
-      post.views += 1;
-    }
+  async updateBlogPost(postId: string, data: Partial<InsertBlogPost>): Promise<BlogPost> {
+    const [post] = await db
+      .update(blogPosts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(blogPosts.id, postId))
+      .returning();
+    return post;
+  }
+
+  async deleteBlogPost(postId: string): Promise<void> {
+    await db.delete(blogPosts).where(eq(blogPosts.id, postId));
+  }
+
+  async getBlogPost(id: string): Promise<BlogPost | null> {
+    const [post] = await db.select().from(blogPosts).where(eq(blogPosts.id, id));
+    return post ?? null;
+  }
+
+  async getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+    const [post] = await db.select().from(blogPosts).where(eq(blogPosts.slug, slug));
+    return post ?? null;
+  }
+
+  async getUserBlogPosts(userId: string): Promise<BlogPost[]> {
+    return db.select().from(blogPosts)
+      .where(eq(blogPosts.userId, userId))
+      .orderBy(desc(blogPosts.createdAt));
+  }
+
+  async getPublishedBlogPosts(limit = 50, offset = 0): Promise<BlogPost[]> {
+    return db.select().from(blogPosts)
+      .where(eq(blogPosts.isPublished, true))
+      .orderBy(desc(blogPosts.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getRelatedBlogPosts(category: string, excludeSlug: string): Promise<BlogPost[]> {
+    return db.select().from(blogPosts)
+      .where(and(
+        eq(blogPosts.category, category),
+        eq(blogPosts.isPublished, true),
+        sql`${blogPosts.slug} != ${excludeSlug}`
+      ))
+      .limit(3);
+  }
+
+  async incrementBlogPostViews(id: string): Promise<void> {
+    await db.update(blogPosts)
+      .set({ views: sql`COALESCE(views, 0) + 1` })
+      .where(eq(blogPosts.id, id));
   }
 
   // WebEar API Keys

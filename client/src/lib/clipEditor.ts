@@ -279,3 +279,104 @@ export function getTrackClips(clips: AudioClip[], trackId: string): AudioClip[] 
     .filter(c => c.trackId === trackId)
     .sort((a, b) => a.startBeat - b.startBeat);
 }
+
+/**
+ * Auto-crossfade all overlapping clips on a track.
+ * Applies small crossfades to prevent clicking artifacts.
+ */
+export function autoFixOverlaps(clips: AudioClip[], trackId: string, defaultCrossfadeBeats: number = 0.25): AudioClip[] {
+  const trackClips = getTrackClips(clips, trackId);
+  if (trackClips.length < 2) return clips;
+
+  const otherClips = clips.filter(c => c.trackId !== trackId);
+  const fixedTrackClips = [...trackClips];
+
+  for (let i = 0; i < fixedTrackClips.length - 1; i++) {
+    const a = fixedTrackClips[i];
+    const b = fixedTrackClips[i + 1];
+
+    if (a.endBeat > b.startBeat) {
+      // Overlapping — apply crossfade
+      const overlapBeats = a.endBeat - b.startBeat;
+      const fadeDuration = Math.min(overlapBeats, defaultCrossfadeBeats);
+
+      fixedTrackClips[i] = { ...a, fadeOutBeats: fadeDuration };
+      fixedTrackClips[i + 1] = { ...b, fadeInBeats: fadeDuration };
+    }
+  }
+
+  return [...otherClips, ...fixedTrackClips];
+}
+
+/**
+ * Play all clips on the timeline through Web Audio API.
+ * Schedules each clip at its correct position with fades applied.
+ */
+export function scheduleClipsForPlayback(
+  ctx: AudioContext,
+  clips: AudioClip[],
+  bufferMap: Map<string, AudioBuffer>,
+  bpm: number,
+  destination: AudioNode,
+  startFromBeat: number = 0,
+): AudioBufferSourceNode[] {
+  const beatsPerSecond = bpm / 60;
+  const sources: AudioBufferSourceNode[] = [];
+
+  for (const clip of clips) {
+    if (clip.endBeat <= startFromBeat) continue; // Skip clips that have already ended
+
+    const buffer = bufferMap.get(clip.audioUrl);
+    if (!buffer) continue;
+
+    const clipStartSeconds = Math.max(0, (clip.startBeat - startFromBeat) / beatsPerSecond);
+    const offsetSeconds = clip.offsetBeat / beatsPerSecond;
+    const durationSeconds = (clip.endBeat - clip.startBeat) / beatsPerSecond;
+
+    // Adjust if we're starting mid-clip
+    let playOffset = offsetSeconds;
+    let playDuration = durationSeconds;
+    if (clip.startBeat < startFromBeat) {
+      const skipSeconds = (startFromBeat - clip.startBeat) / beatsPerSecond;
+      playOffset += skipSeconds;
+      playDuration -= skipSeconds;
+    }
+
+    if (playDuration <= 0) continue;
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = clip.gain;
+
+    // Fade in
+    if (clip.fadeInBeats > 0 && clip.startBeat >= startFromBeat) {
+      const fadeInDuration = clip.fadeInBeats / beatsPerSecond;
+      gainNode.gain.setValueAtTime(0, ctx.currentTime + clipStartSeconds);
+      gainNode.gain.linearRampToValueAtTime(clip.gain, ctx.currentTime + clipStartSeconds + fadeInDuration);
+    }
+
+    // Fade out
+    if (clip.fadeOutBeats > 0) {
+      const fadeOutDuration = clip.fadeOutBeats / beatsPerSecond;
+      const fadeOutStart = clipStartSeconds + playDuration - fadeOutDuration;
+      gainNode.gain.setValueAtTime(clip.gain, ctx.currentTime + Math.max(clipStartSeconds, fadeOutStart));
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + clipStartSeconds + playDuration);
+    }
+
+    source.connect(gainNode);
+    gainNode.connect(destination);
+
+    if (clip.loop) {
+      source.loop = true;
+      source.loopStart = offsetSeconds;
+      source.loopEnd = offsetSeconds + durationSeconds;
+    }
+
+    source.start(ctx.currentTime + clipStartSeconds, playOffset, clip.loop ? undefined : playDuration);
+    sources.push(source);
+  }
+
+  return sources;
+}

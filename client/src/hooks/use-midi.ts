@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useAudio } from "./use-audio";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { useInstrumentOptional } from "@/contexts/InstrumentContext";
+import { getExpressiveEngine } from "@/organism/instruments/ExpressiveEngine";
 
 // Global drum mode flag - shared across all useMIDI instances
 // When true, MIDI notes only trigger drums (no instrument sounds)
@@ -307,30 +308,28 @@ export function useMIDI() {
         if (!audioInitializedRef.current) {
           await realisticAudio.initialize();
           audioInitializedRef.current = true;
-          console.log('🎵 MIDI using realisticAudio (same as Piano Roll)!');
         }
 
         // Get instrument name from settingsRef (always current, no stale closure)
         const currentSettings = settingsRef.current;
-        // Use the exact instrument name - no mapping needed since we use same system as Piano Roll
         const instrument = currentSettings.currentInstrument || 'piano';
         
         // Apply MIDI volume (multiply with velocity)
         const midiVolume = currentSettings.midiVolume ?? 0.5;
         const adjustedVelocity = normalizedVelocity * midiVolume;
         
-        // Play note using realisticAudio - same API as Piano Roll
-        // realisticAudio.playNote(note, octave, duration, instrument, velocity)
+        // ─── EXPRESSIVE ENGINE: NoteOn (sustains until MIDI noteOff) ───
+        const toneNote = `${note}${octave}`;
+        const expressiveEngine = getExpressiveEngine();
+        expressiveEngine.noteOn(toneNote, adjustedVelocity);
+
+        // Also play via legacy realisticAudio for backwards compat
         await realisticAudio.playNote(
           note,
           octave,
           0.5, // shorter duration for snappier MIDI response
           instrument,
           adjustedVelocity
-        );
-
-        console.log(
-          `✅ MIDI [${instrument}]: ${note}${octave} vel=${adjustedVelocity.toFixed(2)}`,
         );
       } catch (error) {
         console.error(`❌ realisticAudio playNote failed for ${note}${octave}:`, error);
@@ -347,7 +346,16 @@ export function useMIDI() {
       return newSet;
     });
     setLastNoteOff({ note: midiNote, velocity: 0, channel });
-  }, []);
+
+    // ─── EXPRESSIVE ENGINE: NoteOff (triggers Release phase) ───
+    const { note, octave } = noteNumberToName(midiNote);
+    const toneNote = `${note}${octave}`;
+    const expressiveEngine = getExpressiveEngine();
+    expressiveEngine.noteOff(toneNote);
+
+    // Also send noteOff to legacy realisticAudio
+    realisticAudio.noteOff(note, octave, settingsRef.current.currentInstrument || 'piano');
+  }, [noteNumberToName]);
 
   // Handle MIDI messages
   const handleMIDIMessage = useCallback(
