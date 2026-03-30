@@ -66,16 +66,19 @@ for (let octave = 8; octave >= 0; octave--) {
 
 // Keyboard shortcut mapping - QWERTY keys to piano notes
 const KEYBOARD_TO_NOTE: Record<string, { note: string; octave: number }> = {
-  'z': { note: 'C', octave: 3 }, 's': { note: 'C#', octave: 3 }, 'x': { note: 'D', octave: 3 },
-  'd': { note: 'D#', octave: 3 }, 'c': { note: 'E', octave: 3 }, 'v': { note: 'F', octave: 3 },
-  'g': { note: 'F#', octave: 3 }, 'b': { note: 'G', octave: 3 }, 'h': { note: 'G#', octave: 3 },
-  'n': { note: 'A', octave: 3 }, 'j': { note: 'A#', octave: 3 }, 'm': { note: 'B', octave: 3 },
-  'q': { note: 'C', octave: 4 }, '2': { note: 'C#', octave: 4 }, 'w': { note: 'D', octave: 4 },
-  '3': { note: 'D#', octave: 4 }, 'e': { note: 'E', octave: 4 }, 'r': { note: 'F', octave: 4 },
-  '5': { note: 'F#', octave: 4 }, 't': { note: 'G', octave: 4 }, '6': { note: 'G#', octave: 4 },
-  'y': { note: 'A', octave: 4 }, '7': { note: 'A#', octave: 4 }, 'u': { note: 'B', octave: 4 },
-  'i': { note: 'C', octave: 5 }, '9': { note: 'C#', octave: 5 }, 'o': { note: 'D', octave: 5 },
-  '0': { note: 'D#', octave: 5 }, 'p': { note: 'E', octave: 5 },
+  // Bottom row — Octave 3 (chromatic)
+  'z': { note: 'C', octave: 3 }, 'x': { note: 'C#', octave: 3 }, 'd': { note: 'D', octave: 3 },
+  'c': { note: 'D#', octave: 3 }, 'v': { note: 'E', octave: 3 }, 'b': { note: 'F', octave: 3 },
+  'n': { note: 'F#', octave: 3 }, 'm': { note: 'G', octave: 3 }, 'k': { note: 'G#', octave: 3 },
+  ',': { note: 'A', octave: 3 }, '.': { note: 'A#', octave: 3 }, '/': { note: 'B', octave: 3 },
+  // Top row — Octave 4 (chromatic)
+  'q': { note: 'C', octave: 4 }, 'w': { note: 'C#', octave: 4 }, 'e': { note: 'D', octave: 4 },
+  'r': { note: 'D#', octave: 4 }, 't': { note: 'E', octave: 4 }, 'y': { note: 'F', octave: 4 },
+  'u': { note: 'F#', octave: 4 }, 'i': { note: 'G', octave: 4 }, 'o': { note: 'G#', octave: 4 },
+  'p': { note: 'A', octave: 4 }, '[': { note: 'A#', octave: 4 }, ']': { note: 'B', octave: 4 },
+  // Upper row — Octave 5 (partial)
+  '-': { note: 'C', octave: 5 }, '=': { note: 'C#', octave: 5 },
+  '\\': { note: 'D', octave: 5 }, "'": { note: 'D#', octave: 5 },
 };
 
 const DRUM_PITCH_TO_TYPE: Record<number, 'kick' | 'snare' | 'hihat' | 'perc'> = {
@@ -1196,25 +1199,39 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         return;
       }
 
-      // FLOATING PANEL SHORTCUTS
-      // M - Toggle Mixer Panel
-      if (k === 'm' && !ev.ctrlKey && !ev.metaKey) {
+      // FLOATING PANEL SHORTCUTS (Shift+key to avoid conflict with note keys)
+      // Shift+M - Toggle Mixer Panel
+      if (k === 'm' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
         ev.preventDefault();
         setMixerPanelOpen(prev => !prev);
         return;
       }
-      // B - Toggle Browser Panel
-      if (k === 'b' && !ev.ctrlKey && !ev.metaKey) {
+      // Shift+B - Toggle Browser Panel
+      if (k === 'b' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
         ev.preventDefault();
         setBrowserPanelOpen(prev => !prev);
         return;
       }
-      // I - Toggle Inspector Panel (only without Ctrl)
-      if (k === 'i' && !ev.ctrlKey && !ev.metaKey) {
+      // Shift+I - Toggle Inspector Panel
+      if (k === 'i' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
         ev.preventDefault();
         setInspectorPanelOpen(prev => !prev);
         return;
       }
+      // Shift+U / Shift+J - Cycle musical key up/down
+      if ((k === 'u' || k === 'j') && ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
+        ev.preventDefault();
+        const keys = Object.keys(DEFAULT_customKeys);
+        const idx = keys.indexOf(currentKey);
+        const next = k === 'u'
+          ? keys[(idx + 1) % keys.length]
+          : keys[(idx - 1 + keys.length) % keys.length];
+        handleKeyChange(next);
+        const keyData = DEFAULT_customKeys[next as keyof typeof DEFAULT_customKeys];
+        toast({ title: `Key: ${keyData?.name || next}`, duration: 1500 });
+        return;
+      }
+
       // Escape - Close all panels
       if (k === 'escape') {
         ev.preventDefault();
@@ -1336,7 +1353,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast]);
+  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, handleKeyChange]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
     setTracks(prev => {

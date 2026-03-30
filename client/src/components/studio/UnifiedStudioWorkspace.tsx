@@ -933,13 +933,16 @@ export default function UnifiedStudioWorkspace() {
   }, []);
 
   // 1-2-3-4 Hotkeys for instant view switching
+  // Disabled when in piano-roll or beat-lab views where number keys are used for playing notes/chords
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip if typing in input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       // Skip if modifier keys are pressed
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      
+      // Don't steal number keys from piano roll or beat lab — they're used for notes and chords
+      if (activeView === 'piano-roll' || activeView === 'beat-lab') return;
+
       switch (e.key) {
         case '1':
           e.preventDefault();
@@ -963,10 +966,10 @@ export default function UnifiedStudioWorkspace() {
           break;
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toast]);
+  }, [toast, activeView]);
 
   // Sync dialog drafts with current settings when opened
   useEffect(() => {
@@ -4149,7 +4152,9 @@ export default function UnifiedStudioWorkspace() {
         )}
 
         {/* Center: Main Workspace with Tab Views */}
-        <div className="flex-1 flex flex-col overflow-auto relative">
+        <div className={cn("flex-1 flex flex-col overflow-auto relative",
+          (activeView === 'piano-roll' || activeView === 'arrangement') && "pb-20"
+        )}>
           
           {/* Floating Back to Studio Button - Shows when not in arrangement view */}
           {activeView !== 'arrangement' && (
