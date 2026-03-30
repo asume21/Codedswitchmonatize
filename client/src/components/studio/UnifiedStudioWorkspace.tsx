@@ -122,7 +122,7 @@ const LEGACY_WORKFLOW_ID_MAP: Record<string, WorkflowPreset['id']> = {
   'immersive-mode': 'immersive',
 };
 
-const DEFAULT_TRACK_HEIGHT = 84;
+const DEFAULT_TRACK_HEIGHT = 180;
 const STUDIO_AUTOSAVE_KEY = 'unifiedStudioAutosave';
 const STUDIO_AUTOSAVE_INTERVAL_MS = 30000;
 const STUDIO_AUTOSAVE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -4240,8 +4240,8 @@ export default function UnifiedStudioWorkspace() {
             </div>
             
             {timelineExpanded && (
-              <div ref={trackListRef} className="bg-black/60 p-4 max-h-96 overflow-y-auto astutely-panel">
-                <div className="grid gap-2" style={{ gridTemplateRows: 'repeat(auto-fit, minmax(80px, 1fr))' }}>
+              <div ref={trackListRef} className="bg-black/60 p-4 max-h-[600px] overflow-y-auto astutely-panel">
+                <div className="grid gap-2" style={{ gridTemplateRows: 'repeat(auto-fit, minmax(180px, auto))' }}>
                   {tracks.map((track) => {
                     const trackHeight = trackHeights[track.id] ?? DEFAULT_TRACK_HEIGHT;
                     const laneHeight = Math.max(trackHeight - 32, 80);
@@ -4254,10 +4254,10 @@ export default function UnifiedStudioWorkspace() {
                         axis="y"
                         height={trackHeight}
                         width={trackListWidth}
-                        minConstraints={[trackListWidth, 80]}
+                        minConstraints={[trackListWidth, 120]}
                         handle={<div className="react-resizable-handle react-resizable-handle-s w-full h-2 bg-gray-800 hover:bg-blue-500 cursor-row-resize" />}
                         onResizeStop={(_, data) => {
-                          const nextHeight = Math.max(80, data.size.height);
+                          const nextHeight = Math.max(120, data.size.height);
                           setTrackHeights((prev) => ({ ...prev, [track.id]: nextHeight }));
                         }}
                       >
@@ -4267,8 +4267,8 @@ export default function UnifiedStudioWorkspace() {
                             if (track.type === 'midi') setPianoRollExpanded(true);
                             else if (track.type === 'lyrics') setLyricsExpanded(true);
                           }}
-                          style={{ height: trackHeight }}
-                          className={`border rounded overflow-hidden cursor-pointer transition flex flex-col ${
+                          style={{ minHeight: trackHeight }}
+                          className={`border rounded cursor-pointer transition flex flex-col ${
                             selectedTrack === track.id
                               ? 'border-blue-500 bg-blue-900/20'
                               : 'border-gray-700 hover:border-gray-600'
@@ -4276,7 +4276,7 @@ export default function UnifiedStudioWorkspace() {
                         >
                           <div className="flex flex-1 overflow-hidden">
                             {/* Track Info Panel */}
-                            <div className="w-64 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0 h-full">
+                            <div className="w-64 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="font-medium text-sm truncate">{track.name}</span>
                               </div>
@@ -4378,7 +4378,7 @@ export default function UnifiedStudioWorkspace() {
                             </div>
                             
                             {/* Timeline Visualization */}
-                            <div className="flex-1 bg-gray-900 p-2 relative h-full overflow-x-auto">
+                            <div className="flex-1 bg-gray-900 p-2 relative overflow-x-auto">
                               {track.type === 'midi' ? (
                                 <div className="relative" style={{ height: laneHeight, minWidth: `${64 * Math.max(5, 15 * zoom / 50)}px` }}>
                                   {track.notes?.length > 0 ? (
