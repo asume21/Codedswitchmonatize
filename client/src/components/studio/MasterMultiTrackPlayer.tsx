@@ -128,7 +128,7 @@ const TRACK_COLORS = [
   '#F97316', // orange
 ];
 
-const DEFAULT_TRACK_HEIGHT = 80; // px - compact view to fit more tracks on screen
+const DEFAULT_TRACK_HEIGHT = 120; // px - enough room for waveform + controls
 
 // Helper function to serialize track without circular references (Web Audio nodes)
 const serializeTrack = (track: AudioTrack): AudioTrack => {
@@ -487,7 +487,7 @@ export default function MasterMultiTrackPlayer() {
   const [viewSettings, setViewSettings] = useState({
     compactMode: false,        // Minimal track headers
     collapsedHeaders: false,   // Hide channel controls strip
-    trackHeight: 80,           // Default track height (40-200)
+    trackHeight: 120,          // Default track height (60-200)
     showWaveformOnly: false,   // Hide controls, show only waveforms
     horizontalLayout: false,   // Side-by-side tracks (experimental)
     showViewSettings: false,   // Toggle settings panel visibility
@@ -4219,8 +4219,8 @@ export default function MasterMultiTrackPlayer() {
             <Slider
               value={[viewSettings.trackHeight]}
               onValueChange={([v]) => setViewSettings(vs => ({ ...vs, trackHeight: v }))}
-              min={40}
-              max={200}
+              min={60}
+              max={300}
               step={10}
               className="w-32"
             />
@@ -4231,7 +4231,7 @@ export default function MasterMultiTrackPlayer() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 40, compactMode: true, showWaveformOnly: true }))}
+              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 60, compactMode: true, showWaveformOnly: true }))}
               className="text-xs"
             >
               Mini
@@ -4239,7 +4239,7 @@ export default function MasterMultiTrackPlayer() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 80, compactMode: false, showWaveformOnly: false }))}
+              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 120, compactMode: false, showWaveformOnly: false }))}
               className="text-xs"
             >
               Normal
@@ -4247,7 +4247,7 @@ export default function MasterMultiTrackPlayer() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 150, compactMode: false, showWaveformOnly: false }))}
+              onClick={() => setViewSettings(v => ({ ...v, trackHeight: 200, compactMode: false, showWaveformOnly: false }))}
               className="text-xs"
             >
               Large
@@ -4377,10 +4377,10 @@ export default function MasterMultiTrackPlayer() {
                   axis="y"
                   height={effectiveHeight}
                   width={0}
-                  minConstraints={[0, 40]}
-                  maxConstraints={[0, 300]}
+                  minConstraints={[0, 60]}
+                  maxConstraints={[0, 400]}
                   onResize={(_, data) => {
-                    const nextHeight = Math.max(40, Math.min(300, data.size.height));
+                    const nextHeight = Math.max(60, Math.min(400, data.size.height));
                     setTracks(prev =>
                       prev.map(t =>
                         t.id === track.id ? { ...t, height: nextHeight } : t
@@ -4389,8 +4389,8 @@ export default function MasterMultiTrackPlayer() {
                   }}
                   resizeHandles={viewSettings.showWaveformOnly ? [] : ['s']}
                 >
-                  <div 
-                    style={{ height: effectiveHeight + (viewSettings.compactMode ? 8 : 32), minWidth: `${laneWidth}px` }}
+                  <div
+                    style={{ minHeight: effectiveHeight + (viewSettings.compactMode ? 8 : 80), minWidth: `${laneWidth}px` }}
                     draggable
                     onDragStart={(e) => handleTrackDragStart(e, track.id)}
                     onDragOver={(e) => handleTrackDragOver(e, track.id)}
