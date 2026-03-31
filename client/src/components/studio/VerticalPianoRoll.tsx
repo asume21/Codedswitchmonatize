@@ -1089,6 +1089,67 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     toast({ title: '🗑️ Deleted', description: `${selectedNoteIds.size} note${selectedNoteIds.size === 1 ? '' : 's'} removed` });
   }, [selectedNoteIds, selectedTrack, selectedTrackIndex, addToHistory, toast]);
 
+  const handleNoteOff = useCallback((note: string, octave: number) => {
+    if (onPlayNoteOff) {
+      onPlayNoteOff(note, octave, selectedTrack?.instrument || 'piano');
+    } else {
+      realisticAudio.noteOff(note, octave, selectedTrack?.instrument || 'piano');
+    }
+
+    // Update duration for on-screen key presses during recording
+    if (isRecording && isPlaying) {
+      const keyActive = activeRecordingRef.current.get(-(note.charCodeAt(0) * 100 + octave));
+      if (keyActive) {
+        activeRecordingRef.current.delete(-(note.charCodeAt(0) * 100 + octave));
+        const holdMs = Date.now() - keyActive.startTimeMs;
+        const secondsPerStep = 60 / bpm / 4;
+        const heldSteps = Math.max(1, Math.round(holdMs / (secondsPerStep * 1000)));
+        const clampedLength = Math.min(heldSteps, patternSteps - keyActive.startStep);
+        setTracks(prev => prev.map((track, idx) => {
+          if (idx !== selectedTrackIndex) return track;
+          return {
+            ...track,
+            notes: track.notes.map(n =>
+              n.id === keyActive.noteId ? { ...n, length: clampedLength } : n
+            ),
+          };
+        }));
+      }
+    }
+  }, [onPlayNoteOff, selectedTrack, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex]);
+
+  const playPreviewNote = useCallback((note: string, octave: number) => {
+    const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
+    const instrument = selectedTrack?.instrument || 'piano';
+    realisticAudio.playNote(note, octave, 0.5, instrument, 0.8, true, channel?.input);
+  }, [selectedTrack]);
+
+  // Callback for piano key playback - uses current track's instrument
+  // Also records notes to the grid when recording + playing
+  const handlePianoKeyPlay = useCallback((note: string, octave: number) => {
+    playPreviewNote(note, octave);
+
+    if (isRecording && isPlaying) {
+      const step = currentStep % STEPS;
+      const noteId = `rec-${note}${octave}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const newNote: Note = {
+        id: noteId,
+        note,
+        octave,
+        step,
+        velocity: 100,
+        length: 1,
+      };
+      recordingNotesRef.current.push(newNote);
+      // Store for duration tracking on mouseup (use a negative hash to avoid colliding with MIDI note numbers)
+      activeRecordingRef.current.set(-(note.charCodeAt(0) * 100 + octave), { noteId, startStep: step, startTimeMs: Date.now() });
+
+      setTracks(prev => prev.map((track, idx) =>
+        idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
+      ));
+    }
+  }, [playPreviewNote, isRecording, isPlaying, currentStep, selectedTrackIndex]);
+
   // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
   useEffect(() => {
     const pressedKeys = new Set<string>();
@@ -1262,14 +1323,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
         if (keyIndex !== -1) {
           const pianoKey = PIANO_KEYS[keyIndex];
-          const instrument = selectedTrack?.instrument || 'piano';
-
-          if (onPlayNote) {
-            onPlayNote(pianoKey.note, pianoKey.octave, 0.5, instrument);
-          } else {
-            const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
-            realisticAudio.playNote(pianoKey.note, pianoKey.octave, 0.5, instrument, 0.8, true, channel?.input);
-          }
+          playPreviewNote(pianoKey.note, pianoKey.octave);
 
           // Track keydown timestamp for recording note length
           (window as any).__keyHoldStartTimes = (window as any).__keyHoldStartTimes || {};
@@ -1349,12 +1403,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       // Check if this key maps to a piano note
       const noteMapping = KEYBOARD_TO_NOTE[k];
       if (noteMapping) {
-        const instrument = selectedTrack?.instrument || 'piano';
-        if (onPlayNoteOff) {
-          onPlayNoteOff(noteMapping.note, noteMapping.octave, instrument);
-        } else {
-          realisticAudio.noteOff(noteMapping.note, noteMapping.octave, instrument);
-        }
+        handleNoteOff(noteMapping.note, noteMapping.octave);
 
         // ─── RECORDING: Calculate note length from hold duration ───
         const holdData = (window as any).__keyHoldStartTimes?.[k];
@@ -1386,7 +1435,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, onPlayNote, onPlayNoteOff]);
+  }, [handlePlay, handleNoteOff, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, playPreviewNote]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
     setTracks(prev => {
@@ -2655,63 +2704,6 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       chordInversion={chordInversion}
     />
   ), [selectedProgression, currentKey, currentChordIndex, handleChordClick, chordInversion]);
-
-  const handleNoteOff = useCallback((note: string, octave: number) => {
-    if (onPlayNoteOff) {
-      onPlayNoteOff(note, octave, selectedTrack?.instrument || 'piano');
-    } else {
-      realisticAudio.noteOff(note, octave, selectedTrack?.instrument || 'piano');
-    }
-
-    // Update duration for on-screen key presses during recording
-    if (isRecording && isPlaying) {
-      const keyActive = activeRecordingRef.current.get(-(note.charCodeAt(0) * 100 + octave));
-      if (keyActive) {
-        activeRecordingRef.current.delete(-(note.charCodeAt(0) * 100 + octave));
-        const holdMs = Date.now() - keyActive.startTimeMs;
-        const secondsPerStep = 60 / bpm / 4;
-        const heldSteps = Math.max(1, Math.round(holdMs / (secondsPerStep * 1000)));
-        const clampedLength = Math.min(heldSteps, patternSteps - keyActive.startStep);
-        setTracks(prev => prev.map((track, idx) => {
-          if (idx !== selectedTrackIndex) return track;
-          return {
-            ...track,
-            notes: track.notes.map(n =>
-              n.id === keyActive.noteId ? { ...n, length: clampedLength } : n
-            ),
-          };
-        }));
-      }
-    }
-  }, [onPlayNoteOff, selectedTrack, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex]);
-
-  // Callback for piano key playback - uses current track's instrument
-  // Also records notes to the grid when recording + playing
-  const handlePianoKeyPlay = useCallback((note: string, octave: number) => {
-    const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
-    const instrument = selectedTrack?.instrument || 'piano';
-    realisticAudio.playNote(note, octave, 0.5, instrument, 0.8, true, channel?.input);
-
-    if (isRecording && isPlaying) {
-      const step = currentStep % STEPS;
-      const noteId = `rec-${note}${octave}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const newNote: Note = {
-        id: noteId,
-        note,
-        octave,
-        step,
-        velocity: 100,
-        length: 1,
-      };
-      recordingNotesRef.current.push(newNote);
-      // Store for duration tracking on mouseup (use a negative hash to avoid colliding with MIDI note numbers)
-      activeRecordingRef.current.set(-(note.charCodeAt(0) * 100 + octave), { noteId, startStep: step, startTimeMs: Date.now() });
-
-      setTracks(prev => prev.map((track, idx) =>
-        idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
-      ));
-    }
-  }, [selectedTrack, isRecording, isPlaying, currentStep, selectedTrackIndex]);
 
   return (
     <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
