@@ -15,15 +15,15 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
 import FloatingAIAssistant from './FloatingAIAssistant';
-import AIAssistant from './AIAssistant';
-import { ProAudioGenerator } from './ProAudioGenerator';
-import LyricsFocusMode from './LyricsFocusMode';
+const AIAssistant = React.lazy(() => import('./AIAssistant'));
+const ProAudioGenerator = React.lazy(() => import('./ProAudioGenerator').then(m => ({ default: m.ProAudioGenerator })));
+const LyricsFocusMode = React.lazy(() => import('./LyricsFocusMode'));
 import { Resizable } from 'react-resizable';
-import LyricLab from './LyricLab';
-import CodeToMusicStudioV2 from './CodeToMusicStudioV2';
+const LyricLab = React.lazy(() => import('./LyricLab'));
+const CodeToMusicStudioV2 = React.lazy(() => import('./CodeToMusicStudioV2'));
 import VerticalPianoRoll from './VerticalPianoRoll';
-import ProfessionalMixer from './ProfessionalMixer';
-import SongUploader from './SongUploader';
+const ProfessionalMixer = React.lazy(() => import('./ProfessionalMixer'));
+const SongUploader = React.lazy(() => import('./SongUploader'));
 import WorkflowSelector from './WorkflowSelector';
 import type { WorkflowPreset } from './WorkflowSelector';
 import { useToast } from '@/hooks/use-toast';
@@ -35,20 +35,20 @@ import { getAudioContext } from '@/lib/audioContext';
 import { AudioEngine } from '@/lib/audio';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
-import AudioAnalysisPanel from './AudioAnalysisPanel';
-import AudioToolsPage from './AudioToolsPage';
+const AudioAnalysisPanel = React.lazy(() => import('./AudioAnalysisPanel'));
+const AudioToolsPage = React.lazy(() => import('./AudioToolsPage'));
 import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin, NoiseGatePlugin, type ToolType } from './effects';
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
-import MasterMultiTrackPlayer from './MasterMultiTrackPlayer';
+const MasterMultiTrackPlayer = React.lazy(() => import('./MasterMultiTrackPlayer'));
 import { OrganismPage } from '@/features/organism/OrganismPage';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
-import AIMasteringCard from './AIMasteringCard';
-import AIArrangementBuilder from './AIArrangementBuilder';
-import AIVocalMelody from './AIVocalMelody';
-import AIStemSeparation from './AIStemSeparation';
-import SpectrumAnalyzer from './SpectrumAnalyzer';
-import ReferenceTrackAB from './ReferenceTrackAB';
+const AIMasteringCard = React.lazy(() => import('./AIMasteringCard'));
+const AIArrangementBuilder = React.lazy(() => import('./AIArrangementBuilder'));
+const AIVocalMelody = React.lazy(() => import('./AIVocalMelody'));
+const AIStemSeparation = React.lazy(() => import('./AIStemSeparation'));
+const SpectrumAnalyzer = React.lazy(() => import('./SpectrumAnalyzer'));
+const ReferenceTrackAB = React.lazy(() => import('./ReferenceTrackAB'));
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PresenceAmbientLight } from '@/components/presence';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -67,13 +67,24 @@ import AstutelyChatbot from '../ai/AstutelyChatbot';
 import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { Zap, Sparkles } from 'lucide-react';
 import { professionalAudio } from '@/lib/professionalAudio';
-import SampleBrowser from './SampleBrowser';
-import InspectorPanel from './InspectorPanel';
-import InstrumentLibrary from './InstrumentLibrary';
+const SampleBrowser = React.lazy(() => import('./SampleBrowser'));
+const InspectorPanel = React.lazy(() => import('./InspectorPanel'));
+const InstrumentLibrary = React.lazy(() => import('./InstrumentLibrary'));
 import { WindowManagerProvider } from '@/contexts/WindowManagerContext';
 import WindowLauncher from './WindowLauncher';
 import StudioWindowRenderer from './StudioWindowRenderer';
 import UndoRedoControls from './UndoRedoControls';
+
+function TabLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center h-64 text-cyan-300/60">
+      <div className="text-center">
+        <div className="w-6 h-6 mx-auto mb-2 border-2 border-cyan-500/20 border-t-cyan-400 rounded-full animate-spin" />
+        <p className="text-[10px] font-bold uppercase tracking-widest">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Auto-activates the global OrganismProvider when the user opens the Organism tab.
@@ -2104,6 +2115,30 @@ export default function UnifiedStudioWorkspace() {
       console.error('Error stopping note:', error);
     }
   };
+
+  // Memoized callbacks for VerticalPianoRoll — prevents re-render on unrelated state changes
+  const pianoRollPlayNote = useCallback((note: string, octave: number, duration: number, instrument: string) => {
+    playNote(note, octave, instrument, duration);
+  }, []);
+  const pianoRollPlayNoteOff = useCallback((note: string, octave: number, instrument: string) => {
+    playNoteOff(note, octave, instrument);
+  }, []);
+  const selectedTrackRef = useRef(selectedTrack);
+  selectedTrackRef.current = selectedTrack;
+  const pianoRollNotesChange = useCallback((updatedNotes: any[]) => {
+    const trackId = selectedTrackRef.current;
+    if (trackId) {
+      setTracks((prev: any[]) => prev.map((t: any) =>
+        t.id === trackId ? { ...t, notes: updatedNotes } : t
+      ));
+    }
+  }, [setTracks]);
+
+  // Memoized track summary for AIArrangementBuilder — avoids new array allocation every render
+  const arrangementTrackSummary = useMemo(() =>
+    tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: t.notes?.length || 0, muted: t.muted, volume: t.volume })),
+    [tracks]
+  );
 
   // Handle grid click based on tool mode
   const addNoteToGrid = (note: string, octave: number, barPosition: number) => {
@@ -4175,22 +4210,26 @@ export default function UnifiedStudioWorkspace() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Instrument Library */}
         {instrumentsExpanded && (
-          <InstrumentLibrary 
-            onClose={() => setInstrumentsExpanded(false)}
-            onInstrumentSelect={(instrument) => {
-              toast({ title: 'Instrument Loaded', description: instrument.name });
-            }}
-          />
+          <React.Suspense fallback={<TabLoadingFallback />}>
+            <InstrumentLibrary 
+              onClose={() => setInstrumentsExpanded(false)}
+              onInstrumentSelect={(instrument) => {
+                toast({ title: 'Instrument Loaded', description: instrument.name });
+              }}
+            />
+          </React.Suspense>
         )}
 
         {/* Left Panel - Sample Browser */}
         {showSampleBrowser && (
+          <React.Suspense fallback={<TabLoadingFallback />}>
           <SampleBrowser 
             onClose={() => setShowSampleBrowser(false)}
             onSampleSelect={(sample) => {
               toast({ title: 'Sample Selected', description: sample.filename });
             }}
           />
+          </React.Suspense>
         )}
 
         {/* Center: Main Workspace with Tab Views */}
@@ -4752,19 +4791,9 @@ export default function UnifiedStudioWorkspace() {
                   selectedTrack={selectedTrack || undefined}
                   isPlaying={transportPlaying}
                   currentTime={playheadPosition}
-                  onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
-                    playNote(note, octave, instrument, duration);
-                  }}
-                  onPlayNoteOff={(note: string, octave: number, instrument: string) => {
-                    playNoteOff(note, octave, instrument);
-                  }}
-                  onNotesChange={(updatedNotes: any[]) => {
-                    if (selectedTrack) {
-                      setTracks(tracks.map(t =>
-                        t.id === selectedTrack ? { ...t, notes: updatedNotes } : t
-                      ));
-                    }
-                  }}
+                  onPlayNote={pianoRollPlayNote}
+                  onPlayNoteOff={pianoRollPlayNoteOff}
+                  onNotesChange={pianoRollNotesChange}
                 />
               );
             })()}
@@ -4773,23 +4802,26 @@ export default function UnifiedStudioWorkspace() {
           {/* MIXER VIEW */}
           {activeView === 'mixer' && (
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
-              <ProfessionalMixer />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
-                <SpectrumAnalyzer width={560} height={180} className="bg-zinc-900/80 rounded-lg border border-zinc-700/50 p-3" />
-                <ReferenceTrackAB />
-              </div>
+              <React.Suspense fallback={<TabLoadingFallback />}>
+                <ProfessionalMixer />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+                  <SpectrumAnalyzer width={560} height={180} className="bg-zinc-900/80 rounded-lg border border-zinc-700/50 p-3" />
+                  <ReferenceTrackAB />
+                </div>
+              </React.Suspense>
             </div>
           )}
 
           {/* AI STUDIO VIEW */}
           {activeView === 'ai-studio' && (
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 p-4">
+              <React.Suspense fallback={<TabLoadingFallback />}>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
                 <AIMasteringCard />
                 <AIArrangementBuilder
                   currentBpm={tempo}
                   currentKey="C"
-                  tracks={tracks.map(t => ({ id: t.id, name: t.name, type: t.type, instrument: t.instrument, noteCount: t.notes?.length || 0, muted: t.muted, volume: t.volume }))}
+                  tracks={arrangementTrackSummary}
                   onApplySection={(sectionIndex, trackStates) => {
                     Object.entries(trackStates).forEach(([trackId, state]) => {
                       setTracks(prev => prev.map(t => t.id === trackId ? { ...t, muted: !state.active, volume: state.volume } : t));
@@ -4801,6 +4833,7 @@ export default function UnifiedStudioWorkspace() {
                 <AIStemSeparation />
               </div>
               <AIAssistant />
+              </React.Suspense>
             </div>
           )}
 
@@ -4820,7 +4853,9 @@ export default function UnifiedStudioWorkspace() {
                 </Button>
               </div>
               <ErrorBoundary>
-                <LyricLab />
+                <React.Suspense fallback={<TabLoadingFallback />}>
+                  <LyricLab />
+                </React.Suspense>
               </ErrorBoundary>
             </div>
           )}
@@ -4828,7 +4863,9 @@ export default function UnifiedStudioWorkspace() {
           {/* SONG UPLOADER VIEW */}
           {activeView === 'song-uploader' && (
             <div className="flex-1 min-h-0 overflow-y-auto pt-14 astutely-pro-panel">
-              <SongUploader />
+              <React.Suspense fallback={<TabLoadingFallback />}>
+                <SongUploader />
+              </React.Suspense>
             </div>
           )}
 
@@ -4852,7 +4889,9 @@ export default function UnifiedStudioWorkspace() {
                     </TabsList>
 
                     <TabsContent value="code-music" className="mt-2">
-                      <CodeToMusicStudioV2 />
+                      <React.Suspense fallback={<TabLoadingFallback />}>
+                        <CodeToMusicStudioV2 />
+                      </React.Suspense>
                     </TabsContent>
                   </Tabs>
                 </CardContent>
@@ -4863,14 +4902,18 @@ export default function UnifiedStudioWorkspace() {
           {/* AUDIO TOOLS VIEW */}
           {activeView === 'audio-tools' && (
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14">
-              <AudioToolsPage />
+              <React.Suspense fallback={<TabLoadingFallback />}>
+                <AudioToolsPage />
+              </React.Suspense>
             </div>
           )}
 
           {/* MULTI-TRACK PLAYER */}
           {activeView === 'multitrack' && (
             <div className="flex-1 overflow-hidden bg-gray-900 h-full pt-14">
-              <MasterMultiTrackPlayer />
+              <React.Suspense fallback={<TabLoadingFallback />}>
+                <MasterMultiTrackPlayer />
+              </React.Suspense>
             </div>
           )}
 
@@ -4884,10 +4927,12 @@ export default function UnifiedStudioWorkspace() {
 
         {/* Right Panel - Inspector */}
         {showInspector && (
+          <React.Suspense fallback={<TabLoadingFallback />}>
           <InspectorPanel 
             onClose={() => setShowInspector(false)}
             selectedTrackId={selectedTrack}
           />
+          </React.Suspense>
         )}
 
       {/* Floating/Overlay Components */}
@@ -4910,17 +4955,21 @@ export default function UnifiedStudioWorkspace() {
           </div>
           <div className="max-w-5xl w-full flex-1 min-h-0 overflow-y-auto rounded-lg bg-background border border-border shadow-2xl">
             <ErrorBoundary>
-              <ProAudioGenerator />
+              <React.Suspense fallback={<TabLoadingFallback />}>
+                <ProAudioGenerator />
+              </React.Suspense>
             </ErrorBoundary>
           </div>
         </div>
       )}
 
       {showLyricsFocus && (
+        <React.Suspense fallback={<TabLoadingFallback />}>
         <LyricsFocusMode
           onClose={() => setShowLyricsFocus(false)}
           onSave={handleLyricsSaved}
         />
+        </React.Suspense>
       )}
 
       {renderWaveformEditor()}
