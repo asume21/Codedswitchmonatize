@@ -4,6 +4,7 @@ import type { LoopRegion as StoreLoopRegion, TimeSignature as StoreTimeSignature
 import { getTimelineRecorder } from '@/lib/timelineRecorder';
 import { useToast } from '@/hooks/use-toast';
 import { useTrackStore } from './TrackStoreContext';
+import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 
 // Re-export types so existing consumers don't need to change imports
 export type LoopRegion = StoreLoopRegion;
@@ -176,7 +177,11 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   // Wrap store actions to match TransportContextValue signature exactly
   const play = useCallback(() => { storePlay(); }, [storePlay]);
   const pause = useCallback(() => { clearRaf(); storePause(); }, [clearRaf, storePause]);
-  const stop = useCallback(() => { clearRaf(); storeStop(); }, [clearRaf, storeStop]);
+  const stop = useCallback(() => {
+    clearRaf();
+    storeStop();
+    globalAudioKillSwitch.killAllAudio();
+  }, [clearRaf, storeStop]);
   const setTempo = useCallback((v: number) => { storeBpm(v); }, [storeBpm]);
   const seek = useCallback((v: number) => { storeSeek(v); }, [storeSeek]);
   const setLoop = useCallback((cfg: Partial<LoopRegion>) => { storeSetLoop(cfg); }, [storeSetLoop]);

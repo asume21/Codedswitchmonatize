@@ -11,7 +11,6 @@ import {
 import { Arpeggiator } from "./Arpeggiator";
 import { realisticAudio } from "@/lib/realisticAudio";
 import { professionalAudio } from "@/lib/professionalAudio";
-import { getExpressiveEngine, ExpressiveEngine } from "@/organism/instruments/ExpressiveEngine";
 import { useToast } from "@/hooks/use-toast";
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useTransport } from "@/contexts/TransportContext";
@@ -1263,15 +1262,18 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
         if (keyIndex !== -1) {
           const pianoKey = PIANO_KEYS[keyIndex];
-          const toneNote = `${pianoKey.note}${pianoKey.octave}`;
+          const instrument = selectedTrack?.instrument || 'piano';
 
-          // ─── EXPRESSIVE ENGINE: NoteOn (sustains until key released) ───
-          const expressiveEngine = getExpressiveEngine();
-          expressiveEngine.noteOn(toneNote, selectedTrack.volume / 100);
+          if (onPlayNote) {
+            onPlayNote(pianoKey.note, pianoKey.octave, 0.5, instrument);
+          } else {
+            const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
+            realisticAudio.playNote(pianoKey.note, pianoKey.octave, 0.5, instrument, 0.8, true, channel?.input);
+          }
 
           // Track keydown timestamp for recording note length
           (window as any).__keyHoldStartTimes = (window as any).__keyHoldStartTimes || {};
-          (window as any).__keyHoldStartTimes[k] = { time: Date.now(), pianoKey, toneNote };
+          (window as any).__keyHoldStartTimes[k] = { time: Date.now(), pianoKey };
 
           // RECORDING MODE - Capture timing!
           if (isRecording) {
@@ -1347,11 +1349,12 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       // Check if this key maps to a piano note
       const noteMapping = KEYBOARD_TO_NOTE[k];
       if (noteMapping) {
-        const toneNote = `${noteMapping.note}${noteMapping.octave}`;
-
-        // ─── EXPRESSIVE ENGINE: NoteOff (triggers Release phase) ───
-        const expressiveEngine = getExpressiveEngine();
-        expressiveEngine.noteOff(toneNote);
+        const instrument = selectedTrack?.instrument || 'piano';
+        if (onPlayNoteOff) {
+          onPlayNoteOff(noteMapping.note, noteMapping.octave, instrument);
+        } else {
+          realisticAudio.noteOff(noteMapping.note, noteMapping.octave, instrument);
+        }
 
         // ─── RECORDING: Calculate note length from hold duration ───
         const holdData = (window as any).__keyHoldStartTimes?.[k];
@@ -1383,7 +1386,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast]);
+  }, [handlePlay, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, onPlayNote, onPlayNoteOff]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
     setTracks(prev => {
