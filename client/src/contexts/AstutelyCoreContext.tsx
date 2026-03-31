@@ -15,6 +15,14 @@ import {
   type ReactNode,
 } from 'react';
 import type { SelfListenReport } from '@/organism/audio/types';
+import { OrganismMode, type PhysicsState } from '@/organism/physics/types';
+import {
+  astutelyOrganismBridge,
+  type OrganismStateSnapshot,
+} from '@/lib/astutelyOrganismBridge';
+import { astutelyMixerBridge, type MixerSnapshot, type GenreMixPreset, type EQBand } from '@/lib/astutelyMixerBridge';
+import { AstutelyDecisionLoop, type DecisionResult } from '@/lib/astutelyDecisionLoop';
+import { astutelyGenreEnforcer, type GenreProfile } from '@/lib/astutelyGenreEnforcer';
 import { useTransport } from '@/contexts/TransportContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import type { TrackClip } from '@/types/studioTracks';
@@ -112,8 +120,6 @@ export interface AstutelyCoreValue {
 
   // ── Navigation ──
   navigateTo: (target: NavigationTarget, detail?: Record<string, unknown>) => void;
-  openAstutelyPanel: () => void;
-  closeAstutelyPanel: () => void;
 
   // ── Song Library ──
   routeToStems: (songName: string, songUrl: string) => void;
@@ -136,6 +142,37 @@ export interface AstutelyCoreValue {
   // ── Audio Intelligence (WebEar-powered ears) ──
   /** Latest self-listen report from the Organism — null if not running. */
   latestAudioReport: SelfListenReport | null;
+
+  // ── Organism Brain Control (bidirectional bridge) ──
+  organismPhysicsState: PhysicsState | null;
+  organismCurrentState: OrganismStateSnapshot | null;
+  organismIsRunning: boolean;
+  organismLockMode: (mode: OrganismMode) => void;
+  organismUnlockMode: () => void;
+  organismSetBpm: (bpm: number) => void;
+  organismForceState: (state: string) => void;
+  organismSetGeneratorVolume: (generator: 'bass' | 'melody' | 'hatDensity' | 'kickVelocity' | 'texture', volume: number) => void;
+  organismSetTextureEnabled: (enabled: boolean) => void;
+  organismQuickStart: (presetId: string) => void;
+
+  // ── Mixer Control ──
+  getMixerSnapshot: () => MixerSnapshot;
+  setMixerChannelVolume: (channelId: string, volume: number) => void;
+  setMixerChannelPan: (channelId: string, pan: number) => void;
+  setMixerChannelEQ: (channelId: string, band: EQBand, gain: number) => void;
+  setMixerMasterLevel: (level: number) => void;
+  applyMixerPreset: (preset: GenreMixPreset) => void;
+
+  // ── Auto-Mix Decision Loop ──
+  autoMixEnabled: boolean;
+  setAutoMixEnabled: (enabled: boolean) => void;
+  lastDecisionResult: DecisionResult | null;
+
+  // ── Genre Enforcement ──
+  activeGenre: GenreProfile | null;
+  availableGenres: GenreProfile[];
+  setGenre: (genreId: string) => void;
+  clearGenre: () => void;
 }
 
 const AstutelyCoreContext = createContext<AstutelyCoreValue | undefined>(undefined);
@@ -676,13 +713,6 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     dispatchAstutelyCommand('navigate', { target, ...detail });
   }, []);
 
-  const openAstutelyPanel = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('astutely:open-panel'));
-  }, []);
-
-  const closeAstutelyPanel = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('astutely:close-panel'));
-  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SONG LIBRARY ROUTING
@@ -768,18 +798,161 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // AUDIO INTELLIGENCE — WebEar-powered ears for Astutely
+  // ORGANISM BRAIN BRIDGE — Bidirectional event bridge for full control
   // ═══════════════════════════════════════════════════════════════════════════
 
+  const [organismPhysicsState, setOrganismPhysicsState] = useState<PhysicsState | null>(null);
+  const [organismCurrentState, setOrganismCurrentState] = useState<OrganismStateSnapshot | null>(null);
+  const [organismIsRunning, setOrganismIsRunning] = useState(false);
   const [latestAudioReport, setLatestAudioReport] = useState<SelfListenReport | null>(null);
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const report = (e as CustomEvent).detail as SelfListenReport;
-      setLatestAudioReport(report);
-    };
-    window.addEventListener('organism:self-listen-report', handler);
-    return () => window.removeEventListener('organism:self-listen-report', handler);
+    astutelyOrganismBridge.connect();
+    const unsub = astutelyOrganismBridge.subscribe((bridgeState) => {
+      setOrganismPhysicsState(bridgeState.physicsState);
+      setOrganismCurrentState(bridgeState.organismState);
+      setOrganismIsRunning(bridgeState.isRunning);
+      setLatestAudioReport(bridgeState.selfListenReport);
+    });
+    return () => { unsub(); astutelyOrganismBridge.disconnect(); };
+  }, []);
+
+  const organismLockMode = useCallback((mode: OrganismMode) => {
+    astutelyOrganismBridge.lockMode(mode);
+  }, []);
+
+  const organismUnlockMode = useCallback(() => {
+    astutelyOrganismBridge.unlockMode();
+  }, []);
+
+  const organismSetBpm = useCallback((bpm: number) => {
+    astutelyOrganismBridge.setBpm(bpm);
+  }, []);
+
+  const organismForceState = useCallback((state: string) => {
+    astutelyOrganismBridge.forceState(state);
+  }, []);
+
+  const organismSetGeneratorVolume = useCallback((generator: 'bass' | 'melody' | 'hatDensity' | 'kickVelocity' | 'texture', volume: number) => {
+    astutelyOrganismBridge.setGeneratorVolume(generator, volume);
+  }, []);
+
+  const organismSetTextureEnabled = useCallback((enabled: boolean) => {
+    astutelyOrganismBridge.setTextureEnabled(enabled);
+  }, []);
+
+  const organismQuickStart = useCallback((presetId: string) => {
+    astutelyOrganismBridge.quickStart(presetId);
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MIXER CONTROL
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const getMixerSnapshot = useCallback(() => {
+    return astutelyMixerBridge.getSnapshot();
+  }, []);
+
+  const setMixerChannelVolume = useCallback((channelId: string, volume: number) => {
+    astutelyMixerBridge.setChannelVolume(channelId, volume);
+  }, []);
+
+  const setMixerChannelPan = useCallback((channelId: string, pan: number) => {
+    astutelyMixerBridge.setChannelPan(channelId, pan);
+  }, []);
+
+  const setMixerChannelEQ = useCallback((channelId: string, band: EQBand, gain: number) => {
+    astutelyMixerBridge.setChannelEQ(channelId, band, gain);
+  }, []);
+
+  const setMixerMasterLevel = useCallback((level: number) => {
+    astutelyMixerBridge.setMasterLevel(level);
+  }, []);
+
+  const applyMixerPreset = useCallback((preset: GenreMixPreset) => {
+    astutelyMixerBridge.applyGenrePreset(preset);
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUTO-MIX DECISION LOOP
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const decisionLoopRef = useRef(new AstutelyDecisionLoop());
+  const [autoMixEnabled, setAutoMixEnabledState] = useState(false);
+  const [lastDecisionResult, setLastDecisionResult] = useState<DecisionResult | null>(null);
+
+  const setAutoMixEnabled = useCallback((enabled: boolean) => {
+    setAutoMixEnabledState(enabled);
+    if (enabled) {
+      decisionLoopRef.current.enable();
+    } else {
+      decisionLoopRef.current.disable();
+    }
+  }, []);
+
+  // React to SelfListenReport changes — feed the decision loop
+  useEffect(() => {
+    if (!latestAudioReport || !autoMixEnabled) return;
+    const result = decisionLoopRef.current.evaluate(latestAudioReport, organismPhysicsState);
+    if (result.log.length > 0) {
+      setLastDecisionResult(result);
+    }
+  }, [latestAudioReport, autoMixEnabled, organismPhysicsState]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENRE ENFORCEMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const [activeGenre, setActiveGenreState] = useState<GenreProfile | null>(null);
+  const availableGenres = useMemo(() => astutelyGenreEnforcer.getAvailableGenres(), []);
+
+  const setGenre = useCallback((genreId: string) => {
+    const plan = astutelyGenreEnforcer.enforce(genreId);
+    if (!plan) return;
+
+    // 1. Apply organism commands
+    for (const cmd of plan.organismCommands) {
+      switch (cmd.action) {
+        case 'lockMode':
+          astutelyOrganismBridge.lockMode(cmd.value as OrganismMode);
+          break;
+        case 'setBpm':
+          astutelyOrganismBridge.setBpm(cmd.value as number);
+          break;
+        case 'setTextureEnabled':
+          astutelyOrganismBridge.setTextureEnabled(cmd.value as boolean);
+          break;
+        case 'setGeneratorVolume':
+          if (cmd.generator) {
+            astutelyOrganismBridge.setGeneratorVolume(
+              cmd.generator as 'bass' | 'melody' | 'hatDensity' | 'kickVelocity' | 'texture',
+              cmd.value as number,
+            );
+          }
+          break;
+      }
+    }
+
+    // 2. Apply mixer preset
+    for (const cmd of plan.mixerCommands) {
+      astutelyMixerBridge.applyGenrePreset(cmd.args[0]);
+    }
+
+    // 3. Tell decision loop about genre
+    decisionLoopRef.current.setGenre(genreId);
+
+    // 4. Update state
+    setActiveGenreState(plan.genre);
+
+    dispatchAstutelyEvent('genre-enforced', { genreId, genre: plan.genre.label });
+  }, []);
+
+  const clearGenre = useCallback(() => {
+    astutelyGenreEnforcer.clearGenre();
+    astutelyOrganismBridge.unlockMode();
+    decisionLoopRef.current.setGenre(null);
+    setActiveGenreState(null);
+    dispatchAstutelyEvent('genre-cleared', {});
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -828,8 +1001,6 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
 
     // Navigation
     navigateTo,
-    openAstutelyPanel,
-    closeAstutelyPanel,
 
     // Song Library
     routeToStems,
@@ -851,6 +1022,37 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
 
     // Audio Intelligence
     latestAudioReport,
+
+    // Organism Brain Control
+    organismPhysicsState,
+    organismCurrentState,
+    organismIsRunning,
+    organismLockMode,
+    organismUnlockMode,
+    organismSetBpm,
+    organismForceState,
+    organismSetGeneratorVolume,
+    organismSetTextureEnabled,
+    organismQuickStart,
+
+    // Mixer Control
+    getMixerSnapshot,
+    setMixerChannelVolume,
+    setMixerChannelPan,
+    setMixerChannelEQ,
+    setMixerMasterLevel,
+    applyMixerPreset,
+
+    // Auto-Mix
+    autoMixEnabled,
+    setAutoMixEnabled,
+    lastDecisionResult,
+
+    // Genre Enforcement
+    activeGenre,
+    availableGenres,
+    setGenre,
+    clearGenre,
   }), [
     isGeneratingPattern,
     isGeneratingAudio,
@@ -878,8 +1080,6 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     muteTrack,
     removeTrack,
     navigateTo,
-    openAstutelyPanel,
-    closeAstutelyPanel,
     routeToStems,
     routeToMixer,
     importAudioTrack,
@@ -891,6 +1091,29 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     stopOrganism,
     captureOrganism,
     latestAudioReport,
+    organismPhysicsState,
+    organismCurrentState,
+    organismIsRunning,
+    organismLockMode,
+    organismUnlockMode,
+    organismSetBpm,
+    organismForceState,
+    organismSetGeneratorVolume,
+    organismSetTextureEnabled,
+    organismQuickStart,
+    getMixerSnapshot,
+    setMixerChannelVolume,
+    setMixerChannelPan,
+    setMixerChannelEQ,
+    setMixerMasterLevel,
+    applyMixerPreset,
+    autoMixEnabled,
+    setAutoMixEnabled,
+    lastDecisionResult,
+    activeGenre,
+    availableGenres,
+    setGenre,
+    clearGenre,
   ]);
 
   return (

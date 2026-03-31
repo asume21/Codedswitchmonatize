@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, LayoutList, ArrowRight, Music2, Play, Volume2, VolumeX, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 
 interface TrackState {
   active: boolean;
@@ -65,6 +65,7 @@ export default function AIArrangementBuilder({
   const [genre, setGenre] = useState('pop');
   const [mood, setMood] = useState('energetic');
   const [duration, setDuration] = useState(3);
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const { toast } = useToast();
 
   const generateArrangement = useCallback(async () => {
@@ -104,9 +105,9 @@ export default function AIArrangementBuilder({
         // Also generate real AI audio for the arrangement
         try {
           toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${genre} arrangement via AI...` });
-          const audioResult = await astutelyGenerateAudio(genre, { bpm, key });
+          const audioResult = await generateRealAudio(genre, { bpm, key });
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }

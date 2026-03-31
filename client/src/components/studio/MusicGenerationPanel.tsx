@@ -11,9 +11,20 @@ import { useToast } from '@/hooks/use-toast';
 import { Wand2, Music, DollarSign, Piano, Play, Pause, Square, Activity, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
-import { requestAstutelyPattern, mapGenreToAstutelyStyle } from '@/lib/astutelyBridge';
-import { astutelyToNotes, midiToNoteOctave, astutelyGenerateAudio } from '@/lib/astutelyEngine';
+import { astutelyToNotes, midiToNoteOctave } from '@/lib/astutelyEngine';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
+
+function mapGenreToAstutelyStyle(genre: string): string {
+  const map: Record<string, string> = {
+    'Hip-Hop': 'Travis Scott rage', 'Trap': 'Travis Scott rage',
+    'R&B': 'The Weeknd dark', 'Pop': 'Drake smooth',
+    'K-Pop': 'K-pop cute', 'Lo-fi': 'Lo-fi chill',
+    'EDM': 'Future bass', 'Afrobeats': 'Afrobeats bounce',
+    'Latin': 'Latin trap', 'Phonk': 'Phonk drift',
+    'Hyperpop': 'Hyperpop glitch',
+  };
+  return map[genre] || genre;
+}
 
 interface DiagnosticEvent {
   id: string;

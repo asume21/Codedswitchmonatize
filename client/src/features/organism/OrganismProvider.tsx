@@ -17,7 +17,7 @@ import { AudioFileSource }       from '../../organism/input/AudioFileSource'
 import { AutoGenerateSource }    from '../../organism/input/AutoGenerateSource'
 import type { InputSource, InputSourceType } from '../../organism/input/types'
 
-import type { PhysicsState }    from '../../organism/physics/types'
+import { OrganismMode, type PhysicsState } from '../../organism/physics/types'
 import type { OrganismState }   from '../../organism/state/types'
 import type { MixMeterReading } from '../../organism/mix/types'
 import type { SessionDNA }      from '../../organism/session/types'
@@ -965,6 +965,54 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         case 'stop-recording':
           stopRecording()
           break
+
+        // ── Extended commands for Astutely brain integration ──────────────
+        case 'lock-mode': {
+          const mode = (detail as Record<string, unknown>).mode as OrganismMode | undefined
+          if (mode && physicsRef.current) physicsRef.current.lockMode(mode)
+          break
+        }
+        case 'unlock-mode':
+          physicsRef.current?.unlockMode()
+          break
+        case 'set-bpm': {
+          const bpm = (detail as Record<string, unknown>).bpm as number | undefined
+          if (bpm && orchestrRef.current) orchestrRef.current.setBpm(bpm)
+          break
+        }
+        case 'force-state': {
+          const targetState = (detail as Record<string, unknown>).state as string | undefined
+          const physics = physicsRef.current?.getLastState?.()
+          if (targetState && stateMachRef.current && physics) {
+            const stateMap: Record<string, OState> = {
+              dormant: OState.Dormant,
+              awakening: OState.Awakening,
+              breathing: OState.Breathing,
+              flow: OState.Flow,
+            }
+            const mapped = stateMap[targetState.toLowerCase()]
+            if (mapped !== undefined) stateMachRef.current.forceState(mapped, physics)
+          }
+          break
+        }
+        case 'set-generator-volume': {
+          const { generator, volume } = detail as Record<string, unknown>
+          const orch = orchestrRef.current
+          if (!orch || typeof volume !== 'number') break
+          if (generator === 'bass') orch.setBassVolumeMultiplier(volume)
+          else if (generator === 'melody') orch.setMelodyVolumeMultiplier(volume)
+          else if (generator === 'hatDensity') orch.setHatDensityMultiplier(volume)
+          else if (generator === 'kickVelocity') orch.setKickVelocityMultiplier(volume)
+          else if (generator === 'texture') orch.setTextureVolumeMultiplier(volume)
+          break
+        }
+        case 'set-texture-enabled': {
+          const enabled = (detail as Record<string, unknown>).enabled as boolean | undefined
+          if (typeof enabled === 'boolean' && orchestrRef.current) {
+            orchestrRef.current.setTextureEnabled(enabled)
+          }
+          break
+        }
       }
     }
 

@@ -27,7 +27,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
-import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import SidechainControl from './SidechainControl';
 
 interface ChannelMeterData {
@@ -50,6 +50,7 @@ export default function ProfessionalMixer() {
   const { currentSession, setCurrentSessionId } = useSongWorkSession();
   const { tracks, updateTrack: updateStudioTrack } = useTracks();
   const transport = useTransport();
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
 
   const [location] = useLocation();
   const [uploadedStems, setUploadedStems] = useState<File[]>([]);
@@ -126,9 +127,9 @@ export default function ProfessionalMixer() {
         (async () => {
           try {
             toast({ title: '🎵 Generating Real Audio', description: 'Creating professional master mix via AI...' });
-            const audioResult = await astutelyGenerateAudio('professional mix', { bpm: transport?.tempo || 120 });
+            const audioResult = await generateRealAudio('professional mix', { bpm: transport?.tempo || 120 });
             try {
-              await astutelyPlayAudio(audioResult.audioUrl);
+              await playGeneratedAudio(audioResult.audioUrl);
             } catch (playErr) {
               console.warn('Auto-play blocked:', playErr);
             }

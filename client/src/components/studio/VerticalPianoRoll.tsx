@@ -1095,12 +1095,13 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const pressedKeys = new Set<string>();
 
     const handleKeyDown = (ev: KeyboardEvent) => {
-      // Don't capture if user is typing in an input field
+      // Don't capture if user is typing in an input field or if it's a repeating key event
       if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
+      if (ev.repeat) return; 
       
       const k = ev.key.toLowerCase();
       
-      // Prevent key repeat
+      // Prevent key repeat (redundancy check with ev.repeat)
       if (pressedKeys.has(k)) return;
       pressedKeys.add(k);
 

@@ -28,7 +28,7 @@ import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useStudioSession } from "@/contexts/StudioSessionContext";
 import { useSessionDestination } from "@/contexts/SessionDestinationContext";
 import { Music2, FileMusic, AlertCircle, BookOpen, Sparkles } from "lucide-react";
-import { astutelyGenerateAudio, astutelyPlayAudio } from "@/lib/astutelyEngine";
+import { useAstutelyCore } from "@/contexts/AstutelyCoreContext";
 import { SongUploadPanel } from "./SongUploadPanel";
 import type { Song } from "../../../../shared/schema";
 import { metaphors, type MetaphorEntry } from "@/data/metaphors";
@@ -102,6 +102,7 @@ function autoStructureLyrics(raw: string): string {
 }
 
 export default function LyricLab() {
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const studioContext = useContext(StudioAudioContext);
   const { currentSession, setCurrentSessionId, createSession } = useSongWorkSession();
   const studioSession = useStudioSession();
@@ -621,11 +622,11 @@ export default function LyricLab() {
             title: "🎵 Generating Real Audio",
             description: `Creating professional ${genre} beat via AI...`,
           });
-          const audioResult = await astutelyGenerateAudio(genre, {
+          const audioResult = await generateRealAudio(genre, {
             prompt: `${genre} beat matching lyrics`,
           });
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn("Auto-play blocked:", playErr);
           }

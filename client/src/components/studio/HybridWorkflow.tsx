@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Play, Pause, Square, RotateCcw, Sparkles, Edit3, Download, Upload } from 'lucide-react';
-import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 
 interface HybridProject {
   id: string;
@@ -44,6 +44,7 @@ interface MixedElement {
 }
 
 export default function HybridWorkflow() {
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const { toast } = useToast();
   const [activeProject, setActiveProject] = useState<HybridProject | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -79,9 +80,9 @@ export default function HybridWorkflow() {
       (async () => {
         try {
           toast({ title: '🎵 Generating Real Audio', description: 'Creating professional beat audio via AI...' });
-          const audioResult = await astutelyGenerateAudio(beat?.style || 'Hip-Hop', { bpm: beat?.bpm || 120 });
+          const audioResult = await generateRealAudio(beat?.style || 'Hip-Hop', { bpm: beat?.bpm || 120 });
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }
@@ -121,9 +122,9 @@ export default function HybridWorkflow() {
       (async () => {
         try {
           toast({ title: '🎵 Generating Real Audio', description: 'Creating professional melody audio via AI...' });
-          const audioResult = await astutelyGenerateAudio(melody?.style || 'Lo-fi chill', {});
+          const audioResult = await generateRealAudio(melody?.style || 'Lo-fi chill', {});
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }

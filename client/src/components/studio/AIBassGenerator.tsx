@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { useMIDI } from '@/hooks/use-midi';
-import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
@@ -27,6 +27,7 @@ interface BassGeneratorProps {
 const BASS_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm: propBpm, musicalKey: propKey }: BassGeneratorProps) {
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [bassStyle, setBassStyle] = useState('808');
   const [patternType, setPatternType] = useState('root-fifth');
@@ -622,9 +623,9 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm
       (async () => {
         try {
           toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${bassStyle} bass via AI...` });
-          const audioResult = await astutelyGenerateAudio(`${bassStyle} bass`, {});
+          const audioResult = await generateRealAudio(`${bassStyle} bass`, {});
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }

@@ -9,7 +9,7 @@ import { Loader2, Sparkles, Music, Drum, Guitar, Piano, Mic2, Wand2, RefreshCw, 
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { professionalAudio } from '@/lib/professionalAudio';
-import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 
 interface AILoopGeneratorProps {
   currentBpm?: number;
@@ -132,6 +132,7 @@ export default function AILoopGenerator({
   onClose 
 }: AILoopGeneratorProps) {
   const { toast } = useToast();
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingType, setGeneratingType] = useState<string | null>(null);
   
@@ -293,9 +294,9 @@ export default function AILoopGenerator({
         // Also generate real AI audio
         try {
           toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${genre} loop via AI...` });
-          const audioResult = await astutelyGenerateAudio(genre, { bpm, key });
+          const audioResult = await generateRealAudio(genre, { bpm, key });
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }

@@ -3,22 +3,26 @@
 // A conversational AI assistant that can chat, generate beats, analyze audio, and CONTROL THE ENTIRE DAW
 // Connected to: TrackStore, Transport, SongWorkSession, StudioAudio, GlobalSystems
 
-import { useState, useRef, useEffect, useLayoutEffect, useContext, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useContext, useCallback, lazy, Suspense } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search, MoveDiagonal2 } from 'lucide-react';
+import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search, MoveDiagonal2, Brain, Palette } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { astutelyGenerate, astutelyToNotes, astutelyGenerateAudio, astutelyPlayAudio, stopActiveAstutelyAudio, getActiveAstutelyAudio, type AstutelyResult } from '@/lib/astutelyEngine';
+import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { StudioAudioContext } from '@/pages/studio';
 import { globalSystems, globalAI, globalAudio } from '@/lib/globalSystems';
 import { AstroHUD } from './AstroHUD';
+import AstutelyBrainContent from '@/components/studio/AstutelyBrainPanel';
+
+type AstutelyTab = 'chat' | 'brain' | 'create';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -87,6 +91,9 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   
   // Studio Audio Context - patterns, melodies, lyrics, uploaded songs
   const studioContext = useContext(StudioAudioContext);
+
+  // Astutely Core - organism controls routed through context
+  const { startOrganism, stopOrganism, captureOrganism, generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   
   // Fetch uploaded songs from library
   const { data: uploadedSongs = [] } = useQuery<any[]>({
@@ -145,6 +152,7 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   };
 
   const savedState = getSavedState();
+  const [activeTab, setActiveTab] = useState<AstutelyTab>('chat');
   const [isMinimized, setIsMinimized] = useState(savedState.isMinimized);
   const [position, setPosition] = useState({ x: savedState.x, y: savedState.y });
   const [panelSize, setPanelSize] = useState<{ width: number; height: number }>({ width: savedState.width, height: savedState.height });
@@ -409,7 +417,7 @@ Try: "play", "make a drill beat", or "analyze my project".`,
         const style = randomStyles[Math.floor(Math.random() * randomStyles.length)];
         
         // Generate MIDI pattern for tracks
-        const result = await astutelyGenerate(style);
+        const result = await generatePattern({ style });
         const notes = astutelyToNotes(result);
         
         // Update BPM to match generated beat
@@ -453,12 +461,12 @@ Try: "play", "make a drill beat", or "analyze my project".`,
         let audioInfo = { provider: 'synth', audioUrl: '' };
         try {
           toast({ title: '🎵 Generating audio...', description: 'Creating real audio with AI' });
-          const audioResult = await astutelyGenerateAudio(style, { bpm: result.bpm, key: result.key });
+          const audioResult = await generateRealAudio(style, { bpm: result.bpm, key: result.key });
           audioInfo = audioResult;
           
           // Play the generated audio immediately
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Autoplay blocked, audio player will be shown in chat:', playErr);
           }
@@ -566,7 +574,7 @@ What would you like to do?`,
         setMessages(prev => [...prev, assistantMessage]);
 
       } else if (action === 'melody') {
-        const result = await astutelyGenerate('Lo-fi chill');
+        const result = await generatePattern({ style: 'Lo-fi chill' });
         const notes = astutelyToNotes(result);
         const melodyNotes = notes.filter(n => n.trackType === 'melody');
         
@@ -582,10 +590,10 @@ What would you like to do?`,
         let audioInfo = { provider: 'synth', audioUrl: '' };
         try {
           toast({ title: '🎵 Generating audio...', description: 'Creating real melody audio with AI' });
-          const audioResult = await astutelyGenerateAudio('Lo-fi chill', { bpm: result.bpm, key: result.key });
+          const audioResult = await generateRealAudio('Lo-fi chill', { bpm: result.bpm, key: result.key });
           audioInfo = audioResult;
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Autoplay blocked:', playErr);
           }
@@ -708,9 +716,7 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
       
       // ORGANISM / FREESTYLE COMMANDS
       if (lowerInput.includes('start listening') || lowerInput.includes('freestyle mode') || lowerInput.includes('start freestyle') || lowerInput.includes('start organism')) {
-        window.dispatchEvent(new CustomEvent('organism:command', {
-          detail: { action: 'start', inputSource: 'mic' },
-        }));
+        startOrganism('mic');
         const assistantMessage: Message = {
           role: 'assistant',
           content: `🎤 **Freestyle Mode Activated**\n\nThe Organism is now listening to your mic. Start freestyling — the beat will follow your flow, cadence, and energy in real-time.\n\n- Say **"stop listening"** when you're done\n- Say **"capture that"** to save the session\n- Your lyrics are being transcribed live`,
@@ -722,9 +728,7 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
       }
 
       if (lowerInput.includes('stop listening') || lowerInput.includes('stop freestyle') || lowerInput.includes('stop organism')) {
-        window.dispatchEvent(new CustomEvent('organism:command', {
-          detail: { action: 'stop' },
-        }));
+        stopOrganism();
         const assistantMessage: Message = {
           role: 'assistant',
           content: `⏹️ **Freestyle Stopped**\n\nThe Organism has stopped listening. Your lyrics were captured — use the **Copy Lyrics** or **Export .txt** buttons on the Organism page to save them.`,
@@ -735,9 +739,7 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
       }
 
       if (lowerInput.includes('capture that') || lowerInput.includes('capture session') || lowerInput.includes('save session')) {
-        window.dispatchEvent(new CustomEvent('organism:command', {
-          detail: { action: 'capture' },
-        }));
+        captureOrganism();
         const assistantMessage: Message = {
           role: 'assistant',
           content: `💾 **Session Captured**\n\nYour freestyle session DNA has been saved. Check the sidebar for details — mode, BPM, flow %, energy profile, and more.`,
@@ -932,7 +934,7 @@ Say "list songs" to see your uploaded songs.`,
           : 'Drake smooth';
           
         // Pass the user's FULL message as the prompt — this is what the AI uses to pick instruments
-        const result = await astutelyGenerate({
+        const result = await generatePattern({
           style,
           prompt: currentInput,
         });
@@ -952,14 +954,14 @@ Say "list songs" to see your uploaded songs.`,
         let audioInfo = { provider: 'synth', audioUrl: '' };
         try {
           toast({ title: '🎵 Generating audio...', description: 'Creating real audio with AI' });
-          const audioResult = await astutelyGenerateAudio(style, { 
+          const audioResult = await generateRealAudio(style, { 
             prompt: currentInput, 
             bpm: result.bpm, 
             key: result.key 
           });
           audioInfo = audioResult;
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Autoplay blocked, audio player will be shown in chat:', playErr);
           }
@@ -1151,7 +1153,55 @@ Be concise, friendly, and direct. Skip formalities.`,
             </div>
           </CardHeader>
 
-          <CardContent className="p-0 flex flex-col" style={{ height: `${Math.max(panelSize.height - 85, MIN_HEIGHT - 85)}px` }}>
+          {/* ── Tab Bar ─────────────────────────────────────────── */}
+          <div className="flex border-b border-cyan-500/20 bg-cyan-950/30">
+            {([
+              { id: 'chat' as const, label: 'Chat', icon: Cpu },
+              { id: 'brain' as const, label: 'Brain', icon: Brain },
+              { id: 'create' as const, label: 'Create', icon: Palette },
+            ]).map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 bg-transparent cursor-pointer ${
+                  activeTab === tab.id
+                    ? 'border-cyan-400 text-cyan-300 bg-cyan-500/10'
+                    : 'border-transparent text-white/40 hover:text-white/70 hover:bg-white/5'
+                }`}
+              >
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <CardContent className="p-0 flex flex-col" style={{ height: `${Math.max(panelSize.height - 125, MIN_HEIGHT - 125)}px` }}>
+
+            {/* ═══ BRAIN TAB ═══════════════════════════════════════ */}
+            {activeTab === 'brain' && (
+              <div className="flex-1 overflow-y-auto">
+                <AstutelyBrainContent />
+              </div>
+            )}
+
+            {/* ═══ CREATE TAB ══════════════════════════════════════ */}
+            {activeTab === 'create' && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <AstutelyCreateContent
+                  onBeatGenerated={onBeatGenerated}
+                  toast={toast}
+                  transport={transport}
+                  studioContext={studioContext}
+                  tracks={tracks}
+                  addTrack={addTrack}
+                  saveTrackToServer={saveTrackToServer}
+                />
+              </div>
+            )}
+
+            {/* ═══ CHAT TAB ════════════════════════════════════════ */}
+            {activeTab === 'chat' && <>
             {/* HOLOGRAPHIC ASTRO-HUD */}
             <div className="p-5 bg-gradient-to-b from-cyan-950/30 to-transparent relative overflow-hidden group/hud">
               {/* Dynamic Grid Background for HUD area */}
@@ -1492,6 +1542,7 @@ Be concise, friendly, and direct. Skip formalities.`,
                 </div>
               </div>
             </div>
+            </>}
           </CardContent>
 
           <div className="absolute bottom-3 right-3 flex items-end gap-2">
@@ -1512,5 +1563,299 @@ Be concise, friendly, and direct. Skip formalities.`,
         </Card>
       </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CREATE TAB — Beat generation (replaces standalone AstutelyPanel)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const createStyles = [
+  { name: "Travis Scott rage", preview: "808s + dark pads" },
+  { name: "The Weeknd dark", preview: "Glassy synths + vocal chops" },
+  { name: "Drake smooth", preview: "Soft piano + trap hats" },
+  { name: "K-pop cute", preview: "Bright plucks + bubbly synth" },
+  { name: "Phonk drift", preview: "Cowbell + slowed reverb" },
+  { name: "Future bass", preview: "Wobble bass + supersaw chords" },
+  { name: "Lo-fi chill", preview: "Vinyl crackle + jazz chords" },
+  { name: "Hyperpop glitch", preview: "Chopped vocals + sidechain" },
+  { name: "Afrobeats bounce", preview: "Log drums + highlife guitar" },
+  { name: "Latin trap", preview: "Dem bow rhythm + reggaeton keys" },
+];
+
+function AstutelyCreateContent({
+  onBeatGenerated,
+  toast,
+  transport,
+  studioContext,
+  tracks,
+  addTrack,
+  saveTrackToServer,
+}: {
+  onBeatGenerated?: (result: AstutelyResult) => void;
+  toast: ReturnType<typeof import('@/hooks/use-toast').useToast>['toast'];
+  transport: ReturnType<typeof import('@/contexts/TransportContext').useTransport>;
+  studioContext: any;
+  tracks: any[];
+  addTrack: (t: any) => void;
+  saveTrackToServer: (t: any) => Promise<any>;
+}) {
+  const { generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
+  const [selectedStyle, setSelectedStyle] = useState(createStyles[0]);
+  const [query, setQuery] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [audioProvider, setAudioProvider] = useState<string | null>(null);
+  const [isPlayingGenerated, setIsPlayingGenerated] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const generatedAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    setProgress(0);
+    setAudioError(null);
+
+    toast({ title: 'Generating', description: `Creating ${selectedStyle.name} beat...` });
+
+    const interval = setInterval(() => {
+      setProgress(p => Math.min(p + 8, 90));
+    }, 400);
+
+    try {
+      const result = await generatePattern({
+        style: selectedStyle.name,
+        prompt: query.trim() || undefined,
+      });
+      const notes = astutelyToNotes(result);
+
+      transport.setTempo(result.bpm);
+      if (studioContext?.setBpm) studioContext.setBpm(result.bpm);
+
+      if (onBeatGenerated) onBeatGenerated(result);
+
+      // Add tracks
+      const trackTypes = ['drums', 'bass', 'chords', 'melody'] as const;
+      for (const type of trackTypes) {
+        const typeNotes = notes.filter(n => n.trackType === type);
+        if (typeNotes.length > 0) {
+          const trackData = {
+            id: `ai-${type}-${Date.now()}`,
+            name: `Astutely ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+            kind: type === 'drums' ? 'beat' : 'midi',
+            lengthBars: 4,
+            startBar: 0,
+            payload: {
+              type: type === 'drums' ? 'beat' : 'midi',
+              notes: typeNotes,
+              bpm: result.bpm,
+              source: 'astutely',
+              color: type === 'drums' ? '#ef4444' : type === 'bass' ? '#f59e0b' : type === 'chords' ? '#8b5cf6' : '#3b82f6',
+              volume: 0.8,
+              pan: 0,
+            },
+          };
+          addTrack(trackData);
+          await saveTrackToServer(trackData);
+        }
+      }
+
+      // Try generating real audio
+      let audioInfo = { provider: 'synth', audioUrl: '' };
+      try {
+        const audioResult = await generateRealAudio(selectedStyle.name, {
+          prompt: query.trim() || undefined,
+          bpm: result.bpm,
+          key: result.key,
+        });
+        audioInfo = audioResult;
+        setGeneratedAudioUrl(audioResult.audioUrl);
+        setAudioProvider(audioResult.provider);
+        try { await playGeneratedAudio(audioResult.audioUrl); } catch {}
+      } catch {}
+
+      clearInterval(interval);
+      setProgress(100);
+
+      const drumCount = notes.filter(n => n.trackType === 'drums').length;
+      const bassCount = notes.filter(n => n.trackType === 'bass').length;
+      const chordCount = notes.filter(n => n.trackType === 'chords').length;
+      const melodyCount = notes.filter(n => n.trackType === 'melody').length;
+
+      toast({
+        title: 'Beat Generated!',
+        description: `${result.style} at ${result.bpm} BPM — ${drumCount} drums, ${bassCount} bass, ${chordCount} chords, ${melodyCount} melody`,
+      });
+
+      transport.seek(0);
+      transport.play();
+    } catch (error) {
+      clearInterval(interval);
+      setProgress(0);
+      setAudioError(error instanceof Error ? error.message : 'Generation failed');
+      toast({ title: 'Failed', description: 'Beat generation encountered an error.', variant: 'destructive' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateAudioOnly = async () => {
+    setIsGenerating(true);
+    setAudioError(null);
+    setGeneratedAudioUrl(null);
+
+    toast({ title: 'Generating Audio', description: `Creating ${selectedStyle.name} audio track...` });
+
+    try {
+      const audioResult = await generateRealAudio(selectedStyle.name, {
+        prompt: query.trim() || undefined,
+        bpm: transport.tempo || undefined,
+        key: studioContext?.currentKey || undefined,
+      });
+      setGeneratedAudioUrl(audioResult.audioUrl);
+      setAudioProvider(audioResult.provider);
+      toast({ title: 'Audio Ready', description: `Generated by ${audioResult.provider}` });
+    } catch (error: any) {
+      setAudioError(error?.message || 'Audio generation failed');
+      toast({ title: 'Audio Failed', description: error?.message || 'Audio generation failed', variant: 'destructive' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleToggleAudio = async () => {
+    if (!generatedAudioUrl) return;
+    if (isPlayingGenerated && generatedAudioRef.current) {
+      generatedAudioRef.current.pause();
+      setIsPlayingGenerated(false);
+      return;
+    }
+    try {
+      window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+      const audio = new Audio(generatedAudioUrl);
+      generatedAudioRef.current = audio;
+      setIsPlayingGenerated(true);
+      audio.onended = () => setIsPlayingGenerated(false);
+      audio.onpause = () => setIsPlayingGenerated(false);
+      await audio.play();
+    } catch {
+      toast({ title: 'Playback Error', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <>
+      {/* Style Grid */}
+      <div className="grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
+        {createStyles.map(style => (
+          <button
+            key={style.name}
+            type="button"
+            onClick={() => setSelectedStyle(style)}
+            disabled={isGenerating}
+            className={`p-3 rounded-xl text-left transition-all cursor-pointer ${
+              selectedStyle.name === style.name
+                ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-100 shadow-lg'
+                : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white/80'
+            }`}
+          >
+            <div className="text-xs font-bold">{style.name}</div>
+            <div className="text-[10px] text-white/50 mt-0.5">{style.preview}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Freeform Prompt */}
+      <div>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="e.g. 'Add 808 slides and dark pads'"
+          className="w-full p-3 bg-black/40 border border-cyan-500/30 rounded-xl text-white text-xs placeholder-white/30 focus:outline-none focus:border-cyan-400"
+          disabled={isGenerating}
+        />
+      </div>
+
+      {/* Progress */}
+      {isGenerating && (
+        <div>
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-center text-[10px] text-white/50 mt-1">
+            {progress < 100 ? `Generating... ${progress}%` : 'Adding to timeline...'}
+          </p>
+        </div>
+      )}
+
+      {/* Generate Buttons */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={isGenerating}
+          className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-purple-600 rounded-xl font-bold text-xs text-white hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+        >
+          <Music className="w-4 h-4" />
+          Pattern + Audio
+        </button>
+        <button
+          type="button"
+          onClick={handleGenerateAudioOnly}
+          disabled={isGenerating}
+          className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-xl font-bold text-xs text-white hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+        >
+          <Volume2 className="w-4 h-4" />
+          Audio Only
+        </button>
+      </div>
+
+      {/* Audio Player */}
+      {generatedAudioUrl && (
+        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-emerald-400 font-bold text-xs flex items-center gap-1.5">
+                <Volume2 className="w-3.5 h-3.5" />
+                AI Audio Ready
+              </p>
+              <p className="text-[10px] text-white/40">via {audioProvider || 'AI'}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleToggleAudio}
+              className={`flex-1 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                isPlayingGenerated
+                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              }`}
+            >
+              {isPlayingGenerated ? <><Pause className="w-3.5 h-3.5" /> Pause</> : <><Play className="w-3.5 h-3.5" /> Play</>}
+            </button>
+            <a
+              href={generatedAudioUrl}
+              download={`${selectedStyle.name.replace(/\s+/g, '-').toLowerCase()}-beat.mp3`}
+              className="py-2 px-3 rounded-lg bg-white/10 border border-white/20 text-white/70 text-xs font-bold hover:bg-white/20 transition-all"
+            >
+              Download
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {audioError && !generatedAudioUrl && (
+        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30">
+          <p className="text-red-400 text-xs font-bold">Generation Failed</p>
+          <p className="text-[10px] text-white/40 mt-1">{audioError}</p>
+        </div>
+      )}
+    </>
   );
 }

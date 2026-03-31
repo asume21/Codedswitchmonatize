@@ -63,7 +63,6 @@ import 'react-resizable/css/styles.css';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 import { getTimelineRecorder, type RecorderState } from '@/lib/timelineRecorder';
 import AudioDetector from './AudioDetector';
-import AstutelyPanel from '../ai/AstutelyPanel';
 import AstutelyChatbot from '../ai/AstutelyChatbot';
 import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { Zap, Sparkles } from 'lucide-react';
@@ -611,7 +610,6 @@ export default function UnifiedStudioWorkspace() {
   }, []);
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [showAstutely, setShowAstutely] = useState(false);
-  const [showAstutelyArchitect, setShowAstutelyArchitect] = useState(false);
   const [showAIArrange, setShowAIArrange] = useState(false);
   const [showMusicGen, setShowMusicGen] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
@@ -2946,9 +2944,7 @@ export default function UnifiedStudioWorkspace() {
   };
 
   const handleMusicGenerated = (_audioUrl: string, metadata: any) => {
-    // The astutely:generated event (fired in astutelyBridge.broadcastAstutelyPattern)
-    // already loads the 4 MIDI tracks (drums, bass, chords, melody) into the piano roll.
-    // We only need to close the generation modal here.
+    // Close the generation modal and sync BPM.
     if (metadata?.bpm) {
       setSessionSettings(prev => ({ ...prev, bpm: metadata.bpm }));
     }
@@ -4099,19 +4095,6 @@ export default function UnifiedStudioWorkspace() {
           >
             <Sparkles className="w-4 h-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Astutely Core</span>
-          </Button>
-          <Button
-            onClick={() => setShowAstutelyArchitect(true)}
-            className="h-8 px-2 sm:px-4 font-bold text-white transition-all hover:scale-105 astutely-button"
-            style={{
-              background: 'linear-gradient(135deg, #F59E0B, #EF4444)',
-              boxShadow: '0 0 20px rgba(245, 158, 11, 0.4)'
-            }}
-            size="sm"
-            title="Astutely Beat Architect (Beta)"
-          >
-            <Sparkles className="w-4 h-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Architect</span>
           </Button>
           <Button
             onClick={() => setShowMusicGen(!showMusicGen)}
@@ -5469,14 +5452,6 @@ export default function UnifiedStudioWorkspace() {
       document.body
     )}
 
-    {/* Astutely Panel Overlay */}
-    {showAstutelyArchitect && createPortal(
-      <AstutelyPanel
-        onClose={() => setShowAstutelyArchitect(false)}
-        onGenerated={handleAstutelyResult}
-      />,
-      document.body
-    )}
     </div>
     </WindowManagerProvider>
   );

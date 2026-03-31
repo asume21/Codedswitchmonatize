@@ -34,7 +34,7 @@ import { AstutelyFader, AstutelyKnob, AstutelyMeter } from '@/components/astutel
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { professionalAudio } from '@/lib/professionalAudio';
-import { astutelyGenerateAudio, astutelyPlayAudio } from '@/lib/astutelyEngine';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { audioBufferToWav } from '@/lib/stemExport';
 import { useMIDI } from '@/hooks/use-midi';
 import {
@@ -418,6 +418,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   const { requestDestination } = useSessionDestination();
   const [, setLocation] = useLocation();
   const { lastNote, activeNotes, isConnected: midiConnected, setDrumMode } = useMIDI();
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
 
   // Switch drum mode on/off based on whether Beat Lab is the visible tab.
   // Previously used mount/unmount but Beat Lab is now always-mounted (CSS hidden),
@@ -905,9 +906,9 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
       (async () => {
         try {
           toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${selectedGenre} beat via AI...` });
-          const audioResult = await astutelyGenerateAudio(selectedGenre, { bpm });
+          const audioResult = await generateRealAudio(selectedGenre, { bpm });
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }

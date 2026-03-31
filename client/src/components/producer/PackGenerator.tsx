@@ -20,7 +20,7 @@ import { packSynthesizer } from "@/lib/packAudioSynthesizer";
 import { professionalAudio } from "@/lib/professionalAudio";
 import { getAudioContext } from "@/lib/audioContext";
 import { apiRequest } from "@/lib/queryClient";
-import { astutelyGenerateAudio, astutelyPlayAudio } from "@/lib/astutelyEngine";
+import { useAstutelyCore } from "@/contexts/AstutelyCoreContext";
 
 const PACK_HISTORY_KEY = "pack-generator-history";
 
@@ -217,6 +217,7 @@ function getSamplePlaybackUrl(sample: GeneratedPack['samples'][number]): string 
 }
 
 export default function PackGenerator() {
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const [prompt, setPrompt] = useState("");
   const [packCount, setPackCount] = useState(4);
   const [generatedPacks, setGeneratedPacks] = useState<GeneratedPack[]>([]);
@@ -399,9 +400,9 @@ export default function PackGenerator() {
         try {
           const firstPack = packs[0];
           toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${firstPack?.genre || 'music'} audio via AI...` });
-          const audioResult = await astutelyGenerateAudio(firstPack?.genre || 'Electronic', { bpm: firstPack?.bpm || 120 });
+          const audioResult = await generateRealAudio(firstPack?.genre || 'Electronic', { bpm: firstPack?.bpm || 120 });
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }

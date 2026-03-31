@@ -16,9 +16,10 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
-import { astutelyGenerateAudio, astutelyPlayAudio } from "@/lib/astutelyEngine";
+import { useAstutelyCore } from "@/contexts/AstutelyCoreContext";
 
 export default function CodeToMusic() {
+  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const [language, setLanguage] = useState("javascript");
   const [code, setCode] = useState(`class MelodyGenerator {
     constructor(tempo = 120) {
@@ -233,9 +234,9 @@ export default function CodeToMusic() {
       (async () => {
         try {
           toast({ title: '🎵 Generating Real Audio', description: 'Creating professional audio from compiled code via AI...' });
-          const audioResult = await astutelyGenerateAudio('Electronic', { bpm: 120 });
+          const audioResult = await generateRealAudio('Electronic', { bpm: 120 });
           try {
-            await astutelyPlayAudio(audioResult.audioUrl);
+            await playGeneratedAudio(audioResult.audioUrl);
           } catch (playErr) {
             console.warn('Auto-play blocked:', playErr);
           }
