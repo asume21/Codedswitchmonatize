@@ -55,9 +55,9 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
     }
     lastPlayTimeRef.current = now;
     
-    if (onPlayNote) {
+    if (!arpEnabled && onPlayNote) {
       onPlayNote(key.note, key.octave);
-    } else {
+    } else if (!arpEnabled) {
       playNote(key.note, key.octave, 0.3, selectedTrack?.instrument || 'piano', 0.8);
     }
 
@@ -76,7 +76,7 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
     const key = pianoKeys[keyIndex];
     if (!key) return;
 
-    if (onPlayNoteOff) {
+    if (!arpEnabled && onPlayNoteOff) {
       onPlayNoteOff(key.note, key.octave);
     }
 

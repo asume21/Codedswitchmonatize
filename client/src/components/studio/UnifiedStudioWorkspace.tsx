@@ -2104,13 +2104,13 @@ export default function UnifiedStudioWorkspace() {
   };
 
   // Stop a note (for note-off events)
-  const playNoteOff = (note: string, octave: number, instrument?: string) => {
+  const playNoteOff = (note: string, octave: number, instrument?: string, releaseSeconds?: number) => {
     try {
       const currentTrack = tracks.find(t => t.id === selectedTrack);
       const uiInstrument = instrument || currentTrack?.instrument || 'Grand Piano';
       const looksLikeSoundfontKey = /^[a-z0-9_-]+$/.test(uiInstrument);
       const midiInstrument = looksLikeSoundfontKey ? uiInstrument : mapInstrumentName(uiInstrument);
-      realisticAudio.noteOff(note, octave, midiInstrument);
+      realisticAudio.noteOff(note, octave, midiInstrument, releaseSeconds);
     } catch (error) {
       console.error('Error stopping note:', error);
     }
@@ -2120,8 +2120,8 @@ export default function UnifiedStudioWorkspace() {
   const pianoRollPlayNote = useCallback((note: string, octave: number, duration: number, instrument: string) => {
     playNote(note, octave, instrument, duration);
   }, []);
-  const pianoRollPlayNoteOff = useCallback((note: string, octave: number, instrument: string) => {
-    playNoteOff(note, octave, instrument);
+  const pianoRollPlayNoteOff = useCallback((note: string, octave: number, instrument: string, releaseSeconds?: number) => {
+    playNoteOff(note, octave, instrument, releaseSeconds);
   }, []);
   const selectedTrackRef = useRef(selectedTrack);
   selectedTrackRef.current = selectedTrack;

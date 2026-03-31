@@ -154,9 +154,11 @@ interface VerticalPianoRollProps {
   isPlaying?: boolean;
   currentTime?: number;
   onPlayNote?: (note: string, octave: number, duration: number, instrument: string) => void;
-  onPlayNoteOff?: (note: string, octave: number, instrument: string) => void;
+  onPlayNoteOff?: (note: string, octave: number, instrument: string, releaseSeconds?: number) => void;
   onNotesChange?: (updatedNotes: any[]) => void;
 }
+
+const LIVE_PREVIEW_HOLD_SECONDS = 8;
 
 export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   tracks: propTracks,
@@ -285,6 +287,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   
   // LIVE ARPEGGIATOR - plays notes automatically when keys are held
   const [liveArpEnabled, setLiveArpEnabled] = useState(false);
+  const [liveSustainEnabled, setLiveSustainEnabled] = useState(true);
+  const [liveReleaseMs, setLiveReleaseMs] = useState(280);
   const [humanizeAmount, setHumanizeAmount] = useState(0); // 0-100% timing/velocity variation
   const [transposeAmount, setTransposeAmount] = useState(0); // semitones
   const [strumMode, setStrumMode] = useState(false); // guitar-style strum delay
@@ -1090,10 +1094,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   }, [selectedNoteIds, selectedTrack, selectedTrackIndex, addToHistory, toast]);
 
   const handleNoteOff = useCallback((note: string, octave: number) => {
+    const releaseSeconds = liveSustainEnabled ? liveReleaseMs / 1000 : 0.008;
     if (onPlayNoteOff) {
-      onPlayNoteOff(note, octave, selectedTrack?.instrument || 'piano');
+      onPlayNoteOff(note, octave, selectedTrack?.instrument || 'piano', releaseSeconds);
     } else {
-      realisticAudio.noteOff(note, octave, selectedTrack?.instrument || 'piano');
+      realisticAudio.noteOff(note, octave, selectedTrack?.instrument || 'piano', releaseSeconds);
     }
 
     // Update duration for on-screen key presses during recording
@@ -1116,12 +1121,12 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         }));
       }
     }
-  }, [onPlayNoteOff, selectedTrack, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex]);
+  }, [onPlayNoteOff, selectedTrack, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex, liveSustainEnabled, liveReleaseMs]);
 
   const playPreviewNote = useCallback((note: string, octave: number) => {
     const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
     const instrument = selectedTrack?.instrument || 'piano';
-    realisticAudio.playNote(note, octave, 0.5, instrument, 0.8, true, channel?.input);
+    realisticAudio.playNote(note, octave, LIVE_PREVIEW_HOLD_SECONDS, instrument, 0.8, true, channel?.input);
   }, [selectedTrack]);
 
   // Callback for piano key playback - uses current track's instrument
@@ -1323,7 +1328,15 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
         if (keyIndex !== -1) {
           const pianoKey = PIANO_KEYS[keyIndex];
-          playPreviewNote(pianoKey.note, pianoKey.octave);
+          if (liveArpEnabled) {
+            setActiveKeys(prev => {
+              const next = new Set(prev);
+              next.add(keyIndex);
+              return next;
+            });
+          } else {
+            playPreviewNote(pianoKey.note, pianoKey.octave);
+          }
 
           // Track keydown timestamp for recording note length
           (window as any).__keyHoldStartTimes = (window as any).__keyHoldStartTimes || {};
@@ -1403,7 +1416,20 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       // Check if this key maps to a piano note
       const noteMapping = KEYBOARD_TO_NOTE[k];
       if (noteMapping) {
-        handleNoteOff(noteMapping.note, noteMapping.octave);
+        if (liveArpEnabled) {
+          const keyIndex = PIANO_KEYS.findIndex(
+            pk => pk.note === noteMapping.note && pk.octave === noteMapping.octave
+          );
+          if (keyIndex !== -1) {
+            setActiveKeys(prev => {
+              const next = new Set(prev);
+              next.delete(keyIndex);
+              return next;
+            });
+          }
+        } else {
+          handleNoteOff(noteMapping.note, noteMapping.octave);
+        }
 
         // ─── RECORDING: Calculate note length from hold duration ───
         const holdData = (window as any).__keyHoldStartTimes?.[k];
@@ -1435,7 +1461,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [handlePlay, handleNoteOff, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, playPreviewNote]);
+  }, [handlePlay, handleNoteOff, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, playPreviewNote, liveArpEnabled]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
     setTracks(prev => {
@@ -2705,6 +2731,22 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     />
   ), [selectedProgression, currentKey, currentChordIndex, handleChordClick, chordInversion]);
 
+  const liveArpNotes = useMemo(
+    () => Array.from(activeKeys)
+      .sort((a, b) => a - b)
+      .map((index) => {
+        const key = PIANO_KEYS[index];
+        if (!key) return null;
+        return {
+          note: key.note,
+          octave: key.octave,
+          midiNote: (key.octave + 1) * 12 + ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(key.note),
+        };
+      })
+      .filter((note): note is { note: string; octave: number; midiNote: number } => note !== null),
+    [activeKeys]
+  );
+
   return (
     <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
       {/* Top Professional DAW Toolbar */}
@@ -2767,6 +2809,36 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
                 {currentKey} {selectedProgression.name}
               </span>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLiveSustainEnabled(v => !v)}
+              className={cn(
+                "h-8 px-4 rounded-none font-black tracking-widest border",
+                liveSustainEnabled
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
+                  : "bg-black/60 text-cyan-500/60 border-cyan-500/30 hover:bg-amber-500/15 hover:text-amber-300"
+              )}
+              title="Add release tail to live piano-roll keys"
+            >
+              <Waves className="w-4 h-4 mr-2" />
+              SUSTAIN
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLiveArpEnabled(v => !v)}
+              className={cn(
+                "h-8 px-4 rounded-none font-black tracking-widest border",
+                liveArpEnabled
+                  ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/50"
+                  : "bg-black/60 text-cyan-500/60 border-cyan-500/30 hover:bg-yellow-500/15 hover:text-yellow-300"
+              )}
+              title="Arpeggiate held live keys"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              ARP
+            </Button>
 
             <Button
               variant="ghost"
@@ -2823,6 +2895,51 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           </div>
         </div>
       </div>
+
+      {(liveSustainEnabled || liveArpEnabled) && (
+        <div className="border-b border-cyan-500/20 bg-black/70 px-3 py-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-[260px] flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Headphones className="w-4 h-4 text-cyan-400" />
+                <span className="text-[10px] font-black tracking-widest uppercase text-cyan-300">Live Key Feel</span>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex items-center gap-2 min-w-[220px]">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-cyan-500/60">Release</span>
+                  <Slider
+                    value={[liveReleaseMs]}
+                    min={20}
+                    max={1200}
+                    step={10}
+                    disabled={!liveSustainEnabled}
+                    onValueChange={([value]) => setLiveReleaseMs(value)}
+                    className="flex-1"
+                  />
+                  <span className={cn("w-14 text-right text-[10px] font-black tabular-nums", liveSustainEnabled ? "text-amber-300" : "text-cyan-500/30")}>
+                    {liveReleaseMs}ms
+                  </span>
+                </div>
+                <div className="text-[10px] text-cyan-500/50">
+                  Hold keys naturally; sustain adds a release tail after key-up.
+                </div>
+              </div>
+            </div>
+
+            {liveArpEnabled && (
+              <div className="flex-shrink-0">
+                <Arpeggiator
+                  enabled={liveArpEnabled}
+                  onEnabledChange={setLiveArpEnabled}
+                  bpm={bpm}
+                  activeNotes={liveArpNotes}
+                  instrument={selectedTrack?.instrument || 'piano'}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MIDI Interface Panel */}
       {showMidiPanel && (

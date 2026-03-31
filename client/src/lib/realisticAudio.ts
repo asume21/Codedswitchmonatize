@@ -673,8 +673,8 @@ export class RealisticAudioEngine {
     return this.isInitialized && !this.isLoading;
   }
 
-  // Stop a specific note on a specific instrument
-  noteOff(note: string, octave: number, instrument: string = 'piano') {
+  // Stop a specific note on a specific instrument, with an optional release tail
+  noteOff(note: string, octave: number, instrument: string = 'piano', releaseSeconds: number = 0.008) {
     const realInstrument = (this.instrumentLibrary as any)[instrument] || instrument;
     const noteName = `${note}${octave}`;
     const noteKey = `${realInstrument}:${noteName}`;
@@ -685,17 +685,19 @@ export class RealisticAudioEngine {
       if (node && typeof node.stop === 'function') {
         try {
           const now = this.audioContext?.currentTime || 0;
-          node.stop(now + 0.008);
+          node.stop(now + Math.max(0.008, releaseSeconds));
         } catch {
           // Ignore stop errors for already-stopped nodes
         }
       }
       if (node && typeof (node as any).disconnect === 'function') {
-        try {
-          (node as any).disconnect();
-        } catch {
-          // Ignore disconnect errors
-        }
+        setTimeout(() => {
+          try {
+            (node as any).disconnect();
+          } catch {
+            // Ignore disconnect errors
+          }
+        }, (Math.max(0.008, releaseSeconds) + 0.05) * 1000);
       }
       if (nodes.length === 0) {
         this.activeNotes.delete(noteKey);
