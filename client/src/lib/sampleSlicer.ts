@@ -28,25 +28,38 @@ export interface SlicedSample {
  * Load an audio file and prepare it for slicing.
  */
 export async function loadSampleForSlicing(
-  url: string,
+  source: string | File | Blob,
   name: string,
 ): Promise<SlicedSample> {
   const ctx = new AudioContext();
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch audio: ${response.status}`);
-  const arrayBuffer = await response.arrayBuffer();
-  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-  await ctx.close();
+  let arrayBuffer: ArrayBuffer;
+  let sourceUrl: string;
 
-  return {
-    id: crypto.randomUUID(),
-    sourceUrl: url,
-    sourceName: name,
-    sampleRate: audioBuffer.sampleRate,
-    duration: audioBuffer.duration,
-    slices: [],
-    audioBuffer,
-  };
+  try {
+    if (source instanceof Blob) {
+      arrayBuffer = await source.arrayBuffer();
+      sourceUrl = URL.createObjectURL(source);
+    } else {
+      const response = await fetch(source);
+      if (!response.ok) throw new Error(`Failed to fetch audio: ${response.status}`);
+      arrayBuffer = await response.arrayBuffer();
+      sourceUrl = source;
+    }
+
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+    return {
+      id: crypto.randomUUID(),
+      sourceUrl,
+      sourceName: name,
+      sampleRate: audioBuffer.sampleRate,
+      duration: audioBuffer.duration,
+      slices: [],
+      audioBuffer,
+    };
+  } finally {
+    await ctx.close();
+  }
 }
 
 /**

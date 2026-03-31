@@ -48,10 +48,10 @@ export default function SampleSlicerPanel({
     return audioCtxRef.current;
   }, []);
 
-  const handleLoad = useCallback(async (url: string, name: string) => {
+  const handleLoad = useCallback(async (source: string | File | Blob, name: string) => {
     setLoading(true);
     try {
-      const loaded = await loadSampleForSlicing(url, name);
+      const loaded = await loadSampleForSlicing(source, name);
       setSample(loaded);
       toast({ title: 'Sample Loaded', description: `${loaded.duration.toFixed(1)}s` });
     } catch (err) {
@@ -139,8 +139,7 @@ export default function SampleSlicerPanel({
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      const url = URL.createObjectURL(file);
-      await handleLoad(url, file.name);
+      await handleLoad(file, file.name);
     };
     input.click();
   }, [handleLoad]);
