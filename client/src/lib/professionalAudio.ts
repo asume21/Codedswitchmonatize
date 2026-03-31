@@ -6,6 +6,13 @@
 import { getAudioContext } from './audioContext';
 import { SidechainDucker, type SidechainConfig } from '@/organism/mix/channels/SidechainDucker';
 
+const DEFAULT_SIDECHAIN_CONFIG: SidechainConfig = {
+  depthDb: -6,
+  attackMs: 2,
+  releaseMs: 120,
+  holdMs: 30,
+};
+
 export interface AudioEffect {
   id: string;
   name: string;
@@ -471,6 +478,45 @@ export class ProfessionalAudioEngine {
     return this.audioContext;
   }
 
+  private createNativeSidechainDucker(config?: Partial<SidechainConfig>): SidechainDucker {
+    if (!this.audioContext) {
+      throw new Error('Audio context not initialized');
+    }
+
+    const gainNode = this.audioContext.createGain();
+    gainNode.gain.value = 1;
+    let currentConfig: SidechainConfig = { ...DEFAULT_SIDECHAIN_CONFIG, ...config };
+
+    return {
+      node: gainNode as any,
+      trigger: (time: number) => {
+        const { depthDb, attackMs, releaseMs, holdMs } = currentConfig;
+        const duckedGain = Math.pow(10, depthDb / 20);
+        const attackSec = attackMs / 1000;
+        const holdSec = holdMs / 1000;
+        const releaseSec = releaseMs / 1000;
+        const gainParam = gainNode.gain;
+
+        gainParam.cancelScheduledValues(time);
+        gainParam.setValueAtTime(gainParam.value, time);
+        gainParam.linearRampToValueAtTime(duckedGain, time + attackSec);
+        gainParam.setValueAtTime(duckedGain, time + attackSec + holdSec);
+        gainParam.linearRampToValueAtTime(1, time + attackSec + holdSec + releaseSec);
+      },
+      updateConfig: (partial: Partial<SidechainConfig>) => {
+        currentConfig = { ...currentConfig, ...partial };
+      },
+      getConfig: () => ({ ...currentConfig }),
+      dispose: () => {
+        try {
+          gainNode.disconnect();
+        } catch {
+          // ignore disconnect errors
+        }
+      },
+    } as unknown as SidechainDucker;
+  }
+
   getMasterLevel(): number {
     return this.masterLevel;
   }
@@ -535,7 +581,7 @@ export class ProfessionalAudioEngine {
     });
     
     // Create sidechain ducker
-    const sidechain = new SidechainDucker();
+    const sidechain = this.createNativeSidechainDucker();
 
     // Connect signal chain: input -> EQ -> sidechain -> compressor -> pan -> output -> analyzer -> master
     input.connect(lowShelf);
