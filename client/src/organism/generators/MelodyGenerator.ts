@@ -126,6 +126,14 @@ export class MelodyGenerator extends GeneratorBase {
         oscillator: { type: 'fatsawtooth', spread: 20 },
         envelope: { attack: 0.6, decay: 0.5, sustain: 0.9, release: 2.0 },
       }, volume: -11, chorusWet: 0.5, reverbDecay: 2.0, delayFeedback: 0.18 },
+      { name: 'Singing Pad', type: 'Synth', options: {
+        oscillator: { type: 'sine' },
+        envelope: { attack: 2.5, decay: 2.0, sustain: 0.8, release: 4.0 },
+      }, volume: -14, chorusWet: 0.7, reverbDecay: 4.5, delayFeedback: 0.25 },
+      { name: 'Clean Air', type: 'FM', options: {
+        harmonicity: 1, modulationIndex: 0.2, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+        envelope: { attack: 1.0, decay: 1.0, sustain: 1.0, release: 3.0 },
+      }, volume: -15, chorusWet: 0.4, reverbDecay: 5.0, delayFeedback: 0.3 },
     ],
   }
 

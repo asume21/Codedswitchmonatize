@@ -43,6 +43,9 @@ export interface InstrumentPreset {
   sampleUrl?: string;
   loopStart?: number;              // seconds into the sample
   loopEnd?: number;                // seconds into the sample
+  // Effects
+  reverbSend?: number;             // 0.0 – 1.0
+  delaySend?: number;              // 0.0 – 1.0
 }
 
 // ─── Default Presets ────────────────────────────────────────────────
@@ -281,6 +284,37 @@ export const FACTORY_PRESETS: InstrumentPreset[] = [
     mode: 'sampler',
     envelope: { attack: 0.01, decay: 1.0, sustain: 0.5, release: 0.5 },
   },
+  // ─── NEW: Clean / Ambient Sound Pack ──────────────────────────────
+  {
+    id: 'heavenly-pad',
+    name: 'Heavenly Pad',
+    mode: 'synth',
+    synthType: 'pad',
+    envelope: { attack: 2.5, decay: 2.0, sustain: 0.9, release: 4.5 },
+    oscillatorType: 'sine',
+    detuneSpread: 15,
+    filterFrequency: 1200,
+    filterResonance: 0.2,
+  },
+  {
+    id: 'singing-lead',
+    name: 'Singing Lead',
+    mode: 'synth',
+    synthType: 'lead',
+    envelope: { attack: 0.15, decay: 0.4, sustain: 0.8, release: 0.6 },
+    oscillatorType: 'triangle',
+    filterFrequency: 3500,
+    filterResonance: 1.2,
+  },
+  {
+    id: 'clean-bells',
+    name: 'Clean FM Bells',
+    mode: 'synth',
+    synthType: 'bell',
+    envelope: { attack: 0.001, decay: 2.5, sustain: 0.0, release: 3.5 },
+    filterFrequency: 8000,
+    filterResonance: 0.4,
+  },
 ];
 
 // ─── Voice Tracking ─────────────────────────────────────────────────
@@ -303,7 +337,11 @@ export class ExpressiveEngine {
   private masterGain: Tone.Gain;
   private expressionGain: Tone.Gain; // For CC11 Expression control
   private filter: Tone.Filter;
+  private limiter: Tone.Limiter;
   private isReady = false;
+  
+  // Voice limits
+  private readonly MAX_VOICES = 16;
   
   // Sampler (lazy-loaded per preset)
   private sampler: Tone.Sampler | null = null;
@@ -321,11 +359,13 @@ export class ExpressiveEngine {
       frequency: 20000,
       rolloff: -12,
     });
+    this.limiter = new Tone.Limiter(-1); // Safety brick-wall limiter
 
-    // Chain: voices → filter → expressionGain → masterGain → destination
+    // Chain: voices → filter → expressionGain → masterGain → limiter → destination
     this.filter.connect(this.expressionGain);
     this.expressionGain.connect(this.masterGain);
-    this.masterGain.toDestination();
+    this.masterGain.connect(this.limiter);
+    this.limiter.toDestination();
   }
 
   /**
@@ -396,6 +436,20 @@ export class ExpressiveEngine {
     // If same note is already playing, release it first (re-trigger)
     if (this.activeVoices.has(note)) {
       this.noteOff(note);
+    }
+    
+    // ─── VOICE STEALING ───
+    // If we exceed MAX_VOICES, kill the oldest voice
+    if (this.activeVoices.size >= this.MAX_VOICES) {
+      let oldest: ActiveVoice | null = null;
+      for (const v of this.activeVoices.values()) {
+        if (!oldest || v.startTime < oldest.startTime) {
+          oldest = v;
+        }
+      }
+      if (oldest) {
+        this.noteOff(oldest.noteKey);
+      }
     }
 
     const preset = this.currentPreset;
