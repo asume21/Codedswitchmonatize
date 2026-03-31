@@ -92,10 +92,10 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <PresenceProvider>
-        <TransportProvider>
-          <GlobalAudioProvider>
-            <InstrumentProvider>
-              <TrackStoreProvider>
+        <TrackStoreProvider>
+          <TransportProvider>
+            <GlobalAudioProvider>
+              <InstrumentProvider>
                 <StemGenerationProvider>
                   <AstutelyCoreProvider>
                     <StudioSessionProvider>
@@ -109,10 +109,10 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
                     </StudioSessionProvider>
                   </AstutelyCoreProvider>
                 </StemGenerationProvider>
-              </TrackStoreProvider>
-            </InstrumentProvider>
-          </GlobalAudioProvider>
-        </TransportProvider>
+              </InstrumentProvider>
+            </GlobalAudioProvider>
+          </TransportProvider>
+        </TrackStoreProvider>
       </PresenceProvider>
     </Suspense>
   );
