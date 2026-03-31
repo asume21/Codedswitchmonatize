@@ -963,25 +963,40 @@ export default function ProfessionalMixer() {
                             config={sc?.config ?? null}
                             source={sc?.source ?? 'kick'}
                             onToggle={(enabled) => {
+                              const source = sc?.source ?? 'kick';
+                              const config = sc?.config ?? { depthDb: -6, attackMs: 2, releaseMs: 120, holdMs: 30 };
+                              
+                              if (enabled) {
+                                professionalAudio.setSidechainSource(channel.id, source);
+                                professionalAudio.updateSidechainConfig(channel.id, config);
+                              } else {
+                                professionalAudio.setSidechainSource(channel.id, undefined);
+                              }
+
                               setSidechainState(prev => ({
                                 ...prev,
                                 [channel.id]: {
                                   enabled,
-                                  source: prev[channel.id]?.source ?? 'kick',
-                                  config: prev[channel.id]?.config ?? { depthDb: -6, attackMs: 2, releaseMs: 120, holdMs: 30 },
+                                  source,
+                                  config,
                                 },
                               }));
                             }}
                             onConfigChange={(partial) => {
+                              const newConfig = { ...sidechainState[channel.id]?.config, ...partial } as any;
+                              professionalAudio.updateSidechainConfig(channel.id, newConfig);
+                              
                               setSidechainState(prev => ({
                                 ...prev,
                                 [channel.id]: {
                                   ...prev[channel.id],
-                                  config: { ...prev[channel.id]?.config, ...partial } as any,
+                                  config: newConfig,
                                 },
                               }));
                             }}
                             onSourceChange={(source) => {
+                              professionalAudio.setSidechainSource(channel.id, source);
+                              
                               setSidechainState(prev => ({
                                 ...prev,
                                 [channel.id]: { ...prev[channel.id], source },

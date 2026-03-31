@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useStudioStore } from '../stores/useStudioStore';
 import type { LoopRegion as StoreLoopRegion, TimeSignature as StoreTimeSignature } from '../stores/useStudioStore';
+import { getTimelineRecorder } from '@/lib/timelineRecorder';
+import { useToast } from '@/hooks/use-toast';
+import { useTrackStore } from './TrackStoreContext';
 
 // Re-export types so existing consumers don't need to change imports
 export type LoopRegion = StoreLoopRegion;
@@ -20,6 +23,8 @@ export interface TransportContextValue {
   setLoop: (loopConfig: Partial<LoopRegion>) => void;
   clearLoop: () => void;
   setTimeSignature: (signature: Partial<TimeSignature>) => void;
+  isRecordArmed: boolean;
+  toggleRecordArm: (armed?: boolean) => void;
 }
 
 const TransportContext = createContext<TransportContextValue | undefined>(undefined);
@@ -50,6 +55,12 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   const position      = useStudioStore((s) => s.position);
   const loop          = useStudioStore((s) => s.loop);
   const timeSignature = useStudioStore((s) => s.timeSignature);
+  const isRecordArmed = useStudioStore((s) => s.isRecordArmed);
+  const toggleRecordArm = useStudioStore((s) => s.toggleRecordArm);
+
+  const { toast } = useToast();
+  const { addTrack } = useTrackStore();
+  const recorder = getTimelineRecorder();
 
   // Store actions (stable references from Zustand)
   const storeBpm    = useStudioStore((s) => s.setBpm);
@@ -109,11 +120,58 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   useEffect(() => {
     if (isPlaying) {
       advancePosition();
+      
+      // Start recording if armed
+      if (isRecordArmed) {
+        recorder.startRecording(position).catch(err => {
+          toast({
+            title: "Recording Failed",
+            description: err.message,
+            variant: "destructive"
+          });
+          toggleRecordArm(false);
+        });
+      }
     } else {
       clearRaf();
+      
+      // Stop recording if active
+      if (recorder.getState().isRecording) {
+        recorder.stopRecording().then(result => {
+          if (result) {
+            // Add a new audio track with the recording
+            addTrack({
+              id: `rec_${Date.now()}`,
+              name: `Recording ${new Date().toLocaleTimeString()}`,
+              kind: 'audio',
+              startBar: Math.floor(result.startBeat / 4), // Assuming 4/4 for now, need TS logic
+              lengthBars: Math.ceil((result.durationSeconds * (tempo / 60)) / 4),
+              payload: {
+                type: 'audio',
+                source: 'recording',
+                audioUrl: result.url,
+                volume: 0.8,
+                pan: 0,
+                bpm: tempo,
+                metadata: {
+                  isRecording: true,
+                  duration: result.durationSeconds,
+                  peaks: result.waveformPeaks
+                }
+              }
+            });
+            toast({
+              title: "Recording Saved",
+              description: `Added to project at beat ${result.startBeat.toFixed(1)}`
+            });
+          }
+        });
+      }
     }
-    return () => { clearRaf(); };
-  }, [isPlaying, advancePosition, clearRaf]);
+    return () => { 
+      clearRaf(); 
+    };
+  }, [isPlaying, isRecordArmed, advancePosition, clearRaf, recorder, position, addTrack, tempo, toast, toggleRecordArm]);
 
   // Wrap store actions to match TransportContextValue signature exactly
   const play = useCallback(() => { storePlay(); }, [storePlay]);
@@ -139,7 +197,9 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     setLoop,
     clearLoop,
     setTimeSignature,
-  }), [tempo, isPlaying, position, loop, timeSignature, play, pause, stop, setTempo, seek, setLoop, clearLoop, setTimeSignature]);
+    isRecordArmed,
+    toggleRecordArm,
+  }), [tempo, isPlaying, position, loop, timeSignature, play, pause, stop, setTempo, seek, setLoop, clearLoop, setTimeSignature, isRecordArmed, toggleRecordArm]);
 
   return (
     <TransportContext.Provider value={value}>

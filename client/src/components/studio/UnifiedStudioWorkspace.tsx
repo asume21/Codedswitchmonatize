@@ -8,7 +8,9 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
-import { ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X } from 'lucide-react';
+import { 
+  ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X, Circle
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
@@ -503,6 +505,8 @@ export default function UnifiedStudioWorkspace() {
     loop,
     setLoop,
     seek,
+    isRecordArmed,
+    toggleRecordArm,
   } = useTransport();
   const {
     tracks,
@@ -5309,7 +5313,6 @@ export default function UnifiedStudioWorkspace() {
                   {transportPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </Button>
 
-                {/* Stop */}
                 <Button
                   size="sm"
                   variant="outline"
@@ -5320,6 +5323,23 @@ export default function UnifiedStudioWorkspace() {
                   className="rounded-full w-10 h-10 p-0"
                 >
                   <Square className="w-4 h-4" />
+                </Button>
+
+                {/* Record Arm */}
+                <Button
+                  size="sm"
+                  onClick={() => toggleRecordArm()}
+                  className={cn(
+                    "rounded-full w-10 h-10 p-0",
+                    recorderState.isRecording
+                      ? "bg-red-600 hover:bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]"
+                      : isRecordArmed
+                      ? "bg-red-500/40 hover:bg-red-500/60 border-2 border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.3)]"
+                      : "bg-gray-800 hover:bg-red-600/80 border-gray-700"
+                  )}
+                  title={recorderState.isRecording ? 'Stop Recording' : isRecordArmed ? 'Disarm' : 'Record'}
+                >
+                  <Circle className={cn("w-4 h-4", (recorderState.isRecording || isRecordArmed) ? "fill-red-500 text-red-500" : "fill-gray-400 text-gray-400")} />
                 </Button>
 
                 {/* Position Display */}

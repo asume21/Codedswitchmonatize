@@ -93,7 +93,7 @@ interface AudioTrack {
   audioUrl: string;
   volume: number;
   pan: number;
-   kind?: string; // track kind for defaults (vocal, drums, etc.)
+  kind?: string; // track kind for defaults (vocal, drums, etc.)
   fadeInSeconds?: number;
   fadeOutSeconds?: number;
   volumePoints?: { time: number; volume: number }[];
@@ -101,9 +101,9 @@ interface AudioTrack {
   solo: boolean;
   color: string;
   trackType?: 'beat' | 'melody' | 'vocal' | 'audio' | 'midi'; // Track type for tool integration
-   sendA?: number;
-   sendB?: number;
-   regionGain?: number;
+  sendA?: number;
+  sendB?: number;
+  regionGain?: number;
   gainNode?: GainNode;
   panNode?: StereoPannerNode;
   sourceNode?: AudioBufferSourceNode;
@@ -113,8 +113,9 @@ interface AudioTrack {
   trimEndSeconds?: number; // per-track trim end (seconds, within audioBuffer)
   midiNotes?: MidiNote[]; // MIDI note data for MIDI tracks
   instrument?: string; // Instrument name for MIDI tracks
-  startTimeSeconds?: number; // ISSUE #2: Position on timeline (seconds from start)
-  regions?: AudioRegion[]; // ISSUE #3: Multiple regions per track
+  startTimeSeconds?: number; // Position on timeline (seconds from start)
+  regions?: AudioRegion[]; // Multiple regions per track
+  playbackRate?: number; // Added for BPM matching
 }
 
 const TRACK_COLORS = [
@@ -1563,6 +1564,20 @@ export default function MasterMultiTrackPlayer() {
 
       source.buffer = track.audioBuffer;
 
+      // Apply playbackRate for BPM matching (Level 1: speed/pitch shift)
+      const projectBpm = transport.tempo;
+      const sampleBpm = (track as any).bpm || projectBpm;
+      const rate = projectBpm / sampleBpm;
+      
+      // For drums, we always use playbackRate.
+      // For melodic tracks, we will eventually use Phase Vocoder pre-processed buffers.
+      if (track.kind === 'drums' || track.kind === 'beat' || track.trackType === 'beat') {
+        source.playbackRate.value = rate;
+      } else {
+        // If it's melodic, use playbackRate for now (FIXME: Add Phase Vocoder pre-processing)
+        source.playbackRate.value = rate;
+      }
+
       const fullDur = track.audioBuffer.duration;
       const trimStart = Math.max(0, track.trimStartSeconds ?? 0);
       const trimEnd = Math.min(fullDur, track.trimEndSeconds ?? fullDur);
@@ -1873,6 +1888,19 @@ export default function MasterMultiTrackPlayer() {
       }
     });
   }, [tracks]);
+
+  // Sidechain Beat Trigger
+  useEffect(() => {
+    if (!isPlaying) return;
+    
+    // Trigger sidechain on every beat (quarter note)
+    const beatDuration = 60 / (tempo || 120);
+    const interval = setInterval(() => {
+      professionalAudio.triggerSidechain('kick');
+    }, beatDuration * 1000);
+    
+    return () => clearInterval(interval);
+  }, [isPlaying, tempo]);
 
   const toggleSendLevel = useCallback((trackId: string, send: 'A' | 'B') => {
     const target = tracks.find((t) => t.id === trackId);
@@ -3188,11 +3216,11 @@ export default function MasterMultiTrackPlayer() {
     const region = track?.regions?.find((r) => r.id === regionId);
     if (!region) return;
 
-    const duration = (region.trimEndSeconds || 0) - (region.trimStartSeconds || 0);
+    const duration = (region.trimEndSeconds ?? 0) - (region.trimStartSeconds ?? 0);
     const newRegion: AudioRegion = {
       ...region,
       id: `region-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      startTimeSeconds: region.startTimeSeconds + duration + 0.1, // Place after original
+      startTimeSeconds: (region.startTimeSeconds ?? 0) + duration + 0.1, // Place after original
     };
 
     setTracks((prev) =>
@@ -3574,8 +3602,8 @@ export default function MasterMultiTrackPlayer() {
 
   // ISSUE #5: Calculate crossfade between overlapping regions
   const calculateCrossfade = (region1: AudioRegion, region2: AudioRegion): { fadeOut: number; fadeIn: number } => {
-    const end1 = region1.startTimeSeconds + (region1.trimEndSeconds - region1.trimStartSeconds);
-    const start2 = region2.startTimeSeconds;
+    const end1 = (region1.startTimeSeconds ?? 0) + ((region1.trimEndSeconds ?? 0) - (region1.trimStartSeconds ?? 0));
+    const start2 = region2.startTimeSeconds ?? 0;
     const overlap = Math.max(0, end1 - start2);
     
     if (overlap > 0) {
@@ -3591,7 +3619,7 @@ export default function MasterMultiTrackPlayer() {
     const track = tracks.find((t) => t.id === trackId);
     if (!track?.regions || track.regions.length < 2) return;
 
-    const sortedRegions = [...track.regions].sort((a, b) => a.startTimeSeconds - b.startTimeSeconds);
+    const sortedRegions = [...track.regions].sort((a, b) => (a.startTimeSeconds ?? 0) - (b.startTimeSeconds ?? 0));
     const updatedRegions = sortedRegions.map((region, idx) => {
       if (idx === sortedRegions.length - 1) return region;
       

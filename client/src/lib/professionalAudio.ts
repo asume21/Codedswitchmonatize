@@ -1,9 +1,10 @@
 /**
  * Professional Audio Engine - World-class audio processing for CodedSwitch
- * Features: Real-time effects, professional mixing console, advanced routing
+ * Features: Real-time effects, professional mixing console, advanced routing, sidechain ducking
  */
 
 import { getAudioContext } from './audioContext';
+import { SidechainDucker, type SidechainConfig } from '@/organism/mix/channels/SidechainDucker';
 
 export interface AudioEffect {
   id: string;
@@ -29,6 +30,8 @@ export interface MixerChannel {
     highShelf: BiquadFilterNode;
   };
   compressor: DynamicsCompressorNode;
+  sidechain?: SidechainDucker;
+  sidechainSource?: string;
   effects: AudioEffect[];
   sends: { [sendId: string]: GainNode };
   analyzer: AnalyserNode;
@@ -531,12 +534,16 @@ export class ProfessionalAudioEngine {
       sendGain.connect(this.sendReturns.get(sendId)!.input);
     });
     
-    // Connect signal chain: input -> EQ -> compressor -> pan -> output -> analyzer -> master
+    // Create sidechain ducker
+    const sidechain = new SidechainDucker();
+
+    // Connect signal chain: input -> EQ -> sidechain -> compressor -> pan -> output -> analyzer -> master
     input.connect(lowShelf);
     lowShelf.connect(lowMid);
     lowMid.connect(highMid);
     highMid.connect(highShelf);
-    highShelf.connect(compressor);
+    highShelf.connect(sidechain.node as unknown as AudioNode);
+    (sidechain.node as unknown as AudioNode).connect(compressor);
     compressor.connect(panNode);
     panNode.connect(output);
     output.connect(analyzer);
@@ -558,6 +565,7 @@ export class ProfessionalAudioEngine {
         highShelf
       },
       compressor,
+      sidechain,
       effects: [],
       sends,
       analyzer,
@@ -733,6 +741,30 @@ export class ProfessionalAudioEngine {
     source.connect(channel.input);
   }
   
+  // Sidechain API
+  triggerSidechain(sourceId: string, time?: number): void {
+    const now = time ?? (this.audioContext?.currentTime || 0);
+    this.channels.forEach(channel => {
+      if (channel.sidechainSource === sourceId && channel.sidechain) {
+        channel.sidechain.trigger(now);
+      }
+    });
+  }
+
+  setSidechainSource(channelId: string, sourceId: string | undefined): void {
+    const channel = this.channels.get(channelId);
+    if (channel) {
+      channel.sidechainSource = sourceId;
+    }
+  }
+
+  updateSidechainConfig(channelId: string, config: Partial<SidechainConfig>): void {
+    const channel = this.channels.get(channelId);
+    if (channel && channel.sidechain) {
+      channel.sidechain.updateConfig(config);
+    }
+  }
+
   disconnect(): void {
     // Disconnect all channels and clean up
     Array.from(this.channels.values()).forEach(channel => {

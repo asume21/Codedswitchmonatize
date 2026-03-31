@@ -9,7 +9,7 @@ import {
   CheckCircle2, Globe, Github, Twitter, Instagram, LogIn, UserPlus,
   Activity, Mic, Brain, Flame, Snowflake, Wind, Layers, Radio,
   BarChart2, Repeat, Hash, Volume2, Users, Heart, Wifi, Search,
-  BookOpen, Handshake,
+  BookOpen, Handshake, MessageCircle,
 } from "lucide-react";
 
 // UNDER CONSTRUCTION MODE - Set to false to show full landing page
@@ -169,18 +169,26 @@ export default function Landing() {
             CodedSwitch's AI Organism listens to you and builds a full live beat — drums, bass, melody, texture — in real time, tuned to your voice's key and energy.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-in fade-in slide-in-from-bottom-16 duration-1000 delay-500">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-16 duration-1000 delay-500">
             <Link href="/organism">
               <Button size="lg" className="h-16 px-10 text-lg bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl shadow-[0_0_30px_rgba(6,182,212,0.4)] group">
                 Try the Organism Free
                 <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
-            <Link href="/social-hub">
-              <Button size="lg" variant="ghost" className="h-16 px-10 text-lg border border-white/10 hover:bg-white/5 rounded-2xl text-white">
-                See what people are making →
-              </Button>
-            </Link>
+            <div className="flex flex-col gap-2">
+              <Link href="/social-hub">
+                <Button size="lg" variant="ghost" className="h-14 px-10 text-lg border border-white/10 hover:bg-white/5 rounded-2xl text-white w-full">
+                  See what people are making →
+                </Button>
+              </Link>
+              <a href="https://discord.gg/AWcVpBVf" target="_blank" rel="noopener noreferrer">
+                <Button variant="link" className="text-cyan-400 hover:text-cyan-300 text-xs font-black uppercase tracking-widest gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  Join the Discord Community
+                </Button>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -558,9 +566,10 @@ export default function Landing() {
                 The AI that plays with you. A voice-reactive music studio that builds a live beat around your performance in real time.
               </p>
               <div className="flex gap-4">
-                <Button variant="ghost" size="icon" className="text-white/40 hover:text-cyan-400"><Twitter className="w-5 h-5" /></Button>
-                <Button variant="ghost" size="icon" className="text-white/40 hover:text-purple-400"><Instagram className="w-5 h-5" /></Button>
-                <Button variant="ghost" size="icon" className="text-white/40 hover:text-white"><Github className="w-5 h-5" /></Button>
+                <Button variant="ghost" size="icon" className="text-white/40 hover:text-cyan-400" asChild><a href="#"><Twitter className="w-5 h-5" /></a></Button>
+                <Button variant="ghost" size="icon" className="text-white/40 hover:text-purple-400" asChild><a href="#"><Instagram className="w-5 h-5" /></a></Button>
+                <Button variant="ghost" size="icon" className="text-white/40 hover:text-white" asChild><a href="#"><Github className="w-5 h-5" /></a></Button>
+                <Button variant="ghost" size="icon" className="text-white/40 hover:text-[#5865F2]" asChild><a href="https://discord.gg/AWcVpBVf" target="_blank" rel="noopener noreferrer"><MessageCircle className="w-5 h-5" /></a></Button>
               </div>
             </div>
 

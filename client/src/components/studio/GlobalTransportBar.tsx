@@ -41,6 +41,7 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     loop, setLoop, seek,
     timeSignature,
     setTimeSignature,
+    isRecordArmed, toggleRecordArm
   } = useTransport();
   const { initialize, isInitialized, playNote, playDrum, setMasterVolume } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
@@ -53,40 +54,27 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   const [playbackMode, setPlaybackMode] = useState<'all' | 'beat' | 'melody' | 'custom'>('all');
 
   // ─── Recording State ──────────────────────────────────────────────
-  const [recorderState, setRecorderState] = useState<RecorderState | null>(null);
-  const recorderRef = useRef(getTimelineRecorder());
+  const recorder = useRef(getTimelineRecorder()).current;
+  const [recorderState, setRecorderState] = useState<RecorderState>(recorder.getState());
 
   useEffect(() => {
-    const unsub = recorderRef.current.subscribe(setRecorderState);
-    return unsub;
-  }, []);
+    return recorder.subscribe(setRecorderState);
+  }, [recorder]);
 
-  const isRecording = recorderState?.isRecording ?? false;
+  const isRecording = recorderState.isRecording;
 
   const handleRecord = async () => {
     await ensureAudioInit();
-    const recorder = recorderRef.current;
-
-    if (isRecording) {
-      // Stop recording → create clip on timeline
-      const result = await recorder.stopRecording();
-      if (result) {
-        addRecordingToTimeline(result);
+    
+    // If not armed and not recording, check permissions
+    if (!isRecordArmed && !isRecording) {
+      if (!recorderState.hasPermission) {
+        const granted = await recorder.requestPermission();
+        if (!granted) return;
       }
-      return;
     }
 
-    // Request permission if needed
-    if (!recorderState?.hasPermission) {
-      const granted = await recorder.requestPermission();
-      if (!granted) return;
-    }
-
-    // Start recording at current position, and start transport if not playing
-    await recorder.startRecording(position);
-    if (!transportPlaying) {
-      startTransport();
-    }
+    toggleRecordArm();
   };
 
   const addRecordingToTimeline = (result: RecordingResult) => {
@@ -191,7 +179,7 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   const handleStop = async () => {
     // Stop recording if active
     if (isRecording) {
-      const result = await recorderRef.current.stopRecording();
+      const result = await recorder.stopRecording();
       if (result) addRecordingToTimeline(result);
     }
 
@@ -405,11 +393,13 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
               "h-10 w-10 p-0 rounded-full transition-all",
               isRecording
                 ? "bg-red-600 hover:bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.5)]"
+                : isRecordArmed
+                ? "bg-red-500/40 hover:bg-red-500/60 border-2 border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.3)]"
                 : "bg-gray-700 hover:bg-red-600/80"
             )}
-            title={isRecording ? 'Stop Recording' : 'Record'}
+            title={isRecording ? 'Stop Recording' : isRecordArmed ? 'Disarm' : 'Record'}
           >
-            <Circle className={cn("w-5 h-5", isRecording ? "fill-white text-white" : "fill-red-500 text-red-500")} />
+            <Circle className={cn("w-5 h-5", (isRecording || isRecordArmed) ? "fill-red-500 text-red-500" : "fill-gray-400 text-gray-400")} />
           </Button>
         </div>
 

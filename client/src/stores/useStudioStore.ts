@@ -87,6 +87,8 @@ export interface StudioState {
   seek: (position: number) => void
   setLoop: (config: Partial<LoopRegion>) => void
   clearLoop: () => void
+  toggleRecordArm: (armed?: boolean) => void
+  isRecordArmed: boolean
 
   // ── Actions: Key detection (called by Organism bridge) ──
   setDetectedKey: (key: MusicalKey, mode: KeyMode, confidence: number) => void
@@ -124,6 +126,7 @@ export const useStudioStore = create<StudioState>()(
 
     // Transport
     isPlaying: false,
+    isRecordArmed: false,
     position: 0,
     loop: { ...DEFAULT_LOOP },
 
@@ -196,6 +199,10 @@ export const useStudioStore = create<StudioState>()(
 
     clearLoop: () => {
       set({ loop: { ...DEFAULT_LOOP } })
+    },
+    
+    toggleRecordArm: (armed?: boolean) => {
+      set((state) => ({ isRecordArmed: armed ?? !state.isRecordArmed }))
     },
 
     // ── Key detection actions ──

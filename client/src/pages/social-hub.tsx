@@ -38,6 +38,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 ];
 
 const PLATFORMS = [
+  { id: 'discord', name: 'Discord', icon: <MessageCircle className="h-5 w-5" />, description: 'Join the community on Discord', color: 'indigo-500', url: 'https://discord.gg/AWcVpBVf' },
   { id: 'twitter', name: 'Twitter/X', icon: <Twitter className="h-5 w-5" />, description: 'Share your beats on Twitter', color: 'cyan' },
   { id: 'instagram', name: 'Instagram', icon: <Instagram className="h-5 w-5" />, description: 'Post your music to Instagram', color: 'pink' },
   { id: 'youtube', name: 'YouTube', icon: <Youtube className="h-5 w-5" />, description: 'Upload music videos', color: 'red' },
@@ -422,8 +423,18 @@ function ConnectionsTab() {
               </div>
               {conn?.platformUsername && <div className="text-cyan-300/60 text-xs mb-3">@{conn.platformUsername}</div>}
               <div className="flex items-center justify-between">
-                <div className="text-xs text-cyan-500/40">{conn?.followers || 0} followers</div>
-                {connected ? (
+                <div className="text-xs text-cyan-500/40">{p.id === 'discord' ? 'Global Channel' : `${conn?.followers || 0} followers`}</div>
+                {p.id === 'discord' ? (
+                  <Button
+                    size="sm"
+                    asChild
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
+                  >
+                    <a href={p.url} target="_blank" rel="noopener noreferrer">
+                      <MessageCircle className="h-3 w-3 mr-1" /> Join Discord
+                    </a>
+                  </Button>
+                ) : connected ? (
                   <Button
                     size="sm" variant="outline"
                     onClick={() => disconnectMutation.mutate(p.id)}
