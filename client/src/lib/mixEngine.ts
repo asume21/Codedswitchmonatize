@@ -630,17 +630,24 @@ class MixEngine {
   /**
    * Start animation loop for time updates
    */
+  private animFrameCount = 0;
+
   private startAnimationLoop(): void {
     const update = () => {
       if (this.isPlaying && !this.isPaused) {
-        this.emitState();
-        
-        // Check if we've reached the end
+        this.animFrameCount++;
+
+        // Check if we've reached the end every frame
         if (this.getCurrentTime() >= this.duration) {
           this.stop();
           return;
         }
-        
+
+        // Only emit state every 4th frame (~15fps) to reduce main thread load
+        if (this.animFrameCount % 4 === 0) {
+          this.emitState();
+        }
+
         this.animationFrameId = requestAnimationFrame(update);
       }
     };

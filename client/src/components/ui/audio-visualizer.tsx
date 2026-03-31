@@ -30,7 +30,10 @@ export function AudioVisualizer({
       setVisualData(prev =>
         prev.map(() => Math.random() * 100)
       );
-      animationRef.current = requestAnimationFrame(animate);
+      // Throttle to ~15fps — visual flair doesn't need 60fps
+      setTimeout(() => {
+        animationRef.current = requestAnimationFrame(animate);
+      }, 50);
     };
 
     animate();

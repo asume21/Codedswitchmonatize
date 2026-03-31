@@ -108,18 +108,20 @@ export const LivingGlyph: React.FC<LivingGlyphProps> = ({
     const animate = (time: number) => {
       const deltaTime = (time - lastTime) / 1000;
       lastTime = time;
-      
+
       // Update pulse phase
       pulsePhaseRef.current += deltaTime * pulseParams.frequency * Math.PI * 2;
-      
-      // Trigger re-render for smooth animation
+
       if (svgRef.current) {
         svgRef.current.style.setProperty('--pulse-phase', pulsePhaseRef.current.toString());
       }
-      
-      animationRef.current = requestAnimationFrame(animate);
+
+      // Throttle to ~20fps — cosmetic glow doesn't need 60fps
+      setTimeout(() => {
+        animationRef.current = requestAnimationFrame(animate);
+      }, 30);
     };
-    
+
     animationRef.current = requestAnimationFrame(animate);
     
     return () => {

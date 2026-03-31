@@ -159,7 +159,10 @@ export default function SpectrumAnalyzer({
       }
     }
 
-    animFrameRef.current = requestAnimationFrame(draw);
+    // Throttle to ~30fps to reduce CPU load for audio thread
+    setTimeout(() => {
+      animFrameRef.current = requestAnimationFrame(draw);
+    }, 16);
   }, [width, height, running, peakHold]);
 
   useEffect(() => {

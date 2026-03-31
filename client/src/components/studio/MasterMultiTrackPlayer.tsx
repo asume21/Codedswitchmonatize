@@ -876,7 +876,10 @@ export default function MasterMultiTrackPlayer() {
       });
       if (!cancelled) {
         setChannelMeters(next);
-        meterLoopRef.current = requestAnimationFrame(updateMeters);
+        // Throttle meter updates to ~15fps to reduce main thread load
+        setTimeout(() => {
+          meterLoopRef.current = requestAnimationFrame(updateMeters);
+        }, 50);
       }
     };
 
@@ -1762,11 +1765,17 @@ export default function MasterMultiTrackPlayer() {
   };
 
   // Update current time
+  const timeFrameCount = useRef(0);
   const updateCurrentTime = () => {
     if (!audioContextRef.current || !isPlayingRef.current) return;
 
+    timeFrameCount.current++;
     const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
-    setCurrentTime(elapsed);
+
+    // Only update React state every 4th frame (~15fps) to reduce main thread load
+    if (timeFrameCount.current % 4 === 0) {
+      setCurrentTime(elapsed);
+    }
 
     const punchEnd = punch.enabled ? punch.out : duration;
     // Continue animating while playing; stop via stopPlayback when needed

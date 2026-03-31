@@ -470,63 +470,71 @@ export default function ProfessionalMixer() {
     }
   }, [tracks, mixerState.isInitialized]);
   
+  const meterFrameCount = useRef(0);
   const startMetering = useCallback(() => {
     const clamp01 = (value: number) => Math.max(0, Math.min(1, value ?? 0));
+    const THROTTLE_FRAMES = 4; // Update React state every 4th frame (~15fps instead of 60fps)
     const updateMeters = () => {
       if (!mixerState.isInitialized) return;
-      
-      // Update channel meters
-      const newMeterData = new Map<string, ChannelMeterData>();
-      
-      channelsRef.current.forEach(channel => {
-        const meters = professionalAudio.getChannelMeters(channel.id);
-        let peak = meters.peak ?? 0;
-        let rms = meters.rms ?? 0;
 
-        if (transportPlayingRef.current && peak < 0.01 && rms < 0.01) {
-          const simulatedPeak = Math.random() * 0.6 + 0.25;
-          peak = simulatedPeak;
-          rms = simulatedPeak * 0.75;
-        }
+      meterFrameCount.current++;
+      const shouldUpdateState = meterFrameCount.current % THROTTLE_FRAMES === 0;
 
-        newMeterData.set(channel.id, {
-          peak: clamp01(peak),
-          rms: clamp01(rms),
-          spectrum: [] // Individual channel spectrum could be added
-        });
-      });
-      
-      setMeterData(newMeterData);
-      
-      // Update master spectrum
+      // Always draw canvas (cheap, no React re-render)
       const spectrum = professionalAudio.getMasterSpectrum();
       if (spectrum) {
-        const spectrumArray = Array.from(spectrum);
-        setMixerState(prev => ({
-          ...prev,
-          spectrum: spectrumArray,
-          masterMeters: {
-            peak: clamp01(Math.max(...spectrumArray) / 255),
-            rms: clamp01(Math.sqrt(spectrumArray.reduce((sum, val) => sum + (val/255)**2, 0) / spectrumArray.length))
-          }
-        }));
-        
-        // Draw spectrum analyzer
-        drawSpectrum(spectrumArray);
-      } else if (transportPlayingRef.current) {
-        const simulated = Math.random() * 0.4 + 0.3;
-        setMixerState(prev => ({
-          ...prev,
-          masterMeters: {
-            peak: clamp01(simulated),
-            rms: clamp01(simulated * 0.8)
-          }
-        }));
+        drawSpectrum(Array.from(spectrum));
       }
-      
+
+      // Only trigger React state updates at throttled rate
+      if (shouldUpdateState) {
+        const newMeterData = new Map<string, ChannelMeterData>();
+
+        channelsRef.current.forEach(channel => {
+          const meters = professionalAudio.getChannelMeters(channel.id);
+          let peak = meters.peak ?? 0;
+          let rms = meters.rms ?? 0;
+
+          if (transportPlayingRef.current && peak < 0.01 && rms < 0.01) {
+            const simulatedPeak = Math.random() * 0.6 + 0.25;
+            peak = simulatedPeak;
+            rms = simulatedPeak * 0.75;
+          }
+
+          newMeterData.set(channel.id, {
+            peak: clamp01(peak),
+            rms: clamp01(rms),
+            spectrum: []
+          });
+        });
+
+        setMeterData(newMeterData);
+
+        if (spectrum) {
+          const spectrumArray = Array.from(spectrum);
+          setMixerState(prev => ({
+            ...prev,
+            spectrum: spectrumArray,
+            masterMeters: {
+              peak: clamp01(Math.max(...spectrumArray) / 255),
+              rms: clamp01(Math.sqrt(spectrumArray.reduce((sum, val) => sum + (val/255)**2, 0) / spectrumArray.length))
+            }
+          }));
+        } else if (transportPlayingRef.current) {
+          const simulated = Math.random() * 0.4 + 0.3;
+          setMixerState(prev => ({
+            ...prev,
+            masterMeters: {
+              peak: clamp01(simulated),
+              rms: clamp01(simulated * 0.8)
+            }
+          }));
+        }
+      }
+
       animationRef.current = requestAnimationFrame(updateMeters);
     };
-    
+
     updateMeters();
   }, [mixerState.isInitialized]);
   

@@ -86,10 +86,15 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let animationId: number;
+    let frameCount = 0;
     const updateTime = () => {
       if (isPlaying && audioContextRef.current) {
-        const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
-        setCurrentTime(pauseTimeRef.current + elapsed);
+        frameCount++;
+        // Only update React state every 4th frame (~15fps) to reduce main thread load
+        if (frameCount % 4 === 0) {
+          const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
+          setCurrentTime(pauseTimeRef.current + elapsed);
+        }
         animationId = requestAnimationFrame(updateTime);
       }
     };

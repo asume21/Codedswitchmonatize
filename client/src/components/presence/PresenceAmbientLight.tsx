@@ -132,7 +132,10 @@ export function PresenceAmbientLight() {
       phaseRef.current += dt * config.pulseSpeed * Math.PI * 2;
 
       updateCSSVars();
-      rafRef.current = requestAnimationFrame(animate);
+      // Throttle to ~20fps — cosmetic CSS vars animation doesn't need 60fps
+      setTimeout(() => {
+        rafRef.current = requestAnimationFrame(animate);
+      }, 30);
     };
 
     rafRef.current = requestAnimationFrame(animate);
