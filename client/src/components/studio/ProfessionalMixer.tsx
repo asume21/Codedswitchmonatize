@@ -72,6 +72,8 @@ export default function ProfessionalMixer() {
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [meterData, setMeterData] = useState<Map<string, ChannelMeterData>>(new Map());
   const [isPlaying, setIsPlaying] = useState(false);
+  const [initTimedOut, setInitTimedOut] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   // Sidechain state — tracks which channels have sidechain enabled and their configs
   const [sidechainState, setSidechainState] = useState<Record<string, {
@@ -94,6 +96,17 @@ export default function ProfessionalMixer() {
   useEffect(() => {
     transportPlayingRef.current = Boolean(transport?.isPlaying);
   }, [transport?.isPlaying]);
+
+  const syncMixerStateFromEngine = useCallback((initialized: boolean) => {
+    setMixerState({
+      channels: professionalAudio.getChannels(),
+      sends: professionalAudio.getSendReturns(),
+      masterLevel: 0.8,
+      masterMeters: { peak: 0, rms: 0 },
+      spectrum: [],
+      isInitialized: initialized
+    });
+  }, []);
   
   // AI-powered mixing mutation
   const aiMixMutation = useMutation({
@@ -373,56 +386,6 @@ export default function ProfessionalMixer() {
     }
   }, [location, setCurrentSessionId]);
 
-  // Initialize professional audio engine and synchronize tracks
-  useEffect(() => {
-    const initializeAudio = async () => {
-      try {
-        await professionalAudio.initialize();
-        
-        // Sync mixer channels with project tracks
-        const channels = tracks.map(track => {
-          // Check if channel already exists in audio engine
-          const existing = professionalAudio.getChannels().find(ch => ch.id === track.id);
-          if (existing) return existing;
-          
-          return professionalAudio.createMixerChannel(track.id, track.name || `Track ${track.id.slice(0, 4)}`);
-        });
-        
-        setMixerState({
-          channels,
-          sends: professionalAudio.getSendReturns(),
-          masterLevel: 0.8,
-          masterMeters: { peak: 0, rms: 0 },
-          spectrum: [],
-          isInitialized: true
-        });
-        
-        toast({
-          title: "Professional Audio Engine Initialized",
-          description: "World-class mixing console ready for production",
-        });
-        
-        // Start real-time metering
-        startMetering();
-        
-      } catch (error) {
-        console.error('Failed to initialize professional audio:', error);
-        toast({
-          title: "Audio Initialization Failed",
-          description: "Please check your audio settings and try again",
-          variant: "destructive"
-        });
-      }
-    };
-    
-    initializeAudio();
-    
-    return () => {
-      stopMetering();
-      professionalAudio.disconnect();
-    };
-  }, []); // Only initialize once on mount
-
   // Watch for track changes and update mixer channels
   useEffect(() => {
     if (!mixerState.isInitialized) return;
@@ -543,6 +506,65 @@ export default function ProfessionalMixer() {
       cancelAnimationFrame(animationRef.current);
     }
   }, []);
+
+  // Initialize professional audio engine and synchronize tracks
+  useEffect(() => {
+    let isMounted = true;
+    const timeoutId = window.setTimeout(() => {
+      if (!isMounted || mixerState.isInitialized) return;
+      setInitTimedOut(true);
+    }, 7000);
+
+    const initializeAudio = async () => {
+      setInitError(null);
+      setInitTimedOut(false);
+      try {
+        await professionalAudio.initialize();
+
+        tracks.forEach(track => {
+          const existing = professionalAudio.getChannels().find(ch => ch.id === track.id);
+          if (existing) return;
+          professionalAudio.createMixerChannel(track.id, track.name || `Track ${track.id.slice(0, 4)}`);
+        });
+
+        if (!isMounted) return;
+        syncMixerStateFromEngine(true);
+
+        toast({
+          title: "Professional Audio Engine Initialized",
+          description: "World-class mixing console ready for production",
+        });
+
+        startMetering();
+      } catch (error: any) {
+        console.error('Failed to initialize professional audio:', error);
+        if (!isMounted) return;
+        setInitError(error?.message || 'Audio engine did not finish starting.');
+        toast({
+          title: "Audio Initialization Failed",
+          description: "Please check your audio settings and try again",
+          variant: "destructive"
+        });
+      }
+    };
+
+    initializeAudio();
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timeoutId);
+      stopMetering();
+      professionalAudio.disconnect();
+    };
+  }, [startMetering, stopMetering, syncMixerStateFromEngine, toast, tracks, mixerState.isInitialized]);
+
+  const continueWithoutAudioEngine = useCallback(() => {
+    syncMixerStateFromEngine(true);
+    toast({
+      title: "Mixer Opened In Fallback Mode",
+      description: "The UI loaded even though the audio engine is still slow to start.",
+    });
+  }, [syncMixerStateFromEngine, toast]);
   
   const drawSpectrum = (spectrum: number[]) => {
     const canvas = spectrumCanvasRef.current;
@@ -739,10 +761,25 @@ export default function ProfessionalMixer() {
   if (!mixerState.isInitialized) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
+        <div className="text-center max-w-md px-6">
           <Zap className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-500" />
           <div className="text-white font-bold">Initializing Professional Audio Engine...</div>
           <div className="text-sm text-gray-400">Loading holographic mixing console</div>
+          {(initTimedOut || initError) && (
+            <div className="mt-4 space-y-4">
+              <div className="text-sm text-amber-300">
+                {initError || "Audio startup is taking longer than expected. You can retry or open the mixer UI without waiting for the engine."}
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
+                <Button size="sm" onClick={continueWithoutAudioEngine}>
+                  Continue Anyway
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
