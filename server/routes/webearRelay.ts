@@ -263,9 +263,19 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     return keyRecord;
   }
 
+  function extractApiKey(req: Request): string {
+    const auth = req.headers['authorization'];
+    if (typeof auth === 'string') {
+      const match = auth.match(/^Bearer\s+(.+)$/i);
+      if (match?.[1]) return match[1].trim();
+    }
+    const queryKey = req.query.key;
+    return typeof queryKey === 'string' ? queryKey.trim() : '';
+  }
+
   // ── 1. Browser SSE — receives capture commands ────────────────────────────
   router.get('/connect', async (req: Request, res: Response) => {
-    const key = req.query.key as string;
+    const key = extractApiKey(req);
     const keyRecord = await resolveKey(key);
     if (!keyRecord) return void res.status(401).json({ error: 'Invalid API key. Generate one at https://www.codedswitch.com/developer' });
 
@@ -304,7 +314,7 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
 
   // ── 3. MCP SSE transport — Claude Code connects here ─────────────────────
   router.get('/mcp/sse', async (req: Request, res: Response) => {
-    const key = req.query.key as string;
+    const key = extractApiKey(req);
     const keyRecord = await resolveKey(key);
     if (!keyRecord) return void res.status(401).json({ error: 'Invalid API key' });
 
@@ -347,3 +357,4 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
 
   return router;
 }
+

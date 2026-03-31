@@ -75,12 +75,15 @@ export default function DeveloperPage() {
   const displayKey = revealed && fullKey ? fullKey : (keyData?.maskedKey || "No key generated yet");
   const hasKey = !!keyData?.id;
 
-  const apiKey = fullKey || keyData?.maskedKey || 'YOUR_API_KEY';
+  const apiKey = fullKey || 'YOUR_API_KEY';
   const claudeCodeConfig = `{
   "mcpServers": {
     "webear": {
       "type": "sse",
-      "url": "https://www.codedswitch.com/api/webear/mcp/sse?key=${apiKey}"
+      "url": "https://www.codedswitch.com/api/webear/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer ${apiKey}"
+      }
     }
   }
 }`;
@@ -270,7 +273,7 @@ export default function DeveloperPage() {
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
-              <p className="text-muted-foreground text-xs">No local server required — everything runs on the cloud.</p>
+              <p className="text-muted-foreground text-xs">No local server required — everything runs on the cloud. Reveal your key first so copied snippets include your real token.</p>
             </div>
 
             <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded text-green-600 dark:text-green-400">
@@ -284,3 +287,4 @@ export default function DeveloperPage() {
     </div>
   );
 }
+
