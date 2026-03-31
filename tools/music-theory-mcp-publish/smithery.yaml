@@ -1,0 +1,112 @@
+name: music-theory-mcp
+displayName: Music Theory MCP
+description: >
+  Give your AI coding assistant musical knowledge. Scales, chords,
+  progressions, key detection, genre-aware composition intelligence,
+  and rhythm patterns — all offline, zero API keys. Works with
+  Claude Code, Cursor, Windsurf, and any MCP-compatible IDE.
+version: 1.0.0
+license: MIT
+author: asume21
+homepage: https://github.com/asume21/music-theory-mcp
+repository: https://github.com/asume21/music-theory-mcp
+npm: music-theory-mcp
+
+categories:
+  - developer-tools
+  - audio
+  - music
+
+tags:
+  - music-theory
+  - chords
+  - scales
+  - progressions
+  - key-detection
+  - genre
+  - composition
+  - beat-making
+  - rhythm
+  - harmony
+  - midi
+  - ai-music
+
+tools:
+  - name: get_scale
+    description: >
+      Get the notes and intervals for any musical scale. Supports 20+ types
+      including major, minor, pentatonic, blues, dorian, phrygian, lydian,
+      mixolydian, harmonic minor, whole tone, diminished, and more.
+
+  - name: get_chord
+    description: >
+      Get the notes and intervals for any chord type. Supports 22+ types
+      including triads, 7ths, 9ths, 11ths, 13ths, sus, aug, dim, and more.
+
+  - name: identify_chord
+    description: >
+      Identify a chord from a set of note names. Returns all possible
+      interpretations with root, type, symbol, and inversion.
+
+  - name: detect_key
+    description: >
+      Detect the most likely musical key from a set of observed notes.
+      Returns top candidates with confidence scores. Works with melodies,
+      MIDI data, or any collection of pitch classes.
+
+  - name: resolve_progression
+    description: >
+      Resolve a Roman numeral chord progression (e.g., I–V–vi–IV) to
+      actual chord names and notes in any key.
+
+  - name: suggest_next_chord
+    description: >
+      Suggest what chord should come next based on common voice leading
+      tendencies. Given a current chord and key, returns ranked suggestions.
+
+  - name: get_diatonic_chords
+    description: >
+      Get all 7 diatonic chords in any key with Roman numerals, chord
+      symbols, types, and constituent notes.
+
+  - name: get_genre_profile
+    description: >
+      Get full genre intelligence: common chord progressions, scales,
+      BPM range, instruments, rhythmic feel, swing amount, common keys,
+      and mood descriptors. Supports trap, boom bap, drill, lo-fi hip hop,
+      R&B, pop, afrobeats, reggaeton, jazz, EDM, and gospel.
+
+  - name: suggest_genre
+    description: >
+      Suggest a genre based on BPM, key, mood, or scale. Returns ranked
+      matches with reasoning.
+
+  - name: get_genre_rhythms
+    description: >
+      Get common drum/rhythm patterns for a genre. Returns kick, snare,
+      and hi-hat step arrays ready to load into a beat maker or sequencer.
+
+  - name: transpose_note
+    description: >
+      Transpose a single note up or down by a number of semitones.
+
+  - name: transpose_progression
+    description: >
+      Transpose an entire chord progression by a number of semitones.
+
+  - name: get_interval
+    description: >
+      Get the musical interval name between two notes (e.g., C to G = P5).
+
+setup:
+  steps:
+    - title: Install the package
+      description: Run `npx music-theory-mcp` or `npm install -g music-theory-mcp`.
+
+    - title: Configure your IDE
+      description: >
+        Add the MCP server config to your IDE settings. No API keys needed —
+        the server runs locally with zero external dependencies.
+
+config:
+  env: {}

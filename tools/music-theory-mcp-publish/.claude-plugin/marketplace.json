@@ -1,0 +1,25 @@
+{
+  "name": "codedswitch-tools",
+  "owner": {
+    "name": "CodedSwitch",
+    "url": "https://www.codedswitch.com"
+  },
+  "plugins": [
+    {
+      "name": "music-theory-mcp",
+      "description": "Musical knowledge for AI agents — scales, chords, progressions, key detection, genre intelligence, rhythm patterns",
+      "source": {
+        "source": "github",
+        "repo": "asume21/music-theory-mcp"
+      }
+    },
+    {
+      "name": "webear",
+      "description": "Give your AI coding assistant ears — capture, analyze, and describe live audio from web apps",
+      "source": {
+        "source": "github",
+        "repo": "asume21/webear"
+      }
+    }
+  ]
+}

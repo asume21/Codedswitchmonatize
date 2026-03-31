@@ -1,0 +1,68 @@
+{
+  "name": "music-theory-mcp",
+  "version": "1.0.0",
+  "mcpName": "io.github.asume21/music-theory-mcp",
+  "description": "Give your AI coding assistant musical knowledge — scales, chords, progressions, key detection, genre-aware composition intelligence, and rhythm patterns. Works with Claude Code, Cursor, Windsurf, and any MCP-compatible IDE.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "music-theory-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --import tsx/esm src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "music-theory",
+    "model-context-protocol",
+    "ai",
+    "chords",
+    "scales",
+    "progressions",
+    "key-detection",
+    "genre",
+    "composition",
+    "beat-making",
+    "music",
+    "midi",
+    "harmony",
+    "rhythm",
+    "windsurf",
+    "cursor",
+    "claude",
+    "copilot",
+    "coding-assistant",
+    "developer-tools"
+  ],
+  "author": "asume21",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asume21/music-theory-mcp"
+  },
+  "homepage": "https://github.com/asume21/music-theory-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/asume21/music-theory-mcp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

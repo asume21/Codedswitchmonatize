@@ -77,6 +77,40 @@ export function createMcpApiRoutes(storage: IStorage): Router {
     });
   }
 
+  // ─── Key validation endpoint (used by music-theory-mcp and other MCP products) ──
+
+  router.post('/validate-key', async (req: Request, res: Response) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.replace('Bearer ', '').trim();
+
+    if (!token) {
+      return res.status(401).json({ valid: false, error: 'Missing API key' });
+    }
+
+    // Accept both wbr_ (webear) and csk_ (codedswitch general) prefixes
+    const keyRecord = token.startsWith('wbr_')
+      ? await storage.getWebearKeyByValue(token)
+      : await storage.getWebearKeyByValue(token); // same table for now, csk_ keys stored alongside
+
+    if (!keyRecord) {
+      return res.status(401).json({ valid: false, error: 'Invalid API key' });
+    }
+
+    const userId = keyRecord.userId;
+    const balance = await creditService.getBalance(userId);
+    const product = req.body?.product || 'unknown';
+
+    // Track the validation call (no credit cost, just tracking)
+    if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+    return res.json({
+      valid: true,
+      tier: balance > 100 ? 'enterprise' : balance > 0 ? 'pro' : 'free',
+      callsRemaining: Math.max(0, balance),
+      product,
+    });
+  });
+
   router.post('/analyze', upload.single('audio'), async (req: Request, res: Response) => {
     const userId = await resolveUser(req, res);
     if (!userId) return;

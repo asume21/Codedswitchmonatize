@@ -1,0 +1,11 @@
+{
+  "name": "music-theory-mcp",
+  "description": "Give your AI assistant musical knowledge — scales, chords, progressions, key detection, genre intelligence, and rhythm patterns. 4 free tools, 9 pro tools with CODEDSWITCH_API_KEY.",
+  "version": "1.0.0",
+  "author": {
+    "name": "asume21",
+    "url": "https://www.codedswitch.com"
+  },
+  "repository": "https://github.com/asume21/music-theory-mcp",
+  "license": "MIT"
+}

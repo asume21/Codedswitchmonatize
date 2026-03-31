@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.asume21/music-theory-mcp",
+  "description": "Give your AI coding assistant musical knowledge — scales, chords, progressions, key detection, genre intelligence, and rhythm patterns. Zero API keys required. Works with Cursor, Windsurf, Claude Code, and any MCP-compatible IDE.",
+  "repository": {
+    "url": "https://github.com/asume21/music-theory-mcp",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "music-theory-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": []
+    }
+  ]
+}
