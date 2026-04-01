@@ -21,9 +21,10 @@ import { useTransport } from '@/contexts/TransportContext';
 import { useStudioStore } from '@/stores/useStudioStore';
 import {
   Plus, ChevronRight, ChevronDown, ZoomIn, ZoomOut, Mic2, Piano,
-  Layers, Music2, Drum, Trash2, Settings2, GripVertical, Sliders, Repeat,
+  Layers, Music2, Drum, Trash2, Settings2, GripVertical, Sliders, Repeat, Download,
 } from 'lucide-react';
 import { SectionMarkers } from './SectionMarkers';
+import { exportTracksToMidi, downloadMidi } from '@/lib/midiExport';
 import { cn } from '@/lib/utils';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
@@ -107,6 +108,62 @@ function MiniNoteCanvas({
   return <canvas ref={ref} style={{ width, height, display: 'block' }} />;
 }
 
+// ── Clip waveform canvas (for audio tracks) ───────────────────────────────────
+function ClipWaveformCanvas({
+  audioUrl, width, height, color,
+}: { audioUrl: string; width: number; height: number; color: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!audioUrl || width < 2 || height < 2) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res  = await fetch(audioUrl);
+        const buf  = await res.arrayBuffer();
+        const actx = new AudioContext();
+        const decoded = await actx.decodeAudioData(buf);
+        actx.close();
+        if (cancelled) return;
+        const canvas = ref.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        canvas.width  = width;
+        canvas.height = height;
+        ctx.clearRect(0, 0, width, height);
+
+        const data  = decoded.getChannelData(0);
+        const step  = Math.max(1, Math.floor(data.length / width));
+        const mid   = height / 2;
+
+        ctx.strokeStyle  = color;
+        ctx.globalAlpha  = 0.65;
+        ctx.lineWidth    = 1;
+        ctx.beginPath();
+        for (let x = 0; x < width; x++) {
+          const off = x * step;
+          let mn = 0, mx = 0;
+          for (let i = 0; i < step; i++) {
+            const s = data[off + i] ?? 0;
+            if (s < mn) mn = s;
+            if (s > mx) mx = s;
+          }
+          ctx.moveTo(x + 0.5, mid + mn * mid);
+          ctx.lineTo(x + 0.5, mid + mx * mid);
+        }
+        ctx.stroke();
+      } catch { /* no audio or CORS */ }
+    })();
+
+    return () => { cancelled = true; };
+  }, [audioUrl, width, height, color]);
+
+  return <canvas ref={ref} style={{ width, height, display: 'block' }} />;
+}
+
 // ── Drag state (kept in a ref to avoid re-renders during drag) ────────────────
 interface DragState {
   type: 'move' | 'resize';
@@ -147,6 +204,20 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
 
   const outerRef = useRef<HTMLDivElement>(null);
   const pxPerBar = BASE_PX_BAR * zoom;
+
+  // ── Stems export ──────────────────────────────────────────────────────────
+  const exportStems = useCallback(() => {
+    const midiTracks = tracks
+      .filter(t => ((t as any).notes?.length ?? 0) > 0)
+      .map(t => ({
+        name: t.name,
+        notes: (t as any).notes ?? [],
+        channel: (t as any).kind === 'beat' ? 9 : 0,
+      }));
+    if (!midiTracks.length) return;
+    const midi = exportTracksToMidi(tracks as any, { bpm: tempo, projectName: 'CodedSwitch Session' });
+    downloadMidi(midi, `cs-stems-${Date.now()}.mid`);
+  }, [tracks, tempo]);
 
   // Transport position → bars (4/4 assumed)
   useEffect(() => { setPlayheadBar(position / 4); }, [position]);
@@ -324,8 +395,17 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
           {loop.enabled ? `Loop ${loopStartBar?.toFixed(1)}–${loopEndBar?.toFixed(1)} bars` : 'Loop'}
         </button>
 
-        <div className="ml-auto font-mono text-[10px] text-gray-700">
-          {tracks.length} track{tracks.length !== 1 ? 's' : ''} · {tempo} BPM
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={exportStems}
+            className="flex items-center gap-1 px-2.5 py-1 rounded border border-violet-500/20 bg-violet-500/8 hover:bg-violet-500/20 hover:border-violet-400/40 text-[11px] text-violet-400/70 hover:text-violet-100 transition-all"
+            title="Export all MIDI tracks as a multi-track .mid file"
+          >
+            <Download className="w-3 h-3" /> Export Stems
+          </button>
+          <span className="font-mono text-[10px] text-gray-700">
+            {tracks.length} track{tracks.length !== 1 ? 's' : ''} · {tempo} BPM
+          </span>
         </div>
       </div>
 
@@ -593,8 +673,20 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                       </div>
                     )}
 
+                    {/* Waveform for audio tracks */}
+                    {(track as any).audioUrl && clipW > 16 && (
+                      <div className="absolute left-0 right-0 bottom-1 pointer-events-none" style={{ top: 20 }}>
+                        <ClipWaveformCanvas
+                          audioUrl={(track as any).audioUrl}
+                          width={Math.max(2, clipW - 2)}
+                          height={Math.max(8, innerH - 24)}
+                          color={color.base}
+                        />
+                      </div>
+                    )}
+
                     {/* Empty hint */}
-                    {notes.length === 0 && (track as any).type !== 'audio' && clipW > 60 && (
+                    {notes.length === 0 && !(track as any).audioUrl && clipW > 60 && (
                       <div className="absolute inset-0 top-5 flex items-center justify-center text-[9px] pointer-events-none"
                         style={{ color: color.base, opacity: 0.22 }}>
                         double-click to edit

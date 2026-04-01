@@ -1440,7 +1440,13 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
                     className={`w-10 h-10 rounded-lg cursor-pointer transition-all duration-100 flex items-center justify-center relative group/step ${step.active ? `${track.color} border-white/20` : si % 4 === 0 ? 'bg-white/10 border-white/10' : 'bg-white/5 border-transparent'} ${selectedStep?.t === ti && selectedStep?.s === si ? 'ring-2 ring-white scale-110 z-10' : 'hover:scale-105'} ${isPlayingStep ? 'brightness-150 shadow-[0_0_20px_white]' : ''} border`}>
                     {step.active && <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_white]" />}
                     {step.flam && <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_5px_rgba(251,146,60,0.8)]" />}
-                    {step.roll > 0 && <div className="absolute bottom-0.5 right-0.5 text-[6px] font-black text-white/60">x{step.roll}</div>}
+                    {step.roll > 0 && <div className="absolute bottom-2 right-0.5 text-[6px] font-black text-white/60">x{step.roll}</div>}
+                    {/* Velocity bar */}
+                    {step.active && (
+                      <div className="absolute bottom-0 left-0.5 right-0.5 h-[3px] rounded-b-md overflow-hidden bg-black/30">
+                        <div className="h-full rounded-full bg-white/70" style={{ width: `${(step.velocity / 127) * 100}%` }} />
+                      </div>
+                    )}
                   </div>
                 );
               })}

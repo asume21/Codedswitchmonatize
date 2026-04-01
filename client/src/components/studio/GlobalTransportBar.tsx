@@ -17,6 +17,7 @@ import { getTimelineRecorder, type RecorderState, type RecordingResult } from '@
 import { getCurrentProject, markDirty, type AudioClip } from '@/lib/projectManager';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { MasterBusPanel } from './MasterBusPanel';
+import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
 
 interface TrackChannel {
   id: string;
@@ -50,6 +51,20 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
 
   const [expanded, setExpanded] = useState(false);
   const [masterVolume, setMasterVolumeState] = useState(80);
+
+  // ─── Visual metronome ─────────────────────────────────────────────
+  const [beatFlash, setBeatFlash] = useState<'beat1' | 'beat' | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const unsub = pianoRollScheduler.subscribeVisual((step) => {
+      if (step % 4 === 0) {
+        setBeatFlash(step === 0 ? 'beat1' : 'beat');
+        if (flashTimer.current) clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setBeatFlash(null), 90);
+      }
+    });
+    return () => { unsub(); if (flashTimer.current) clearTimeout(flashTimer.current); };
+  }, []);
   const [isMuted, setIsMuted] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackMode, setPlaybackMode] = useState<'all' | 'beat' | 'melody' | 'custom'>('all');
@@ -385,6 +400,22 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
           >
             <Repeat className="w-4 h-4" />
           </Button>
+
+          {/* Metronome beat flash */}
+          <div
+            className="w-3 h-3 rounded-full flex-shrink-0 transition-all duration-75"
+            style={{
+              backgroundColor:
+                beatFlash === 'beat1' ? '#ffffff' :
+                beatFlash === 'beat'  ? '#06b6d4' :
+                'rgba(255,255,255,0.08)',
+              boxShadow:
+                beatFlash === 'beat1' ? '0 0 8px #fff, 0 0 16px #fff' :
+                beatFlash === 'beat'  ? '0 0 6px #06b6d4' :
+                'none',
+            }}
+            title="Beat indicator"
+          />
 
           {/* Record Button */}
           <Button
