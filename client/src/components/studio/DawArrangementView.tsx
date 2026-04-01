@@ -24,7 +24,9 @@ import {
   Layers, Music2, Drum, Trash2, Settings2, GripVertical, Sliders, Repeat, Download,
 } from 'lucide-react';
 import { SectionMarkers } from './SectionMarkers';
+import { AutomationLane, valueAt, AUTO_LANE_H, type AutoPoint, type AutoParam } from './AutomationLane';
 import { exportTracksToMidi, downloadMidi } from '@/lib/midiExport';
+import { professionalAudio } from '@/lib/professionalAudio';
 import { cn } from '@/lib/utils';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
@@ -164,10 +166,20 @@ function ClipWaveformCanvas({
   return <canvas ref={ref} style={{ width, height, display: 'block' }} />;
 }
 
+// ── Clip (multiple clips per track) ──────────────────────────────────────────
+export interface DAWClip {
+  id: string;
+  startBar: number;
+  lengthBars: number;
+  notes: any[];
+  audioUrl?: string;
+}
+
 // ── Drag state (kept in a ref to avoid re-renders during drag) ────────────────
 interface DragState {
   type: 'move' | 'resize';
   trackId: string;
+  clipId: string;
   startClientX: number;
   originalValue: number;   // startBar (move) or lengthBars (resize)
 }
@@ -190,9 +202,11 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
   const [zoom,       setZoom]       = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [playheadBar, setPlayheadBar] = useState(0);
-  const [expandedFx, setExpandedFx] = useState<Set<string>>(new Set());
-  const [editingId,  setEditingId]  = useState<string | null>(null);
-  const [editName,   setEditName]   = useState('');
+  const [expandedFx,  setExpandedFx]  = useState<Set<string>>(new Set());
+  const [showAutoIds, setShowAutoIds] = useState<Set<string>>(new Set());
+  const [autoParams,  setAutoParams]  = useState<Record<string, AutoParam>>({});
+  const [editingId,   setEditingId]   = useState<string | null>(null);
+  const [editName,    setEditName]    = useState('');
   // Loop region drag on ruler
   const loopDragRef = useRef<{ startClientX: number; startBar: number } | null>(null);
 
@@ -234,62 +248,107 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
 
   const totalBars = useMemo(() => {
     if (!tracks.length) return 32;
-    const max = Math.max(
-      ...tracks.map(t => ((t as any).startBar ?? 0) + ((t as any).lengthBars ?? 8))
-    );
+    let max = 0;
+    for (const t of tracks) {
+      const clips = (t as any).clips as DAWClip[] | undefined;
+      if (clips?.length) {
+        for (const c of clips) max = Math.max(max, c.startBar + c.lengthBars);
+      } else {
+        max = Math.max(max, ((t as any).startBar ?? 0) + ((t as any).lengthBars ?? 8));
+      }
+    }
     return Math.max(32, max + 16);
   }, [tracks]);
 
   const totalW = totalBars * pxPerBar;
 
-  // Row height helper (expanded FX = bigger)
-  const rowH = useCallback((id: string) =>
-    expandedFx.has(id) ? ROW_H + FX_H : ROW_H, [expandedFx]);
+  // Row height helper (expanded FX / automation lane adds height)
+  const rowH = useCallback((id: string) => {
+    let h = ROW_H;
+    if (expandedFx.has(id))  h += FX_H;
+    if (showAutoIds.has(id)) h += AUTO_LANE_H;
+    return h;
+  }, [expandedFx, showAutoIds]);
 
-  // Effective clip position (uses localPos during drag)
-  const clipStart = (track: StudioTrack) =>
-    localPos[track.id]?.startBar ?? (track as any).startBar ?? 0;
-  const clipLen = (track: StudioTrack) =>
-    localPos[track.id]?.lengthBars ?? (track as any).lengthBars ?? 8;
+  // Get clips array for a track (falls back to single-clip compat)
+  const getClips = useCallback((track: StudioTrack): DAWClip[] => {
+    const stored = (track as any).clips as DAWClip[] | undefined;
+    if (stored?.length) return stored;
+    return [{
+      id: `${track.id}-main`,
+      startBar:   (track as any).startBar   ?? 0,
+      lengthBars: (track as any).lengthBars ?? 8,
+      notes:      (track as any).notes      ?? [],
+      audioUrl:   (track as any).audioUrl,
+    }];
+  }, []);
+
+  // Effective clip position during drag (localPos keyed by clipId)
+  const clipStart = (clip: DAWClip) => localPos[clip.id]?.startBar   ?? clip.startBar;
+  const clipLen   = (clip: DAWClip) => localPos[clip.id]?.lengthBars ?? clip.lengthBars;
 
   // ── Drag handlers ────────────────────────────────────────────────────────────
   const startDrag = useCallback((
     e: React.PointerEvent,
     type: DragState['type'],
     track: StudioTrack,
+    clip: DAWClip,
   ) => {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const originalValue = type === 'move' ? clipStart(track) : clipLen(track);
-    dragRef.current = { type, trackId: track.id, startClientX: e.clientX, originalValue };
+    const originalValue = type === 'move' ? clipStart(clip) : clipLen(clip);
+    dragRef.current = { type, trackId: track.id, clipId: clip.id, startClientX: e.clientX, originalValue };
   }, [clipStart, clipLen]);
 
-  const onDragMove = useCallback((e: React.PointerEvent, track: StudioTrack) => {
+  const onDragMove = useCallback((e: React.PointerEvent, clip: DAWClip) => {
     const drag = dragRef.current;
-    if (!drag || drag.trackId !== track.id) return;
-    const dx       = e.clientX - drag.startClientX;
-    const deltaBars = dx / pxPerBar;
+    if (!drag || drag.clipId !== clip.id) return;
+    const deltaBars = (e.clientX - drag.startClientX) / pxPerBar;
     if (drag.type === 'move') {
       const newStart = Math.max(0, Math.round(drag.originalValue + deltaBars));
-      setLocalPos(p => ({ ...p, [track.id]: { ...p[track.id], startBar: newStart } }));
+      setLocalPos(p => ({ ...p, [clip.id]: { ...p[clip.id], startBar: newStart } }));
     } else {
       const newLen = Math.max(1, Math.round(drag.originalValue + deltaBars));
-      setLocalPos(p => ({ ...p, [track.id]: { ...p[track.id], lengthBars: newLen } }));
+      setLocalPos(p => ({ ...p, [clip.id]: { ...p[clip.id], lengthBars: newLen } }));
     }
   }, [pxPerBar]);
 
-  const onDragEnd = useCallback((e: React.PointerEvent, track: StudioTrack) => {
+  const onDragEnd = useCallback((e: React.PointerEvent, track: StudioTrack, clip: DAWClip) => {
     const drag = dragRef.current;
-    if (!drag || drag.trackId !== track.id) return;
+    if (!drag || drag.clipId !== clip.id) return;
     dragRef.current = null;
-    const override = localPos[track.id] ?? {};
-    if (drag.type === 'move' && override.startBar !== undefined) {
-      updateTrack(track.id, { startBar: override.startBar } as any);
-    } else if (drag.type === 'resize' && override.lengthBars !== undefined) {
-      updateTrack(track.id, { lengthBars: override.lengthBars } as any);
+    const override = localPos[clip.id] ?? {};
+    // Persist to track — update clip in clips array or legacy fields
+    const clips = getClips(track);
+    const updatedClips = clips.map(c => c.id === clip.id
+      ? {
+          ...c,
+          startBar:   override.startBar   ?? c.startBar,
+          lengthBars: override.lengthBars ?? c.lengthBars,
+        }
+      : c
+    );
+    if ((track as any).clips) {
+      updateTrack(track.id, { clips: updatedClips } as any);
+    } else {
+      // Legacy single-clip: update top-level fields
+      updateTrack(track.id, {
+        startBar:   override.startBar   ?? clip.startBar,
+        lengthBars: override.lengthBars ?? clip.lengthBars,
+      } as any);
     }
-    setLocalPos(p => { const n = { ...p }; delete n[track.id]; return n; });
-  }, [localPos, updateTrack]);
+    setLocalPos(p => { const n = { ...p }; delete n[clip.id]; return n; });
+  }, [localPos, updateTrack, getClips]);
+
+  // ── Automation helpers ────────────────────────────────────────────────────────
+  const getAutoPoints = useCallback((track: StudioTrack, param: AutoParam): AutoPoint[] => {
+    return ((track as any).automation?.[param] ?? []) as AutoPoint[];
+  }, []);
+
+  const setAutoPoints = useCallback((track: StudioTrack, param: AutoParam, pts: AutoPoint[]) => {
+    const prev = (track as any).automation ?? {};
+    updateTrack(track.id, { automation: { ...prev, [param]: pts } } as any);
+  }, [updateTrack]);
 
   // ── Rename ──────────────────────────────────────────────────────────────────
   const startRename = useCallback((track: StudioTrack) => {
@@ -323,6 +382,23 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
       kind === 'beat' ? 'beat-lab' : kind === 'vocal' ? 'lyrics' : 'piano-roll'
     );
   }, [onOpenEditor]);
+
+  // ── Apply automation to audio engine during playback ─────────────────────────
+  useEffect(() => {
+    if (!isPlaying) return;
+    for (const track of tracks) {
+      const auto = (track as any).automation as Record<string, AutoPoint[]> | undefined;
+      if (!auto) continue;
+      if (auto.volume?.length) {
+        const vol = valueAt(auto.volume, playheadBar, (track as any).volume ?? 0.8);
+        try { professionalAudio.setChannelVolume(track.id, vol); } catch {}
+      }
+      if (auto.pan?.length) {
+        const panNorm = valueAt(auto.pan, playheadBar, 0.5);
+        try { professionalAudio.setChannelPan(track.id, panNorm * 2 - 1); } catch {}
+      }
+    }
+  }, [isPlaying, playheadBar, tracks]);
 
   // ── Ruler memo ───────────────────────────────────────────────────────────────
   const rulerMarks = useMemo(() =>
@@ -471,16 +547,17 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
             const color      = resolveColor(track, i);
             const isSelected = selectedId === track.id;
             const isFxOpen   = expandedFx.has(track.id);
+            const isAutoOpen = showAutoIds.has(track.id);
             const rh         = rowH(track.id);
-            const start      = clipStart(track);
-            const len        = clipLen(track);
-            const clipW      = Math.max(pxPerBar, len * pxPerBar);
-            const notes      = (track as any).notes ?? [];
-            const innerH     = ROW_H - 14;   // clip visual height within ROW_H portion
+            const innerH     = ROW_H - 14;
             const vol        = (track as any).volume ?? 0.8;
             const pan        = (track as any).pan    ?? 0;
             const sendA      = (track as any).sendA  ?? -60;
             const sendB      = (track as any).sendB  ?? -60;
+            const lowEq      = (track as any).lowEq  ?? 0;
+            const highEq     = (track as any).highEq ?? 0;
+            const trackClips = getClips(track);
+            const autoParam  = autoParams[track.id] ?? 'volume';
 
             return (
               <div key={track.id} className="flex"
@@ -564,8 +641,14 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                         onClick={e => { e.stopPropagation(); setExpandedFx(s => { const n = new Set(s); n.has(track.id) ? n.delete(track.id) : n.add(track.id); return n; }); }}
                         className={cn('w-5 h-5 rounded flex items-center justify-center transition-colors',
                           isFxOpen ? 'bg-cyan-500/30 text-cyan-300' : 'bg-white/10 text-gray-500 hover:text-cyan-400')}
-                        title="FX strip"
+                        title="FX / EQ strip"
                       ><Sliders className="w-2.5 h-2.5" /></button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setShowAutoIds(s => { const n = new Set(s); n.has(track.id) ? n.delete(track.id) : n.add(track.id); return n; }); }}
+                        className={cn('w-5 h-5 rounded flex items-center justify-center transition-colors text-[8px] font-black',
+                          isAutoOpen ? 'bg-amber-500/30 text-amber-300' : 'bg-white/10 text-gray-500 hover:text-amber-400')}
+                        title="Automation lane"
+                      >A</button>
                       <button
                         onClick={e => { e.stopPropagation(); removeTrack(track.id); }}
                         className="w-5 h-5 rounded bg-white/10 text-gray-600 hover:text-red-400 flex items-center justify-center transition-colors"
@@ -615,95 +698,150 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                             className="w-full h-1 accent-purple-400 cursor-pointer" />
                           <span className="text-[9px] font-mono text-gray-600">{sendB <= -60 ? '—' : `${sendB}dB`}</span>
                         </div>
+                        {/* Low EQ */}
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[9px] text-gray-600 uppercase tracking-widest">Lo EQ</label>
+                          <input type="range" min={-12} max={12} step={0.5} value={lowEq}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateTrack(track.id, { lowEq: v } as any);
+                              try { professionalAudio.setChannelEQ(track.id, 'low', v); } catch {}
+                            }}
+                            className="w-full h-1 accent-green-400 cursor-pointer" />
+                          <span className="text-[9px] font-mono text-gray-600">{lowEq > 0 ? `+${lowEq}` : lowEq}dB</span>
+                        </div>
+                        {/* High EQ */}
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[9px] text-gray-600 uppercase tracking-widest">Hi EQ</label>
+                          <input type="range" min={-12} max={12} step={0.5} value={highEq}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateTrack(track.id, { highEq: v } as any);
+                              try { professionalAudio.setChannelEQ(track.id, 'high', v); } catch {}
+                            }}
+                            className="w-full h-1 accent-orange-400 cursor-pointer" />
+                          <span className="text-[9px] font-mono text-gray-600">{highEq > 0 ? `+${highEq}` : highEq}dB</span>
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* ── Clip lane ─────────────────────────────────────────────────── */}
-                <div className="relative flex-shrink-0"
+                <div className="relative flex-shrink-0 flex flex-col"
                   style={{ width: totalW, height: rh, backgroundColor: isSelected ? 'rgba(255,255,255,0.008)' : 'transparent' }}
+                  onDoubleClick={e => {
+                    // Double-click on empty lane area → add new clip
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const bar = Math.floor((e.clientX - rect.left) / pxPerBar);
+                    const onExisting = trackClips.some(c => {
+                      const s = clipStart(c); const l = clipLen(c);
+                      return bar >= s && bar < s + l;
+                    });
+                    if (!onExisting) {
+                      const newClip: DAWClip = { id: `${track.id}-${Date.now()}`, startBar: bar, lengthBars: 4, notes: [] };
+                      updateTrack(track.id, { clips: [...trackClips, newClip] } as any);
+                    }
+                  }}
                 >
-                  {/* Grid lines */}
-                  {Array.from({ length: totalBars }, (_, bar) => bar % 4 === 0 && (
-                    <div key={bar} className="absolute top-0 bottom-0 w-px pointer-events-none"
-                      style={{ left: bar * pxPerBar, backgroundColor: 'rgba(6,182,212,0.06)' }}
-                    />
-                  ))}
+                  {/* Row area (ROW_H) */}
+                  <div className="relative" style={{ height: ROW_H, flexShrink: 0 }}>
+                    {/* Grid lines */}
+                    {Array.from({ length: totalBars }, (_, bar) => bar % 4 === 0 && (
+                      <div key={bar} className="absolute top-0 bottom-0 w-px pointer-events-none"
+                        style={{ left: bar * pxPerBar, backgroundColor: 'rgba(6,182,212,0.06)' }}
+                      />
+                    ))}
 
-                  {/* ── Clip block (draggable + resizable) ─────────────────────── */}
-                  <div
-                    className={cn(
-                      'absolute rounded overflow-hidden touch-none select-none',
-                      'hover:brightness-110 active:cursor-grabbing'
-                    )}
-                    style={{
-                      left:            start * pxPerBar,
-                      width:           Math.max(18, clipW),
-                      height:          innerH,
-                      top:             6,
-                      backgroundColor: color.dim,
-                      border:         `1px solid ${color.base}50`,
-                      boxShadow:       isSelected ? `0 0 0 1px ${color.base}, 0 0 14px ${color.glow}` : undefined,
-                      cursor:          dragRef.current?.trackId === track.id && dragRef.current?.type === 'move' ? 'grabbing' : 'grab',
-                    }}
-                    onPointerDown={e => startDrag(e, 'move', track)}
-                    onPointerMove={e => onDragMove(e, track)}
-                    onPointerUp={e => onDragEnd(e, track)}
-                    onDoubleClick={e => { e.stopPropagation(); openEditor(track); }}
-                  >
-                    {/* Top accent bar */}
-                    <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: color.base }} />
-
-                    {/* Track name */}
-                    <div className="absolute top-1.5 left-2 text-[10px] font-semibold pointer-events-none truncate"
-                      style={{ color: color.base, maxWidth: clipW - 30, opacity: 0.9 }}>
-                      {track.name}
-                    </div>
-
-                    {/* Mini note canvas */}
-                    {notes.length > 0 && clipW > 16 && (
-                      <div className="absolute left-0 right-0 bottom-1" style={{ top: 20 }}>
-                        <MiniNoteCanvas
-                          notes={notes}
-                          width={Math.max(2, clipW - 2)}
-                          height={Math.max(8, innerH - 24)}
-                          color={color.base}
-                        />
-                      </div>
-                    )}
-
-                    {/* Waveform for audio tracks */}
-                    {(track as any).audioUrl && clipW > 16 && (
-                      <div className="absolute left-0 right-0 bottom-1 pointer-events-none" style={{ top: 20 }}>
-                        <ClipWaveformCanvas
-                          audioUrl={(track as any).audioUrl}
-                          width={Math.max(2, clipW - 2)}
-                          height={Math.max(8, innerH - 24)}
-                          color={color.base}
-                        />
-                      </div>
-                    )}
-
-                    {/* Empty hint */}
-                    {notes.length === 0 && !(track as any).audioUrl && clipW > 60 && (
-                      <div className="absolute inset-0 top-5 flex items-center justify-center text-[9px] pointer-events-none"
-                        style={{ color: color.base, opacity: 0.22 }}>
-                        double-click to edit
-                      </div>
-                    )}
-
-                    {/* Resize handle (right edge) */}
-                    <div
-                      className="absolute right-0 top-0 bottom-0 w-3 flex items-center justify-center cursor-ew-resize"
-                      style={{ backgroundColor: `${color.base}18`, cursor: 'ew-resize' }}
-                      onPointerDown={e => { e.stopPropagation(); startDrag(e, 'resize', track); }}
-                      onPointerMove={e => onDragMove(e, track)}
-                      onPointerUp={e => onDragEnd(e, track)}
-                    >
-                      <GripVertical className="w-2 h-2 rotate-90 opacity-40" style={{ color: color.base }} />
-                    </div>
+                    {/* ── Clips (multiple) ───────────────────────────────────────── */}
+                    {trackClips.map(clip => {
+                      const cStart = clipStart(clip);
+                      const cLen   = clipLen(clip);
+                      const cW     = Math.max(18, cLen * pxPerBar);
+                      const clipNotes = clip.notes ?? [];
+                      return (
+                        <div
+                          key={clip.id}
+                          className={cn('absolute rounded overflow-hidden touch-none select-none hover:brightness-110 active:cursor-grabbing')}
+                          style={{
+                            left:            cStart * pxPerBar,
+                            width:           cW,
+                            height:          innerH,
+                            top:             6,
+                            backgroundColor: color.dim,
+                            border:          `1px solid ${color.base}50`,
+                            boxShadow:       isSelected ? `0 0 0 1px ${color.base}, 0 0 14px ${color.glow}` : undefined,
+                            cursor:          dragRef.current?.clipId === clip.id && dragRef.current?.type === 'move' ? 'grabbing' : 'grab',
+                          }}
+                          onPointerDown={e => startDrag(e, 'move', track, clip)}
+                          onPointerMove={e => onDragMove(e, clip)}
+                          onPointerUp={e => onDragEnd(e, track, clip)}
+                          onDoubleClick={e => { e.stopPropagation(); openEditor(track); }}
+                        >
+                          <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: color.base }} />
+                          <div className="absolute top-1.5 left-2 text-[10px] font-semibold pointer-events-none truncate"
+                            style={{ color: color.base, maxWidth: cW - 30, opacity: 0.9 }}>
+                            {track.name}
+                          </div>
+                          {clipNotes.length > 0 && cW > 16 && (
+                            <div className="absolute left-0 right-0 bottom-1" style={{ top: 20 }}>
+                              <MiniNoteCanvas notes={clipNotes} width={Math.max(2, cW - 2)} height={Math.max(8, innerH - 24)} color={color.base} />
+                            </div>
+                          )}
+                          {clip.audioUrl && cW > 16 && (
+                            <div className="absolute left-0 right-0 bottom-1 pointer-events-none" style={{ top: 20 }}>
+                              <ClipWaveformCanvas audioUrl={clip.audioUrl} width={Math.max(2, cW - 2)} height={Math.max(8, innerH - 24)} color={color.base} />
+                            </div>
+                          )}
+                          {clipNotes.length === 0 && !clip.audioUrl && cW > 60 && (
+                            <div className="absolute inset-0 top-5 flex items-center justify-center text-[9px] pointer-events-none"
+                              style={{ color: color.base, opacity: 0.22 }}>
+                              double-click to edit
+                            </div>
+                          )}
+                          {/* Resize handle */}
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-3 flex items-center justify-center cursor-ew-resize"
+                            style={{ backgroundColor: `${color.base}18` }}
+                            onPointerDown={e => { e.stopPropagation(); startDrag(e, 'resize', track, clip); }}
+                            onPointerMove={e => onDragMove(e, clip)}
+                            onPointerUp={e => onDragEnd(e, track, clip)}
+                          >
+                            <GripVertical className="w-2 h-2 rotate-90 opacity-40" style={{ color: color.base }} />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+
+                  {/* ── Automation lane (below clips) ─────────────────────────── */}
+                  {isAutoOpen && (
+                    <div className="flex flex-shrink-0">
+                      {/* Param selector (sticky left) */}
+                      <div className="sticky left-0 z-10 flex-shrink-0 flex flex-col items-center justify-center gap-1 px-1 border-r border-white/[0.06] bg-[#06080f]"
+                        style={{ width: HEADER_W, height: AUTO_LANE_H }}>
+                        <span className="text-[8px] font-mono text-gray-700 uppercase tracking-wider">Auto</span>
+                        <select
+                          value={autoParam}
+                          onChange={e => setAutoParams(p => ({ ...p, [track.id]: e.target.value as AutoParam }))}
+                          className="bg-transparent text-[9px] text-gray-500 border border-white/10 rounded px-1 py-0.5 cursor-pointer"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <option value="volume">Volume</option>
+                          <option value="pan">Pan</option>
+                        </select>
+                      </div>
+                      <AutomationLane
+                        points={getAutoPoints(track, autoParam)}
+                        param={autoParam}
+                        pxPerBar={pxPerBar}
+                        totalBars={totalBars}
+                        playheadBar={playheadBar}
+                        color={color.base}
+                        onChange={pts => setAutoPoints(track, autoParam, pts)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
