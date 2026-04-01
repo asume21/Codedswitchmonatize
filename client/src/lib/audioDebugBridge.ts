@@ -23,12 +23,13 @@ const API_KEY  = 'wbr_d461677168c417c329e0ea2e8342a44f8bb1169d506d99078ab53643d1
 const CONNECT  = `/api/webear/connect?key=${API_KEY}`
 const BLOB_URL = (id: string) => `/api/webear/blob/${id}`
 
-let tapNode:     MediaStreamAudioDestinationNode | null = null
-let tapContext:  AudioContext | null = null  // track which context the tap belongs to
-let recorder:    MediaRecorder | null = null
-let sseSource:   EventSource   | null = null
-let isCapturing  = false
-let isConnected  = false
+let tapNode:        MediaStreamAudioDestinationNode | null = null
+let tapContext:     AudioContext | null = null  // track which context the tap belongs to
+let recorder:       MediaRecorder | null = null
+let sseSource:      EventSource   | null = null
+let localSseSource: EventSource   | null = null
+let isCapturing   = false
+let isConnected   = false
 let lastCaptureId: string | null = null
 
 function log(msg: string) {
@@ -156,8 +157,68 @@ function connectSSE() {
   }
 }
 
+// Local audio-debug SSE — used by the local audio-debug-mcp (dev only)
+function connectLocalSSE() {
+  if (localSseSource) return
+
+  localSseSource = new EventSource('/api/audio-debug/events')
+
+  localSseSource.addEventListener('capture', (e: MessageEvent) => {
+    const { captureId, durationMs } = JSON.parse(e.data)
+    // Upload to local endpoint instead of WebEar blob endpoint
+    doLocalCapture(captureId, durationMs ?? 3000)
+  })
+
+  localSseSource.onerror = () => {
+    localSseSource?.close()
+    localSseSource = null
+    setTimeout(connectLocalSSE, 3000)
+  }
+}
+
+async function doLocalCapture(captureId: string, durationMs: number): Promise<void> {
+  if (isCapturing) { log(`Skipping local ${captureId} — already capturing`); return }
+
+  isCapturing   = true
+  lastCaptureId = captureId
+
+  const tap = await ensureTap()
+  if (!tap) {
+    log(`Aborting local capture ${captureId} — Tone.js not yet initialized`)
+    isCapturing = false
+    return
+  }
+
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus'
+    : 'audio/webm'
+
+  const chunks: Blob[] = []
+  const localRecorder = new MediaRecorder(tap.stream, { mimeType })
+
+  localRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+
+  await new Promise<void>((resolve) => {
+    localRecorder.onstop = () => resolve()
+    localRecorder.start(200)
+    setTimeout(() => { if (localRecorder.state === 'recording') localRecorder.stop() }, durationMs)
+  })
+
+  const blob = new Blob(chunks, { type: mimeType })
+
+  const form = new FormData()
+  form.append('audio', blob, 'capture.webm')
+  form.append('captureId', captureId)
+  form.append('durationMs', String(durationMs))
+
+  await fetch('/api/audio-debug/capture', { method: 'POST', body: form })
+  log(`Local capture delivered — id: ${captureId}, bytes: ${blob.size}`)
+  isCapturing = false
+}
+
 export function initAudioDebugBridge(): void {
   connectSSE()
+  connectLocalSSE()
 
   window.__audioDebug = {
     startCapture: async (durationMs = 3000) => {

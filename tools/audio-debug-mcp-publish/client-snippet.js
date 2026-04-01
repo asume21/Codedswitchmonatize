@@ -1,3 +1,4 @@
+/* global Tone, Howler, webkitAudioContext */
 /**
  * webear — Browser Client Snippet
  *
@@ -275,8 +276,7 @@
 
       // Dev-only guard
       if (options.devOnly !== false) {
-        var isDev = (typeof import !== 'undefined' && typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV) ||
-                    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production') ||
+        var isDev = (typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production') ||
                     (typeof location !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1'));
         if (!isDev) {
           log('Skipping init — not in dev mode. Set devOnly: false to override.');

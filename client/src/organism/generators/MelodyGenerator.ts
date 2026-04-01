@@ -452,10 +452,15 @@ export class MelodyGenerator extends GeneratorBase {
     let phraseNoteCount = 0
     const phraseGroupSize = 3 + Math.floor(Math.random() * 3) // 3-5 notes then rest
 
+    // When responding to a voice, leave much more space — melody should call, not compete
+    const isHint = this.currentBehavior === MelodyBehavior.Hint
+    const restProbability = isHint ? 0.85 : 0.6
+    const restMaxLen = isHint ? 8 : 4
+
     while (cursor < length16ths) {
       // Insert rests between phrase groups (call-and-response feel)
-      if (phraseNoteCount >= phraseGroupSize && Math.random() < 0.6) {
-        const restLen = 2 + Math.floor(Math.random() * 4) // 2-5 16ths rest
+      if (phraseNoteCount >= phraseGroupSize && Math.random() < restProbability) {
+        const restLen = 2 + Math.floor(Math.random() * restMaxLen)
         cursor += restLen
         phraseNoteCount = 0
         continue
@@ -493,9 +498,9 @@ export class MelodyGenerator extends GeneratorBase {
       const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
       const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
 
-      // Velocity: accent downbeats, softer off-beats
-      const accentBase = sub === 0 ? 0.55 : sub === 2 ? 0.48 : 0.40
-      const vel = Math.min(1, Math.max(0.15, accentBase + (Math.random() - 0.5) * 0.12))
+      // Velocity: accent downbeats, softer off-beats — wider range = more expression
+      const accentBase = sub === 0 ? 0.72 : sub === 2 ? 0.58 : 0.42
+      const vel = Math.min(1, Math.max(0.15, accentBase + (Math.random() - 0.5) * 0.22))
 
       notes.push({ pitch, duration: durStr, velocity: vel, time })
 

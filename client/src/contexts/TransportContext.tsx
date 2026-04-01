@@ -5,6 +5,9 @@ import { getTimelineRecorder } from '@/lib/timelineRecorder';
 import { useToast } from '@/hooks/use-toast';
 import { useTrackStore } from './TrackStoreContext';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
+import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
+import { getAudioContext } from '@/lib/audioContext';
+import * as Tone from 'tone';
 
 // Re-export types so existing consumers don't need to change imports
 export type LoopRegion = StoreLoopRegion;
@@ -175,14 +178,40 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   }, [isPlaying, isRecordArmed, advancePosition, clearRaf, recorder, position, addTrack, tempo, toast, toggleRecordArm]);
 
   // Wrap store actions to match TransportContextValue signature exactly
-  const play = useCallback(() => { storePlay(); }, [storePlay]);
-  const pause = useCallback(() => { clearRaf(); storePause(); }, [clearRaf, storePause]);
+  const play = useCallback(() => {
+    storePlay();
+    // Start both clocks anchored to the same AudioContext timestamp — zero drift
+    const ctx = getAudioContext();
+    if (ctx) {
+      if (ctx.state === 'suspended') ctx.resume();
+      const startAt = ctx.currentTime + 0.05;
+      const { bpm } = useStudioStore.getState();
+      // Use whatever patternSteps the piano roll already set on the scheduler
+      // (defaults to 64 when the scheduler is freshly constructed).
+      pianoRollScheduler.start(bpm ?? 120, pianoRollScheduler.patternSteps, startAt);
+      // Start Tone.Transport at the same offset so Tone.js generators are in lock-step
+      Tone.getTransport().bpm.value = bpm ?? 120;
+      Tone.getTransport().start(`+0.05`);
+    }
+  }, [storePlay]);
+  const pause = useCallback(() => {
+    clearRaf();
+    storePause();
+    pianoRollScheduler.stop();
+    Tone.getTransport().pause();
+  }, [clearRaf, storePause]);
   const stop = useCallback(() => {
     clearRaf();
     storeStop();
+    pianoRollScheduler.stop();
+    Tone.getTransport().stop();
     globalAudioKillSwitch.killAllAudio();
   }, [clearRaf, storeStop]);
-  const setTempo = useCallback((v: number) => { storeBpm(v); }, [storeBpm]);
+  const setTempo = useCallback((v: number) => {
+    storeBpm(v);
+    pianoRollScheduler.setBpm(v);
+    Tone.getTransport().bpm.value = v;
+  }, [storeBpm]);
   const seek = useCallback((v: number) => { storeSeek(v); }, [storeSeek]);
   const setLoop = useCallback((cfg: Partial<LoopRegion>) => { storeSetLoop(cfg); }, [storeSetLoop]);
   const clearLoop = useCallback(() => { storeClearLoop(); }, [storeClearLoop]);

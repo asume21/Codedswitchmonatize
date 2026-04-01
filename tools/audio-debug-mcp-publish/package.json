@@ -1,6 +1,6 @@
 {
   "name": "webear",
-  "version": "1.2.1",
+  "version": "1.2.4",
   "mcpName": "io.github.asume21/webear",
   "description": "Give your AI coding assistant ears — capture, analyze, and describe live audio from any web app. Works with Windsurf, Cursor, Claude Code, and any MCP-compatible IDE.",
   "type": "module",

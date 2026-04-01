@@ -667,7 +667,7 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
   });
 
   // AI Auto-Master endpoint - automatically mix and master a track
-  app.post("/api/songs/auto-master", requireAuth, async (req, res) => {
+  app.post("/api/songs/auto-master", requireAuth(), async (req, res) => {
     const { songUrl, songName } = req.body;
 
     console.log(`🎛️ AI Auto-Master requested for: ${songName}`, { songUrl });
@@ -740,7 +740,7 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
   });
 
   // AI Chat endpoint for Floating AI Assistant
-  app.post("/api/ai/chat", requireAuth, async (req, res) => {
+  app.post("/api/ai/chat", requireAuth(), async (req, res) => {
     const { messages } = req.body;
 
     if (!messages || !Array.isArray(messages)) {

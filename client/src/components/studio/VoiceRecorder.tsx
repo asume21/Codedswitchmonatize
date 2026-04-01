@@ -60,6 +60,8 @@ export default function VoiceRecorder({ onVoiceCloned }: VoiceRecorderProps) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const micDataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const { toast } = useToast();
 
   // Load existing voices on mount
@@ -104,17 +106,18 @@ export default function VoiceRecorder({ onVoiceCloned }: VoiceRecorderProps) {
 
       // Set up audio analyser for mic level visualization
       const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
       analyserRef.current = analyser;
+      micDataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
 
       const updateLevel = () => {
-        if (!analyserRef.current) return;
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+        if (!analyserRef.current || !micDataArrayRef.current) return;
+        analyserRef.current.getByteFrequencyData(micDataArrayRef.current);
+        const avg = micDataArrayRef.current.reduce((sum, val) => sum + val, 0) / micDataArrayRef.current.length;
         setMicLevel(Math.min(100, Math.round((avg / 128) * 100)));
         animFrameRef.current = requestAnimationFrame(updateLevel);
       };
@@ -181,6 +184,11 @@ export default function VoiceRecorder({ onVoiceCloned }: VoiceRecorderProps) {
       animFrameRef.current = null;
     }
     analyserRef.current = null;
+    micDataArrayRef.current = null;
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close();
+    }
+    audioContextRef.current = null;
     setIsRecording(false);
     setMicLevel(0);
   }, []);

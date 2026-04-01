@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.asume21/webear",
-  "description": "Give your AI coding assistant ears — capture, analyze, and describe live audio from any web app's AudioContext. Works with Cursor, Windsurf, Claude Code, and any MCP-compatible IDE.",
+  "description": "Give your AI coding assistant ears — capture and analyze live audio from any web app.",
   "repository": {
     "url": "https://github.com/asume21/webear",
     "source": "github"
   },
-  "version": "1.2.1",
+  "version": "1.2.4",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "webear",
-      "version": "1.2.1",
+      "version": "1.2.4",
       "transport": {
         "type": "stdio"
       },

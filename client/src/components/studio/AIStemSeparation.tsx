@@ -240,7 +240,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       const vocalSource = offline.createBufferSource();
       vocalSource.buffer = toStereo(vocalBufRaw);
       const vocalGain = offline.createGain();
-      vocalGain.gain.value = 1.06;
+      vocalGain.gain.value = 1.0;
       vocalSource.connect(vocalGain).connect(offline.destination);
       vocalSource.start(0);
 

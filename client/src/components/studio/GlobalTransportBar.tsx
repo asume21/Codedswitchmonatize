@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { getTimelineRecorder, type RecorderState, type RecordingResult } from '@/lib/timelineRecorder';
 import { getCurrentProject, markDirty, type AudioClip } from '@/lib/projectManager';
 import { professionalAudio } from '@/lib/professionalAudio';
+import { MasterBusPanel } from './MasterBusPanel';
 
 interface TrackChannel {
   id: string;
@@ -587,6 +588,11 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
               </div>
             ))}
             
+            {/* Master Bus Panel */}
+            <div className="flex-shrink-0 w-48 border-l border-gray-700 pl-3 self-stretch flex flex-col justify-center">
+              <MasterBusPanel />
+            </div>
+
             {/* Master Channel */}
             <div className="flex flex-col items-center gap-1 w-16 border-l border-gray-700 pl-4">
               <div className="h-16 flex items-center">

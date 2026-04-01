@@ -24,11 +24,11 @@ export const PHRASE_LENGTHS: Record<string, number[]> = {
 // Octave range per mode [low, high]
 // Trap: mid-high for piercing leads. Boom-bap: mid for soulful. Lo-fi: higher, airy.
 export const MODE_OCTAVES: Record<string, [number, number]> = {
-  heat:   [4, 5],     // trap — mid-high, cutting through 808s
-  ice:    [4, 5],     // lo-fi — warm mid range, not too bright
-  smoke:  [3, 4],     // boom-bap — soulful lower register
-  gravel: [3, 4],     // drill — dark, low menacing melodies
-  glow:   [4, 5],     // chill — warm mid
+  heat:   [3, 4],     // trap — mid register, leaves space for 808 below and vocals above
+  ice:    [3, 4],     // lo-fi — warm mid, not piercing
+  smoke:  [3, 3],     // boom-bap — soulful low-mid, below the voice
+  gravel: [2, 3],     // drill — dark, low menacing
+  glow:   [3, 4],     // chill — warm mid
 }
 
 /**

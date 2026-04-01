@@ -22,6 +22,7 @@ import type { MusicalKey } from "@/stores/useStudioStore";
 import { useInstrumentOptional } from "@/contexts/InstrumentContext";
 import { PianoKeys } from "./PianoKeys";
 import { StepGrid } from "./StepGrid";
+import { VelocityLane } from "./VelocityLane";
 import { TrackControls } from "./TrackControls";
 import { TrackWaveformLane } from "./TrackWaveformLane";
 import AILoopGenerator from "./AILoopGenerator";
@@ -46,6 +47,9 @@ import {
 } from "./types/pianoRollTypes";
 import { createTrackPayload } from "@/types/studioTracks";
 import { openMidiFilePicker, readFileAsArrayBuffer, parseMidiFile, parseMidiBase64 } from "@/lib/midiImport";
+import { pianoRollScheduler } from "@/lib/pianoRollScheduler";
+import { StudioVocalRecorder, type VocalTake } from "./StudioVocalRecorder";
+import { getAudioContext } from "@/lib/audioContext";
 
 // ISSUE #1: Pattern storage key
 const PIANO_ROLL_STORAGE_KEY = "piano-roll-patterns";
@@ -239,6 +243,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       const updatedTracks = typeof newTracks === 'function' ? newTracks(tracks) : newTracks;
       const currentTrackNotes = updatedTracks.find(t => t.id === propSelectedTrack)?.notes || [];
       onNotesChange(currentTrackNotes);
+      // Optimistic update so notes appear immediately without waiting for parent re-render
+      setInternalTracks(updatedTracks as any);
     } else {
       setInternalTracks(newTracks as any);
     }
@@ -273,6 +279,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // NEW ADVANCED FEATURES
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [snapValue, setSnapValue] = useState(1); // 1 = 1/4 note, 0.5 = 1/8, 0.25 = 1/16
+  // Quantize-on-record: snap recorded steps to the grid automatically
+  const [quantizeOnRecord, setQuantizeOnRecord] = useState(false);
+  // MIDI takes — each recording session is saved as a take
+  const [midiTakes, setMidiTakes] = useState<Array<{ id: string; name: string; notes: any[]; createdAt: number }>>([]);
+  const [showTakes, setShowTakes] = useState(false);
   const [showVelocityEditor, setShowVelocityEditor] = useState(true);
   const [showTrackOverview, setShowTrackOverview] = useState(true);
   const [clipboard, setClipboard] = useState<Note[]>([]);
@@ -345,6 +356,31 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // without being re-created every time patternSteps changes
   const patternStepsRef = useRef(64);
 
+  // ─── Per-track record arm ───────────────────────────────────────────────────
+  // Set of track IDs currently armed for recording.
+  // Multiple tracks can be armed simultaneously — MIDI/keyboard input records
+  // to ALL armed MIDI tracks at once.
+  const [armedTracks, setArmedTracks] = useState<Set<string>>(new Set());
+  const toggleArm = useCallback((trackId: string) => {
+    setArmedTracks(prev => {
+      const next = new Set(prev);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+  }, []);
+
+  // ─── Vocal takes storage (per track ID) ─────────────────────────────────────
+  const [vocalTakes, setVocalTakes] = useState<Record<string, VocalTake[]>>({});
+  const handleVocalTakesChange = useCallback((trackId: string, takes: VocalTake[]) => {
+    setVocalTakes(prev => ({ ...prev, [trackId]: takes }));
+  }, []);
+
+  // ─── Scheduler visual step (replaces internalCurrentStep for playback) ──────
+  // The scheduler fires the onVisualStep callback via RAF so the playhead moves
+  // smoothly without setInterval drift.
+  const schedulerStepRef = useRef(0);
+
   const { toast } = useToast();
   const { currentSession, updateSession } = useSongWorkSession();
   // Use useTracks hook for persistence
@@ -376,13 +412,101 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const allNoteEnds = tracks.flatMap(t => t.notes.map((n: Note) => n.step + n.length));
     if (allNoteEnds.length === 0) return;
     const needed = Math.max(...allNoteEnds);
-    // Round up to nearest multiple of 16 (one bar) for a clean grid
     const rounded = Math.ceil(needed / 16) * 16;
     if (rounded > patternStepsRef.current) {
       patternStepsRef.current = rounded;
       setPatternSteps(rounded);
+      pianoRollScheduler.setPatternSteps(rounded);
     }
   }, [tracks]);
+
+  // Keep scheduler BPM in sync
+  useEffect(() => {
+    pianoRollScheduler.setBpm(bpm);
+  }, [bpm]);
+
+  // Stop scheduler on unmount
+  useEffect(() => () => { pianoRollScheduler.stop(); }, []);
+
+  // ─── Subscribe to the global scheduler — note playback + playhead ────────────
+  // One effect, registered once. Callbacks use refs so they're always fresh
+  // without needing to re-subscribe on every render.
+  const bpmRef = useRef(bpm);
+  useEffect(() => { bpmRef.current = bpm; }, [bpm]);
+
+  // Refs so the mount-once subscription can access latest state without stale closures
+  const isRecordingRef = useRef(false);
+  const recordingNotesSnapRef = useRef<any[]>([]);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+
+  useEffect(() => {
+    let lastRawStep = -1;
+
+    const unsubStep = pianoRollScheduler.subscribe((step, audioTime, rawStep) => {
+      // ── Note playback ──────────────────────────────────────────────────────
+      const stepDurationSecs = 60 / bpmRef.current / 4;
+      const currentTracks = tracksRef.current;
+      currentTracks.forEach((track: Track) => {
+        if (track.muted) return;
+        const notesAtStep = track.notes.filter((n: Note) => n.step === step);
+        notesAtStep.forEach((note: Note) => {
+          const noteDuration = note.length * stepDurationSecs;
+          const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
+          realisticAudio.playNote(
+            note.note,
+            note.octave,
+            noteDuration,
+            track.instrument,
+            track.volume / 100,
+            true,
+            mixerChannel?.input,
+            audioTime,
+          );
+        });
+      });
+
+      // ── Loop recording: detect pattern wrap, auto-save take ───────────────
+      if (
+        step === 0 && lastRawStep >= 0 &&
+        isRecordingRef.current &&
+        recordingNotesRef.current.length > 0
+      ) {
+        const takeNotes = [...recordingNotesRef.current];
+        recordingNotesRef.current = [];
+        // Dispatch to React state via a stable ref setter we'll wire below
+        recordingNotesSnapRef.current = takeNotes;
+        // Signal loop take ready (will be picked up by the effect below)
+        window.dispatchEvent(new CustomEvent('cs:loop-take', { detail: takeNotes }));
+      }
+
+      lastRawStep = rawStep;
+    });
+
+    const unsubVisual = pianoRollScheduler.subscribeVisual((step) => {
+      schedulerStepRef.current = step;
+      setCurrentStep(step);
+    });
+
+    return () => { unsubStep(); unsubVisual(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for loop-take events and save the take into React state
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const takeNotes = (e as CustomEvent).detail as any[];
+      if (!takeNotes.length) return;
+      setMidiTakes(prev => [{
+        id: `take-${Date.now()}`,
+        name: `Loop Take ${prev.length + 1}`,
+        notes: takeNotes,
+        createdAt: Date.now(),
+      }, ...prev]);
+      setShowTakes(true);
+    };
+    window.addEventListener('cs:loop-take', handler);
+    return () => window.removeEventListener('cs:loop-take', handler);
+  }, []);
+
   const pianoTrackIdRef = useRef<string>(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `piano-${Date.now()}`);
   const hasRegisteredTrackRef = useRef(false);
   const wavCacheRef = useRef<string | null>(null);
@@ -418,7 +542,14 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const octave = Math.floor(midiNote / 12) - 1;
     const noteName = noteNames[midiNote % 12];
-    const step = currentStep % patternSteps;
+    // FIX 3+4: Timestamp against AudioContext.currentTime via the scheduler.
+    // This eliminates the gap between what you hear (scheduled 120ms ahead)
+    // and what gets recorded. Falls back to visual step if scheduler is idle.
+    const ctx = getAudioContext();
+    const audioStep = ctx ? pianoRollScheduler.audioTimeToStep(ctx.currentTime) : -1;
+    const rawStep = audioStep >= 0 ? audioStep : currentStep % patternSteps;
+    // Quantize on record: snap to grid if enabled
+    const step = quantizeOnRecord ? Math.round(rawStep / snapValue) * snapValue : rawStep;
     const noteId = `midi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const newNote: Note = {
@@ -433,14 +564,18 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     recordingNotesRef.current.push(newNote);
     activeRecordingRef.current.set(midiNote, { noteId, startStep: step, startTimeMs: Date.now() });
 
-    setTracks(prev => prev.map((track, idx) =>
-      idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
-    ));
+    // Record to ALL armed MIDI tracks simultaneously (multi-track recording)
+    setTracks(prev => prev.map((track, idx) => {
+      const isTarget = armedTracks.size > 0
+        ? armedTracks.has(track.id)
+        : idx === selectedTrackIndex;
+      return isTarget ? { ...track, notes: [...track.notes, newNote] } : track;
+    }));
 
     const instrument = selectedTrack?.instrument || 'piano';
     const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
     realisticAudio.playNote(noteName, octave, 0.3, instrument, (velocity / 127) * 0.8, true, channel?.input);
-  }, [midiLastNote, isRecording, isPlaying, currentStep, patternSteps, selectedTrackIndex, selectedTrack]);
+  }, [midiLastNote, isRecording, isPlaying, currentStep, patternSteps, selectedTrackIndex, selectedTrack, quantizeOnRecord, snapValue]);
 
   // 🎹 MIDI RECORDING — note-OFF: update the length of the held note based on elapsed steps
   useEffect(() => {
@@ -861,69 +996,22 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
   // Playback control - synced with transport context
   const handlePlay = useCallback(() => {
-    // If externally controlled, don't run internal playback - just toggle state
-    if (isExternallyControlled) {
-      setIsPlaying(!isPlaying);
-      if (isPlaying) {
-        pauseTransport();
-      } else {
-        playTransport();
-      }
-      return;
-    }
-    
     if (isPlaying) {
-      // Pause
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      // Pause — delegate to transport (which pauses the scheduler too)
       setIsPlaying(false);
-      pauseTransport(); // Sync with transport context
+      pauseTransport();
     } else {
-      // Play
+      // Play — delegate to transport; TransportContext starts pianoRollScheduler
+      // and Tone.Transport simultaneously. Note playback happens in the
+      // subscribe() effect above — no duplicate starts needed here.
       setIsPlaying(true);
-      playTransport(); // Sync with transport context
-      
-      const stepDuration = (60 / bpm / 4) * 1000; // 16th note duration in ms
-
-      intervalRef.current = setInterval(() => {
-        setCurrentStep(prev => {
-          const nextStep = (prev + 1) % patternStepsRef.current;
-          
-          // Use tracksRef.current to always get latest tracks (not stale closure)
-          const currentTracks = tracksRef.current;
-          
-          // Play notes at the current step
-          currentTracks.forEach(track => {
-            if (!track.muted) {
-              const notesAtStep = track.notes.filter((note: Note) => note.step === nextStep);
-              notesAtStep.forEach((note: Note) => {
-                const noteDuration = (note.length * stepDuration) / 1000;
-                
-                // Route to mixer channel
-                const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
-                
-                realisticAudio.playNote(
-                  note.note,
-                  note.octave,
-                  noteDuration,
-                  track.instrument,
-                  track.volume / 100,
-                  true,
-                  mixerChannel?.input
-                );
-              });
-            }
-          });
-
-          return nextStep;
-        });
-      }, stepDuration);
+      playTransport();
     }
-  }, [isPlaying, bpm, playTransport, pauseTransport, isExternallyControlled]);
+  }, [isPlaying, playTransport, pauseTransport]);
 
   const handleStop = useCallback(() => {
+    // Stop scheduler (replaces the old clearInterval)
+    pianoRollScheduler.stop();
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -970,20 +1058,28 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
   const stopRecording = useCallback(() => {
     setIsRecording(false);
-    
+
     // Stop the playhead
     handleStop();
-    
-    // Notes were already live-added to the track via handlePianoKeyPlay / MIDI effect,
-    // so we just report count and reset the buffer.
+
+    // Notes were already live-added to the track via handlePianoKeyPlay / MIDI effect.
     const recordedCount = recordingNotesRef.current.length;
-    console.log('🎵 Recording stopped. Notes captured:', recordedCount);
-    recordingNotesRef.current = [];
-    
+
     if (recordedCount > 0) {
+      // Save recorded notes as a take so the user can recall them later
+      const takeNotes = [...recordingNotesRef.current];
+      setMidiTakes(prev => [
+        {
+          id: `take-${Date.now()}`,
+          name: `Take ${prev.length + 1}`,
+          notes: takeNotes,
+          createdAt: Date.now(),
+        },
+        ...prev,
+      ]);
       toast({
-        title: "✅ Recording Saved",
-        description: `${recordedCount} notes added to track! Press PLAY to hear it back.`,
+        title: "✅ Take Saved",
+        description: `${recordedCount} notes recorded. Open Takes panel to manage.`,
       });
     } else {
       toast({
@@ -992,6 +1088,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         variant: "default"
       });
     }
+    recordingNotesRef.current = [];
   }, [handleStop, toast]);
 
   // Toggle function for the Record button
@@ -1135,7 +1232,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     playPreviewNote(note, octave);
 
     if (isRecording && isPlaying) {
-      const step = currentStep % STEPS;
+      // FIX 3+4: Use AudioContext clock for accurate step — same fix as MIDI recording
+      const ctx = getAudioContext();
+      const audioStep = ctx ? pianoRollScheduler.audioTimeToStep(ctx.currentTime) : -1;
+      const rawStep = audioStep >= 0 ? audioStep : currentStep % patternSteps;
+      const step = quantizeOnRecord ? Math.round(rawStep / snapValue) * snapValue : rawStep;
       const noteId = `rec-${note}${octave}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       const newNote: Note = {
         id: noteId,
@@ -1153,7 +1254,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         idx === selectedTrackIndex ? { ...track, notes: [...track.notes, newNote] } : track
       ));
     }
-  }, [playPreviewNote, isRecording, isPlaying, currentStep, selectedTrackIndex]);
+  }, [playPreviewNote, isRecording, isPlaying, currentStep, selectedTrackIndex, quantizeOnRecord, snapValue]);
 
   // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
   useEffect(() => {
@@ -2803,6 +2904,69 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
               <Circle className={cn("w-3 h-3 mr-2", isRecording ? "fill-red-400 text-red-400" : "text-current")} />
               {isRecording ? `REC ${midiConnected ? '• MIDI' : '• KEYS'}` : 'REC'}
             </Button>
+            {/* ─ Quantize-on-record toggle ─ */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setQuantizeOnRecord(v => !v)}
+              className={cn(
+                "h-8 px-3 rounded-none font-black tracking-widest border transition-all",
+                quantizeOnRecord
+                  ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/50 shadow-[0_0_8px_rgba(234,179,8,0.3)]"
+                  : "bg-black/60 text-cyan-500/40 border-cyan-500/20 hover:bg-yellow-500/10 hover:text-yellow-300"
+              )}
+              title={`Quantize-on-record: snap incoming notes to 1/${Math.round(16 * snapValue)}-note grid`}
+            >
+              Q
+            </Button>
+            {/* ─ Quantize value selector ─ */}
+            {quantizeOnRecord && (
+              <select
+                value={snapValue}
+                onChange={e => setSnapValue(Number(e.target.value))}
+                className="h-8 bg-black/60 border border-yellow-500/30 text-yellow-300 text-[10px] font-mono px-1 rounded-none cursor-pointer"
+                title="Quantize grid"
+              >
+                <option value={4}>1/1</option>
+                <option value={2}>1/2</option>
+                <option value={1}>1/4</option>
+                <option value={0.5}>1/8</option>
+                <option value={0.25}>1/16</option>
+                <option value={0.125}>1/32</option>
+              </select>
+            )}
+            {/* ─ Velocity lane toggle ─ */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowVelocityEditor(v => !v)}
+              className={cn(
+                "h-8 px-3 rounded-none font-black tracking-widest border transition-all",
+                showVelocityEditor
+                  ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50"
+                  : "bg-black/60 text-cyan-500/40 border-cyan-500/20 hover:bg-cyan-500/10 hover:text-cyan-300"
+              )}
+              title="Toggle velocity lane"
+            >
+              VEL
+            </Button>
+            {/* ─ Takes panel toggle ─ */}
+            {midiTakes.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTakes(v => !v)}
+                className={cn(
+                  "h-8 px-3 rounded-none font-black tracking-widest border transition-all",
+                  showTakes
+                    ? "bg-violet-500/20 text-violet-300 border-violet-500/50"
+                    : "bg-black/60 text-cyan-500/40 border-cyan-500/20 hover:bg-violet-500/10 hover:text-violet-300"
+                )}
+                title="MIDI Takes — load or delete previous recordings"
+              >
+                TAKES ({midiTakes.length})
+              </Button>
+            )}
             <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-cyan-500/30">
               <div className={cn("w-2 h-2 rounded-full", isPlaying ? "bg-cyan-500 animate-pulse shadow-glow-cyan" : "bg-cyan-950")} />
               <span className="text-[10px] font-black tabular-nums tracking-widest uppercase">
@@ -2895,6 +3059,42 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────────────
+          MIDI TAKES PANEL — appears when showTakes is true
+          ─────────────────────────────────────────────────────────────────── */}
+      {showTakes && midiTakes.length > 0 && (
+        <div className="border-b border-violet-500/30 bg-black/80 px-3 py-2 flex gap-2 overflow-x-auto flex-shrink-0">
+          {midiTakes.map(take => (
+            <div
+              key={take.id}
+              className="flex-shrink-0 flex flex-col gap-1 p-2 bg-violet-500/10 border border-violet-500/25 rounded hover:border-violet-400/50 transition-all"
+              style={{ minWidth: 120 }}
+            >
+              <div className="text-[10px] font-semibold text-violet-300 truncate">{take.name}</div>
+              <div className="text-[9px] text-gray-600">{take.notes.length} notes</div>
+              <div className="text-[9px] text-gray-700">{new Date(take.createdAt).toLocaleTimeString()}</div>
+              <div className="flex gap-1 mt-1">
+                <button
+                  onClick={() => {
+                    // Load take: replace the selected track's notes
+                    const trackIdx = selectedTrackIndex;
+                    setTracks((prev: any[]) => prev.map((t: any, idx: number) =>
+                      idx === trackIdx ? { ...t, notes: [...take.notes] } : t
+                    ));
+                    toast({ title: `Loaded: ${take.name}`, description: `${take.notes.length} notes loaded` });
+                  }}
+                  className="px-2 py-0.5 bg-violet-600/40 hover:bg-violet-600/70 text-violet-200 text-[9px] rounded transition-colors"
+                >Load</button>
+                <button
+                  onClick={() => setMidiTakes(ts => ts.filter(t => t.id !== take.id))}
+                  className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/50 text-red-400 text-[9px] rounded transition-colors"
+                >✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {(liveSustainEnabled || liveArpEnabled) && (
         <div className="border-b border-cyan-500/20 bg-black/70 px-3 py-3">
@@ -3060,31 +3260,90 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto astutely-scrollbar">
-              {tracks.map((track, idx) => (
-                <div 
-                  key={`track-${idx}`}
-                  onClick={() => setSelectedTrackIndex(idx)}
-                  className={cn(
-                    "p-3 border-b border-cyan-500/10 cursor-pointer transition-all",
-                    selectedTrackIndex === idx ? "bg-cyan-500/20 border-l-4 border-l-cyan-500" : "hover:bg-cyan-500/5"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={cn("text-[10px] font-black truncate uppercase tracking-tighter", selectedTrackIndex === idx ? "text-white" : "text-cyan-500/60")}>
-                      {track.name}
-                    </span>
-                    <div className={cn("w-1.5 h-1.5 rounded-full", track.muted ? "bg-red-500" : "bg-cyan-500")} />
+              {tracks.map((track, idx) => {
+                const isArmed = armedTracks.has(track.id);
+                const isVocal = (track as any).type === 'audio';
+                return (
+                  <div
+                    key={`track-${idx}`}
+                    onClick={() => setSelectedTrackIndex(idx)}
+                    className={cn(
+                      "px-2 py-2 border-b border-cyan-500/10 cursor-pointer transition-all",
+                      selectedTrackIndex === idx ? "bg-cyan-500/20 border-l-4 border-l-cyan-500" : "hover:bg-cyan-500/5",
+                      isArmed && "border-l-4 border-l-red-500"
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      {/* Record arm button */}
+                      <button
+                        onClick={e => { e.stopPropagation(); toggleArm(track.id); }}
+                        title={isArmed ? 'Disarm track' : 'Arm track for recording'}
+                        className={cn(
+                          "w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 border transition-all",
+                          isArmed
+                            ? "bg-red-500 border-red-400 shadow-lg shadow-red-500/40 animate-pulse"
+                            : "bg-transparent border-white/20 hover:border-red-400/60"
+                        )}
+                      >
+                        <Circle className={cn("w-2 h-2", isArmed ? "fill-white text-white" : "text-white/30")} />
+                      </button>
+
+                      {isVocal && <Mic2 className="w-2.5 h-2.5 text-purple-400 flex-shrink-0" />}
+
+                      <span className={cn(
+                        "text-[10px] font-black truncate uppercase tracking-tighter flex-1",
+                        selectedTrackIndex === idx ? "text-white" : "text-cyan-500/60"
+                      )}>
+                        {track.name}
+                      </span>
+                      <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", track.muted ? "bg-red-500" : "bg-cyan-500")} />
+                    </div>
+                    <div className="text-[8px] font-bold opacity-40 uppercase pl-5.5">
+                      {isVocal ? 'Audio / Vocal' : track.instrument}
+                    </div>
                   </div>
-                  <div className="text-[8px] font-bold opacity-40 uppercase">{track.instrument}</div>
-                </div>
-              ))}
+                );
+              })}
+
+              {/* Add Vocal Track button */}
+              <button
+                onClick={() => {
+                  const vocalTrack: any = {
+                    id: `vocal-${Date.now()}`,
+                    name: `Vocal ${tracks.filter((t: any) => t.type === 'audio').length + 1}`,
+                    color: 'bg-purple-500',
+                    notes: [],
+                    muted: false,
+                    volume: 80,
+                    instrument: 'vocal',
+                    type: 'audio',
+                  };
+                  setTracks(prev => [...prev, vocalTrack]);
+                  setTimeout(() => setSelectedTrackIndex(tracks.length), 50);
+                }}
+                className="w-full flex items-center gap-2 px-2 py-2 text-[10px] font-black uppercase tracking-widest text-purple-400/60 hover:text-purple-300 hover:bg-purple-500/5 border-b border-cyan-500/10 transition-all"
+              >
+                <Mic2 className="w-3 h-3" />
+                + Add Vocal Track
+              </button>
             </div>
           </div>
         )}
 
-        {/* Piano Roll Grid Area */}
+        {/* Piano Roll Grid Area — shows vocal recorder for audio tracks, note grid for MIDI tracks */}
         <div className="flex-1 flex overflow-hidden relative">
-          <PianoKeys 
+          {(selectedTrack as any)?.type === 'audio' ? (
+            <StudioVocalRecorder
+              trackId={selectedTrack.id}
+              trackName={selectedTrack.name}
+              trackColor="#a855f7"
+              bpm={bpm}
+              isTransportPlaying={isPlaying}
+              isArmed={armedTracks.has(selectedTrack.id)}
+              onTakesChange={takes => handleVocalTakesChange(selectedTrack.id, takes)}
+            />
+          ) : (<>
+          <PianoKeys
             pianoKeys={PIANO_KEYS}
             selectedTrack={selectedTrack}
             onKeyClick={addNote}
@@ -3138,6 +3397,21 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             }}
             timeSignature={timeSignature}
           />
+          {/* ── Velocity lane ─────────────────────────────────────────────── */}
+          {showVelocityEditor && selectedTrack && (
+            <VelocityLane
+              notes={selectedTrack.notes ?? []}
+              steps={patternSteps}
+              stepWidth={STEP_WIDTH * zoom}
+              selectedNoteIds={selectedNoteIds}
+              onNotesChange={(newNotes) => {
+                setTracks(prev => prev.map((t, i) =>
+                  i === selectedTrackIndex ? { ...t, notes: newNotes as any } : t
+                ));
+              }}
+            />
+          )}
+          </>)}
         </div>
       </div>
     </div>

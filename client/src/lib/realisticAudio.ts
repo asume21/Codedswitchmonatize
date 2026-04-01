@@ -414,7 +414,8 @@ export class RealisticAudioEngine {
     instrument: string = 'piano',
     velocity: number = 0.7,
     isMidi: boolean = false,
-    targetNode?: AudioNode
+    targetNode?: AudioNode,
+    when?: number  // AudioContext.currentTime to schedule ahead — undefined = play now
   ): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
@@ -451,9 +452,10 @@ export class RealisticAudioEngine {
         const noteName = `${note}${octave}`;
         const destination = targetNode || this.audioContext.destination;
 
+        const playAt = when !== undefined ? when : this.audioContext.currentTime;
         const audioNode = this.instruments[realInstrument].play(
           noteName,
-          this.audioContext.currentTime,
+          playAt,
           {
             duration: duration > 0 ? duration : undefined,
             gain: velocity,
@@ -463,7 +465,7 @@ export class RealisticAudioEngine {
 
         if (audioNode) {
           // Track start time for cleanup
-          (audioNode as any).startTime = this.audioContext.currentTime;
+          (audioNode as any).startTime = playAt;
 
           // Track active node for cleanup/noteOff
           const noteKey = `${realInstrument}:${noteName}`;

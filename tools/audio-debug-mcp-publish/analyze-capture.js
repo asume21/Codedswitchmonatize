@@ -28,7 +28,7 @@ function sendRequest(method, params = {}) {
             mcpServer.stdout.removeListener('data', listener);
             resolve(parsed);
           }
-        } catch(e) {}
+        } catch(_e) { /* ignore parse errors */ }
       }
     };
     mcpServer.stdout.on('data', listener);

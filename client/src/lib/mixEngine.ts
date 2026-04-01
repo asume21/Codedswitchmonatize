@@ -104,7 +104,7 @@ class MixEngine {
     this.limiter.knee.value = 0;
     this.limiter.ratio.value = 20;
     this.limiter.attack.value = 0.001;
-    this.limiter.release.value = 0.1;
+    this.limiter.release.value = 0.25;
 
     // Analyser for metering
     this.analyser = this.audioContext.createAnalyser();
@@ -633,6 +633,7 @@ class MixEngine {
   private animFrameCount = 0;
 
   private startAnimationLoop(): void {
+    if (this.animationFrameId !== null) return; // already running
     const update = () => {
       if (this.isPlaying && !this.isPaused) {
         this.animFrameCount++;

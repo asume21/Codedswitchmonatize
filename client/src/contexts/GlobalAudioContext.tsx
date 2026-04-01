@@ -131,6 +131,8 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
 
     if (sourceNodeRef.current) {
       try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
+      try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
+      sourceNodeRef.current = null;
     }
 
     const source = ctx.createBufferSource();
@@ -157,6 +159,8 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   const pause = useCallback(() => {
     if (sourceNodeRef.current && isPlaying) {
       try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
+      try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
+      sourceNodeRef.current = null;
       if (audioContextRef.current) {
         const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
         pauseTimeRef.current += elapsed;
@@ -168,6 +172,8 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   const stop = useCallback(() => {
     if (sourceNodeRef.current) {
       try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
+      try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
+      sourceNodeRef.current = null;
     }
     pauseTimeRef.current = 0;
     setCurrentTime(0);
@@ -188,6 +194,8 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       const wasPlaying = isPlaying;
       if (sourceNodeRef.current) {
         try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
+        try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
+        sourceNodeRef.current = null;
       }
       pauseTimeRef.current = Math.max(0, Math.min(time, duration));
       setCurrentTime(pauseTimeRef.current);

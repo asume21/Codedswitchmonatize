@@ -27,9 +27,10 @@ export class DrumGenerator extends GeneratorBase {
   private snareTone: Tone.MembraneSynth
   private snareBus:  Tone.Gain
 
-  // Hat: filtered metal
-  private hat:       Tone.MetalSynth
-  private hatFilter: Tone.Filter
+  // Hat: closed (short decay) + open (long decay)
+  private hat:        Tone.MetalSynth
+  private hatOpen:    Tone.MetalSynth
+  private hatFilter:  Tone.Filter
 
   // Perc: bandpass noise
   private perc:       Tone.NoiseSynth
@@ -56,7 +57,8 @@ export class DrumGenerator extends GeneratorBase {
   private onKickTrigger: ((time: number) => void) | null = null
 
   // Micro-timing humanization — adds ±jitter to each hit for human feel
-  private readonly humanizeJitterMs: number = 8  // ±8ms
+  // Ghost notes (low velocity) get more jitter — real drummers don't lock ghosts to the grid
+  private readonly humanizeJitterMs: number = 22  // ±22ms
 
   // Track last kick time for hat-on-kick ducking
   private lastKickTime: number = 0
@@ -120,12 +122,23 @@ export class DrumGenerator extends GeneratorBase {
     this.hat = new Tone.MetalSynth({
       envelope:        { attack: 0.001, decay: 0.05, release: 0.006 },
       harmonicity:     5.1,
-      modulationIndex: 8,      // was 18 — the main source of harsh noise
-      resonance:       4000,   // was 5500
-      octaves:         0.5,    // was 1.0
+      modulationIndex: 8,
+      resonance:       4000,
+      octaves:         0.5,
     })
-    this.hat.volume.value = -14  // was -8
+    this.hat.volume.value = -14
     this.hat.connect(this.hatFilter)
+
+    // Open hat — longer decay gives the "tsss" tail for hi-hat breathing
+    this.hatOpen = new Tone.MetalSynth({
+      envelope:        { attack: 0.001, decay: 0.22, release: 0.08 },
+      harmonicity:     5.1,
+      modulationIndex: 8,
+      resonance:       4000,
+      octaves:         0.5,
+    })
+    this.hatOpen.volume.value = -16
+    this.hatOpen.connect(this.hatFilter)
 
     // ── Perc: bandpass noise for rim/shaker ──
     this.percFilter = new Tone.Filter({ frequency: 2000, type: 'bandpass', Q: 1.5 })
@@ -160,7 +173,12 @@ export class DrumGenerator extends GeneratorBase {
 
     if (to === OState.Awakening) {
       this.stopPart()
-      this.startSubKickRise()
+      // Commit the full beat immediately — don't make the listener wait.
+      // The activity level ramps up naturally so it still fades in; no silent "figuring out" period.
+      this.currentPhysicsMode = physics.mode
+      const kit     = getDrumKit(physics.mode)
+      const pattern = buildDrumPattern(kit, physics.mode)
+      this.rebuildPart(pattern.hits)
       return
     }
 
@@ -374,8 +392,11 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
-    // Micro-timing humanization — add small random jitter for human feel
-    const jitterSec = ((Math.random() * 2 - 1) * this.humanizeJitterMs) / 1000
+    // Micro-timing humanization: ghost notes (low vel) get more timing drift than
+    // downbeats (high vel) — mimics a real drummer who locks kicks/snares but floats ghosts
+    const isGhost = velocity < 0.4
+    const jitterRange = isGhost ? this.humanizeJitterMs : this.humanizeJitterMs * 0.3
+    const jitterSec = ((Math.random() * 2 - 1) * jitterRange) / 1000
     const t = Math.max(0, time + jitterSec)
 
     switch (instrument) {
@@ -391,7 +412,13 @@ export class DrumGenerator extends GeneratorBase {
         this.snareTone.triggerAttackRelease('E3', '16n', t, velocity * 0.7)
         break
       case DrumInstrument.Hat:
-        this.hat.triggerAttackRelease('32n', t, velocity)
+        if (velocity > 0.55) {
+          // Accented = open hat (longer decay gives breath and swing feel)
+          this.hatOpen.triggerAttackRelease('32n', t, velocity * 0.85)
+        } else {
+          // Ghost/quiet = tight closed hat
+          this.hat.triggerAttackRelease('32n', t, velocity)
+        }
         break
       case DrumInstrument.Perc:
         this.perc.triggerAttackRelease('16n', t, velocity)
@@ -433,6 +460,7 @@ export class DrumGenerator extends GeneratorBase {
     this.snareTone.dispose()
     this.snareBus.dispose()
     this.hat.dispose()
+    this.hatOpen.dispose()
     this.hatFilter.dispose()
     this.perc.dispose()
     this.percFilter.dispose()

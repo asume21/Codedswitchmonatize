@@ -34,6 +34,7 @@ export default function SpectrumAnalyzer({
   const [peakHold, setPeakHold] = useState(true);
   const peaksRef = useRef<Float32Array>(new Float32Array(BAR_COUNT));
   const peakDecayRef = useRef<Float32Array>(new Float32Array(BAR_COUNT));
+  const dataArrayRef = useRef<Float32Array<ArrayBuffer> | null>(null);
 
   useEffect(() => {
     const ctx = Tone.getContext().rawContext;
@@ -68,13 +69,20 @@ export default function SpectrumAnalyzer({
     if (!ctx) return;
 
     const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Float32Array(bufferLength);
-    analyser.getFloatFrequencyData(dataArray);
+    if (!dataArrayRef.current || dataArrayRef.current.length !== bufferLength) {
+      dataArrayRef.current = new Float32Array(bufferLength);
+    }
+    analyser.getFloatFrequencyData(dataArrayRef.current);
+    const dataArray = dataArrayRef.current;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
+    const targetW = width * dpr;
+    const targetH = height * dpr;
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Clear
     ctx.fillStyle = '#09090b';

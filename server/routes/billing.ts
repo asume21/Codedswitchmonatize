@@ -8,9 +8,9 @@ export function billingRoutes(storage: IStorage) {
   const router = Router();
 
   // Create Stripe Checkout Session
-  router.post("/create-checkout-session", requireAuth, async (req: any, res: Response) => {
+  router.post("/create-checkout-session", requireAuth(), async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.userId;
       const { tier } = req.body;
 
       if (!userId) {

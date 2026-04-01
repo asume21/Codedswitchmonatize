@@ -24,7 +24,7 @@ export function createMixRoutes() {
    * Accepts full track graph with regions, inserts, sends, and master bus
    * Returns jobId for polling status
    */
-  router.post("/mix/preview", requireAuth, async (req: Request, res: Response) => {
+  router.post("/mix/preview", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { session, renderQuality = 'fast', startTime, endTime, format = 'wav' } = req.body;
 
@@ -163,7 +163,7 @@ export function createMixRoutes() {
    * DELETE /jobs/:id
    * Cancel/delete a job
    */
-  router.delete("/jobs/:id", requireAuth, async (req: Request, res: Response) => {
+  router.delete("/jobs/:id", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 

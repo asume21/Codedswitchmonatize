@@ -27,6 +27,7 @@ export interface ADSREnvelope {
 
 export type InstrumentMode = 'synth' | 'sampler';
 export type SynthType = 'subBass' | 'fmBass' | 'analogStrings' | 'pad' | 'lead' | 'pluck' | 'organ' | 'brass' | 'superSaw' | 'bell';
+export type OscillatorType = 'sine' | 'triangle' | 'sawtooth' | 'square';
 
 export interface InstrumentPreset {
   id: string;
@@ -508,12 +509,7 @@ export class ExpressiveEngine {
       try {
         voice.sampler.triggerRelease(voice.frequency, Tone.now());
       } catch { /* ignore */ }
-      // Sampler voices do not need individual disposal (shared sampler)
-      setTimeout(() => {
-        try {
-          voice.gainNode.dispose();
-        } catch { /* ignore */ }
-      }, (releaseTime + 0.5) * 1000);
+      // No per-note gainNode to dispose — sampler uses a static connection
     }
 
     this.activeVoices.delete(note);
@@ -945,10 +941,8 @@ export class ExpressiveEngine {
       return;
     }
 
-    const gainNode = new Tone.Gain(velocity);
-    this.sampler.connect(gainNode);
-    gainNode.connect(this.filter);
-
+    // Use a static gain node (created once) so we don't accumulate parallel connections
+    // on every note. Velocity is passed directly to triggerAttack.
     try {
       this.sampler.triggerAttack(note, Tone.now(), velocity);
     } catch (err) {
@@ -958,7 +952,7 @@ export class ExpressiveEngine {
     const voice: ActiveVoice = {
       noteKey: note,
       sampler: this.sampler,
-      gainNode,
+      gainNode: this.filter as unknown as Tone.Gain, // placeholder — no per-note node needed
       startTime: Tone.now(),
       frequency: note,
     };

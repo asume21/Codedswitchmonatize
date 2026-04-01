@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { StudioAudioContext } from '@/pages/studio';
 import { 
-  ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X, Circle
+  ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X, Circle, ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -40,6 +40,7 @@ const AudioToolsPage = React.lazy(() => import('./AudioToolsPage'));
 import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin, NoiseGatePlugin, type ToolType } from './effects';
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
+import { DawArrangementView } from './DawArrangementView';
 const MasterMultiTrackPlayer = React.lazy(() => import('./MasterMultiTrackPlayer'));
 import { OrganismPage } from '@/features/organism/OrganismPage';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
@@ -611,8 +612,11 @@ export default function UnifiedStudioWorkspace() {
   const timelinePlayingTrackRef = useRef<string | null>(null);
   const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
   const [activeView, setActiveViewRaw] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism'>(() => {
-    const saved = sessionStorage.getItem('studio:activeView');
     const valid = ['arrangement','piano-roll','mixer','ai-studio','lyrics','song-uploader','code-to-music','audio-tools','beat-lab','multitrack','organism'];
+    // ?popout=view — used when the user pops a tab out into its own window
+    const popout = new URLSearchParams(window.location.search).get('popout');
+    if (popout && valid.includes(popout)) return popout as any;
+    const saved = sessionStorage.getItem('studio:activeView');
     return (saved && valid.includes(saved) ? saved : 'arrangement') as any;
   });
   const setActiveView = useCallback((v: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism') => {
@@ -4151,6 +4155,24 @@ export default function UnifiedStudioWorkspace() {
             Workflow
           </Button>
           
+          {/* Pop-out current view in new window */}
+          <Button
+            size="sm"
+            variant="ghost"
+            title={`Open ${activeView} in new window`}
+            className="h-8 w-8 p-0 astutely-button text-gray-500 hover:text-cyan-300"
+            onClick={() => {
+              const viewParam = encodeURIComponent(activeView);
+              window.open(
+                `/studio?popout=${viewParam}`,
+                `cs-${activeView}`,
+                `width=1280,height=820,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes`
+              );
+            }}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Button>
+
           {/* Master Volume - Compact */}
           <div className="flex items-center gap-2 px-2 py-1 bg-black/60 rounded border border-cyan-500/40 astutely-panel">
             <Sliders className="w-3 h-3 text-cyan-400" />
@@ -4253,501 +4275,17 @@ export default function UnifiedStudioWorkspace() {
             </div>
           )}
 
-          {/* ARRANGEMENT VIEW */}
+          {/* ARRANGEMENT VIEW — CodedSwitch DAW Timeline */}
           {activeView === 'arrangement' && (
-          <>
-          {/* Timeline Section */}
-          <div className="border-b border-cyan-500/40">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setTimelineExpanded(!timelineExpanded)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setTimelineExpanded((prev) => !prev);
-                }
-              }}
-              className="w-full px-4 py-2 bg-black/60 hover:bg-cyan-500/10 flex items-center justify-between astutely-panel"
-            >
-              <span className="font-medium text-cyan-100">
-                {timelineExpanded ? <ChevronDown className="inline w-4 h-4 mr-2 text-cyan-400" /> : <ChevronRight className="inline w-4 h-4 mr-2 text-cyan-400" />}
-                TIMELINE - ALL TRACKS ({tracks.length})
-              </span>
-              <div className="flex items-center space-x-2">
-                {selectedTrack && tracks.find(t => t.id === selectedTrack && t.type === 'audio') && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={(e) => { e.stopPropagation(); setShowWaveformEditor(true); }}
-                    className="text-xs astutely-button border-cyan-500/40 text-cyan-100 hover:bg-cyan-500/20"
-                  >
-                    Waveform Edit
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAIArrange(true);
-                  }}
-                  className="text-xs bg-gradient-to-r from-cyan-600 to-blue-600 astutely-button"
-                >
-                  <Wand2 className="w-3 h-3 mr-1" />
-                  AI Arrange
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addTrack('New Track', 'midi');
-                  }}
-                  className="text-xs astutely-button border-cyan-500/40 text-cyan-100 hover:bg-cyan-500/20"
-                >
-                  <i className="fas fa-plus mr-1"></i>
-                  Add Track
-                </Button>
-                <div className="flex items-center space-x-2 text-sm text-cyan-400">
-                  <span>Zoom:</span>
-                  <Slider
-                    value={[zoom]}
-                    onValueChange={([v]) => setZoom(v)}
-                    max={100}
-                    min={10}
-                    step={1}
-                    className="w-24 astutely-slider"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <span>{zoom}%</span>
-                </div>
-              </div>
-            </div>
-            
-            {timelineExpanded && (
-              <div ref={trackListRef} className="bg-black/60 p-4 max-h-[600px] overflow-y-auto astutely-panel">
-                <div className="grid gap-2" style={{ gridTemplateRows: 'repeat(auto-fit, minmax(180px, auto))' }}>
-                  {tracks.map((track) => {
-                    const trackHeight = trackHeights[track.id] ?? DEFAULT_TRACK_HEIGHT;
-                    const laneHeight = Math.max(trackHeight - 32, 80);
-                    const noteLaneHeight = Math.max(laneHeight - 8, 48);
-                    const waveform = waveformData[track.id];
-
-                    return (
-                      <Resizable
-                        key={track.id}
-                        axis="y"
-                        height={trackHeight}
-                        width={trackListWidth}
-                        minConstraints={[trackListWidth, 120]}
-                        handle={<div className="react-resizable-handle react-resizable-handle-s w-full h-2 bg-gray-800 hover:bg-blue-500 cursor-row-resize" />}
-                        onResizeStop={(_, data) => {
-                          const nextHeight = Math.max(120, data.size.height);
-                          setTrackHeights((prev) => ({ ...prev, [track.id]: nextHeight }));
-                        }}
-                      >
-                        <div
-                          onClick={() => {
-                            setSelectedTrack(track.id);
-                            if (track.type === 'midi') setPianoRollExpanded(true);
-                            else if (track.type === 'lyrics') setLyricsExpanded(true);
-                          }}
-                          style={{ minHeight: trackHeight }}
-                          className={`border rounded cursor-pointer transition flex flex-col ${
-                            selectedTrack === track.id
-                              ? 'border-blue-500 bg-blue-900/20'
-                              : 'border-gray-700 hover:border-gray-600'
-                          }`}
-                        >
-                          <div className="flex flex-1 overflow-hidden">
-                            {/* Track Info Panel */}
-                            <div className="w-64 bg-gray-800 p-3 border-r border-gray-700 flex-shrink-0">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-medium text-sm truncate">{track.name}</span>
-                              </div>
-                              <div className="flex items-center space-x-1 mb-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleTrackMute(track.id);
-                                  }}
-                                  className={`h-6 w-6 p-0 ${track.muted ? 'bg-red-600 text-white' : 'text-gray-400'}`}
-                                >
-                                  M
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleTrackSolo(track.id);
-                                  }}
-                                  className={`h-6 w-6 p-0 ${track.solo ? 'bg-yellow-600 text-white' : 'text-gray-400'}`}
-                                >
-                                  S
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeTrackFromStore(track.id);
-                                  }}
-                                  className="h-6 w-6 p-0 text-red-500"
-                                >
-                                  <i className="fas fa-trash text-xs"></i>
-                                </Button>
-                              </div>
-                              <div className="text-xs space-y-1">
-                                <div className="text-gray-400">Type: <span className="text-gray-200">{track.type.toUpperCase()}</span></div>
-                                {track.instrument && <div className="text-gray-400">Inst: <span className="text-gray-200">{track.instrument}</span></div>}
-                                <div className="flex items-center gap-2 py-1">
-                                  <div className="relative w-1 h-10 bg-gray-700 rounded overflow-hidden">
-                                    <div
-                                      className="absolute inset-x-0 bottom-0 bg-lime-400"
-                                      style={{ height: `${Math.min(100, (channelMeters[track.id]?.rms ?? 0) * 100)}%` }}
-                                    />
-                                    <div
-                                      className="absolute inset-x-0 bottom-0 bg-amber-500/80"
-                                      style={{ height: `${Math.min(100, (channelMeters[track.id]?.peak ?? 0) * 100)}%` }}
-                                    />
-                                  </div>
-                                  <div className="flex flex-col text-[10px] text-gray-400">
-                                    <span>Peak {formatMeterDb(channelMeters[track.id]?.peak)}</span>
-                                    <span>RMS {formatMeterDb(channelMeters[track.id]?.rms)}</span>
-                                  </div>
-                                  <div className="flex gap-1 ml-auto">
-                                    <Button
-                                      variant={(getTrackSendDb(track, 'hall')) > -50 ? 'default' : 'outline'}
-                                      size="sm"
-                                      className={`h-6 px-2 text-[10px] ${(getTrackSendDb(track, 'hall')) > -50 ? 'bg-blue-500 text-black' : ''}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleTrackSend(track.id, 'hall');
-                                      }}
-                                    >
-                                      Hall
-                                    </Button>
-                                    <Button
-                                      variant={(getTrackSendDb(track, 'delay')) > -50 ? 'default' : 'outline'}
-                                      size="sm"
-                                      className={`h-6 px-2 text-[10px] ${(getTrackSendDb(track, 'delay')) > -50 ? 'bg-purple-500 text-black' : ''}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleTrackSend(track.id, 'delay');
-                                      }}
-                                    >
-                                      Dly
-                                    </Button>
-                                  </div>
-                                </div>
-                                <div className="mt-2">
-                                  <div className="text-gray-400 mb-1">Vol: {Math.round(track.volume * 100)}%</div>
-                                  <Slider
-                                    value={[track.volume * 100]}
-                                    onValueChange={(val) => {
-                                      setTracks(tracks.map(t =>
-                                        t.id === track.id ? { ...t, volume: val[0] / 100 } : t
-                                      ));
-                                    }}
-                                    max={100}
-                                    min={0}
-                                    step={1}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-full"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {/* Timeline Visualization */}
-                            <div className="flex-1 bg-gray-900 p-2 relative overflow-x-auto">
-                              {track.type === 'midi' ? (
-                                <div className="relative" style={{ height: laneHeight, minWidth: `${64 * Math.max(5, 15 * zoom / 50)}px` }}>
-                                  {track.notes?.length > 0 ? (
-                                    track.notes.map((note) => {
-                                      const pxPerStep = 15 * zoom / 50;
-                                      return (
-                                      <div
-                                        key={note.id}
-                                        className="absolute top-2 bg-green-600/80 border border-green-400 rounded text-xs flex items-center justify-center"
-                                        style={{
-                                          left: `${note.step * pxPerStep}px`,
-                                          width: `${Math.max(2, (note.length || 4) * pxPerStep - 4)}px`,
-                                          height: noteLaneHeight,
-                                        }}
-                                      >
-                                        {note.note}{note.octave}
-                                      </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <div className="text-xs text-gray-500 text-center">No notes</div>
-                                  )}
-                                </div>
-                              ) : track.type === 'audio' ? (
-                                <div
-                                  className="bg-gray-900 border border-blue-700/50 rounded relative overflow-hidden group"
-                                  style={{ height: laneHeight }}
-                                >
-                                  {waveform ? (
-                                    <TimelineWaveformCanvas data={waveform} height={laneHeight} />
-                                  ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-500">
-                                      Loading waveform...
-                                    </div>
-                                  )}
-                                  <div className="absolute bottom-1 left-2 text-xs text-blue-300 font-medium truncate max-w-[200px]">
-                                    {track.name}
-                                  </div>
-                                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className={`h-8 px-3 text-white ${timelinePlayingTrack === track.id ? 'bg-red-600 border-red-500 hover:bg-red-500' : 'bg-green-600 border-green-500 hover:bg-green-500'}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleTimelineTrackPlay(track.id);
-                                      }}
-                                    >
-                                      {timelinePlayingTrack === track.id ? (
-                                        <Square className="w-3 h-3 mr-1" />
-                                      ) : (
-                                        <Play className="w-3 h-3 mr-1" />
-                                      )}
-                                      {timelinePlayingTrack === track.id ? 'Stop' : 'Play'}
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-8 px-3"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        stopTimelineAudio();
-                                        setActiveView('multitrack');
-                                        toast({ title: "Opening Multi-Track", description: "Track sent to multi-track player" });
-                                      }}
-                                    >
-                                      <Layers className="w-3 h-3 mr-1" />
-                                      Multi-Track
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div
-                                  className="bg-purple-900/20 border border-purple-700 rounded flex items-center justify-center text-xs text-purple-400"
-                                  style={{ height: laneHeight }}
-                                >
-                                  Lyrics track
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </Resizable>
-                    );
-                  })}
-
-                  {tracks.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <i className="fas fa-music text-4xl opacity-20 mb-2"></i>
-                      <p>No tracks yet</p>
-                      <p className="text-xs">Use "+ Add Track" to create one</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Piano Roll Section */}
-          <div className="border-b border-gray-700">
-            <button
-              onClick={() => setPianoRollExpanded(!pianoRollExpanded)}
-              className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-750 flex items-center"
-            >
-              {pianoRollExpanded ? <ChevronDown className="inline w-4 h-4 mr-2" /> : <ChevronRight className="inline w-4 h-4 mr-2" />}
-              PIANO ROLL {selectedTrack && `(${tracks.find(t => t.id === selectedTrack)?.name})`}
-            </button>
-            
-            {pianoRollExpanded && selectedTrack && (
-              <div className="bg-gray-900">
-                {/* @ts-ignore - VerticalPianoRoll prop types mismatch but runtime compatible */}
-                <VerticalPianoRoll 
-                  {...({ tracks: tracks as any } as any)}
-                  selectedTrack={selectedTrack || undefined}
-                  isPlaying={transportPlaying}
-                  currentTime={playheadPosition}
-                  onPlayNote={(note: string, octave: number, duration: number, instrument: string) => {
-                    playNote(note, octave, instrument, duration);
-                  }}
-                  onPlayNoteOff={(note: string, octave: number, instrument: string) => {
-                    playNoteOff(note, octave, instrument);
-                  }}
-                  onNotesChange={(updatedNotes: any[]) => {
-                    if (!selectedTrack) return;
-                    setTracks(prev => prev.map(track => track.id === selectedTrack
-                      ? {
-                          ...track,
-                          notes: updatedNotes,
-                          payload: track.payload
-                            ? { ...track.payload, notes: updatedNotes }
-                            : track.payload
-                        }
-                      : track
-                    ));
-                  }}
-/>
-              </div>
-            )}
-          </div>
-
-          {/* Lyrics Section */}
-          <div className="border-b border-gray-700">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setLyricsExpanded(!lyricsExpanded)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setLyricsExpanded((prev) => !prev);
-                }
-              }}
-              className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-750 flex items-center justify-between"
-            >
-              <span>
-                {lyricsExpanded ? <ChevronDown className="inline w-4 h-4 mr-2" /> : <ChevronRight className="inline w-4 h-4 mr-2" />}
-                LYRICS
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'lyrics' }));
+            <div className="flex-1 overflow-hidden pt-14">
+              <DawArrangementView
+                onOpenEditor={(trackId, view) => {
+                  setSelectedTrack(trackId);
+                  setActiveView(view ?? 'piano-roll');
                 }}
-              >
-                <Maximize2 className="w-4 h-4 mr-1" />
-                Open Lyric Lab
-              </Button>
+                onAddTrack={(name, type) => addTrack(name, type as 'midi' | 'audio')}
+              />
             </div>
-
-            {lyricsExpanded && (
-              <div className="bg-gray-900 p-4">
-                <div className="border border-gray-700 rounded p-4 flex flex-col gap-3">
-                  <h3 className="font-medium">Lyrics are edited in Song Doctor · Lyric Lab</h3>
-                  <p className="text-sm text-gray-300">
-                    Use the main <span className="font-semibold">Lyrics</span> tab to work on your song text. This DAW section is now a shortcut so
-                    there is only one Lyric Lab for the entire studio.
-                  </p>
-                  <div>
-                    <Button
-                      size="sm"
-                      className="bg-studio-accent hover:bg-blue-500"
-                      onClick={() => window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'lyrics' }))}                      >
-                      Go to Lyric Lab
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Mixer Section */}
-          <div className="border-b border-gray-700">
-            <button
-              onClick={() => setMixerExpanded(!mixerExpanded)}
-              className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-750 flex items-center"
-            >
-              {mixerExpanded ? <ChevronDown className="inline w-4 h-4 mr-2" /> : <ChevronRight className="inline w-4 h-4 mr-2" />}
-              MIXER & EFFECTS {selectedTrack && `(${tracks.find(t => t.id === selectedTrack)?.name})`}
-            </button>
-            
-            {mixerExpanded && selectedTrack && (
-              <div className="bg-gray-900 p-4">
-                <div className="border border-gray-700 rounded p-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-sm text-gray-400 mb-2 block">Volume</label>
-                      <Slider
-                        value={[tracks.find(t => t.id === selectedTrack)?.volume || 0.8]}
-                        onValueChange={(val) => {
-                          setTracks(tracks.map(t =>
-                            t.id === selectedTrack ? { ...t, volume: val[0] } : t
-                          ));
-                        }}
-                        max={1}
-                        min={0}
-                        step={0.01}
-                        className="w-full"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm text-gray-400 mb-2 block">Pan</label>
-                      <Slider
-                        value={[tracks.find(t => t.id === selectedTrack)?.pan || 0]}
-                        onValueChange={(val) => {
-                          setTracks(tracks.map(t =>
-                            t.id === selectedTrack ? { ...t, pan: val[0] } : t
-                          ));
-                        }}
-                        max={1}
-                        min={-1}
-                        step={0.01}
-                        className="w-full"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm text-gray-400 mb-2 block">Effects Chain</label>
-                      <div className="flex space-x-1">
-                        <Button
-                          size="sm"
-                          variant={getTrackEffectsChain(selectedTrack).includes('EQ') ? 'default' : 'outline'}
-                          onClick={() => openEffectEditor('EQ')}
-                        >
-                          EQ
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={getTrackEffectsChain(selectedTrack).includes('Compressor') ? 'default' : 'outline'}
-                          onClick={() => openEffectEditor('Compressor')}
-                        >
-                          Comp
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={getTrackEffectsChain(selectedTrack).includes('Reverb') ? 'default' : 'outline'}
-                          onClick={() => openEffectEditor('Reverb')}
-                        >
-                          Reverb
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="outline">+ Add</Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEffectEditor('EQ')}>EQ</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEffectEditor('Compressor')}>Compressor</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEffectEditor('Deesser')}>Deesser</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEffectEditor('Reverb')}>Reverb</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEffectEditor('Limiter')}>Limiter</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEffectEditor('NoiseGate')}>Noise Gate</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          </>
           )}
 
           {/* BEAT LAB VIEW — always mounted so event listeners survive tab switches */}

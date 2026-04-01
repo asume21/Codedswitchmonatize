@@ -61,7 +61,7 @@ export class BassGenerator extends GeneratorBase {
         attack:        0.04,
         decay:         0.15,
         sustain:       0.35,
-        release:       0.5,
+        release:       0.15,
         baseFrequency: 80,
         octaves:       2.0,
       },
@@ -108,7 +108,13 @@ export class BassGenerator extends GeneratorBase {
 
     if (to === OState.Awakening) {
       this.stopPart()
-      this.startSubBassRise()
+      // Commit the groove immediately so the beat feels confident from bar 1
+      this.rootMidi        = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+      this.currentMode     = physics.mode
+      setBassSwing(physics.mode.toString())
+      this.currentBehavior = getBassBehavior(physics.mode, to)
+      this.applyBassPreset()
+      this.rebuildPart(physics)
       return
     }
 
@@ -213,9 +219,12 @@ export class BassGenerator extends GeneratorBase {
       vel:  n.velocity,
     }))
 
+    // Lay bass back ~20ms behind the kick — creates the "pocket" groove feel
+    const LAY_BACK_SEC = 0.020
+
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
-      this.synth.triggerAttackRelease(event.note, event.dur, time, pocketVelocity)
+      this.synth.triggerAttackRelease(event.note, event.dur, time + LAY_BACK_SEC, pocketVelocity)
     }, events)
 
     this.part.loop      = true
