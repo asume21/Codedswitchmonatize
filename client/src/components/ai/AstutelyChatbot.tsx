@@ -1860,6 +1860,13 @@ function AstutelyCreateContent({
       gridResolution: '1/16',
     });
     const data = await response.json();
+
+    // Store the grid in context so ProBeatMaker can pick it up
+    const grid = data?.data?.grid;
+    if (grid && studioContext?.setPendingBeatGrid) {
+      studioContext.setPendingBeatGrid({ grid, genre: beatGenre, groove: beatGroove, bpm: transport.tempo || 120 });
+    }
+
     toast({ title: 'Beat Generated!', description: `${beatGenre} beat pattern created via AI` });
 
     // Also generate real audio
@@ -1888,6 +1895,12 @@ function AstutelyCreateContent({
       setGeneratedAudioUrl(data.audioUrl);
       setAudioProvider('melody-ai');
     }
+
+    // Store melody notes in context so MelodyComposerV2 / piano roll can pick them up
+    if (data?.notes && Array.isArray(data.notes) && studioContext?.setPendingMelodyNotes) {
+      studioContext.setPendingMelodyNotes(data.notes);
+    }
+
     toast({ title: 'Melody Generated!', description: `${melodyStyle} melody composed by AI` });
   });
 

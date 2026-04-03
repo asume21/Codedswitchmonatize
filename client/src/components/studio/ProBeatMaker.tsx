@@ -18,8 +18,9 @@
  * - Export to WAV/MIDI
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useContext } from 'react';
 import { useLocation } from 'wouter';
+import { StudioAudioContext } from '@/pages/studio';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -419,6 +420,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   const [, setLocation] = useLocation();
   const { lastNote, activeNotes, isConnected: midiConnected, setDrumMode } = useMIDI();
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
+  const studioContext = useContext(StudioAudioContext);
 
   // Switch drum mode on/off based on whether Beat Lab is the visible tab.
   // Previously used mount/unmount but Beat Lab is now always-mounted (CSS hidden),
@@ -426,6 +428,45 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   useEffect(() => {
     setDrumMode(isActive);
   }, [isActive, setDrumMode]);
+
+  // Consume pending beat grid from Astutely Create tab
+  useEffect(() => {
+    const pending = studioContext?.pendingBeatGrid;
+    if (!pending?.grid) return;
+
+    const grid = pending.grid;
+    // Consume it so we don't re-apply on next render
+    studioContext.consumePendingBeatGrid();
+
+    const pickGridRow = (trackId: string): Array<number | boolean> => {
+      const drumType = DRUM_ID_TO_TYPE[trackId.toLowerCase()] || 'perc';
+      if (drumType === 'kick') return grid.kick || [];
+      if (drumType === 'snare' || drumType === 'clap' || drumType === 'rim') return grid.snare || [];
+      if (drumType === 'hihat' || drumType === 'openhat' || drumType === 'ride' || drumType === 'crash') return grid.hihat || [];
+      return grid.percussion || [];
+    };
+
+    const seed = Date.now();
+    setTracks(prev => prev.map(track => {
+      const row = pickGridRow(track.id);
+      const drumType = DRUM_ID_TO_TYPE[track.id.toLowerCase()] || 'perc';
+      const lane: 'kick' | 'snare' | 'hihat' | 'percussion' =
+        drumType === 'kick' ? 'kick'
+        : (drumType === 'snare' || drumType === 'clap' || drumType === 'rim') ? 'snare'
+        : (drumType === 'hihat' || drumType === 'openhat' || drumType === 'ride' || drumType === 'crash') ? 'hihat'
+        : 'percussion';
+      const grooveRow = applyGrooveModeToRow(row, lane, pending.groove || 'balanced', track.pattern.length, seed + track.id.length);
+      return {
+        ...track,
+        pattern: track.pattern.map((step, i) => ({
+          ...step,
+          active: !!grooveRow[i],
+        })),
+      };
+    }));
+
+    toast({ title: 'Beat Grid Applied', description: `${pending.genre} pattern loaded into step sequencer` });
+  }, [studioContext?.pendingBeatGrid]);
 
   // 🔄 Listen for loop loading from Loop Library
   useEffect(() => {

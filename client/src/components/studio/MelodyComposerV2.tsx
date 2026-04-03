@@ -175,7 +175,39 @@ function MelodyComposerV2() {
     session.setMelody(nextNotes);
   }, [selectedTrack, tracks]);
 
-  // AI Melody Generation
+  // Consume pending melody notes from Astutely Create tab
+  useEffect(() => {
+    const pending = studioContext?.pendingMelodyNotes;
+    if (!pending || !Array.isArray(pending) || pending.length === 0) return;
+
+    // Consume so we don't re-apply
+    studioContext.consumePendingMelodyNotes();
+
+    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const generatedNotes: Note[] = pending.map((n: any, index: number) => {
+      const pitch = n.note || n.pitch || 60;
+      const noteName = typeof pitch === 'string' ? pitch : NOTE_NAMES[pitch % 12];
+      const octave = n.octave || (typeof pitch === 'number' ? Math.floor(pitch / 12) - 1 : 4);
+      const step = Math.round((n.time || n.start || index * 0.5) * 4);
+      const length = Math.max(1, Math.round((n.duration || 0.5) * 4));
+      return {
+        id: `note-${Date.now()}-${index}`,
+        note: noteName,
+        octave,
+        step,
+        length,
+        velocity: Math.round((n.velocity || 0.8) * 127),
+      };
+    });
+
+    handleTrackNotesUpdate(selectedTrack, generatedNotes);
+    toast({
+      title: 'Melody Applied',
+      description: `${generatedNotes.length} notes loaded into ${tracks.find(t => t.id === selectedTrack)?.name}`,
+    });
+  }, [studioContext?.pendingMelodyNotes]);
+
+  // AI Melody Generation (kept for reference — UI trigger moved to Astutely Create tab)
   const generateAIMelody = async () => {
     try {
       toast({ title: "Generating melody...", description: "AI is composing your melody" });

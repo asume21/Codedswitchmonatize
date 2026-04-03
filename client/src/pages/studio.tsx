@@ -40,6 +40,12 @@ export const StudioAudioContext = createContext({
   setCurrentPlaylist: (playlist: any) => {},
   currentPlaylistIndex: 0 as number,
   setCurrentPlaylistIndex: (index: number) => {},
+  pendingBeatGrid: null as any,
+  pendingMelodyNotes: null as any[] | null,
+  setPendingBeatGrid: (grid: any) => {},
+  setPendingMelodyNotes: (notes: any[] | null) => {},
+  consumePendingBeatGrid: () => null as any,
+  consumePendingMelodyNotes: () => null as any[] | null,
   setCurrentPattern: (pattern: any) => {},
   setCurrentMelody: (melody: any[]) => {},
   setCurrentLyrics: (lyrics: string) => {},
@@ -71,6 +77,18 @@ function StudioLayout() {
   const [currentCodeMusic, setCurrentCodeMusic] = useState({});
   const [currentLayers, setCurrentLayers] = useState<any[]>([]);
   const [currentTracks, setCurrentTracks] = useState<any[]>([]);
+  const [pendingBeatGrid, setPendingBeatGrid] = useState<any>(null);
+  const [pendingMelodyNotes, setPendingMelodyNotes] = useState<any[] | null>(null);
+  const consumePendingBeatGrid = useCallback(() => {
+    const grid = pendingBeatGrid;
+    if (grid) setPendingBeatGrid(null);
+    return grid;
+  }, [pendingBeatGrid]);
+  const consumePendingMelodyNotes = useCallback(() => {
+    const notes = pendingMelodyNotes;
+    if (notes) setPendingMelodyNotes(null);
+    return notes;
+  }, [pendingMelodyNotes]);
   const currentKey = useStudioStore((s) => s.key);
   const storeSetKey = useStudioStore((s) => s.setKey);
   const setCurrentKey = useCallback((k: string) => storeSetKey(k as MusicalKey), [storeSetKey]);
@@ -226,6 +244,12 @@ function StudioLayout() {
     setCurrentPlaylist,
     currentPlaylistIndex,
     setCurrentPlaylistIndex,
+    pendingBeatGrid,
+    pendingMelodyNotes,
+    setPendingBeatGrid,
+    setPendingMelodyNotes,
+    consumePendingBeatGrid,
+    consumePendingMelodyNotes,
     setCurrentPattern,
     setCurrentMelody,
     setCurrentLyrics,
