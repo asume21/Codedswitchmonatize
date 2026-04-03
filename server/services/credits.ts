@@ -203,24 +203,12 @@ export class CreditService {
     reason: string,
     metadata?: Record<string, any>
   ): Promise<CreditTransaction> {
-    const user = await this.storage.getUser(userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
+    // Atomic deduction: single SQL UPDATE with WHERE credits >= amount
+    // prevents overdraft from concurrent requests (TOCTOU race condition)
+    const updatedUser = await this.storage.atomicDeductCredits(userId, amount);
 
-    const balanceBefore = user.credits || 0;
-    
-    if (balanceBefore < amount) {
-      throw new Error(`Insufficient credits. Need ${amount}, have ${balanceBefore}`);
-    }
-
-    const balanceAfter = balanceBefore - amount;
-
-    // Update user balance
-    await this.storage.updateUser(userId, {
-      credits: balanceAfter,
-      totalCreditsSpent: (user.totalCreditsSpent || 0) + amount,
-    });
+    const balanceBefore = (updatedUser.credits || 0) + amount;
+    const balanceAfter = updatedUser.credits || 0;
 
     // Log transaction
     const transaction: CreditTransaction = {

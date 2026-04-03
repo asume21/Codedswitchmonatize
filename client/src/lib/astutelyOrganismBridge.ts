@@ -140,6 +140,10 @@ class AstutelyOrganismBridge {
     this.dispatch('set-texture-enabled', { enabled });
   }
 
+  setMelodyOnly(enabled: boolean): void {
+    this.dispatch('set-melody-only', { enabled });
+  }
+
   // ── State access ───────────────────────────────────────────────────────
 
   getState(): AstutelyOrganismBridgeState {

@@ -139,6 +139,10 @@ export interface AstutelyCoreValue {
   stopOrganism: () => void;
   captureOrganism: () => void;
 
+  // ── Melody-Only Mode — silence drums/bass, just the hook for freestyling ──
+  melodyOnlyMode: boolean;
+  setMelodyOnlyMode: (enabled: boolean) => void;
+
   // ── Audio Intelligence (WebEar-powered ears) ──
   /** Latest self-listen report from the Organism — null if not running. */
   latestAudioReport: SelfListenReport | null;
@@ -153,6 +157,7 @@ export interface AstutelyCoreValue {
   organismForceState: (state: string) => void;
   organismSetGeneratorVolume: (generator: 'bass' | 'melody' | 'hatDensity' | 'kickVelocity' | 'texture', volume: number) => void;
   organismSetTextureEnabled: (enabled: boolean) => void;
+  organismSetMelodyOnly: (enabled: boolean) => void;
   organismQuickStart: (presetId: string) => void;
 
   // ── Mixer Control ──
@@ -774,14 +779,20 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   // ═══════════════════════════════════════════════════════════════════════════
 
   const [organismMode, setOrganismMode] = useState(false);
+  const [melodyOnlyMode, setMelodyOnlyState] = useState(false);
 
   const startOrganism = useCallback((inputSource?: string) => {
     setOrganismMode(true);
     window.dispatchEvent(new CustomEvent('organism:command', {
       detail: { action: 'start', inputSource: inputSource ?? 'mic' },
     }));
+    // Astutely is the single source of truth — starting the organism also
+    // starts the DAW transport so the whole studio moves as one.
+    if (!transport.isPlaying) {
+      try { transport.play(); } catch { /* non-critical */ }
+    }
     dispatchAstutelyEvent('organism-started', {});
-  }, []);
+  }, [transport]);
 
   const stopOrganism = useCallback(() => {
     setOrganismMode(false);
@@ -789,6 +800,11 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       detail: { action: 'stop' },
     }));
     dispatchAstutelyEvent('organism-stopped', {});
+  }, []);
+
+  const setMelodyOnlyMode = useCallback((enabled: boolean) => {
+    setMelodyOnlyState(enabled);
+    astutelyOrganismBridge.setMelodyOnly(enabled);
   }, []);
 
   const captureOrganism = useCallback(() => {
@@ -840,6 +856,10 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   const organismSetTextureEnabled = useCallback((enabled: boolean) => {
     astutelyOrganismBridge.setTextureEnabled(enabled);
   }, []);
+
+  const organismSetMelodyOnly = useCallback((enabled: boolean) => {
+    setMelodyOnlyMode(enabled);
+  }, [setMelodyOnlyMode]);
 
   const organismQuickStart = useCallback((presetId: string) => {
     astutelyOrganismBridge.quickStart(presetId);
@@ -1019,6 +1039,8 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     startOrganism,
     stopOrganism,
     captureOrganism,
+    melodyOnlyMode,
+    setMelodyOnlyMode,
 
     // Audio Intelligence
     latestAudioReport,
@@ -1033,6 +1055,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     organismForceState,
     organismSetGeneratorVolume,
     organismSetTextureEnabled,
+    organismSetMelodyOnly,
     organismQuickStart,
 
     // Mixer Control
@@ -1090,6 +1113,8 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     startOrganism,
     stopOrganism,
     captureOrganism,
+    melodyOnlyMode,
+    setMelodyOnlyMode,
     latestAudioReport,
     organismPhysicsState,
     organismCurrentState,
@@ -1100,6 +1125,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     organismForceState,
     organismSetGeneratorVolume,
     organismSetTextureEnabled,
+    organismSetMelodyOnly,
     organismQuickStart,
     getMixerSnapshot,
     setMixerChannelVolume,

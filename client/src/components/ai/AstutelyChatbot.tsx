@@ -8,7 +8,10 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search, MoveDiagonal2, Brain, Palette } from 'lucide-react';
+import { X, Minus, Sparkles, GripHorizontal, Zap, Music, Mic2, Wand2, Layers, Send, Play, Pause, Square, Volume2, Settings, Eye, Sliders, Activity, Database, Cpu, Search, MoveDiagonal2, Brain, Palette, Lock, Unlock, ChevronDown, ChevronUp, Drum, Guitar, FileText, Radio } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
@@ -21,6 +24,7 @@ import { StudioAudioContext } from '@/pages/studio';
 import { globalSystems, globalAI, globalAudio } from '@/lib/globalSystems';
 import { AstroHUD } from './AstroHUD';
 import AstutelyBrainContent from '@/components/studio/AstutelyBrainPanel';
+import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 
 type AstutelyTab = 'chat' | 'brain' | 'create';
 
@@ -154,6 +158,12 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   const savedState = getSavedState();
   const [activeTab, setActiveTab] = useState<AstutelyTab>('chat');
   const [isMinimized, setIsMinimized] = useState(savedState.isMinimized);
+  const [editingBpm, setEditingBpm] = useState(false);
+  const [bpmInputValue, setBpmInputValue] = useState('');
+  const [syncLocked, setSyncLocked] = useState(true);
+  const [showVolume, setShowVolume] = useState(false);
+  const [masterVolume, setMasterVolume] = useState(80);
+  const [showAllTracks, setShowAllTracks] = useState(false);
   const [position, setPosition] = useState({ x: savedState.x, y: savedState.y });
   const [panelSize, setPanelSize] = useState<{ width: number; height: number }>({ width: savedState.width, height: savedState.height });
   const [showResizeGuide, setShowResizeGuide] = useState(true);
@@ -381,6 +391,25 @@ Try: "play", "make a drill beat", or "analyze my project".`,
     transport.setTempo(newBpm);
     studioContext?.setBpm?.(newBpm);
     return newBpm;
+  };
+
+  const commitBpmEdit = () => {
+    const parsed = parseInt(bpmInputValue, 10);
+    if (!isNaN(parsed) && parsed >= 40 && parsed <= 300) {
+      handleSetTempo(parsed);
+    }
+    setEditingBpm(false);
+  };
+
+  const handleMasterVolume = (vol: number) => {
+    setMasterVolume(vol);
+    try {
+      // Tone.js master volume: convert 0-100 to dB (-60 to 0)
+      const Tone = (window as any).Tone;
+      if (Tone?.Destination) {
+        Tone.Destination.volume.value = vol === 0 ? -Infinity : (vol / 100) * 6 - 6;
+      }
+    } catch {}
   };
   
   const handleNavigateToTool = (tool: string) => {
@@ -1210,42 +1239,81 @@ Be concise, friendly, and direct. Skip formalities.`,
               
               <div className="flex justify-between items-end mb-3 px-1 relative z-10">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.15em]">
+                  <button
+                    onClick={() => setActiveTab('brain')}
+                    className="flex items-center gap-2 text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.15em] hover:text-cyan-300 transition-colors cursor-pointer"
+                    title="Open project brain"
+                  >
                     <Database className="w-3 h-3 animate-[bounce_2s_infinite]" /> Matrix Status
-                  </div>
+                  </button>
                   <div className="flex items-center gap-3">
-                    <div className="flex flex-col">
+                    <button
+                      onClick={() => setActiveTab('brain')}
+                      className="flex flex-col text-left hover:opacity-80 transition-opacity cursor-pointer"
+                      title="View all tracks"
+                    >
                       <span className="text-[8px] text-cyan-500/60 uppercase font-black">Streams</span>
                       <span className="text-lg font-black text-white leading-none tracking-tighter">{getProjectStatus().trackCount}</span>
-                    </div>
+                    </button>
                     <div className="w-px h-6 bg-cyan-500/20 self-end mb-1" />
-                    <div className="flex flex-col">
+                    <button
+                      onClick={() => setActiveTab('brain')}
+                      className="flex flex-col text-left hover:opacity-80 transition-opacity cursor-pointer"
+                      title="View all notes"
+                    >
                       <span className="text-[8px] text-cyan-500/60 uppercase font-black">Elements</span>
                       <span className="text-lg font-black text-white leading-none tracking-tighter">{getProjectStatus().totalNotes}</span>
-                    </div>
+                    </button>
                   </div>
                 </div>
-                
+
                 <div className="text-right space-y-1">
-                  <div className="flex items-center gap-2 justify-end text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.15em]">
+                  <button
+                    onClick={() => { setEditingBpm(true); setBpmInputValue(String(getProjectStatus().bpm)); }}
+                    className="flex items-center gap-2 justify-end text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.15em] hover:text-cyan-300 transition-colors cursor-pointer"
+                    title="Edit tempo"
+                  >
                     Temporal Sync <Cpu className="w-3 h-3 text-cyan-400" />
-                  </div>
+                  </button>
                   <div className="flex flex-col items-end">
                     <span className="text-[8px] text-cyan-500/60 uppercase font-black">Velocity</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-black text-cyan-400 leading-none tabular-nums tracking-tighter">{getProjectStatus().bpm}</span>
-                      <span className="text-[9px] font-black text-cyan-500/40">BPM</span>
-                    </div>
+                    {editingBpm ? (
+                      <Input
+                        autoFocus
+                        type="number"
+                        min={40}
+                        max={300}
+                        value={bpmInputValue}
+                        onChange={e => setBpmInputValue(e.target.value)}
+                        onBlur={commitBpmEdit}
+                        onKeyDown={e => { if (e.key === 'Enter') commitBpmEdit(); if (e.key === 'Escape') setEditingBpm(false); }}
+                        className="w-16 h-6 text-lg font-black text-cyan-400 bg-black/60 border-cyan-500/40 text-right p-1 tabular-nums"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => { setEditingBpm(true); setBpmInputValue(String(getProjectStatus().bpm)); }}
+                        className="flex items-baseline gap-1 hover:opacity-80 transition-opacity cursor-pointer"
+                        title="Click to edit BPM"
+                      >
+                        <span className="text-2xl font-black text-cyan-400 leading-none tabular-nums tracking-tighter">{getProjectStatus().bpm}</span>
+                        <span className="text-[9px] font-black text-cyan-500/40">BPM</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
               
-              <div className="relative cursor-crosshair" onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const newPos = (x / rect.width) * 16;
-                transport.seek(newPos);
-              }}>
+              <div
+                className={`relative ${syncLocked ? 'cursor-not-allowed' : 'cursor-crosshair'}`}
+                onClick={(e) => {
+                  if (syncLocked) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const newPos = (x / rect.width) * 16;
+                  transport.seek(newPos);
+                }}
+                title={syncLocked ? 'Unlock sync to scrub position' : 'Click to seek'}
+              >
                 <AstroHUD 
                   tracks={tracks.map(t => ({
                     id: t.id,
@@ -1307,13 +1375,46 @@ Be concise, friendly, and direct. Skip formalities.`,
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="flex flex-col items-end">
+                  <button
+                    onClick={() => setSyncLocked(l => !l)}
+                    className="flex flex-col items-end hover:opacity-80 transition-opacity cursor-pointer"
+                    title={syncLocked ? 'Click to unlock timeline scrubbing' : 'Click to lock timeline'}
+                  >
                     <div className="text-[8px] text-cyan-500/40 font-mono uppercase leading-none">Sync</div>
-                    <Badge variant="outline" className="text-[8px] h-3 px-1 border-cyan-500/20 text-cyan-400/60 font-mono uppercase">LOCKED</Badge>
-                  </div>
-                  <div className="w-8 h-8 rounded-full border border-cyan-500/30 flex items-center justify-center relative overflow-hidden group/knob">
-                    <div className="absolute inset-0 bg-cyan-500/10 scale-0 group-hover/hud:scale-100 transition-transform" />
-                    <Volume2 className="w-3.5 h-3.5 text-cyan-400 z-10" />
+                    <Badge
+                      variant="outline"
+                      className={`text-[8px] h-3 px-1 font-mono uppercase flex items-center gap-0.5 transition-colors ${
+                        syncLocked
+                          ? 'border-cyan-500/20 text-cyan-400/60'
+                          : 'border-orange-500/40 text-orange-400/80'
+                      }`}
+                    >
+                      {syncLocked ? <Lock className="w-2 h-2" /> : <Unlock className="w-2 h-2" />}
+                      {syncLocked ? 'LOCKED' : 'FREE'}
+                    </Badge>
+                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVolume(v => !v)}
+                      className="w-8 h-8 rounded-full border border-cyan-500/30 flex items-center justify-center relative overflow-hidden hover:bg-cyan-500/20 transition-colors cursor-pointer"
+                      title="Master volume"
+                    >
+                      <Volume2 className="w-3.5 h-3.5 text-cyan-400 z-10" />
+                    </button>
+                    {showVolume && (
+                      <div className="absolute bottom-10 right-0 bg-cyan-950/90 border border-cyan-500/30 rounded-lg p-2 w-28 shadow-lg z-50">
+                        <div className="text-[8px] text-cyan-500/60 uppercase font-black mb-1.5 text-center">Master Vol</div>
+                        <Slider
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={[masterVolume]}
+                          onValueChange={([v]) => handleMasterVolume(v)}
+                          className="w-full"
+                        />
+                        <div className="text-[9px] text-cyan-400 text-center mt-1 font-mono">{masterVolume}%</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1328,14 +1429,19 @@ Be concise, friendly, and direct. Skip formalities.`,
                     <Layers className="w-3 h-3 text-cyan-400" />
                     <span className="text-[10px] font-bold text-cyan-400/80 uppercase tracking-wider">Active Tracks ({tracks.length})</span>
                   </div>
-                  <div className="space-y-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/20">
-                    {tracks.slice(0, 5).map((track: any, i: number) => (
-                      <div 
+                  <div className="space-y-1 max-h-36 overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/20">
+                    {(showAllTracks ? tracks : tracks.slice(0, 5)).map((track: any, i: number) => (
+                      <button
                         key={track.id}
-                        className="flex items-center gap-2 px-2 py-1 rounded bg-cyan-950/20 border border-cyan-500/10 hover:border-cyan-500/30 transition-colors"
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'mixer' }));
+                          window.dispatchEvent(new CustomEvent('select-track', { detail: { trackId: track.id } }));
+                        }}
+                        className="w-full flex items-center gap-2 px-2 py-1 rounded bg-cyan-950/20 border border-cyan-500/10 hover:border-cyan-500/40 hover:bg-cyan-900/30 transition-colors text-left cursor-pointer"
+                        title={`Go to ${track.name || `Track ${i + 1}`} in mixer`}
                       >
-                        <div 
-                          className="w-2 h-2 rounded-full" 
+                        <div
+                          className="w-2 h-2 rounded-full flex-shrink-0"
                           style={{ backgroundColor: track.payload?.color || '#3b82f6' }}
                         />
                         <span className="text-[10px] text-white/80 flex-1 truncate">
@@ -1344,12 +1450,18 @@ Be concise, friendly, and direct. Skip formalities.`,
                         <span className="text-[9px] text-cyan-500/60 font-mono">
                           {track.payload?.notes?.length || 0} notes
                         </span>
-                      </div>
+                      </button>
                     ))}
                     {tracks.length > 5 && (
-                      <div className="text-[9px] text-cyan-500/40 text-center py-1">
-                        +{tracks.length - 5} more tracks
-                      </div>
+                      <button
+                        onClick={() => setShowAllTracks(s => !s)}
+                        className="w-full text-[9px] text-cyan-500/50 hover:text-cyan-400 text-center py-1 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        {showAllTracks
+                          ? <><ChevronUp className="w-3 h-3" /> Show less</>
+                          : <><ChevronDown className="w-3 h-3" /> +{tracks.length - 5} more tracks</>
+                        }
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1567,21 +1679,67 @@ Be concise, friendly, and direct. Skip formalities.`,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CREATE TAB — Beat generation (replaces standalone AstutelyPanel)
+// CREATE TAB — Centralized AI Generation Hub
+// All AI generation actions live here with proper labels + AI provider selectors
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const createStyles = [
-  { name: "Travis Scott rage", preview: "808s + dark pads" },
-  { name: "The Weeknd dark", preview: "Glassy synths + vocal chops" },
-  { name: "Drake smooth", preview: "Soft piano + trap hats" },
-  { name: "K-pop cute", preview: "Bright plucks + bubbly synth" },
-  { name: "Phonk drift", preview: "Cowbell + slowed reverb" },
-  { name: "Future bass", preview: "Wobble bass + supersaw chords" },
-  { name: "Lo-fi chill", preview: "Vinyl crackle + jazz chords" },
-  { name: "Hyperpop glitch", preview: "Chopped vocals + sidechain" },
-  { name: "Afrobeats bounce", preview: "Log drums + highlife guitar" },
-  { name: "Latin trap", preview: "Dem bow rhythm + reggaeton keys" },
+const BEAT_GENRES = [
+  'Hip-Hop', 'Trap', 'Lo-Fi', 'Pop', 'EDM', 'House', 'R&B', 'Jazz', 'Rock',
+  'Drill', 'Phonk', 'Afrobeats', 'Reggaeton', 'Future Bass', 'Ambient',
 ];
+
+const MELODY_STYLES = [
+  { value: 'melodic', label: 'Melodic' },
+  { value: 'ambient', label: 'Ambient' },
+  { value: 'aggressive', label: 'Aggressive' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'uplifting', label: 'Uplifting' },
+  { value: 'jazzy', label: 'Jazzy' },
+];
+
+const LYRIC_MOODS = ['Happy', 'Sad', 'Energetic', 'Chill', 'Dark', 'Romantic', 'Aggressive', 'Nostalgic'];
+
+const GROOVE_MODES = [
+  { value: 'tight', label: 'Tight' },
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'busy', label: 'Busy' },
+];
+
+// Collapsible card wrapper used by each generation section
+function CreateCard({
+  title,
+  icon: Icon,
+  color,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`rounded-xl border transition-all ${isOpen ? `border-${color}-500/40 bg-${color}-500/5` : 'border-white/10 bg-white/[0.02]'}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 rounded-xl transition-all"
+      >
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-lg bg-${color}-500/20 flex items-center justify-center`}>
+            <Icon className={`w-3.5 h-3.5 text-${color}-400`} />
+          </div>
+          <span className="text-xs font-black uppercase tracking-widest text-white/80">{title}</span>
+        </div>
+        {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-white/40" /> : <ChevronDown className="w-3.5 h-3.5 text-white/40" />}
+      </button>
+      {isOpen && <div className="px-3 pb-3 space-y-3">{children}</div>}
+    </div>
+  );
+}
 
 function AstutelyCreateContent({
   onBeatGenerated,
@@ -1601,9 +1759,13 @@ function AstutelyCreateContent({
   saveTrackToServer: (t: any) => Promise<any>;
 }) {
   const { generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
-  const [selectedStyle, setSelectedStyle] = useState(createStyles[0]);
-  const [query, setQuery] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Track which cards are expanded
+  const [openCards, setOpenCards] = useState<Record<string, boolean>>({ beat: true });
+  const toggleCard = (id: string) => setOpenCards(prev => ({ ...prev, [id]: !prev[id] }));
+
+  // ── Shared state ──────────────────────────────────────────
+  const [activeGeneration, setActiveGeneration] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [audioProvider, setAudioProvider] = useState<string | null>(null);
@@ -1611,118 +1773,56 @@ function AstutelyCreateContent({
   const [audioError, setAudioError] = useState<string | null>(null);
   const generatedAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const handleGenerate = async () => {
-    setIsGenerating(true);
+  // ── Beat Generation state ─────────────────────────────────
+  const [beatGenre, setBeatGenre] = useState('Hip-Hop');
+  const [beatGroove, setBeatGroove] = useState('balanced');
+  const [beatProvider, setBeatProvider] = useState('astutely');
+
+  // ── Melody Generation state ───────────────────────────────
+  const [melodyStyle, setMelodyStyle] = useState('melodic');
+  const [melodyProvider, setMelodyProvider] = useState('astutely');
+
+  // ── Lyrics Generation state ───────────────────────────────
+  const [lyricTheme, setLyricTheme] = useState('');
+  const [lyricGenre, setLyricGenre] = useState('Hip-Hop');
+  const [lyricMood, setLyricMood] = useState('Energetic');
+  const [lyricProvider, setLyricProvider] = useState('grok');
+
+  // ── Full Audio state ──────────────────────────────────────
+  const [audioPrompt, setAudioPrompt] = useState('');
+  const [audioStyleProvider, setAudioStyleProvider] = useState('suno');
+
+  // ── Bass Generation state ─────────────────────────────────
+  const [bassStyle, setBassStyle] = useState('808');
+  const [bassProvider, setBassProvider] = useState('astutely');
+
+  // ── Loop Generation state ─────────────────────────────────
+  const [loopGenre, setLoopGenre] = useState('hip-hop');
+  const [loopProvider, setLoopProvider] = useState('astutely');
+
+  // ── Vocal Melody state ────────────────────────────────────
+  const [vocalMood, setVocalMood] = useState('Energetic');
+  const [vocalProvider, setVocalProvider] = useState('suno');
+
+  // ── Helper: progress animation ────────────────────────────
+  const runWithProgress = async (genId: string, fn: () => Promise<void>) => {
+    setActiveGeneration(genId);
     setProgress(0);
     setAudioError(null);
-
-    toast({ title: 'Generating', description: `Creating ${selectedStyle.name} beat...` });
-
-    const interval = setInterval(() => {
-      setProgress(p => Math.min(p + 8, 90));
-    }, 400);
-
+    const interval = setInterval(() => setProgress(p => Math.min(p + 8, 90)), 400);
     try {
-      const result = await generatePattern({
-        style: selectedStyle.name,
-        prompt: query.trim() || undefined,
-      });
-      const notes = astutelyToNotes(result);
-
-      transport.setTempo(result.bpm);
-      if (studioContext?.setBpm) studioContext.setBpm(result.bpm);
-
-      if (onBeatGenerated) onBeatGenerated(result);
-
-      // Add tracks
-      const trackTypes = ['drums', 'bass', 'chords', 'melody'] as const;
-      for (const type of trackTypes) {
-        const typeNotes = notes.filter(n => n.trackType === type);
-        if (typeNotes.length > 0) {
-          const trackData = {
-            id: `ai-${type}-${Date.now()}`,
-            name: `Astutely ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-            kind: type === 'drums' ? 'beat' : 'midi',
-            lengthBars: 4,
-            startBar: 0,
-            payload: {
-              type: type === 'drums' ? 'beat' : 'midi',
-              notes: typeNotes,
-              bpm: result.bpm,
-              source: 'astutely',
-              color: type === 'drums' ? '#ef4444' : type === 'bass' ? '#f59e0b' : type === 'chords' ? '#8b5cf6' : '#3b82f6',
-              volume: 0.8,
-              pan: 0,
-            },
-          };
-          addTrack(trackData);
-          await saveTrackToServer(trackData);
-        }
-      }
-
-      // Try generating real audio
-      let audioInfo = { provider: 'synth', audioUrl: '' };
-      try {
-        const audioResult = await generateRealAudio(selectedStyle.name, {
-          prompt: query.trim() || undefined,
-          bpm: result.bpm,
-          key: result.key,
-        });
-        audioInfo = audioResult;
-        setGeneratedAudioUrl(audioResult.audioUrl);
-        setAudioProvider(audioResult.provider);
-        try { await playGeneratedAudio(audioResult.audioUrl); } catch {}
-      } catch {}
-
-      clearInterval(interval);
+      await fn();
       setProgress(100);
-
-      const drumCount = notes.filter(n => n.trackType === 'drums').length;
-      const bassCount = notes.filter(n => n.trackType === 'bass').length;
-      const chordCount = notes.filter(n => n.trackType === 'chords').length;
-      const melodyCount = notes.filter(n => n.trackType === 'melody').length;
-
-      toast({
-        title: 'Beat Generated!',
-        description: `${result.style} at ${result.bpm} BPM — ${drumCount} drums, ${bassCount} bass, ${chordCount} chords, ${melodyCount} melody`,
-      });
-
-      transport.seek(0);
-      transport.play();
-    } catch (error) {
-      clearInterval(interval);
-      setProgress(0);
-      setAudioError(error instanceof Error ? error.message : 'Generation failed');
-      toast({ title: 'Failed', description: 'Beat generation encountered an error.', variant: 'destructive' });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleGenerateAudioOnly = async () => {
-    setIsGenerating(true);
-    setAudioError(null);
-    setGeneratedAudioUrl(null);
-
-    toast({ title: 'Generating Audio', description: `Creating ${selectedStyle.name} audio track...` });
-
-    try {
-      const audioResult = await generateRealAudio(selectedStyle.name, {
-        prompt: query.trim() || undefined,
-        bpm: transport.tempo || undefined,
-        key: studioContext?.currentKey || undefined,
-      });
-      setGeneratedAudioUrl(audioResult.audioUrl);
-      setAudioProvider(audioResult.provider);
-      toast({ title: 'Audio Ready', description: `Generated by ${audioResult.provider}` });
     } catch (error: any) {
-      setAudioError(error?.message || 'Audio generation failed');
-      toast({ title: 'Audio Failed', description: error?.message || 'Audio generation failed', variant: 'destructive' });
+      setAudioError(error?.message || 'Generation failed');
+      toast({ title: 'Generation Failed', description: error?.message || 'Something went wrong.', variant: 'destructive' });
     } finally {
-      setIsGenerating(false);
+      clearInterval(interval);
+      setActiveGeneration(null);
     }
   };
 
+  // ── Audio playback toggle ─────────────────────────────────
   const handleToggleAudio = async () => {
     if (!generatedAudioUrl) return;
     if (isPlayingGenerated && generatedAudioRef.current) {
@@ -1743,43 +1843,172 @@ function AstutelyCreateContent({
     }
   };
 
+  // ═══════════════════════════════════════════════════════════
+  // GENERATION HANDLERS
+  // ═══════════════════════════════════════════════════════════
+
+  const handleBeatGenerate = () => runWithProgress('beat', async () => {
+    const bars = 4;
+    const beatGridProvider = beatProvider === 'grok' || beatProvider === 'openai' ? beatProvider : undefined;
+    const response = await apiRequest('POST', '/api/ai/music/drums', {
+      bpm: transport.tempo || 120,
+      bars,
+      style: beatGenre.toLowerCase(),
+      grooveMode: beatGroove,
+      aiProvider: beatGridProvider,
+      generationSeed: Date.now() + Math.floor(Math.random() * 100000),
+      gridResolution: '1/16',
+    });
+    const data = await response.json();
+    toast({ title: 'Beat Generated!', description: `${beatGenre} beat pattern created via AI` });
+
+    // Also generate real audio
+    try {
+      const audioResult = await generateRealAudio(beatGenre, { bpm: transport.tempo || 120 });
+      setGeneratedAudioUrl(audioResult.audioUrl);
+      setAudioProvider(audioResult.provider);
+      try { await playGeneratedAudio(audioResult.audioUrl); } catch {}
+    } catch {}
+  });
+
+  const handleMelodyGenerate = () => runWithProgress('melody', async () => {
+    const response = await apiRequest('POST', '/api/melody/generate', {
+      scale: `${studioContext?.currentKey || 'C'} Major`,
+      style: melodyStyle,
+      complexity: 'medium',
+      musicalParams: {
+        bpm: transport.tempo || 120,
+        key: studioContext?.currentKey || 'C',
+        timeSignature: '4/4',
+      },
+    });
+    const result = await response.json();
+    const data = result.data || result;
+    if (data?.audioUrl) {
+      setGeneratedAudioUrl(data.audioUrl);
+      setAudioProvider('melody-ai');
+    }
+    toast({ title: 'Melody Generated!', description: `${melodyStyle} melody composed by AI` });
+  });
+
+  const handleLyricsGenerate = () => runWithProgress('lyrics', async () => {
+    if (!lyricTheme.trim()) throw new Error('Please enter a theme for lyrics');
+    const response = await apiRequest('POST', '/api/lyrics/generate', {
+      theme: lyricTheme,
+      genre: lyricGenre,
+      mood: lyricMood,
+      aiProvider: lyricProvider,
+    });
+    const data = await response.json();
+    // Push lyrics into studio context
+    if (data.content && studioContext?.setCurrentLyrics) {
+      studioContext.setCurrentLyrics(data.content);
+    }
+    toast({ title: 'Lyrics Generated!', description: `${lyricGenre} lyrics about "${lyricTheme}"` });
+  });
+
+  const handleFullAudioGenerate = () => runWithProgress('audio', async () => {
+    const style = audioPrompt.trim() || `${beatGenre} instrumental`;
+    const audioResult = await generateRealAudio(style, {
+      prompt: audioPrompt.trim() || undefined,
+      bpm: transport.tempo || undefined,
+      key: studioContext?.currentKey || undefined,
+    });
+    setGeneratedAudioUrl(audioResult.audioUrl);
+    setAudioProvider(audioResult.provider);
+    toast({ title: 'Audio Ready!', description: `Generated by ${audioResult.provider}` });
+  });
+
+  const handleBassGenerate = () => runWithProgress('bass', async () => {
+    const result = await generatePattern({
+      style: `${bassStyle} bass line`,
+      prompt: `Generate a ${bassStyle} bass line in ${studioContext?.currentKey || 'C'}`,
+    });
+    const notes = astutelyToNotes(result);
+    const bassNotes = notes.filter(n => n.trackType === 'bass');
+    if (bassNotes.length > 0) {
+      const trackData = {
+        id: `ai-bass-${Date.now()}`,
+        name: `Astutely Bass (${bassStyle})`,
+        kind: 'midi',
+        lengthBars: 4,
+        startBar: 0,
+        payload: { type: 'midi', notes: bassNotes, bpm: result.bpm, source: 'astutely', color: '#f59e0b', volume: 0.8, pan: 0 },
+      };
+      addTrack(trackData);
+      await saveTrackToServer(trackData);
+    }
+    // Also try real audio
+    try {
+      const audioResult = await generateRealAudio(`${bassStyle} bass`, { bpm: transport.tempo || 120 });
+      setGeneratedAudioUrl(audioResult.audioUrl);
+      setAudioProvider(audioResult.provider);
+    } catch {}
+    toast({ title: 'Bass Line Generated!', description: `${bassStyle} bass added to timeline` });
+  });
+
+  const handleLoopGenerate = () => runWithProgress('loop', async () => {
+    const result = await generatePattern({
+      style: loopGenre,
+      prompt: `${loopGenre} loop pattern`,
+    });
+    const notes = astutelyToNotes(result);
+    transport.setTempo(result.bpm);
+
+    const trackTypes = ['drums', 'bass', 'chords', 'melody'] as const;
+    for (const type of trackTypes) {
+      const typeNotes = notes.filter(n => n.trackType === type);
+      if (typeNotes.length > 0) {
+        const trackData = {
+          id: `ai-loop-${type}-${Date.now()}`,
+          name: `Loop ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+          kind: type === 'drums' ? 'beat' : 'midi',
+          lengthBars: 4,
+          startBar: 0,
+          payload: { type: type === 'drums' ? 'beat' : 'midi', notes: typeNotes, bpm: result.bpm, source: 'astutely', color: '#10b981', volume: 0.8, pan: 0 },
+        };
+        addTrack(trackData);
+        await saveTrackToServer(trackData);
+      }
+    }
+    toast({ title: 'Loop Generated!', description: `${loopGenre} loop added to timeline` });
+  });
+
+  const handleVocalMelodyGenerate = () => runWithProgress('vocal', async () => {
+    const result = await generatePattern({
+      style: `${vocalMood} vocal melody`,
+      prompt: `Vocal melody with ${vocalMood.toLowerCase()} mood`,
+    });
+    const notes = astutelyToNotes(result);
+    const melodyNotes = notes.filter(n => n.trackType === 'melody');
+    if (melodyNotes.length > 0) {
+      const trackData = {
+        id: `ai-vocal-${Date.now()}`,
+        name: `Vocal Melody (${vocalMood})`,
+        kind: 'midi',
+        lengthBars: 4,
+        startBar: 0,
+        payload: { type: 'midi', notes: melodyNotes, bpm: result.bpm, source: 'astutely', color: '#ec4899', volume: 0.8, pan: 0 },
+      };
+      addTrack(trackData);
+      await saveTrackToServer(trackData);
+    }
+    // Also try real audio
+    try {
+      const audioResult = await generateRealAudio(`${vocalMood} vocal melody`, { bpm: transport.tempo || 120 });
+      setGeneratedAudioUrl(audioResult.audioUrl);
+      setAudioProvider(audioResult.provider);
+    } catch {}
+    toast({ title: 'Vocal Melody Generated!', description: `${vocalMood} vocal melody added` });
+  });
+
+  const isGenerating = activeGeneration !== null;
+
   return (
     <>
-      {/* Style Grid */}
-      <div className="grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
-        {createStyles.map(style => (
-          <button
-            key={style.name}
-            type="button"
-            onClick={() => setSelectedStyle(style)}
-            disabled={isGenerating}
-            className={`p-3 rounded-xl text-left transition-all cursor-pointer ${
-              selectedStyle.name === style.name
-                ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-100 shadow-lg'
-                : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white/80'
-            }`}
-          >
-            <div className="text-xs font-bold">{style.name}</div>
-            <div className="text-[10px] text-white/50 mt-0.5">{style.preview}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Freeform Prompt */}
-      <div>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="e.g. 'Add 808 slides and dark pads'"
-          className="w-full p-3 bg-black/40 border border-cyan-500/30 rounded-xl text-white text-xs placeholder-white/30 focus:outline-none focus:border-cyan-400"
-          disabled={isGenerating}
-        />
-      </div>
-
-      {/* Progress */}
+      {/* ── Progress Bar (shared) ──────────────────────────── */}
       {isGenerating && (
-        <div>
+        <div className="mb-2">
           <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-300"
@@ -1787,34 +2016,217 @@ function AstutelyCreateContent({
             />
           </div>
           <p className="text-center text-[10px] text-white/50 mt-1">
-            {progress < 100 ? `Generating... ${progress}%` : 'Adding to timeline...'}
+            {progress < 100 ? `Generating ${activeGeneration}... ${progress}%` : 'Done!'}
           </p>
         </div>
       )}
 
-      {/* Generate Buttons */}
-      <div className="flex gap-2">
+      {/* ═══ 1. BEAT GENERATION ═════════════════════════════ */}
+      <CreateCard title="Beat Generation" icon={Drum} color="purple" isOpen={!!openCards.beat} onToggle={() => toggleCard('beat')}>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
+          <AIProviderSelector value={beatProvider} onValueChange={setBeatProvider} feature="beat" />
+        </div>
+        <div className="flex gap-2">
+          <Select value={beatGenre} onValueChange={setBeatGenre}>
+            <SelectTrigger className="flex-1 h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+              <SelectValue placeholder="Genre" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+              {BEAT_GENRES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={beatGroove} onValueChange={setBeatGroove}>
+            <SelectTrigger className="w-28 h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+              <SelectValue placeholder="Groove" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+              {GROOVE_MODES.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <button
           type="button"
-          onClick={handleGenerate}
+          onClick={handleBeatGenerate}
           disabled={isGenerating}
-          className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-purple-600 rounded-xl font-bold text-xs text-white hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+          className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <Drum className="w-4 h-4" />
+          {activeGeneration === 'beat' ? 'Generating...' : 'Generate Beat'}
+        </button>
+      </CreateCard>
+
+      {/* ═══ 2. MELODY GENERATION ═══════════════════════════ */}
+      <CreateCard title="Melody Generation" icon={Music} color="blue" isOpen={!!openCards.melody} onToggle={() => toggleCard('melody')}>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
+          <AIProviderSelector value={melodyProvider} onValueChange={setMelodyProvider} feature="melody" />
+        </div>
+        <Select value={melodyStyle} onValueChange={setMelodyStyle}>
+          <SelectTrigger className="h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+            <SelectValue placeholder="Style" />
+          </SelectTrigger>
+          <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+            {MELODY_STYLES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <button
+          type="button"
+          onClick={handleMelodyGenerate}
+          disabled={isGenerating}
+          className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <Music className="w-4 h-4" />
-          Pattern + Audio
+          {activeGeneration === 'melody' ? 'Composing...' : 'Generate Melody'}
         </button>
+      </CreateCard>
+
+      {/* ═══ 3. LYRICS GENERATION ═══════════════════════════ */}
+      <CreateCard title="Lyrics Generation" icon={FileText} color="yellow" isOpen={!!openCards.lyrics} onToggle={() => toggleCard('lyrics')}>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
+          <AIProviderSelector value={lyricProvider} onValueChange={setLyricProvider} feature="lyrics" />
+        </div>
+        <input
+          type="text"
+          value={lyricTheme}
+          onChange={(e) => setLyricTheme(e.target.value)}
+          placeholder="Theme (e.g. 'midnight drive', 'heartbreak')"
+          className="w-full p-2.5 bg-black/30 border border-white/10 rounded-lg text-white text-xs placeholder-white/30 focus:outline-none focus:border-yellow-400/50"
+          disabled={isGenerating}
+        />
+        <div className="flex gap-2">
+          <Select value={lyricGenre} onValueChange={setLyricGenre}>
+            <SelectTrigger className="flex-1 h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+              <SelectValue placeholder="Genre" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+              {BEAT_GENRES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={lyricMood} onValueChange={setLyricMood}>
+            <SelectTrigger className="w-28 h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+              <SelectValue placeholder="Mood" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+              {LYRIC_MOODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <button
           type="button"
-          onClick={handleGenerateAudioOnly}
+          onClick={handleLyricsGenerate}
+          disabled={isGenerating || !lyricTheme.trim()}
+          className="w-full py-2.5 bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <FileText className="w-4 h-4" />
+          {activeGeneration === 'lyrics' ? 'Writing...' : 'Generate Lyrics'}
+        </button>
+      </CreateCard>
+
+      {/* ═══ 4. FULL AUDIO GENERATION ═══════════════════════ */}
+      <CreateCard title="Full Audio Generation" icon={Volume2} color="emerald" isOpen={!!openCards.audio} onToggle={() => toggleCard('audio')}>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
+          <AIProviderSelector value={audioStyleProvider} onValueChange={setAudioStyleProvider} feature="audio" />
+        </div>
+        <input
+          type="text"
+          value={audioPrompt}
+          onChange={(e) => setAudioPrompt(e.target.value)}
+          placeholder="Describe the audio (e.g. 'dark trap beat with 808s')"
+          className="w-full p-2.5 bg-black/30 border border-white/10 rounded-lg text-white text-xs placeholder-white/30 focus:outline-none focus:border-emerald-400/50"
           disabled={isGenerating}
-          className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-xl font-bold text-xs text-white hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+        />
+        <button
+          type="button"
+          onClick={handleFullAudioGenerate}
+          disabled={isGenerating}
+          className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <Volume2 className="w-4 h-4" />
-          Audio Only
+          {activeGeneration === 'audio' ? 'Rendering...' : 'Generate Audio'}
         </button>
-      </div>
+      </CreateCard>
 
-      {/* Audio Player */}
+      {/* ═══ 5. BASS LINE GENERATION ════════════════════════ */}
+      <CreateCard title="Bass Line Generation" icon={Guitar} color="amber" isOpen={!!openCards.bass} onToggle={() => toggleCard('bass')}>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
+          <AIProviderSelector value={bassProvider} onValueChange={setBassProvider} feature="bass" />
+        </div>
+        <Select value={bassStyle} onValueChange={setBassStyle}>
+          <SelectTrigger className="h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+            <SelectValue placeholder="Bass Style" />
+          </SelectTrigger>
+          <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+            {['808', 'Sub Bass', 'Synth Bass', 'Acoustic Bass', 'Funk Bass', 'Slap Bass'].map(s => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          type="button"
+          onClick={handleBassGenerate}
+          disabled={isGenerating}
+          className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <Guitar className="w-4 h-4" />
+          {activeGeneration === 'bass' ? 'Generating...' : 'Generate Bass Line'}
+        </button>
+      </CreateCard>
+
+      {/* ═══ 6. LOOP GENERATION ═════════════════════════════ */}
+      <CreateCard title="Loop Generation" icon={Radio} color="green" isOpen={!!openCards.loop} onToggle={() => toggleCard('loop')}>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
+          <AIProviderSelector value={loopProvider} onValueChange={setLoopProvider} feature="loop" />
+        </div>
+        <Select value={loopGenre} onValueChange={setLoopGenre}>
+          <SelectTrigger className="h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+            <SelectValue placeholder="Genre" />
+          </SelectTrigger>
+          <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+            {BEAT_GENRES.map(g => <SelectItem key={g} value={g.toLowerCase().replace(/\s+/g, '-')}>{g}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <button
+          type="button"
+          onClick={handleLoopGenerate}
+          disabled={isGenerating}
+          className="w-full py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <Radio className="w-4 h-4" />
+          {activeGeneration === 'loop' ? 'Looping...' : 'Generate Loop'}
+        </button>
+      </CreateCard>
+
+      {/* ═══ 7. VOCAL MELODY GENERATION ═════════════════════ */}
+      <CreateCard title="Vocal Melody" icon={Mic2} color="pink" isOpen={!!openCards.vocal} onToggle={() => toggleCard('vocal')}>
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
+          <AIProviderSelector value={vocalProvider} onValueChange={setVocalProvider} feature="vocal" />
+        </div>
+        <Select value={vocalMood} onValueChange={setVocalMood}>
+          <SelectTrigger className="h-9 bg-black/30 border-white/10 rounded-lg text-xs">
+            <SelectValue placeholder="Mood" />
+          </SelectTrigger>
+          <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl">
+            {LYRIC_MOODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <button
+          type="button"
+          onClick={handleVocalMelodyGenerate}
+          disabled={isGenerating}
+          className="w-full py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <Mic2 className="w-4 h-4" />
+          {activeGeneration === 'vocal' ? 'Composing...' : 'Generate Vocal Melody'}
+        </button>
+      </CreateCard>
+
+      {/* ── Audio Player (shared across all generators) ──── */}
       {generatedAudioUrl && (
         <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
           <div className="flex items-center justify-between mb-2">
@@ -1840,7 +2252,7 @@ function AstutelyCreateContent({
             </button>
             <a
               href={generatedAudioUrl}
-              download={`${selectedStyle.name.replace(/\s+/g, '-').toLowerCase()}-beat.mp3`}
+              download={`astutely-generated-${Date.now()}.mp3`}
               className="py-2 px-3 rounded-lg bg-white/10 border border-white/20 text-white/70 text-xs font-bold hover:bg-white/20 transition-all"
             >
               Download
@@ -1849,7 +2261,7 @@ function AstutelyCreateContent({
         </div>
       )}
 
-      {/* Error */}
+      {/* ── Error display ────────────────────────────────── */}
       {audioError && !generatedAudioUrl && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30">
           <p className="text-red-400 text-xs font-bold">Generation Failed</p>

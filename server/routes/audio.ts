@@ -434,10 +434,17 @@ Create complete lyrics with verses, chorus, and bridge.`;
           version: "2d19859030ff705a87c746f7e96eea03aefb71f166725aee39692f1476566d48",
           input: { prompt, max_tokens: 800, temperature: 0.8 },
         }),
+        signal: AbortSignal.timeout(15000),
       });
 
+      if (!response.ok) {
+        const errText = await response.text().catch(() => response.statusText);
+        throw new Error(`Replicate API error ${response.status}: ${errText}`);
+      }
+
       const prediction = await response.json();
-      
+      if (!prediction.id) throw new Error('Replicate did not return a prediction ID');
+
       // Poll for result
       let result;
       let attempts = 0;
@@ -445,7 +452,11 @@ Create complete lyrics with verses, chorus, and bridge.`;
         await new Promise(resolve => setTimeout(resolve, 2000));
         const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
           headers: { "Authorization": `Token ${token}` },
+          signal: AbortSignal.timeout(30000),
         });
+        if (!statusResponse.ok) {
+          throw new Error(`Replicate poll error ${statusResponse.status}: ${statusResponse.statusText}`);
+        }
         result = await statusResponse.json();
         attempts++;
       } while ((result.status === "starting" || result.status === "processing") && attempts < 60);

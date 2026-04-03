@@ -25,14 +25,6 @@ export function RequireAuth({
   const { status, isAuthenticated, isPro } = useAuth();
   const [, navigate] = useLocation();
 
-  // 🔓 DEV MODE: Bypass auth checks on localhost
-  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
-  // In production, enforce real auth. Only bypass on localhost during development.
-  if (isDev) {
-    return <>{children}</>;
-  }
-
   if (status === "loading") {
     return (
       <div className="flex h-full items-center justify-center">

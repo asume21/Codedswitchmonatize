@@ -78,6 +78,11 @@ export class ProfessionalAudioEngine {
   // Spectrum analysis
   private spectrumAnalyzer: AnalyserNode | null = null;
   private spectrumData: Uint8Array | null = null;
+
+  // LFO oscillators that need explicit cleanup
+  private chorusLfos: Map<string, OscillatorNode> = new Map();
+  // Pan nodes per channel for pan control
+  private channelPanNodes: Map<string, StereoPannerNode> = new Map();
   private updateSoloMatrix(): void {
     const soloedChannels = Array.from(this.channels.values()).filter(ch => ch.solo);
     this.channels.forEach(ch => {
@@ -413,7 +418,13 @@ export class ProfessionalAudioEngine {
     wet.connect(output);
     
     lfo.start();
-    
+
+    // Track the LFO so it can be stopped when the engine is disconnected
+    const lfoKey = `chorus_${Date.now()}_${Math.random()}`;
+    this.chorusLfos.set(lfoKey, lfo);
+    // Attach key to input node for cleanup
+    (input as any).__chorusLfoKey = lfoKey;
+
     return input;
   }
   
@@ -620,8 +631,9 @@ export class ProfessionalAudioEngine {
     };
     
     this.channels.set(id, channel);
+    this.channelPanNodes.set(id, panNode);
     console.log(`🎛️ Mixer channel created: ${name}`);
-    
+
     return channel;
   }
   
@@ -636,9 +648,12 @@ export class ProfessionalAudioEngine {
   setChannelPan(channelId: string, pan: number): void {
     const channel = this.channels.get(channelId);
     if (!channel) return;
-    
+
     channel.pan = Math.max(-1, Math.min(1, pan));
-    // Pan is handled by the StereoPannerNode in the signal chain
+    const panNode = this.channelPanNodes.get(channelId);
+    if (panNode) {
+      panNode.pan.value = channel.pan;
+    }
   }
   
   setChannelEQ(channelId: string, band: 'low' | 'lowMid' | 'highMid' | 'high', gain: number): void {
@@ -733,6 +748,7 @@ export class ProfessionalAudioEngine {
     });
 
     this.channels.delete(channelId);
+    this.channelPanNodes.delete(channelId);
     this.updateSoloMatrix();
     console.log(`🎛️ Mixer channel removed: ${channel.name}`);
   }
@@ -812,23 +828,37 @@ export class ProfessionalAudioEngine {
   }
 
   disconnect(): void {
+    // Stop all chorus LFOs
+    this.chorusLfos.forEach(lfo => {
+      try { lfo.stop(); } catch { /* already stopped */ }
+      try { lfo.disconnect(); } catch { /* ignore */ }
+    });
+    this.chorusLfos.clear();
+
+    // Disconnect all convolution nodes
+    this.convolutionNodes.forEach(convolver => {
+      try { convolver.disconnect(); } catch { /* ignore */ }
+    });
+    this.convolutionNodes.clear();
+
     // Disconnect all channels and clean up
     Array.from(this.channels.values()).forEach(channel => {
       try {
         channel.input.disconnect();
         channel.output.disconnect();
-      } catch (e) {
+      } catch {
         // Node may already be disconnected
       }
     });
-    
+
     this.channels.clear();
+    this.channelPanNodes.clear();
     this.sendReturns.clear();
-    
+
     if (this.masterBus) {
       this.masterBus.disconnect();
     }
-    
+
     console.log('🎛️ Professional Audio Engine disconnected');
   }
 }

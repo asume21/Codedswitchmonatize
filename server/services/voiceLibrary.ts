@@ -9,6 +9,9 @@ const INDEX_FILE = path.join(VOICES_DIR, "index.json");
 
 // RVC API configuration
 const RVC_API_URL = process.env.RVC_API_URL || "http://localhost:7870";
+if (!process.env.RVC_API_URL && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  RVC_API_URL not set — voice conversion will fail in production');
+}
 const ELEVENLABS_API_URL = process.env.ELEVENLABS_API_URL || "https://api.elevenlabs.io/v1";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
 const ELEVENLABS_S2S_MODEL_ID = process.env.ELEVENLABS_S2S_MODEL_ID || "eleven_multilingual_sts_v2";

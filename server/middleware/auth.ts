@@ -85,6 +85,9 @@ export function requireSubscription(
 
       if (!isActive || !tierAllowed) {
         const upgradeUrl = (process.env.APP_URL || "http://localhost:5000") + "/billing";
+        if (!process.env.APP_URL && process.env.NODE_ENV === 'production') {
+          console.error('❌ APP_URL not set — upgrade redirect URL is wrong');
+        }
         return res.status(402).json({
           message: "Subscription required",
           subscriptionStatus: user.subscriptionStatus,

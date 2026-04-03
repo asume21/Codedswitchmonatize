@@ -300,17 +300,7 @@ function MelodyComposerV2() {
               </Select>
             </div>
 
-            {/* AI Generate */}
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-300">AI Tools</label>
-              <Button
-                onClick={generateAIMelody}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-                size="sm"
-              >
-                ✨ AI Generate Melody
-              </Button>
-            </div>
+            {/* AI Melody Generation moved to Astutely Create tab */}
 
             {/* Plugin Toggles */}
             <div>

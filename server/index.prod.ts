@@ -10,9 +10,13 @@ import path from "path";
 import fs from "fs";
 import { ensureDataRoots } from "./services/localStorageService";
 
-// Require SESSION_SECRET in production
+// Require critical env vars in production
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
+  process.exit(1);
+}
+if (!process.env.APP_URL) {
+  console.error('❌ FATAL: APP_URL environment variable is required in production (e.g. https://www.codedswitch.com)');
   process.exit(1);
 }
 
@@ -148,14 +152,6 @@ app.use((req, res, next) => {
 
   const server = await registerRoutes(app, storage);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
   // ── SEO: canonical domain redirect ──
   // Redirect non-www → www and http → https in production
   app.use((req, res, next) => {
@@ -213,6 +209,16 @@ app.use((req, res, next) => {
   // fall through to index.html if the file doesn't exist (SPA)
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
+  });
+
+  // Error handler must be last — after all routes and static serving
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
+    console.error(`[error] ${status} ${message}`, err.stack);
   });
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

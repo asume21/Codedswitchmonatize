@@ -134,6 +134,9 @@ if (typeof window !== 'undefined') {
   // Preserve prototype chain so instanceof checks still work
   window.Audio.prototype = OriginalAudio.prototype;
 
+  // Preserve static methods/properties (e.g. Audio.NETWORK_IDLE, Audio.HAVE_ENOUGH_DATA)
+  Object.assign(window.Audio, OriginalAudio);
+
   // Also patch AudioContext to auto-track all contexts
   const OriginalAudioContext = window.AudioContext || (window as any).webkitAudioContext;
   if (OriginalAudioContext) {

@@ -358,6 +358,41 @@ export class GeneratorOrchestrator {
     return this.textureEnabled
   }
 
+  /**
+   * Melody-only mode — silences drums, bass, and texture so the melody
+   * generator plays solo. Ideal for freestyling: the user hears only the
+   * melodic hook and can rap/sing over it without competing rhythms.
+   *
+   * Calling with `false` restores the normal arrangement multipliers.
+   */
+  private melodyOnlyMode = false
+  private savedDrumMult  = 1.0
+  private savedBassMult  = 1.0
+
+  setMelodyOnly(enabled: boolean): void {
+    if (enabled === this.melodyOnlyMode) return
+    this.melodyOnlyMode = enabled
+    if (enabled) {
+      // Save current multipliers so we can restore them later
+      this.savedDrumMult = this.kickVelocityMultiplier
+      this.savedBassMult = this.bassVolumeMultiplier
+      // Silence drums, bass, texture — keep melody untouched
+      this.drum.applyArrangementMultiplier(0)
+      this.bass.applyArrangementMultiplier(0)
+      this.texture.applyVolumeMultiplier(0)
+      // Boost melody into the foreground
+      this.melody.applyVolumeMultiplier(Math.min(1.4, this.melodyVolumeMultiplier * 1.2))
+    } else {
+      // Restore — let arrangement logic take over on next frame
+      this.drum.applyArrangementMultiplier(1.0)
+      this.bass.applyArrangementMultiplier(1.0)
+      if (this.textureEnabled) this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
+      this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
+    }
+  }
+
+  isMelodyOnly(): boolean { return this.melodyOnlyMode }
+
   // ── Mix engine connection methods (Section 06) ────────────────────
 
   lockDrumPattern(): void   { this.drum.lockPattern() }

@@ -123,6 +123,7 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
 
   useEffect(() => {
     if (isPlaying) {
+      clearRaf(); // cancel any existing chain before starting a new one
       advancePosition();
       
       // Start recording if armed

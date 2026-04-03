@@ -11,7 +11,7 @@ import { useStudioSession } from "@/contexts/StudioSessionContext";
 import ProBeatMaker from "./ProBeatMaker";
 import AIBassGenerator from "./AIBassGenerator";
 import LoopLibrary from "./LoopLibrary";
-import { Music, Send, SlidersHorizontal, Waves, Rocket, Sparkles, Package, Library } from "lucide-react";
+import { Music, SlidersHorizontal, Waves, Rocket, Sparkles, Package, Library } from "lucide-react";
 import PackGenerator from "@/components/producer/PackGenerator";
 
 // Tabs: Pro Beat Maker, Bass Studio (AIBassGenerator), Loop Library, and Pack Generator
@@ -29,74 +29,31 @@ export default function BeatLab({ initialTab = "pro", isActive = false }: BeatLa
   const studioContext = useContext(StudioAudioContext);
   const session = useStudioSession();
   const [latestPattern, setLatestPattern] = useState<any | null>(null);
-  const [latestMelody, setLatestMelody] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<BeatLabTab>(initialTab);
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const sendPatternToTracks = (pattern?: any, meta?: { bpm?: number; name?: string }) => {
-    const payloadPattern = pattern ?? latestPattern ?? studioContext.currentPattern ?? session.pattern;
-    if (!payloadPattern) {
-      toast({
-        title: "No pattern available",
-        description: "Generate or edit a beat first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLatestPattern(payloadPattern);
-    session.setPattern(payloadPattern);
+  // Auto-send pattern to timeline tracks when generated/changed
+  const autoSendPattern = (pattern: any, meta?: { bpm?: number; name?: string }) => {
+    if (!pattern) return;
+    setLatestPattern(pattern);
+    session.setPattern(pattern);
     addTrack({
       name: meta?.name ?? "Beat Pattern",
       type: "beat",
       payload: {
-        pattern: payloadPattern,
+        pattern,
         bpm: meta?.bpm ?? tempo,
         source: "beat-lab",
       },
       lengthBars: 4,
       startBar: 0,
     });
-
     toast({
-      title: "Pattern added",
-      description: "Synced with the shared track store for the timeline.",
-    });
-  };
-
-  const sendMelodyToTracks = (melody?: any[]) => {
-    const payloadMelody = melody ?? latestMelody ?? studioContext.currentMelody ?? session.melody;
-    if (!payloadMelody || payloadMelody.length === 0) {
-      toast({
-        title: "No melody captured",
-        description: "Generate a melody in CodeBeat or the Piano Roll first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLatestMelody(payloadMelody);
-    session.setMelody(payloadMelody);
-    addTrack({
-      name: "Beat Lab Melody",
-      type: "midi",
-      kind: "midi",
-      notes: payloadMelody,
-      payload: {
-        source: "beat-lab",
-        type: "midi",
-        notes: payloadMelody,
-      },
-      lengthBars: 4,
-      startBar: 0,
-    });
-
-    toast({
-      title: "Melody added",
-      description: "Melody is now aligned with the transport timeline.",
+      title: "Pattern added to timeline",
+      description: `Beat at ${meta?.bpm ?? Math.round(tempo)} BPM synced automatically.`,
     });
   };
 
@@ -142,25 +99,7 @@ export default function BeatLab({ initialTab = "pro", isActive = false }: BeatLa
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button 
-              size="lg" 
-              className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.2)] font-black uppercase tracking-tighter" 
-              onClick={() => sendPatternToTracks()}
-            >
-              <Send className="w-5 h-5 mr-2" />
-              Send Pattern
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.2)] font-black uppercase tracking-tighter" 
-              onClick={() => sendMelodyToTracks()}
-            >
-              <Waves className="w-5 h-5 mr-2" />
-              Send Melody
-            </Button>
-            
-            <div className="flex gap-2 ml-2 pl-4 border-l border-white/10">
+            <div className="flex gap-2">
               <Button 
                 size="icon" 
                 variant="ghost" 
@@ -231,17 +170,12 @@ export default function BeatLab({ initialTab = "pro", isActive = false }: BeatLa
                 <ProBeatMaker
                   isActive={isActive}
                   onPatternChange={(tracks, bpm) => {
-                    // Convert tracks to pattern format for timeline
+                    // Convert tracks to pattern format and auto-send to timeline
                     const pattern: Record<string, boolean[]> = {};
                     tracks.forEach(t => {
                       pattern[t.id] = t.pattern.map(s => s.active);
                     });
-                    setLatestPattern(pattern);
-                    session.setPattern(pattern);
-                    toast({
-                      title: "🎵 Pattern Ready",
-                      description: `Beat at ${bpm} BPM captured`,
-                    });
+                    autoSendPattern(pattern, { bpm, name: "Beat Pattern" });
                   }}
                 />
               </div>

@@ -37,6 +37,11 @@ class AudioEngine {
   }
 
   setTargetNode(node: AudioNode | null) {
+    // Fully disconnect previous target before reconnecting to prevent orphaned nodes
+    if (this.targetNode) {
+      try { this.volume.disconnect(this.targetNode); } catch {}
+      if (this.drumBus) { try { this.drumBus.disconnect(this.targetNode); } catch {} }
+    }
     this.targetNode = node;
     this.volume.disconnect();
     if (node) {
@@ -44,7 +49,7 @@ class AudioEngine {
     } else {
       this.volume.toDestination();
     }
-    
+
     if (this.drumBus) {
       this.drumBus.disconnect();
       if (node) {

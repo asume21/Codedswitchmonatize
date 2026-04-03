@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -53,14 +53,25 @@ const TRACK_COLORS = ['#FF6F61', '#6B5B95', '#88B04B', '#F7CAC9', '#92A8D1', '#9
 export default function MultiTrackPianoRoll({ data, onChange }: MultiTrackPianoRollProps) {
   const [selectedTrack, setSelectedTrack] = useState(data.tracks[0]?.id);
 
-  const handleInstrumentChange = (trackId: string, instrument: string) => {
+  const handleInstrumentChange = useCallback((trackId: string, instrument: string) => {
     if (!onChange) return;
-    const newData = {
-      ...data,
-      tracks: data.tracks.map(t => t.id === trackId ? { ...t, instrument } : t),
-    };
-    onChange(newData);
-  };
+    onChange({ ...data, tracks: data.tracks.map(t => t.id === trackId ? { ...t, instrument } : t) });
+  }, [data, onChange]);
+
+  const handleMute = useCallback((trackId: string) => {
+    if (!onChange) return;
+    onChange({ ...data, tracks: data.tracks.map(t => t.id === trackId ? { ...t, muted: !t.muted } : t) });
+  }, [data, onChange]);
+
+  const handleSolo = useCallback((trackId: string) => {
+    if (!onChange) return;
+    onChange({ ...data, tracks: data.tracks.map(t => t.id === trackId ? { ...t, solo: !t.solo } : { ...t, solo: false }) });
+  }, [data, onChange]);
+
+  const handleVelocity = useCallback((trackId: string, noteId: string, velocity: number) => {
+    if (!onChange) return;
+    onChange({ ...data, tracks: data.tracks.map(t => t.id === trackId ? { ...t, notes: t.notes.map(n => n.id === noteId ? { ...n, velocity } : n) } : t) });
+  }, [data, onChange]);
 
   return (
     <Card className="mb-8">
@@ -83,8 +94,8 @@ export default function MultiTrackPianoRoll({ data, onChange }: MultiTrackPianoR
                   ))}
                 </SelectContent>
               </Select>
-              <Button size="sm" variant={track.muted ? 'secondary' : 'ghost'} onClick={() => { if (onChange) onChange({ ...data, tracks: data.tracks.map(t => t.id === track.id ? { ...t, muted: !t.muted } : t) }); }}>{track.muted ? 'Unmute' : 'Mute'}</Button>
-              <Button size="sm" variant={track.solo ? 'secondary' : 'ghost'} onClick={() => { if (onChange) onChange({ ...data, tracks: data.tracks.map(t => t.id === track.id ? { ...t, solo: !t.solo } : { ...t, solo: false }) }); }}>{track.solo ? 'Unsolo' : 'Solo'}</Button>
+              <Button size="sm" variant={track.muted ? 'secondary' : 'ghost'} onClick={() => handleMute(track.id)}>{track.muted ? 'Unmute' : 'Mute'}</Button>
+              <Button size="sm" variant={track.solo ? 'secondary' : 'ghost'} onClick={() => handleSolo(track.id)}>{track.solo ? 'Unsolo' : 'Solo'}</Button>
             </div>
           ))}
         </div>
@@ -113,11 +124,7 @@ export default function MultiTrackPianoRoll({ data, onChange }: MultiTrackPianoR
                 {/* Velocity lane (demo): slider for each note */}
                 <div style={{ display: 'flex', gap: 2, marginLeft: 8 }}>
                   {track.notes.map(note => (
-                    <Slider key={note.id} value={[note.velocity]} max={127} min={1} step={1} className="w-16" onValueChange={val => {
-                      if (onChange) {
-                        onChange({ ...data, tracks: data.tracks.map(t => t.id === track.id ? { ...t, notes: t.notes.map(n => n.id === note.id ? { ...n, velocity: val[0] } : n) } : t) });
-                      }
-                    }} />
+                    <Slider key={note.id} value={[note.velocity]} max={127} min={1} step={1} className="w-16" onValueChange={val => handleVelocity(track.id, note.id, val[0])} />
                   ))}
                 </div>
               </div>

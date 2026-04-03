@@ -235,29 +235,21 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
     const forwardedProto = req.headers["x-forwarded-proto"];
     const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol;
-    const host = req.headers.host || "localhost";
+    const host = req.headers.host || (process.env.APP_URL ? new URL(process.env.APP_URL).host : "localhost");
     const baseUrl = `${proto}://${host}`;
     const now = new Date().toISOString();
 
+    // Only include publicly crawlable pages — must stay in sync with robots.txt Disallow rules
     const urls: Array<{ loc: string; changefreq?: string; priority?: string }> = [
-      { loc: "\/", changefreq: "daily", priority: "1.0" },
-      { loc: "\/home", changefreq: "weekly", priority: "0.8" },
-      { loc: "\/login", changefreq: "monthly", priority: "0.3" },
-      { loc: "\/signup", changefreq: "monthly", priority: "0.3" },
-      { loc: "\/activate", changefreq: "monthly", priority: "0.2" },
-      { loc: "\/dashboard", changefreq: "weekly", priority: "0.6" },
-      { loc: "\/studio", changefreq: "weekly", priority: "0.7" },
-      { loc: "\/lyric-lab", changefreq: "weekly", priority: "0.6" },
-      { loc: "\/ai-assistant", changefreq: "weekly", priority: "0.5" },
-      { loc: "\/vulnerability-scanner", changefreq: "weekly", priority: "0.4" },
-      { loc: "\/settings", changefreq: "monthly", priority: "0.2" },
-      { loc: "\/social-hub", changefreq: "weekly", priority: "0.4" },
-      { loc: "\/profile", changefreq: "weekly", priority: "0.4" },
-      { loc: "\/subscribe", changefreq: "monthly", priority: "0.3" },
-      { loc: "\/buy-credits", changefreq: "monthly", priority: "0.3" },
-      { loc: "\/credits", changefreq: "monthly", priority: "0.3" },
-      { loc: "\/billing", changefreq: "monthly", priority: "0.3" },
-      { loc: "\/sitemap", changefreq: "weekly", priority: "0.4" },
+      { loc: "/", changefreq: "daily", priority: "1.0" },
+      { loc: "/studio", changefreq: "weekly", priority: "0.9" },
+      { loc: "/signup", changefreq: "monthly", priority: "0.7" },
+      { loc: "/login", changefreq: "monthly", priority: "0.6" },
+      { loc: "/subscribe", changefreq: "monthly", priority: "0.8" },
+      { loc: "/social-hub", changefreq: "daily", priority: "0.7" },
+      { loc: "/blog", changefreq: "weekly", priority: "0.7" },
+      { loc: "/vulnerability-scanner", changefreq: "monthly", priority: "0.6" },
+      { loc: "/sample-library", changefreq: "weekly", priority: "0.6" },
     ];
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>
@@ -686,11 +678,13 @@ Return ONLY valid JSON:
       const { format, fileName } = req.body || {};
       let extension = '';
       
+      const ALLOWED_AUDIO_EXTENSIONS = new Set(['mp3','wav','ogg','m4a','aac','flac','webm','opus']);
       if (format) {
-        extension = `.${format}`;
+        const sanitizedFormat = String(format).toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (ALLOWED_AUDIO_EXTENSIONS.has(sanitizedFormat)) extension = `.${sanitizedFormat}`;
       } else if (fileName) {
-        const ext = fileName.split('.').pop();
-        if (ext && ext !== fileName) {
+        const ext = String(fileName).split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+        if (ext && ext !== fileName && ALLOWED_AUDIO_EXTENSIONS.has(ext)) {
           extension = `.${ext}`;
         }
       }
@@ -728,7 +722,9 @@ Return ONLY valid JSON:
   try {
     fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
     console.log('📁 Using storage directory:', LOCAL_OBJECTS_DIR);
-  } catch {}
+  } catch (err) {
+    console.warn('⚠️ Could not create objects directory:', err);
+  }
 
   // Local loop/asset directories (for Neumann Pack & Loop Library)
   const LOCAL_ASSETS_DIR = path.resolve(process.cwd(), "server", "Assets");
@@ -746,7 +742,9 @@ Return ONLY valid JSON:
   // Ensure loops directory exists
   try {
     fs.mkdirSync(LOOPS_DIR, { recursive: true });
-  } catch {}
+  } catch (err) {
+    console.warn('⚠️ Could not create loops directory:', err);
+  }
 
   // Helper to recursively find wav files
   async function findWavFiles(dir: string, baseDir: string): Promise<{relativePath: string, name: string, category: string}[]> {
@@ -804,7 +802,8 @@ Return ONLY valid JSON:
       const filePath = path.resolve(LOOPS_DIR, raw);
       
       // Security check: ensure the resolved path is within LOOPS_DIR
-      if (!filePath.startsWith(LOOPS_DIR)) {
+      const relCheck = path.relative(LOOPS_DIR, filePath);
+      if (relCheck.startsWith('..') || path.isAbsolute(relCheck)) {
         return sendError(res, 400, "Invalid loop path");
       }
 
@@ -2193,7 +2192,7 @@ Return in this exact JSON format:
       if (audioUrl.startsWith('/')) {
         const forwardedProto = req.headers["x-forwarded-proto"];
         const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol;
-        const host = req.headers.host || "localhost";
+        const host = req.headers.host || (process.env.APP_URL ? new URL(process.env.APP_URL).host : "localhost");
         absoluteAudioUrl = `${proto}://${host}${audioUrl}`;
         console.log(`🔄 Converting relative URL to absolute: ${audioUrl} → ${absoluteAudioUrl}`);
       }
@@ -2821,7 +2820,7 @@ ${code}
   });
 
   // Waitlist endpoint
-  app.post("/api/waitlist", express.json(), (req: Request, res: Response) => {
+  app.post("/api/waitlist", express.json(), async (req: Request, res: Response) => {
     try {
       const parsed = waitlistSchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -2831,7 +2830,7 @@ ${code}
       const file = path.join(LOCAL_OBJECTS_DIR, "waitlist.json");
       let list: Array<{ email: string; name?: string; ts: string }> = [];
       try {
-        const raw = fs.readFileSync(file, "utf8");
+        const raw = await fs.promises.readFile(file, "utf8");
         list = JSON.parse(raw);
         if (!Array.isArray(list)) list = [];
       } catch {
@@ -2841,7 +2840,7 @@ ${code}
       const exists = list.some((e) => (e.email || "").toLowerCase() === email.toLowerCase());
       if (!exists) {
         list.push({ email: email.toLowerCase(), name, ts: new Date().toISOString() });
-        fs.writeFileSync(file, JSON.stringify(list, null, 2), "utf8");
+        await fs.promises.writeFile(file, JSON.stringify(list, null, 2), "utf8");
       }
       return res.json({ ok: true, already: exists });
     } catch (err: any) {
@@ -3856,7 +3855,7 @@ ${code}
           const audioResponse = await fetch(audioUrl, { signal: AbortSignal.timeout(60000) });
           if (!audioResponse.ok) throw new Error(`Failed to download audio: ${audioResponse.status}`);
           const arrayBuffer = await audioResponse.arrayBuffer();
-          fs.writeFileSync(tempFile, Buffer.from(arrayBuffer));
+          await fs.promises.writeFile(tempFile, Buffer.from(arrayBuffer));
         } catch (dlErr: any) {
           return sendError(res, 502, `Failed to download audio: ${dlErr.message}`);
         }
@@ -4052,8 +4051,8 @@ ${code}
         }
         
         const dir = path.dirname(fullPath);
-        fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(fullPath, req.body as Buffer);
+        await fs.promises.mkdir(dir, { recursive: true });
+        await fs.promises.writeFile(fullPath, req.body as Buffer);
         return res.json({ ok: true, path: `/objects/${sanitizedKey}` });
       } catch (err: any) {
         sendError(res, 500, err?.message || "Upload failed");
@@ -4119,8 +4118,8 @@ ${code}
             // Restore to disk for faster subsequent requests
             try {
               const dir = path.dirname(fullPath);
-              fs.mkdirSync(dir, { recursive: true });
-              fs.writeFileSync(fullPath, audioBuffer);
+              await fs.promises.mkdir(dir, { recursive: true });
+              await fs.promises.writeFile(fullPath, audioBuffer);
               console.log(`♻️ Restored audio to disk from DB: ${fullPath}`);
             } catch (restoreErr) {
               console.warn('⚠️ Could not restore to disk:', restoreErr);
@@ -4138,14 +4137,23 @@ ${code}
       
       console.log('✅ File found, serving:', fullPath);
       const ext = path.extname(fullPath).toLowerCase();
-      
-      // Set proper Content-Type for audio files
-      let type = "application/octet-stream";
-      if (ext === ".mp3") type = "audio/mpeg";
-      else if (ext === ".wav") type = "audio/wav";
-      else if (ext === ".m4a") type = "audio/mp4";
-      else if (ext === ".ogg") type = "audio/ogg";
-      else if (ext === ".flac") type = "audio/flac";
+
+      // Only serve known audio extensions — reject anything else
+      const SERVED_AUDIO_TYPES: Record<string, string> = {
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.m4a': 'audio/mp4',
+        '.ogg': 'audio/ogg',
+        '.flac': 'audio/flac',
+        '.aac': 'audio/aac',
+        '.webm': 'audio/webm',
+        '.opus': 'audio/ogg; codecs=opus',
+      };
+      const type = SERVED_AUDIO_TYPES[ext];
+      if (!type) {
+        console.error('❌ Blocked serve of non-audio file extension:', ext);
+        return res.status(400).send("Invalid file type");
+      }
       
       console.log('🎵 Serving with MIME type:', type);
       
@@ -5289,10 +5297,8 @@ Return this exact JSON format:
       if (projectId) {
         tracksToMix = await storage.getProjectTracks(projectId);
       } else if (trackIds && Array.isArray(trackIds)) {
-        for (const id of trackIds) {
-          const track = await storage.getTrack(id);
-          if (track) tracksToMix.push(track);
-        }
+        const results = await Promise.all(trackIds.map((id: string) => storage.getTrack(id)));
+        tracksToMix = results.filter(Boolean) as any[];
       }
 
       if (tracksToMix.length === 0) {

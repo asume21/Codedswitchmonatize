@@ -1064,67 +1064,9 @@ export default function ProfessionalStudio() {
                 <Label htmlFor="vocals">Include Vocals</Label>
               </div>
 
-              <div className="space-y-3">
-                <Button
-                  onClick={handleFullSongGeneration}
-                  disabled={!songPrompt && !vocalOptions.lyrics || generateFullSongMutation.isPending}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  data-testid="button-generate-song"
-                >
-                  {generateFullSongMutation.isPending ? (
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                      Generating AI Song with Beat & Melody...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Music className="w-4 h-4" />
-                      Generate Complete AI Song
-                    </div>
-                  )}
-                </Button>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    onClick={handleAIBeatGeneration}
-                    disabled={generateAIBeatMutation.isPending}
-                    variant="outline"
-                    className="border-purple-500 text-purple-300 hover:bg-purple-900"
-                    data-testid="button-generate-beat"
-                  >
-                    {generateAIBeatMutation.isPending ? (
-                      <div className="flex items-center gap-1">
-                        <div className="animate-spin w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full" />
-                        AI Beat
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <Zap className="w-3 h-3" />
-                        AI Beat Only
-                      </div>
-                    )}
-                  </Button>
-                  
-                  <Button
-                    onClick={handleAIMelodyGeneration}
-                    disabled={generateAIMelodyMutation.isPending}
-                    variant="outline"
-                    className="border-blue-500 text-blue-300 hover:bg-blue-900"
-                    data-testid="button-generate-melody"
-                  >
-                    {generateAIMelodyMutation.isPending ? (
-                      <div className="flex items-center gap-1">
-                        <div className="animate-spin w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full" />
-                        AI Melody
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <Music className="w-3 h-3" />
-                        AI Melody Only
-                      </div>
-                    )}
-                  </Button>
-                </div>
+              {/* AI generation buttons moved to Astutely Create tab */}
+              <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-center">
+                <p className="text-[11px] text-cyan-400 font-medium">Use the Astutely Create tab for AI Beat, Melody, and Song generation</p>
               </div>
 
               {/* Show AI Beat Results */}

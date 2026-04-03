@@ -1366,27 +1366,8 @@ export default function LyricLab() {
                     <span className="text-xs text-gray-400">Complex</span>
                   </div>
                 </div>
-                <div className="mb-4">
-                  <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} />
-                </div>
+                {/* AI Lyrics & Music generation moved to Astutely Create tab */}
                 <div className="space-y-2">
-                  <Button
-                    onClick={handleGenerateAI}
-                    disabled={generateLyricsMutation.isPending}
-                    className="w-full bg-studio-accent hover:bg-blue-500"
-                  >
-                    {generateLyricsMutation.isPending ? (
-                      <>
-                        <i className="fas fa-spinner animate-spin mr-2"></i>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-magic mr-2"></i>
-                        AI Generate Lyrics
-                      </>
-                    )}
-                  </Button>
                   <Button
                     onClick={handleAnalyzeLyrics}
                     disabled={analyzeLyricsMutation.isPending || !content.trim()}
@@ -1407,28 +1388,6 @@ export default function LyricLab() {
                   <p className="mt-1 text-[11px] text-gray-400 text-left">
                     Scores clarity, imagery, rhyme and cadence, then suggests line-by-line fixes while keeping your flow and hook intact.
                   </p>
-                  <Button
-                    onClick={() => generateMusicFromLyricsMutation.mutate({
-                      lyrics: content,
-                      genre,
-                      mood,
-                      title,
-                    })}
-                    disabled={generateMusicFromLyricsMutation.isPending || !content.trim()}
-                    className="w-full bg-purple-600 hover:bg-purple-500"
-                  >
-                    {generateMusicFromLyricsMutation.isPending ? (
-                      <>
-                        <i className="fas fa-spinner animate-spin mr-2"></i>
-                        Creating Music...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-music mr-2"></i>
-                        Generate Music from Lyrics
-                      </>
-                    )}
-                  </Button>
                   <Button
                     onClick={() => masterSongMutation.mutate({
                       pattern: studioContext.currentPattern,
@@ -1594,15 +1553,7 @@ export default function LyricLab() {
                       wordCount / lineCount > 5 ? "Medium Flow" : "Slow Flow"}
                   </span>
                 </div>
-                <Button
-                  onClick={() => { generateBeatFromLyricsMutation.mutate({ lyrics: content, genre }); }}
-                  disabled={generateBeatFromLyricsMutation.isPending || !content.trim()}
-                  className="w-full bg-green-600 hover:bg-green-500"
-                  size="sm"
-                >
-                  <i className="fas fa-drum mr-2"></i>
-                  Analyze & Generate Beat
-                </Button>
+                {/* Beat generation from lyrics moved to Astutely Create tab */}
               </div>
             </div>
 

@@ -107,6 +107,8 @@ export class RealisticAudioEngine {
   public bassDrumDuration = 0.8;
   private instrumentLibrary: { [key: string]: string };
 
+  private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+
   // Pre-allocated noise buffers to avoid creating them on every drum hit
   // (creating AudioBuffers on the main thread is expensive and causes crackling)
   private noiseBufferShort: AudioBuffer | null = null;  // ~20ms for kick transients
@@ -190,8 +192,8 @@ export class RealisticAudioEngine {
 
   constructor() {
     this.instrumentLibrary = INSTRUMENT_LIBRARY;
-    // Periodic cleanup of finished nodes every 2 seconds (more frequent for better performance)
-    setInterval(() => this.cleanupFinishedNodes(), 2000);
+    // Periodic cleanup of finished nodes every 2 seconds
+    this.cleanupIntervalId = setInterval(() => this.cleanupFinishedNodes(), 2000);
     // Pre-allocate noise buffers once so drum hits don't create them on every trigger
     this.initNoiseBuffers();
   }
@@ -1603,6 +1605,13 @@ export class RealisticAudioEngine {
 
   getMasterVolume(): number {
     return this.masterVolume;
+  }
+
+  destroy(): void {
+    if (this.cleanupIntervalId !== null) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
   }
 }
 

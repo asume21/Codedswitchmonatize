@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import type { SequencerState } from "./sequencer.ts";
+import { getAudioContext } from './audioContext';
 
 export interface OscillatorData {
   oscillator: OscillatorNode;
@@ -22,8 +23,7 @@ export class AudioEngine {
 
     try {
       if (!this.audioContext) {
-        this.audioContext = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
+        this.audioContext = getAudioContext();
       }
       this.isDisposed = false;
 
@@ -2454,12 +2454,18 @@ export class AudioEngine {
   }
 
   async stopAllInstruments(): Promise<void> {
-    this.activeOscillators.forEach((oscillators, instrument) => {
+    this.activeOscillators.forEach((oscillators, _instrument) => {
       oscillators.forEach((oscData) => {
         try {
           oscData.oscillator.stop();
-        } catch (error) {
+        } catch {
           // Oscillator may already be stopped
+        }
+        try {
+          oscData.oscillator.disconnect();
+          oscData.gain.disconnect();
+        } catch {
+          // May already be disconnected
         }
       });
     });

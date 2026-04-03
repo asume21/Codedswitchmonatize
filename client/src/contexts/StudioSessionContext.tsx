@@ -201,23 +201,28 @@ export function StudioSessionProvider({ children }: StudioSessionProviderProps) 
     }
   }, []);
 
-  // Persist session whenever core fields change
+  // Persist session whenever core fields change — debounced to avoid sync writes on every keystroke
+  const lsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    try {
-      const payload = {
-        currentSongId,
-        currentSongName,
-        lyrics,
-        lyricsVersions,
-        activeLyricsVersionId,
-        pattern,
-        melody,
-        hasGeneratedMusic,
-      };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      // Ignore storage errors
-    }
+    if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current);
+    lsDebounceRef.current = setTimeout(() => {
+      try {
+        const payload = {
+          currentSongId,
+          currentSongName,
+          lyrics,
+          lyricsVersions,
+          activeLyricsVersionId,
+          pattern,
+          melody,
+          hasGeneratedMusic,
+        };
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      } catch {
+        // Ignore storage errors
+      }
+    }, 500);
+    return () => { if (lsDebounceRef.current) clearTimeout(lsDebounceRef.current); };
   }, [currentSongId, currentSongName, lyrics, lyricsVersions, activeLyricsVersionId, pattern, melody, hasGeneratedMusic]);
 
   const setLyrics = (value: string) => {

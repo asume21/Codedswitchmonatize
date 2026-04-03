@@ -57,6 +57,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const startTimeRef = useRef<number>(0);
   const pauseTimeRef = useRef<number>(0);
+  const decodedBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -225,17 +226,22 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         void (async () => {
           try {
             const ctx = getAudioContext();
-            const res = await fetch(target.url!);
-            if (!res.ok) {
-              console.warn(`⚠️ Audio fetch failed (${res.status}) for: ${target.url}`);
-              return;
+            const cacheKey = target.url!;
+            let buf = decodedBufferCacheRef.current.get(cacheKey);
+            if (!buf) {
+              const res = await fetch(target.url!);
+              if (!res.ok) {
+                console.warn(`⚠️ Audio fetch failed (${res.status}) for: ${target.url}`);
+                return;
+              }
+              const arr = await res.arrayBuffer();
+              if (arr.byteLength === 0) {
+                console.warn('⚠️ Audio file is empty:', target.url);
+                return;
+              }
+              buf = await ctx.decodeAudioData(arr);
+              decodedBufferCacheRef.current.set(cacheKey, buf);
             }
-            const arr = await res.arrayBuffer();
-            if (arr.byteLength === 0) {
-              console.warn('⚠️ Audio file is empty:', target.url);
-              return;
-            }
-            const buf = await ctx.decodeAudioData(arr);
             const updated = { ...target, buffer: buf, type: 'buffer' as const };
             setPlaylist(prev => prev.map((p, i) => (i === idx ? updated : p)));
             setSourceFromBuffer(buf, updated, autoplay);

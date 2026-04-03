@@ -9,6 +9,7 @@ import {
   boolean,
   integer,
   serial,
+  index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -73,7 +74,7 @@ export const projects = pgTable("projects", {
   data: json("data").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [index("idx_projects_user_id").on(t.userId)]);
 
 export const codeTranslations = pgTable("code_translations", {
   id: varchar("id")
@@ -184,6 +185,7 @@ export const songs = pgTable("songs", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
+
   name: varchar("name").notNull(),
   originalUrl: varchar("original_url").notNull(),
   accessibleUrl: varchar("accessible_url").notNull(),
@@ -211,7 +213,7 @@ export const songs = pgTable("songs", {
   transcription: text("transcription"), // Full transcription text
   transcriptionStatus: varchar("transcription_status"), // pending, processing, completed, failed
   transcribedAt: timestamp("transcribed_at"),
-});
+}, (t) => [index("idx_songs_user_id").on(t.userId)]);
 
 export const playlists = pgTable("playlists", {
   id: varchar("id")
@@ -451,7 +453,10 @@ export const tracks = pgTable("tracks", {
   metadata: jsonb("metadata"), // additional info like BPM, key, source generator, notes for MIDI
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  index("idx_tracks_user_id").on(t.userId),
+  index("idx_tracks_project_id").on(t.projectId),
+]);
 
 // JAM SESSIONS - Collaborative music creation
 export const jamSessions = pgTable("jam_sessions", {

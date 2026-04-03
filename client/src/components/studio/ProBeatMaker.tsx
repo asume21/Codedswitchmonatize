@@ -1203,8 +1203,8 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
           </SelectContent>
         </Select>
         
-        <div className="flex flex-wrap items-center gap-3 ml-auto">
-          <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} feature="beat" />
+        {/* AI Beat Generation moved to Astutely Create tab */}
+        <div className="flex items-center gap-2 ml-auto">
           <Select value={selectedGenre} onValueChange={setSelectedGenre}>
             <SelectTrigger className="h-12 w-32 bg-black/20 border-white/10 rounded-xl font-bold text-xs">
               <SelectValue />
@@ -1215,24 +1215,6 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
               ))}
             </SelectContent>
           </Select>
-          <Select value={grooveMode} onValueChange={(value) => setGrooveMode(value as DrumGrooveMode)}>
-            <SelectTrigger className="h-12 w-32 bg-black/20 border-white/10 rounded-xl font-bold text-xs">
-              <SelectValue placeholder="Groove" />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-900/95 border-white/10 backdrop-blur-2xl rounded-xl">
-              <SelectItem value="tight" className="focus:bg-blue-500/20">Tight</SelectItem>
-              <SelectItem value="balanced" className="focus:bg-blue-500/20">Balanced</SelectItem>
-              <SelectItem value="busy" className="focus:bg-blue-500/20">Busy</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button 
-            onClick={() => generateBeatMutation.mutate()} 
-            disabled={generateBeatMutation.isPending}
-            className="h-12 px-5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg"
-          >
-            <Wand2 className="w-4 h-4 mr-2" />
-            {generateBeatMutation.isPending ? 'Generating…' : 'Apply AI'}
-          </Button>
         </div>
       </div>
 

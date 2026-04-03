@@ -13,6 +13,9 @@ import path from "path";
 import crypto from "crypto";
 
 const ANALYSIS_API_URL = process.env.AUDIO_ANALYSIS_API_URL || "http://localhost:7871";
+if (!process.env.AUDIO_ANALYSIS_API_URL && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  AUDIO_ANALYSIS_API_URL not set — pitch correction/melody extraction will fail in production');
+}
 
 function inferAudioMime(audioPath: string): string {
   const ext = path.extname(audioPath).toLowerCase();

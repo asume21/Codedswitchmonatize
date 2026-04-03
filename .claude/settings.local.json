@@ -52,12 +52,38 @@
       "Bash(wc:*)",
       "Bash(grep -r \"OrganismMode\\\\|mode ==\\\\|mode ===\\\\|FACTORY\" /d/Codedswitchmonatize/client/src/organism/generators/*.ts)",
       "Bash(python -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\(d.get\\(''''result'''',''''''''\\) or d.get\\(''''message'''',{}\\).get\\(''''content'''',''''''''\\)[:8000]\\)\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(grep -r \"mixer\\\\|Mixer\" /d/Codedswitchmonatize/client/src/lib/astutely*.ts)",
+      "Bash(find /d/Codedswitchmonatize/client/src -name *presence* -type f)",
+      "Bash(grep:*)",
+      "Bash(find /d/Codedswitchmonatize/client/src -type f -path */organism/*)",
+      "Bash(find D:/Codedswitchmonatize/src -maxdepth 1 -type f -name *.ts*)",
+      "Bash(find D:/Codedswitchmonatize -maxdepth 4 -name *Astutely* -o -name *astutely*)",
+      "Bash(find D:/Codedswitchmonatize -maxdepth 4 -name *Organism* -o -name *organism*)",
+      "Bash(find D:/Codedswitchmonatize -maxdepth 4 -name *professionalAudio* -o -name *professional*)",
+      "Bash(find D:/Codedswitchmonatize/client/src/stores -name *.ts -o -name *.tsx)",
+      "Bash(npx kill-port:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(../../mcp-publisher.exe publish:*)",
+      "Bash(../../mcp-publisher.exe login:*)",
+      "Bash(curl -s \"https://registry.modelcontextprotocol.io/v0/servers/io.github.asume21%2Fwebear\")",
+      "Bash(curl:*)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\([s[''''server''''][''''name''''] for s in d.get\\(''''servers'''',[]\\)], indent=2\\)\\)\")",
+      "Bash(npm publish:*)",
+      "Bash(../audio-debug-mcp-publish/../../mcp-publisher.exe publish:*)",
+      "Bash(find /d/Codedswitchmonatize/client/src -path */generators/*.ts)",
+      "Bash(npx playwright:*)",
+      "Bash(echo \"Server PID: $!\")",
+      "Bash(BASE_URL=http://localhost:4001 npx playwright test tests/piano-roll-quick.spec.ts --project=chromium --reporter=line --no-deps)",
+      "Bash(awk NR>=4745 && NR<=4758:*)",
+      "Bash(awk 'NR==4257,/^\\\\s*\\\\{\\\\s*\\\\/\\\\* BEAT LAB VIEW/' \"D:/codedswitchmonatize/client/src/components/studio/UnifiedStudioWorkspace.tsx\")"
     ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "audio-debug",
     "webear"
-  ]
+  ],
+  "spinnerTipsEnabled": false,
+  "outputStyle": "Explanatory"
 }

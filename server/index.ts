@@ -26,7 +26,9 @@ console.log('📁 LOCAL_OBJECTS_DIR set to:', LOCAL_OBJECTS_DIR);
 try {
   fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
   fs.mkdirSync(path.join(LOCAL_OBJECTS_DIR, 'converted'), { recursive: true });
-} catch {}
+} catch (err) {
+  console.warn('⚠️ Could not create storage directories:', err);
+}
 
 const app = express();
 

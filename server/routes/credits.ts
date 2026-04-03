@@ -10,7 +10,9 @@ import type { IStorage } from '../storage';
 import { getCreditService, CREDIT_COSTS, CREDIT_PACKAGES, MEMBERSHIP_TIERS } from '../services/credits';
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
-const APP_URL = process.env.APP_URL || 'http://localhost:5000';
+const APP_URL = process.env.APP_URL || (process.env.NODE_ENV === 'production'
+  ? (() => { throw new Error('APP_URL is required in production'); })()
+  : 'http://localhost:5000');
 
 function getStripe(): Stripe {
   if (!STRIPE_SECRET_KEY) {

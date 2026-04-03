@@ -83,7 +83,7 @@ import {
 } from "@shared/schema";
 import { randomUUID, randomBytes } from "crypto";
 import { db } from "./db";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -104,6 +104,7 @@ export interface IStorage {
   updateUserUsage(userId: string, uploads: number, generations: number): Promise<User>;
   incrementUserUsage(userId: string, type: 'uploads' | 'generations'): Promise<User>;
   updateUserCredits(userId: string, creditsDelta: number): Promise<User>;
+  atomicDeductCredits(userId: string, amount: number): Promise<User>;
   updateUser(userId: string, data: Partial<User>): Promise<User>;
   getUserByActivationKey(activationKey: string): Promise<User | undefined>;
   activateUserKey(userId: string): Promise<User>;
@@ -207,13 +208,13 @@ export interface IStorage {
 
   // Sample Packs
   getSamplePack(id: string): Promise<SamplePack | undefined>;
-  getSamplePacks(): Promise<SamplePack[]>;
+  getSamplePacks(limit?: number, offset?: number): Promise<SamplePack[]>;
   createSamplePack(pack: InsertSamplePack): Promise<SamplePack>;
   deleteSamplePack(id: string): Promise<void>;
 
   // Samples
   getSample(id: string): Promise<Sample | undefined>;
-  getAllSamples(): Promise<Sample[]>;
+  getAllSamples(limit?: number, offset?: number): Promise<Sample[]>;
   getSamplesByPack(packId: string): Promise<Sample[]>;
   createSample(sample: InsertSample): Promise<Sample>;
   deleteSample(id: string): Promise<void>;
@@ -495,6 +496,20 @@ export class MemStorage implements IStorage {
       ...user,
       credits: Math.max(0, (user.credits || 10) + creditsDelta),
       totalCreditsSpent: (user.totalCreditsSpent || 0) + Math.abs(creditsDelta),
+    };
+    this.users.set(userId, updated);
+    return updated;
+  }
+
+  async atomicDeductCredits(userId: string, amount: number): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const balance = user.credits || 0;
+    if (balance < amount) throw new Error(`Insufficient credits. Need ${amount}, have ${balance}`);
+    const updated: User = {
+      ...user,
+      credits: balance - amount,
+      totalCreditsSpent: (user.totalCreditsSpent || 0) + amount,
     };
     this.users.set(userId, updated);
     return updated;
@@ -1012,10 +1027,10 @@ export class MemStorage implements IStorage {
     return this.samplePacks.get(id);
   }
 
-  async getSamplePacks(): Promise<SamplePack[]> {
-    return Array.from(this.samplePacks.values()).sort(
-      (a, b) => b.createdAt!.getTime() - a.createdAt!.getTime(),
-    );
+  async getSamplePacks(limit = 100, offset = 0): Promise<SamplePack[]> {
+    return Array.from(this.samplePacks.values())
+      .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime())
+      .slice(offset, offset + limit);
   }
 
   async createSamplePack(pack: InsertSamplePack): Promise<SamplePack> {
@@ -1043,10 +1058,10 @@ export class MemStorage implements IStorage {
     return this.samples.get(id);
   }
 
-  async getAllSamples(): Promise<Sample[]> {
-    return Array.from(this.samples.values()).sort(
-      (a, b) => b.createdAt!.getTime() - a.createdAt!.getTime(),
-    );
+  async getAllSamples(limit = 100, offset = 0): Promise<Sample[]> {
+    return Array.from(this.samples.values())
+      .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime())
+      .slice(offset, offset + limit);
   }
 
   async getSamplesByPack(packId: string): Promise<Sample[]> {
@@ -1795,11 +1810,13 @@ export class DatabaseStorage implements IStorage {
     return pack || undefined;
   }
 
-  async getSamplePacks(): Promise<SamplePack[]> {
+  async getSamplePacks(limit = 100, offset = 0): Promise<SamplePack[]> {
     return await db
       .select()
       .from(samplePacks)
-      .orderBy(desc(samplePacks.createdAt));
+      .orderBy(desc(samplePacks.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async createSamplePack(pack: InsertSamplePack): Promise<SamplePack> {
@@ -1819,8 +1836,8 @@ export class DatabaseStorage implements IStorage {
     return sample || undefined;
   }
 
-  async getAllSamples(): Promise<Sample[]> {
-    return await db.select().from(samples).orderBy(desc(samples.createdAt));
+  async getAllSamples(limit = 100, offset = 0): Promise<Sample[]> {
+    return await db.select().from(samples).orderBy(desc(samples.createdAt)).limit(limit).offset(offset);
   }
 
   async getSamplesByPack(packId: string): Promise<Sample[]> {
@@ -1877,6 +1894,20 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     if (!user) throw new Error("User not found");
+    return user;
+  }
+
+  async atomicDeductCredits(userId: string, amount: number): Promise<User> {
+    // Single UPDATE that only succeeds if credits >= amount — prevents overdraft race conditions
+    const [user] = await db
+      .update(users)
+      .set({
+        credits: sql`${users.credits} - ${amount}`,
+        totalCreditsSpent: sql`COALESCE(${users.totalCreditsSpent}, 0) + ${amount}`,
+      })
+      .where(and(eq(users.id, userId), sql`COALESCE(${users.credits}, 0) >= ${amount}`))
+      .returning();
+    if (!user) throw new Error(`Insufficient credits or user not found`);
     return user;
   }
 

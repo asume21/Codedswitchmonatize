@@ -1013,6 +1013,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           }
           break
         }
+        case 'set-melody-only': {
+          const enabled = (detail as Record<string, unknown>).enabled as boolean | undefined
+          if (typeof enabled === 'boolean' && orchestrRef.current) {
+            orchestrRef.current.setMelodyOnly(enabled)
+          }
+          break
+        }
       }
     }
 

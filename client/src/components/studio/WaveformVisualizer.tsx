@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, Scissors, Copy, Clipboard, Volume2, Trash2, SlidersHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -45,12 +45,18 @@ export default function WaveformVisualizer({
 
   const makePointId = () => (crypto.randomUUID ? crypto.randomUUID() : `vp-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
+  // Memoize sorted points — avoids recreating sorted array every animation frame
+  const sortedVolumePoints = useMemo(
+    () => [...volumePoints].sort((a, b) => a.time - b.time),
+    [volumePoints],
+  );
+  // Helper used by event handlers that need a fresh sort of arbitrary point arrays
   const sortVolumePoints = (points: { id: string; time: number; volume: number }[]) =>
     [...points].sort((a, b) => a.time - b.time);
 
   const getVolumeAtTime = (time: number) => {
     if (volumePoints.length === 0 || !audioBuffer) return 1;
-    const sorted = sortVolumePoints(volumePoints);
+    const sorted = sortedVolumePoints;
 
     // Before first point, ramp from unity to first point
     if (time <= sorted[0].time) {
@@ -305,9 +311,15 @@ export default function WaveformVisualizer({
       return;
     }
 
-    const updatePlayhead = () => {
+    let lastStateUpdate = 0;
+    const updatePlayhead = (frameTime: number) => {
       const now = audioElement.currentTime;
-      setCurrentTime(now);
+
+      // Throttle React state update to ~10fps — canvas draw runs every frame
+      if (frameTime - lastStateUpdate > 100) {
+        setCurrentTime(now);
+        lastStateUpdate = frameTime;
+      }
 
       // Apply real-time volume automation to the audio element
       const targetVolume = getVolumeAtTime(now);
@@ -316,10 +328,10 @@ export default function WaveformVisualizer({
       audioElement.volume = Math.min(clampedVolume, 1);
 
       drawWaveform(audioBuffer, now);
-      animationFrameRef.current = requestAnimationFrame(updatePlayhead);
+      animationFrameRef.current = requestAnimationFrame(t => updatePlayhead(t));
     };
 
-    animationFrameRef.current = requestAnimationFrame(updatePlayhead);
+    animationFrameRef.current = requestAnimationFrame(t => updatePlayhead(t));
 
     return () => {
       if (animationFrameRef.current) {

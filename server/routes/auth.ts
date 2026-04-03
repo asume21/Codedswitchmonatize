@@ -102,10 +102,17 @@ export function createAuthRoutes(storage: IStorage) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
-      // Create session — try to save but don't fail login if session store is down
+      // Regenerate session on login to prevent session fixation attacks,
+      // then save — but don't fail login if session store is down
       if (req.session) {
-        req.session.userId = user.id;
         try {
+          await new Promise<void>((resolve, reject) => {
+            req.session!.regenerate((err: Error | null) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+          req.session.userId = user.id;
           await new Promise<void>((resolve, reject) => {
             req.session!.save((err: Error | null) => {
               if (err) reject(err);
@@ -113,9 +120,7 @@ export function createAuthRoutes(storage: IStorage) {
             });
           });
         } catch (sessionError) {
-          // Session store may be unavailable (no DB, table missing, etc.)
-          // Login still works via token-based auth in localStorage
-          console.warn("Session save failed (token auth still works):", sessionError);
+          console.warn("Session regenerate/save failed (token auth still works):", sessionError);
         }
       }
 
@@ -142,6 +147,7 @@ export function createAuthRoutes(storage: IStorage) {
           console.error("Logout error:", err);
           return res.status(500).json({ message: "Logout failed" });
         }
+        res.clearCookie('codedswitch.sid');
         res.json({ message: "Logged out successfully" });
       });
     } else {

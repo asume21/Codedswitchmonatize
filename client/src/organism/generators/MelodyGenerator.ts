@@ -441,71 +441,119 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
-    const notes:    ScheduledNote[] = []
-    const octaves   = MODE_OCTAVES[physics.mode] ?? [4, 5]
-    const octave    = octaves[0] + Math.floor(Math.random() * (octaves[1] - octaves[0] + 1))
-    const scale     = this.currentScale
+    const notes:  ScheduledNote[] = []
+    const octaves = MODE_OCTAVES[physics.mode] ?? [4, 5]
+    const octave  = octaves[0] + Math.floor(Math.random() * (octaves[1] - octaves[0] + 1))
+    const scale   = this.currentScale
+    const isHint  = this.currentBehavior === MelodyBehavior.Hint
 
-    // Build a musical phrase with rests, call-and-response, swing
-    let cursor = 0
-    let prev   = Math.floor(scale.length / 2)  // start mid-scale
-    let phraseNoteCount = 0
-    const phraseGroupSize = 3 + Math.floor(Math.random() * 3) // 3-5 notes then rest
+    // ── Step 1: Build a seed motif (3–5 notes) ─────────────────────────
+    // Starts near root or mid-scale so every loop feels grounded.
+    interface MotifNote { degree: number; dur16ths: number }
+    const motifCount = isHint ? 3 : 3 + Math.floor(Math.random() * 3)
+    const motif: MotifNote[] = []
+    let deg = Math.random() < 0.5 ? 0 : Math.floor(scale.length * 0.4)
 
-    // When responding to a voice, leave much more space — melody should call, not compete
-    const isHint = this.currentBehavior === MelodyBehavior.Hint
-    const restProbability = isHint ? 0.85 : 0.6
-    const restMaxLen = isHint ? 8 : 4
-
-    while (cursor < length16ths) {
-      // Insert rests between phrase groups (call-and-response feel)
-      if (phraseNoteCount >= phraseGroupSize && Math.random() < restProbability) {
-        const restLen = 2 + Math.floor(Math.random() * restMaxLen)
-        cursor += restLen
-        phraseNoteCount = 0
-        continue
+    for (let i = 0; i < motifCount; i++) {
+      // Last note of motif resolves to root (0) or 5th (~mid-scale)
+      if (i === motifCount - 1) {
+        deg = Math.random() < 0.65 ? 0 : Math.min(Math.floor(scale.length / 2), scale.length - 1)
+      } else {
+        const r = Math.random()
+        const delta = r < 0.60 ? (Math.random() < 0.5 ? 1 : -1)   // step
+                    : r < 0.85 ? (Math.random() < 0.5 ? 2 : -2)   // skip
+                    : Math.floor(Math.random() * 5) - 2             // leap
+        deg = Math.max(0, Math.min(scale.length - 1, deg + delta))
       }
+      const dRoll = Math.random()
+      const dur16ths = dRoll < 0.15 ? 1       // 16th — fast run
+                     : dRoll < 0.55 ? 2       // 8th  — main groove
+                     : dRoll < 0.78 ? 3       // dotted 8th — swing pocket
+                     : 4                      // quarter — breath note
+      motif.push({ degree: deg, dur16ths })
+    }
 
-      // Pick next scale degree (stepwise bias with occasional leaps)
-      const r = Math.random()
-      const stepDelta = r < 0.55
-        ? (Math.random() < 0.5 ? 1 : -1)          // step up/down
-        : r < 0.8
-          ? (Math.random() < 0.5 ? 2 : -2)        // skip
-          : Math.floor(Math.random() * 5) - 2      // leap
+    const motifDur = motif.reduce((s, n) => s + n.dur16ths, 0)
+    const restLen  = isHint
+      ? 4 + Math.floor(Math.random() * 4)   // 4–8: hint leaves lots of air
+      : 2 + Math.floor(Math.random() * 3)   // 2–4: call-and-response gaps
 
-      prev = Math.max(0, Math.min(scale.length - 1, prev + stepDelta))
+    // ── Helper: render motif starting at cursorStart with transposition ──
+    const renderMotif = (m: MotifNote[], cursorStart: number, transposeDeg: number, oct: number) => {
+      const out: ScheduledNote[] = []
+      let c = cursorStart
+      for (const mn of m) {
+        if (c >= length16ths) break
+        const d = Math.max(0, Math.min(scale.length - 1, mn.degree + transposeDeg))
+        const semitone = scale[d]
+        const midi  = (oct * 12) + 12 + semitone + this.rootPitchClass + this.pitchOffsetSemitones
+        const pitch = Tone.Frequency(midi, 'midi').toNote()
+        const durStr = mn.dur16ths === 1 ? '16n'
+                     : mn.dur16ths === 2 ? '8n'
+                     : mn.dur16ths === 3 ? '8n.'
+                     : '4n'
+        const bar  = Math.floor(c / 16)
+        const beat = Math.floor((c % 16) / 4)
+        const sub  = c % 4
+        const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
+        const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
+        const accentBase = sub === 0 ? 0.78 : sub === 2 ? 0.60 : 0.42
+        const vel = Math.min(1, Math.max(0.15, accentBase + (Math.random() - 0.5) * 0.18))
+        out.push({ pitch, duration: durStr, velocity: vel, time })
+        c += mn.dur16ths
+      }
+      return out
+    }
 
-      const semitone = scale[prev]
-      const midi     = (octave * 12) + 12 + semitone + this.rootPitchClass + this.pitchOffsetSemitones
-      const pitch    = Tone.Frequency(midi, 'midi').toNote()
+    // ── Step 2: Arrange motif iterations with rests between ─────────────
+    // Pattern: motif | rest | [variation] | rest | [short-variation] | rest | root resolution
+    // Every loop iteration the listener hears the same melodic idea — freestyleable.
 
-      // Duration variety: 1-4 16ths with musical bias
-      const durRoll = Math.random()
-      const dur16ths = durRoll < 0.2 ? 1     // 16th (fast)
-                     : durRoll < 0.55 ? 2    // 8th (standard)
-                     : durRoll < 0.8 ? 3     // dotted 8th (groove)
-                     : 4                     // quarter (sustain)
-      const durStr = dur16ths === 1 ? '16n'
-                   : dur16ths === 2 ? '8n'
-                   : dur16ths === 3 ? '8n.'
-                   : '4n'
+    let cursor = 0
 
-      // Swing: off-16ths pushed late — amount matches genre (drum + bass use same values)
-      const bar  = Math.floor(cursor / 16)
-      const beat = Math.floor((cursor % 16) / 4)
-      const sub  = cursor % 4
-      const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
-      const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
+    // Iteration 1: original motif
+    if (cursor + motifDur <= length16ths) {
+      notes.push(...renderMotif(motif, cursor, 0, octave))
+      cursor += motifDur
+    }
+    cursor += restLen
 
-      // Velocity: accent downbeats, softer off-beats — wider range = more expression
-      const accentBase = sub === 0 ? 0.72 : sub === 2 ? 0.58 : 0.42
-      const vel = Math.min(1, Math.max(0.15, accentBase + (Math.random() - 0.5) * 0.22))
+    // Iteration 2: transposed variation (up 2 scale degrees = minor 3rd/major 3rd area)
+    if (!isHint) {
+      const trans2 = Math.random() < 0.65 ? 2 : -1
+      if (cursor + motifDur <= length16ths) {
+        notes.push(...renderMotif(motif, cursor, trans2, octave))
+        cursor += motifDur
+      }
+      cursor += restLen
+    }
 
-      notes.push({ pitch, duration: durStr, velocity: vel, time })
+    // Iteration 3: short "answer" — first 2–3 notes only
+    if (!isHint) {
+      const shortMotif = motif.slice(0, Math.max(2, Math.ceil(motif.length * 0.6)))
+      const shortDur   = shortMotif.reduce((s, n) => s + n.dur16ths, 0)
+      if (cursor + shortDur <= length16ths) {
+        notes.push(...renderMotif(shortMotif, cursor, Math.random() < 0.5 ? 1 : 0, octave))
+        cursor += shortDur
+      }
+      cursor += restLen
+    }
 
-      cursor += dur16ths
-      phraseNoteCount++
+    // ── Step 3: Root resolution — land on tonic before phrase loops ─────
+    if (cursor < length16ths - 1) {
+      const space = length16ths - cursor
+      if (space >= 2) {
+        const rootSemitone = scale[0]
+        const rootMidi  = (octave * 12) + 12 + rootSemitone + this.rootPitchClass + this.pitchOffsetSemitones
+        const rootPitch = Tone.Frequency(rootMidi, 'midi').toNote()
+        const durStr    = space >= 4 ? '4n' : '8n'
+        const bar  = Math.floor(cursor / 16)
+        const beat = Math.floor((cursor % 16) / 4)
+        const sub  = cursor % 4
+        const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
+        const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
+        notes.push({ pitch: rootPitch, duration: durStr, velocity: 0.82, time })
+      }
     }
 
     return notes

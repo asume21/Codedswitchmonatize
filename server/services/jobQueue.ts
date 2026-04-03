@@ -16,6 +16,7 @@ const LOCAL_OBJECTS_DIR = fs.existsSync("/data")
 
 const BASE_URL = (
   process.env.APP_BASE_URL ||
+  process.env.APP_URL ||
   `http://localhost:${process.env.PORT || 4000}`
 ).replace(/\/$/, "");
 

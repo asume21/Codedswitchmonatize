@@ -12,6 +12,8 @@ coverage/
 logs/
 *.log
 objects/
-**/*.wav
-**/*.m4a
-**/*.mp3
+# Exclude user-uploaded audio from deployment (served from object storage)
+# Note: server/Assets/ bundled loops are intentionally NOT excluded here
+objects/**/*.wav
+objects/**/*.m4a
+objects/**/*.mp3

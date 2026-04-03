@@ -6,7 +6,9 @@ import { sendActivationKeyEmail } from "./email";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
-const APP_URL = process.env.APP_URL || "http://localhost:5000";
+const APP_URL = process.env.APP_URL || (process.env.NODE_ENV === 'production'
+  ? (() => { throw new Error('APP_URL is required in production'); })()
+  : "http://localhost:5000");
 const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || process.env.STRIPE_PRICE_ID_PRO || "";
 const SUCCESS_URL =
   process.env.STRIPE_SUCCESS_URL || `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
@@ -127,7 +129,8 @@ export async function handleStripeWebhook(
         const recent = await storage.getCreditTransactions(userId, 200, 0);
         const alreadyProcessed = recent.some((t: any) => {
           const meta = (t as any)?.metadata;
-          return meta && meta.paymentIntentId === paymentIntentId;
+          // Check both stripeEventId (primary) and paymentIntentId (fallback)
+          return meta && (meta.stripeEventId === event.id || meta.paymentIntentId === paymentIntentId);
         });
 
         if (!alreadyProcessed) {
@@ -236,6 +239,15 @@ export async function handleStripeWebhook(
       if (!customerId) break;
       const user = await storage.getUserByStripeCustomerId(customerId);
       if (!user) break;
+
+      // Idempotency: skip if we've already processed this exact event
+      const recentTxns = await storage.getCreditTransactions(user.id, 50, 0);
+      const alreadyProcessed = recentTxns.some((t: any) => t?.metadata?.stripeEventId === event.id);
+      if (alreadyProcessed) {
+        console.log(`⚡ Skipping duplicate subscription event ${event.id}`);
+        break;
+      }
+
       const status = sub.status;
       const tier = deriveTier(status);
       const currentPeriodEnd = (sub as any).current_period_end
@@ -253,6 +265,18 @@ export async function handleStripeWebhook(
         subscriptionId,
         status,
         tier,
+      });
+      // Log event ID so retries are skipped
+      await storage.logCreditTransaction({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        amount: 0,
+        type: 'subscription_event' as any,
+        reason: `Stripe ${event.type}`,
+        balanceBefore: 0,
+        balanceAfter: 0,
+        metadata: { stripeEventId: event.id },
+        createdAt: new Date(),
       });
       break;
     }
