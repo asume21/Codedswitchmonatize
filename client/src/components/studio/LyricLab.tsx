@@ -23,7 +23,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { StudioAudioContext } from "@/pages/studio";
-import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
+// AIProviderSelector removed — lyrics generation moved to Astutely Create tab
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useStudioSession } from "@/contexts/StudioSessionContext";
 import { useSessionDestination } from "@/contexts/SessionDestinationContext";
@@ -339,7 +339,7 @@ export default function LyricLab() {
   const [hasGeneratedMusic, setHasGeneratedMusic] = useState(false);
   const [lyricComplexity, setLyricComplexity] = useState([5]);
   const [beatComplexity, setBeatComplexity] = useState([5]);
-  const [aiProvider, setAiProvider] = useState("grok");
+  // aiProvider state removed — lyrics generation moved to Astutely Create tab
   const [analysis, setAnalysis] = useState<any>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
@@ -374,40 +374,7 @@ export default function LyricLab() {
 
   const { initialize, isInitialized } = useAudio();
 
-  const generateLyricsMutation = useMutation({
-    mutationFn: async (data: { theme: string; genre: string; mood: string; complexity?: number; aiProvider: string }) => {
-      const response = await apiRequest("POST", "/api/lyrics/generate", {
-        theme: data.theme,
-        genre: data.genre,
-        mood: data.mood,
-        complexity: data.complexity,
-        aiProvider: data.aiProvider
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      const next = autoStructureLyrics(data.content || data);
-      studioSession.createLyricsVersion({
-        content: next,
-        source: "ai",
-      });
-      setContent(next);
-      setTitle(`${genre} Song ${Date.now()}`);
-      // Save lyrics to studio context for master playback
-      studioContext.setCurrentLyrics(next);
-      toast({
-        title: "Lyrics Generated",
-        description: "AI has created unique lyrics for you.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Generation Failed",
-        description: "Failed to generate lyrics. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  // generateLyricsMutation removed — moved to Astutely Create tab
 
   const saveLyricsMutation = useMutation({
     mutationFn: async (data: { title: string; content: string; genre: string; rhymeScheme: string }) => {
@@ -428,47 +395,9 @@ export default function LyricLab() {
     },
   });
 
-  // Generate music from lyrics using Suno API
-  const generateMusicFromLyricsMutation = useMutation({
-    mutationFn: async (data: { lyrics: string; genre: string; mood: string; title: string }) => {
-      const response = await apiRequest("POST", "/api/lyrics/generate-music", data);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      console.log("🎵 Music generated from lyrics:", data);
-      if (data.audioUrl) {
-        toast({
-          title: "Music Generated!",
-          description: `Song "${data.title}" created. Audio ready to play.`,
-        });
-      }
-      setHasGeneratedMusic(true);
+  // generateMusicFromLyricsMutation removed — moved to Astutely Create tab
 
-      // Persist a lightweight marker so the session survives view switches / remounts
-      try {
-        const existing = localStorage.getItem('generatedMusicData');
-        const parsed = existing ? JSON.parse(existing) : {};
-        const updated = {
-          ...parsed,
-          lastSource: 'lyrics',
-          lastTitle: data.title ?? title,
-          lastUpdatedAt: Date.now(),
-        };
-        localStorage.setItem('generatedMusicData', JSON.stringify(updated));
-      } catch {
-        // Ignore storage errors (e.g. private mode)
-      }
-    },
-    onError: () => {
-      toast({
-        title: "Music Generation Failed",
-        description: "Failed to generate music from lyrics. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // NEW: Mastering function to optimize the full song
+  // Mastering function to optimize the full song
   const masterSongMutation = useMutation({
     mutationFn: async (data: {
       pattern: unknown;
@@ -588,88 +517,11 @@ export default function LyricLab() {
     },
   });
 
-  const generateBeatFromLyricsMutation = useMutation({
-    mutationFn: async (data: { lyrics: string; genre: string; complexity?: number }) => {
-      const response = await apiRequest("POST", "/api/lyrics/generate-beat", data);
-      return response.json();
-    },
-    onSuccess: async (data) => {
-      toast({
-        title: "Beat Pattern Generated",
-        description: "AI has analyzed your lyrics and generated a matching beat pattern.",
-      });
-      const beatPattern = (data as any)?.beatPattern ?? (data as any)?.pattern ?? (data as any)?.beat?.pattern;
-
-      if (beatPattern) {
-        const destination = await requestDestination({
-          suggestedName: title?.trim() || (currentSession as any)?.songName || "Lyrics Session",
-        });
-        if (!destination) {
-          return;
-        }
-
-        studioSession.setPattern(beatPattern);
-        (studioContext as any)?.setCurrentPattern?.(beatPattern);
-        window.dispatchEvent(
-          new CustomEvent("navigateToTab", {
-            detail: "beat-lab",
-          }),
-        );
-
-        // Also generate real AI audio for the beat
-        try {
-          toast({
-            title: "🎵 Generating Real Audio",
-            description: `Creating professional ${genre} beat via AI...`,
-          });
-          const audioResult = await generateRealAudio(genre, {
-            prompt: `${genre} beat matching lyrics`,
-          });
-          try {
-            await playGeneratedAudio(audioResult.audioUrl);
-          } catch (playErr) {
-            console.warn("Auto-play blocked:", playErr);
-          }
-          toast({
-            title: "✅ Real Audio Ready!",
-            description: `Generated via ${audioResult.provider} (${audioResult.duration}s)`,
-          });
-        } catch (audioErr) {
-          console.warn("Real audio generation failed, beat pattern still available:", audioErr);
-        }
-      }
-    },
-    onError: () => {
-      toast({
-        title: "Beat Generation Failed",
-        description: "Failed to generate beat from lyrics. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  // generateBeatFromLyricsMutation removed — moved to Astutely Create tab
 
   const { data: savedLyrics } = useQuery({
     queryKey: ["/api/lyrics"],
   });
-
-  const handleGenerateAI = () => {
-    if (!theme.trim()) {
-      toast({
-        title: "No Theme Provided",
-        description: "Please enter a theme for the lyrics.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    generateLyricsMutation.mutate({
-      theme,
-      genre,
-      mood,
-      aiProvider,
-      complexity: lyricComplexity[0],
-    });
-  };
 
   const handleSave = () => {
     if (!title.trim() || !content.trim()) {

@@ -166,99 +166,7 @@ export default function ProfessionalStudio() {
   const [helperWord, setHelperWord] = useState('');
   const [helperType, setHelperType] = useState('rhymes');
 
-  // Integrated AI Music Generation Mutations 
-  const generateFullSongMutation = useMutation({
-    mutationFn: async (data: { prompt?: string; lyrics?: string; options: any }) => {
-      const response = await apiRequest('POST', '/api/audio/generate-song', data);
-      const parsedResponse = await response.json();
-      console.log('🎵 Parsed API response:', parsedResponse);
-      return parsedResponse;
-    },
-    onSuccess: (result) => {
-      console.log('🎵 Setting generated song:', result);
-      // Extract the song data from the result
-      const songData = result.song || result;
-      setGeneratedSong(songData);
-      toast({
-        title: "AI Song Generated",
-        description: "Your complete song with AI beat and melody is ready!"
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Generation Failed",
-        description: error.message || "Failed to generate AI song",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const generateAIBeatMutation = useMutation({
-    mutationFn: async (data: { style: string; lyrics?: string; bpm?: number; complexity?: number }) => {
-      // Transform data to match API expectations
-      const beatData = {
-        genre: data.style || 'electronic',
-        bpm: data.bpm || 120,
-        duration: 30 // Default 30 seconds
-      };
-      const response = await apiRequest('POST', '/api/beats/generate', beatData);
-      return await response.json();
-    },
-    onSuccess: (result) => {
-      setGeneratedBeat(result);
-      toast({
-        title: "AI Beat Generated", 
-        description: "Your unique AI beat is ready to use!"
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Beat Generation Failed",
-        description: error.message || "Failed to generate AI beat", 
-        variant: "destructive"
-      });
-    }
-  });
-
-  const generateAIMelodyMutation = useMutation({
-    mutationFn: async (data: { scale: string; style: string; complexity: number; lyrics?: string; beatData?: any }) => {
-      const response = await apiRequest('POST', '/api/melodies/generate', data);
-      return await response.json(); 
-    },
-    onSuccess: (result) => {
-      toast({
-        title: "AI Melody Generated",
-        description: "Your AI-enhanced melody is ready!"
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Melody Generation Failed",
-        description: error.message || "Failed to generate AI melody",
-        variant: "destructive"
-      });
-    }
-  });
-  const generateSongMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/audio/generate-song', data);
-      return await response.json();
-    },
-    onSuccess: (data: any) => {
-      setGeneratedSong(data.song);
-      toast({
-        title: "Professional Song Generated! 🎵",
-        description: `Studio-quality ${data.song?.metadata?.duration || 180}s song created successfully`,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Generation Failed",
-        description: error.response?.data?.error || "Failed to generate professional song",
-        variant: "destructive"
-      });
-    }
-  });
+  // AI generation mutations removed — moved to Astutely Create tab
 
   const addVocalsMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -395,43 +303,7 @@ export default function ProfessionalStudio() {
     }
   });
 
-  // Integrated AI Generation Handlers
-  const handleFullSongGeneration = () => {
-    generateFullSongMutation.mutate({
-      prompt: songPrompt,
-      lyrics: vocalOptions.lyrics || (generatedLyrics?.content || generatedLyrics?.text),
-      options: {
-        genre: songOptions.genre,
-        mood: songOptions.mood,
-        duration: songOptions.duration,
-        style: songOptions.style,
-        bpm: songOptions.bpm,
-        key: songOptions.key,
-        complexity: 5
-      }
-    });
-  };
-
-  const handleAIBeatGeneration = () => {
-    const lyrics = vocalOptions.lyrics || (generatedLyrics?.content || generatedLyrics?.text);
-    generateAIBeatMutation.mutate({
-      style: songOptions.genre,
-      lyrics,
-      bpm: songOptions.bpm,
-      complexity: 5
-    });
-  };
-
-  const handleAIMelodyGeneration = () => {
-    const lyrics = vocalOptions.lyrics || (generatedLyrics?.content || generatedLyrics?.text);
-    generateAIMelodyMutation.mutate({
-      scale: songOptions.key,
-      style: songOptions.genre,
-      complexity: 5,
-      lyrics,
-      beatData: generatedBeat
-    });
-  };
+  // AI generation handlers removed — moved to Astutely Create tab
 
   // Audio Playback Handlers
   const playGeneratedSong = async () => {

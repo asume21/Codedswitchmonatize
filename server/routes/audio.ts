@@ -800,12 +800,9 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Phase 3: AI Drum Grid endpoint
-  router.post("/ai/music/drums", async (req: Request, res: Response) => {
+  router.post("/ai/music/drums", requireAuth(), requireCredits(CREDIT_COSTS.DRUM_GENERATION, storage), async (req: Request, res: Response) => {
     const routeStartedAt = Date.now();
     try {
-      if (!req.userId) {
-        return sendError(res, 401, "Authentication required - please log in");
-      }
 
       const { bpm, bars, style, songPlanId, sectionId, gridResolution, grooveMode, aiProvider, generationSeed } = req.body || {};
 

@@ -301,7 +301,7 @@ ${urls
   app.use("/api/lyrics", createLyricsRoutes());
 
   // Mount Astutely AI routes
-  app.use("/api", createAstutelyRoutes());
+  app.use("/api", createAstutelyRoutes(storage));
 
   // Mount Sample Library routes
   app.use("/api/samples", createSampleRoutes());

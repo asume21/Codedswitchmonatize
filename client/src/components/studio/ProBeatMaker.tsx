@@ -26,19 +26,19 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useTransport } from '@/contexts/TransportContext';
-import { useMutation } from '@tanstack/react-query';
+// useMutation removed — AI beat generation moved to Astutely Create tab
 import { apiRequest } from '@/lib/queryClient';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useSessionDestination } from '@/contexts/SessionDestinationContext';
 import { AstutelyFader, AstutelyKnob, AstutelyMeter } from '@/components/astutely/AstutelyControls';
-import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
+// AIProviderSelector removed — AI beat generation moved to Astutely Create tab
 import { realisticAudio } from '@/lib/realisticAudio';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { audioBufferToWav } from '@/lib/stemExport';
 import { useMIDI } from '@/hooks/use-midi';
 import {
-  Play, Square, RotateCcw, Undo2, Redo2, Shuffle, Send, ChevronDown, Wand2,
+  Play, Square, RotateCcw, Undo2, Redo2, Shuffle, Send, ChevronDown,
   Copy, Clipboard, Volume2, Disc, Zap, Timer, Settings, X, Music, Drum, Check, Edit2, Save, DownloadCloud, Download
 } from 'lucide-react';
 import {
@@ -588,9 +588,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   });
   const [midiLearnMode, setMidiLearnMode] = useState(false);
   const [midiLearnTarget, setMidiLearnTarget] = useState<string | null>(null);
-  const [aiProvider, setAiProvider] = useState('grok');
   const [selectedGenre, setSelectedGenre] = useState('Hip-Hop');
-  const [grooveMode, setGrooveMode] = useState<DrumGrooveMode>('balanced');
   
   const audioCtx = useRef<AudioContext | null>(null);
   const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -831,109 +829,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
     });
   }, [selectedGenre, saveHistory, toast]);
 
-  const generateBeatMutation = useMutation({
-    mutationFn: async () => {
-      const bars = Math.max(1, Math.ceil(patternLength / 16));
-      const beatGridProvider = aiProvider === 'grok' || aiProvider === 'openai' ? aiProvider : undefined;
-      const generationSeed = Date.now() + Math.floor(Math.random() * 100000);
-      const response = await apiRequest('POST', '/api/ai/music/drums', {
-        bpm,
-        bars,
-        style: selectedGenre.toLowerCase(),
-        grooveMode,
-        aiProvider: beatGridProvider,
-        generationSeed,
-        gridResolution: '1/16',
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      const grid = data?.data?.grid;
-      if (!grid) return;
-
-      const pickGridRow = (trackId: string): Array<number | boolean> => {
-        const drumType = DRUM_ID_TO_TYPE[trackId.toLowerCase()] || 'perc';
-        if (drumType === 'kick') return grid.kick || [];
-        if (drumType === 'snare' || drumType === 'clap' || drumType === 'rim') return grid.snare || [];
-        if (drumType === 'hihat' || drumType === 'openhat' || drumType === 'ride' || drumType === 'crash') return grid.hihat || [];
-        return grid.percussion || [];
-      };
-
-      const responseSeed = Number.isFinite(Number(data?.data?.generationSeed))
-        ? Number(data?.data?.generationSeed)
-        : Date.now();
-
-      saveHistory();
-      setTracks(prev => prev.map((track) => {
-        const row = pickGridRow(track.id);
-        const drumType = DRUM_ID_TO_TYPE[track.id.toLowerCase()] || 'perc';
-        const lane: 'kick' | 'snare' | 'hihat' | 'percussion' =
-          drumType === 'kick'
-            ? 'kick'
-            : (drumType === 'snare' || drumType === 'clap' || drumType === 'rim')
-              ? 'snare'
-              : (drumType === 'hihat' || drumType === 'openhat' || drumType === 'ride' || drumType === 'crash')
-                ? 'hihat'
-                : 'percussion';
-        const grooveRow = applyGrooveModeToRow(
-          row,
-          lane,
-          grooveMode,
-          track.pattern.length,
-          responseSeed + track.id.length,
-        );
-        return {
-          ...track,
-          pattern: track.pattern.map((step, i) => ({
-            ...step,
-            active: !!grooveRow[i],
-          })),
-        };
-      }));
-
-      toast({
-        title: 'AI Beat Pattern Synchronized',
-        description: data?.data?.generationMethod === 'algorithmic'
-          ? `Fallback pattern used (${data?.data?.fallbackReason || 'AI unavailable'}). Seed: ${data?.data?.generationSeed ?? 'n/a'}`
-          : (data?.data?.provider
-            ? `Provider: ${data.data.provider}${data?.data?.generationSeed ? ` • Seed: ${data.data.generationSeed}` : ''} • Groove: ${grooveMode}`
-            : (aiProvider !== 'grok' && aiProvider !== 'openai'
-              ? `Selected provider (${aiProvider}) is audio/text-specialized for other tasks; beat grid used the internal text provider.`
-              : undefined)),
-      });
-
-      // Also generate real AI audio for the beat
-      (async () => {
-        try {
-          toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${selectedGenre} beat via AI...` });
-          const audioResult = await generateRealAudio(selectedGenre, { bpm });
-          try {
-            await playGeneratedAudio(audioResult.audioUrl);
-          } catch (playErr) {
-            console.warn('Auto-play blocked:', playErr);
-          }
-          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
-        } catch (audioErr) {
-          console.warn('Real audio generation failed, beat grid still available:', audioErr);
-        }
-      })();
-    },
-    onError: (err: any) => {
-      const rawMessage = String(err?.message || err || 'Unknown error');
-      const isRateLimited = rawMessage.includes('429') || rawMessage.toLowerCase().includes('rate limit');
-
-      if (isRateLimited) {
-        applyRateLimitFallbackPattern();
-        return;
-      }
-
-      toast({
-        title: 'AI Beat Failed',
-        description: rawMessage,
-        variant: 'destructive',
-      });
-    },
-  });
+  // generateBeatMutation removed — AI beat generation moved to Astutely Create tab
 
   const changeKit = (id: string) => {
     saveHistory();

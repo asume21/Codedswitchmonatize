@@ -15,6 +15,10 @@ import { astutelyDiagnostics } from '../services/astutelyDiagnostics';
 import { extractJSON, mergePartialWithFallback } from '../ai/utils/robustJsonParser';
 import { generatePerTrack } from '../ai/strategies/perTrackGeneration';
 import rateLimit from 'express-rate-limit';
+import { requireAuth } from '../middleware/auth';
+import { requireCredits } from '../middleware/requireCredits';
+import { CREDIT_COSTS } from '../services/credits';
+import type { IStorage } from '../storage';
 
 const router = Router();
 const astutelyLimiter = rateLimit({
@@ -26,7 +30,13 @@ const astutelyLimiter = rateLimit({
 });
 
 // Astutely — the real AI music generation endpoint
-router.post('/astutely', astutelyLimiter, async (req: Request, res: Response) => {
+// Auth + credits required to prevent unauthenticated/free abuse
+let _storage: IStorage;
+function getStorage() { return _storage; }
+
+router.post('/astutely', astutelyLimiter, requireAuth(), (req, res, next) => {
+  requireCredits(CREDIT_COSTS.BEAT_GENERATION, getStorage())(req, res, next);
+}, async (req: Request, res: Response) => {
   const { style, prompt = '', tempo, timeSignature, key, trackSummaries } = req.body;
   const requestId = `astutely-pattern-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   const routeStartedAt = Date.now();
@@ -441,7 +451,9 @@ router.get('/astutely/status/:predictionId', async (req: Request, res: Response)
 });
 
 // Generate actual audio using Suno API
-router.post('/astutely/generate-audio', astutelyLimiter, async (req: Request, res: Response) => {
+router.post('/astutely/generate-audio', astutelyLimiter, requireAuth(), (req, res, next) => {
+  requireCredits(CREDIT_COSTS.BEAT_GENERATION, getStorage())(req, res, next);
+}, async (req: Request, res: Response) => {
   const { style, prompt, bpm, key, duration, instrumental = true, aiProvider = 'suno', seed, variations, melodyUrl, structure } = req.body;
 
   if (!style && !prompt) {
@@ -684,7 +696,8 @@ router.post('/astutely/self-test', async (_req: Request, res: Response) => {
   }
 });
 
-export function createAstutelyRoutes() {
+export function createAstutelyRoutes(storage: IStorage) {
+  _storage = storage;
   return router;
 }
 
