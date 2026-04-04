@@ -17,12 +17,14 @@ export function exportToMidi(
     bass:    new MidiWriter.Track(),
     melody:  new MidiWriter.Track(),
     texture: new MidiWriter.Track(),
+    chord:   new MidiWriter.Track(),
   }
 
   tracks.drum.addTrackName('Drum')
   tracks.bass.addTrackName('Bass')
   tracks.melody.addTrackName('Melody')
   tracks.texture.addTrackName('Texture')
+  tracks.chord.addTrackName('Chords')
 
   const tempoEvent = new MidiWriter.TempoEvent({ bpm })
   Object.values(tracks).forEach(t => t.addEvent(tempoEvent))
@@ -32,6 +34,7 @@ export function exportToMidi(
     bass:    generatorEvents.filter(e => e.generator === 'bass'),
     melody:  generatorEvents.filter(e => e.generator === 'melody'),
     texture: generatorEvents.filter(e => e.generator === 'texture'),
+    chord:   generatorEvents.filter(e => e.generator === 'chord'),
   }
 
   for (const [gen, events] of Object.entries(byGenerator)) {
@@ -67,6 +70,7 @@ export function exportToMidi(
     tracks.bass,
     tracks.melody,
     tracks.texture,
+    tracks.chord,
   ])
 
   const base64 = writer.base64()

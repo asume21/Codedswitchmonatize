@@ -15,6 +15,7 @@ import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
+import { useOrganismChords, pitchClassName } from '@/organism/generators/useOrganismChords';
 
 interface BassGeneratorProps {
   chordProgression?: Array<{ chord: string; duration: number }>;
@@ -109,16 +110,34 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm
     return null;
   }, [storeTracks, syncWithTracks]);
 
-  // Final chord progression: explicit prop > detected from tracks > random fallback
+  // Get live chord from the Organism's ChordGenerator (if running)
+  const organismChord = useOrganismChords();
+  const organismChords = useMemo(() => {
+    if (!organismChord.currentLabel) return null;
+    // Build a simple chord progression entry from the Organism's current chord
+    const rootNote = pitchClassName(
+      (organismChord.rootPitchClass + organismChord.currentRootOffset) % 12
+    );
+    // Detect minor by checking for minor 3rd (3 semitones) in intervals
+    const isMinor = organismChord.currentIntervals.includes(3) && !organismChord.currentIntervals.includes(4);
+    const chordName = isMinor ? `${rootNote}m` : rootNote;
+    return [{ chord: chordName, duration: 4 }];
+  }, [organismChord.currentLabel, organismChord.rootPitchClass, organismChord.currentRootOffset, organismChord.currentIntervals]);
+
+  // Final chord progression: explicit prop > detected from tracks > Organism > random fallback
   const effectiveChords = chordProgression && chordProgression.length > 0
     ? chordProgression
-    : detectedChords;
+    : detectedChords
+      ? detectedChords
+      : organismChords;
 
   const chordsSource = chordProgression && chordProgression.length > 0
     ? 'prop'
     : detectedChords
       ? 'tracks'
-      : 'random';
+      : organismChords
+        ? 'organism'
+        : 'random';
 
   // Get MIDI hook to set bass instrument
   const { updateSettings: updateMIDISettings, lastNote: midiLastNote } = useMIDI();

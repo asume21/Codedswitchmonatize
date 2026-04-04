@@ -10,6 +10,8 @@ import {
   MODE_OCTAVES,
   getMelodyBehavior,
 }                             from './patterns/MelodyPatternLibrary'
+import type { ChordEvent }    from './patterns/ChordProgressionBank'
+import { getChordTones }      from './patterns/ChordProgressionBank'
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
@@ -30,6 +32,9 @@ export class MelodyGenerator extends GeneratorBase {
   private lastBehavior:    MelodyBehavior = MelodyBehavior.Rest
   private currentScale:    number[]       = MODE_SCALES.glow
   private scaleDirty:      boolean        = false // rebuild phrase on next behavior cycle
+
+  // Chord-awareness — chord tones (pitch classes 0-11) to target on strong beats
+  private currentChordTones: number[] = []
 
   // Physics cache
   private currentPresence: number  = 0
@@ -391,6 +396,14 @@ export class MelodyGenerator extends GeneratorBase {
     this.scaleDirty     = true   // signal processFrame to rebuild
   }
 
+  /**
+   * Called by the orchestrator when the ChordGenerator changes chord.
+   * Updates the chord tones so melody can bias toward them on strong beats.
+   */
+  setCurrentChord(chord: ChordEvent, rootPitchClass: number): void {
+    this.currentChordTones = getChordTones(chord, rootPitchClass)
+  }
+
   applyVolumeMultiplier(multiplier: number): void {
     this.volumeMultiplier = Math.max(0, multiplier)
     this.setOutputLevel(this.activityLevel)
@@ -449,21 +462,50 @@ export class MelodyGenerator extends GeneratorBase {
 
     // ── Step 1: Build a seed motif (3–5 notes) ─────────────────────────
     // Starts near root or mid-scale so every loop feels grounded.
+    // When chord tones are available, strong-beat notes prefer chord tones.
     interface MotifNote { degree: number; dur16ths: number }
     const motifCount = isHint ? 3 : 3 + Math.floor(Math.random() * 3)
     const motif: MotifNote[] = []
     let deg = Math.random() < 0.5 ? 0 : Math.floor(scale.length * 0.4)
 
+    // Pre-compute which scale degrees are chord tones for chord-aware targeting
+    const chordDegs: number[] = []
+    if (this.currentChordTones.length > 0) {
+      for (let d = 0; d < scale.length; d++) {
+        const pc = (this.rootPitchClass + scale[d]) % 12
+        if (this.currentChordTones.includes(pc)) {
+          chordDegs.push(d)
+        }
+      }
+    }
+
     for (let i = 0; i < motifCount; i++) {
       // Last note of motif resolves to root (0) or 5th (~mid-scale)
       if (i === motifCount - 1) {
-        deg = Math.random() < 0.65 ? 0 : Math.min(Math.floor(scale.length / 2), scale.length - 1)
+        // If chord tones available, resolve to nearest chord tone
+        if (chordDegs.length > 0 && Math.random() < 0.75) {
+          deg = chordDegs[Math.floor(Math.random() * chordDegs.length)]
+        } else {
+          deg = Math.random() < 0.65 ? 0 : Math.min(Math.floor(scale.length / 2), scale.length - 1)
+        }
       } else {
         const r = Math.random()
         const delta = r < 0.60 ? (Math.random() < 0.5 ? 1 : -1)   // step
                     : r < 0.85 ? (Math.random() < 0.5 ? 2 : -2)   // skip
                     : Math.floor(Math.random() * 5) - 2             // leap
         deg = Math.max(0, Math.min(scale.length - 1, deg + delta))
+
+        // Chord-tone bias: on even-numbered motif notes (strong positions),
+        // nudge toward the nearest chord tone ~60% of the time
+        if (chordDegs.length > 0 && i % 2 === 0 && Math.random() < 0.60) {
+          let closest = chordDegs[0]
+          let closestDist = Math.abs(deg - closest)
+          for (const cd of chordDegs) {
+            const dist = Math.abs(deg - cd)
+            if (dist < closestDist) { closest = cd; closestDist = dist }
+          }
+          deg = closest
+        }
       }
       const dRoll = Math.random()
       const dur16ths = dRoll < 0.15 ? 1       // 16th — fast run

@@ -5,6 +5,7 @@ export enum GeneratorName {
   Bass    = 'bass',
   Melody  = 'melody',
   Texture = 'texture',
+  Chord   = 'chord',
 }
 
 export enum BassBehavior {
@@ -64,4 +65,5 @@ export interface GeneratorOutput {
   bass:    GeneratorActivityReport
   melody:  GeneratorActivityReport
   texture: GeneratorActivityReport
+  chord:   GeneratorActivityReport
 }

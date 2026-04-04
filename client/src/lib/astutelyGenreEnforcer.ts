@@ -29,6 +29,7 @@ export interface GenreProfile {
     kickVelocity: number;
     bassVolume: number;
     melodyVolume: number;
+    chordVolume: number;
   };
   mixPreset: GenreMixPreset;
 }
@@ -63,7 +64,7 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: false,
     patternStyle: 'Travis Scott rage',
     quickStartPresetId: 'trap-140',
-    generatorVolumes: { hatDensity: 1.3, kickVelocity: 1.2, bassVolume: 1.1, melodyVolume: 0.8 },
+    generatorVolumes: { hatDensity: 1.3, kickVelocity: 1.2, bassVolume: 1.1, melodyVolume: 0.8, chordVolume: 0.7 },
     mixPreset: {
       name: 'Trap',
       channels: {
@@ -84,7 +85,7 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: true,
     patternStyle: 'lo-fi chill study beat',
     quickStartPresetId: 'lofi-85',
-    generatorVolumes: { hatDensity: 0.7, kickVelocity: 0.8, bassVolume: 1.0, melodyVolume: 1.2 },
+    generatorVolumes: { hatDensity: 0.7, kickVelocity: 0.8, bassVolume: 1.0, melodyVolume: 1.2, chordVolume: 1.1 },
     mixPreset: {
       name: 'Lo-fi',
       channels: {
@@ -105,7 +106,7 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: false,
     patternStyle: '90s boom bap hip hop',
     quickStartPresetId: 'boombap-90',
-    generatorVolumes: { hatDensity: 1.0, kickVelocity: 1.1, bassVolume: 1.0, melodyVolume: 0.9 },
+    generatorVolumes: { hatDensity: 1.0, kickVelocity: 1.1, bassVolume: 1.0, melodyVolume: 0.9, chordVolume: 1.0 },
     mixPreset: {
       name: 'Boom Bap',
       channels: {
@@ -126,7 +127,7 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: false,
     patternStyle: 'UK drill dark sliding 808',
     quickStartPresetId: 'drill-140',
-    generatorVolumes: { hatDensity: 1.4, kickVelocity: 1.0, bassVolume: 1.2, melodyVolume: 0.7 },
+    generatorVolumes: { hatDensity: 1.4, kickVelocity: 1.0, bassVolume: 1.2, melodyVolume: 0.7, chordVolume: 0.6 },
     mixPreset: {
       name: 'Drill',
       channels: {
@@ -147,7 +148,7 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: true,
     patternStyle: 'ambient chill melodic',
     quickStartPresetId: 'chill-75',
-    generatorVolumes: { hatDensity: 0.6, kickVelocity: 0.7, bassVolume: 0.9, melodyVolume: 1.3 },
+    generatorVolumes: { hatDensity: 0.6, kickVelocity: 0.7, bassVolume: 0.9, melodyVolume: 1.3, chordVolume: 1.2 },
     mixPreset: {
       name: 'Chill',
       channels: {
@@ -168,7 +169,7 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: false,
     patternStyle: 'funky groove bass-heavy',
     quickStartPresetId: 'funk-100',
-    generatorVolumes: { hatDensity: 1.1, kickVelocity: 1.0, bassVolume: 1.2, melodyVolume: 1.0 },
+    generatorVolumes: { hatDensity: 1.1, kickVelocity: 1.0, bassVolume: 1.2, melodyVolume: 1.0, chordVolume: 0.9 },
     mixPreset: {
       name: 'Funk',
       channels: {
@@ -209,6 +210,7 @@ class AstutelyGenreEnforcer {
       { action: 'setGeneratorVolume', generator: 'kickVelocity', value: genre.generatorVolumes.kickVelocity },
       { action: 'setGeneratorVolume', generator: 'bass', value: genre.generatorVolumes.bassVolume },
       { action: 'setGeneratorVolume', generator: 'melody', value: genre.generatorVolumes.melodyVolume },
+      { action: 'setGeneratorVolume', generator: 'chord', value: genre.generatorVolumes.chordVolume },
     ];
 
     const mixerCommands: MixerCommand[] = [

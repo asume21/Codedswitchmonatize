@@ -29,6 +29,7 @@ export interface MixConfig {
     bass:    ChannelConfig
     melody:  ChannelConfig
     texture: ChannelConfig
+    chord:   ChannelConfig
   }
   master: {
     gainDb:         number
@@ -64,6 +65,12 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       compThresholdDb: -30, compRatio: 2, compAttackMs: 50,
       compReleaseMs: 500, compKneeDb: 10,
       eq: { highpassHz: 400, highShelfHz: 6000, highShelfGain: -3 },  // HP at 400Hz kills hum; bandpass texture
+    },
+    chord: {
+      name: 'chord', pan: -0.10, gainDb: -8,
+      compThresholdDb: -22, compRatio: 3, compAttackMs: 30,
+      compReleaseMs: 250, compKneeDb: 8,
+      eq: { highpassHz: 200, midHz: 500, midGain: -3, midQ: 1.0, highShelfHz: 6000, highShelfGain: -2 },  // HP to avoid bass mud; scoop 500Hz; tame highs
     },
   },
   master: {

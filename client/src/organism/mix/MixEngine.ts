@@ -17,6 +17,7 @@ export class MixEngine {
   readonly bassChannel:    ChannelStrip
   readonly melodyChannel:  ChannelStrip
   readonly textureChannel: ChannelStrip
+  readonly chordChannel:   ChannelStrip
 
   readonly master: MasterBus
 
@@ -30,6 +31,7 @@ export class MixEngine {
     this.bassChannel    = new ChannelStrip(this.config.channels.bass)
     this.melodyChannel  = new ChannelStrip(this.config.channels.melody)
     this.textureChannel = new ChannelStrip(this.config.channels.texture)
+    this.chordChannel   = new ChannelStrip(this.config.channels.chord)
 
     this.master = new MasterBus(
       this.config.master.gainDb,
@@ -42,6 +44,7 @@ export class MixEngine {
     this.bassChannel.output.connect(this.master.input)
     this.melodyChannel.output.connect(this.master.input)
     this.textureChannel.output.connect(this.master.input)
+    this.chordChannel.output.connect(this.master.input)
   }
 
   wire(orchestrator: GeneratorOrchestrator): void {
@@ -49,6 +52,7 @@ export class MixEngine {
     orchestrator.connectBassOutput(this.bassChannel.input)
     orchestrator.connectMelodyOutput(this.melodyChannel.input)
     orchestrator.connectTextureOutput(this.textureChannel.input)
+    orchestrator.connectChordOutput(this.chordChannel.input)
 
     // Wire kick → bass sidechain ducking
     this.wireSidechain(orchestrator, 'bass')
@@ -111,11 +115,11 @@ export class MixEngine {
     return () => this.meterCallbacks.delete(callback)
   }
 
-  setChannelGainDb(channel: 'drum' | 'bass' | 'melody' | 'texture', db: number): void {
+  setChannelGainDb(channel: 'drum' | 'bass' | 'melody' | 'texture' | 'chord', db: number): void {
     this.getChannel(channel).setGainDb(db)
   }
 
-  setChannelPan(channel: 'drum' | 'bass' | 'melody' | 'texture', pan: number): void {
+  setChannelPan(channel: 'drum' | 'bass' | 'melody' | 'texture' | 'chord', pan: number): void {
     this.getChannel(channel).setPan(pan)
   }
 
@@ -131,10 +135,12 @@ export class MixEngine {
     try { this.bassChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
     try { this.melodyChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
     try { this.textureChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
+    try { this.chordChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
     this.drumChannel.dispose()
     this.bassChannel.dispose()
     this.melodyChannel.dispose()
     this.textureChannel.dispose()
+    this.chordChannel.dispose()
     this.master.dispose()
   }
 
@@ -148,6 +154,7 @@ export class MixEngine {
         bass:    { name: 'bass',    ...this.bassChannel.getMeter() },
         melody:  { name: 'melody',  ...this.melodyChannel.getMeter() },
         texture: { name: 'texture', ...this.textureChannel.getMeter() },
+        chord:   { name: 'chord',   ...this.chordChannel.getMeter() },
       },
       masterPeakDb: masterMeter.peakDb,
       masterRmsDb:  masterMeter.rmsDb,
@@ -163,6 +170,7 @@ export class MixEngine {
       case 'bass':    return this.bassChannel
       case 'melody':  return this.melodyChannel
       case 'texture': return this.textureChannel
+      case 'chord':   return this.chordChannel
       default: throw new Error(`Unknown channel: ${name}`)
     }
   }

@@ -23,7 +23,7 @@ import type {
 interface GeneratorEvent {
   frameIndex:   number
   timestamp:    number
-  generator:    'drum' | 'bass' | 'melody' | 'texture'
+  generator:    'drum' | 'bass' | 'melody' | 'texture' | 'chord'
   eventType:    'note_on' | 'note_off' | 'pattern_change' | 'behavior_change'
   pitch?:       number
   velocity?:    number

@@ -9,6 +9,7 @@ import { Loader2, Mic, Music, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
+import { useOrganismChords, pitchClassName } from '@/organism/generators/useOrganismChords';
 
 interface VocalNote {
   syllable: string;
@@ -45,6 +46,7 @@ export default function AIVocalMelody({
   const [vocalRange, setVocalRange] = useState('tenor');
   const { toast } = useToast();
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
+  const organismChord = useOrganismChords();
 
   const generateMelody = async () => {
     if (!lyrics.trim()) {
@@ -58,12 +60,21 @@ export default function AIVocalMelody({
 
     setIsGenerating(true);
     try {
+      // Include Organism's current chord context if available
+      const chordContext = organismChord.currentLabel
+        ? {
+            currentChord: organismChord.currentLabel,
+            rootNote: pitchClassName(organismChord.rootPitchClass),
+          }
+        : undefined;
+
       const response = await apiRequest('POST', '/api/ai/vocal-melody', {
         lyrics,
         key,
         bpm,
         mood,
-        vocalRange
+        vocalRange,
+        chordContext,
       });
       
       if (!response.ok) {

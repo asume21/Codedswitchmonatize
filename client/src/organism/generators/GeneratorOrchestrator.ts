@@ -5,6 +5,7 @@ import { DrumGenerator }    from './DrumGenerator'
 import { BassGenerator }    from './BassGenerator'
 import { MelodyGenerator }  from './MelodyGenerator'
 import { TextureGenerator } from './TextureGenerator'
+import { ChordGenerator }   from './ChordGenerator'
 import type { PhysicsEngine }  from '../physics/PhysicsEngine'
 import type { StateMachine }   from '../state/StateMachine'
 import type { PhysicsState }   from '../physics/types'
@@ -17,6 +18,7 @@ export class GeneratorOrchestrator {
   private bass:    BassGenerator
   private melody:  MelodyGenerator
   private texture: TextureGenerator
+  private chord:   ChordGenerator
 
   private lastPhysics:  PhysicsState  | null = null
   private lastOrganism: OrganismState | null = null
@@ -66,27 +68,38 @@ export class GeneratorOrchestrator {
   //
   // Total cycle: 28 bars, then repeats.
 
-  private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number }[] = [
-    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, texture: 0 },
-    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, texture: 0 },
-    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0 },
-    { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0 },
-    { name: 'breakdown', bars: 2, drums: 0.4, bass: 0.7, melody: 0.0, texture: 0 },
-    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, texture: 0 },
-    { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0 },
-    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.5, melody: 0.0, texture: 0 },
+  private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
+    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, texture: 0, chord: 0.4 },
+    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, texture: 0, chord: 0.8 },
+    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0, chord: 1.0 },
+    { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
+    { name: 'breakdown', bars: 2, drums: 0.4, bass: 0.7, melody: 0.0, texture: 0, chord: 0.6 },
+    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, texture: 0, chord: 0.9 },
+    { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
+    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.5, melody: 0.0, texture: 0, chord: 0.3 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
 
+  // Chord-awareness bridge: unsub stored for dispose()
+  private unsubChordBridge: (() => void) | null = null
+
   constructor() {
     this.drum    = new DrumGenerator()
     this.bass    = new BassGenerator()
     this.melody  = new MelodyGenerator()
     this.texture = new TextureGenerator()
+    this.chord   = new ChordGenerator()
     this.arrangementTotalBars = this.ARRANGEMENT.reduce((sum, s) => sum + s.bars, 0)
+
+    // Bridge chord changes to Bass and Melody generators so they follow
+    // the harmonic progression instead of wandering on a random root
+    this.unsubChordBridge = this.chord.onChordChange((chord, rootPC) => {
+      this.bass.setCurrentChord(chord, rootPC)
+      this.melody.setCurrentChord(chord, rootPC)
+    })
   }
 
   // Wire to physics and state machine outputs
@@ -114,6 +127,7 @@ export class GeneratorOrchestrator {
       this.bass.onStateTransition(event.to, event.physicsSnapshot)
       this.melody.onStateTransition(event.to, event.physicsSnapshot)
       this.texture.onStateTransition(event.to, event.physicsSnapshot)
+      this.chord.onStateTransition(event.to, event.physicsSnapshot)
     })
   }
 
@@ -140,6 +154,7 @@ export class GeneratorOrchestrator {
     this.drum.reset()
     this.bass.reset()
     this.melody.reset()
+    this.chord.reset()
   }
 
   /** Smoothly ramp BPM to a new value over 0.5 seconds. */
@@ -162,6 +177,7 @@ export class GeneratorOrchestrator {
     this.bass.onStateTransition(state, physics)
     this.melody.onStateTransition(state, physics)
     this.texture.onStateTransition(state, physics)
+    this.chord.onStateTransition(state, physics)
   }
 
   /**
@@ -175,15 +191,18 @@ export class GeneratorOrchestrator {
     this.unsubPhysics?.()
     this.unsubOrganism?.()
     this.unsubTransition?.()
+    this.unsubChordBridge?.()
     this.unsubPhysics    = null
     this.unsubOrganism   = null
     this.unsubTransition = null
+    this.unsubChordBridge = null
 
     this.stop()
     this.drum.dispose()
     this.bass.dispose()
     this.melody.dispose()
     this.texture.dispose()
+    this.chord.dispose()
     this.lastPhysics     = null
     this.lastOrganism    = null
     this.physicsEngineRef = null
@@ -203,6 +222,7 @@ export class GeneratorOrchestrator {
       bass:    this.bass.getActivityReport(now),
       melody:  this.melody.getActivityReport(now),
       texture: this.texture.getActivityReport(now),
+      chord:   this.chord.getActivityReport(now),
     }
   }
 
@@ -376,18 +396,20 @@ export class GeneratorOrchestrator {
       // Save current multipliers so we can restore them later
       this.savedDrumMult = this.kickVelocityMultiplier
       this.savedBassMult = this.bassVolumeMultiplier
-      // Silence drums, bass, texture — keep melody untouched
+      // Silence drums, bass, texture — keep melody + chords for harmonic context
       this.drum.applyArrangementMultiplier(0)
       this.bass.applyArrangementMultiplier(0)
       this.texture.applyVolumeMultiplier(0)
-      // Boost melody into the foreground
+      // Boost melody into the foreground, keep chords subtle
       this.melody.applyVolumeMultiplier(Math.min(1.4, this.melodyVolumeMultiplier * 1.2))
+      this.chord.applyVolumeMultiplier(0.5)
     } else {
       // Restore — let arrangement logic take over on next frame
       this.drum.applyArrangementMultiplier(1.0)
       this.bass.applyArrangementMultiplier(1.0)
       if (this.textureEnabled) this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
       this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
+      this.chord.applyVolumeMultiplier(1.0)
     }
   }
 
@@ -415,6 +437,29 @@ export class GeneratorOrchestrator {
     this.texture.output.connect(destination)
   }
 
+  connectChordOutput(destination: Tone.InputNode): void {
+    this.chord.output.connect(destination)
+  }
+
+  /** Subscribe to chord changes for chord-aware generators. */
+  onChordChange(listener: (chord: import('./patterns/ChordProgressionBank').ChordEvent, rootPitchClass: number) => void): () => void {
+    return this.chord.onChordChange(listener)
+  }
+
+  /** Get the current chord from the chord generator. */
+  getCurrentChord(): import('./patterns/ChordProgressionBank').ChordEvent | null {
+    return this.chord.getCurrentChord()
+  }
+
+  /** Force a new chord progression pick. */
+  pickNewChordProgression(): void {
+    this.chord.pickNewProgression()
+  }
+
+  setChordVolumeMultiplier(multiplier: number): void {
+    this.chord.applyVolumeMultiplier(Math.max(0, multiplier))
+  }
+
   /**
    * Wire the kick trigger callback for sidechain ducking.
    * The MixEngine calls this to receive a callback on every kick hit.
@@ -435,20 +480,25 @@ export class GeneratorOrchestrator {
     this.bass.processFrame(physics, organism)
     this.melody.processFrame(physics, organism)
     this.texture.processFrame(physics, organism)
+    this.chord.processFrame(physics, organism)
 
     // Density feedback loop: report generator activity levels to PhysicsEngine
     if (this.physicsEngineRef) {
+      const now = performance.now()
       this.physicsEngineRef.registerGeneratorLevel(
-        this.drum.name,    this.drum.getActivityReport(performance.now()).activityLevel
+        this.drum.name,    this.drum.getActivityReport(now).activityLevel
       )
       this.physicsEngineRef.registerGeneratorLevel(
-        this.bass.name,    this.bass.getActivityReport(performance.now()).activityLevel
+        this.bass.name,    this.bass.getActivityReport(now).activityLevel
       )
       this.physicsEngineRef.registerGeneratorLevel(
-        this.melody.name,  this.melody.getActivityReport(performance.now()).activityLevel
+        this.melody.name,  this.melody.getActivityReport(now).activityLevel
       )
       this.physicsEngineRef.registerGeneratorLevel(
-        this.texture.name, this.texture.getActivityReport(performance.now()).activityLevel
+        this.texture.name, this.texture.getActivityReport(now).activityLevel
+      )
+      this.physicsEngineRef.registerGeneratorLevel(
+        this.chord.name,   this.chord.getActivityReport(now).activityLevel
       )
     }
 
@@ -490,6 +540,7 @@ export class GeneratorOrchestrator {
     this.bass.applyArrangementMultiplier(section.bass)
     this.melody.applyArrangementMultiplier(section.melody)
     this.texture.applyArrangementMultiplier(this.textureEnabled ? section.texture : 0)
+    this.chord.applyArrangementMultiplier(section.chord)
 
     // Gap 2 — notify listeners that a new arrangement section has started
     // so they can request an AI-generated pattern variation
@@ -519,5 +570,6 @@ export class GeneratorOrchestrator {
    */
   setDetectedScale(rootPitchClass: number, intervals: number[]): void {
     this.melody.setRootAndScale(rootPitchClass, intervals)
+    this.chord.setRootPitchClass(rootPitchClass)
   }
 }

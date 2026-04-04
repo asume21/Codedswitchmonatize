@@ -8,10 +8,12 @@ import type { MixMeterReading } from '../types'
 
 function createMockOrchestrator() {
   return {
-    connectDrumOutput:    vi.fn(),
-    connectBassOutput:    vi.fn(),
-    connectMelodyOutput:  vi.fn(),
-    connectTextureOutput: vi.fn(),
+    connectDrumOutput:         vi.fn(),
+    connectBassOutput:         vi.fn(),
+    connectMelodyOutput:       vi.fn(),
+    connectTextureOutput:      vi.fn(),
+    connectChordOutput:        vi.fn(),
+    setKickSidechainCallback:  vi.fn(),
   }
 }
 
@@ -29,15 +31,16 @@ describe('MixEngine', () => {
     vi.useRealTimers()
   })
 
-  it('constructs with all 4 channel strips + master bus', () => {
+  it('constructs with all 5 channel strips + master bus', () => {
     expect(engine.drumChannel).toBeDefined()
     expect(engine.bassChannel).toBeDefined()
     expect(engine.melodyChannel).toBeDefined()
     expect(engine.textureChannel).toBeDefined()
+    expect(engine.chordChannel).toBeDefined()
     expect(engine.master).toBeDefined()
   })
 
-  it('wire(orchestrator) connects all 4 channels without error', () => {
+  it('wire(orchestrator) connects all 5 channels without error', () => {
     const mockOrch = createMockOrchestrator()
     expect(() => {
       engine.wire(mockOrch as unknown as import('../../generators/GeneratorOrchestrator').GeneratorOrchestrator)
@@ -47,6 +50,7 @@ describe('MixEngine', () => {
     expect(mockOrch.connectBassOutput).toHaveBeenCalledOnce()
     expect(mockOrch.connectMelodyOutput).toHaveBeenCalledOnce()
     expect(mockOrch.connectTextureOutput).toHaveBeenCalledOnce()
+    expect(mockOrch.connectChordOutput).toHaveBeenCalledOnce()
   })
 
   it('startMetering() begins emitting MixMeterReading at meterIntervalMs', () => {

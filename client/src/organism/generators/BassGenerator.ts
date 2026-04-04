@@ -16,6 +16,8 @@ import {
   buildFunkNotes,
   buildDubNotes,
 }                              from './patterns/BassPatternLibrary'
+import type { ChordEvent }     from './patterns/ChordProgressionBank'
+import { getChordBassNote }    from './patterns/ChordProgressionBank'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -37,6 +39,11 @@ export class BassGenerator extends GeneratorBase {
 
   // Hip-hop friendly root notes (pentatonic minor roots at octave 2)
   private static readonly ROOT_POOL = [33, 36, 38, 40, 41, 43, 45, 48] // A1,C2,D2,E2,F2,G2,A2,C3
+
+  // Chord-awareness — when a chord change arrives, bass shifts its root
+  // to the chord's bass note for harmonic coherence
+  private chordRootPitchClass: number | null = null  // null = use random root
+  private tonicPitchClass: number = 0  // overall key tonic (0=C)
 
   // Physics cache
   private currentPocket: number = 0
@@ -188,6 +195,32 @@ export class BassGenerator extends GeneratorBase {
   // node (NOT synth.volume) to avoid race with setOutputLevel which also uses
   // synth.volume. This keeps the two concerns separated.
   private volumeMultiplier: number = 1.0
+
+  /**
+   * Called by the orchestrator when the ChordGenerator changes chord.
+   * Shifts the bass root to match the chord's bass note so bass follows
+   * the harmonic progression instead of camping on one random root.
+   */
+  setCurrentChord(chord: ChordEvent, rootPitchClass: number): void {
+    this.tonicPitchClass = rootPitchClass
+    const bassPC = getChordBassNote(chord, rootPitchClass)
+
+    // Convert pitch class to a MIDI note in the bass's octave range (C1-C3)
+    // Find the closest bass MIDI note to current rootMidi that has this pitch class
+    const currentOctave = Math.floor(this.rootMidi / 12)
+    const newRoot = currentOctave * 12 + bassPC
+    // Clamp to reasonable bass range (A1=33 to C3=48)
+    const clamped = Math.max(33, Math.min(48, newRoot))
+
+    if (clamped !== this.rootMidi) {
+      this.rootMidi = clamped
+      this.chordRootPitchClass = bassPC
+      // Rebuild the bass pattern with the new root — only if we have physics
+      if (this.currentPocket !== undefined) {
+        this.rebuildPart({ mode: this.currentMode, pocket: this.currentPocket } as PhysicsState)
+      }
+    }
+  }
 
   applyVolumeMultiplier(multiplier: number): void {
     this.volumeMultiplier = Math.max(0, multiplier)

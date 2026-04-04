@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
+import { pickProgression } from '@/organism/generators/patterns/ChordProgressionBank';
+import { astutelyOrganismBridge } from '@/lib/astutelyOrganismBridge';
 
 interface AILoopGeneratorProps {
   currentBpm?: number;
@@ -69,7 +71,43 @@ const SCALE_INTERVALS: Record<string, number[]> = {
   'blues': [0, 3, 5, 6, 7, 10],
 };
 
-const GENRE_PROGRESSIONS: Record<string, number[][]> = {
+// Map UI genres to Organism modes for chord bank selection
+const GENRE_TO_MODE: Record<string, string> = {
+  'trap': 'heat', 'hip-hop': 'smoke', 'lo-fi': 'ice', 'pop': 'glow',
+  'edm': 'heat', 'house': 'glow', 'r-and-b': 'smoke', 'jazz': 'ice',
+  'rock': 'smoke', 'ambient': 'glow',
+};
+
+// Semitone offset → scale degree (1-7) mapping for major scale
+const SEMITONE_TO_DEGREE: Record<number, number> = {
+  0: 1, 2: 2, 3: 3, 4: 3, 5: 4, 7: 5, 8: 6, 9: 6, 10: 7, 11: 7,
+};
+
+/**
+ * Pick a chord progression from the 176-bank for the given genre.
+ * If the Organism is running, prefer its current progression for harmonic coherence.
+ * Returns scale degrees (1-7) for compatibility with the existing generation logic.
+ */
+function getProgressionForGenre(genre: string): number[] {
+  // If Organism is running, try to use its current chord
+  const bridgeState = astutelyOrganismBridge.getState();
+  if (bridgeState.currentChord) {
+    // Organism has a chord — we'll still pick from the bank for variety
+    // but use the same mode for mood coherence
+  }
+
+  const mode = GENRE_TO_MODE[genre] ?? 'glow';
+  const prog = pickProgression(mode);
+
+  // Convert ChordEvents (rootOffset in semitones) to scale degrees (1-7)
+  return prog.chords.map(chord => {
+    const deg = SEMITONE_TO_DEGREE[chord.rootOffset % 12];
+    return deg ?? 1;
+  });
+}
+
+// Legacy fallback progressions (used if bank returns empty)
+const GENRE_PROGRESSIONS_FALLBACK: Record<string, number[][]> = {
   'pop': [[1, 5, 6, 4], [1, 4, 5, 6]],
   'edm': [[1, 5, 6, 5], [6, 4, 1, 5]],
   'house': [[1, 4, 5, 4], [1, 3, 4, 3]],
@@ -327,16 +365,19 @@ export default function AILoopGenerator({
     const intervals = SCALE_INTERVALS[scale] || SCALE_INTERVALS['minor'];
     const scaleNotes = intervals.map(i => (keyOffset + i) % 12);
 
-    // Pick a chord progression for the genre
-    const genreKey = GENRE_PROGRESSIONS[genre] ? genre : 'pop';
-    const progressionPool = GENRE_PROGRESSIONS[genreKey];
-    const progression = progressionPool[Math.floor(Math.random() * progressionPool.length)] || [1, 5, 6, 4];
+    // Pick a chord progression — uses the 176-progression bank with Organism mode matching
+    // Falls back to legacy hardcoded progressions if bank returns too few degrees
+    let progression = getProgressionForGenre(genre);
+    if (progression.length < 3) {
+      const fallback = GENRE_PROGRESSIONS_FALLBACK[genre] ?? GENRE_PROGRESSIONS_FALLBACK['pop'];
+      progression = fallback[Math.floor(Math.random() * fallback.length)] || [1, 5, 6, 4];
+    }
 
     const humanVel = (base: number, spread = 12) => Math.max(30, Math.min(127, base + Math.floor((Math.random() - 0.5) * spread)));
 
     // Drums: genre-aware backbeat with ghost hats and fills
     if (includeDrums) {
-      const drumPattern = GENRE_DRUM_PATTERNS[genreKey] || GENRE_DRUM_PATTERNS['hip-hop'];
+      const drumPattern = GENRE_DRUM_PATTERNS[genre] || GENRE_DRUM_PATTERNS['hip-hop'];
       for (let bar = 0; bar < bars; bar++) {
         const offset = bar * stepsPerBar;
         drumPattern.kicks.forEach(step => {

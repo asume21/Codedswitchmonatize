@@ -103,7 +103,7 @@ describe('GeneratorOrchestrator', () => {
     expect(mockTransportStart).toHaveBeenCalled()
   })
 
-  it('all 4 generators receive processFrame calls after wire()', () => {
+  it('all 5 generators receive processFrame calls after wire()', () => {
     orchestrator.wire(
       mockPhysics as unknown as import('../../physics/PhysicsEngine').PhysicsEngine,
       mockStateMachine as unknown as import('../../state/StateMachine').StateMachine,
@@ -117,11 +117,11 @@ describe('GeneratorOrchestrator', () => {
     const physics = makePhysics()
     mockPhysics._emit(physics)
 
-    // registerGeneratorLevel should be called 4 times (one per generator)
-    expect(mockPhysics.registerGeneratorLevel).toHaveBeenCalledTimes(4)
+    // registerGeneratorLevel should be called 5 times (one per generator)
+    expect(mockPhysics.registerGeneratorLevel).toHaveBeenCalledTimes(5)
   })
 
-  it('getOutput() returns GeneratorOutput with all 4 reports', () => {
+  it('getOutput() returns GeneratorOutput with all 5 reports', () => {
     orchestrator.wire(
       mockPhysics as unknown as import('../../physics/PhysicsEngine').PhysicsEngine,
       mockStateMachine as unknown as import('../../state/StateMachine').StateMachine,
@@ -137,10 +137,12 @@ describe('GeneratorOrchestrator', () => {
     expect(output!.bass).toBeDefined()
     expect(output!.melody).toBeDefined()
     expect(output!.texture).toBeDefined()
+    expect(output!.chord).toBeDefined()
     expect(output!.drum.name).toBe('drum')
     expect(output!.bass.name).toBe('bass')
     expect(output!.melody.name).toBe('melody')
     expect(output!.texture.name).toBe('texture')
+    expect(output!.chord.name).toBe('chord')
   })
 
   it('reset() stops transport and zeros all generators', async () => {

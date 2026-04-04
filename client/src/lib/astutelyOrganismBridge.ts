@@ -22,10 +22,18 @@ export interface OrganismStateSnapshot {
   breathingWarmth: number;
 }
 
+export interface ChordSnapshot {
+  label: string;
+  intervals: number[];
+  rootOffset: number;
+  rootPitchClass: number;
+}
+
 export interface AstutelyOrganismBridgeState {
   physicsState: PhysicsState | null;
   organismState: OrganismStateSnapshot | null;
   selfListenReport: SelfListenReport | null;
+  currentChord: ChordSnapshot | null;
   isRunning: boolean;
 }
 
@@ -38,6 +46,7 @@ class AstutelyOrganismBridge {
     physicsState: null,
     organismState: null,
     selfListenReport: null,
+    currentChord: null,
     isRunning: false,
   };
 
@@ -69,6 +78,20 @@ class AstutelyOrganismBridge {
 
     listen('organism:self-listen-report', (e) => {
       this.state = { ...this.state, selfListenReport: e.detail as SelfListenReport };
+      this.notify();
+    });
+
+    listen('organism:chord-change', (e) => {
+      const d = e.detail as Record<string, unknown>;
+      this.state = {
+        ...this.state,
+        currentChord: {
+          label: d.label as string,
+          intervals: d.intervals as number[],
+          rootOffset: d.rootOffset as number,
+          rootPitchClass: d.rootPitchClass as number,
+        },
+      };
       this.notify();
     });
 
@@ -132,7 +155,7 @@ class AstutelyOrganismBridge {
     this.dispatch('force-state', { state: targetState });
   }
 
-  setGeneratorVolume(generator: 'bass' | 'melody' | 'hatDensity' | 'kickVelocity' | 'texture', volume: number): void {
+  setGeneratorVolume(generator: 'bass' | 'melody' | 'hatDensity' | 'kickVelocity' | 'texture' | 'chord', volume: number): void {
     this.dispatch('set-generator-volume', { generator, volume });
   }
 

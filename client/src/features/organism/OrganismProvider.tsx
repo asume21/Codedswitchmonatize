@@ -301,6 +301,20 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     reactive.wire(orchestr)
     mix.wire(orchestr)
 
+    // Bridge chord changes to external listeners (Astutely, UI)
+    const unsubChord = orchestr.onChordChange((chord, rootPitchClass) => {
+      const progression = orchestr.getCurrentChord()
+      window.dispatchEvent(new CustomEvent('organism:chord-change', {
+        detail: {
+          currentChord: chord,
+          rootPitchClass,
+          label: chord.label,
+          intervals: chord.intervals,
+          rootOffset: chord.rootOffset,
+        },
+      }))
+    })
+
     // ── Ears system: performer analysis ──────────────────────────────────────
     // Subscribe directly to input frames so we get raw mic data before
     // the physics engine smooths everything away.
@@ -443,6 +457,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unsubReactive()
       unsubPerformer()
       unsubSelfListen()
+      unsubChord()
 
       input.stop()
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
@@ -1004,6 +1019,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           else if (generator === 'hatDensity') orch.setHatDensityMultiplier(volume)
           else if (generator === 'kickVelocity') orch.setKickVelocityMultiplier(volume)
           else if (generator === 'texture') orch.setTextureVolumeMultiplier(volume)
+          else if (generator === 'chord') orch.setChordVolumeMultiplier(volume)
           break
         }
         case 'set-texture-enabled': {
