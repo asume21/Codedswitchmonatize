@@ -1459,8 +1459,9 @@ export default function UnifiedStudioWorkspace() {
         tracks: {
           drum:    grouped.drums  as import('@/stores/useStudioStore').StudioNote[],
           bass:    grouped.bass   as import('@/stores/useStudioStore').StudioNote[],
-          melody:  [...grouped.melody, ...grouped.chords] as import('@/stores/useStudioStore').StudioNote[],
+          melody:  grouped.melody as import('@/stores/useStudioStore').StudioNote[],
           texture: [],
+          chord:   grouped.chords as import('@/stores/useStudioStore').StudioNote[],
         },
       };
       useStudioStore.getState().pushOrganismSnapshot(astutelySnapshot);
@@ -1514,18 +1515,18 @@ export default function UnifiedStudioWorkspace() {
       if (!snapshot) return;
 
       const generatorToTrackType: Record<string, string> = {
-        drum: 'beat', bass: 'midi', melody: 'midi', texture: 'midi',
+        drum: 'beat', bass: 'midi', melody: 'midi', texture: 'midi', chord: 'midi',
       };
       const generatorToName: Record<string, string> = {
-        drum: 'Organism Drums', bass: 'Organism Bass', melody: 'Organism Melody', texture: 'Organism Texture',
+        drum: 'Organism Drums', bass: 'Organism Bass', melody: 'Organism Melody', texture: 'Organism Texture', chord: 'Organism Chords',
       };
       const generatorToInstrument: Record<string, string> = {
-        drum: 'drums', bass: 'bass', melody: 'piano', texture: 'synth',
+        drum: 'drums', bass: 'bass', melody: 'piano', texture: 'synth', chord: 'keys',
       };
 
       setTracks((prev: StudioTrack[]) => {
         let updated = [...prev];
-        for (const gen of ['drum', 'bass', 'melody', 'texture'] as const) {
+        for (const gen of ['drum', 'bass', 'melody', 'texture', 'chord'] as const) {
           const notes = snapshot.tracks[gen];
           if (!notes || notes.length === 0) continue;
 

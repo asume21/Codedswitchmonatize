@@ -127,6 +127,7 @@ export function bridgeOrganismToStore(
     bass:    generatorEvents.filter(e => e.generator === 'bass'),
     melody:  generatorEvents.filter(e => e.generator === 'melody'),
     texture: generatorEvents.filter(e => e.generator === 'texture'),
+    chord:   generatorEvents.filter(e => e.generator === 'chord'),
   }
 
   const tracks: Record<GeneratorType, StudioNote[]> = {
@@ -134,6 +135,7 @@ export function bridgeOrganismToStore(
     bass:    eventsToStudioNotes(byGenerator.bass,    bpm, 'bass'),
     melody:  eventsToStudioNotes(byGenerator.melody,  bpm, 'melody'),
     texture: eventsToStudioNotes(byGenerator.texture, bpm, 'texture'),
+    chord:   eventsToStudioNotes(byGenerator.chord,   bpm, 'chord'),
   }
 
   const snapshot: OrganismSnapshot = {
@@ -165,6 +167,7 @@ export function snapshotNoteCount(snapshot: OrganismSnapshot): number {
     snapshot.tracks.drum.length +
     snapshot.tracks.bass.length +
     snapshot.tracks.melody.length +
-    snapshot.tracks.texture.length
+    snapshot.tracks.texture.length +
+    snapshot.tracks.chord.length
   )
 }

@@ -42,7 +42,7 @@ export interface StudioNote {
   drumType?: 'kick' | 'snare' | 'hihat' | 'perc'
 }
 
-export type GeneratorType = 'drum' | 'bass' | 'melody' | 'texture'
+export type GeneratorType = 'drum' | 'bass' | 'melody' | 'texture' | 'chord'
 
 export interface OrganismSnapshot {
   id: string
