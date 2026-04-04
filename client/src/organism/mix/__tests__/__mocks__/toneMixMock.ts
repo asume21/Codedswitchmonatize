@@ -7,10 +7,13 @@ export const mockDispose = vi.fn()
 export const mockConnect = vi.fn().mockReturnThis()
 export const mockToDestination = vi.fn().mockReturnThis()
 
+export const mockDisconnect = vi.fn().mockReturnThis()
+
 function makeDisposable() {
   return {
     dispose: mockDispose,
     connect: mockConnect,
+    disconnect: mockDisconnect,
     toDestination: mockToDestination,
   }
 }

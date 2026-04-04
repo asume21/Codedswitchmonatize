@@ -40,6 +40,7 @@ describe('TextureGenerator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     gen = new TextureGenerator()
+    gen.setEnabled(true)
   })
 
   it('has correct generator name', () => {
@@ -110,16 +111,16 @@ describe('TextureGenerator', () => {
 
     gen.processFrame(physicsHeat, organism)
 
-    // Heat mode filter target = 300 Hz
-    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(300, 1.0)
+    // Heat mode filter target = 800 Hz (per TexturePatternLibrary)
+    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(800, 1.0)
 
     mockFilterFreqRampTo.mockClear()
 
     const physicsIce = makePhysics({ mode: OrganismMode.Ice })
     gen.processFrame(physicsIce, organism)
 
-    // Ice mode filter target = 250 Hz
-    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(250, 1.0)
+    // Ice mode filter target = 1200 Hz (per TexturePatternLibrary)
+    expect(mockFilterFreqRampTo).toHaveBeenCalledWith(1200, 1.0)
   })
 
   it('reset() zeros activity and disables thinning', () => {

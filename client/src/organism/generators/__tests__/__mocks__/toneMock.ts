@@ -20,9 +20,12 @@ function makeSynth() {
   return {
     toDestination: vi.fn().mockReturnThis(),
     connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn().mockReturnThis(),
     triggerAttackRelease: mockTriggerAttackRelease,
     triggerAttack: mockTriggerAttack,
     triggerRelease: mockTriggerRelease,
+    releaseAll: vi.fn(),
+    dispose: vi.fn(),
     volume: { value: 0, rampTo: mockRampTo },
   }
 }
@@ -106,6 +109,7 @@ export function createToneMock() {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
         wet: { value: 0, rampTo: vi.fn() },
+        feedback: { value: 0, rampTo: vi.fn() },
       })
     }),
     Chorus: vi.fn().mockImplementation(function (this: Record<string, unknown>) {

@@ -48,6 +48,8 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     start = vi.fn().mockResolvedValue(undefined)
     stop = vi.fn()
     reset = vi.fn()
+    onChordChange = vi.fn().mockReturnValue(noop)
+    getCurrentChord = vi.fn().mockReturnValue(null)
   },
 }))
 
