@@ -9,13 +9,20 @@ export enum GeneratorName {
 }
 
 export enum BassBehavior {
-  Lock    = 'lock',
-  Walk    = 'walk',
-  Bounce  = 'bounce',
-  Breathe = 'breathe',
-  Trap    = 'trap',
-  Funk    = 'funk',
-  Dub     = 'dub',
+  Lock       = 'lock',
+  Walk       = 'walk',
+  Bounce     = 'bounce',
+  Breathe    = 'breathe',
+  Trap       = 'trap',
+  Funk       = 'funk',
+  Dub        = 'dub',
+  // ── New sub-genre behaviors ──
+  Slide808   = 'slide808',    // Trap/drill 808 with portamento glide between notes
+  WestCoast  = 'westcoast',   // G-funk Parliament bounce — syncopated with high-pass filter
+  DirtySouth = 'dirtysouth',  // Crunk heavy root slam — sparse but massive
+  Phonk      = 'phonk',       // Memphis dark bass — stuttered 808 with heavy distortion
+  Jersey     = 'jersey',      // Jersey club — fast staccato 808 hits at 130+ BPM
+  Reggaeton  = 'reggaeton',   // Dembow bass pattern — locks to dembow kick pattern
 }
 
 export enum MelodyBehavior {

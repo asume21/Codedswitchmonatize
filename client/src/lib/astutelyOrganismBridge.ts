@@ -29,11 +29,22 @@ export interface ChordSnapshot {
   rootPitchClass: number;
 }
 
+export interface MusicalSnapshot {
+  subGenre: string;
+  section: string;
+  energy: number;
+  density: number;
+  rootPitchClass: number;
+  tempo: number;
+  chordLabel: string;
+}
+
 export interface AstutelyOrganismBridgeState {
   physicsState: PhysicsState | null;
   organismState: OrganismStateSnapshot | null;
   selfListenReport: SelfListenReport | null;
   currentChord: ChordSnapshot | null;
+  musicalState: MusicalSnapshot | null;
   isRunning: boolean;
 }
 
@@ -47,6 +58,7 @@ class AstutelyOrganismBridge {
     organismState: null,
     selfListenReport: null,
     currentChord: null,
+    musicalState: null,
     isRunning: false,
   };
 
@@ -92,6 +104,11 @@ class AstutelyOrganismBridge {
           rootPitchClass: d.rootPitchClass as number,
         },
       };
+      this.notify();
+    });
+
+    listen('organism:musical-state', (e) => {
+      this.state = { ...this.state, musicalState: e.detail as MusicalSnapshot };
       this.notify();
     });
 
@@ -165,6 +182,10 @@ class AstutelyOrganismBridge {
 
   setMelodyOnly(enabled: boolean): void {
     this.dispatch('set-melody-only', { enabled });
+  }
+
+  forceSubGenre(subGenre: string): void {
+    this.dispatch('force-subgenre', { subGenre });
   }
 
   // ── State access ───────────────────────────────────────────────────────

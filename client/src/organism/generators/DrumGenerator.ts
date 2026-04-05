@@ -452,9 +452,9 @@ export class DrumGenerator extends GeneratorBase {
     const shaped = level * this.arrangementMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
-    if (Math.abs(linear - this.lastOutputGain) < 0.001) return
+    if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
-    this.output.gain.rampTo(linear, 0.2)
+    this.output.gain.rampTo(linear, 0.35)
   }
 
   dispose(): void {

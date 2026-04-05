@@ -83,7 +83,9 @@ export class TextureGenerator extends GeneratorBase {
       ? -Infinity
       : 20 * Math.log10(Math.max(0.0001, shaped))
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
-    if (Math.abs(linear - this.lastOutputGain) > 0.001) {
+    // Threshold of 0.008 (~0.07dB) prevents physics micro-drift from
+    // restarting ramps every frame. Previous threshold of 0.001 was too tight.
+    if (Math.abs(linear - this.lastOutputGain) > 0.008) {
       this.lastOutputGain = linear
       this.gain.gain.rampTo(linear, 0.5)
     }

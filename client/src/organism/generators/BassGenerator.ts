@@ -8,13 +8,9 @@ import {
   getBassBehavior,
   getBassFilterCutoff,
   setBassSwing,
-  buildBreatheNotes,
-  buildLockNotes,
-  buildWalkNotes,
-  buildBounceNotes,
-  buildTrapNotes,
-  buildFunkNotes,
-  buildDubNotes,
+  buildBassNotes,
+  shouldEnableSlide,
+  getPortamentoTime,
 }                              from './patterns/BassPatternLibrary'
 import type { ChordEvent }     from './patterns/ChordProgressionBank'
 import { getChordBassNote }    from './patterns/ChordProgressionBank'
@@ -101,8 +97,8 @@ export class BassGenerator extends GeneratorBase {
     // Duck filter based on pocket — only schedule ramp if cutoff changed meaningfully.
     // Threshold of 5Hz prevents pocket micro-drift from interrupting in-progress ramps.
     const cutoff = getBassFilterCutoff(physics.mode, physics.pocket)
-    if (Math.abs(cutoff - this.lastFilterCutoff) > 5) {
-      this.filter.frequency.rampTo(cutoff, 0.3)
+    if (Math.abs(cutoff - this.lastFilterCutoff) > 15) {
+      this.filter.frequency.rampTo(cutoff, 0.4)
       this.lastFilterCutoff = cutoff
     }
 
@@ -221,10 +217,10 @@ export class BassGenerator extends GeneratorBase {
     if (clamped !== this.rootMidi) {
       this.rootMidi = clamped
       this.chordRootPitchClass = bassPC
-      // Rebuild the bass pattern with the new root — only if we have physics
-      if (this.currentPocket !== undefined) {
-        this.rebuildPart({ mode: this.currentMode, pocket: this.currentPocket } as PhysicsState)
-      }
+      // Do NOT rebuild the Part here — chord changes happen every 2-4 bars
+      // and each rebuild creates a new Tone.Part + disposes the old one,
+      // causing audible gaps. The next processFrame() or state transition
+      // will pick up the new root naturally when behavior changes.
     }
   }
 
@@ -273,15 +269,14 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private generateNotes(): ScheduledNote[] {
-    switch (this.currentBehavior) {
-      case BassBehavior.Lock:    return buildLockNotes(this.rootMidi)
-      case BassBehavior.Walk:    return buildWalkNotes(this.rootMidi)
-      case BassBehavior.Bounce:  return buildBounceNotes(this.rootMidi)
-      case BassBehavior.Breathe: return buildBreatheNotes(this.rootMidi)
-      case BassBehavior.Trap:    return buildTrapNotes(this.rootMidi)
-      case BassBehavior.Funk:    return buildFunkNotes(this.rootMidi)
-      case BassBehavior.Dub:     return buildDubNotes(this.rootMidi)
-    }
+    // Apply portamento for slide behaviors (808 slide, west coast, phonk)
+    const slideActive = shouldEnableSlide(this.currentBehavior)
+    const portTime = getPortamentoTime(this.currentBehavior)
+    try {
+      (this.synth as any).portamento = slideActive ? portTime : 0
+    } catch { /* portamento may not be supported on all synth types */ }
+
+    return buildBassNotes(this.currentBehavior, this.rootMidi)
   }
 
   private startSubBassRise(): void {
@@ -308,10 +303,12 @@ export class BassGenerator extends GeneratorBase {
     const shaped = level * this.arrangementMultiplier * this.volumeMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
-    // Skip redundant ramp if gain hasn't changed meaningfully
-    if (Math.abs(linear - this.lastOutputGain) < 0.001) return
+    // Skip redundant ramp if gain hasn't changed meaningfully.
+    // Threshold of 0.008 (~0.07dB) prevents physics micro-drift from
+    // restarting ramps every frame. Previous threshold of 0.001 was too tight.
+    if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
-    this.output.gain.rampTo(linear, 0.2)
+    this.output.gain.rampTo(linear, 0.35)
   }
 
   dispose(): void {

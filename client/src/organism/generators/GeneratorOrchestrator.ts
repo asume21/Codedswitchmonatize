@@ -12,6 +12,10 @@ import type { PhysicsState }   from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import type { GeneratorOutput } from './types'
+import { MusicalDirector }     from '../state/MusicalDirector'
+import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
+import { buildSubGenrePattern, mutatePattern } from './patterns/DrumPatternLibrary'
+import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
@@ -31,6 +35,12 @@ export class GeneratorOrchestrator {
   private unsubPhysics:     (() => void) | null = null
   private unsubOrganism:    (() => void) | null = null
   private unsubTransition:  (() => void) | null = null
+
+  // Frame throttle — physics fires at ~43fps (every ~23ms) but generators
+  // only need updates every ~60ms. Processing every frame floods the audio
+  // scheduler with overlapping gain ramps that cause crackling.
+  private lastFrameTime: number = 0
+  private static readonly MIN_FRAME_INTERVAL_MS = 55  // ~18fps — plenty for musical reactivity
 
   // Reactive multiplier state (Section 05)
   // These are BASE multipliers set by ReactiveBehaviorEngine.
@@ -86,19 +96,48 @@ export class GeneratorOrchestrator {
   // Chord-awareness bridge: unsub stored for dispose()
   private unsubChordBridge: (() => void) | null = null
 
+  // ── Musical Director — unified brain ──────────────────────────────
+  private director: MusicalDirector
+  private unsubDirectorSubGenre: (() => void) | null = null
+  private unsubDirectorSection:  (() => void) | null = null
+  private unsubDirectorMutation: (() => void) | null = null
+
   constructor() {
     this.drum    = new DrumGenerator()
     this.bass    = new BassGenerator()
     this.melody  = new MelodyGenerator()
     this.texture = new TextureGenerator()
     this.chord   = new ChordGenerator()
+    this.director = new MusicalDirector()
     this.arrangementTotalBars = this.ARRANGEMENT.reduce((sum, s) => sum + s.bars, 0)
 
-    // Bridge chord changes to Bass and Melody generators so they follow
-    // the harmonic progression instead of wandering on a random root
+    // Bridge chord changes to Bass, Melody, AND the Director
     this.unsubChordBridge = this.chord.onChordChange((chord, rootPC) => {
       this.bass.setCurrentChord(chord, rootPC)
       this.melody.setCurrentChord(chord, rootPC)
+      this.director.setCurrentChord(chord, rootPC)
+    })
+
+    // When director changes sub-genre, rebuild drum + bass patterns
+    this.unsubDirectorSubGenre = this.director.onSubGenreChange((subGenre) => {
+      this.onSubGenreChange(subGenre)
+    })
+
+    // When director triggers mutation, mutate current patterns
+    this.unsubDirectorMutation = this.director.onMutation(() => {
+      this.onPatternMutation()
+    })
+
+    // When director changes section, dispatch event for AI pattern generation
+    this.unsubDirectorSection = this.director.onSectionChange((section, _slot) => {
+      window.dispatchEvent(new CustomEvent('organism:section-change', {
+        detail: {
+          section,
+          subGenre: this.director.getState().subGenre,
+          physics: this.lastPhysics,
+          bpm: Tone.getTransport().bpm.value,
+        },
+      }))
     })
   }
 
@@ -126,6 +165,10 @@ export class GeneratorOrchestrator {
     this.unsubTransition = stateMachine.onTransition((event) => {
       if (!this.lastPhysics) return
       const snap = event.physicsSnapshot
+
+      // Notify director FIRST so it sets sub-genre + groove before generators rebuild
+      this.director.onStateTransition(event.to, snap)
+
       // Drums first (most audible if late)
       this.drum.onStateTransition(event.to, snap)
       this.texture.onStateTransition(event.to, snap)
@@ -141,10 +184,10 @@ export class GeneratorOrchestrator {
     await Tone.start()
 
     // Increase look-ahead so main-thread jank doesn't starve the audio graph.
-    // Default is ~0.1 s; bumping to 0.3 s adds a generous buffer against React
-    // re-renders, physics computation spikes, staggered Part rebuilds, and the
-    // FX chains of all 5 generators layering in simultaneously.
-    Tone.getContext().lookAhead = 0.3
+    // Default is ~0.1 s; 0.5 s gives a generous buffer against React re-renders,
+    // physics computation spikes, 5 generators processing frames, and Part rebuilds.
+    // This adds ~500ms of output latency but eliminates buffer underrun crackling.
+    Tone.getContext().lookAhead = 0.5
 
     Tone.getTransport().bpm.value = bpm ?? 90
     Tone.getTransport().start()
@@ -198,10 +241,17 @@ export class GeneratorOrchestrator {
     this.unsubOrganism?.()
     this.unsubTransition?.()
     this.unsubChordBridge?.()
+    this.unsubDirectorSubGenre?.()
+    this.unsubDirectorSection?.()
+    this.unsubDirectorMutation?.()
     this.unsubPhysics    = null
     this.unsubOrganism   = null
     this.unsubTransition = null
     this.unsubChordBridge = null
+    this.unsubDirectorSubGenre = null
+    this.unsubDirectorSection  = null
+    this.unsubDirectorMutation = null
+    this.director.dispose()
 
     this.stop()
     this.drum.dispose()
@@ -301,42 +351,34 @@ export class GeneratorOrchestrator {
     if (report.needsVolumeReduction) {
       const reduction = report.clippingPercent > 0.5 ? 0.90 : 0.95
       this.selfListenGainCorrection = Math.max(0.6, this.selfListenGainCorrection * reduction)
-      console.info(`[SelfListen] Gain correction: ${this.selfListenGainCorrection.toFixed(3)} — clipping ${report.clippingPercent.toFixed(2)}%`)
     } else if (report.needsVolumeBoost) {
       this.selfListenGainCorrection = Math.min(1.15, this.selfListenGainCorrection * 1.03)
-      console.info(`[SelfListen] Gain correction: ${this.selfListenGainCorrection.toFixed(3)} — boosting`)
     } else {
       // No issues detected — slowly decay correction back toward 1.0
       this.selfListenGainCorrection += (1.0 - this.selfListenGainCorrection) * 0.1
     }
 
-    // Apply corrected volume to bass only — melody is already written with
-    // selfListenGainCorrection baked in by applyPerformerState().  Writing it
-    // again here would cancel the in-progress 250ms ramp, causing crackling.
-    this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * this.selfListenGainCorrection)
+    // Sync correction to director so it's part of the unified state
+    this.director.setSelfListenCorrection(this.selfListenGainCorrection)
+
+    // Do NOT write bass gain here — applyPerformerState() already handles
+    // bass via setOutputLevel on every throttled frame. Writing it again here
+    // cancels in-progress ramps and causes crackling.
+    // The selfListenGainCorrection is applied next frame via onFrame → processFrame.
 
     // ── Frequency balance — log only, no gain changes ─────────────────────
     // Frequency corrections via gain were causing cascading feedback.
     // These are now informational for future EQ-based corrections.
-    if (report.bandEnergy.sub + report.bandEnergy.bass > 0.7) {
-      console.info('[SelfListen] Muddy mix detected (sub+bass > 70%)')
-    }
-    if (report.spectralCentroidHz > 5000) {
-      console.info('[SelfListen] Harsh mix detected (centroid > 5kHz)')
-    }
-    if (report.spectralCentroidHz < 1500) {
-      console.info('[SelfListen] Dark mix detected (centroid < 1.5kHz)')
-    }
-
-    // ── Diagnostics (log only) ────────────────────────────────────────────
-    if (report.crestFactor < 2) {
-      console.info('[SelfListen] Over-compressed (crest factor < 2)')
-    }
-    if (report.onsetTimingStdDevMs > 25) {
-      console.info(`[SelfListen] Groove jitter: ${report.onsetTimingStdDevMs.toFixed(1)}ms`)
-    }
-    if (report.hasDcOffset) {
-      console.warn(`[SelfListen] DC offset: ${report.dcOffset.toFixed(4)}`)
+    // Frequency balance and diagnostics are logged only in development
+    // to prevent console.info from blocking the main thread (1-2ms per call)
+    // and stealing time from the audio scheduler.
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      if (report.bandEnergy.sub + report.bandEnergy.bass > 0.7) {
+        console.debug('[SelfListen] Muddy mix detected')
+      }
+      if (report.hasDcOffset) {
+        console.debug(`[SelfListen] DC offset: ${report.dcOffset.toFixed(4)}`)
+      }
     }
   }
 
@@ -480,9 +522,30 @@ export class GeneratorOrchestrator {
   private onFrame(physics: PhysicsState, organism: OrganismState | null): void {
     if (!organism) return
 
-    // Apply arrangement shaping before processing generators
+    // Throttle: physics fires at ~43fps but generators only need ~18fps.
+    // Processing every frame creates 215 gain ramp evaluations/sec across 5
+    // generators, flooding the Web Audio scheduler and causing crackling.
+    const now = performance.now()
+    if (now - this.lastFrameTime < GeneratorOrchestrator.MIN_FRAME_INTERVAL_MS) return
+    this.lastFrameTime = now
+
+    // ── Musical Director update ──────────────────────────────────
+    // The director reads physics + organism state and updates the
+    // unified MusicalState. If it returns true, patterns need rebuilding.
+    const transport = Tone.getTransport()
+    const position = transport.position as string
+    const currentBar = parseInt(position.split(':')[0], 10) || 0
+    const needsRebuild = this.director.update(physics, organism, currentBar)
+
+    if (needsRebuild && !this.melodyOnlyMode) {
+      // Sub-genre or section changed — director already notified via events
+      // which trigger onSubGenreChange / section dispatch
+    }
+
+    // Apply arrangement shaping from director state
     this.applyArrangement()
 
+    // Process all generators
     this.drum.processFrame(physics, organism)
     this.bass.processFrame(physics, organism)
     this.melody.processFrame(physics, organism)
@@ -491,30 +554,104 @@ export class GeneratorOrchestrator {
 
     // Density feedback loop: report generator activity levels to PhysicsEngine
     if (this.physicsEngineRef) {
-      const now = performance.now()
+      const ts = performance.now()
       this.physicsEngineRef.registerGeneratorLevel(
-        this.drum.name,    this.drum.getActivityReport(now).activityLevel
+        this.drum.name,    this.drum.getActivityReport(ts).activityLevel
       )
       this.physicsEngineRef.registerGeneratorLevel(
-        this.bass.name,    this.bass.getActivityReport(now).activityLevel
+        this.bass.name,    this.bass.getActivityReport(ts).activityLevel
       )
       this.physicsEngineRef.registerGeneratorLevel(
-        this.melody.name,  this.melody.getActivityReport(now).activityLevel
+        this.melody.name,  this.melody.getActivityReport(ts).activityLevel
       )
       this.physicsEngineRef.registerGeneratorLevel(
-        this.texture.name, this.texture.getActivityReport(now).activityLevel
+        this.texture.name, this.texture.getActivityReport(ts).activityLevel
       )
       this.physicsEngineRef.registerGeneratorLevel(
-        this.chord.name,   this.chord.getActivityReport(now).activityLevel
+        this.chord.name,   this.chord.getActivityReport(ts).activityLevel
       )
     }
 
     // Thinning: if density requests thinning, tell texture generator
-    if (physics.density > 0.78) {
-      this.texture.setThinning(true)
-    } else {
-      this.texture.setThinning(false)
-    }
+    this.texture.setThinning(physics.density > 0.78)
+
+    // Emit unified musical state for Astutely bridge
+    this.emitMusicalState()
+  }
+
+  // ── Director event handlers ────────────────────────────────────────
+
+  /**
+   * Called when the MusicalDirector changes sub-genre.
+   * Rebuilds drum + bass patterns with the new sub-genre's vocabulary.
+   */
+  private onSubGenreChange(subGenre: HipHopSubGenre): void {
+    // Sync bass swing to new sub-genre
+    setBassSwingFromSubGenre(subGenre)
+
+    // Rebuild drum pattern with sub-genre-specific variant
+    const drumPattern = buildSubGenrePattern(subGenre)
+    this.drum.loadGeneratedPattern(drumPattern.hits)
+
+    // Bass will pick up new behavior from director state on next processFrame
+    // via getBassBehavior → rebuildPart, no explicit call needed
+
+    // Emit event for UI
+    window.dispatchEvent(new CustomEvent('organism:subgenre-change', {
+      detail: { subGenre },
+    }))
+  }
+
+  /**
+   * Called when the MusicalDirector triggers a pattern mutation.
+   * Mutates existing drum patterns for variation without full rebuild.
+   */
+  private onPatternMutation(): void {
+    // Mutate current drum pattern
+    const state = this.director.getState()
+    const pattern = buildSubGenrePattern(state.subGenre, state.drums.variantIndex)
+    const mutated = mutatePattern(pattern.hits, {
+      ghostProbability: 0.2,
+      dropProbability: 0.1,
+      shiftProbability: 0.12,
+      velocitySpread: 0.08,
+    })
+    this.drum.loadGeneratedPattern(mutated)
+  }
+
+  /**
+   * Emit the unified musical state as a CustomEvent so the Astutely bridge
+   * can observe it. Throttled to ~3Hz (every 5th frame at 18fps) to avoid
+   * flooding the event bus.
+   */
+  private emitFrameCounter = 0
+  private emitMusicalState(): void {
+    this.emitFrameCounter++
+    if (this.emitFrameCounter % 5 !== 0) return
+
+    const state = this.director.getState()
+    window.dispatchEvent(new CustomEvent('organism:musical-state', {
+      detail: {
+        subGenre:    state.subGenre,
+        section:     state.section,
+        energy:      state.energy,
+        density:     state.density,
+        groove:      state.groove,
+        rootPitchClass: state.rootPitchClass,
+        tempo:       state.tempo,
+        chordLabel:  state.currentChordLabel,
+      },
+    }))
+  }
+
+  /** Get the current unified musical state from the director */
+  getMusicalState(): Readonly<MusicalState> {
+    return this.director.getState()
+  }
+
+  /** Force a specific sub-genre (from Astutely bridge) */
+  forceSubGenre(subGenre: HipHopSubGenre): void {
+    this.director.forceSubGenre(subGenre)
   }
 
   /** Reads the current Transport bar and applies arrangement section multipliers. */
@@ -578,5 +715,6 @@ export class GeneratorOrchestrator {
   setDetectedScale(rootPitchClass: number, intervals: number[]): void {
     this.melody.setRootAndScale(rootPitchClass, intervals)
     this.chord.setRootPitchClass(rootPitchClass)
+    this.director.setScale(rootPitchClass, intervals)
   }
 }
