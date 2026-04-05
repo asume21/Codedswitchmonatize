@@ -48,6 +48,8 @@ export class BassGenerator extends GeneratorBase {
   // Physics cache
   private currentPocket: number = 0
   private currentMode: OrganismMode = OrganismMode.Glow
+  private lastFilterCutoff: number = 350
+  private lastOutputGain: number = 0
 
   constructor() {
     super(GeneratorName.Bass)
@@ -96,11 +98,14 @@ export class BassGenerator extends GeneratorBase {
       this.rebuildPart(physics)
     }
 
-    // Duck filter based on pocket
+    // Duck filter based on pocket — only schedule ramp if cutoff actually changed
     const cutoff = getBassFilterCutoff(physics.mode, physics.pocket)
-    this.filter.frequency.rampTo(cutoff, 0.3)
+    if (Math.abs(cutoff - this.lastFilterCutoff) > 1) {
+      this.filter.frequency.rampTo(cutoff, 0.3)
+      this.lastFilterCutoff = cutoff
+    }
 
-    // Output level
+    // Output level — only schedule ramp if gain changed meaningfully
     const targetLevel = this.computeTargetLevel(organism)
     this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
@@ -300,7 +305,11 @@ export class BassGenerator extends GeneratorBase {
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier * this.volumeMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
-    this.output.gain.rampTo(Math.pow(10, db / 20), 0.1)
+    const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
+    // Skip redundant ramp if gain hasn't changed meaningfully
+    if (Math.abs(linear - this.lastOutputGain) < 0.001) return
+    this.lastOutputGain = linear
+    this.output.gain.rampTo(linear, 0.2)
   }
 
   dispose(): void {

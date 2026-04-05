@@ -22,6 +22,11 @@ export class TextureGenerator extends GeneratorBase {
   private noiseStarted:   boolean = false
   private enabled:        boolean = false  // controlled by orchestrator textureEnabled toggle
 
+  // Ramp dedup — skip scheduling redundant ramps when values haven't changed
+  private lastOutputGain:    number = 0
+  private lastFilterFreq:    number = 600
+  private lastReverbWet:     number = 0.25
+
   constructor() {
     super(GeneratorName.Texture)
 
@@ -53,9 +58,12 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
-    // Hard gate — when disabled, keep gain at zero and skip all processing
+    // Hard gate — when disabled, skip all processing
     if (!this.enabled) {
-      this.gain.gain.rampTo(0, 0.1)
+      if (this.lastOutputGain > 0) {
+        this.gain.gain.rampTo(0, 0.1)
+        this.lastOutputGain = 0
+      }
       return
     }
 
@@ -74,13 +82,23 @@ export class TextureGenerator extends GeneratorBase {
     const db = shaped <= 0
       ? -Infinity
       : 20 * Math.log10(Math.max(0.0001, shaped))
-    this.gain.gain.rampTo(Math.pow(10, db / 20), 0.5)
+    const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
+    if (Math.abs(linear - this.lastOutputGain) > 0.001) {
+      this.lastOutputGain = linear
+      this.gain.gain.rampTo(linear, 0.5)
+    }
 
-    // Morph filter cutoff toward mode target
-    this.filter.frequency.rampTo(layer.filterFreq, 1.0)
+    // Morph filter cutoff toward mode target — only if changed
+    if (Math.abs(layer.filterFreq - this.lastFilterFreq) > 1) {
+      this.lastFilterFreq = layer.filterFreq
+      this.filter.frequency.rampTo(layer.filterFreq, 1.0)
+    }
 
-    // Morph reverb wet toward mode target
-    this.reverb.wet.rampTo(layer.reverbWet, 2.0)
+    // Morph reverb wet toward mode target — only if changed
+    if (Math.abs(layer.reverbWet - this.lastReverbWet) > 0.005) {
+      this.lastReverbWet = layer.reverbWet
+      this.reverb.wet.rampTo(layer.reverbWet, 2.0)
+    }
   }
 
   // Called by GeneratorOrchestrator when DensityComputer requests thinning

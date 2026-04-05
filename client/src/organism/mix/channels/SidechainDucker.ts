@@ -42,11 +42,17 @@ export class SidechainDucker {
     const holdSec    = holdMs / 1000
     const releaseSec = releaseMs / 1000
 
-    // Cancel any in-progress envelope to prevent overlap glitches
-    this.node.gain.cancelScheduledValues(time)
+    // Freeze at current value before scheduling new envelope — cancelAndHoldAtTime
+    // is smoother than cancelScheduledValues which snaps to the raw value.
+    try {
+      (this.node.gain as any).cancelAndHoldAtTime(time)
+    } catch {
+      // Fallback for browsers that don't support cancelAndHoldAtTime
+      this.node.gain.cancelScheduledValues(time)
+      this.node.gain.setValueAtTime(this.node.gain.value, time)
+    }
 
     // Ramp down to ducked level
-    this.node.gain.setValueAtTime(this.node.gain.value, time)
     this.node.gain.linearRampToValueAtTime(duckedGain, time + attackSec)
 
     // Hold at ducked level

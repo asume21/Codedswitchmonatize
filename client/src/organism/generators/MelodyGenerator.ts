@@ -25,6 +25,7 @@ export class MelodyGenerator extends GeneratorBase {
   // Reactive state (Section 05)
   private pitchOffsetSemitones: number = 0
   private volumeMultiplier:     number = 1.0
+  private lastOutputGain:       number = 0
 
   // Musical state
   private rootPitchClass:  number         = 0    // 0-11, detected by ScaleSnapEngine
@@ -281,10 +282,15 @@ export class MelodyGenerator extends GeneratorBase {
     const voice = bestVoice
     this.currentVoiceName = voice.name
 
-    // Disconnect old synth from chain
-    this.synth.disconnect()
-    try { this.synth.releaseAll() } catch { /* */ }
-    this.synth.dispose()
+    // Fade out old synth before disconnect to prevent click/pop
+    const oldSynth = this.synth
+    oldSynth.volume.rampTo(-Infinity, 0.15)
+    try { oldSynth.releaseAll() } catch { /* */ }
+    // Defer disconnect + dispose until fade completes to avoid cutting release tails
+    setTimeout(() => {
+      try { oldSynth.disconnect() } catch { /* already disposed */ }
+      try { oldSynth.dispose() } catch { /* already disposed */ }
+    }, 200)
 
     // Build new synth based on voice type
     let newSynth: Tone.PolySynth
@@ -321,7 +327,9 @@ export class MelodyGenerator extends GeneratorBase {
     this.reverb.decay = voice.reverbDecay
     this.delay.feedback.rampTo(voice.delayFeedback, 0.5)
 
-    console.log(`🎵 Melody voice: ${voice.name} (${mode})`)
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      console.debug(`🎵 Melody voice: ${voice.name} (${mode})`)
+    }
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -613,7 +621,10 @@ export class MelodyGenerator extends GeneratorBase {
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier * Math.min(1.4, this.volumeMultiplier)
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
-    this.output.gain.rampTo(Math.pow(10, db / 20), 0.25)
+    const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
+    if (Math.abs(linear - this.lastOutputGain) < 0.001) return
+    this.lastOutputGain = linear
+    this.output.gain.rampTo(linear, 0.25)
   }
 
   dispose(): void {

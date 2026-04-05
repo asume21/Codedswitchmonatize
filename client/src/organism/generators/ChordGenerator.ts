@@ -132,6 +132,7 @@ export class ChordGenerator extends GeneratorBase {
 
   // Reactive state
   private volumeMultiplier: number = 1.0
+  private lastOutputGain:   number = 0
 
   // Chord change callback — Bass/Melody subscribe to know current chord
   private chordChangeListeners: Array<(chord: ChordEvent, rootPitchClass: number) => void> = []
@@ -209,7 +210,7 @@ export class ChordGenerator extends GeneratorBase {
       this.currentChordIndex = 0
       this.currentBehavior = ChordBehavior.Silent
       this.applyVoice(this.currentMode)
-      console.log(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
+      console.debug(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
       return
     }
 
@@ -219,7 +220,7 @@ export class ChordGenerator extends GeneratorBase {
         this.currentProgression = pickProgression(this.currentMode)
         this.currentChordIndex = 0
         this.applyVoice(this.currentMode)
-        console.log(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
+        console.debug(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
       }
       this.currentBehavior = to === OState.Breathing ? ChordBehavior.Pad : ChordBehavior.Rhythm
       this.rebuildPart()
@@ -273,7 +274,7 @@ export class ChordGenerator extends GeneratorBase {
     this.currentProgression = pickProgression(this.currentMode)
     this.currentChordIndex = 0
     this.rebuildPart()
-    console.log(`🎹 New progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
+    console.debug(`🎹 New progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
   }
 
   // ── Private ────────────────────────────────────────────────────────
@@ -431,10 +432,15 @@ export class ChordGenerator extends GeneratorBase {
     const pool = MODE_VOICES[mode] ?? MODE_VOICES.glow
     const voice = pool[Math.floor(Math.random() * pool.length)]
 
-    // Disconnect old synth
-    this.synth.disconnect()
-    try { this.synth.releaseAll() } catch { /* */ }
-    this.synth.dispose()
+    // Fade out old synth before disconnect to prevent click/pop
+    const oldSynth = this.synth
+    oldSynth.volume.rampTo(-Infinity, 0.15)
+    try { oldSynth.releaseAll() } catch { /* */ }
+    // Defer disconnect + dispose until fade completes to avoid cutting release tails
+    setTimeout(() => {
+      try { oldSynth.disconnect() } catch { /* already disposed */ }
+      try { oldSynth.dispose() } catch { /* already disposed */ }
+    }, 200)
 
     // Build new synth
     let newSynth: Tone.PolySynth
@@ -458,7 +464,7 @@ export class ChordGenerator extends GeneratorBase {
     this.chorus.wet.rampTo(voice.chorusWet, 0.5)
     this.reverb.decay = voice.reverbDecay
 
-    console.log(`🎹 Chord voice: ${voice.name} (${mode})`)
+    console.debug(`🎹 Chord voice: ${voice.name} (${mode})`)
   }
 
   private stopPart(): void {
@@ -473,7 +479,10 @@ export class ChordGenerator extends GeneratorBase {
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier * Math.min(1.3, this.volumeMultiplier)
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
-    this.output.gain.rampTo(Math.pow(10, db / 20), 0.25)
+    const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
+    if (Math.abs(linear - this.lastOutputGain) < 0.001) return
+    this.lastOutputGain = linear
+    this.output.gain.rampTo(linear, 0.25)
   }
 
   dispose(): void {

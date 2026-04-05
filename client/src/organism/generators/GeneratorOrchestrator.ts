@@ -304,9 +304,10 @@ export class GeneratorOrchestrator {
       this.selfListenGainCorrection += (1.0 - this.selfListenGainCorrection) * 0.1
     }
 
-    // Apply corrected volumes to generators (base × self-listen, not compounded)
+    // Apply corrected volume to bass only — melody is already written with
+    // selfListenGainCorrection baked in by applyPerformerState().  Writing it
+    // again here would cancel the in-progress 250ms ramp, causing crackling.
     this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * this.selfListenGainCorrection)
-    this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * this.selfListenGainCorrection)
 
     // ── Frequency balance — log only, no gain changes ─────────────────────
     // Frequency corrections via gain were causing cascading feedback.

@@ -103,7 +103,7 @@ export class ChannelStrip {
   }
 
   setGainDb(db: number): void {
-    this.fader.gain.rampTo(Tone.dbToGain(db), 0.05)
+    this.fader.gain.rampTo(Tone.dbToGain(db), 0.15)
   }
 
   setPan(pan: number): void {
