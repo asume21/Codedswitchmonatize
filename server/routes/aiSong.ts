@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { requireAuth } from "../middleware/auth";
 import { arrangeSong } from "../services/arrangement";
 import { callAI } from "../services/aiGateway";
 import { LocalStorageService } from "../services/localStorageService";
@@ -51,7 +52,7 @@ const songPlanSchema = {
 };
 
 // Phase 1: turn a free-text idea into a structured SongPlan
-router.post("/plan", async (req, res) => {
+router.post("/plan", requireAuth(), async (req, res) => {
   try {
     const { idea, targetAudience, durationSeconds } = req.body || {};
 
@@ -154,7 +155,7 @@ router.post("/plan", async (req, res) => {
 });
 
 // Phase 5: Song arrangement from SongPlan
-router.post("/arrange", async (req, res) => {
+router.post("/arrange", requireAuth(), async (req, res) => {
   try {
     const { songPlan, songPlanId, addBreakdown, notes } = req.body || {};
 

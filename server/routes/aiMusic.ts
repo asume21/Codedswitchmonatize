@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { requireAuth } from "../middleware/auth";
 import { callAI } from "../services/aiGateway";
 import { LocalStorageService } from "../services/localStorageService";
 import type { MelodyTrack, DrumGrid, BassTrack, AiNote } from "@shared/types/aiMusic";
@@ -23,7 +24,7 @@ function normalizeNotes(raw: any): AiNote[] {
 }
 
 // Phase 3: Melody generation based on SongPlan section
-router.post("/melody", async (req, res) => {
+router.post("/melody", requireAuth(), async (req, res) => {
   try {
     const { songPlanId, sectionId, key, bpm, lengthBars, density, contour } = req.body || {};
 
@@ -98,7 +99,7 @@ router.post("/melody", async (req, res) => {
 });
 
 // Phase 3: Drum grid generation per section
-router.post("/drums", async (req, res) => {
+router.post("/drums", requireAuth(), async (req, res) => {
   try {
     const { songPlanId, sectionId, bpm, bars, style, gridResolution } = req.body || {};
 
@@ -199,7 +200,7 @@ router.post("/drums", async (req, res) => {
 });
 
 // Phase 3: Bassline generation per section
-router.post("/bass", async (req, res) => {
+router.post("/bass", requireAuth(), async (req, res) => {
   try {
     const { songPlanId, sectionId, key, bpm, bars, chordProgression } = req.body || {};
 

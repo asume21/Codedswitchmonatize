@@ -1,9 +1,10 @@
 import { Router } from "express";
+import { requireAuth } from "../middleware/auth";
 import { backingTrackService } from "../services/backingTrack";
 
 const router = Router();
 
-router.post("/backing-track", async (req, res) => {
+router.post("/backing-track", requireAuth(), async (req, res) => {
   try {
     const { songPlanId, sectionId, prompt, durationSeconds, seed } = req.body || {};
 

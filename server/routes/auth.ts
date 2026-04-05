@@ -220,6 +220,20 @@ export function createAuthRoutes(storage: IStorage) {
     }
   });
 
+  // Complete onboarding
+  router.post("/onboarding", async (req: Request, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      await storage.updateUser(req.userId, { onboardingCompleted: true });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Onboarding error:", error);
+      res.status(500).json({ message: "Failed to save onboarding" });
+    }
+  });
+
   // Get current user
   router.get("/me", async (req: Request, res: Response) => {
     try {

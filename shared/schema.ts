@@ -35,6 +35,7 @@ export const users = pgTable("users", {
   // Credit system for AI generation
   credits: integer("credits").default(10), // Free credits on signup
   totalCreditsSpent: integer("total_credits_spent").default(0),
+  onboardingCompleted: boolean("onboarding_completed").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

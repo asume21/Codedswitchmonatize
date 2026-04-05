@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { requireAuth } from "../middleware/auth";
 import { callAI } from "../services/aiGateway";
 import { LocalStorageService } from "../services/localStorageService";
 import type {
@@ -104,7 +105,7 @@ function coercePunchup(input: Partial<LyricsPunchupResult>, originalLines: strin
   };
 }
 
-router.post("/generate", async (req, res) => {
+router.post("/generate", requireAuth(), async (req, res) => {
   try {
     const { songPlanId, sectionId, style, topic, syllablesPerBar, rhymeScheme } = req.body || {};
 
@@ -162,7 +163,7 @@ router.post("/generate", async (req, res) => {
   }
 });
 
-router.post("/punchup", async (req, res) => {
+router.post("/punchup", requireAuth(), async (req, res) => {
   try {
     const { sectionId, originalLines } = req.body || {};
 

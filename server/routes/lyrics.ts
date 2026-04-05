@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { requireAuth } from '../middleware/auth';
 import { unifiedMusicService } from '../services/unifiedMusicService';
 import { makeAICall } from '../services/grok';
 import { getGenreSpec, getGenresByMood } from '../ai/knowledge/genreDatabase';
@@ -8,7 +9,7 @@ import { sanitizePrompt, validateAIOutput, safeAIGeneration } from '../ai/safety
 const router = Router();
 
 // Generate Lyrics Text - Enhanced with Genre Database + Music Theory
-router.post('/generate', async (req: Request, res: Response) => {
+router.post('/generate', requireAuth(), async (req: Request, res: Response) => {
   try {
     const { theme, genre, mood, complexity } = req.body;
     
@@ -65,7 +66,7 @@ Write complete, authentic ${genre || 'pop'} lyrics. Include [Verse], [Chorus], [
 });
 
 // Get Rhymes
-router.post('/rhymes', async (req: Request, res: Response) => {
+router.post('/rhymes', requireAuth(), async (req: Request, res: Response) => {
   try {
     const { word } = req.body;
     if (!word) return res.status(400).json({ error: "Word required" });
@@ -86,7 +87,7 @@ router.post('/rhymes', async (req: Request, res: Response) => {
 });
 
 // Generate Music from Lyrics (Audio)
-router.post('/generate-music', async (req: Request, res: Response) => {
+router.post('/generate-music', requireAuth(), async (req: Request, res: Response) => {
   try {
     const { lyrics, genre, mood, title } = req.body;
     
@@ -159,7 +160,7 @@ function buildAnalysisFallback(lyrics: string) {
 }
 
 // Generate Beat from Lyrics - Enhanced with FULL Intelligence System
-router.post('/generate-beat', async (req: Request, res: Response) => {
+router.post('/generate-beat', requireAuth(), async (req: Request, res: Response) => {
   try {
     const { lyrics, genre } = req.body;
     const safeGenre = genre || 'pop';
@@ -239,7 +240,7 @@ Match the beat to the lyrics mood. Use 64 steps (4 bars). Follow genre specifica
 });
 
 // Analyze Lyrics
-router.post('/analyze', async (req: Request, res: Response) => {
+router.post('/analyze', requireAuth(), async (req: Request, res: Response) => {
   try {
     const { lyrics } = req.body;
     if (!lyrics || typeof lyrics !== 'string' || !lyrics.trim()) {

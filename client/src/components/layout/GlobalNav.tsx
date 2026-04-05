@@ -11,18 +11,26 @@ import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 
-const NAV_ITEMS = [
+// Primary items: always visible in all nav variants
+const PRIMARY_NAV = [
   { icon: Home, label: 'Home', path: '/', featured: false },
   { icon: LayoutDashboard, label: 'Studio', path: '/studio', featured: false },
   { icon: Users, label: 'Social Hub', path: '/social-hub', featured: true },
-  { icon: Mic2, label: 'Lyrics', path: '/lyric-lab', featured: false },
-  { icon: Music2, label: 'Samples', path: '/sample-library', featured: false },
-  { icon: BookOpen, label: 'Blog', path: '/blog', featured: false },
-  { icon: Shield, label: 'Security', path: '/vulnerability-scanner', featured: false },
   { icon: MessageSquare, label: 'AI Chat', path: '/ai-assistant', featured: false },
+];
+
+// Secondary items: shown in "More" overflow menu
+const MORE_NAV = [
+  { icon: Mic2, label: 'Lyric Lab', path: '/lyric-lab', featured: false },
+  { icon: Music2, label: 'Samples', path: '/sample-library', featured: false },
   { icon: Mic2, label: 'Voice Convert', path: '/voice-convert', featured: false },
+  { icon: Shield, label: 'Security', path: '/vulnerability-scanner', featured: false },
+  { icon: BookOpen, label: 'Blog', path: '/blog', featured: false },
   { icon: Key, label: 'Developer API', path: '/developer', featured: false },
 ];
+
+// Combined list for full menus (dropdown, floating)
+const NAV_ITEMS = [...PRIMARY_NAV, ...MORE_NAV];
 
 interface GlobalNavProps {
   variant?: 'dropdown' | 'sidebar' | 'topbar';
@@ -49,7 +57,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
   if (variant === 'topbar') {
     return (
       <nav className={`flex items-center gap-1 overflow-x-auto ${className}`}>
-        {NAV_ITEMS.slice(0, 7).map(item => (
+        {PRIMARY_NAV.map(item => (
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
@@ -58,8 +66,8 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
                 ? location === item.path
                   ? 'bg-gradient-to-r from-pink-600/30 to-cyan-600/30 border border-pink-500/50 text-white shadow-[0_0_12px_rgba(236,72,153,0.3)]'
                   : 'bg-gradient-to-r from-pink-500/10 to-cyan-500/10 border border-pink-500/25 text-pink-200 hover:text-white hover:border-pink-400/50 hover:shadow-[0_0_16px_rgba(236,72,153,0.25)]'
-                : location === item.path 
-                  ? 'bg-cyan-600/25 border border-cyan-500/40 text-white' 
+                : location === item.path
+                  ? 'bg-cyan-600/25 border border-cyan-500/40 text-white'
                   : 'text-cyan-100/70 hover:text-white hover:bg-cyan-500/10 border border-transparent'
             }`}
           >
@@ -70,7 +78,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
 
         {isAuthenticated && (
           <button
-            onClick={() => navigate('/buy-credits')}
+            onClick={() => navigate('/pricing')}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-all text-cyan-100/80 hover:text-white hover:bg-cyan-500/10 border border-transparent"
             title="View credits"
           >
@@ -88,12 +96,12 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
           <Menu className="w-4 h-4" />
           <span className="hidden md:inline">More</span>
         </button>
-        
+
         {isOpen && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
             <div className="absolute top-full right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] bg-black/90 border border-cyan-500/40 rounded-xl py-2 z-50 shadow-[0_0_30px_rgba(6,182,212,0.25)] backdrop-blur-md astutely-panel">
-              {NAV_ITEMS.slice(6).map(item => (
+              {MORE_NAV.map(item => (
                 <button
                   key={item.path}
                   onClick={() => { navigate(item.path); setIsOpen(false); }}
@@ -129,7 +137,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
           variant="outline"
           size="sm"
           className="gap-2 border-cyan-500/40 text-cyan-100 hover:bg-cyan-500/15 hover:text-white"
-          onClick={() => navigate('/buy-credits')}
+          onClick={() => navigate('/pricing')}
         >
           <Coins className="w-4 h-4 text-cyan-300" />
           {currentCredits === null ? 'Credits' : currentCredits}
@@ -177,8 +185,8 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
             <div className="px-4 py-2 text-xs font-black uppercase tracking-widest text-cyan-400/80">
               Navigate
             </div>
-            
-            {NAV_ITEMS.map(item => (
+
+            {PRIMARY_NAV.map(item => (
               <button
                 key={item.path}
                 onClick={() => { navigate(item.path); setIsOpen(false); }}
@@ -200,7 +208,30 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
                 )}
               </button>
             ))}
-            
+
+            <div className="mx-4 my-2 h-px bg-cyan-500/20" />
+            <div className="px-4 py-1.5 text-xs font-black uppercase tracking-widest text-cyan-500/50">
+              More Tools
+            </div>
+
+            {MORE_NAV.map(item => (
+              <button
+                key={item.path}
+                onClick={() => { navigate(item.path); setIsOpen(false); }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all ${
+                  location === item.path
+                    ? 'bg-cyan-500/20 text-white'
+                    : 'text-cyan-100/60 hover:bg-cyan-500/10 hover:text-white'
+                }`}
+              >
+                <item.icon className={`w-4 h-4 ${location === item.path ? 'text-cyan-300' : 'text-cyan-500/40'}`} />
+                <span>{item.label}</span>
+                {location === item.path && (
+                  <span className="ml-auto text-xs text-cyan-400">●</span>
+                )}
+              </button>
+            ))}
+
             <div className="mx-4 my-2 h-px bg-cyan-500/30" />
             
             <div className="px-4 py-2 text-xs text-cyan-500/60">

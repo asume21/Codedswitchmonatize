@@ -4,7 +4,7 @@ import connectPgSimple from "connect-pg-simple";
 import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
-import { currentUser } from "./middleware/auth";
+import { currentUser, requireAuthExcept } from "./middleware/auth";
 import { globalLimiter } from "./middleware/rateLimiting";
 import path from "path";
 import fs from "fs";
@@ -150,6 +150,18 @@ app.use((req, res, next) => {
   // Attach current user middleware
   app.use(currentUser(storage));
 
+  // Blanket auth: protect all /api/* routes except public endpoints
+  app.use(requireAuthExcept([
+    "/api/auth",
+    "/api/health",
+    "/api/subscription-status",
+    "/api/check-license",
+    "/api/webhooks/stripe",
+    "/api/blog",
+    "/api/social/feed/public",
+    "/api/songs/public",
+  ]));
+
   const server = await registerRoutes(app, storage);
 
   // ── SEO: canonical domain redirect ──
@@ -211,14 +223,19 @@ app.use((req, res, next) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 
-  // Error handler must be last — after all routes and static serving
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  // Error handler must be last — after all routes and static serving.
+  // ALWAYS returns JSON for API routes to prevent "HTML instead of JSON" errors.
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     if (!res.headersSent) {
-      res.status(status).json({ message });
+      res.status(status).json({
+        success: false,
+        error: status === 429 ? 'RATE_LIMITED' : 'SERVER_ERROR',
+        message,
+      });
     }
-    console.error(`[error] ${status} ${message}`, err.stack);
+    console.error(`[error] ${req.method} ${req.path} ${status} ${message}`, err.stack);
   });
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

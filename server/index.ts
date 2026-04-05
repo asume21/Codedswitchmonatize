@@ -9,7 +9,7 @@ import fs from "fs";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
-import { currentUser } from "./middleware/auth";
+import { currentUser, requireAuthExcept } from "./middleware/auth";
 import { runMigrations } from "./migrations/runMigrations";
 import { ensureDataRoots } from "./services/localStorageService";
 import { globalLimiter } from "./middleware/rateLimiting";
@@ -264,14 +264,39 @@ app.use((req, res, next) => {
   // Attach current user middleware (dev falls back to default user)
   app.use(currentUser(storage));
 
+  // Blanket auth: protect all /api/* routes except public endpoints
+  app.use(requireAuthExcept([
+    "/api/auth",              // login, register, logout
+    "/api/health",            // health check
+    "/api/subscription-status", // auth context check (returns isAuthenticated: false for guests)
+    "/api/check-license",     // license validation
+    "/api/webhooks/stripe",   // Stripe webhook
+    "/api/blog",              // public blog content
+    "/api/social/feed/public", // public social feed
+    "/api/songs/public",      // public shared songs
+  ]));
+
   const server = await registerRoutes(app, storage);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  // Global error handler — ALWAYS returns JSON for /api/* routes.
+  // This catches unhandled errors, including any middleware that might
+  // otherwise send HTML error pages (e.g. body-parser, multer).
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    if (res.headersSent) {
+      // Headers already sent — nothing we can do, log and bail
+      console.error(`[ERROR] Headers already sent for ${req.method} ${req.path}:`, message);
+      return;
+    }
+
+    // Force JSON for API routes to prevent "HTML instead of JSON" errors
+    res.status(status).json({
+      success: false,
+      error: status === 429 ? 'RATE_LIMITED' : 'SERVER_ERROR',
+      message,
+    });
   });
 
   // importantly only setup vite in development and after

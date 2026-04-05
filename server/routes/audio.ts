@@ -253,7 +253,7 @@ export function createAudioRoutes() {
   });
 
   // Generate pattern-based music (for RealisticAudioEngine playback)
-  router.post("/songs/generate-pattern", async (req: Request, res: Response) => {
+  router.post("/songs/generate-pattern", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { prompt, duration, bpm } = req.body;
       
@@ -368,7 +368,7 @@ export function createAudioRoutes() {
   });
 
   // Generate song (Alias)
-  router.post("/audio/generate-song", async (req: Request, res: Response) => {
+  router.post("/audio/generate-song", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { prompt, lyrics, options = {} } = req.body;
       
@@ -402,7 +402,7 @@ export function createAudioRoutes() {
   });
 
   // Generate lyrics (alias for /api/lyrics/generate)
-  router.post("/audio/generate-lyrics", async (req: Request, res: Response) => {
+  router.post("/audio/generate-lyrics", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { theme, genre, mood, style } = req.body;
       
@@ -475,7 +475,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Generate beat from lyrics
-  router.post("/audio/generate-beat-from-lyrics", async (req: Request, res: Response) => {
+  router.post("/audio/generate-beat-from-lyrics", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { lyrics, genre, complexity, bpm } = req.body;
       
@@ -509,7 +509,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Generate dynamic layers
-  router.post("/layers/generate", async (req: Request, res: Response) => {
+  router.post("/layers/generate", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { baseTrack, style, complexity, instruments } = req.body;
       
@@ -548,9 +548,10 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Generate bass line
-  router.post("/music/generate-bass", 
-    beatGenerationLimiter, 
-    validateRequired('chordProgression'), 
+  router.post("/music/generate-bass",
+    requireAuth(),
+    beatGenerationLimiter,
+    validateRequired('chordProgression'),
     async (req: Request, res: Response) => {
     try {
       const { 
@@ -662,7 +663,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
   });
 
   // Phase 3: AI Bassline endpoint
-  router.post("/ai/music/bass", async (req: Request, res: Response) => {
+  router.post("/ai/music/bass", requireAuth(), async (req: Request, res: Response) => {
     try {
       if (!req.userId) {
         return sendError(res, 401, "Authentication required - please log in");

@@ -59,6 +59,7 @@ import { mixPreviewService, MixPreviewRequest } from "./services/mixPreview";
 import { jobManager } from "./services/jobManager";
 import multer from "multer";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { aiGenerationLimiter } from "./middleware/rateLimiting";
 
 // Standardized error response helper
 const sendError = (res: Response, statusCode: number, message: string) => {
@@ -72,49 +73,64 @@ const __dirname = process.cwd();
 function getClientKey(req: Request): string {
   const userId = (req as any).userId;
   if (userId) return `user:${userId}`;
-  
+
   const forwarded = req.headers['x-forwarded-for'];
   const ip = typeof forwarded === 'string'
     ? forwarded.split(',')[0].trim()
     : req.ip || req.socket?.remoteAddress || 'unknown';
 
-  // express-rate-limit requires IPv6 normalization via helper
   const normalized = ipKeyGenerator(ip, 64);
   return `ip:${normalized}`;
 }
 
+/**
+ * Custom handler that guarantees JSON response on 429.
+ * Without this, express-rate-limit sends text/html which crashes the frontend.
+ */
+function jsonHandler(msg: string) {
+  return (req: Request, res: Response) => {
+    const retryAfter = res.getHeader('Retry-After');
+    res.status(429).json({
+      success: false,
+      error: 'RATE_LIMITED',
+      message: msg,
+      retryAfter: retryAfter ? Number(retryAfter) : undefined,
+    });
+  };
+}
+
 // Rate limiter for public endpoints
 const publicApiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: { success: false, message: 'Too many requests, please try again later.' },
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: getClientKey,
   validate: { xForwardedForHeader: false },
   skipFailedRequests: true,
+  handler: jsonHandler('Too many requests, please try again later.'),
 });
 
 // Rate limiter for AI endpoints (expensive API calls)
 const aiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // Limit each IP to 30 AI requests per 15 min
-  message: { success: false, message: 'AI generation limit reached. Please try again in a few minutes.' },
+  windowMs: 15 * 60 * 1000,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: getClientKey,
   validate: { xForwardedForHeader: false },
   skipFailedRequests: true,
+  handler: jsonHandler('AI generation limit reached. Please try again in a few minutes.'),
 });
 
 // Rate limiter for upload endpoints
 const uploadLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // Limit each IP to 20 uploads per hour
-  message: { success: false, message: 'Upload limit exceeded. Please try again later.' },
+  windowMs: 60 * 60 * 1000,
+  max: 20,
   keyGenerator: getClientKey,
   validate: { xForwardedForHeader: false },
   skipFailedRequests: true,
+  handler: jsonHandler('Upload limit exceeded. Please try again later.'),
 });
 
 async function getAudioDuration(filePath: string): Promise<number> {
@@ -670,7 +686,7 @@ Return ONLY valid JSON:
   });
 
   // Upload parameter generation endpoint
-  app.post("/api/objects/upload", uploadLimiter, async (req, res) => {
+  app.post("/api/objects/upload", requireAuth(), uploadLimiter, async (req, res) => {
     try {
       console.log('🎵 Upload parameters requested');
 
@@ -838,7 +854,7 @@ Return ONLY valid JSON:
 
   // Beat generation endpoint using MusicGen AI with model selection
   // Credit purchase endpoint
-  app.post("/api/credits/purchase", async (req: Request, res: Response) => {
+  app.post("/api/credits/purchase", requireAuth(), async (req: Request, res: Response) => {
     try {
       if (!req.userId) {
         return sendError(res, 401, "Authentication required");
@@ -919,7 +935,7 @@ Return ONLY valid JSON:
     }
   });
 
-  app.post("/api/beats/generate", async (req: Request, res: Response) => {
+  app.post("/api/beats/generate", requireAuth(), async (req: Request, res: Response) => {
     try {
       // Check authentication
       if (!req.userId) {
@@ -1185,7 +1201,7 @@ Return ONLY valid JSON:
   });
 
   // Melody generation endpoint using MusicGen AI
-  app.post("/api/melody/generate", async (req: Request, res: Response) => {
+  app.post("/api/melody/generate", requireAuth(), async (req: Request, res: Response) => {
     try {
       // Check authentication
       if (!req.userId) {
@@ -1331,7 +1347,7 @@ Return ONLY valid JSON:
   });
 
   // Phase 3: AI Melody endpoint for BeatMaker (MIDI-only via callAI)
-  app.post("/api/ai/music/melody", async (req: Request, res: Response) => {
+  app.post("/api/ai/music/melody", requireAuth(), async (req: Request, res: Response) => {
     try {
       if (!req.userId) {
         return sendError(res, 401, "Authentication required - please log in");
@@ -1465,7 +1481,7 @@ Return ONLY valid JSON:
   });
 
   // AI Mix & Master endpoint - analyzes tracks and suggests optimal mixing parameters
-  app.post("/api/mix/generate", async (req: Request, res: Response) => {
+  app.post("/api/mix/generate", requireAuth(), async (req: Request, res: Response) => {
     try {
       // Check authentication
       if (!req.userId) {
@@ -4649,7 +4665,7 @@ ${code}
   });
 
   // Set user's AI provider preference
-  app.post("/api/ai-provider/set", async (req: Request, res: Response) => {
+  app.post("/api/ai-provider/set", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { feature, provider } = req.body;
       

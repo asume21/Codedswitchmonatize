@@ -1,73 +1,53 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Music, Code, Upload, Drum, Mic, Shield, MessageSquare, Zap, BarChart3, Layers, Sparkles } from "lucide-react";
+import { Music, Code, Upload, Mic, Shield, MessageSquare, BarChart3, Users, Mic2 } from "lucide-react";
 
 export default function Dashboard() {
   const quickActions = [
     {
-      title: "Music Studio",
-      description: "Professional multi-instrument composition",
+      title: "Open Studio",
+      description: "Beat maker, piano roll, mixer, and AI tools",
       icon: Music,
-      href: "/music-studio",
-      color: "bg-purple-500"
+      href: "/studio",
+      color: "bg-cyan-600",
+      primary: true,
     },
     {
-      title: "Song Uploader",
-      description: "Upload and analyze audio files",
-      icon: Upload,
-      href: "/song-uploader", 
-      color: "bg-blue-500"
-    },
-    {
-      title: "Code Translator",
-      description: "Translate between programming languages",
-      icon: Code,
-      href: "/code-translator",
-      color: "bg-green-500"
-    },
-    {
-      title: "Beat Maker",
-      description: "Create professional drum patterns",
-      icon: Drum,
-      href: "/beat-studio",
-      color: "bg-orange-500"
-    },
-    {
-      title: "Code to Music",
-      description: "Transform code into musical compositions",
-      icon: Zap,
-      href: "/codebeat-studio",
-      color: "bg-yellow-500"
-    },
-    {
-      title: "AI Assistant", 
-      description: "Get help with coding and music",
+      title: "AI Assistant",
+      description: "Chat with AI about your music and code",
       icon: MessageSquare,
       href: "/ai-assistant",
-      color: "bg-pink-500"
+      color: "bg-pink-500",
     },
     {
-      title: "Advanced Sequencer",
-      description: "Professional multi-layered beat production",
-      icon: Layers,
-      href: "/advanced-sequencer", 
-      color: "bg-orange-500"
+      title: "Social Hub",
+      description: "Share tracks and discover new music",
+      icon: Users,
+      href: "/social-hub",
+      color: "bg-purple-500",
     },
     {
-      title: "Granular Engine",
-      description: "Advanced texture manipulation & synthesis",
-      icon: Sparkles,
-      href: "/granular-engine",
-      color: "bg-purple-500"
+      title: "Lyric Lab",
+      description: "Write and generate lyrics with AI",
+      icon: Mic2,
+      href: "/lyric-lab",
+      color: "bg-orange-500",
     },
     {
-      title: "Pack Generator",
-      description: "AI-powered sample pack creation from prompts",
-      icon: Music,
-      href: "/pack-generator",
-      color: "bg-emerald-500"
-    }
+      title: "Voice Convert",
+      description: "Transform vocals with AI voice models",
+      icon: Mic,
+      href: "/voice-convert",
+      color: "bg-blue-500",
+    },
+    {
+      title: "Security Scanner",
+      description: "Scan code for vulnerabilities",
+      icon: Shield,
+      href: "/vulnerability-scanner",
+      color: "bg-green-500",
+    },
   ];
 
   return (
@@ -123,7 +103,11 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {quickActions.map((action, index) => (
             <Link key={index} href={action.href}>
-              <Card className="transition-transform hover:scale-105 cursor-pointer h-full">
+              <Card className={`transition-all hover:scale-[1.03] cursor-pointer h-full ${
+                action.primary
+                  ? 'border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.15)] md:col-span-2 lg:col-span-1'
+                  : ''
+              }`}>
                 <CardHeader>
                   <div className="flex items-center space-x-2">
                     <div className={`p-2 rounded-lg ${action.color}`}>
@@ -134,7 +118,9 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <CardDescription>{action.description}</CardDescription>
-                  <Button className="w-full">Open</Button>
+                  <Button className={`w-full ${action.primary ? 'bg-cyan-600/30 border-cyan-500/40 hover:bg-cyan-500/40' : ''}`}>
+                    {action.primary ? 'Launch Studio' : 'Open'}
+                  </Button>
                 </CardContent>
               </Card>
             </Link>

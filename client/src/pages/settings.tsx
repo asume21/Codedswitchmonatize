@@ -632,11 +632,8 @@ export default function Settings() {
                 </div>
 
                 <div className="space-y-3">
-                  <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/billing')}>
-                    <CreditCard className="h-4 w-4 mr-2" /> Manage Billing (Stripe)
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/buy-credits')}>
-                    <Upload className="h-4 w-4 mr-2" /> Buy Credits / Membership
+                  <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/pricing')}>
+                    <CreditCard className="h-4 w-4 mr-2" /> Manage Billing & Pricing
                   </Button>
                   <Button
                     variant="outline"
@@ -646,7 +643,7 @@ export default function Settings() {
                         title: 'Invoices',
                         description: 'Use Manage Billing to view invoices and update payment methods.',
                       });
-                      setLocation('/billing');
+                      setLocation('/pricing');
                     }}
                   >
                     <Download className="h-4 w-4 mr-2" /> Invoices & Payment Methods
@@ -673,25 +670,28 @@ export default function Settings() {
           </TabsContent>
         </Tabs>
 
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center pt-6">
-          <Button 
-            variant="outline" 
+      </div>
+
+      {/* Sticky Action Footer */}
+      <div className="sticky bottom-0 z-10 bg-black/80 backdrop-blur-md border-t border-cyan-500/20 px-6 py-4">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <Button
+            variant="outline"
             onClick={handleReset}
             className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700"
           >
             Reset to Defaults
           </Button>
           <div className="space-x-3">
-            <Button 
+            <Button
               variant="outline"
               className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700"
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleSave}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
             >
               Save Changes
             </Button>

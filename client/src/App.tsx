@@ -17,6 +17,8 @@ import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
 import FloatingAudioMonitor from "@/components/ui/FloatingAudioMonitor";
 import { GlobalOrganismWrapper } from "@/features/organism/GlobalOrganismWrapper";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { TeaserOverlay } from "@/components/auth/TeaserOverlay";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
@@ -37,6 +39,8 @@ import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
 // Lazy loaded pages - only load when needed
+const PricingPage = React.lazy(() => import("@/pages/pricing").catch(() => ({ default: () => <NotFound /> })));
+const OnboardingPage = React.lazy(() => import("@/pages/onboarding").catch(() => ({ default: () => <NotFound /> })));
 const Dashboard = React.lazy(() => import("@/pages/dashboard").catch(() => ({ default: () => <NotFound /> })));
 const UnifiedStudioWorkspace = React.lazy(() => import("@/components/studio/UnifiedStudioWorkspace").catch(() => ({ default: () => <NotFound /> })));
 const Settings = React.lazy(() => import("@/pages/settings").catch(() => ({ default: () => <NotFound /> })));
@@ -224,22 +228,24 @@ function App() {
               <Route path="/login" component={Login} />
               <Route path="/signup" component={Signup} />
               <Route path="/activate"><ActivatePage /></Route>
-              <Route path="/dashboard"><Dashboard /></Route>
-              <Route path="/billing" component={BuyCreditsPage} />
-              <Route path="/buy-credits" component={BuyCreditsPage} />
-              <Route path="/credits" component={BuyCreditsPage} />
-              <Route path="/credits/success" component={CreditsSuccessPage} />
-              <Route path="/credits/cancel" component={CreditsCancelPage} />
-              <Route path="/subscribe" component={Subscribe} />
+              <Route path="/dashboard"><ProtectedRoute><Dashboard /></ProtectedRoute></Route>
+              <Route path="/onboarding"><ProtectedRoute><OnboardingPage /></ProtectedRoute></Route>
+              <Route path="/pricing"><ProtectedRoute><PricingPage /></ProtectedRoute></Route>
+              <Route path="/billing"><Redirect to="/pricing" /></Route>
+              <Route path="/buy-credits"><Redirect to="/pricing" /></Route>
+              <Route path="/credits"><Redirect to="/pricing" /></Route>
+              <Route path="/subscribe"><Redirect to="/pricing" /></Route>
+              <Route path="/credits/success"><ProtectedRoute><CreditsSuccessPage /></ProtectedRoute></Route>
+              <Route path="/credits/cancel"><ProtectedRoute><CreditsCancelPage /></ProtectedRoute></Route>
               <Route path="/s/:id" component={PublicSongPage} />
               <Route path="/settings">
-                <AppLayout><Settings /></AppLayout>
+                <ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>
               </Route>
               <Route path="/social-hub">
-                <AppLayout><SocialHub /></AppLayout>
+                <ProtectedRoute><AppLayout><SocialHub /></AppLayout></ProtectedRoute>
               </Route>
               <Route path="/profile">
-                <AppLayout><UserProfilePage /></AppLayout>
+                <ProtectedRoute><AppLayout><UserProfilePage /></AppLayout></ProtectedRoute>
               </Route>
               <Route path="/sitemap">
                 <AppLayout><SitemapPage /></AppLayout>
@@ -255,23 +261,27 @@ function App() {
                   NON-AUDIO AI ROUTES - No StudioProviders
                   ============================================ */}
               <Route path="/vulnerability-scanner">
-                <AIMessageProvider>
-                  <AppLayout><VulnerabilityScannerPage /></AppLayout>
-                </AIMessageProvider>
+                <ProtectedRoute>
+                  <AIMessageProvider>
+                    <AppLayout><VulnerabilityScannerPage /></AppLayout>
+                  </AIMessageProvider>
+                </ProtectedRoute>
               </Route>
               <Route path="/voice-convert">
-                <AppLayout><VoiceConvertPage /></AppLayout>
+                <ProtectedRoute><AppLayout><VoiceConvertPage /></AppLayout></ProtectedRoute>
               </Route>
               <Route path="/sample-library">
-                <AppLayout><SampleLibraryPage /></AppLayout>
+                <ProtectedRoute><AppLayout><SampleLibraryPage /></AppLayout></ProtectedRoute>
               </Route>
               <Route path="/developer">
-                <DeveloperPage />
+                <ProtectedRoute><DeveloperPage /></ProtectedRoute>
               </Route>
               <Route path="/ai-assistant">
-                <AIMessageProvider>
-                  <AppLayout><AIAssistantPage /></AppLayout>
-                </AIMessageProvider>
+                <ProtectedRoute>
+                  <AIMessageProvider>
+                    <AppLayout><AIAssistantPage /></AppLayout>
+                  </AIMessageProvider>
+                </ProtectedRoute>
               </Route>
               
               {/* ============================================
@@ -279,29 +289,38 @@ function App() {
                   Heavy audio providers loaded ONLY here
                   ============================================ */}
               <Route path="/studio">
-                <StudioProviders>
-                  <AIMessageProvider>
-                    <AppLayout><UnifiedStudioWorkspace /></AppLayout>
-                  </AIMessageProvider>
-                </StudioProviders>
+                <ProtectedRoute teaserMode>
+                  <StudioProviders>
+                    <AIMessageProvider>
+                      <TeaserOverlay />
+                      <AppLayout><UnifiedStudioWorkspace /></AppLayout>
+                    </AIMessageProvider>
+                  </StudioProviders>
+                </ProtectedRoute>
               </Route>
-              
+
               {/* Lyric Lab - Special route that opens lyrics tab */}
               <Route path="/lyric-lab">
-                <StudioProviders>
-                  <AIMessageProvider>
-                    <AppLayout><LyricLabRoute /></AppLayout>
-                  </AIMessageProvider>
-                </StudioProviders>
+                <ProtectedRoute teaserMode>
+                  <StudioProviders>
+                    <AIMessageProvider>
+                      <TeaserOverlay />
+                      <AppLayout><LyricLabRoute /></AppLayout>
+                    </AIMessageProvider>
+                  </StudioProviders>
+                </ProtectedRoute>
               </Route>
 
               {/* Organism - opens studio directly on Organism tab */}
               <Route path="/organism">
-                <StudioProviders>
-                  <AIMessageProvider>
-                    <AppLayout><OrganismRoute /></AppLayout>
-                  </AIMessageProvider>
-                </StudioProviders>
+                <ProtectedRoute teaserMode>
+                  <StudioProviders>
+                    <AIMessageProvider>
+                      <TeaserOverlay />
+                      <AppLayout><OrganismRoute /></AppLayout>
+                    </AIMessageProvider>
+                  </StudioProviders>
+                </ProtectedRoute>
               </Route>
 
               {/* ============================================

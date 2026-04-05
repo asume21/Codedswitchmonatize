@@ -22,12 +22,21 @@ export function currentUser(storage: IStorage) {
       }
 
       // Fallback: Check Authorization header for userId (format: "Bearer userId")
+      // SECURITY: Validate that the userId actually exists in the database
+      // to prevent impersonation via arbitrary Bearer tokens.
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
-        const userId = authHeader.substring(7);
+        const userId = authHeader.substring(7).trim();
         if (userId) {
-          req.userId = userId;
-          return next();
+          try {
+            const user = await storage.getUser(userId);
+            if (user) {
+              req.userId = userId;
+              return next();
+            }
+          } catch {
+            // Invalid userId — fall through to unauthenticated
+          }
         }
       }
 
@@ -57,6 +66,27 @@ export function requireAuth() {
     
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
+    }
+    next();
+  };
+}
+
+/**
+ * Blanket auth middleware — protects all /api/* routes except explicitly listed public paths.
+ * Mount AFTER currentUser() so req.userId is already set.
+ */
+export function requireAuthExcept(publicPrefixes: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Allow non-API routes (static files, HTML pages) through
+    if (!req.path.startsWith("/api")) return next();
+
+    // Check if this path matches any public prefix
+    const isPublic = publicPrefixes.some((prefix) => req.path.startsWith(prefix));
+    if (isPublic) return next();
+
+    // Require authentication for everything else
+    if (!req.userId) {
+      return res.status(401).json({ message: "Authentication required" });
     }
     next();
   };

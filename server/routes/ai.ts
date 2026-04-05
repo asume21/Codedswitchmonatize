@@ -11,7 +11,7 @@ export function createAIRoutes() {
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation
   // ============================================
-  router.post("/grok", async (req: Request, res: Response) => {
+  router.post("/grok", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { prompt } = req.body;
       
@@ -63,7 +63,7 @@ export function createAIRoutes() {
   // ============================================
   // CHAT ENDPOINT - Generic AI chat
   // ============================================
-  router.post("/chat", async (req: Request, res: Response) => {
+  router.post("/chat", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { messages = [], prompt } = req.body || {};
 
@@ -93,7 +93,7 @@ export function createAIRoutes() {
   // AI CHORD GENERATION ENDPOINT
   // Secure server-side OpenAI integration
   // ============================================
-  router.post("/chords", async (req: Request, res: Response) => {
+  router.post("/chords", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { key = 'C', mood = 'happy', userId = 'anonymous' } = req.body;
       

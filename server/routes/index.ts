@@ -39,7 +39,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   app.use("/api/music", musicRoutes);
 
   // Upload parameter generation endpoint
-  app.post("/api/objects/upload", async (req, res) => {
+  app.post("/api/objects/upload", requireAuth(), async (req, res) => {
     try {
       console.log('🎵 Upload parameters requested');
 
@@ -67,7 +67,7 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   });
 
   // AI Assistant Chat endpoint
-  app.post("/api/assistant/chat", async (req, res) => {
+  app.post("/api/assistant/chat", requireAuth(), async (req, res) => {
     try {
       const { message, context, aiProvider } = req.body;
 
@@ -135,7 +135,7 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   });
 
   // AI Generation Routes
-  app.post("/api/beat/generate", async (req, res) => {
+  app.post("/api/beat/generate", requireAuth(), async (req, res) => {
     try {
       const { style, bpm, complexity, aiProvider } = req.body;
       let responded = false;
@@ -178,7 +178,7 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
-  app.post("/api/lyrics/generate", lyricsLimiter, validatePrompt, async (req, res) => {
+  app.post("/api/lyrics/generate", requireAuth(), lyricsLimiter, validatePrompt, async (req, res) => {
     try {
       const { theme, genre, mood, complexity, aiProvider } = req.body;
 
@@ -207,7 +207,7 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
     }
   });
 
-  app.post("/api/melody/generate", async (req, res) => {
+  app.post("/api/melody/generate", requireAuth(), async (req, res) => {
     try {
       const { scale, style, complexity, availableTracks, musicalParams } = req.body;
 
@@ -237,7 +237,7 @@ Be helpful, creative, and provide actionable advice. When discussing music, use 
   });
 
   // Bass Line Generation
-  app.post("/api/bass/generate", async (req, res) => {
+  app.post("/api/bass/generate", requireAuth(), async (req, res) => {
     try {
       const { key, style, complexity, groove, bpm } = req.body;
 
@@ -336,7 +336,7 @@ Return JSON format:
   });
 
   // Code to Music AI Generation
-  app.post("/api/code-to-music", async (req, res) => {
+  app.post("/api/code-to-music", requireAuth(), async (req, res) => {
     try {
       const { code, language, complexity } = req.body;
 
@@ -438,7 +438,7 @@ Return a JSON object with this structure:
     }
   });
 
-  app.post("/api/music/generate-complete", async (req, res) => {
+  app.post("/api/music/generate-complete", requireAuth(), async (req, res) => {
     try {
       const { prompt, genre, bpm, provider, key } = req.body;
 
@@ -826,7 +826,7 @@ IMPORTANT: You ARE the professional AI analysis. Give confident, specific feedba
   }
 
   // Beat save and list endpoints
-  app.post("/api/beats", async (req, res) => {
+  app.post("/api/beats", requireAuth(), async (req, res) => {
     try {
       const { name, pattern, bpm } = req.body;
 

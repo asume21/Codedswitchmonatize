@@ -371,6 +371,7 @@ export class MemStorage implements IStorage {
       lastUsageReset: new Date(),
       credits: 10, // Free credits on signup
       totalCreditsSpent: 0,
+      onboardingCompleted: false,
       createdAt: new Date(),
     };
     this.users.set(defaultUser.id, defaultUser);
@@ -417,6 +418,7 @@ export class MemStorage implements IStorage {
       lastUsageReset: new Date(),
       credits: 10, // Free credits on signup
       totalCreditsSpent: 0,
+      onboardingCompleted: false,
       createdAt: new Date(),
     };
     this.users.set(id, user);

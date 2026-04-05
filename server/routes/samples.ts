@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { requireAuth } from "../middleware/auth";
 import { localSampleLibrary } from "../services/localSampleLibrary";
 import { createReadStream, existsSync } from "fs";
 import { validateFilename } from "../utils/security";
@@ -56,7 +57,7 @@ router.get("/stats", async (_req: Request, res: Response) => {
 });
 
 // Generate a sample pack
-router.post("/generate-pack", async (req: Request, res: Response) => {
+router.post("/generate-pack", requireAuth(), async (req: Request, res: Response) => {
   try {
     const { genre, bpm, includeLoops, sampleCount } = req.body;
     const pack = await localSampleLibrary.generatePack({
