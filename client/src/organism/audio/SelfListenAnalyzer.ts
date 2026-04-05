@@ -150,6 +150,10 @@ export class SelfListenAnalyzer {
         const ctx = Tone.getContext().rawContext as AudioContext
         const decoded = await ctx.decodeAudioData(arrayBuffer)
         const samples = decoded.getChannelData(0)  // Float32Array, mono
+        // Yield to the event loop before running heavy DSP (~5-10ms of synchronous
+        // FFT + onset detection). This prevents the analysis from blocking an
+        // in-progress audio callback and causing a brief dropout/crackle.
+        await new Promise(resolve => setTimeout(resolve, 0))
         const report  = this.buildReport(samples, decoded.sampleRate)
         this.lastReport = report
         for (const cb of this.callbacks) {

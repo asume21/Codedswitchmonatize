@@ -211,7 +211,11 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
     const clampedVol = Math.max(0, Math.min(1, vol));
     setVolumeState(clampedVol);
     if (masterGainRef.current) {
-      masterGainRef.current.gain.value = clampedVol;
+      // Ramp instead of direct write to avoid click/pop on volume change
+      masterGainRef.current.gain.linearRampToValueAtTime(
+        clampedVol,
+        masterGainRef.current.context.currentTime + 0.05,
+      );
     }
   }, []);
 

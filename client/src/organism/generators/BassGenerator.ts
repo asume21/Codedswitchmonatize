@@ -98,9 +98,10 @@ export class BassGenerator extends GeneratorBase {
       this.rebuildPart(physics)
     }
 
-    // Duck filter based on pocket — only schedule ramp if cutoff actually changed
+    // Duck filter based on pocket — only schedule ramp if cutoff changed meaningfully.
+    // Threshold of 5Hz prevents pocket micro-drift from interrupting in-progress ramps.
     const cutoff = getBassFilterCutoff(physics.mode, physics.pocket)
-    if (Math.abs(cutoff - this.lastFilterCutoff) > 1) {
+    if (Math.abs(cutoff - this.lastFilterCutoff) > 5) {
       this.filter.frequency.rampTo(cutoff, 0.3)
       this.lastFilterCutoff = cutoff
     }
