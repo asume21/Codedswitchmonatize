@@ -268,7 +268,8 @@ export class BassGenerator extends GeneratorBase {
 
     this.part.loop      = true
     this.part.loopEnd   = '4m'
-    this.part.start(0)
+    // Start slightly in the future — start(0) fires all past events instantly
+    this.part.start('+0.05')
   }
 
   private generateNotes(): ScheduledNote[] {

@@ -120,14 +120,19 @@ export class GeneratorOrchestrator {
       this.lastOrganism = organism
     })
 
-    // Subscribe to transition events
+    // Subscribe to transition events — stagger rebuilds across ~80ms so
+    // all 5 generators don't dispose + create Tone.Parts in one synchronous
+    // burst, which floods the audio scheduler and causes crackling.
     this.unsubTransition = stateMachine.onTransition((event) => {
       if (!this.lastPhysics) return
-      this.drum.onStateTransition(event.to, event.physicsSnapshot)
-      this.bass.onStateTransition(event.to, event.physicsSnapshot)
-      this.melody.onStateTransition(event.to, event.physicsSnapshot)
-      this.texture.onStateTransition(event.to, event.physicsSnapshot)
-      this.chord.onStateTransition(event.to, event.physicsSnapshot)
+      const snap = event.physicsSnapshot
+      // Drums first (most audible if late)
+      this.drum.onStateTransition(event.to, snap)
+      this.texture.onStateTransition(event.to, snap)
+      // Stagger bass/melody/chord so Part rebuilds don't collide
+      setTimeout(() => this.bass.onStateTransition(event.to, snap), 20)
+      setTimeout(() => this.melody.onStateTransition(event.to, snap), 40)
+      setTimeout(() => this.chord.onStateTransition(event.to, snap), 60)
     })
   }
 
@@ -136,9 +141,10 @@ export class GeneratorOrchestrator {
     await Tone.start()
 
     // Increase look-ahead so main-thread jank doesn't starve the audio graph.
-    // Default is ~0.1 s; bumping to 0.2 s adds buffer against React re-renders,
-    // physics computation spikes, and the melody's FX chain when it layers in.
-    Tone.getContext().lookAhead = 0.2
+    // Default is ~0.1 s; bumping to 0.3 s adds a generous buffer against React
+    // re-renders, physics computation spikes, staggered Part rebuilds, and the
+    // FX chains of all 5 generators layering in simultaneously.
+    Tone.getContext().lookAhead = 0.3
 
     Tone.getTransport().bpm.value = bpm ?? 90
     Tone.getTransport().start()

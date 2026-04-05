@@ -289,14 +289,14 @@ export class DrumGenerator extends GeneratorBase {
     const preset = DrumGenerator.KIT_PRESETS[idx]
     this.currentKickNote          = preset.kickNote
     this.kickSub.pitchDecay       = preset.kickPitchDecay
-    this.kickSub.volume.rampTo(preset.kickVol, 0.1)
+    this.kickSub.volume.rampTo(preset.kickVol, 0.3)
     this.snareBody.envelope.decay = preset.snareDecay
-    this.snareBody.volume.rampTo(preset.snareVol, 0.1)
+    this.snareBody.volume.rampTo(preset.snareVol, 0.3)
     this.hat.envelope.decay       = preset.hatDecay
-    this.hat.volume.rampTo(preset.hatVol, 0.1)
+    this.hat.volume.rampTo(preset.hatVol, 0.3)
     this.hat.resonance            = preset.hatResonance
     this.perc.envelope.decay      = preset.percDecay
-    this.perc.volume.rampTo(preset.percVol, 0.1)
+    this.perc.volume.rampTo(preset.percVol, 0.3)
   }
 
   private rebuildPart(hits: DrumHit[]): void {
@@ -317,7 +317,10 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = '4m'
-    this.part.start(0)
+    // Start slightly in the future so the audio thread has time to prepare.
+    // Using start(0) fires ALL past events as an instant burst if Transport
+    // is already running, causing massive crackling.
+    this.part.start('+0.05')
 
     // Gap 3 — mirror current pattern into ProBeatMaker for visual display
     this.broadcastToBeatMaker(hits)

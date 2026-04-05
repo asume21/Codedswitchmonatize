@@ -416,7 +416,8 @@ export class ChordGenerator extends GeneratorBase {
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    this.part.start(0)
+    // Start slightly in the future — start(0) fires all past events instantly
+    this.part.start('+0.05')
 
     // Immediately notify listeners of the first chord
     const firstChord = prog.chords[0]
