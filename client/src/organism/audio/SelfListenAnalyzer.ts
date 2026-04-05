@@ -24,22 +24,26 @@ import * as Tone          from 'tone'
 import type { SelfListenReport } from './types'
 import { analyzePcm }     from './pcmAnalyzer'
 
-const CAPTURE_INTERVAL_MS  = 15_000  // run self-analysis every 15 seconds (was 8s — less frequent = less feedback oscillation)
-const CAPTURE_DURATION_MS  = 2_000   // capture 2 seconds per sample (was 3s — less main-thread blocking)
-const LOUD_DB              = -2      // above this → reduce volume (was -3 — less trigger-happy)
-const QUIET_DB             = -35     // below this → boost volume (was -30 — wider dead zone)
+const CAPTURE_INTERVAL_MS  = 15_000  // run self-analysis every 15 seconds
+const CAPTURE_DURATION_MS  = 2_000   // capture 2 seconds per sample
+const LOUD_DB              = -2      // above this → reduce volume
+const QUIET_DB             = -35     // below this → boost volume
 
 type ReportCallback = (report: SelfListenReport) => void
 
 export class SelfListenAnalyzer {
   private tapNode:    MediaStreamAudioDestinationNode | null = null
   private tapContext: AudioContext | null = null
+  // Track the gain node we connected to so we can disconnect on context change
+  private connectedGainNode: AudioNode | null = null
   private recorder:  MediaRecorder | null = null
   private interval:  ReturnType<typeof setInterval> | null = null
   private initTimer: ReturnType<typeof setTimeout> | null = null
+  private captureTimer: ReturnType<typeof setTimeout> | null = null
   private callbacks: Set<ReportCallback> = new Set()
   private lastReport: SelfListenReport | null = null
   private transportBpm: number = 90
+  private capturing: boolean = false
 
   /** Start periodic self-listen cycle. Call after Tone has started. */
   start(): void {
@@ -50,7 +54,7 @@ export class SelfListenAnalyzer {
       this.initTimer = null
       this.runCapture()
       this.interval = setInterval(() => this.runCapture(), CAPTURE_INTERVAL_MS)
-    }, 10_000)  // 10 seconds — let arrangement get past intro before analyzing
+    }, 10_000)
   }
 
   stop(): void {
@@ -58,11 +62,19 @@ export class SelfListenAnalyzer {
       clearTimeout(this.initTimer)
       this.initTimer = null
     }
+    if (this.captureTimer) {
+      clearTimeout(this.captureTimer)
+      this.captureTimer = null
+    }
     if (this.interval) {
       clearInterval(this.interval)
       this.interval = null
     }
-    if (this.recorder?.state === 'recording') this.recorder.stop()
+    if (this.recorder?.state === 'recording') {
+      try { this.recorder.stop() } catch { /* already stopped */ }
+    }
+    this.recorder = null
+    this.capturing = false
   }
 
   /** Register a callback to receive SelfListenReports. */
@@ -83,41 +95,58 @@ export class SelfListenAnalyzer {
   dispose(): void {
     this.stop()
     this.callbacks.clear()
+    // Disconnect the tap from the audio graph
+    this.disconnectTap()
     this.tapNode = null
     this.tapContext = null
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
 
+  /** Disconnect old tap node from the gain node to prevent phantom audio taps */
+  private disconnectTap(): void {
+    if (this.connectedGainNode && this.tapNode) {
+      try { this.connectedGainNode.disconnect(this.tapNode) } catch { /* already disconnected */ }
+    }
+    this.connectedGainNode = null
+  }
+
   private ensureTap(): void {
     if (this.tapNode) {
       // Invalidate if the AudioContext changed (Tone.start() may create a new one)
       const ctx = Tone.getContext().rawContext as AudioContext
       if (this.tapContext !== ctx) {
+        // Properly disconnect old tap before creating new one
+        this.disconnectTap()
         this.tapNode = null
         this.tapContext = null
+        // Also invalidate the recorder since it's bound to the old stream
+        if (this.recorder) {
+          try { if (this.recorder.state === 'recording') this.recorder.stop() } catch { /* */ }
+          this.recorder = null
+        }
       } else {
         return
       }
     }
     try {
       const ctx  = Tone.getContext().rawContext as AudioContext
-      if (ctx.state === 'suspended') return  // wait until user gesture resumes it
+      if (ctx.state === 'suspended') return
 
       this.tapNode = ctx.createMediaStreamDestination()
       this.tapContext = ctx
 
       // Non-destructive parallel connection to Tone's master output
       const toneDest = Tone.getDestination() as any
-      // Tone 15: Destination.output is a Gain wrapper; ._gainNode is the native GainNode
       const gainNode: AudioNode | null =
-        toneDest?.output?._gainNode      ||  // Destination.output.Gain._gainNode (native)
-        toneDest?.output?.output         ||  // Gain.output = _gainNode (fallback)
-        toneDest?.input?.input?._gainNode ||  // Volume.input.Gain._gainNode
+        toneDest?.output?._gainNode      ||
+        toneDest?.output?.output         ||
+        toneDest?.input?.input?._gainNode ||
         null
 
       if (gainNode && gainNode !== ctx.destination) {
         gainNode.connect(this.tapNode)
+        this.connectedGainNode = gainNode  // track for later disconnect
       } else {
         console.warn('[SelfListen] Could not locate Tone.js gain node — tap may be silent')
       }
@@ -128,31 +157,40 @@ export class SelfListenAnalyzer {
 
   private runCapture(): void {
     if (!this.tapNode) { this.ensureTap(); return }
-    if (this.recorder?.state === 'recording') return  // previous capture still running
+    // Prevent overlapping captures — if previous is still running, skip this cycle
+    if (this.capturing) return
 
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : 'audio/webm'
-
-    const chunks: Blob[] = []
-    try {
-      this.recorder = new MediaRecorder(this.tapNode.stream, { mimeType })
-    } catch {
-      return
+    // Reuse the same MediaRecorder if possible (same tapNode stream).
+    // Only create a new one if it doesn't exist or was invalidated.
+    if (!this.recorder || this.recorder.stream !== this.tapNode.stream) {
+      // Dispose old recorder
+      if (this.recorder) {
+        try { if (this.recorder.state === 'recording') this.recorder.stop() } catch { /* */ }
+      }
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm'
+      try {
+        this.recorder = new MediaRecorder(this.tapNode.stream, { mimeType })
+      } catch {
+        return
+      }
     }
+
+    this.capturing = true
+    const chunks: Blob[] = []
 
     this.recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
     this.recorder.onstop = async () => {
+      this.capturing = false
       const blob = new Blob(chunks, { type: 'audio/webm' })
       if (blob.size < 1000) return   // too small — Tone probably wasn't playing
       try {
         const arrayBuffer = await blob.arrayBuffer()
         const ctx = Tone.getContext().rawContext as AudioContext
         const decoded = await ctx.decodeAudioData(arrayBuffer)
-        const samples = decoded.getChannelData(0)  // Float32Array, mono
-        // Yield to the event loop before running heavy DSP (~5-10ms of synchronous
-        // FFT + onset detection). This prevents the analysis from blocking an
-        // in-progress audio callback and causing a brief dropout/crackle.
+        const samples = decoded.getChannelData(0)
+        // Yield to the event loop before running heavy DSP
         await new Promise(resolve => setTimeout(resolve, 0))
         const report  = this.buildReport(samples, decoded.sampleRate)
         this.lastReport = report
@@ -162,16 +200,24 @@ export class SelfListenAnalyzer {
       } catch { /* decode failed — Tone might have been silent */ }
     }
 
-    this.recorder.start(200)  // 200ms timeslices
-    setTimeout(() => {
-      if (this.recorder?.state === 'recording') this.recorder.stop()
+    try {
+      this.recorder.start(200)  // 200ms timeslices
+    } catch {
+      this.capturing = false
+      this.recorder = null  // invalidate — will be recreated next cycle
+      return
+    }
+
+    this.captureTimer = setTimeout(() => {
+      this.captureTimer = null
+      if (this.recorder?.state === 'recording') {
+        try { this.recorder.stop() } catch { this.capturing = false }
+      }
     }, CAPTURE_DURATION_MS)
   }
 
   /**
    * Run WebEar-grade analysis on PCM samples and map to SelfListenReport.
-   * All the heavy DSP lives in pcmAnalyzer.ts — this just adds the
-   * Organism-specific action signals and BPM drift computation.
    */
   private buildReport(samples: Float32Array, sampleRate: number): SelfListenReport {
     const pcm = analyzePcm(samples, sampleRate)
@@ -181,7 +227,6 @@ export class SelfListenAnalyzer {
       : 0
 
     return {
-      // Loudness
       rmsLinear:        pcm.rmsLinear,
       rmsDb:            isFinite(pcm.rmsDb) ? pcm.rmsDb : -Infinity,
       peakLinear:       pcm.peakLinear,
@@ -189,30 +234,18 @@ export class SelfListenAnalyzer {
       clippingPercent:  pcm.clippingPercent,
       hasClipping:      pcm.hasClipping,
       isSilent:         pcm.isSilent,
-
-      // Tonality
       spectralCentroidHz: pcm.spectralCentroidHz,
       dcOffset:           pcm.dcOffset,
       hasDcOffset:        pcm.hasDcOffset,
-
-      // Dynamics
       dynamicRangeDb:   pcm.dynamicRangeDb,
       crestFactor:      pcm.crestFactor,
-
-      // Frequency bands
       bandEnergy:       pcm.bandEnergy,
-
-      // Rhythm
       estimatedBpm:       pcm.estimatedBpm,
       onsetCount:         pcm.onsetCount,
       onsetTimingStdDevMs: pcm.onsetTimingStdDevMs,
       bpmDrift,
-
-      // Action signals
       needsVolumeReduction: pcm.hasClipping || (!pcm.isSilent && pcm.rmsDb > LOUD_DB),
       needsVolumeBoost:     !pcm.isSilent && pcm.rmsDb < QUIET_DB,
-
-      // Meta
       summary:   pcm.summary,
       timestamp: performance.now(),
     }

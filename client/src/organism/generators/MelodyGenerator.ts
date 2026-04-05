@@ -45,6 +45,11 @@ export class MelodyGenerator extends GeneratorBase {
   // Current voice name for debugging/display
   private currentVoiceName: string = 'Default FM'
 
+  // Tracked synth dispose timer — prevents zombie synth accumulation
+  // when state transitions happen faster than the 200ms fade window.
+  private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
+  private pendingOldSynth: Tone.PolySynth | null = null
+
   // Genre-aware swing — matches drum/bass swing per mode
   private static readonly MODE_SWING: Record<string, number> = {
     heat: 0.20, gravel: 0.22, smoke: 0.55, ice: 0.48, glow: 0.38,
@@ -282,14 +287,30 @@ export class MelodyGenerator extends GeneratorBase {
     const voice = bestVoice
     this.currentVoiceName = voice.name
 
+    // If a previous synth swap is still pending, force-dispose it NOW
+    // to prevent zombie synth accumulation during rapid state transitions
+    if (this.pendingSynthDispose) {
+      clearTimeout(this.pendingSynthDispose)
+      this.pendingSynthDispose = null
+      if (this.pendingOldSynth) {
+        try { this.pendingOldSynth.disconnect() } catch { /* */ }
+        try { this.pendingOldSynth.dispose() } catch { /* */ }
+        this.pendingOldSynth = null
+      }
+    }
+
     // Fade out old synth before disconnect to prevent click/pop
     const oldSynth = this.synth
     oldSynth.volume.rampTo(-Infinity, 0.15)
     try { oldSynth.releaseAll() } catch { /* */ }
-    // Defer disconnect + dispose until fade completes to avoid cutting release tails
-    setTimeout(() => {
+    // Disconnect immediately — stops old synth from producing audio.
+    // The dispose is deferred to let GC handle it cleanly.
+    this.pendingOldSynth = oldSynth
+    this.pendingSynthDispose = setTimeout(() => {
       try { oldSynth.disconnect() } catch { /* already disposed */ }
       try { oldSynth.dispose() } catch { /* already disposed */ }
+      this.pendingOldSynth = null
+      this.pendingSynthDispose = null
     }, 200)
 
     // Build new synth based on voice type
@@ -629,6 +650,16 @@ export class MelodyGenerator extends GeneratorBase {
 
   dispose(): void {
     this.stopPart()
+    // Clean up any pending synth swap timer to prevent post-dispose callbacks
+    if (this.pendingSynthDispose) {
+      clearTimeout(this.pendingSynthDispose)
+      this.pendingSynthDispose = null
+    }
+    if (this.pendingOldSynth) {
+      try { this.pendingOldSynth.disconnect() } catch { /* */ }
+      try { this.pendingOldSynth.dispose() } catch { /* */ }
+      this.pendingOldSynth = null
+    }
     this.synth.dispose()
     this.chorus.dispose()
     this.dryBus.dispose()

@@ -241,7 +241,14 @@ export class BassGenerator extends GeneratorBase {
     }
   }
 
+  // Rebuild throttle — prevent rapid Part rebuilds from overlapping
+  private lastRebuildTime: number = 0
+  private static readonly MIN_REBUILD_INTERVAL_MS = 500
+
   private rebuildPart(_physics: PhysicsState): void {
+    const now = performance.now()
+    if (now - this.lastRebuildTime < BassGenerator.MIN_REBUILD_INTERVAL_MS) return
+    this.lastRebuildTime = now
     this.stopPart()
 
     const notes = this.generateNotes()

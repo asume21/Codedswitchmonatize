@@ -132,6 +132,10 @@ export class ChordGenerator extends GeneratorBase {
 
   // Reactive state
   private volumeMultiplier: number = 1.0
+
+  // Tracked synth dispose timer — prevents zombie synth accumulation
+  private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
+  private pendingOldSynth: Tone.PolySynth | null = null
   private lastOutputGain:   number = 0
 
   // Chord change callback — Bass/Melody subscribe to know current chord
@@ -433,14 +437,28 @@ export class ChordGenerator extends GeneratorBase {
     const pool = MODE_VOICES[mode] ?? MODE_VOICES.glow
     const voice = pool[Math.floor(Math.random() * pool.length)]
 
+    // If a previous synth swap is still pending, force-dispose it NOW
+    if (this.pendingSynthDispose) {
+      clearTimeout(this.pendingSynthDispose)
+      this.pendingSynthDispose = null
+      if (this.pendingOldSynth) {
+        try { this.pendingOldSynth.disconnect() } catch { /* */ }
+        try { this.pendingOldSynth.dispose() } catch { /* */ }
+        this.pendingOldSynth = null
+      }
+    }
+
     // Fade out old synth before disconnect to prevent click/pop
     const oldSynth = this.synth
     oldSynth.volume.rampTo(-Infinity, 0.15)
     try { oldSynth.releaseAll() } catch { /* */ }
-    // Defer disconnect + dispose until fade completes to avoid cutting release tails
-    setTimeout(() => {
+    // Track the deferred dispose so rapid transitions can cancel it
+    this.pendingOldSynth = oldSynth
+    this.pendingSynthDispose = setTimeout(() => {
       try { oldSynth.disconnect() } catch { /* already disposed */ }
       try { oldSynth.dispose() } catch { /* already disposed */ }
+      this.pendingOldSynth = null
+      this.pendingSynthDispose = null
     }, 200)
 
     // Build new synth
@@ -492,6 +510,16 @@ export class ChordGenerator extends GeneratorBase {
   dispose(): void {
     this.stopPart()
     this.chordChangeListeners = []
+    // Clean up any pending synth swap timer
+    if (this.pendingSynthDispose) {
+      clearTimeout(this.pendingSynthDispose)
+      this.pendingSynthDispose = null
+    }
+    if (this.pendingOldSynth) {
+      try { this.pendingOldSynth.disconnect() } catch { /* */ }
+      try { this.pendingOldSynth.dispose() } catch { /* */ }
+      this.pendingOldSynth = null
+    }
     this.synth.dispose()
     this.chorus.dispose()
     this.dryBus.dispose()

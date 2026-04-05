@@ -247,8 +247,17 @@ export class DrumGenerator extends GeneratorBase {
     }
   }
 
+  // Rebuild throttle — prevent rapid Part rebuilds from flooding the audio scheduler.
+  // The MusicalDirector can trigger rebuilds on sub-genre changes, mutations, AND
+  // state transitions. Without a throttle, these can pile up in the same frame.
+  private lastRebuildTime: number = 0
+  private static readonly MIN_REBUILD_INTERVAL_MS = 500
+
   /** Load an AI-generated pattern externally (Gap 2 — generative patterns). */
   loadGeneratedPattern(hits: DrumHit[]): void {
+    const now = performance.now()
+    if (now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
+    this.lastRebuildTime = now
     this.rebuildPart(hits)
   }
 
