@@ -524,9 +524,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = `${phraseLength}i`   // i = 16th note ticks
-    // Start 200ms in the future — gives the audio scheduler headroom.
-    // Previous value of 100ms was too tight and caused overlapping starts.
-    this.part.start('+0.2')
+    this.part.start('+0.1')
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
@@ -683,16 +681,12 @@ export class MelodyGenerator extends GeneratorBase {
       this.part.dispose()
       this.part = null
     }
-    // Always release voices, even if part was already null — a previous
-    // rebuild may have left decaying voices from the long release envelopes
-    // (up to 4s on Singing Pad). Ramp volume to -Infinity over 50ms for
-    // a quick but click-free cutoff, then releaseAll and restore volume.
+    // Release all voices and cancel any in-progress automation on the volume
+    // param. cancelScheduledValues prevents stale ramps from accumulating
+    // on the AudioParam timeline (the root cause of progressive crackling).
     try {
-      const prevVol = this.synth.volume.value
-      this.synth.volume.rampTo(-Infinity, 0.05)
+      this.synth.volume.cancelScheduledValues(Tone.now())
       this.synth.releaseAll()
-      // Restore volume after the 50ms fade so new notes aren't silenced
-      this.synth.volume.setValueAtTime(prevVol, Tone.now() + 0.06)
     } catch { /* context not yet started */ }
   }
 
@@ -702,6 +696,10 @@ export class MelodyGenerator extends GeneratorBase {
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
+    // Cancel stale automation before scheduling new ramp — prevents
+    // AudioParam timeline from accumulating hundreds of ramp endpoints
+    // over minutes, which progressively bogs down the audio thread.
+    this.output.gain.cancelScheduledValues(Tone.now())
     this.output.gain.rampTo(linear, 0.35)
   }
 

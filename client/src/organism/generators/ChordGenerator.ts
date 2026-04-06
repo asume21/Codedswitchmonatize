@@ -429,9 +429,7 @@ export class ChordGenerator extends GeneratorBase {
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    // Start 200ms in the future — gives the audio scheduler headroom.
-    // Previous 50ms was too tight and caused overlapping schedule bursts.
-    this.part.start('+0.2')
+    this.part.start('+0.1')
 
     // Immediately notify listeners of the first chord
     const firstChord = prog.chords[0]
@@ -502,14 +500,12 @@ export class ChordGenerator extends GeneratorBase {
       this.part.dispose()
       this.part = null
     }
-    // Always release voices — chord pads have up to 2s release envelopes that
-    // stack when rapid rebuilds fire. Ramp to silence over 50ms for click-free
-    // cutoff, then releaseAll, then restore volume for new Part.
+    // Release all voices and cancel any in-progress automation on the volume
+    // param. cancelScheduledValues prevents stale ramps from accumulating
+    // on the AudioParam timeline (the root cause of progressive crackling).
     try {
-      const prevVol = this.synth.volume.value
-      this.synth.volume.rampTo(-Infinity, 0.05)
+      this.synth.volume.cancelScheduledValues(Tone.now())
       this.synth.releaseAll()
-      this.synth.volume.setValueAtTime(prevVol, Tone.now() + 0.06)
     } catch { /* context not yet started */ }
   }
 
@@ -522,6 +518,7 @@ export class ChordGenerator extends GeneratorBase {
     // restarting ramps every frame. Previous threshold of 0.001 was too tight.
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
+    this.output.gain.cancelScheduledValues(Tone.now())
     this.output.gain.rampTo(linear, 0.35)
   }
 

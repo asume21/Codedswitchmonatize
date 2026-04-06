@@ -468,6 +468,7 @@ export class DrumGenerator extends GeneratorBase {
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
+    this.output.gain.cancelScheduledValues(Tone.now())
     this.output.gain.rampTo(linear, 0.35)
   }
 

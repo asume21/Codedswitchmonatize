@@ -83,12 +83,14 @@ export class TextureGenerator extends GeneratorBase {
     // restarting ramps every frame. Previous threshold of 0.001 was too tight.
     if (Math.abs(linear - this.lastOutputGain) > 0.008) {
       this.lastOutputGain = linear
+      this.gain.gain.cancelScheduledValues(Tone.now())
       this.gain.gain.rampTo(linear, 0.5)
     }
 
     // Morph filter cutoff toward mode target — only if changed
     if (Math.abs(layer.filterFreq - this.lastFilterFreq) > 1) {
       this.lastFilterFreq = layer.filterFreq
+      this.filter.frequency.cancelScheduledValues(Tone.now())
       this.filter.frequency.rampTo(layer.filterFreq, 1.0)
     }
 

@@ -98,6 +98,7 @@ export class BassGenerator extends GeneratorBase {
     // Threshold of 5Hz prevents pocket micro-drift from interrupting in-progress ramps.
     const cutoff = getBassFilterCutoff(physics.mode, physics.pocket)
     if (Math.abs(cutoff - this.lastFilterCutoff) > 15) {
+      this.filter.frequency.cancelScheduledValues(Tone.now())
       this.filter.frequency.rampTo(cutoff, 0.4)
       this.lastFilterCutoff = cutoff
     }
@@ -315,6 +316,7 @@ export class BassGenerator extends GeneratorBase {
     // restarting ramps every frame. Previous threshold of 0.001 was too tight.
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
+    this.output.gain.cancelScheduledValues(Tone.now())
     this.output.gain.rampTo(linear, 0.35)
   }
 

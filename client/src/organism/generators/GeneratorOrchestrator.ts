@@ -40,7 +40,7 @@ export class GeneratorOrchestrator {
   // only need updates every ~60ms. Processing every frame floods the audio
   // scheduler with overlapping gain ramps that cause crackling.
   private lastFrameTime: number = 0
-  private static readonly MIN_FRAME_INTERVAL_MS = 75  // ~13fps — reduced from 55ms to prevent overlapping gain ramps across 5 generators
+  private static readonly MIN_FRAME_INTERVAL_MS = 55  // ~18fps — plenty for musical reactivity
 
   // Reactive multiplier state (Section 05)
   // These are BASE multipliers set by ReactiveBehaviorEngine.
