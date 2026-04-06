@@ -304,7 +304,16 @@ export class ChordGenerator extends GeneratorBase {
     }
   }
 
+  // Rebuild throttle — prevent rapid Part rebuilds from overlapping.
+  // ChordGenerator has an 8-voice PolySynth + chorus + reverb, so rebuilds are expensive.
+  private lastRebuildTime: number = 0
+  private static readonly MIN_REBUILD_INTERVAL_MS = 500
+
   private rebuildPart(): void {
+    const now = performance.now()
+    if (now - this.lastRebuildTime < ChordGenerator.MIN_REBUILD_INTERVAL_MS) return
+    this.lastRebuildTime = now
+
     this.stopPart()
 
     if (this.currentBehavior === ChordBehavior.Silent || !this.currentProgression) return
@@ -420,8 +429,9 @@ export class ChordGenerator extends GeneratorBase {
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    // Start slightly in the future — start(0) fires all past events instantly
-    this.part.start('+0.05')
+    // Start 200ms in the future — gives the audio scheduler headroom.
+    // Previous 50ms was too tight and caused overlapping schedule bursts.
+    this.part.start('+0.2')
 
     // Immediately notify listeners of the first chord
     const firstChord = prog.chords[0]
@@ -491,8 +501,16 @@ export class ChordGenerator extends GeneratorBase {
       this.part.stop()
       this.part.dispose()
       this.part = null
-      try { this.synth.releaseAll() } catch { /* */ }
     }
+    // Always release voices — chord pads have up to 2s release envelopes that
+    // stack when rapid rebuilds fire. Ramp to silence over 50ms for click-free
+    // cutoff, then releaseAll, then restore volume for new Part.
+    try {
+      const prevVol = this.synth.volume.value
+      this.synth.volume.rampTo(-Infinity, 0.05)
+      this.synth.releaseAll()
+      this.synth.volume.setValueAtTime(prevVol, Tone.now() + 0.06)
+    } catch { /* context not yet started */ }
   }
 
   private setOutputLevel(level: number): void {

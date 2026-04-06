@@ -172,6 +172,11 @@ export class DrumGenerator extends GeneratorBase {
       return
     }
 
+    // Apply the same rebuild throttle as loadGeneratedPattern — state transitions
+    // and processFrame can both trigger rebuilds in the same cycle window.
+    const now = performance.now()
+    if (now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
+
     if (to === OState.Awakening) {
       this.stopPart()
       // Commit the full beat immediately — don't make the listener wait.
@@ -326,10 +331,10 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = '4m'
-    // Start slightly in the future so the audio thread has time to prepare.
+    // Start 150ms in the future so the audio thread has time to prepare.
     // Using start(0) fires ALL past events as an instant burst if Transport
-    // is already running, causing massive crackling.
-    this.part.start('+0.05')
+    // is already running, causing massive crackling. Previous 50ms was too tight.
+    this.part.start('+0.15')
 
     // Gap 3 — mirror current pattern into ProBeatMaker for visual display
     this.broadcastToBeatMaker(hits)

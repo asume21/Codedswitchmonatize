@@ -58,14 +58,10 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
-    // Hard gate — when disabled, skip all processing
-    if (!this.enabled) {
-      if (this.lastOutputGain > 0) {
-        this.gain.gain.rampTo(0, 0.1)
-        this.lastOutputGain = 0
-      }
-      return
-    }
+    // Hard gate — when disabled, skip all processing.
+    // Gain was already ramped to 0 in setEnabled(false) — don't re-ramp
+    // here, as it cancels the in-progress ramp and creates a discontinuity.
+    if (!this.enabled) return
 
     const modeName = physics.mode.toString()
     const layer    = TEXTURE_BY_MODE[modeName]
