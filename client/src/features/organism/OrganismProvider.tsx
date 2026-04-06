@@ -1051,7 +1051,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const router = new VoiceCommandRouter()
 
     router.connect(detector)
-    router.setHandler((action, _event) => {
+    router.setHandler((action, event) => {
       if (action.type === 'quick-start') {
         quickStart(action.presetId)
         return
@@ -1061,6 +1061,45 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // never needs to be recreated when isRunning/volume changes.
       const orch = orchestrRef.current
       if (!orch || !isRunningRef.current) return
+
+      // ── Ad-lib mood signals ─────────────────────────────────────────
+      // Soft nudges from detected rapper phrases. Unlike commands, these
+      // influence the MusicalDirector's energy + sub-genre preferences
+      // rather than directly controlling instrument parameters.
+      if (action.type === 'mood-signal') {
+        const { mood } = action
+        // Force sub-genre if the phrase strongly implies one
+        if (mood.preferredSubGenre) {
+          orch.forceSubGenre(mood.preferredSubGenre as any)
+        }
+        // Nudge energy via volume multipliers based on intent
+        switch (mood.intent) {
+          case 'hype':
+          case 'aggro':
+            // Boost drums + bass for energy, nudge hat density up
+            orch.setHatDensityMultiplier(1.2 + mood.energy * 0.3)
+            orch.setKickVelocityMultiplier(0.9 + mood.energy * 0.2)
+            break
+          case 'chill':
+            // Pull back — reduce hat density, soften kick
+            orch.setHatDensityMultiplier(0.5 + mood.energy * 0.3)
+            orch.setKickVelocityMultiplier(0.7 + mood.energy * 0.2)
+            break
+          case 'transition':
+            // Signal a pattern shuffle to keep things fresh
+            orch.regenerateAll()
+            break
+          case 'vibing':
+            // Rapper likes current beat — lock the groove (no-op: don't change anything)
+            break
+          case 'warmup':
+          case 'adlib':
+            // Slight energy nudge — rapper is engaged but not commanding
+            break
+        }
+        console.debug(`🎤 Ad-lib: "${event.matchedPhrase}" → ${mood.intent} (energy: ${mood.energy.toFixed(2)})`)
+        return
+      }
 
       switch (action.command) {
         case 'shuffle':

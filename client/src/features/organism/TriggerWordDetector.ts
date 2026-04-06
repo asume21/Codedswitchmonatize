@@ -29,6 +29,21 @@ export interface TriggerMapping {
 export type TriggerAction =
   | { type: 'quick-start';  presetId: string }
   | { type: 'command';      command: string; value?: string | number }
+  | { type: 'mood-signal';  mood: MoodSignal }
+
+/**
+ * Mood signal from ad-lib/phrase detection.
+ * Unlike explicit commands, mood signals are soft suggestions — the
+ * MusicalDirector can weight them against current physics state.
+ */
+export interface MoodSignal {
+  /** Energy level the phrase implies (0-1). 0.8+ = hype, 0.3- = chill */
+  energy: number
+  /** Preferred sub-genre, if the phrase strongly implies one */
+  preferredSubGenre?: string
+  /** Intent category — helps the director decide what to adjust */
+  intent: 'warmup' | 'hype' | 'chill' | 'aggro' | 'vibing' | 'transition' | 'adlib'
+}
 
 export interface TriggerEvent {
   matchedPhrase:  string
@@ -104,6 +119,110 @@ const DEFAULT_TRIGGER_MAPPINGS: TriggerMapping[] = [
   },
 ]
 
+// ── Ad-lib & Phrase Intelligence ─────────────────────────────────────────
+// Common rapper vocal patterns that signal energy, mood, and intent.
+// These are softer than explicit commands — they nudge the MusicalDirector
+// rather than force-switching presets. Grouped by intent category.
+
+const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
+  // ── WARMUP — Rapper is getting comfortable, testing the mic ──────────
+  // Signal: keep beat steady, don't change anything drastic
+  { phrases: ['yo yo yo', 'yo yo', 'check check', 'check the mic', 'mic check'],
+    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup' } }, cooldownMs: 8000 },
+  { phrases: ['1 2 1 2', 'one two one two', 'testing testing', 'test test'],
+    action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup' } }, cooldownMs: 8000 },
+  { phrases: ['ok ok', 'okay okay', 'alright alright', 'aight aight'],
+    action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup' } }, cooldownMs: 6000 },
+  { phrases: ['yeah yeah', 'yea yea', 'ya ya'],
+    action: { type: 'mood-signal', mood: { energy: 0.5, intent: 'warmup' } }, cooldownMs: 6000 },
+
+  // ── HYPE — Rapper is building energy, wants the beat to match ────────
+  // Signal: boost energy, increase hat density, consider trap/drill
+  { phrases: ['let\'s go', 'lets go', 'here we go', 'come on'],
+    action: { type: 'mood-signal', mood: { energy: 0.8, intent: 'hype' } }, cooldownMs: 4000 },
+  { phrases: ['turn up', 'turn it up', 'crank it', 'louder'],
+    action: { type: 'mood-signal', mood: { energy: 0.9, intent: 'hype' } }, cooldownMs: 4000 },
+  { phrases: ['gang gang', 'gang', 'squad', 'mob'],
+    action: { type: 'mood-signal', mood: { energy: 0.85, preferredSubGenre: 'trap', intent: 'hype' } }, cooldownMs: 5000 },
+  { phrases: ['sheesh', 'sheeesh', 'god damn', 'goddamn'],
+    action: { type: 'mood-signal', mood: { energy: 0.85, intent: 'hype' } }, cooldownMs: 5000 },
+  { phrases: ['aye', 'ayy', 'ayyy', 'ay ay'],
+    action: { type: 'mood-signal', mood: { energy: 0.75, intent: 'hype' } }, cooldownMs: 3000 },
+  { phrases: ['fire', 'that\'s fire', 'heat', 'flames'],
+    action: { type: 'mood-signal', mood: { energy: 0.8, preferredSubGenre: 'trap', intent: 'hype' } }, cooldownMs: 5000 },
+  { phrases: ['go crazy', 'go stupid', 'get crazy', 'wild out'],
+    action: { type: 'mood-signal', mood: { energy: 0.95, intent: 'hype' } }, cooldownMs: 4000 },
+  { phrases: ['no cap', 'on god', 'on my mama', 'real talk'],
+    action: { type: 'mood-signal', mood: { energy: 0.7, intent: 'hype' } }, cooldownMs: 5000 },
+
+  // ── AGGRO — Aggressive energy, wants dark/hard beat ──────────────────
+  // Signal: switch to drill/phonk, increase distortion, darker filter
+  { phrases: ['run it', 'run that', 'run it back'],
+    action: { type: 'mood-signal', mood: { energy: 0.85, preferredSubGenre: 'drill', intent: 'aggro' } }, cooldownMs: 4000 },
+  { phrases: ['pull up', 'we outside', 'slide', 'sliding'],
+    action: { type: 'mood-signal', mood: { energy: 0.8, preferredSubGenre: 'drill', intent: 'aggro' } }, cooldownMs: 5000 },
+  { phrases: ['brr', 'brrr', 'grr', 'grrr', 'skrt', 'skrrt'],
+    action: { type: 'mood-signal', mood: { energy: 0.9, preferredSubGenre: 'phonk', intent: 'aggro' } }, cooldownMs: 3000 },
+  { phrases: ['bow bow', 'bang bang', 'boom boom', 'pow pow'],
+    action: { type: 'mood-signal', mood: { energy: 0.9, preferredSubGenre: 'drill', intent: 'aggro' } }, cooldownMs: 4000 },
+  { phrases: ['talk to em', 'talk to them', 'tell em', 'watch this'],
+    action: { type: 'mood-signal', mood: { energy: 0.75, intent: 'aggro' } }, cooldownMs: 5000 },
+
+  // ── CHILL — Rapper wants to pull back, go mellow ─────────────────────
+  // Signal: reduce energy, open filter, consider lo-fi/chill
+  { phrases: ['chill chill', 'easy', 'take it easy', 'relax'],
+    action: { type: 'mood-signal', mood: { energy: 0.25, preferredSubGenre: 'chill', intent: 'chill' } }, cooldownMs: 5000 },
+  { phrases: ['vibe', 'vibes', 'vibing', 'feel this'],
+    action: { type: 'mood-signal', mood: { energy: 0.35, preferredSubGenre: 'lo-fi', intent: 'chill' } }, cooldownMs: 5000 },
+  { phrases: ['smooth', 'keep it smooth', 'nice and easy'],
+    action: { type: 'mood-signal', mood: { energy: 0.3, preferredSubGenre: 'lo-fi', intent: 'chill' } }, cooldownMs: 5000 },
+  { phrases: ['mellow', 'laid back', 'lay back', 'cruise'],
+    action: { type: 'mood-signal', mood: { energy: 0.25, preferredSubGenre: 'chill', intent: 'chill' } }, cooldownMs: 5000 },
+  { phrases: ['hold up', 'wait', 'hold on', 'pause'],
+    action: { type: 'mood-signal', mood: { energy: 0.2, intent: 'chill' } }, cooldownMs: 4000 },
+
+  // ── VIBING — Rapper is locked into the groove, don't change ──────────
+  // Signal: maintain current energy, boost confidence in current sub-genre
+  { phrases: ['that\'s it', 'right there', 'keep that', 'don\'t change'],
+    action: { type: 'mood-signal', mood: { energy: 0.6, intent: 'vibing' } }, cooldownMs: 8000 },
+  { phrases: ['you know what i mean', 'know what i\'m saying', 'feel me', 'nah mean'],
+    action: { type: 'mood-signal', mood: { energy: 0.55, intent: 'vibing' } }, cooldownMs: 6000 },
+  { phrases: ['for real', 'straight up', 'facts', 'period'],
+    action: { type: 'mood-signal', mood: { energy: 0.6, intent: 'vibing' } }, cooldownMs: 5000 },
+  { phrases: ['woo', 'wooo', 'woop', 'whoo'],
+    action: { type: 'mood-signal', mood: { energy: 0.7, intent: 'vibing' } }, cooldownMs: 4000 },
+
+  // ── TRANSITION — Rapper is signaling a change is coming ──────────────
+  // Signal: prepare for section change, maybe switch pattern variant
+  { phrases: ['switch', 'switch up', 'change', 'new vibe'],
+    action: { type: 'mood-signal', mood: { energy: 0.6, intent: 'transition' } }, cooldownMs: 4000 },
+  { phrases: ['now watch', 'listen', 'listen up', 'pay attention'],
+    action: { type: 'mood-signal', mood: { energy: 0.7, intent: 'transition' } }, cooldownMs: 5000 },
+  { phrases: ['ready', 'you ready', 'get ready', 'brace yourself'],
+    action: { type: 'mood-signal', mood: { energy: 0.75, intent: 'transition' } }, cooldownMs: 5000 },
+
+  // ── ADLIB (filler) — Common ad-libs that signal general engagement ───
+  // Signal: rapper is active and flowing — small energy nudge
+  { phrases: ['uhh', 'uh uh', 'uh huh', 'mmm'],
+    action: { type: 'mood-signal', mood: { energy: 0.5, intent: 'adlib' } }, cooldownMs: 3000 },
+  { phrases: ['what', 'what what', 'say what'],
+    action: { type: 'mood-signal', mood: { energy: 0.65, intent: 'adlib' } }, cooldownMs: 3000 },
+  { phrases: ['bruh', 'bro', 'man', 'dawg', 'dog'],
+    action: { type: 'mood-signal', mood: { energy: 0.5, intent: 'adlib' } }, cooldownMs: 4000 },
+  { phrases: ['yuh', 'yah', 'yup', 'yes sir', 'yessir'],
+    action: { type: 'mood-signal', mood: { energy: 0.6, intent: 'adlib' } }, cooldownMs: 3000 },
+  { phrases: ['swear', 'i swear', 'swear to god', 'deadass'],
+    action: { type: 'mood-signal', mood: { energy: 0.65, intent: 'adlib' } }, cooldownMs: 5000 },
+
+  // ── Genre-specific ad-libs ───────────────────────────────────────────
+  { phrases: ['west side', 'westside', 'west coast', 'g funk'],
+    action: { type: 'mood-signal', mood: { energy: 0.7, preferredSubGenre: 'west-coast', intent: 'hype' } }, cooldownMs: 6000 },
+  { phrases: ['bounce', 'bounce bounce', 'make it bounce'],
+    action: { type: 'mood-signal', mood: { energy: 0.75, preferredSubGenre: 'bounce', intent: 'hype' } }, cooldownMs: 5000 },
+  { phrases: ['dale', 'suavemente', 'reggaeton'],
+    action: { type: 'mood-signal', mood: { energy: 0.7, preferredSubGenre: 'reggaeton', intent: 'hype' } }, cooldownMs: 6000 },
+]
+
 /**
  * Compute Levenshtein distance between two strings.
  * Used for fuzzy phrase matching against speech recognition output.
@@ -172,7 +291,10 @@ export class TriggerWordDetector {
   private threshold:  number = 0.75
 
   constructor(customMappings?: TriggerMapping[]) {
-    this.mappings = customMappings ?? DEFAULT_TRIGGER_MAPPINGS
+    // Merge explicit command triggers with ad-lib phrase intelligence.
+    // Ad-libs come AFTER commands so explicit triggers take priority
+    // during fuzzy matching (first best-match wins on equal confidence).
+    this.mappings = customMappings ?? [...DEFAULT_TRIGGER_MAPPINGS, ...ADLIB_TRIGGER_MAPPINGS]
   }
 
   /** Register a callback for trigger events. Returns an unsubscribe function. */
@@ -285,6 +407,7 @@ export class TriggerWordDetector {
 
   private actionKey(action: TriggerAction): string {
     if (action.type === 'quick-start') return `qs:${action.presetId}`
+    if (action.type === 'mood-signal') return `mood:${action.mood.intent}`
     return `cmd:${action.command}`
   }
 }
