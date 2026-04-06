@@ -56,6 +56,18 @@ export class MelodyGenerator extends GeneratorBase {
   }
   private currentSwing: number = 0.35
 
+  // Rebuild throttle — prevent rapid Part rebuilds from overlapping.
+  // MelodyGenerator is the most expensive generator (PolySynth + Chorus + Delay + Reverb)
+  // so we use a longer interval than Drum/Bass.
+  private lastRebuildTime: number = 0
+  private static readonly MIN_REBUILD_INTERVAL_MS = 600
+
+  // Behavior debounce — require behavior to be stable for 2 consecutive frames
+  // before triggering a rebuild. Prevents Rest↔Hint oscillation from voiceActive flicker.
+  private pendingBehavior: MelodyBehavior | null = null
+  private pendingBehaviorFrames: number = 0
+  private static readonly BEHAVIOR_DEBOUNCE_FRAMES = 2
+
   // ─── Mode → Synth voice presets ──────────────────────────────────
   // Each mode has a pool of synth configs randomly selected on state transitions
   private static readonly MODE_VOICES: Record<string, Array<{
@@ -365,11 +377,38 @@ export class MelodyGenerator extends GeneratorBase {
       organism.flowDepth
     )
 
-    // Rebuild phrase when behavior changes OR when scale was updated mid-phrase
-    if (newBehavior !== this.currentBehavior || this.scaleDirty) {
-      this.lastBehavior    = this.currentBehavior
-      this.currentBehavior = newBehavior
-      this.scaleDirty      = false
+    // Debounce behavior changes — require stability for N frames before committing.
+    // voiceActive can flicker on/off every frame from mic noise, causing
+    // Rest↔Hint↔Respond oscillation that floods the audio scheduler.
+    let shouldRebuild = false
+    if (newBehavior !== this.currentBehavior) {
+      if (this.pendingBehavior === newBehavior) {
+        this.pendingBehaviorFrames++
+        if (this.pendingBehaviorFrames >= MelodyGenerator.BEHAVIOR_DEBOUNCE_FRAMES) {
+          this.lastBehavior    = this.currentBehavior
+          this.currentBehavior = newBehavior
+          this.pendingBehavior = null
+          this.pendingBehaviorFrames = 0
+          shouldRebuild = true
+        }
+      } else {
+        // New candidate — start counting
+        this.pendingBehavior = newBehavior
+        this.pendingBehaviorFrames = 1
+      }
+    } else {
+      // Behavior stable — clear any pending transition
+      this.pendingBehavior = null
+      this.pendingBehaviorFrames = 0
+    }
+
+    // Scale change also triggers rebuild (but still subject to throttle)
+    if (this.scaleDirty) {
+      this.scaleDirty = false
+      shouldRebuild = true
+    }
+
+    if (shouldRebuild) {
       this.rebuildPhrase(physics, organism)
     }
 
@@ -454,6 +493,12 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private rebuildPhrase(physics: PhysicsState, _organism: OrganismState): void {
+    // Throttle — prevent rapid Part rebuilds from stacking audio nodes.
+    // MelodyGenerator's PolySynth + effects chain is the most expensive to rebuild.
+    const now = performance.now()
+    if (now - this.lastRebuildTime < MelodyGenerator.MIN_REBUILD_INTERVAL_MS) return
+    this.lastRebuildTime = now
+
     this.stopPart()
 
     if (this.currentBehavior === MelodyBehavior.Rest) return
@@ -479,7 +524,9 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = `${phraseLength}i`   // i = 16th note ticks
-    this.part.start('+0.1')
+    // Start 200ms in the future — gives the audio scheduler headroom.
+    // Previous value of 100ms was too tight and caused overlapping starts.
+    this.part.start('+0.2')
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
@@ -635,8 +682,18 @@ export class MelodyGenerator extends GeneratorBase {
       this.part.stop()
       this.part.dispose()
       this.part = null
-      try { this.synth.releaseAll() } catch { /* context not yet started */ }
     }
+    // Always release voices, even if part was already null — a previous
+    // rebuild may have left decaying voices from the long release envelopes
+    // (up to 4s on Singing Pad). Ramp volume to -Infinity over 50ms for
+    // a quick but click-free cutoff, then releaseAll and restore volume.
+    try {
+      const prevVol = this.synth.volume.value
+      this.synth.volume.rampTo(-Infinity, 0.05)
+      this.synth.releaseAll()
+      // Restore volume after the 50ms fade so new notes aren't silenced
+      this.synth.volume.setValueAtTime(prevVol, Tone.now() + 0.06)
+    } catch { /* context not yet started */ }
   }
 
   private setOutputLevel(level: number): void {
