@@ -30,7 +30,7 @@ import { professionalAudio } from '@/lib/professionalAudio';
 import { cn } from '@/lib/utils';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
-const HEADER_W    = 212;
+const HEADER_W    = 260;      // widened from 212 so track names aren't truncated
 const ROW_H       = 78;      // collapsed track height
 const FX_H        = 84;      // extra height when FX strip is open
 const RULER_H     = 32;
@@ -602,11 +602,11 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                             if (e.key === 'Escape') setEditingId(null);
                           }}
                           onClick={e => e.stopPropagation()}
-                          className="w-full bg-transparent border-b border-cyan-400 text-[11px] text-cyan-100 outline-none font-medium"
+                          className="w-full bg-transparent border-b border-cyan-400 text-xs text-cyan-100 outline-none font-medium"
                         />
                       ) : (
                         <div
-                          className="text-[11px] font-medium text-gray-200 truncate leading-tight"
+                          className="text-xs font-medium text-gray-200 truncate leading-tight"
                           onDoubleClick={e => { e.stopPropagation(); startRename(track); }}
                           title="Double-click to rename"
                         >
@@ -614,7 +614,7 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                         </div>
                       )}
                       {(track as any).instrument && (
-                        <div className="text-[9px] text-gray-600 truncate">{(track as any).instrument}</div>
+                        <div className="text-[10px] text-gray-500 truncate">{(track as any).instrument}</div>
                       )}
                     </div>
 
@@ -779,7 +779,7 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                           onDoubleClick={e => { e.stopPropagation(); openEditor(track); }}
                         >
                           <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: color.base }} />
-                          <div className="absolute top-1.5 left-2 text-[10px] font-semibold pointer-events-none truncate"
+                          <div className="absolute top-1.5 left-2 text-xs font-semibold pointer-events-none truncate"
                             style={{ color: color.base, maxWidth: cW - 30, opacity: 0.9 }}>
                             {track.name}
                           </div>
