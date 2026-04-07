@@ -22,9 +22,11 @@ import { useStudioStore } from '@/stores/useStudioStore';
 import {
   Plus, ChevronRight, ChevronDown, ZoomIn, ZoomOut, Mic2, Piano,
   Layers, Music2, Drum, Trash2, Settings2, GripVertical, Sliders, Repeat, Download,
+  X, Maximize2, Minimize2,
 } from 'lucide-react';
 import { SectionMarkers } from './SectionMarkers';
 import { AutomationLane, valueAt, AUTO_LANE_H, type AutoPoint, type AutoParam } from './AutomationLane';
+import { VerticalPianoRoll } from './VerticalPianoRoll';
 import { exportTracksToMidi, downloadMidi } from '@/lib/midiExport';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { cn } from '@/lib/utils';
@@ -207,6 +209,29 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
   const [autoParams,  setAutoParams]  = useState<Record<string, AutoParam>>({});
   const [editingId,   setEditingId]   = useState<string | null>(null);
   const [editName,    setEditName]    = useState('');
+  // ── Inline editor (Ableton-style bottom split pane) ────────────────────────
+  const [editorTrackId, setEditorTrackId]   = useState<string | null>(null);
+  const [splitPercent,  setSplitPercent]     = useState(55);  // % of height for arrangement
+  const splitDragRef  = useRef<{ startY: number; startPercent: number } | null>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const editorTrack   = editorTrackId ? tracks.find(t => t.id === editorTrackId) : null;
+
+  // Drag handler for split resize
+  useEffect(() => {
+    if (!splitDragRef.current) return;
+    const onMove = (e: PointerEvent) => {
+      if (!splitDragRef.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const dy = e.clientY - splitDragRef.current.startY;
+      const pctDelta = (dy / rect.height) * 100;
+      setSplitPercent(Math.max(25, Math.min(80, splitDragRef.current.startPercent + pctDelta)));
+    };
+    const onUp = () => { splitDragRef.current = null; };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+  });
+
   // Loop region drag on ruler
   const loopDragRef = useRef<{ startClientX: number; startBar: number } | null>(null);
 
@@ -375,12 +400,15 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
 
   // ── Open editor ─────────────────────────────────────────────────────────────
   const openEditor = useCallback((track: StudioTrack) => {
-    if (!onOpenEditor) return;
     const kind = (track as any).kind as string;
-    onOpenEditor(
-      track.id,
-      kind === 'beat' ? 'beat-lab' : kind === 'vocal' ? 'lyrics' : 'piano-roll'
-    );
+    // Beat and vocal tracks still open in their dedicated tabs
+    if (kind === 'beat' || kind === 'vocal') {
+      onOpenEditor?.(track.id, kind === 'beat' ? 'beat-lab' : 'lyrics');
+      return;
+    }
+    // MIDI/piano tracks open inline in the Ableton-style bottom pane
+    setEditorTrackId(track.id);
+    setSelectedId(track.id);
   }, [onOpenEditor]);
 
   // ── Apply automation to audio engine during playback ─────────────────────────
@@ -429,7 +457,10 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
   const playheadLeft = HEADER_W + playheadBar * pxPerBar;
 
   return (
-    <div className="flex flex-col h-full bg-[#06080f] overflow-hidden">
+    <div ref={containerRef} className="flex flex-col h-full bg-[#06080f] overflow-hidden">
+
+      {/* ── Arrangement pane (top) ──────────────────────────────────────────── */}
+      <div className="flex flex-col overflow-hidden" style={{ height: editorTrackId ? `${splitPercent}%` : '100%' }}>
 
       {/* ── Toolbar ───────────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.06]">
@@ -906,6 +937,61 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
           </div>
         </div>
       </div>
+
+      </div>{/* end arrangement pane */}
+
+      {/* ── Resize handle + Inline editor pane (bottom) ─────────────────────── */}
+      {editorTrackId && editorTrack && (
+        <>
+          {/* Drag handle */}
+          <div
+            className="flex-shrink-0 h-[5px] cursor-row-resize bg-white/[0.04] hover:bg-cyan-500/20 active:bg-cyan-500/40 transition-colors relative group"
+            onPointerDown={e => {
+              e.preventDefault();
+              splitDragRef.current = { startY: e.clientY, startPercent: splitPercent };
+            }}
+          >
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-white/10 group-hover:bg-cyan-400/40" />
+          </div>
+
+          {/* Editor pane */}
+          <div className="flex flex-col overflow-hidden bg-gray-900" style={{ height: `${100 - splitPercent}%` }}>
+            {/* Editor header */}
+            <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-[#0a0e18] border-b border-white/[0.06]">
+              <Piano className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs font-medium text-cyan-300">{editorTrack.name}</span>
+              <span className="text-[10px] text-gray-500">— Piano Roll</span>
+              <div className="flex-1" />
+              <button
+                onClick={() => {
+                  // Pop out to full piano roll tab
+                  onOpenEditor?.(editorTrackId!, 'piano-roll');
+                  setEditorTrackId(null);
+                }}
+                className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-cyan-400 transition-colors"
+                title="Open in full tab"
+              >
+                <Maximize2 className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => setEditorTrackId(null)}
+                className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                title="Close editor"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Piano Roll */}
+            <div className="flex-1 min-h-0 overflow-auto">
+              <VerticalPianoRoll
+                selectedTrack={editorTrackId}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
     </div>
   );
 }
