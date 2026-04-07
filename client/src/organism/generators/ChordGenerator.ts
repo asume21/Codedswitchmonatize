@@ -429,7 +429,9 @@ export class ChordGenerator extends GeneratorBase {
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    this.part.start('+0.1')
+    // Start at next bar boundary — prevents past-event burst on 8-voice PolySynth
+    const nextBar = Tone.getTransport().nextSubdivision('1m')
+    this.part.start(nextBar)
 
     // Immediately notify listeners of the first chord
     const firstChord = prog.chords[0]
@@ -456,18 +458,20 @@ export class ChordGenerator extends GeneratorBase {
       }
     }
 
-    // Fade out old synth before disconnect to prevent click/pop
+    // Kill old synth immediately — cancel automation, release, disconnect.
     const oldSynth = this.synth
-    oldSynth.volume.rampTo(-Infinity, 0.15)
-    try { oldSynth.releaseAll() } catch { /* */ }
-    // Track the deferred dispose so rapid transitions can cancel it
+    try {
+      oldSynth.volume.cancelScheduledValues(Tone.now())
+      oldSynth.releaseAll()
+      oldSynth.disconnect()
+    } catch { /* */ }
+    // Defer dispose only (GC cleanup, no audio impact)
     this.pendingOldSynth = oldSynth
     this.pendingSynthDispose = setTimeout(() => {
-      try { oldSynth.disconnect() } catch { /* already disposed */ }
       try { oldSynth.dispose() } catch { /* already disposed */ }
       this.pendingOldSynth = null
       this.pendingSynthDispose = null
-    }, 200)
+    }, 100)
 
     // Build new synth
     let newSynth: Tone.PolySynth

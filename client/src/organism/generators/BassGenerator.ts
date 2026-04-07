@@ -272,8 +272,9 @@ export class BassGenerator extends GeneratorBase {
 
     this.part.loop      = true
     this.part.loopEnd   = '4m'
-    // Start slightly in the future — start(0) fires all past events instantly
-    this.part.start('+0.05')
+    // Start at next bar boundary — prevents past-event burst
+    const nextBar = Tone.getTransport().nextSubdivision('1m')
+    this.part.start(nextBar)
   }
 
   private generateNotes(): ScheduledNote[] {

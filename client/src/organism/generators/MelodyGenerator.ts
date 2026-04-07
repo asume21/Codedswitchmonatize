@@ -311,19 +311,22 @@ export class MelodyGenerator extends GeneratorBase {
       }
     }
 
-    // Fade out old synth before disconnect to prevent click/pop
+    // Kill old synth immediately — cancel automation, release voices, disconnect.
+    // Previous approach deferred disconnect by 200ms which left zombie synths
+    // in the audio graph producing silent output through the effects chain.
     const oldSynth = this.synth
-    oldSynth.volume.rampTo(-Infinity, 0.15)
-    try { oldSynth.releaseAll() } catch { /* */ }
-    // Disconnect immediately — stops old synth from producing audio.
-    // The dispose is deferred to let GC handle it cleanly.
+    try {
+      oldSynth.volume.cancelScheduledValues(Tone.now())
+      oldSynth.releaseAll()
+      oldSynth.disconnect()
+    } catch { /* */ }
+    // Defer dispose only (GC cleanup, no audio impact)
     this.pendingOldSynth = oldSynth
     this.pendingSynthDispose = setTimeout(() => {
-      try { oldSynth.disconnect() } catch { /* already disposed */ }
       try { oldSynth.dispose() } catch { /* already disposed */ }
       this.pendingOldSynth = null
       this.pendingSynthDispose = null
-    }, 200)
+    }, 100)
 
     // Build new synth based on voice type
     let newSynth: Tone.PolySynth
@@ -524,7 +527,12 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = `${phraseLength}i`   // i = 16th note ticks
-    this.part.start('+0.1')
+    // Start at the next bar boundary — prevents "past event burst" where
+    // all notes before the current Transport position fire simultaneously.
+    // On a 6-voice PolySynth through Chorus+Delay+Reverb, a burst of 8-10
+    // instant triggerAttackRelease calls overwhelms the audio thread.
+    const nextBar = Tone.getTransport().nextSubdivision('1m')
+    this.part.start(nextBar)
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {

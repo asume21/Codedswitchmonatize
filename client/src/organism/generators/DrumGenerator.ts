@@ -331,10 +331,10 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = '4m'
-    // Start 150ms in the future so the audio thread has time to prepare.
-    // Using start(0) fires ALL past events as an instant burst if Transport
-    // is already running, causing massive crackling. Previous 50ms was too tight.
-    this.part.start('+0.15')
+    // Start at next bar boundary — prevents past-event burst where all
+    // events before current Transport position fire simultaneously.
+    const nextBar = Tone.getTransport().nextSubdivision('1m')
+    this.part.start(nextBar)
 
     // Gap 3 — mirror current pattern into ProBeatMaker for visual display
     this.broadcastToBeatMaker(hits)
