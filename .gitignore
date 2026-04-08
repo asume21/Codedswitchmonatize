@@ -52,3 +52,8 @@ server/uploads/
 
 # Local patch snapshots
 local-changes-*.patch
+
+# MCP registry credential files
+.mcpregistry_*
+tools/audio-debug-mcp-publish/.mcpregistry_github_token
+tools/audio-debug-mcp-publish/.mcpregistry_registry_token

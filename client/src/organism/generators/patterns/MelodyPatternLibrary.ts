@@ -54,3 +54,80 @@ export function getMelodyBehavior(
   // Default: rest
   return MelodyBehavior.Rest
 }
+
+// ── NEW: Hip-Hop Motif Bank For True Harmonic Flow ────────────────────
+
+export interface MotifStep {
+  /** 
+   * Index of the tone.
+   * If isChordTone = true: 0=root of chord, 1=next chord tone (e.g. 3rd), 2=next (5th), etc.
+   * Modulo math applies (e.g., if triad, index 3 = root + 1 octave).
+   */
+  index: number; 
+  isChordTone: boolean;
+  dur16ths: number; 
+}
+
+export interface MelodyMotif {
+  name: string;
+  steps: MotifStep[];
+}
+
+export const HIP_HOP_MOTIFS: Record<string, MelodyMotif[]> = {
+  arps: [
+    { name: "Drake Arp", steps: [
+        {index: 0, isChordTone: true, dur16ths: 2}, 
+        {index: 1, isChordTone: true, dur16ths: 2}, 
+        {index: 2, isChordTone: true, dur16ths: 4}
+      ] 
+    },
+    { name: "Ascend Arp", steps: [
+        {index: 0, isChordTone: true, dur16ths: 1}, 
+        {index: 1, isChordTone: true, dur16ths: 1}, 
+        {index: 2, isChordTone: true, dur16ths: 1},
+        {index: 3, isChordTone: true, dur16ths: 5}
+      ] 
+    },
+    { name: "Rolling Triplets", steps: [
+        {index: 2, isChordTone: true, dur16ths: 2}, 
+        {index: 1, isChordTone: true, dur16ths: 2}, 
+        {index: 0, isChordTone: true, dur16ths: 4}
+      ] 
+    }
+  ],
+  ostinatos: [
+    { name: "Trap Bell 1", steps: [
+        {index: 2, isChordTone: true, dur16ths: 3}, 
+        {index: 0, isChordTone: true, dur16ths: 3}, 
+        {index: 1, isChordTone: true, dur16ths: 2}
+      ] 
+    },
+    { name: "Trap Bell 2", steps: [
+        {index: 0, isChordTone: true, dur16ths: 1.5}, 
+        {index: 0, isChordTone: true, dur16ths: 1.5}, 
+        {index: 2, isChordTone: true, dur16ths: 5}
+      ] 
+    },
+    { name: "Phonk Bounce", steps: [
+        {index: 0, isChordTone: true, dur16ths: 2}, 
+        {index: 1, isChordTone: false, dur16ths: 2}, 
+        {index: 0, isChordTone: true, dur16ths: 4}
+      ] 
+    },
+  ],
+  fills: [
+    { name: "Walk Down", steps: [
+        {index: 2, isChordTone: true, dur16ths: 1}, 
+        {index: 1, isChordTone: false, dur16ths: 1}, 
+        {index: 1, isChordTone: true, dur16ths: 1}, 
+        {index: 0, isChordTone: true, dur16ths: 5}
+      ] 
+    },
+    { name: "Soul Flourish", steps: [
+        {index: 1, isChordTone: true, dur16ths: 2}, 
+        {index: 2, isChordTone: false, dur16ths: 1}, 
+        {index: 0, isChordTone: true, dur16ths: 5}
+      ] 
+    },
+  ]
+};

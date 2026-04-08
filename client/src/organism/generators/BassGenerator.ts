@@ -18,28 +18,26 @@ import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
+import { createSoundfontSampler } from '../instruments/SamplerUtils'
 
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth:      Tone.MonoSynth
+  private synth:      Tone.MonoSynth | Tone.Sampler
   private filter:     Tone.Filter
-  private monoSub:    Tone.Filter      // lowpass mono enforcement for sub frequencies
+  private monoSub:    Tone.Filter      
   private compressor: Tone.Compressor
   private distortion: Tone.Distortion
   private part:       Tone.Part | null = null
 
   // Musical state
-  private rootMidi:        number       = 36   // C2 — rotates on state transitions
+  private rootMidi:        number       = 36   
   private currentBehavior: BassBehavior = BassBehavior.Breathe
 
-  // Hip-hop friendly root notes (pentatonic minor roots at octave 2)
-  private static readonly ROOT_POOL = [33, 36, 38, 40, 41, 43, 45, 48] // A1,C2,D2,E2,F2,G2,A2,C3
+  private static readonly ROOT_POOL = [33, 36, 38, 40, 41, 43, 45, 48] 
 
-  // Chord-awareness — when a chord change arrives, bass shifts its root
-  // to the chord's bass note for harmonic coherence
-  private chordRootPitchClass: number | null = null  // null = use random root
-  private tonicPitchClass: number = 0  // overall key tonic (0=C)
+  private chordRootPitchClass: number | null = null  
+  private tonicPitchClass: number = 0  
 
   // Physics cache
   private currentPocket: number = 0
@@ -47,13 +45,32 @@ export class BassGenerator extends GeneratorBase {
   private lastFilterCutoff: number = 350
   private lastOutputGain: number = 0
 
+  private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
+  private pendingOldSynth: Tone.MonoSynth | Tone.Sampler | null = null
+  
+  private isCurrentVoiceSampler: boolean = false
+
+  // ─── Dynamic Global Voices ──────────────────────────────────
+  private static readonly GLOBAL_VOICES = [
+    // 808s (Heat / Ice)
+    { name: 'Classic 808', type: 'Mono', oscType: 'sine', Q: 1, octaves: 0.5, attack: 0.001, decay: 1.0, sustain: 0.5, release: 1.5, distWet: 0.02, volume: -5, tags: ['electronic', '808'] },
+    { name: 'Hard 808', type: 'Mono', oscType: 'sine', Q: 1.5, octaves: 0.8, attack: 0.001, decay: 0.9, sustain: 0.5, release: 1.2, distWet: 0.15, volume: -6, tags: ['electronic', '808', 'aggressive'] },
+    
+    // Acoustic/Electric (Gravel / Smoke)
+    { name: 'Upright Bass', type: 'Sampler', presetId: 'acoustic_bass', attack: 0.05, release: 0.8, volume: 2, distWet: 0, tags: ['acoustic', 'warm'] },
+    { name: 'Electric Bass', type: 'Sampler', presetId: 'electric_bass_finger', attack: 0.02, release: 0.5, volume: 1, distWet: 0, tags: ['electric', 'warm'] },
+    { name: 'Fretless Bass', type: 'Sampler', presetId: 'fretless_bass', attack: 0.05, release: 0.6, volume: 0, distWet: 0, tags: ['electric', 'warm', 'smooth'] },
+
+    // General Synths
+    { name: 'Fat Saw Sub', type: 'Mono', oscType: 'fatsawtooth', Q: 3, octaves: 2.0, attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3, distWet: 0.20, volume: -7, tags: ['electronic'] },
+    { name: 'Smooth Sub', type: 'Mono', oscType: 'fatsawtooth', Q: 1.5, octaves: 1.2, attack: 0.015, decay: 0.35, sustain: 0.7, release: 0.4, distWet: 0.05, volume: -6, tags: ['electronic', 'smooth'] },
+  ]
+
   constructor() {
     super(GeneratorName.Bass)
 
     this.output     = new Tone.Gain(1)
     this.filter     = new Tone.Filter(350, 'lowpass')
-    // Mono enforcement for sub frequencies — lowpass at 120Hz prevents stereo spread
-    // from the FatSawtooth oscillator from causing phase cancellation on mono systems
     this.monoSub    = new Tone.Filter({ type: 'lowpass', frequency: 120, rolloff: -24 })
     this.compressor = new Tone.Compressor({ threshold: -20, ratio: 6, attack: 0.005, release: 0.12 })
     this.distortion = new Tone.Distortion({ distortion: 0.08, wet: 0.2 })
@@ -73,7 +90,6 @@ export class BassGenerator extends GeneratorBase {
     })
     this.synth.volume.value = -7
 
-    // Signal chain: synth → filter → monoSub → distortion → compressor → output
     this.synth.connect(this.filter)
     this.filter.connect(this.monoSub)
     this.monoSub.connect(this.distortion)
@@ -94,16 +110,16 @@ export class BassGenerator extends GeneratorBase {
       this.rebuildPart(physics)
     }
 
-    // Duck filter based on pocket — only schedule ramp if cutoff changed meaningfully.
-    // Threshold of 5Hz prevents pocket micro-drift from interrupting in-progress ramps.
-    const cutoff = getBassFilterCutoff(physics.mode, physics.pocket)
-    if (Math.abs(cutoff - this.lastFilterCutoff) > 15) {
-      this.filter.frequency.cancelScheduledValues(Tone.now())
-      this.filter.frequency.rampTo(cutoff, 0.4)
-      this.lastFilterCutoff = cutoff
+    // Only duck filter if we are using a MonoSynth (samplers bypass the filter entirely)
+    if (!this.isCurrentVoiceSampler) {
+      const cutoff = getBassFilterCutoff(physics.mode, physics.pocket)
+      if (Math.abs(cutoff - this.lastFilterCutoff) > 15) {
+        this.filter.frequency.cancelScheduledValues(Tone.now())
+        this.filter.frequency.rampTo(cutoff, 0.4)
+        this.lastFilterCutoff = cutoff
+      }
     }
 
-    // Output level — only schedule ramp if gain changed meaningfully
     const targetLevel = this.computeTargetLevel(organism)
     this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
@@ -118,7 +134,6 @@ export class BassGenerator extends GeneratorBase {
 
     if (to === OState.Awakening) {
       this.stopPart()
-      // Commit the groove immediately so the beat feels confident from bar 1
       this.rootMidi        = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
       this.currentMode     = physics.mode
       setBassSwing(physics.mode.toString())
@@ -128,10 +143,9 @@ export class BassGenerator extends GeneratorBase {
       return
     }
 
-    // Breathing or Flow → pick a new root + fresh preset + rebuild
     this.rootMidi    = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
     this.currentMode = physics.mode
-    setBassSwing(physics.mode.toString())  // sync bass swing with genre
+    setBassSwing(physics.mode.toString()) 
     this.currentBehavior = getBassBehavior(physics.mode, to)
     this.applyBassPreset()
     this.rebuildPart(physics)
@@ -145,93 +159,112 @@ export class BassGenerator extends GeneratorBase {
     this.setOutputLevel(0)
   }
 
-  // ── Bass presets — mode-aware sound selection ────────────────────
-
-  private static readonly PRESET_808 = [
-    // Classic 808 — sine sub with long decay, pitch glide feel
-    { oscType: 'sine' as const, filterQ: 1, filterOctaves: 0.5, attack: 0.001, decay: 1.0,  sustain: 0.5, release: 1.5, distWet: 0.02, volume: -5 },
-    // Hard 808 — tighter, more punch
-    { oscType: 'sine' as const, filterQ: 1.2, filterOctaves: 0.6, attack: 0.001, decay: 0.7, sustain: 0.4, release: 1.0, distWet: 0.05, volume: -5 },
-    // Distorted 808 — saturated sub for drill
-    { oscType: 'sine' as const, filterQ: 1.5, filterOctaves: 0.8, attack: 0.001, decay: 0.9, sustain: 0.5, release: 1.2, distWet: 0.15, volume: -6 },
-  ] as const
-
-  private static readonly PRESET_GENERAL = [
-    // Fat Saw — default: wide, mid-heavy
-    { oscType: 'fatsawtooth' as const, filterQ: 3,   filterOctaves: 2.0, attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3, distWet: 0.20, volume: -7 },
-    // Smooth Sub — low rumble, slow attack
-    { oscType: 'fatsawtooth' as const, filterQ: 1.5, filterOctaves: 1.2, attack: 0.015, decay: 0.35, sustain: 0.7, release: 0.4, distWet: 0.05, volume: -6 },
-    // Growl — high resonance, aggressive
-    { oscType: 'fatsawtooth' as const, filterQ: 5,   filterOctaves: 2.5, attack: 0.003, decay: 0.18, sustain: 0.6, release: 0.2, distWet: 0.35, volume: -8 },
-    // Pluck — tight envelope, articulate
-    { oscType: 'fatsawtooth' as const, filterQ: 4,   filterOctaves: 3.0, attack: 0.002, decay: 0.12, sustain: 0.3, release: 0.2, distWet: 0.15, volume: -7 },
-    // Funk — punchy, mid-forward
-    { oscType: 'fatsawtooth' as const, filterQ: 3.5, filterOctaves: 2.8, attack: 0.003, decay: 0.14, sustain: 0.45, release: 0.18, distWet: 0.25, volume: -7 },
-    // Dub — warm round, long release
-    { oscType: 'fatsawtooth' as const, filterQ: 2,   filterOctaves: 1.5, attack: 0.010, decay: 0.40, sustain: 0.65, release: 0.6, distWet: 0.08, volume: -6 },
-  ] as const
-
   private applyBassPreset(): void {
-    // Heat/Gravel → 808 sine presets; others → general saw presets
-    const is808 = this.currentMode === OrganismMode.Heat || this.currentMode === OrganismMode.Gravel
-    const pool  = is808 ? BassGenerator.PRESET_808 : BassGenerator.PRESET_GENERAL
-    const p     = pool[Math.floor(Math.random() * pool.length)]
+    // Score voices 
+    let bestVoice = BassGenerator.GLOBAL_VOICES[0]
+    let bestScore = -Infinity
 
-    // Switch oscillator type for 808 vs saw
+    for (const voice of BassGenerator.GLOBAL_VOICES) {
+      let score = 0
+      if ((this.currentMode === OrganismMode.Heat || this.currentMode === OrganismMode.Ice) && voice.tags.includes('808')) {
+        score += 3
+        if (this.currentMode === OrganismMode.Heat && voice.tags.includes('aggressive')) score += 1
+      }
+      if ((this.currentMode === OrganismMode.Gravel || this.currentMode === OrganismMode.Smoke) && voice.tags.includes('acoustic')) {
+        score += 3
+      }
+      if (this.currentMode === OrganismMode.Smoke && voice.tags.includes('electric')) {
+        score += 3
+      }
+      score += Math.random() * 1.5
+
+      if (score > bestScore) {
+        bestScore = score
+        bestVoice = voice
+      }
+    }
+
+    const voice = bestVoice
+
+    if (this.pendingSynthDispose) {
+      clearTimeout(this.pendingSynthDispose)
+      this.pendingSynthDispose = null
+      if (this.pendingOldSynth) {
+        try { this.pendingOldSynth.disconnect() } catch { /* */ }
+        try { this.pendingOldSynth.dispose() } catch { /* */ }
+        this.pendingOldSynth = null
+      }
+    }
+
+    const oldSynth = this.synth
     try {
-      (this.synth.oscillator as any).type = p.oscType === 'sine' ? 'sine' : 'fatsawtooth'
-    } catch { /* oscillator type change may fail mid-note */ }
+      oldSynth.volume.cancelScheduledValues(Tone.now())
+      if (oldSynth instanceof Tone.MonoSynth) {
+         oldSynth.triggerRelease()
+      } else {
+         oldSynth.releaseAll()
+      }
+      oldSynth.disconnect()
+    } catch { /* */ }
+    
+    this.pendingOldSynth = oldSynth
+    this.pendingSynthDispose = setTimeout(() => {
+      try { oldSynth.dispose() } catch { /* */ }
+      this.pendingOldSynth = null
+      this.pendingSynthDispose = null
+    }, 100)
 
-    this.synth.filter.Q.value                = p.filterQ
-    this.synth.filterEnvelope.octaves        = p.filterOctaves
-    this.synth.envelope.attack               = p.attack
-    this.synth.envelope.decay                = p.decay
-    this.synth.envelope.sustain              = p.sustain
-    this.synth.envelope.release              = p.release
-    this.distortion.wet.rampTo(p.distWet, 0.1)
-    this.synth.volume.rampTo(p.volume, 0.1)
+    if (voice.type === 'Sampler' && voice.presetId) {
+      this.isCurrentVoiceSampler = true
+      this.synth = createSoundfontSampler(
+        voice.presetId, 
+        { attack: voice.attack, release: voice.release },
+        voice.volume
+      )
+      // BYPASS FILTER AND DISTORTION ENTIRELY for acoustic/electric realism! 
+      // Straight to compressor for tightness.
+      this.synth.connect(this.compressor)
+    } else {
+      this.isCurrentVoiceSampler = false
+      this.synth = new Tone.MonoSynth({
+        oscillator: { type: voice.oscType || 'fatsawtooth', spread: 15, count: 2 },
+        filter:     { Q: voice.Q || 3, type: 'lowpass', rolloff: -24 },
+        envelope:   { attack: voice.attack, decay: voice.decay, sustain: voice.sustain, release: voice.release },
+        filterEnvelope: {
+          attack: 0.04, decay: 0.15, sustain: 0.35, release: 0.15,
+          baseFrequency: 80, octaves: voice.octaves || 2.0,
+        },
+      } as any)
+      this.synth.volume.value = voice.volume
+      
+      // Connect to Filter -> MonoSub -> Distortion -> Compressor chain
+      this.synth.connect(this.filter)
+      this.distortion.wet.rampTo(voice.distWet || 0.1, 0.1)
+    }
+
+    console.debug(`🎸 Bass voice: ${voice.name} (${this.currentMode})`)
   }
 
-  // ── Reactive mutation methods (Section 05) ────────────────────────
-
-  // Volume multiplier from ReactiveBehaviorEngine — applied to the output gain
-  // node (NOT synth.volume) to avoid race with setOutputLevel which also uses
-  // synth.volume. This keeps the two concerns separated.
   private volumeMultiplier: number = 1.0
 
-  /**
-   * Called by the orchestrator when the ChordGenerator changes chord.
-   * Shifts the bass root to match the chord's bass note so bass follows
-   * the harmonic progression instead of camping on one random root.
-   */
   setCurrentChord(chord: ChordEvent, rootPitchClass: number): void {
     this.tonicPitchClass = rootPitchClass
     const bassPC = getChordBassNote(chord, rootPitchClass)
 
-    // Convert pitch class to a MIDI note in the bass's octave range (C1-C3)
-    // Find the closest bass MIDI note to current rootMidi that has this pitch class
     const currentOctave = Math.floor(this.rootMidi / 12)
     const newRoot = currentOctave * 12 + bassPC
-    // Clamp to reasonable bass range (A1=33 to C3=48)
     const clamped = Math.max(33, Math.min(48, newRoot))
 
     if (clamped !== this.rootMidi) {
       this.rootMidi = clamped
       this.chordRootPitchClass = bassPC
-      // Do NOT rebuild the Part here — chord changes happen every 2-4 bars
-      // and each rebuild creates a new Tone.Part + disposes the old one,
-      // causing audible gaps. The next processFrame() or state transition
-      // will pick up the new root naturally when behavior changes.
     }
   }
 
   applyVolumeMultiplier(multiplier: number): void {
     this.volumeMultiplier = Math.max(0, multiplier)
-    // Re-apply current output level with the new multiplier
     this.setOutputLevel(this.activityLevel)
   }
-
-  // ── Private ──────────────────────────────────────────────────────
 
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
@@ -242,7 +275,6 @@ export class BassGenerator extends GeneratorBase {
     }
   }
 
-  // Rebuild throttle — prevent rapid Part rebuilds from overlapping
   private lastRebuildTime: number = 0
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
@@ -262,7 +294,6 @@ export class BassGenerator extends GeneratorBase {
       vel:  n.velocity,
     }))
 
-    // Lay bass back ~20ms behind the kick — creates the "pocket" groove feel
     const LAY_BACK_SEC = 0.020
 
     this.part = new Tone.Part((time, event) => {
@@ -272,31 +303,35 @@ export class BassGenerator extends GeneratorBase {
 
     this.part.loop      = true
     this.part.loopEnd   = '4m'
-    // Start at next bar boundary — prevents past-event burst
     const nextBar = Tone.getTransport().nextSubdivision('1m')
     this.part.start(nextBar)
   }
 
   private generateNotes(): ScheduledNote[] {
-    // Apply portamento for slide behaviors (808 slide, west coast, phonk)
     const slideActive = shouldEnableSlide(this.currentBehavior)
     const portTime = getPortamentoTime(this.currentBehavior)
-    try {
-      (this.synth as any).portamento = slideActive ? portTime : 0
-    } catch { /* portamento may not be supported on all synth types */ }
+    if (!this.isCurrentVoiceSampler) {
+      try {
+        (this.synth as any).portamento = slideActive ? portTime : 0
+      } catch { /* */ }
+    }
 
     return buildBassNotes(this.currentBehavior, this.rootMidi)
   }
 
   private startSubBassRise(): void {
     this.stopPart()
-    // Single low sustained note that fades in — clamp to E1 (28) minimum
-    // to avoid inaudible sub-rumble that eats headroom and causes hum
     const subMidi = Math.max(28, this.rootMidi - 12)
     const subRoot = Tone.Frequency(subMidi, 'midi').toNote()
-    this.synth.triggerAttack(subRoot, Tone.now(), 0.01)
-    // Fade in over 2 seconds
-    this.synth.volume.rampTo(-14, 2)
+    
+    if (!this.isCurrentVoiceSampler) {
+      (this.synth as Tone.MonoSynth).triggerAttack(subRoot, Tone.now(), 0.01)
+      this.synth.volume.rampTo(-14, 2)
+    } else {
+       // Samplers do not support sustained infinite attacks well, use a long dummy note
+       this.synth.triggerAttackRelease(subRoot, '2m', Tone.now(), 0.01)
+       this.synth.volume.rampTo(-8, 2)
+    }
   }
 
   private stopPart(): void {
@@ -305,16 +340,21 @@ export class BassGenerator extends GeneratorBase {
       this.part.dispose()
       this.part = null
     }
-    this.synth.triggerRelease()
+    
+    try {
+      this.synth.volume.cancelScheduledValues(Tone.now())
+      if (this.synth instanceof Tone.MonoSynth) {
+        this.synth.triggerRelease()
+      } else {
+        this.synth.releaseAll()
+      }
+    } catch { /* */ }
   }
 
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier * this.volumeMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
-    // Skip redundant ramp if gain hasn't changed meaningfully.
-    // Threshold of 0.008 (~0.07dB) prevents physics micro-drift from
-    // restarting ramps every frame. Previous threshold of 0.001 was too tight.
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
     this.output.gain.cancelScheduledValues(Tone.now())
@@ -323,6 +363,15 @@ export class BassGenerator extends GeneratorBase {
 
   dispose(): void {
     this.stopPart()
+    if (this.pendingSynthDispose) {
+      clearTimeout(this.pendingSynthDispose)
+      this.pendingSynthDispose = null
+    }
+    if (this.pendingOldSynth) {
+      try { this.pendingOldSynth.disconnect() } catch { /* */ }
+      try { this.pendingOldSynth.dispose() } catch { /* */ }
+      this.pendingOldSynth = null
+    }
     this.synth.dispose()
     this.filter.dispose()
     this.monoSub.dispose()

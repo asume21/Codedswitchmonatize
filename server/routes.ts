@@ -59,7 +59,7 @@ import { mixPreviewService, MixPreviewRequest } from "./services/mixPreview";
 import { jobManager } from "./services/jobManager";
 import multer from "multer";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import { aiGenerationLimiter } from "./middleware/rateLimiting";
+import { aiGenerationLimiter, authLimiter } from "./middleware/rateLimiting";
 
 // Standardized error response helper
 const sendError = (res: Response, statusCode: number, message: string) => {
@@ -285,8 +285,9 @@ ${urls
     return res.status(200).send(body);
   });
 
-  // Mount auth routes
-  app.use("/api/auth", createAuthRoutes(storage));
+  // Mount auth routes — uses its own limiter so /me session checks
+  // on every page load don't count against the global 200-req budget.
+  app.use("/api/auth", authLimiter, createAuthRoutes(storage));
   
   // Mount key activation routes
   app.use("/api/keys", createKeyRoutes(storage));

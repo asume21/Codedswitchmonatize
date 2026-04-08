@@ -9,17 +9,20 @@ import {
   PHRASE_LENGTHS,
   MODE_OCTAVES,
   getMelodyBehavior,
+  HIP_HOP_MOTIFS,
+  type MelodyMotif,
 }                             from './patterns/MelodyPatternLibrary'
 import type { ChordEvent }    from './patterns/ChordProgressionBank'
 import { getChordTones }      from './patterns/ChordProgressionBank'
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
+import { createSoundfontSampler } from '../instruments/SamplerUtils'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth: Tone.PolySynth
+  private synth: Tone.PolySynth | Tone.Sampler
   private part:  Tone.Part | null = null
 
   // Reactive state (Section 05)
@@ -46,9 +49,8 @@ export class MelodyGenerator extends GeneratorBase {
   private currentVoiceName: string = 'Default FM'
 
   // Tracked synth dispose timer — prevents zombie synth accumulation
-  // when state transitions happen faster than the 200ms fade window.
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
-  private pendingOldSynth: Tone.PolySynth | null = null
+  private pendingOldSynth: Tone.PolySynth | Tone.Sampler | null = null
 
   // Genre-aware swing — matches drum/bass swing per mode
   private static readonly MODE_SWING: Record<string, number> = {
@@ -57,108 +59,58 @@ export class MelodyGenerator extends GeneratorBase {
   private currentSwing: number = 0.35
 
   // Rebuild throttle — prevent rapid Part rebuilds from overlapping.
-  // MelodyGenerator is the most expensive generator (PolySynth + Chorus + Delay + Reverb)
-  // so we use a longer interval than Drum/Bass.
   private lastRebuildTime: number = 0
   private static readonly MIN_REBUILD_INTERVAL_MS = 600
 
   // Behavior debounce — require behavior to be stable for 2 consecutive frames
-  // before triggering a rebuild. Prevents Rest↔Hint oscillation from voiceActive flicker.
   private pendingBehavior: MelodyBehavior | null = null
   private pendingBehaviorFrames: number = 0
   private static readonly BEHAVIOR_DEBOUNCE_FRAMES = 2
 
-  // ─── Mode → Synth voice presets ──────────────────────────────────
-  // Each mode has a pool of synth configs randomly selected on state transitions
-  private static readonly MODE_VOICES: Record<string, Array<{
-    name: string; type: 'FM' | 'Synth' | 'Mono'; options: any
+  // ─── Dynamic Global Voices ──────────────────────────────────
+  private static readonly GLOBAL_VOICES: Array<{
+    name: string; type: 'FM' | 'Synth' | 'Mono' | 'Sampler'; options: any; presetId?: string
     volume: number; chorusWet: number; reverbDecay: number; delayFeedback: number
-  }>> = {
-    heat: [
-      { name: 'Trap Lead', type: 'FM', options: {
-        harmonicity: 3, modulationIndex: 6, oscillator: { type: 'sine' }, modulation: { type: 'square' },
-        envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.3 },
-        modulationEnvelope: { attack: 0.01, decay: 0.15, sustain: 0.2, release: 0.3 },
-      }, volume: -8, chorusWet: 0.15, reverbDecay: 0.5, delayFeedback: 0.08 },
-      { name: 'Bell Lead', type: 'FM', options: {
-        harmonicity: 5.07, modulationIndex: 12, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 0.8, sustain: 0.1, release: 1.5 },
-        modulationEnvelope: { attack: 0.001, decay: 0.5, sustain: 0.1, release: 1.0 },
-      }, volume: -10, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.15 },
-      { name: 'Pluck', type: 'Synth', options: {
-        oscillator: { type: 'triangle' },
-        envelope: { attack: 0.001, decay: 0.3, sustain: 0.0, release: 0.2 },
-      }, volume: -7, chorusWet: 0.1, reverbDecay: 0.4, delayFeedback: 0.1 },
-    ],
-    gravel: [
-      { name: 'Dark Saw', type: 'Mono', options: {
-        oscillator: { type: 'sawtooth' },
-        envelope: { attack: 0.02, decay: 0.4, sustain: 0.6, release: 0.4 },
-        filter: { type: 'lowpass', frequency: 1800, Q: 3 },
-        filterEnvelope: { attack: 0.01, decay: 0.5, sustain: 0.3, release: 0.5, baseFrequency: 200, octaves: 3 },
-      }, volume: -8, chorusWet: 0.1, reverbDecay: 0.6, delayFeedback: 0.06 },
-      { name: 'Gritty FM', type: 'FM', options: {
-        harmonicity: 1.5, modulationIndex: 10, oscillator: { type: 'sine' }, modulation: { type: 'sawtooth' },
-        envelope: { attack: 0.02, decay: 0.3, sustain: 0.5, release: 0.4 },
-        modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.3 },
-      }, volume: -9, chorusWet: 0.05, reverbDecay: 0.5, delayFeedback: 0.05 },
-    ],
-    smoke: [
-      { name: 'Rhodes Keys', type: 'FM', options: {
-        harmonicity: 2, modulationIndex: 1.5, oscillator: { type: 'sine' }, modulation: { type: 'triangle' },
-        envelope: { attack: 0.005, decay: 1.0, sustain: 0.3, release: 1.2 },
-        modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 0.8 },
-      }, volume: -9, chorusWet: 0.35, reverbDecay: 1.0, delayFeedback: 0.12 },
-      { name: 'Warm Saw', type: 'Synth', options: {
-        oscillator: { type: 'fatsawtooth', spread: 15 },
-        envelope: { attack: 0.05, decay: 0.5, sustain: 0.6, release: 0.8 },
-      }, volume: -10, chorusWet: 0.4, reverbDecay: 0.8, delayFeedback: 0.15 },
-      { name: 'Funk Organ', type: 'FM', options: {
-        harmonicity: 1, modulationIndex: 0.5, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
-        envelope: { attack: 0.005, decay: 0.1, sustain: 0.9, release: 0.1 },
-        modulationEnvelope: { attack: 0.005, decay: 0.1, sustain: 0.8, release: 0.1 },
-      }, volume: -8, chorusWet: 0.3, reverbDecay: 0.6, delayFeedback: 0.08 },
-    ],
-    ice: [
-      { name: 'Lo-Fi Piano', type: 'FM', options: {
-        harmonicity: 2, modulationIndex: 1.2, oscillator: { type: 'sine' }, modulation: { type: 'triangle' },
-        envelope: { attack: 0.005, decay: 1.5, sustain: 0.2, release: 2.0 },
-        modulationEnvelope: { attack: 0.01, decay: 0.8, sustain: 0.1, release: 1.5 },
-      }, volume: -10, chorusWet: 0.25, reverbDecay: 1.8, delayFeedback: 0.18 },
-      { name: 'Soft Pad', type: 'Synth', options: {
-        oscillator: { type: 'fatsawtooth', spread: 25 },
-        envelope: { attack: 0.8, decay: 1.0, sustain: 0.8, release: 2.5 },
-      }, volume: -12, chorusWet: 0.5, reverbDecay: 2.5, delayFeedback: 0.2 },
-      { name: 'Music Box', type: 'FM', options: {
-        harmonicity: 8, modulationIndex: 2, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 1.5, sustain: 0.0, release: 1.5 },
-        modulationEnvelope: { attack: 0.001, decay: 0.8, sustain: 0.0, release: 1.0 },
-      }, volume: -11, chorusWet: 0.15, reverbDecay: 2.0, delayFeedback: 0.22 },
-    ],
-    glow: [
-      { name: 'Ethereal Pad', type: 'Synth', options: {
-        oscillator: { type: 'fatsawtooth', spread: 30 },
-        envelope: { attack: 1.5, decay: 1.0, sustain: 0.85, release: 3.0 },
-      }, volume: -12, chorusWet: 0.6, reverbDecay: 3.0, delayFeedback: 0.2 },
-      { name: 'Glass Bell', type: 'FM', options: {
-        harmonicity: 6, modulationIndex: 4, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
-        envelope: { attack: 0.001, decay: 2.0, sustain: 0.05, release: 2.5 },
-        modulationEnvelope: { attack: 0.001, decay: 1.0, sustain: 0.05, release: 2.0 },
-      }, volume: -11, chorusWet: 0.4, reverbDecay: 2.5, delayFeedback: 0.25 },
-      { name: 'Dreamy Strings', type: 'Synth', options: {
-        oscillator: { type: 'fatsawtooth', spread: 20 },
-        envelope: { attack: 0.6, decay: 0.5, sustain: 0.9, release: 2.0 },
-      }, volume: -11, chorusWet: 0.5, reverbDecay: 2.0, delayFeedback: 0.18 },
-      { name: 'Singing Pad', type: 'Synth', options: {
-        oscillator: { type: 'sine' },
-        envelope: { attack: 2.5, decay: 2.0, sustain: 0.8, release: 4.0 },
-      }, volume: -14, chorusWet: 0.7, reverbDecay: 4.5, delayFeedback: 0.25 },
-      { name: 'Clean Air', type: 'FM', options: {
-        harmonicity: 1, modulationIndex: 0.2, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
-        envelope: { attack: 1.0, decay: 1.0, sustain: 1.0, release: 3.0 },
-      }, volume: -15, chorusWet: 0.4, reverbDecay: 5.0, delayFeedback: 0.3 },
-    ],
-  }
+    tags: string[]
+  }> = [
+    // Aggressive Trap/Drill
+    { name: 'Trap Lead', type: 'FM', options: {
+      harmonicity: 3, modulationIndex: 6, oscillator: { type: 'sine' }, modulation: { type: 'square' },
+      envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.3 },
+      modulationEnvelope: { attack: 0.01, decay: 0.15, sustain: 0.2, release: 0.3 },
+    }, volume: -8, chorusWet: 0.15, reverbDecay: 0.5, delayFeedback: 0.08, tags: ['aggressive', 'electronic'] },
+    { name: 'Eerie Bell', type: 'FM', options: {
+      harmonicity: 5.07, modulationIndex: 12, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.8, sustain: 0.1, release: 1.5 },
+      modulationEnvelope: { attack: 0.001, decay: 0.5, sustain: 0.1, release: 1.0 },
+    }, volume: -10, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.15, tags: ['dark', 'electronic'] },
+    
+    // Boom Bap / Soulful
+    { name: 'Acoustic Piano', type: 'Sampler', presetId: 'acoustic_grand_piano', options: {
+      envelope: { attack: 0.005, release: 0.8 }
+    }, volume: -5, chorusWet: 0.1, reverbDecay: 1.0, delayFeedback: 0.05, tags: ['acoustic', 'warm', 'soulful'] },
+    { name: 'Saxophone', type: 'Sampler', presetId: 'alto_sax', options: {
+      envelope: { attack: 0.04, release: 0.25 }
+    }, volume: -6, chorusWet: 0.25, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'warm', 'dark'] },
+    
+    // Lo-Fi / Cloud Rap
+    { name: 'Music Box', type: 'Sampler', presetId: 'marimba', options: {
+      envelope: { attack: 0.001, release: 0.8 }
+    }, volume: -3, chorusWet: 0.4, reverbDecay: 2.0, delayFeedback: 0.2, tags: ['ethereal', 'chill'] },
+    { name: 'Glass Pad', type: 'Synth', options: {
+      oscillator: { type: 'fatsawtooth', spread: 30 },
+      envelope: { attack: 1.5, decay: 1.0, sustain: 0.85, release: 3.0 },
+    }, volume: -12, chorusWet: 0.6, reverbDecay: 3.0, delayFeedback: 0.2, tags: ['ethereal', 'dark', 'electronic'] },
+
+    // R&B / Pop Rap
+    { name: 'Nylon Guitar', type: 'Sampler', presetId: 'acoustic_guitar_nylon', options: {
+      envelope: { attack: 0.005, release: 0.5 }
+    }, volume: -4, chorusWet: 0.2, reverbDecay: 1.5, delayFeedback: 0.15, tags: ['acoustic', 'chill', 'soulful'] },
+    { name: 'Clean Air', type: 'FM', options: {
+      harmonicity: 1, modulationIndex: 0.2, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+      envelope: { attack: 1.0, decay: 1.0, sustain: 1.0, release: 3.0 },
+    }, volume: -15, chorusWet: 0.4, reverbDecay: 5.0, delayFeedback: 0.3, tags: ['chill', 'ethereal'] },
+  ]
 
   private reverb:          Tone.Reverb
   private delay:           Tone.FeedbackDelay
@@ -179,17 +131,12 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
 
-    // Parallel send routing — prevents reverb'd delays from accumulating
-    // synth → chorus → dry bus → output
-    //                 → delay send → delay → delayHP → output
-    //                 → reverb send → reverb → reverbHP → output
     this.dryBus     = new Tone.Gain(0.80)
     this.delaySend  = new Tone.Gain(0.10)
     this.reverbSend = new Tone.Gain(0.08)
     this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.12, wet: 1.0 })
     this.reverb = new Tone.Reverb({ decay: 0.8, wet: 1.0 })
 
-    // Highpass on wet returns to prevent low-mid mud accumulation in tails
     this.delayReturnHP  = new Tone.Filter({ type: 'highpass', frequency: 300, rolloff: -12 })
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
@@ -209,7 +156,6 @@ export class MelodyGenerator extends GeneratorBase {
     this.setOutputLevel(0)
   }
 
-  /** Build the default FM synth (used before any mode-based selection). */
   private buildDefaultSynth(): Tone.PolySynth {
     return new Tone.PolySynth(Tone.FMSynth, {
       maxPolyphony: 6,
@@ -222,15 +168,10 @@ export class MelodyGenerator extends GeneratorBase {
     } as any)
   }
 
-  // Cached performer features for intelligent voice selection
   private lastPerformerEnergy: number = 0.5
   private lastPerformerBrightness: number = 0.5
   private lastPerformerSyllabicRate: number = 4
 
-  /**
-   * Feed performer analysis into the melody generator for intelligent voice selection.
-   * Called by the orchestrator every frame.
-   */
   setPerformerFeatures(energy: number, brightness: number, syllabicRate: number): void {
     this.lastPerformerEnergy = energy
     this.lastPerformerBrightness = brightness
@@ -238,57 +179,32 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   /**
-   * Select the best voice preset for the current mode based on what
-   * the Organism hears from the performer's voice.
-   *
-   * - High energy + fast syllables → aggressive/percussive voices (leads, plucks)
-   * - Low energy + slow delivery → warm/sustained voices (pads, keys, strings)
-   * - Bright voice → brighter instruments; dark voice → darker instruments
-   *
-   * Called on state transitions (Breathing/Flow).
+   * Intelligently picks from GLOBAL_VOICES based on performer features
+   * (Aggressive rap = 808s/pianos, softer = rhodes/pads)
    */
   private applyModeVoice(mode: string): void {
-    const pool = MelodyGenerator.MODE_VOICES[mode]
-    if (!pool || pool.length === 0) return
-
-    // Score each voice in the pool based on performer characteristics
-    let bestVoice = pool[0]
+    let bestVoice = MelodyGenerator.GLOBAL_VOICES[0]
     let bestScore = -Infinity
 
-    for (const voice of pool) {
+    for (const voice of MelodyGenerator.GLOBAL_VOICES) {
       let score = 0
-
-      // Attack time as a proxy for percussive vs sustained
-      const attack = voice.options.envelope?.attack ?? 0.1
-      const isPercussive = attack < 0.02
-      const isSustained = attack > 0.3
-
-      // High energy + fast rap → prefer percussive/bright sounds
-      if (this.lastPerformerEnergy > 0.6 && this.lastPerformerSyllabicRate > 5) {
-        if (isPercussive) score += 3
-        if (voice.chorusWet < 0.2) score += 1 // dry = punchy
+      
+      // Energy
+      if (this.lastPerformerEnergy > 0.65) {
+        if (voice.tags.includes('aggressive') || voice.tags.includes('dark')) score += 3
+        if (voice.tags.includes('ethereal')) score -= 2
+      } else if (this.lastPerformerEnergy < 0.35 || mode === 'smoke' || mode === 'glow') {
+        if (voice.tags.includes('warm') || voice.tags.includes('chill')) score += 3
       }
-
-      // Low energy + slow delivery → prefer warm sustained sounds
-      if (this.lastPerformerEnergy < 0.4 || this.lastPerformerSyllabicRate < 3) {
-        if (isSustained) score += 3
-        if (voice.reverbDecay > 1.5) score += 1 // more reverb for atmosphere
+      
+      // Syllables
+      if (this.lastPerformerSyllabicRate > 4) {
+        // Fast rapping -> clean acoustic or short envelope synth
+        if (voice.type === 'Sampler') score += 2
       }
-
-      // Match brightness: bright voice → bright instruments
-      if (this.lastPerformerBrightness > 0.6) {
-        // Prefer higher chorus wet and higher volume (brighter presence)
-        if (voice.volume > -10) score += 1
-      } else {
-        // Dark voice → prefer darker, lower instruments
-        if (voice.volume <= -10) score += 1
-        if (voice.chorusWet > 0.3) score += 1 // chorus adds warmth
-      }
-
-      // Medium energy → slight random variation to keep things interesting
-      if (this.lastPerformerEnergy >= 0.4 && this.lastPerformerEnergy <= 0.6) {
-        score += Math.random() * 1.5
-      }
+      
+      // Introduce some random variety
+      score += Math.random() * 2
 
       if (score > bestScore) {
         bestScore = score
@@ -299,8 +215,6 @@ export class MelodyGenerator extends GeneratorBase {
     const voice = bestVoice
     this.currentVoiceName = voice.name
 
-    // If a previous synth swap is still pending, force-dispose it NOW
-    // to prevent zombie synth accumulation during rapid state transitions
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
       this.pendingSynthDispose = null
@@ -311,60 +225,52 @@ export class MelodyGenerator extends GeneratorBase {
       }
     }
 
-    // Kill old synth immediately — cancel automation, release voices, disconnect.
-    // Previous approach deferred disconnect by 200ms which left zombie synths
-    // in the audio graph producing silent output through the effects chain.
     const oldSynth = this.synth
     try {
       oldSynth.volume.cancelScheduledValues(Tone.now())
       oldSynth.releaseAll()
       oldSynth.disconnect()
     } catch { /* */ }
-    // Defer dispose only (GC cleanup, no audio impact)
+    
     this.pendingOldSynth = oldSynth
     this.pendingSynthDispose = setTimeout(() => {
-      try { oldSynth.dispose() } catch { /* already disposed */ }
+      try { oldSynth.dispose() } catch { /* */ }
       this.pendingOldSynth = null
       this.pendingSynthDispose = null
     }, 100)
 
-    // Build new synth based on voice type
-    let newSynth: Tone.PolySynth
-    switch (voice.type) {
-      case 'Mono':
-        newSynth = new Tone.PolySynth(Tone.MonoSynth, {
-          maxPolyphony: 4,
-          ...voice.options,
-        } as any)
-        break
-      case 'Synth':
-        newSynth = new Tone.PolySynth(Tone.Synth, {
-          maxPolyphony: 6,
-          ...voice.options,
-        } as any)
-        break
-      case 'FM':
-      default:
-        newSynth = new Tone.PolySynth(Tone.FMSynth, {
-          maxPolyphony: 6,
-          ...voice.options,
-        } as any)
-        break
+    let newSynth: Tone.PolySynth | Tone.Sampler
+    if (voice.type === 'Sampler' && voice.presetId) {
+      newSynth = createSoundfontSampler(
+        voice.presetId, 
+        voice.options.envelope,
+        voice.volume
+      )
+    } else {
+      switch (voice.type) {
+        case 'Mono':
+          newSynth = new Tone.PolySynth(Tone.MonoSynth, { maxPolyphony: 4, ...voice.options } as any)
+          break
+        case 'Synth':
+          newSynth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 6, ...voice.options } as any)
+          break
+        case 'FM':
+        default:
+          newSynth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 6, ...voice.options } as any)
+          break
+      }
+      newSynth.volume.value = voice.volume
     }
 
-    newSynth.volume.value = voice.volume
     this.synth = newSynth
-
-    // Reconnect into chain
     this.synth.connect(this.chorus)
 
-    // Adjust FX for this voice
     this.chorus.wet.rampTo(voice.chorusWet, 0.5)
     this.reverb.decay = voice.reverbDecay
     this.delay.feedback.rampTo(voice.delayFeedback, 0.5)
 
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      console.debug(`🎵 Melody voice: ${voice.name} (${mode})`)
+      console.debug(`🎵 Melody voice: ${voice.name}`)
     }
   }
 
@@ -380,9 +286,6 @@ export class MelodyGenerator extends GeneratorBase {
       organism.flowDepth
     )
 
-    // Debounce behavior changes — require stability for N frames before committing.
-    // voiceActive can flicker on/off every frame from mic noise, causing
-    // Rest↔Hint↔Respond oscillation that floods the audio scheduler.
     let shouldRebuild = false
     if (newBehavior !== this.currentBehavior) {
       if (this.pendingBehavior === newBehavior) {
@@ -395,17 +298,14 @@ export class MelodyGenerator extends GeneratorBase {
           shouldRebuild = true
         }
       } else {
-        // New candidate — start counting
         this.pendingBehavior = newBehavior
         this.pendingBehaviorFrames = 1
       }
     } else {
-      // Behavior stable — clear any pending transition
       this.pendingBehavior = null
       this.pendingBehaviorFrames = 0
     }
 
-    // Scale change also triggers rebuild (but still subject to throttle)
     if (this.scaleDirty) {
       this.scaleDirty = false
       shouldRebuild = true
@@ -415,7 +315,6 @@ export class MelodyGenerator extends GeneratorBase {
       this.rebuildPhrase(physics, organism)
     }
 
-    // Output level
     const targetLevel = this.computeTargetLevel(organism, newBehavior)
     this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
@@ -428,10 +327,6 @@ export class MelodyGenerator extends GeneratorBase {
     }
     if (to === OState.Breathing || to === OState.Flow) {
       this.currentScale = MODE_SCALES[physics.mode] ?? MODE_SCALES.glow
-      // rootPitchClass is intentionally NOT reset here — keep the detected key
-      // across state transitions so the melody stays in the user's key
-
-      // Select a genre-appropriate synth voice for this mode
       this.applyModeVoice(physics.mode.toString())
     }
   }
@@ -444,35 +339,24 @@ export class MelodyGenerator extends GeneratorBase {
     this.setOutputLevel(0)
   }
 
-  // ── Reactive mutation methods (Section 05) ────────────────────────
-
   applyPitchOffset(semitones: number): void {
     this.pitchOffsetSemitones = Math.round(semitones)
   }
 
-  /**
-   * Set the detected root pitch class and scale intervals from ScaleSnapEngine.
-   * The phrase will be rebuilt at the next behavior cycle.
-   *
-   * @param rootPitchClass - 0-11 (C=0, C#=1 ... B=11)
-   * @param intervals      - semitone intervals from root (e.g. [0,3,5,7,10])
-   */
   setRootAndScale(rootPitchClass: number, intervals: number[]): void {
-    const newRoot  = ((rootPitchClass % 12) + 12) % 12  // clamp to 0-11
+    const newRoot  = ((rootPitchClass % 12) + 12) % 12
     const changed  = newRoot !== this.rootPitchClass
                   || JSON.stringify(intervals) !== JSON.stringify(this.currentScale)
     if (!changed) return
     this.rootPitchClass = newRoot
     this.currentScale   = intervals
-    this.scaleDirty     = true   // signal processFrame to rebuild
+    this.scaleDirty     = true
   }
 
-  /**
-   * Called by the orchestrator when the ChordGenerator changes chord.
-   * Updates the chord tones so melody can bias toward them on strong beats.
-   */
   setCurrentChord(chord: ChordEvent, rootPitchClass: number): void {
     this.currentChordTones = getChordTones(chord, rootPitchClass)
+    // Dynamic harmonic flow: when chord changes, auto-rebuild phrase to match
+    this.scaleDirty = true
   }
 
   applyVolumeMultiplier(multiplier: number): void {
@@ -480,12 +364,10 @@ export class MelodyGenerator extends GeneratorBase {
     this.setOutputLevel(this.activityLevel)
   }
 
-  // ── Private ──────────────────────────────────────────────────────
-
   private computeTargetLevel(organism: OrganismState, behavior: MelodyBehavior): number {
     if (organism.current === OState.Dormant)   return 0
     if (organism.current === OState.Awakening) return 0
-    if (behavior === MelodyBehavior.Rest)       return 0
+    if (behavior === MelodyBehavior.Rest)      return 0
 
     switch (behavior) {
       case MelodyBehavior.Hint:    return 0.35 * organism.breathingWarmth
@@ -496,8 +378,6 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private rebuildPhrase(physics: PhysicsState, _organism: OrganismState): void {
-    // Throttle — prevent rapid Part rebuilds from stacking audio nodes.
-    // MelodyGenerator's PolySynth + effects chain is the most expensive to rebuild.
     const now = performance.now()
     if (now - this.lastRebuildTime < MelodyGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
@@ -515,7 +395,6 @@ export class MelodyGenerator extends GeneratorBase {
     if (notes.length === 0) return
 
     this.part = new Tone.Part((time, event) => {
-      // Presence-based velocity scaling — melody quiets during voice peaks
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
       this.synth.triggerAttackRelease(
         event.note,
@@ -526,159 +405,96 @@ export class MelodyGenerator extends GeneratorBase {
     }, notes.map(n => ({ time: n.time, note: n.pitch, dur: n.duration, vel: n.velocity })))
 
     this.part.loop    = true
-    this.part.loopEnd = `${phraseLength}i`   // i = 16th note ticks
-    // Start at the next bar boundary — prevents "past event burst" where
-    // all notes before the current Transport position fire simultaneously.
-    // On a 6-voice PolySynth through Chorus+Delay+Reverb, a burst of 8-10
-    // instant triggerAttackRelease calls overwhelms the audio thread.
+    this.part.loopEnd = `${phraseLength}i`
     const nextBar = Tone.getTransport().nextSubdivision('1m')
     this.part.start(nextBar)
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
-    const notes:  ScheduledNote[] = []
+    const notes: ScheduledNote[] = []
     const octaves = MODE_OCTAVES[physics.mode] ?? [4, 5]
     const octave  = octaves[0] + Math.floor(Math.random() * (octaves[1] - octaves[0] + 1))
-    const scale   = this.currentScale
     const isHint  = this.currentBehavior === MelodyBehavior.Hint
 
-    // ── Step 1: Build a seed motif (3–5 notes) ─────────────────────────
-    // Starts near root or mid-scale so every loop feels grounded.
-    // When chord tones are available, strong-beat notes prefer chord tones.
-    interface MotifNote { degree: number; dur16ths: number }
-    const motifCount = isHint ? 3 : 3 + Math.floor(Math.random() * 3)
-    const motif: MotifNote[] = []
-    let deg = Math.random() < 0.5 ? 0 : Math.floor(scale.length * 0.4)
+    // CALL & RESPONSE: 
+    // If voice is active (rapping), play an Ostinato (repetitive, out of the way).
+    // If voice is inactive (breath/wait), play a Fill or Arp.
+    let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
+    if (!this.voiceActive) {
+      motifBank = Math.random() > 0.5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
+    }
+    
+    // Pick a motif shape
+    const motif = motifBank[Math.floor(Math.random() * motifBank.length)]
 
-    // Pre-compute which scale degrees are chord tones for chord-aware targeting
+    // Map `this.currentChordTones` (0-11 pitch classes) to scale indices dynamically
     const chordDegs: number[] = []
     if (this.currentChordTones.length > 0) {
-      for (let d = 0; d < scale.length; d++) {
-        const pc = (this.rootPitchClass + scale[d]) % 12
+      for (let d = 0; d < this.currentScale.length; d++) {
+        const pc = (this.rootPitchClass + this.currentScale[d]) % 12
         if (this.currentChordTones.includes(pc)) {
           chordDegs.push(d)
         }
       }
     }
-
-    for (let i = 0; i < motifCount; i++) {
-      // Last note of motif resolves to root (0) or 5th (~mid-scale)
-      if (i === motifCount - 1) {
-        // If chord tones available, resolve to nearest chord tone
-        if (chordDegs.length > 0 && Math.random() < 0.75) {
-          deg = chordDegs[Math.floor(Math.random() * chordDegs.length)]
-        } else {
-          deg = Math.random() < 0.65 ? 0 : Math.min(Math.floor(scale.length / 2), scale.length - 1)
-        }
-      } else {
-        const r = Math.random()
-        const delta = r < 0.60 ? (Math.random() < 0.5 ? 1 : -1)   // step
-                    : r < 0.85 ? (Math.random() < 0.5 ? 2 : -2)   // skip
-                    : Math.floor(Math.random() * 5) - 2             // leap
-        deg = Math.max(0, Math.min(scale.length - 1, deg + delta))
-
-        // Chord-tone bias: on even-numbered motif notes (strong positions),
-        // nudge toward the nearest chord tone ~60% of the time
-        if (chordDegs.length > 0 && i % 2 === 0 && Math.random() < 0.60) {
-          let closest = chordDegs[0]
-          let closestDist = Math.abs(deg - closest)
-          for (const cd of chordDegs) {
-            const dist = Math.abs(deg - cd)
-            if (dist < closestDist) { closest = cd; closestDist = dist }
-          }
-          deg = closest
-        }
-      }
-      const dRoll = Math.random()
-      const dur16ths = dRoll < 0.15 ? 1       // 16th — fast run
-                     : dRoll < 0.55 ? 2       // 8th  — main groove
-                     : dRoll < 0.78 ? 3       // dotted 8th — swing pocket
-                     : 4                      // quarter — breath note
-      motif.push({ degree: deg, dur16ths })
+    // Fallback if no chord info: use 0, 2, 4 (root, 3rd, 5th of scale)
+    if (chordDegs.length === 0) {
+      chordDegs.push(0, 2, 4)
     }
 
-    const motifDur = motif.reduce((s, n) => s + n.dur16ths, 0)
-    const restLen  = isHint
-      ? 4 + Math.floor(Math.random() * 4)   // 4–8: hint leaves lots of air
-      : 2 + Math.floor(Math.random() * 3)   // 2–4: call-and-response gaps
-
-    // ── Helper: render motif starting at cursorStart with transposition ──
-    const renderMotif = (m: MotifNote[], cursorStart: number, transposeDeg: number, oct: number) => {
+    const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number) => {
       const out: ScheduledNote[] = []
       let c = cursorStart
-      for (const mn of m) {
+      for (const step of m.steps) {
         if (c >= length16ths) break
-        const d = Math.max(0, Math.min(scale.length - 1, mn.degree + transposeDeg))
-        const semitone = scale[d]
-        const midi  = (oct * 12) + 12 + semitone + this.rootPitchClass + this.pitchOffsetSemitones
+        
+        let degIndex = 0
+        if (step.isChordTone) {
+           // Map 0,1,2 to actual scale degrees of the current chord tones
+           const chordToneIndex = step.index % chordDegs.length
+           const octOffset = Math.floor(step.index / chordDegs.length)
+           degIndex = chordDegs[chordToneIndex] + (octOffset * this.currentScale.length)
+        } else {
+           // Just a relative scale degree
+           degIndex = chordDegs[0] + step.index
+        }
+
+        const normDeg = degIndex % this.currentScale.length
+        const octMidiOffset = Math.floor(degIndex / this.currentScale.length) * 12
+        const semitone = this.currentScale[normDeg]
+        
+        const midi = ((octave + transposeOct) * 12) + 12 + semitone + octMidiOffset + this.rootPitchClass + this.pitchOffsetSemitones
         const pitch = Tone.Frequency(midi, 'midi').toNote()
-        const durStr = mn.dur16ths === 1 ? '16n'
-                     : mn.dur16ths === 2 ? '8n'
-                     : mn.dur16ths === 3 ? '8n.'
-                     : '4n'
+        
+        const durStr = step.dur16ths <= 1 ? '16n'
+                     : step.dur16ths <= 2 ? '8n'
+                     : step.dur16ths <= 3 ? '8n.'
+                     : step.dur16ths <= 4 ? '4n'
+                     : step.dur16ths <= 6 ? '4n.'
+                     : '2n'
+        
         const bar  = Math.floor(c / 16)
         const beat = Math.floor((c % 16) / 4)
         const sub  = c % 4
         const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
         const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
+        
         const accentBase = sub === 0 ? 0.78 : sub === 2 ? 0.60 : 0.42
         const vel = Math.min(1, Math.max(0.15, accentBase + (Math.random() - 0.5) * 0.18))
+        
         out.push({ pitch, duration: durStr, velocity: vel, time })
-        c += mn.dur16ths
+        c += step.dur16ths
       }
-      return out
+      return { out, newCursor: c }
     }
-
-    // ── Step 2: Arrange motif iterations with rests between ─────────────
-    // Pattern: motif | rest | [variation] | rest | [short-variation] | rest | root resolution
-    // Every loop iteration the listener hears the same melodic idea — freestyleable.
 
     let cursor = 0
+    const restLen = isHint ? 8 : 4
 
-    // Iteration 1: original motif
-    if (cursor + motifDur <= length16ths) {
-      notes.push(...renderMotif(motif, cursor, 0, octave))
-      cursor += motifDur
-    }
-    cursor += restLen
-
-    // Iteration 2: transposed variation (up 2 scale degrees = minor 3rd/major 3rd area)
-    if (!isHint) {
-      const trans2 = Math.random() < 0.65 ? 2 : -1
-      if (cursor + motifDur <= length16ths) {
-        notes.push(...renderMotif(motif, cursor, trans2, octave))
-        cursor += motifDur
-      }
-      cursor += restLen
-    }
-
-    // Iteration 3: short "answer" — first 2–3 notes only
-    if (!isHint) {
-      const shortMotif = motif.slice(0, Math.max(2, Math.ceil(motif.length * 0.6)))
-      const shortDur   = shortMotif.reduce((s, n) => s + n.dur16ths, 0)
-      if (cursor + shortDur <= length16ths) {
-        notes.push(...renderMotif(shortMotif, cursor, Math.random() < 0.5 ? 1 : 0, octave))
-        cursor += shortDur
-      }
-      cursor += restLen
-    }
-
-    // ── Step 3: Root resolution — land on tonic before phrase loops ─────
-    if (cursor < length16ths - 1) {
-      const space = length16ths - cursor
-      if (space >= 2) {
-        const rootSemitone = scale[0]
-        const rootMidi  = (octave * 12) + 12 + rootSemitone + this.rootPitchClass + this.pitchOffsetSemitones
-        const rootPitch = Tone.Frequency(rootMidi, 'midi').toNote()
-        const durStr    = space >= 4 ? '4n' : '8n'
-        const bar  = Math.floor(cursor / 16)
-        const beat = Math.floor((cursor % 16) / 4)
-        const sub  = cursor % 4
-        const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
-        const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
-        notes.push({ pitch: rootPitch, duration: durStr, velocity: 0.82, time })
-      }
-    }
+    // Render hook
+    let result = renderMotif(motif, cursor, 0)
+    notes.push(...result.out)
+    cursor = result.newCursor + restLen
 
     return notes
   }
@@ -689,13 +505,10 @@ export class MelodyGenerator extends GeneratorBase {
       this.part.dispose()
       this.part = null
     }
-    // Release all voices and cancel any in-progress automation on the volume
-    // param. cancelScheduledValues prevents stale ramps from accumulating
-    // on the AudioParam timeline (the root cause of progressive crackling).
     try {
       this.synth.volume.cancelScheduledValues(Tone.now())
       this.synth.releaseAll()
-    } catch { /* context not yet started */ }
+    } catch { /* */ }
   }
 
   private setOutputLevel(level: number): void {
@@ -704,16 +517,12 @@ export class MelodyGenerator extends GeneratorBase {
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
-    // Cancel stale automation before scheduling new ramp — prevents
-    // AudioParam timeline from accumulating hundreds of ramp endpoints
-    // over minutes, which progressively bogs down the audio thread.
     this.output.gain.cancelScheduledValues(Tone.now())
     this.output.gain.rampTo(linear, 0.35)
   }
 
   dispose(): void {
     this.stopPart()
-    // Clean up any pending synth swap timer to prevent post-dispose callbacks
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
       this.pendingSynthDispose = null

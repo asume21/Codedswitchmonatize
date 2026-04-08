@@ -55,13 +55,29 @@ const SHARED: Partial<Options> = {
 
 // ── limiters ─────────────────────────────────────────────────────────────────
 
-/** Global: 200 req / 15 min per client (all /api/* routes). */
+/** Global: 400 req / 15 min per client (all /api/* routes except /api/auth). */
 export const globalLimiter = rateLimit({
   ...SHARED,
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 400,
   handler: jsonRateLimitHandler(
     'Too many requests. Please slow down and try again shortly.',
+  ),
+});
+
+/**
+ * Auth routes (login, register, /me session restore).
+ * Higher limit than global so normal browser use (page loads calling /me)
+ * never trips the limiter. Brute-force protection is handled by the low
+ * failure window: 10 failed logins per 15 min per IP.
+ */
+export const authLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 15 * 60 * 1000,
+  max: 100,                 // 100 auth requests per 15 min — covers /me on every page load
+  skipFailedRequests: false, // Count failures so brute-force still hits the cap
+  handler: jsonRateLimitHandler(
+    'Too many login attempts. Please wait a few minutes and try again.',
   ),
 });
 
