@@ -316,42 +316,44 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     })
 
     // ── Ears system: performer analysis ──────────────────────────────────────
-    // Subscribe directly to input frames so we get raw mic data before
-    // the physics engine smooths everything away.
+    // Only subscribe to performer analysis when using mic input — on
+    // autoGenerate or audioFile, there's no performer to analyze and
+    // running the analyzer wastes CPU processing empty frames at 15fps.
     const performer   = new PerformerAnalyzer()
     const selfListen  = new SelfListenAnalyzer()
     performerRef.current   = performer
     selfListenRef.current  = selfListen
 
     let lastPerformerUIUpdate = 0
-    const unsubPerformer = input.subscribe((frame) => {
-      const pState = performer.processFrame(frame)
+    const unsubPerformer = inputSource === 'mic'
+      ? input.subscribe((frame) => {
+          const pState = performer.processFrame(frame)
 
-      // Throttle React state updates to 15fps
-      const now = performance.now()
-      if (now - lastPerformerUIUpdate >= 66) {
-        lastPerformerUIUpdate = now
-        setPerformerState({ ...pState })
+          // Throttle React state updates to 15fps
+          const now = performance.now()
+          if (now - lastPerformerUIUpdate >= 66) {
+            lastPerformerUIUpdate = now
+            setPerformerState({ ...pState })
 
-        // Sync Transport BPM to performer when confidence is high enough
-        // and the drift is significant (> 4 BPM). Only during mic input.
-        if (
-          inputSource === 'mic' &&
-          pState.bpmConfidence > 0.55 &&
-          pState.isInPhrase &&
-          Math.abs(pState.bpm - lastSyncedBpmRef.current) > 4
-        ) {
-          orchestr.setBpm(pState.bpm)
-          lastSyncedBpmRef.current = pState.bpm
-          window.dispatchEvent(new CustomEvent('organism:bpm-locked', {
-            detail: { bpm: pState.bpm, confidence: pState.bpmConfidence },
-          }))
-        }
+            // Sync Transport BPM to performer when confidence is high enough
+            // and the drift is significant (> 4 BPM).
+            if (
+              pState.bpmConfidence > 0.55 &&
+              pState.isInPhrase &&
+              Math.abs(pState.bpm - lastSyncedBpmRef.current) > 4
+            ) {
+              orchestr.setBpm(pState.bpm)
+              lastSyncedBpmRef.current = pState.bpm
+              window.dispatchEvent(new CustomEvent('organism:bpm-locked', {
+                detail: { bpm: pState.bpm, confidence: pState.bpmConfidence },
+              }))
+            }
 
-        // Let orchestrator react to the performer in real time
-        orchestr.applyPerformerState(pState)
-      }
-    })
+            // Let orchestrator react to the performer in real time
+            orchestr.applyPerformerState(pState)
+          }
+        })
+      : () => {} // no-op unsub when not using mic
 
     // ── Ears system: self-listen ─────────────────────────────────────────────
     const unsubSelfListen = selfListen.onReport((report) => {

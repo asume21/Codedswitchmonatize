@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { realisticAudio } from '@/lib/realisticAudio';
 
 interface InstrumentContextType {
@@ -53,11 +53,17 @@ const AVAILABLE_INSTRUMENTS = [
 export function InstrumentProvider({ children }: { children: ReactNode }) {
   const [currentInstrument, setCurrentInstrumentState] = useState('piano');
 
+  // Track which instruments have been loaded to avoid redundant network requests
+  const loadedRef = useRef(new Set<string>());
+
   const loadInstrument = useCallback(async (instrument: string) => {
+    if (loadedRef.current.has(instrument)) return;
+    loadedRef.current.add(instrument);
     try {
       await realisticAudio.loadAdditionalInstrument(instrument);
       console.log(`Loaded instrument: ${instrument}`);
     } catch (error) {
+      loadedRef.current.delete(instrument);
       console.warn(`Failed to load instrument ${instrument}:`, error);
     }
   }, []);
@@ -65,16 +71,14 @@ export function InstrumentProvider({ children }: { children: ReactNode }) {
   const setCurrentInstrument = useCallback((instrument: string) => {
     console.log(`Setting global instrument to: ${instrument}`);
     setCurrentInstrumentState(instrument);
+    // Load on demand — only when the user explicitly switches instruments.
+    // The default piano is NOT loaded on mount; it loads on first use.
     loadInstrument(instrument);
-    
-    window.dispatchEvent(new CustomEvent('instrument-change', { 
-      detail: { instrument } 
+
+    window.dispatchEvent(new CustomEvent('instrument-change', {
+      detail: { instrument }
     }));
   }, [loadInstrument]);
-
-  useEffect(() => {
-    loadInstrument(currentInstrument);
-  }, [currentInstrument, loadInstrument]);
 
   return (
     <InstrumentContext.Provider value={{

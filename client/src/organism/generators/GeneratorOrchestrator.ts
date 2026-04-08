@@ -40,7 +40,7 @@ export class GeneratorOrchestrator {
   // only need updates every ~60ms. Processing every frame floods the audio
   // scheduler with overlapping gain ramps that cause crackling.
   private lastFrameTime: number = 0
-  private static readonly MIN_FRAME_INTERVAL_MS = 55  // ~18fps — plenty for musical reactivity
+  private static readonly MIN_FRAME_INTERVAL_MS = 55  // ~18fps — balances CPU load with musical responsiveness
 
   // Reactive multiplier state (Section 05)
   // These are BASE multipliers set by ReactiveBehaviorEngine.
@@ -79,14 +79,14 @@ export class GeneratorOrchestrator {
   // Total cycle: 28 bars, then repeats.
 
   private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
-    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, texture: 0, chord: 0.4 },
-    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, texture: 0, chord: 0.8 },
-    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0, chord: 1.0 },
+    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.7, melody: 0.5, texture: 0, chord: 0.7 },
+    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, texture: 0, chord: 0.9 },
+    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, texture: 0, chord: 1.0 },
     { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'breakdown', bars: 2, drums: 0.4, bass: 0.7, melody: 0.0, texture: 0, chord: 0.6 },
-    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, texture: 0, chord: 0.9 },
+    { name: 'breakdown', bars: 2, drums: 0.4, bass: 0.7, melody: 0.4, texture: 0, chord: 0.6 },
+    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0, chord: 0.9 },
     { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.5, melody: 0.0, texture: 0, chord: 0.3 },
+    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.5, melody: 0.3, texture: 0, chord: 0.3 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
@@ -183,11 +183,10 @@ export class GeneratorOrchestrator {
     if (this.running) return
     await Tone.start()
 
-    // Increase look-ahead so main-thread jank doesn't starve the audio graph.
-    // Default is ~0.1 s; 0.5 s gives a generous buffer against React re-renders,
-    // physics computation spikes, 5 generators processing frames, and Part rebuilds.
-    // This adds ~500ms of output latency but eliminates buffer underrun crackling.
-    Tone.getContext().lookAhead = 0.5
+    // lookAhead of 0.4s balances scheduling reliability with responsiveness.
+    // 0.2s was too tight — caused silence gaps on startup when the main thread
+    // was busy creating audio nodes. 0.5s felt laggy. 0.4s is the sweet spot.
+    Tone.getContext().lookAhead = 0.4
 
     Tone.getTransport().bpm.value = bpm ?? 90
     Tone.getTransport().start()

@@ -17,7 +17,7 @@ import {
   type ParsedProgression,
   type ChordEvent,
 } from './patterns/ChordProgressionBank'
-import { createSoundfontSampler } from '../instruments/SamplerUtils'
+import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 
 export enum ChordBehavior {
   Silent  = 'silent',    // Dormant / Awakening — no chords
@@ -37,7 +37,7 @@ const MODE_OCTAVES: Record<string, number> = {
 export class ChordGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth:   Tone.PolySynth | Tone.Sampler
+  private synth:   Tone.PolySynth | LoadableSampler
   private chorus:  Tone.Chorus
   private reverb:  Tone.Reverb
   private dryBus:  Tone.Gain
@@ -58,8 +58,10 @@ export class ChordGenerator extends GeneratorBase {
 
   // Tracked synth dispose timer
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
-  private pendingOldSynth: Tone.PolySynth | Tone.Sampler | null = null
+  private pendingOldSynth: Tone.PolySynth | LoadableSampler | null = null
   private lastOutputGain:   number = 0
+  // Fallback synth — created lazily on first sampler use to avoid doubling startup nodes
+  private fallbackSynth: Tone.PolySynth | null = null
 
   private chordChangeListeners: Array<(chord: ChordEvent, rootPitchClass: number) => void> = []
 
@@ -143,6 +145,15 @@ export class ChordGenerator extends GeneratorBase {
       envelope:      { attack: 0.3, decay: 1.0, sustain: 0.5, release: 2.0 },
       modulationEnvelope: { attack: 0.1, decay: 0.5, sustain: 0.3, release: 1.5 },
     } as any)
+  }
+
+  /** Lazy-create the fallback PolySynth only when a sampler is loading */
+  private getOrCreateFallback(): Tone.PolySynth {
+    if (!this.fallbackSynth) {
+      this.fallbackSynth = this.buildDefaultSynth()
+      this.fallbackSynth.connect(this.chorus)
+    }
+    return this.fallbackSynth
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -357,8 +368,9 @@ export class ChordGenerator extends GeneratorBase {
 
       const vel = Math.min(1, Math.max(0.1, event.vel + (Math.random() - 0.5) * 0.08))
 
-      // triggerAttackRelease gracefully ignores un-loaded sampler
-      this.synth.triggerAttackRelease(event.notes, event.dur, time, vel)
+      // Use sampler only if fully loaded; otherwise lazy-create fallback PolySynth
+      const voice = this.isSamplerReady() ? this.synth : this.getOrCreateFallback()
+      voice.triggerAttackRelease(event.notes, event.dur, time, vel)
     }, events)
 
     this.part.loop = true
@@ -417,7 +429,7 @@ export class ChordGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    let newSynth: Tone.PolySynth | Tone.Sampler
+    let newSynth: Tone.PolySynth | LoadableSampler
     if (voice.type === 'Sampler' && voice.presetId) {
       newSynth = createSoundfontSampler(
         voice.presetId, 
@@ -464,6 +476,12 @@ export class ChordGenerator extends GeneratorBase {
     this.output.gain.rampTo(linear, 0.35)
   }
 
+  /** Check if the current synth is a sampler AND has finished loading */
+  private isSamplerReady(): boolean {
+    if (this.synth instanceof Tone.PolySynth) return false
+    return (this.synth as LoadableSampler).isLoaded === true
+  }
+
   dispose(): void {
     this.stopPart()
     this.chordChangeListeners = []
@@ -477,6 +495,7 @@ export class ChordGenerator extends GeneratorBase {
       this.pendingOldSynth = null
     }
     this.synth.dispose()
+    this.fallbackSynth?.dispose()
     this.chorus.dispose()
     this.dryBus.dispose()
     this.reverbSend.dispose()
