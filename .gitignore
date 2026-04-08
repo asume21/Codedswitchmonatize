@@ -53,7 +53,11 @@ server/uploads/
 # Local patch snapshots
 local-changes-*.patch
 
-# MCP registry credential files
-.mcpregistry_*
-tools/audio-debug-mcp-publish/.mcpregistry_github_token
-tools/audio-debug-mcp-publish/.mcpregistry_registry_token
+# MCP registry credential files (anywhere in tree)
+**/.mcpregistry_*
+
+# Test auth state (contains session cookies/tokens)
+tests/.auth/
+
+# Claude local settings (may contain deploy tokens)
+.claude/settings.local.json
