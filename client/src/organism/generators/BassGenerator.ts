@@ -18,12 +18,12 @@ import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
-import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { createSoundfontSampler } from '../instruments/SamplerUtils'
 
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth:      Tone.MonoSynth | LoadableSampler
+  private synth:      Tone.MonoSynth | Tone.Sampler
   private filter:     Tone.Filter
   private monoSub:    Tone.Filter      
   private compressor: Tone.Compressor
@@ -46,9 +46,7 @@ export class BassGenerator extends GeneratorBase {
   private lastOutputGain: number = 0
 
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
-  private pendingOldSynth: Tone.MonoSynth | LoadableSampler | null = null
-  // Fallback synth used while a CDN sampler is loading — created lazily on first need
-  private fallbackSynth: Tone.MonoSynth | null = null
+  private pendingOldSynth: Tone.MonoSynth | Tone.Sampler | null = null
   
   private isCurrentVoiceSampler: boolean = false
 
@@ -99,24 +97,6 @@ export class BassGenerator extends GeneratorBase {
     this.compressor.connect(this.output)
 
     this.setOutputLevel(0)
-  }
-
-  /** Lazy-create the fallback MonoSynth only when a sampler is loading */
-  private getOrCreateFallback(): Tone.MonoSynth {
-    if (!this.fallbackSynth) {
-      this.fallbackSynth = new Tone.MonoSynth({
-        oscillator: { type: 'fatsawtooth', spread: 15, count: 2 },
-        filter:     { Q: 3, type: 'lowpass', rolloff: -24 },
-        envelope:   { attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3 },
-        filterEnvelope: {
-          attack: 0.04, decay: 0.15, sustain: 0.35, release: 0.15,
-          baseFrequency: 80, octaves: 2.0,
-        },
-      })
-      this.fallbackSynth.volume.value = -7
-      this.fallbackSynth.connect(this.filter)
-    }
-    return this.fallbackSynth
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -296,7 +276,7 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private lastRebuildTime: number = 0
-  private static readonly MIN_REBUILD_INTERVAL_MS = 800
+  private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
   private rebuildPart(_physics: PhysicsState): void {
     const now = performance.now()
@@ -318,9 +298,7 @@ export class BassGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
-      // Use sampler only if fully loaded; otherwise lazy-create fallback MonoSynth
-      const voice = this.isSamplerReady() ? this.synth : this.getOrCreateFallback()
-      voice.triggerAttackRelease(event.note, event.dur, time + LAY_BACK_SEC, pocketVelocity)
+      this.synth.triggerAttackRelease(event.note, event.dur, time + LAY_BACK_SEC, pocketVelocity)
     }, events)
 
     this.part.loop      = true
@@ -383,12 +361,6 @@ export class BassGenerator extends GeneratorBase {
     this.output.gain.rampTo(linear, 0.35)
   }
 
-  /** Check if the current synth is a sampler AND has finished loading */
-  private isSamplerReady(): boolean {
-    if (!this.isCurrentVoiceSampler) return false
-    return (this.synth as LoadableSampler).isLoaded === true
-  }
-
   dispose(): void {
     this.stopPart()
     if (this.pendingSynthDispose) {
@@ -401,7 +373,6 @@ export class BassGenerator extends GeneratorBase {
       this.pendingOldSynth = null
     }
     this.synth.dispose()
-    this.fallbackSynth?.dispose()
     this.filter.dispose()
     this.monoSub.dispose()
     this.compressor.dispose()

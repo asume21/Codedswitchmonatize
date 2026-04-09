@@ -45,7 +45,7 @@ export class ChannelStrip {
       Tone.dbToGain(config.gainDb)
     )
 
-    this.analyser = new Tone.Analyser('waveform', 128)
+    this.analyser = new Tone.Analyser('waveform', 1024)
 
     this.output = new Tone.Gain(1)
 

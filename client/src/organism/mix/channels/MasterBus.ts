@@ -43,7 +43,7 @@ export class MasterBus {
     })
 
     this.limiter  = new Tone.Limiter(limiterThreshDb)
-    this.analyser = new Tone.Analyser('waveform', 256)
+    this.analyser = new Tone.Analyser('waveform', 2048)
 
     // Signal chain: input → gain → EQ → hiCut → compressor → saturator → limiter → analyser → out
     this.input.connect(this.masterGain)
