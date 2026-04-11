@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { getAudioContext } from '@/lib/audioContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Scissors, Music, Mic2, Drum, Guitar, Piano, Download, Volume2, Upload, Wand2, Square, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -206,7 +207,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       throw new Error('Could not download vocal or backing stem for remix preview');
     }
 
-    const audioContext = new AudioContext();
+    const audioContext = getAudioContext();
     try {
       const [vocalBufRaw, backingBufRaw] = await Promise.all([
         audioContext.decodeAudioData(await vocalRes.arrayBuffer()),

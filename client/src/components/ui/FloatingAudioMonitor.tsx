@@ -15,6 +15,7 @@ import {
   Play, Mic2, Circle, Download, Zap, Lock, Unlock, Headphones,
 } from 'lucide-react';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
+import { getAudioContext } from '@/lib/audioContext';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 
 // ─── Mic Monitor (hear yourself in headphones) ───────────────────────────────
@@ -25,7 +26,7 @@ let monitorCtx: AudioContext | null = null;
 
 async function startMicMonitor(volume: number): Promise<void> {
   if (monitorStream) return; // already running
-  monitorCtx = new AudioContext();
+  monitorCtx = getAudioContext();
   monitorStream = await navigator.mediaDevices.getUserMedia({ audio: {
     echoCancellation: false,
     noiseSuppression: false,
@@ -42,7 +43,7 @@ function stopMicMonitor(): void {
   monitorGain?.disconnect();
   monitorSource?.disconnect();
   monitorStream?.getTracks().forEach(t => t.stop());
-  monitorCtx?.close();
+  // Do NOT close the shared AudioContext
   monitorStream = null;
   monitorSource = null;
   monitorGain = null;

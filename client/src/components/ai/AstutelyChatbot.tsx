@@ -3,7 +3,7 @@
 // A conversational AI assistant that can chat, generate beats, analyze audio, and CONTROL THE ENTIRE DAW
 // Connected to: TrackStore, Transport, SongWorkSession, StudioAudio, GlobalSystems
 
-import { useState, useRef, useEffect, useLayoutEffect, useContext, useCallback, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, lazy, Suspense } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,7 +20,8 @@ import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
-import { StudioAudioContext } from '@/pages/studio';
+import { useStudioStore } from '@/stores/useStudioStore';
+import { setUploadedSongAudio } from '@/stores/useStudioStore';
 import { globalSystems, globalAI, globalAudio } from '@/lib/globalSystems';
 import { AstroHUD } from './AstroHUD';
 import AstutelyBrainContent from '@/components/studio/AstutelyBrainPanel';
@@ -93,8 +94,9 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   // Song Work Session - current song session with analysis
   const songSession = useSongWorkSession();
   
-  // Studio Audio Context - patterns, melodies, lyrics, uploaded songs
-  const studioContext = useContext(StudioAudioContext);
+  // Studio Store (Zustand) - patterns, melodies, lyrics, uploaded songs
+  const currentKey = useStudioStore((s) => s.key);
+  const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
 
   // Astutely Core - organism controls routed through context
   const { startOrganism, stopOrganism, captureOrganism, generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
@@ -115,12 +117,12 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
     return {
       trackCount: tracks.length,
       totalNotes,
-      bpm: transport.tempo || studioContext?.bpm || 120,
-      key: studioContext?.currentKey || 'C',
-      isPlaying: transport.isPlaying || studioContext?.isPlaying || false,
+      bpm: transport.tempo || 120,
+      key: currentKey || 'C',
+      isPlaying: transport.isPlaying || false,
       currentPosition: transport.position || 0,
-      hasUploadedSong: !!studioContext?.currentUploadedSong,
-      songName: studioContext?.currentUploadedSong?.name || songSession.currentSession?.songName,
+      hasUploadedSong: !!currentUploadedSong,
+      songName: currentUploadedSong?.name || songSession.currentSession?.songName,
     };
   };
 
@@ -389,7 +391,7 @@ Try: "play", "make a drill beat", or "analyze my project".`,
   
   const handleSetTempo = (newBpm: number) => {
     transport.setTempo(newBpm);
-    studioContext?.setBpm?.(newBpm);
+    useStudioStore.getState().setBpm(newBpm);
     return newBpm;
   };
 
@@ -865,9 +867,8 @@ Say "play [song name]" to load and play a song!`,
             audio.src = songUrl;
             audio.load();
             
-            if (studioContext?.setCurrentUploadedSong) {
-              studioContext.setCurrentUploadedSong(matchedSong, audio);
-            }
+            useStudioStore.getState().setCurrentUploadedSong(matchedSong);
+            setUploadedSongAudio(audio);
             
             const assistantMessage: Message = {
               role: 'assistant',
@@ -1221,7 +1222,7 @@ Be concise, friendly, and direct. Skip formalities.`,
                   onBeatGenerated={onBeatGenerated}
                   toast={toast}
                   transport={transport}
-                  studioContext={studioContext}
+                  currentKey={currentKey}
                   tracks={tracks}
                   addTrack={addTrack}
                   saveTrackToServer={saveTrackToServer}
@@ -1484,7 +1485,8 @@ Be concise, friendly, and direct. Skip formalities.`,
                           if (songUrl) {
                             audio.src = songUrl;
                             audio.load();
-                            studioContext?.setCurrentUploadedSong?.(song, audio);
+                            useStudioStore.getState().setCurrentUploadedSong(song);
+                            setUploadedSongAudio(audio);
                             toast({ 
                               title: '🎵 Song Loaded', 
                               description: song.title || song.name || 'Untitled'
@@ -1745,7 +1747,7 @@ function AstutelyCreateContent({
   onBeatGenerated,
   toast,
   transport,
-  studioContext,
+  currentKey,
   tracks,
   addTrack,
   saveTrackToServer,
@@ -1753,7 +1755,7 @@ function AstutelyCreateContent({
   onBeatGenerated?: (result: AstutelyResult) => void;
   toast: ReturnType<typeof import('@/hooks/use-toast').useToast>['toast'];
   transport: ReturnType<typeof import('@/contexts/TransportContext').useTransport>;
-  studioContext: any;
+  currentKey: string;
   tracks: any[];
   addTrack: (t: any) => void;
   saveTrackToServer: (t: any) => Promise<any>;
@@ -1863,29 +1865,28 @@ function AstutelyCreateContent({
 
     // Store the grid in context so ProBeatMaker can pick it up
     const grid = data?.data?.grid;
-    if (grid && studioContext?.setPendingBeatGrid) {
-      studioContext.setPendingBeatGrid({ grid, genre: beatGenre, groove: beatGroove, bpm: transport.tempo || 120 });
+    if (grid) {
+      useStudioStore.getState().setPendingBeatGrid({ grid, genre: beatGenre, groove: beatGroove, bpm: transport.tempo || 120 });
     }
 
     toast({ title: 'Beat Generated!', description: `${beatGenre} beat pattern created via AI` });
 
-    // Also generate real audio
+    // Also generate real audio (don't auto-play — user can click play)
     try {
       const audioResult = await generateRealAudio(beatGenre, { bpm: transport.tempo || 120 });
       setGeneratedAudioUrl(audioResult.audioUrl);
       setAudioProvider(audioResult.provider);
-      try { await playGeneratedAudio(audioResult.audioUrl); } catch {}
     } catch {}
   });
 
   const handleMelodyGenerate = () => runWithProgress('melody', async () => {
     const response = await apiRequest('POST', '/api/melody/generate', {
-      scale: `${studioContext?.currentKey || 'C'} Major`,
+      scale: `${currentKey || 'C'} Major`,
       style: melodyStyle,
       complexity: 'medium',
       musicalParams: {
         bpm: transport.tempo || 120,
-        key: studioContext?.currentKey || 'C',
+        key: currentKey || 'C',
         timeSignature: '4/4',
       },
     });
@@ -1897,8 +1898,8 @@ function AstutelyCreateContent({
     }
 
     // Store melody notes in context so MelodyComposerV2 / piano roll can pick them up
-    if (data?.notes && Array.isArray(data.notes) && studioContext?.setPendingMelodyNotes) {
-      studioContext.setPendingMelodyNotes(data.notes);
+    if (data?.notes && Array.isArray(data.notes)) {
+      useStudioStore.getState().setPendingMelodyNotes(data.notes);
     }
 
     toast({ title: 'Melody Generated!', description: `${melodyStyle} melody composed by AI` });
@@ -1914,8 +1915,8 @@ function AstutelyCreateContent({
     });
     const data = await response.json();
     // Push lyrics into studio context
-    if (data.content && studioContext?.setCurrentLyrics) {
-      studioContext.setCurrentLyrics(data.content);
+    if (data.content) {
+      useStudioStore.getState().setCurrentLyrics(data.content);
     }
     toast({ title: 'Lyrics Generated!', description: `${lyricGenre} lyrics about "${lyricTheme}"` });
   });
@@ -1925,7 +1926,7 @@ function AstutelyCreateContent({
     const audioResult = await generateRealAudio(style, {
       prompt: audioPrompt.trim() || undefined,
       bpm: transport.tempo || undefined,
-      key: studioContext?.currentKey || undefined,
+      key: currentKey || undefined,
     });
     setGeneratedAudioUrl(audioResult.audioUrl);
     setAudioProvider(audioResult.provider);
@@ -1935,7 +1936,7 @@ function AstutelyCreateContent({
   const handleBassGenerate = () => runWithProgress('bass', async () => {
     const result = await generatePattern({
       style: `${bassStyle} bass line`,
-      prompt: `Generate a ${bassStyle} bass line in ${studioContext?.currentKey || 'C'}`,
+      prompt: `Generate a ${bassStyle} bass line in ${currentKey || 'C'}`,
     });
     const notes = astutelyToNotes(result);
     const bassNotes = notes.filter(n => n.trackType === 'bass');

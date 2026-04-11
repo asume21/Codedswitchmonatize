@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -15,7 +15,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore } from '@/stores/useStudioStore';
 import { useAstutelyCore } from "@/contexts/AstutelyCoreContext";
 
 export default function CodeToMusic() {
@@ -53,7 +53,9 @@ export default function CodeToMusic() {
 
   const { toast } = useToast();
   const { initialize, isInitialized, playNote } = useAudio();
-  const studioContext = useContext(StudioAudioContext);
+  const setCurrentMelody = useStudioStore((s) => s.setCurrentMelody);
+  const setCurrentPattern = useStudioStore((s) => s.setCurrentPattern);
+  const setCurrentCodeMusic = useStudioStore((s) => s.setCurrentCodeMusic);
 
   const compileMutation = useMutation({
     mutationFn: async (data: {
@@ -69,7 +71,7 @@ export default function CodeToMusic() {
 
       // Update studio context with generated music
       if (data.melody) {
-        studioContext.setCurrentMelody(data.melody);
+        setCurrentMelody(data.melody);
       }
 
       // Create a basic drum pattern from the music data
@@ -220,10 +222,10 @@ export default function CodeToMusic() {
         ],
       };
 
-      studioContext.setCurrentPattern(generatedPattern);
+      setCurrentPattern(generatedPattern);
 
       // Store generated music data for Music→Code conversion
-      studioContext.setCurrentCodeMusic(data);
+      setCurrentCodeMusic(data);
 
       toast({
         title: "Compilation Complete",
@@ -360,8 +362,8 @@ export default function CodeToMusic() {
 
                     // Also play drum pattern if available
                     if (musicData.drumPattern) {
-                      studioContext.setCurrentPattern(musicData.drumPattern);
-                      await studioContext.playFullSong();
+                      setCurrentPattern(musicData.drumPattern);
+                      window.dispatchEvent(new CustomEvent('playAllTools'));
                     }
 
                     const instrumentSet = new Set(
@@ -379,7 +381,7 @@ export default function CodeToMusic() {
                     console.log(
                       "No playable melody found, playing drum pattern only",
                     );
-                    await studioContext.playFullSong();
+                    window.dispatchEvent(new CustomEvent('playAllTools'));
                     toast({
                       title: "Playing Rhythm",
                       description: "Playing drum pattern from compiled code.",
@@ -408,8 +410,8 @@ export default function CodeToMusic() {
             <Button
               onClick={() => {
                 setMusicData(null);
-                studioContext.setCurrentCodeMusic({});
-                studioContext.setCurrentMelody([]);
+                setCurrentCodeMusic({});
+                setCurrentMelody([]);
                 // Reset pattern to empty
                 const emptyPattern = {
                   kick: Array(16).fill(false),
@@ -421,7 +423,7 @@ export default function CodeToMusic() {
                   clap: Array(16).fill(false),
                   crash: Array(16).fill(false),
                 };
-                studioContext.setCurrentPattern(emptyPattern);
+                setCurrentPattern(emptyPattern);
                 toast({
                   title: "Music Cleared",
                   description: "All compiled music data has been cleared.",

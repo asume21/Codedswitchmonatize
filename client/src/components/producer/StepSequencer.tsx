@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { getAudioContext } from '@/lib/audioContext';
 import { Play, Square, RotateCcw, Volume2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -112,7 +113,7 @@ export function StepSequencer({
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = getAudioContext();
     }
     
   }, []);

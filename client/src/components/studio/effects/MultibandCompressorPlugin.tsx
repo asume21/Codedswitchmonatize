@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { BarChart3, RotateCcw, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAudioContext } from '@/lib/audioContext';
 import PresetBrowser from './PresetBrowser';
 import {
   MultibandCompressor,
@@ -43,7 +44,7 @@ export function MultibandCompressorPlugin({ audioUrl, onClose }: Props) {
 
   const ensureNodes = () => {
     if (compRef.current) return;
-    const ctx = new AudioContext();
+    const ctx = getAudioContext();
     compRef.current = new MultibandCompressor(ctx, config);
     if (audioRef.current) {
       sourceRef.current = ctx.createMediaElementSource(audioRef.current);

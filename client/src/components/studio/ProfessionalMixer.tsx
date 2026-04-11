@@ -7,6 +7,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { getAudioContext } from '@/lib/audioContext';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -330,7 +331,7 @@ export default function ProfessionalMixer() {
 
     try {
       // Load and decode stems
-      const decodeCtx = new AudioContext();
+      const decodeCtx = getAudioContext();
       const buffers = await Promise.all(uploadedStems.map(async (file) => {
         const arrayBuf = await file.arrayBuffer();
         return decodeCtx.decodeAudioData(arrayBuf.slice(0));

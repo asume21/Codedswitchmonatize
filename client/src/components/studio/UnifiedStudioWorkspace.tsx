@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,8 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { StudioAudioContext } from '@/pages/studio';
-import { 
+import { useStudioStore, type MusicalKey } from '@/stores/useStudioStore';
+import {
   ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X, Circle, ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -55,8 +55,6 @@ import { PresenceAmbientLight } from '@/components/presence';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
-import { useStudioStore } from '@/stores/useStudioStore';
-import type { MusicalKey } from '@/stores/useStudioStore';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { createTrackPayload } from '@/types/studioTracks';
 import { UndoManager } from '@/lib/UndoManager';
@@ -503,7 +501,7 @@ function chooseAstutelyFocusTrack(groupedNotes: ReturnType<typeof convertAstutel
 
 export default function UnifiedStudioWorkspace() {
   const isMobile = useIsMobile();
-  const studioContext = useContext(StudioAudioContext);
+  const currentKey = useStudioStore((s) => s.key);
   const { toast } = useToast();
   const {
     tempo,
@@ -954,7 +952,7 @@ export default function UnifiedStudioWorkspace() {
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = getAudioContext();
     }
   }, []);
 
@@ -3173,7 +3171,7 @@ export default function UnifiedStudioWorkspace() {
         onPlay={() => transportPlaying ? pauseTransport() : startTransport()}
         onStop={stopTransport}
         bpm={tempo}
-        currentKey={studioContext.currentKey}
+        currentKey={currentKey}
       >
         {/* Mobile Content Views */}
         <div className="h-full overflow-auto">
@@ -4301,8 +4299,8 @@ export default function UnifiedStudioWorkspace() {
 
           {/* PIANO ROLL VIEW — always mounted so MIDI listeners + note state survive tab switches */}
           <div
-            className="flex-1 overflow-auto bg-gray-900 pt-14"
-            style={{ display: activeView === 'piano-roll' ? 'block' : 'none' }}
+            className="flex-1 overflow-hidden flex flex-col"
+            style={{ display: activeView === 'piano-roll' ? 'flex' : 'none' }}
           >
             {(() => {
               const selectedTrackData = tracks.find(t => t.id === selectedTrack);

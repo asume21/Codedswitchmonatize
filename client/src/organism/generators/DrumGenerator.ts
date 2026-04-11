@@ -40,6 +40,7 @@ export class DrumGenerator extends GeneratorBase {
   private compressor: Tone.Compressor
 
   private part: Tone.Part | null = null
+  private hasStartedPlayback: boolean = false
 
   // Physics cache
   private currentBounce:   number = 0
@@ -203,6 +204,7 @@ export class DrumGenerator extends GeneratorBase {
     this.currentBounce   = 0
     this.currentPresence = 0
     this.currentPocket   = 0
+    this.hasStartedPlayback = false
     this.setOutputLevel(0)
   }
 
@@ -333,8 +335,9 @@ export class DrumGenerator extends GeneratorBase {
     this.part.loopEnd = '4m'
     // Start at next bar boundary — prevents past-event burst where all
     // events before current Transport position fire simultaneously.
-    const nextBar = Tone.getTransport().nextSubdivision('1m')
-    this.part.start(nextBar)
+    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
+    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    this.hasStartedPlayback = true
 
     // Gap 3 — mirror current pattern into ProBeatMaker for visual display
     this.broadcastToBeatMaker(hits)

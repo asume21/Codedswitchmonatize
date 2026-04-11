@@ -4,7 +4,7 @@
  * Integrates with: Uploaded Songs, Beat Lab, Melody Composer, Piano Roll
  */
 
-import { useState, useRef, useEffect, useContext, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useQuery } from '@tanstack/react-query';
-import { StudioAudioContext } from '@/pages/studio';
+import { useStudioStore } from '@/stores/useStudioStore';
 import { useAudio } from '@/hooks/use-audio';
 import { useTransport } from '@/contexts/TransportContext';
 import { apiRequest } from '@/lib/queryClient';
@@ -444,7 +444,7 @@ function TrackWaveform({
 
 export default function MasterMultiTrackPlayer() {
   const { toast } = useToast();
-  const studioContext = useContext(StudioAudioContext);
+  const currentTracks = useStudioStore((s) => s.currentTracks);
   const { tracks: storeTracks, addTrack: addStoreTrack, updateTrack: updateStoreTrack } = useTracks();
   const { playNote, initialize } = useAudio();
   const transport = useTransport();
@@ -851,10 +851,10 @@ export default function MasterMultiTrackPlayer() {
 
   // Sync with studio context tracks
   useEffect(() => {
-    if (studioContext.currentTracks && studioContext.currentTracks.length > 0) {
+    if (currentTracks && currentTracks.length > 0) {
       // Could auto-import tracks from context if needed
     }
-  }, [studioContext.currentTracks]);
+  }, [currentTracks]);
 
   // Track manual (locally added) tracks so store sync doesn't overwrite them
   useEffect(() => {

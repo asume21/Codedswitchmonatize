@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -24,7 +24,7 @@ import { Loader2, Music, Code, Play, Pause, Volume2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore } from "@/stores/useStudioStore";
 import SongUploader from "./SongUploader";
 
 interface MusicAnalysis {
@@ -60,7 +60,10 @@ export default function MusicToCode() {
 
   const { toast } = useToast();
   const { playNote, playDrum, initialize, isInitialized } = useAudio();
-  const studioContext = useContext(StudioAudioContext);
+  const currentPattern = useStudioStore((s) => s.currentPattern);
+  const currentMelody = useStudioStore((s) => s.currentMelody);
+  const currentLyrics = useStudioStore((s) => s.currentLyrics);
+  const currentCodeMusic = useStudioStore((s) => s.currentCodeMusic);
 
   const analyzeMutation = useMutation({
     mutationFn: async (data: {
@@ -205,10 +208,10 @@ export default function MusicToCode() {
     if (useCurrentComposition) {
       // Use current studio composition
       const currentMusic = {
-        pattern: studioContext.currentPattern,
-        melody: studioContext.currentMelody,
-        lyrics: studioContext.currentLyrics,
-        codeMusic: studioContext.currentCodeMusic,
+        pattern: currentPattern,
+        melody: currentMelody,
+        lyrics: currentLyrics,
+        codeMusic: currentCodeMusic,
       };
 
       analyzeMutation.mutate({
@@ -299,22 +302,22 @@ export default function MusicToCode() {
               <div className="space-y-2">
                 <div className="text-sm">
                   <strong>Pattern:</strong>{" "}
-                  {studioContext.currentPattern ? "Available" : "None"}
+                  {currentPattern ? "Available" : "None"}
                 </div>
                 <div className="text-sm">
                   <strong>Melody:</strong>{" "}
-                  {studioContext.currentMelody?.length || 0} notes
+                  {currentMelody?.length || 0} notes
                 </div>
                 <div className="text-sm">
                   <strong>Lyrics:</strong>{" "}
-                  {studioContext.currentLyrics ? "Available" : "None"}
+                  {currentLyrics ? "Available" : "None"}
                 </div>
               </div>
               <Button
                 onClick={() => { setUseCurrentComposition(true); }}
                 className="mt-4"
                 disabled={
-                  !studioContext.currentPattern && !studioContext.currentMelody
+                  !currentPattern && !currentMelody
                 }
               >
                 Use Current Composition

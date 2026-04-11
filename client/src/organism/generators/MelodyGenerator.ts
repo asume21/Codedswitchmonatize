@@ -17,13 +17,16 @@ import { getChordTones }      from './patterns/ChordProgressionBank'
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
-import { createSoundfontSampler } from '../instruments/SamplerUtils'
+import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth: Tone.PolySynth | Tone.Sampler
+  private synth: Tone.PolySynth | LoadableSampler
   private part:  Tone.Part | null = null
+  // Fallback synth — always available for instant playback while CDN samplers load
+  private fallbackSynth: Tone.PolySynth
+  private hasStartedPlayback: boolean = false
 
   // Reactive state (Section 05)
   private pitchOffsetSemitones: number = 0
@@ -50,7 +53,7 @@ export class MelodyGenerator extends GeneratorBase {
 
   // Tracked synth dispose timer — prevents zombie synth accumulation
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
-  private pendingOldSynth: Tone.PolySynth | Tone.Sampler | null = null
+  private pendingOldSynth: Tone.PolySynth | LoadableSampler | null = null
 
   // Genre-aware swing — matches drum/bass swing per mode
   private static readonly MODE_SWING: Record<string, number> = {
@@ -129,6 +132,10 @@ export class MelodyGenerator extends GeneratorBase {
     this.synth = this.buildDefaultSynth()
     this.synth.volume.value = -9
 
+    // Fallback synth — always connected, used when a sampler hasn't loaded yet
+    this.fallbackSynth = this.buildDefaultSynth()
+    this.fallbackSynth.volume.value = -9
+
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
 
     this.dryBus     = new Tone.Gain(0.80)
@@ -141,6 +148,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
     this.synth.connect(this.chorus)
+    this.fallbackSynth.connect(this.chorus)
     this.chorus.connect(this.dryBus)
     this.chorus.connect(this.delaySend)
     this.chorus.connect(this.reverbSend)
@@ -239,7 +247,7 @@ export class MelodyGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    let newSynth: Tone.PolySynth | Tone.Sampler
+    let newSynth: Tone.PolySynth | LoadableSampler
     if (voice.type === 'Sampler' && voice.presetId) {
       newSynth = createSoundfontSampler(
         voice.presetId, 
@@ -270,7 +278,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.delay.feedback.rampTo(voice.delayFeedback, 0.5)
 
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      console.debug(`🎵 Melody voice: ${voice.name}`)
+      console.debug(` Melody voice: ${voice.name}`)
     }
   }
 
@@ -324,10 +332,23 @@ export class MelodyGenerator extends GeneratorBase {
     if (to === OState.Dormant || to === OState.Awakening) {
       this.stopPart()
       this.activityLevel = 0
+      return
     }
     if (to === OState.Breathing || to === OState.Flow) {
       this.currentScale = MODE_SCALES[physics.mode] ?? MODE_SCALES.glow
       this.applyModeVoice(physics.mode.toString())
+      // Immediately build a phrase so melody plays from beat 1.
+      // Without this, processFrame's debounce delays the first notes by 3+ frames.
+      const startBehavior = to === OState.Flow ? MelodyBehavior.Respond : MelodyBehavior.Hint
+      if (this.currentBehavior === MelodyBehavior.Rest || this.part === null) {
+        this.currentBehavior = startBehavior
+        this.lastRebuildTime = 0 // clear throttle so rebuild goes through
+        this.rebuildPhrase(physics, {
+          current: to,
+          flowDepth: to === OState.Flow ? 0.5 : 0,
+          breathingWarmth: 0.8,
+        } as any)
+      }
     }
   }
 
@@ -336,6 +357,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.activityLevel   = 0
     this.currentBehavior = MelodyBehavior.Rest
     this.currentScale    = MODE_SCALES.glow
+    this.hasStartedPlayback = false
     this.setOutputLevel(0)
   }
 
@@ -396,7 +418,9 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
-      this.synth.triggerAttackRelease(
+      // Use sampler only if fully loaded; otherwise use fallback PolySynth
+      const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
+      voice.triggerAttackRelease(
         event.note,
         event.dur,
         time,
@@ -406,8 +430,9 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = `${phraseLength}i`
-    const nextBar = Tone.getTransport().nextSubdivision('1m')
-    this.part.start(nextBar)
+    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
+    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    this.hasStartedPlayback = true
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
@@ -521,6 +546,12 @@ export class MelodyGenerator extends GeneratorBase {
     this.output.gain.rampTo(linear, 0.35)
   }
 
+  /** Check if the current synth is a sampler AND has finished loading */
+  private isSamplerReady(): boolean {
+    if (this.synth instanceof Tone.PolySynth) return false
+    return (this.synth as LoadableSampler).isLoaded === true
+  }
+
   dispose(): void {
     this.stopPart()
     if (this.pendingSynthDispose) {
@@ -533,6 +564,7 @@ export class MelodyGenerator extends GeneratorBase {
       this.pendingOldSynth = null
     }
     this.synth.dispose()
+    this.fallbackSynth.dispose()
     this.chorus.dispose()
     this.dryBus.dispose()
     this.delaySend.dispose()

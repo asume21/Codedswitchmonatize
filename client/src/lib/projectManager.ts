@@ -7,6 +7,8 @@
 import { apiRequest } from '@/lib/queryClient';
 import { eventBus } from '@/lib/eventBus';
 import type { Project, Track, Effect } from '../../../shared/studioTypes';
+import type { ArrangementClip } from '@/types/studioTracks';
+import type { SectionMarker } from '@/stores/useStudioStore';
 
 export interface AutomationPoint {
   time: number;    // in beats
@@ -36,6 +38,44 @@ export interface AudioClip {
   loop: boolean;
   loopEndBeat: number;
   source: 'recording' | 'ai' | 'imported' | 'bounced';
+}
+
+/** Convert an AudioClip (flat, audio-only) to an ArrangementClip (unified timeline type). */
+export function audioClipToArrangement(clip: AudioClip): ArrangementClip {
+  return {
+    id: clip.id,
+    startBeat: clip.startBeat,
+    endBeat: clip.endBeat,
+    offsetBeat: clip.offsetBeat,
+    fadeInBeats: clip.fadeInBeats,
+    fadeOutBeats: clip.fadeOutBeats,
+    gain: clip.gain,
+    loop: clip.loop,
+    loopEndBeat: clip.loopEndBeat,
+    type: 'audio',
+    audioUrl: clip.audioUrl,
+    source: clip.source,
+    name: clip.name,
+  };
+}
+
+/** Convert an ArrangementClip back to an AudioClip (for legacy code paths). */
+export function arrangementToAudioClip(clip: ArrangementClip, trackId: string): AudioClip {
+  return {
+    id: clip.id,
+    trackId,
+    name: clip.name,
+    audioUrl: clip.audioUrl ?? '',
+    startBeat: clip.startBeat,
+    endBeat: clip.endBeat,
+    offsetBeat: clip.offsetBeat,
+    fadeInBeats: clip.fadeInBeats,
+    fadeOutBeats: clip.fadeOutBeats,
+    gain: clip.gain,
+    loop: clip.loop,
+    loopEndBeat: clip.loopEndBeat,
+    source: clip.source ?? 'imported',
+  };
 }
 
 export interface MixerChannel {
@@ -79,6 +119,8 @@ export interface ProjectState {
   mixerChannels: MixerChannel[];
   mixBuses: MixBus[];
   masterBus: MixBus;
+  sectionMarkers: SectionMarker[];
+  songEndBeat: number;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -144,6 +186,8 @@ export function createNewProjectState(name: string): ProjectState {
       },
     ],
     masterBus: createDefaultMasterBus(),
+    sectionMarkers: [],
+    songEndBeat: 64,
     createdAt: now,
     updatedAt: now,
     version: 1,

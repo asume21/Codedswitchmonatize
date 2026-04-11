@@ -4,6 +4,7 @@
  */
 
 import { audioRouter } from './audioRouter';
+import { getAudioContext } from './audioContext';
 
 export type AudioIssue = {
   id: string;
@@ -118,7 +119,7 @@ class AudioAnalyzer {
 
   private async initializeContext() {
     if (!this.context) {
-      this.context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.context = getAudioContext();
     }
   }
 

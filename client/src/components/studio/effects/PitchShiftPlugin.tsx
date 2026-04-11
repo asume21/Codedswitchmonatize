@@ -10,6 +10,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Music2, RotateCcw, Play, Pause, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAudioContext } from '@/lib/audioContext';
 import PresetBrowser from './PresetBrowser';
 import { pitchShiftOffline, createPitchShiftedSource } from '@/lib/pitchShift';
 
@@ -48,7 +49,7 @@ export function PitchShiftPlugin({ audioUrl, onClose, onProcessed }: PitchShiftP
 
   useEffect(() => {
     if (!audioUrl) return;
-    const ctx = new AudioContext();
+    const ctx = getAudioContext();
     audioContextRef.current = ctx;
 
     fetch(audioUrl)
@@ -59,7 +60,7 @@ export function PitchShiftPlugin({ audioUrl, onClose, onProcessed }: PitchShiftP
 
     return () => {
       sourceRef.current?.stop();
-      ctx.close();
+      // Do NOT close the shared AudioContext — other components depend on it
     };
   }, [audioUrl]);
 

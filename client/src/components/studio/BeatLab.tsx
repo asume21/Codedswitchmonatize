@@ -1,4 +1,4 @@
-import { useContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
 import { useTransport } from "@/contexts/TransportContext";
-import { StudioAudioContext } from "@/pages/studio";
 import { useStudioSession } from "@/contexts/StudioSessionContext";
 import ProBeatMaker from "./ProBeatMaker";
 import AIBassGenerator from "./AIBassGenerator";
@@ -26,7 +25,6 @@ export default function BeatLab({ initialTab = "pro", isActive = false }: BeatLa
   const { addTrack } = useTracks();
   const { tempo } = useTransport();
   const { toast } = useToast();
-  const studioContext = useContext(StudioAudioContext);
   const session = useStudioSession();
   const [latestPattern, setLatestPattern] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<BeatLabTab>(initialTab);
@@ -185,7 +183,7 @@ export default function BeatLab({ initialTab = "pro", isActive = false }: BeatLa
             <TabsContent value="bass-studio" className="mt-4 outline-none">
               <div className="bg-black/20 rounded-2xl border border-white/5 p-1">
                 <AIBassGenerator 
-                  chordProgression={(studioContext as any)?.chordProgression}
+                  chordProgression={undefined}
                   onBassGenerated={(bassNotes) => {
                     // Add bass to tracks
                     if (bassNotes && bassNotes.length > 0) {

@@ -2,6 +2,55 @@ export type TrackKind = 'beat' | 'piano' | 'midi' | 'audio' | 'aux' | 'vocal';
 
 export type TrackType = 'audio' | 'midi' | 'beat' | 'aux' | 'lyrics';
 
+// ─── Arrangement Clip ────────────────────────────────────────────────
+// Canonical clip type for the arrangement timeline. Beats are the base unit;
+// bars are derived via time signature at display time.
+
+export interface ArrangementClip {
+  id: string;
+  startBeat: number;
+  endBeat: number;
+  offsetBeat: number;       // trim start within source material
+  fadeInBeats: number;
+  fadeOutBeats: number;
+  gain: number;             // 0-2, 1 = unity
+  loop: boolean;
+  loopEndBeat: number;
+  type: 'audio' | 'midi' | 'pattern';
+  audioUrl?: string;        // for audio clips
+  notes?: TrackNote[];      // for midi clips
+  patternId?: string;       // for pattern-reference clips
+  source?: 'recording' | 'ai' | 'imported' | 'bounced';
+  name: string;
+  color?: string;
+}
+
+/** Convert bar number to beat using time signature (numerator = beats per bar) */
+export function barToBeat(bar: number, beatsPerBar: number = 4): number {
+  return bar * beatsPerBar;
+}
+
+/** Convert beat to bar number */
+export function beatToBar(beat: number, beatsPerBar: number = 4): number {
+  return beat / beatsPerBar;
+}
+
+/** Create an ArrangementClip with sensible defaults */
+export function createArrangementClip(
+  overrides: Partial<ArrangementClip> & Pick<ArrangementClip, 'name' | 'type' | 'startBeat' | 'endBeat'>,
+): ArrangementClip {
+  return {
+    id: crypto.randomUUID(),
+    offsetBeat: 0,
+    fadeInBeats: 0,
+    fadeOutBeats: 0,
+    gain: 1,
+    loop: false,
+    loopEndBeat: overrides.endBeat,
+    ...overrides,
+  };
+}
+
 export interface TrackPayload {
   type: TrackType;
   source: string;
@@ -57,6 +106,9 @@ export interface TrackClip {
   muted?: boolean;
   solo?: boolean;
   payload: TrackPayload;
+  /** Arrangement clips — when present, these define the track's timeline content.
+   *  When absent, a single clip is synthesized from startBar/lengthBars (backwards compat). */
+  clips?: ArrangementClip[];
 }
 
 export const DEFAULT_TRACK_PAYLOAD: TrackPayload = {

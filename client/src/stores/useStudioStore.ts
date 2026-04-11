@@ -54,6 +54,16 @@ export interface OrganismSnapshot {
   tracks: Record<GeneratorType, StudioNote[]>
 }
 
+export type PlayMode = 'current' | 'all'
+
+export interface SectionMarker {
+  id: string
+  label: string
+  beat: number        // position in beats (canonical unit)
+  color: string       // hex
+  type?: 'section' | 'end'
+}
+
 export interface StudioState {
   // ── Musical globals ──
   bpm: number
@@ -65,6 +75,10 @@ export interface StudioState {
   isPlaying: boolean
   position: number          // beats
   loop: LoopRegion
+  transportMode: 'pattern' | 'arrangement'
+  songEndBeat: number       // where the song ends (auto-computed or manual)
+  songEndMode: 'auto' | 'manual'
+  sectionMarkers: SectionMarker[]
 
   // ── Key detection (from Organism / ScaleSnapEngine) ──
   detectedKey: MusicalKey | null
@@ -74,6 +88,23 @@ export interface StudioState {
   // ── Generated content (Phase 2) ──
   organismSnapshots: OrganismSnapshot[]     // history of generated content
   activeSnapshotId: string | null           // which snapshot is loaded into the workspace
+
+  // ── Studio session content ──
+  // These were previously in StudioAudioContext (pages/studio.tsx) but the
+  // provider was never mounted — all consumers received empty defaults.
+  // Now consolidated here as the single source of truth.
+  currentPattern: any                       // beat pattern object
+  currentMelody: any[]                      // melody notes
+  currentLyrics: string                     // lyrics text
+  currentCodeMusic: any                     // code-to-music output
+  currentLayers: any[]                      // dynamic layering
+  currentTracks: any[]                      // studio tracks for export
+  currentUploadedSong: any                  // uploaded song metadata
+  playMode: PlayMode                        // 'current' | 'all'
+  currentPlaylist: any                      // active playlist
+  currentPlaylistIndex: number              // current song in playlist
+  pendingBeatGrid: any                      // cross-tab data bridge (AI → Beat Lab)
+  pendingMelodyNotes: any[] | null          // cross-tab data bridge (AI → Piano Roll)
 
   // ── Actions: Musical globals ──
   setBpm: (bpm: number) => void
@@ -89,6 +120,9 @@ export interface StudioState {
   clearLoop: () => void
   toggleRecordArm: (armed?: boolean) => void
   isRecordArmed: boolean
+  setTransportMode: (mode: 'pattern' | 'arrangement') => void
+  setSongEnd: (beat: number, mode?: 'auto' | 'manual') => void
+  setSectionMarkers: (markers: SectionMarker[]) => void
 
   // ── Actions: Key detection (called by Organism bridge) ──
   setDetectedKey: (key: MusicalKey, mode: KeyMode, confidence: number) => void
@@ -99,6 +133,22 @@ export interface StudioState {
   setActiveSnapshot: (id: string | null) => void
   getActiveSnapshot: () => OrganismSnapshot | null
   clearSnapshots: () => void
+
+  // ── Actions: Studio session content ──
+  setCurrentPattern: (pattern: any) => void
+  setCurrentMelody: (melody: any[]) => void
+  setCurrentLyrics: (lyrics: string) => void
+  setCurrentCodeMusic: (music: any) => void
+  setCurrentLayers: (layers: any[]) => void
+  setCurrentTracks: (tracks: any[]) => void
+  setCurrentUploadedSong: (song: any) => void
+  setPlayMode: (mode: PlayMode) => void
+  setCurrentPlaylist: (playlist: any) => void
+  setCurrentPlaylistIndex: (index: number) => void
+  setPendingBeatGrid: (grid: any) => void
+  setPendingMelodyNotes: (notes: any[] | null) => void
+  consumePendingBeatGrid: () => any
+  consumePendingMelodyNotes: () => any[] | null
 }
 
 // ── Defaults ───────────────────────────────────────────────────────
@@ -129,6 +179,10 @@ export const useStudioStore = create<StudioState>()(
     isRecordArmed: false,
     position: 0,
     loop: { ...DEFAULT_LOOP },
+    transportMode: 'pattern',
+    songEndBeat: 64,      // default: 16 bars in 4/4 = 64 beats
+    songEndMode: 'auto',
+    sectionMarkers: [],
 
     // Key detection
     detectedKey: null,
@@ -138,6 +192,20 @@ export const useStudioStore = create<StudioState>()(
     // Generated content (Phase 2)
     organismSnapshots: [],
     activeSnapshotId: null,
+
+    // Studio session content (migrated from orphaned StudioAudioContext)
+    currentPattern: {},
+    currentMelody: [],
+    currentLyrics: '',
+    currentCodeMusic: {},
+    currentLayers: [],
+    currentTracks: [],
+    currentUploadedSong: null,
+    playMode: 'current' as PlayMode,
+    currentPlaylist: null,
+    currentPlaylistIndex: 0,
+    pendingBeatGrid: null,
+    pendingMelodyNotes: null,
 
     // ── Musical global actions ──
 
@@ -204,6 +272,15 @@ export const useStudioStore = create<StudioState>()(
     toggleRecordArm: (armed?: boolean) => {
       set((state) => ({ isRecordArmed: armed ?? !state.isRecordArmed }))
     },
+    setTransportMode: (mode) => {
+      set({ transportMode: mode })
+    },
+    setSongEnd: (beat, mode) => {
+      set({ songEndBeat: Math.max(1, beat), songEndMode: mode ?? 'manual' })
+    },
+    setSectionMarkers: (markers) => {
+      set({ sectionMarkers: markers })
+    },
 
     // ── Key detection actions ──
 
@@ -247,6 +324,33 @@ export const useStudioStore = create<StudioState>()(
     clearSnapshots: () => {
       set({ organismSnapshots: [], activeSnapshotId: null })
     },
+
+    // ── Studio session content actions ──
+
+    setCurrentPattern: (pattern: any) => set({ currentPattern: pattern }),
+    setCurrentMelody: (melody: any[]) => set({ currentMelody: melody }),
+    setCurrentLyrics: (lyrics: string) => set({ currentLyrics: lyrics }),
+    setCurrentCodeMusic: (music: any) => set({ currentCodeMusic: music }),
+    setCurrentLayers: (layers: any[]) => set({ currentLayers: layers }),
+    setCurrentTracks: (tracks: any[]) => set({ currentTracks: tracks }),
+    setCurrentUploadedSong: (song: any) => set({ currentUploadedSong: song }),
+    setPlayMode: (mode: PlayMode) => set({ playMode: mode }),
+    setCurrentPlaylist: (playlist: any) => set({ currentPlaylist: playlist }),
+    setCurrentPlaylistIndex: (index: number) => set({ currentPlaylistIndex: index }),
+    setPendingBeatGrid: (grid: any) => set({ pendingBeatGrid: grid }),
+    setPendingMelodyNotes: (notes: any[] | null) => set({ pendingMelodyNotes: notes }),
+
+    consumePendingBeatGrid: () => {
+      const grid = get().pendingBeatGrid
+      if (grid) set({ pendingBeatGrid: null })
+      return grid
+    },
+
+    consumePendingMelodyNotes: () => {
+      const notes = get().pendingMelodyNotes
+      if (notes) set({ pendingMelodyNotes: null })
+      return notes
+    },
   })),
   {
     name: PERSIST_STORAGE_KEY,
@@ -270,6 +374,19 @@ export const useStudioStore = create<StudioState>()(
   },
   )
 )
+
+// ── Uploaded song audio element (non-serializable, module-level) ──
+// HTMLAudioElement can't live in Zustand's persist layer, so we store it
+// as a module-level singleton with get/set helpers.
+let _uploadedSongAudio: HTMLAudioElement | null = null
+
+export function getUploadedSongAudio(): HTMLAudioElement | null {
+  return _uploadedSongAudio
+}
+
+export function setUploadedSongAudio(audio: HTMLAudioElement | null): void {
+  _uploadedSongAudio = audio
+}
 
 // ── Debounced server sync ─────────────────────────────────────────
 // When musical globals change, mark the project dirty so the existing

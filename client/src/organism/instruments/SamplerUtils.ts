@@ -2,8 +2,21 @@ import * as Tone from 'tone';
 
 const BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/MusyngKite/';
 
+/** Extended Sampler type with loading state tracking */
+export type LoadableSampler = Tone.Sampler & {
+  isLoaded: boolean;
+  loadedPromise: Promise<void>;
+};
+
 /**
  * Creates a Tone.Sampler loaded with general MIDI soundfont files.
+ * The returned sampler has two extra properties:
+ *   - `isLoaded: boolean` — true once all samples have been fetched
+ *   - `loadedPromise: Promise<void>` — resolves when loading completes
+ *
+ * Generators MUST check `isLoaded` before calling triggerAttackRelease.
+ * Tone.Sampler silently produces no audio when samples aren't ready.
+ *
  * @param instrumentName The folder name in MusyngKite (e.g. 'acoustic_grand_piano', 'acoustic_bass')
  * @param envelope Custom ADSR envelope (attack/release are respected by Sampler)
  * @param volume Initial volume level
@@ -14,21 +27,22 @@ export function createSoundfontSampler(
   envelope: { attack: number; release: number },
   volume: number = -12,
   onLoad?: () => void
-): Tone.Sampler {
+): LoadableSampler {
   const sfUrl = `${BASE_URL}${instrumentName}-mp3/`;
   
   // Sample every minor third for reasonable coverage without fetching 88 files
   const noteMap: Record<string, string> = {};
   const noteNames = ['C', 'D#', 'F#', 'A']; 
   
-  // For bass we just want lower octaves, but we'll fetch 2 to 6 to be safe for all
   for (let octave = 2; octave <= 6; octave++) {
     for (const n of noteNames) {
       const key = `${n}${octave}`;
-      // MusyngKite uses 's' instead of '#'
       noteMap[key] = `${sfUrl}${n.replace('#', 's')}${octave}.mp3`;
     }
   }
+
+  let resolveLoaded: () => void;
+  const loadedPromise = new Promise<void>((resolve) => { resolveLoaded = resolve; });
 
   const sampler = new Tone.Sampler({
     urls: noteMap,
@@ -36,13 +50,19 @@ export function createSoundfontSampler(
     release: envelope.release,
     volume,
     onload: () => {
-      console.log(`🎵 Sampler loaded gracefully: ${instrumentName}`);
+      console.log(`🎵 Sampler loaded: ${instrumentName}`);
+      (sampler as LoadableSampler).isLoaded = true;
+      resolveLoaded!();
       if (onLoad) onLoad();
     },
     onerror: (err) => {
       console.error(`💥 Failed to load sampler: ${instrumentName}`, err);
+      resolveLoaded!();
     }
-  });
+  }) as LoadableSampler;
+
+  sampler.isLoaded = false;
+  sampler.loadedPromise = loadedPromise;
 
   return sampler;
 }

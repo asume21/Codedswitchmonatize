@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useTrackStore } from './TrackStoreContext';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
+import { arrangementScheduler } from '@/lib/arrangementScheduler';
 import { getAudioContext } from '@/lib/audioContext';
 import * as Tone from 'tone';
 
@@ -178,6 +179,20 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     };
   }, [isPlaying, isRecordArmed, advancePosition, clearRaf, recorder, position, addTrack, tempo, toast, toggleRecordArm]);
 
+  // ── Song-end auto-stop (arrangement mode) ──
+  // When the arrangement scheduler reaches songEndBeat, stop the transport.
+  useEffect(() => {
+    const unsub = arrangementScheduler.onSongEnd(() => {
+      // Use store actions directly to avoid stale closure over stop()
+      clearRaf();
+      useStudioStore.getState().stop();
+      pianoRollScheduler.stop();
+      arrangementScheduler.stop();
+      Tone.getTransport().stop();
+    });
+    return unsub;
+  }, [clearRaf]);
+
   // Wrap store actions to match TransportContextValue signature exactly
   const play = useCallback(() => {
     storePlay();
@@ -186,12 +201,20 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     if (ctx) {
       if (ctx.state === 'suspended') ctx.resume();
       const startAt = ctx.currentTime + 0.05;
-      const { bpm } = useStudioStore.getState();
-      // Use whatever patternSteps the piano roll already set on the scheduler
-      // (defaults to 64 when the scheduler is freshly constructed).
-      pianoRollScheduler.start(bpm ?? 120, pianoRollScheduler.patternSteps, startAt);
+      const { bpm, transportMode, position: pos, songEndBeat } = useStudioStore.getState();
+      const effectiveBpm = bpm ?? 120;
+
+      if (transportMode === 'arrangement') {
+        // Arrangement mode: scheduler runs without wrapping (patternSteps = MAX_SAFE_INTEGER)
+        pianoRollScheduler.start(effectiveBpm, Number.MAX_SAFE_INTEGER, startAt);
+        arrangementScheduler.start(pos, songEndBeat);
+      } else {
+        // Pattern mode: wraps at patternSteps as before
+        pianoRollScheduler.start(effectiveBpm, pianoRollScheduler.patternSteps, startAt);
+      }
+
       // Start Tone.Transport at the same offset so Tone.js generators are in lock-step
-      Tone.getTransport().bpm.value = bpm ?? 120;
+      Tone.getTransport().bpm.value = effectiveBpm;
       Tone.getTransport().start(`+0.05`);
     }
   }, [storePlay]);
@@ -199,12 +222,16 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     clearRaf();
     storePause();
     pianoRollScheduler.stop();
+    arrangementScheduler.stop();
     Tone.getTransport().pause();
+    // Stop any standalone audio sources (Astutely generated audio, previews, etc.)
+    window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
   }, [clearRaf, storePause]);
   const stop = useCallback(() => {
     clearRaf();
     storeStop();
     pianoRollScheduler.stop();
+    arrangementScheduler.stop();
     Tone.getTransport().stop();
     globalAudioKillSwitch.killAllAudio();
   }, [clearRaf, storeStop]);

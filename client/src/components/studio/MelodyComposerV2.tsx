@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,7 +7,6 @@ import { PianoRollPlugin } from './plugins/PianoRollPlugin';
 import { StepSequencerPlugin } from './plugins/StepSequencerPlugin';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { useToast } from '@/hooks/use-toast';
-import { StudioAudioContext } from '@/pages/studio';
 import { useStudioSession } from '@/contexts/StudioSessionContext';
 import type { Note } from './types/pianoRollTypes';
 import { AudioPlayer } from '@/components/ui/audio-player';
@@ -27,17 +26,19 @@ interface Track {
 
 function MelodyComposerV2() {
   const { toast } = useToast();
-  const studioContext = useContext(StudioAudioContext);
   const session = useStudioSession();
-  
+
   // Core state (notes mirror the currently selected track and are also stored in the shared session)
   const [notes, setNotes] = useState<Note[]>(session.melody as Note[] || []);
   const [selectedTrack, setSelectedTrack] = useState('track1');
   const tempo = useStudioStore((s) => s.bpm);
   const setTempo = useStudioStore((s) => s.setBpm);
+  const isPlaying = useStudioStore((s) => s.isPlaying);
+  const currentTracks = useStudioStore((s) => s.currentTracks);
+  const setCurrentTracks = useStudioStore((s) => s.setCurrentTracks);
+  const pendingMelodyNotes = useStudioStore((s) => s.pendingMelodyNotes);
+  const consumePendingMelodyNotes = useStudioStore((s) => s.consumePendingMelodyNotes);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
-
-  const isPlaying = studioContext.isPlaying;
 
   // Plugin visibility
   const [activePlugins, setActivePlugins] = useState({
@@ -55,11 +56,11 @@ function MelodyComposerV2() {
   ]);
 
   const tracks = useMemo(() => {
-    if (studioContext.currentTracks && (studioContext.currentTracks as Track[]).length > 0) {
-      return studioContext.currentTracks as Track[];
+    if (currentTracks && (currentTracks as Track[]).length > 0) {
+      return currentTracks as Track[];
     }
     return localTracks;
-  }, [studioContext.currentTracks, localTracks]);
+  }, [currentTracks, localTracks]);
 
   // Initialize audio engine
   useEffect(() => {
@@ -72,16 +73,8 @@ function MelodyComposerV2() {
   }, []);
 
   useEffect(() => {
-    if (studioContext.setCurrentTracks) {
-      studioContext.setCurrentTracks(localTracks);
-    }
-  }, [localTracks]); // Remove studioContext from dependencies to prevent infinite loop
-
-  useEffect(() => {
-    if (studioContext.setBpm) {
-      studioContext.setBpm(tempo);
-    }
-  }, [tempo]); // Remove studioContext from dependencies to prevent infinite loop
+    setCurrentTracks(localTracks);
+  }, [localTracks]);
 
   // Audio functions
   const playNote = async (note: string, octave: number = 4, duration: number = 0.5, instrument: string = 'piano') => {
@@ -107,9 +100,9 @@ function MelodyComposerV2() {
       track.id === trackId ? { ...track, ...updates } : track
     ));
 
-    const baseTracks = (studioContext.currentTracks as Track[])?.length > 0 ? (studioContext.currentTracks as Track[]) : localTracks;
+    const baseTracks = (currentTracks as Track[])?.length > 0 ? (currentTracks as Track[]) : localTracks;
     const updated = baseTracks.map(track => track.id === trackId ? { ...track, ...updates } : track);
-    studioContext.setCurrentTracks(updated);
+    setCurrentTracks(updated);
     
     toast({ 
       title: "Track Updated", 
@@ -124,19 +117,19 @@ function MelodyComposerV2() {
     }));
   };
 
-  // Playback controls
+  // Playback controls — dispatch events for TransportContext to handle
   const togglePlayback = () => {
-    if (!studioContext.isPlaying) {
-      studioContext.playCurrentAudio();
+    if (!isPlaying) {
+      window.dispatchEvent(new CustomEvent('playAllTools'));
       toast({ title: "Playback Started", description: "Multi-track sequencer playing" });
     } else {
-      studioContext.stopCurrentAudio();
+      window.dispatchEvent(new CustomEvent('stopAllTools'));
       toast({ title: "Playback Stopped", description: "Sequencer paused" });
     }
   };
 
   const stopPlayback = () => {
-    studioContext.stopCurrentAudio();
+    window.dispatchEvent(new CustomEvent('stopAllTools'));
     realisticAudio.stopAllSounds();
     toast({ title: "Playback Stopped", description: "All sounds stopped" });
   };
@@ -144,9 +137,9 @@ function MelodyComposerV2() {
   const clearAllNotes = () => {
     setNotes([]);
     setLocalTracks(prev => prev.map(track => ({ ...track, notes: [] })));
-    const baseTracks = (studioContext.currentTracks as Track[])?.length > 0 ? (studioContext.currentTracks as Track[]) : localTracks;
+    const baseTracks = (currentTracks as Track[])?.length > 0 ? (currentTracks as Track[]) : localTracks;
     const cleared = baseTracks.map(track => ({ ...track, notes: [] }));
-    studioContext.setCurrentTracks(cleared);
+    setCurrentTracks(cleared);
     toast({ title: "All Notes Cleared", description: "Composition reset" });
   };
 
@@ -155,9 +148,9 @@ function MelodyComposerV2() {
       track.id === trackId ? { ...track, notes: updatedNotes } : track
     ));
 
-    const baseTracks = (studioContext.currentTracks as Track[])?.length > 0 ? (studioContext.currentTracks as Track[]) : localTracks;
+    const baseTracks = (currentTracks as Track[])?.length > 0 ? (currentTracks as Track[]) : localTracks;
     const updated = baseTracks.map(track => track.id === trackId ? { ...track, notes: updatedNotes } : track);
-    studioContext.setCurrentTracks(updated);
+    setCurrentTracks(updated);
 
     if (trackId === selectedTrack) {
       setNotes(updatedNotes);
@@ -177,14 +170,13 @@ function MelodyComposerV2() {
 
   // Consume pending melody notes from Astutely Create tab
   useEffect(() => {
-    const pending = studioContext?.pendingMelodyNotes;
-    if (!pending || !Array.isArray(pending) || pending.length === 0) return;
+    if (!pendingMelodyNotes || !Array.isArray(pendingMelodyNotes) || pendingMelodyNotes.length === 0) return;
 
     // Consume so we don't re-apply
-    studioContext.consumePendingMelodyNotes();
+    consumePendingMelodyNotes();
 
     const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const generatedNotes: Note[] = pending.map((n: any, index: number) => {
+    const generatedNotes: Note[] = pendingMelodyNotes.map((n: any, index: number) => {
       const pitch = n.note || n.pitch || 60;
       const noteName = typeof pitch === 'string' ? pitch : NOTE_NAMES[pitch % 12];
       const octave = n.octave || (typeof pitch === 'number' ? Math.floor(pitch / 12) - 1 : 4);
@@ -205,7 +197,7 @@ function MelodyComposerV2() {
       title: 'Melody Applied',
       description: `${generatedNotes.length} notes loaded into ${tracks.find(t => t.id === selectedTrack)?.name}`,
     });
-  }, [studioContext?.pendingMelodyNotes]);
+  }, [pendingMelodyNotes]);
 
   // AI Melody Generation (kept for reference — UI trigger moved to Astutely Create tab)
   const generateAIMelody = async () => {

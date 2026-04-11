@@ -1,16 +1,16 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState } from 'react';
 import { AudioToolRouter } from './effects/AudioToolRouter';
-import { StudioAudioContext } from '@/pages/studio';
+import { useStudioStore } from '@/stores/useStudioStore';
 import { Music, Wrench } from 'lucide-react';
 
 export default function AudioToolsPage() {
-  const studioContext = useContext(StudioAudioContext);
+  const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
   const [localUrl, setLocalUrl] = useState('');
   const [localName, setLocalName] = useState('');
 
   // Prioritize context song, fallback to local upload
-  const activeUrl = studioContext.currentUploadedSong?.accessibleUrl || localUrl;
-  const activeName = studioContext.currentUploadedSong?.name || localName;
+  const activeUrl = currentUploadedSong?.accessibleUrl || localUrl;
+  const activeName = currentUploadedSong?.name || localName;
 
   const handleLocalAudioLoad = (url: string, name: string) => {
     setLocalUrl(url);

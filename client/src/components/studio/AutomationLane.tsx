@@ -19,9 +19,29 @@ export interface AutoPoint {
   id: string;
   bar: number;
   value: number; // 0 = min, 1 = max
+  curve?: 'linear' | 'exponential' | 'step';  // interpolation to next point (default: linear)
 }
 
-export type AutoParam = 'volume' | 'pan';
+// Built-in parameters + effect parameters (dot-notation: 'reverb.mix', 'filter.cutoff', etc.)
+export type AutoParam = 'volume' | 'pan' | (string & {});
+
+/** Known effect parameter presets for the dropdown UI */
+export const EFFECT_AUTO_PARAMS: { value: string; label: string }[] = [
+  { value: 'volume',        label: 'Volume' },
+  { value: 'pan',           label: 'Pan' },
+  { value: 'reverb.mix',    label: 'Reverb Mix' },
+  { value: 'reverb.decay',  label: 'Reverb Decay' },
+  { value: 'delay.mix',     label: 'Delay Mix' },
+  { value: 'delay.time',    label: 'Delay Time' },
+  { value: 'delay.feedback',label: 'Delay Feedback' },
+  { value: 'filter.cutoff', label: 'Filter Cutoff' },
+  { value: 'filter.resonance', label: 'Filter Resonance' },
+  { value: 'distortion.amount', label: 'Distortion' },
+  { value: 'compressor.threshold', label: 'Comp Threshold' },
+  { value: 'eq.low',        label: 'EQ Low' },
+  { value: 'eq.mid',        label: 'EQ Mid' },
+  { value: 'eq.high',       label: 'EQ High' },
+];
 
 // ── Interpolation helper (exported for playback) ──────────────────────────────
 export function valueAt(points: AutoPoint[], bar: number, fallback = 0.75): number {
@@ -32,7 +52,23 @@ export function valueAt(points: AutoPoint[], bar: number, fallback = 0.75): numb
   for (let i = 0; i < s.length - 1; i++) {
     const a = s[i], b = s[i + 1];
     if (bar >= a.bar && bar <= b.bar) {
+      const curve = a.curve ?? 'linear';
+
+      if (curve === 'step') {
+        // Hold value until next point
+        return a.value;
+      }
+
       const t = (bar - a.bar) / (b.bar - a.bar);
+
+      if (curve === 'exponential') {
+        // Exponential interpolation (clamped to avoid log(0))
+        const safeA = Math.max(0.001, a.value);
+        const safeB = Math.max(0.001, b.value);
+        return safeA * Math.pow(safeB / safeA, t);
+      }
+
+      // Default: linear
       return a.value + t * (b.value - a.value);
     }
   }
@@ -210,7 +246,8 @@ export function AutomationLane({
     if (hit) onChange(points.filter(p => p.id !== hit));
   }, [hitPoint, points, onChange]);
 
-  const paramLabel = param === 'volume' ? 'Vol' : 'Pan';
+  const paramLabel = EFFECT_AUTO_PARAMS.find(p => p.value === param)?.label
+    ?? param.split('.').pop() ?? param;
 
   return (
     <div className="relative flex-shrink-0 border-t border-white/[0.04]" style={{ height: AUTO_LANE_H, width }}>

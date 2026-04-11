@@ -58,13 +58,19 @@ Uses Wouter. Routes split into three tiers:
 All legacy studio routes (`/beat-studio`, `/melody-composer`, `/piano-roll`, etc.) redirect to `/studio`.
 
 ### Audio Provider Stack (studio only)
-Providers nest in this order inside `App.tsx`:
+Providers nest in this order inside `App.tsx` (outermost → innermost):
 ```
-PresenceProvider → TransportProvider → GlobalAudioProvider → InstrumentProvider →
-TrackStoreProvider → StemGenerationProvider → AstutelyCoreProvider →
+PresenceProvider → TrackStoreProvider → TransportProvider → GlobalAudioProvider →
+InstrumentProvider → StemGenerationProvider → AstutelyCoreProvider →
 StudioSessionProvider → SongWorkSessionProvider → SessionDestinationProvider
 ```
+TrackStoreProvider must wrap TransportProvider because TransportProvider calls `useTrackStore()`.
 `GlobalOrganismWrapper` wraps the entire app (outside routing).
+
+### Single Source of Truth — Audio Clock
+- **TransportContext** is the sole owner of `Tone.Transport.start/stop` and `pianoRollScheduler` lifecycle.
+- **`getAudioContext()`** (`client/src/lib/audioContext.ts`) is the single shared `AudioContext` — all components must use it (no `new AudioContext()`).
+- The Organism's `GeneratorOrchestrator` does NOT stop Tone.Transport — it only silences its generators. It will defensively start Transport if not already running.
 
 ### Studio UI (`client/src/components/studio/UnifiedStudioWorkspace.tsx`)
 Tab-based workspace. Tabs: Beat Maker, Melody/Piano Roll, Mixer, Lyrics, Code Translator, AI Assistant, Sample Library, Song Uploader. Each tab is a separate component.

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getAudioContext } from '@/lib/audioContext';
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -105,7 +106,7 @@ export default function VoiceRecorder({ onVoiceCloned }: VoiceRecorderProps) {
       streamRef.current = stream;
 
       // Set up audio analyser for mic level visualization
-      const audioContext = new AudioContext();
+      const audioContext = getAudioContext();
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -185,9 +186,7 @@ export default function VoiceRecorder({ onVoiceCloned }: VoiceRecorderProps) {
     }
     analyserRef.current = null;
     micDataArrayRef.current = null;
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close();
-    }
+    // Do NOT close the shared AudioContext — just release our reference
     audioContextRef.current = null;
     setIsRecording(false);
     setMicLevel(0);

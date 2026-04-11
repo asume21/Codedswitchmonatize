@@ -1,7 +1,7 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAudio, useSequencer } from "@/hooks/use-audio";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore, getUploadedSongAudio, setUploadedSongAudio } from '@/stores/useStudioStore';
 import { useQuery } from "@tanstack/react-query";
 import { Music, ChevronDown, ChevronUp, Pin, PinOff } from "lucide-react";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
@@ -39,7 +39,12 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
 
   const { setMasterVolume, initialize, isInitialized } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
-  const studioContext = useContext(StudioAudioContext);
+  const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
+  const currentPattern = useStudioStore((s) => s.currentPattern);
+  const currentMelody = useStudioStore((s) => s.currentMelody);
+  const currentTracks = useStudioStore((s) => s.currentTracks);
+  const storeBpm = useStudioStore((s) => s.bpm);
+  const setCurrentUploadedSong = useStudioStore((s) => s.setCurrentUploadedSong);
   const { addTrack } = useTracks();
   const {
     isPlaying: transportIsPlaying,
@@ -62,7 +67,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
 
   // Keep total duration and current time in sync with uploaded song
   useEffect(() => {
-    const audioEl = studioContext.uploadedSongAudio;
+    const audioEl = getUploadedSongAudio();
     if (!audioEl) {
       setTotalDuration(null);
       return;
@@ -96,7 +101,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       audioEl.removeEventListener('timeupdate', updateTime);
       audioEl.removeEventListener('ended', handleEnded);
     };
-  }, [studioContext.uploadedSongAudio]);
+  }, [currentUploadedSong]);
 
   const handlePlay = async () => {
     try {
@@ -106,37 +111,38 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
 
       if (isPlaying) {
         stopPattern();
-        studioContext.stopFullSong();
+        window.dispatchEvent(new CustomEvent('stopAllTools'));
         pauseTransport();
         setIsPlaying(false);
         return;
       }
 
       // Check for uploaded song first
-      const hasUploadedSong = studioContext.currentUploadedSong && studioContext.uploadedSongAudio;
+      const hasUploadedSong = currentUploadedSong && getUploadedSongAudio();
       
-      if (hasUploadedSong && studioContext.uploadedSongAudio) {
+      const uploadedAudio = getUploadedSongAudio();
+      if (hasUploadedSong && uploadedAudio) {
         // Play uploaded song through audio element
-        console.log('▶️ Playing uploaded song:', studioContext.currentUploadedSong.name);
-        await studioContext.uploadedSongAudio.play();
+        console.log('▶️ Playing uploaded song:', currentUploadedSong.name);
+        await uploadedAudio.play();
         startTransport();
         setIsPlaying(true);
         return;
       }
 
       // Play everything loaded in the context
-      const hasPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0;
-      const hasMelody = studioContext.currentMelody && studioContext.currentMelody.length > 0;
-      const hasTracks = studioContext.currentTracks && studioContext.currentTracks.length > 0;
+      const hasPattern = currentPattern && Object.keys(currentPattern).length > 0;
+      const hasMelody = currentMelody && currentMelody.length > 0;
+      const hasTracks = currentTracks && currentTracks.length > 0;
 
       // Only play drum pattern if one is actually loaded
       if (hasPattern) {
-        playPattern(studioContext.currentPattern, studioContext.bpm || 120);
+        playPattern(currentPattern, storeBpm || 120);
       }
 
       // Play full song (includes melody, vocals, etc) if anything is loaded
       if (hasPattern || hasMelody || hasTracks) {
-        await studioContext.playFullSong();
+        window.dispatchEvent(new CustomEvent('playAllTools'));
         startTransport();
         setIsPlaying(true);
       } else {
@@ -151,12 +157,13 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
 
   const handleStop = () => {
     stopPattern();
-    studioContext.stopFullSong();
+    window.dispatchEvent(new CustomEvent('stopAllTools'));
     
     // Stop uploaded song if playing
-    if (studioContext.uploadedSongAudio) {
-      studioContext.uploadedSongAudio.pause();
-      studioContext.uploadedSongAudio.currentTime = 0;
+    const stopAudio = getUploadedSongAudio();
+    if (stopAudio) {
+      stopAudio.pause();
+      stopAudio.currentTime = 0;
     }
     
     stopTransport();
@@ -171,7 +178,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
   };
 
   const seekAudioTo = (time: number) => {
-    const audioEl = studioContext.uploadedSongAudio;
+    const audioEl = getUploadedSongAudio();
     if (audioEl) {
       audioEl.currentTime = time;
     }
@@ -297,8 +304,9 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
     setMasterVolume(nextVolume);
     
     // Also update uploaded song volume if playing
-    if (studioContext.uploadedSongAudio) {
-      studioContext.uploadedSongAudio.volume = nextVolume / 100;
+    const volAudio = getUploadedSongAudio();
+    if (volAudio) {
+      volAudio.volume = nextVolume / 100;
     }
   };
 
@@ -348,12 +356,12 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       
       audio.addEventListener('ended', () => {
         console.log(`✅ Song finished: ${song.name}`);
-        studioContext.setCurrentUploadedSong(null, null);
+        setCurrentUploadedSong(null); setUploadedSongAudio(null);
         setIsPlaying(false);
       });
 
       // Store in context
-      studioContext.setCurrentUploadedSong(song, audio);
+      setCurrentUploadedSong(song); setUploadedSongAudio(audio);
       setShowSongPicker(false);
       
       console.log(`✅ Song loaded: ${song.name} at ${volume}% volume`);
@@ -550,8 +558,9 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
             setMasterVolume(nextVolume);
             
             // Also update uploaded song volume
-            if (studioContext.uploadedSongAudio) {
-              studioContext.uploadedSongAudio.volume = nextVolume / 100;
+            const btnAudio = getUploadedSongAudio();
+            if (btnAudio) {
+              btnAudio.volume = nextVolume / 100;
             }
           }}
           size="sm"
@@ -571,16 +580,16 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         </div>
         
         <div className="border-l border-gray-700 pl-6">
-          <span className="font-mono text-gray-400">{studioContext.bpm || 120} BPM</span>
+          <span className="font-mono text-gray-400">{storeBpm || 120} BPM</span>
         </div>
         
         {/* Current Song Info & Picker */}
         <div className="flex items-center gap-2">
-          {studioContext.currentUploadedSong ? (
+          {currentUploadedSong ? (
             <div className="flex items-center gap-2 bg-blue-900/20 px-3 py-1 rounded-full">
               <Music className="w-3 h-3 text-blue-400" />
               <span className="text-xs text-blue-300 max-w-[150px] truncate">
-                {studioContext.currentUploadedSong.name}
+                {currentUploadedSong.name}
               </span>
             </div>
           ) : null}
@@ -602,13 +611,13 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
         
         {/* Status indicators */}
         <div className="flex items-center gap-1">
-          {studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 && (
+          {currentPattern && Object.keys(currentPattern).length > 0 && (
             <span className="w-2 h-2 bg-blue-500 rounded-full" title="Drums loaded"></span>
           )}
-          {studioContext.currentMelody && studioContext.currentMelody.length > 0 && (
+          {currentMelody && currentMelody.length > 0 && (
             <span className="w-2 h-2 bg-purple-500 rounded-full" title="Melody loaded"></span>
           )}
-          {studioContext.currentTracks && studioContext.currentTracks.length > 0 && (
+          {currentTracks && currentTracks.length > 0 && (
             <span className="w-2 h-2 bg-green-500 rounded-full" title="Tracks loaded"></span>
           )}
         </div>
@@ -649,7 +658,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       className={containerClasses}
       style={containerStyle}
       onMouseDown={isFloating ? handleMouseDown : undefined}
-      onMouseEnter={() => !isFloating && studioContext.currentUploadedSong && !waveformPinned && setShowWaveform(true)}
+      onMouseEnter={() => !isFloating && currentUploadedSong && !waveformPinned && setShowWaveform(true)}
       onMouseLeave={() => !isFloating && !waveformPinned && setShowWaveform(false)}
     >
       {isFloating && (
@@ -725,7 +734,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
                     key={song.id}
                     onClick={() => loadSong(song)}
                     className={`w-full text-left p-2 rounded hover:bg-gray-700 transition-colors ${
-                      studioContext.currentUploadedSong?.id === song.id
+                      currentUploadedSong?.id === song.id
                         ? 'bg-blue-900/30 border border-blue-500/30'
                         : 'border border-transparent'
                     }`}
@@ -739,7 +748,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
                           {song.duration ? `${Math.floor(song.duration / 60)}:${String(Math.floor(song.duration % 60)).padStart(2, '0')}` : 'Unknown duration'}
                         </div>
                       </div>
-                      {studioContext.currentUploadedSong?.id === song.id && (
+                      {currentUploadedSong?.id === song.id && (
                         <div className="ml-2 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                       )}
                     </div>
@@ -758,7 +767,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
       )}
 
       {/* Waveform Panel - Collapsible, shows above transport */}
-      {studioContext.currentUploadedSong && studioContext.uploadedSongAudio && (
+      {currentUploadedSong && getUploadedSongAudio() && (
         <div
           className="absolute bottom-full left-0 right-0 transition-all duration-300 ease-in-out"
           style={{
@@ -774,7 +783,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
                 <Music className="w-4 h-4 text-blue-400" />
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold text-white">
-                    {studioContext.currentUploadedSong.name}
+                    {currentUploadedSong.name}
                   </span>
                 </div>
               </div>
@@ -811,7 +820,7 @@ export default function TransportControls({ currentTool = "Studio" }: TransportC
             >
               <div className="p-4">
                 <WaveformVisualizer
-                  audioElement={studioContext.uploadedSongAudio}
+                  audioElement={getUploadedSongAudio()}
                   isPlaying={isPlaying}
                   height={120}
                   showControls={true}

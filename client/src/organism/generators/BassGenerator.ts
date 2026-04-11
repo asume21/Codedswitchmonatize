@@ -18,17 +18,18 @@ import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
-import { createSoundfontSampler } from '../instruments/SamplerUtils'
+import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth:      Tone.MonoSynth | Tone.Sampler
+  private synth:      Tone.MonoSynth | LoadableSampler
   private filter:     Tone.Filter
   private monoSub:    Tone.Filter      
   private compressor: Tone.Compressor
   private distortion: Tone.Distortion
   private part:       Tone.Part | null = null
+  private hasStartedPlayback: boolean = false
 
   // Musical state
   private rootMidi:        number       = 36   
@@ -46,7 +47,9 @@ export class BassGenerator extends GeneratorBase {
   private lastOutputGain: number = 0
 
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
-  private pendingOldSynth: Tone.MonoSynth | Tone.Sampler | null = null
+  private pendingOldSynth: Tone.MonoSynth | LoadableSampler | null = null
+  // Fallback synth used while a CDN sampler is loading
+  private fallbackSynth: Tone.MonoSynth
   
   private isCurrentVoiceSampler: boolean = false
 
@@ -95,6 +98,19 @@ export class BassGenerator extends GeneratorBase {
     this.monoSub.connect(this.distortion)
     this.distortion.connect(this.compressor)
     this.compressor.connect(this.output)
+
+    // Fallback synth — always available for instant playback while samplers load
+    this.fallbackSynth = new Tone.MonoSynth({
+      oscillator: { type: 'fatsawtooth', spread: 15, count: 2 },
+      filter:     { Q: 3, type: 'lowpass', rolloff: -24 },
+      envelope:   { attack: 0.005, decay: 0.25, sustain: 0.8, release: 0.3 },
+      filterEnvelope: {
+        attack: 0.04, decay: 0.15, sustain: 0.35, release: 0.15,
+        baseFrequency: 80, octaves: 2.0,
+      },
+    })
+    this.fallbackSynth.volume.value = -7
+    this.fallbackSynth.connect(this.filter)
 
     this.setOutputLevel(0)
   }
@@ -156,6 +172,7 @@ export class BassGenerator extends GeneratorBase {
     this.activityLevel   = 0
     this.currentBehavior = BassBehavior.Breathe
     this.currentPocket   = 0
+    this.hasStartedPlayback = false
     this.setOutputLevel(0)
   }
 
@@ -298,13 +315,16 @@ export class BassGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
-      this.synth.triggerAttackRelease(event.note, event.dur, time + LAY_BACK_SEC, pocketVelocity)
+      // Use sampler only if fully loaded; otherwise use fallback MonoSynth
+      const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
+      voice.triggerAttackRelease(event.note, event.dur, time + LAY_BACK_SEC, pocketVelocity)
     }, events)
 
     this.part.loop      = true
     this.part.loopEnd   = '4m'
-    const nextBar = Tone.getTransport().nextSubdivision('1m')
-    this.part.start(nextBar)
+    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
+    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    this.hasStartedPlayback = true
   }
 
   private generateNotes(): ScheduledNote[] {
@@ -361,6 +381,12 @@ export class BassGenerator extends GeneratorBase {
     this.output.gain.rampTo(linear, 0.35)
   }
 
+  /** Check if the current synth is a sampler AND has finished loading */
+  private isSamplerReady(): boolean {
+    if (!this.isCurrentVoiceSampler) return false
+    return (this.synth as LoadableSampler).isLoaded === true
+  }
+
   dispose(): void {
     this.stopPart()
     if (this.pendingSynthDispose) {
@@ -373,6 +399,7 @@ export class BassGenerator extends GeneratorBase {
       this.pendingOldSynth = null
     }
     this.synth.dispose()
+    this.fallbackSynth.dispose()
     this.filter.dispose()
     this.monoSub.dispose()
     this.compressor.dispose()

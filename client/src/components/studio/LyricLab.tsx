@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore } from '@/stores/useStudioStore';
 // AIProviderSelector removed — lyrics generation moved to Astutely Create tab
 import { useSongWorkSession } from "@/contexts/SongWorkSessionContext";
 import { useStudioSession } from "@/contexts/StudioSessionContext";
@@ -103,7 +103,12 @@ function autoStructureLyrics(raw: string): string {
 
 export default function LyricLab() {
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
-  const studioContext = useContext(StudioAudioContext);
+  const currentLyrics = useStudioStore((s) => s.currentLyrics);
+  const setCurrentLyrics = useStudioStore((s) => s.setCurrentLyrics);
+  const currentPattern = useStudioStore((s) => s.currentPattern);
+  const currentMelody = useStudioStore((s) => s.currentMelody);
+  const currentCodeMusic = useStudioStore((s) => s.currentCodeMusic);
+  const storeBpm = useStudioStore((s) => s.bpm);
   const { currentSession, setCurrentSessionId, createSession } = useSongWorkSession();
   const studioSession = useStudioSession();
   const { requestDestination } = useSessionDestination();
@@ -231,7 +236,7 @@ export default function LyricLab() {
   React.useEffect(() => {
     if (studioSession.lyrics && studioSession.lyrics !== content) {
       setContent(studioSession.lyrics);
-      studioContext.setCurrentLyrics(studioSession.lyrics);
+      setCurrentLyrics(studioSession.lyrics);
       return;
     }
 
@@ -239,7 +244,7 @@ export default function LyricLab() {
       const stored = localStorage.getItem('lyricLabCurrentLyrics');
       if (stored && stored.trim() && stored !== content) {
         setContent(stored);
-        studioContext.setCurrentLyrics(stored);
+        setCurrentLyrics(stored);
         studioSession.setLyrics(stored);
         return;
       }
@@ -247,16 +252,16 @@ export default function LyricLab() {
       // If localStorage fails, fall back to studio context below
     }
 
-    if (studioContext.currentLyrics && studioContext.currentLyrics !== content) {
-      setContent(studioContext.currentLyrics);
-      studioSession.setLyrics(studioContext.currentLyrics);
+    if (currentLyrics && currentLyrics !== content) {
+      setContent(currentLyrics);
+      studioSession.setLyrics(currentLyrics);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
 
-  // Pick up transcribed lyrics pushed into studioContext from SongUploader
+  // Pick up transcribed lyrics pushed into store from SongUploader
   React.useEffect(() => {
-    const incoming = studioContext.currentLyrics;
+    const incoming = currentLyrics;
     if (incoming && incoming !== content) {
       setContent(incoming);
       studioSession.setLyrics(incoming);
@@ -266,12 +271,12 @@ export default function LyricLab() {
     }
     // Only react to external changes in currentLyrics, not our own edits
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studioContext.currentLyrics]);
+  }, [currentLyrics]);
 
   // Update studio context and localStorage whenever lyrics content changes
   React.useEffect(() => {
-    if (studioContext.currentLyrics !== content) {
-      studioContext.setCurrentLyrics(content);
+    if (currentLyrics !== content) {
+      setCurrentLyrics(content);
     }
     if (studioSession.lyrics !== content) {
       studioSession.setLyrics(content);
@@ -281,7 +286,7 @@ export default function LyricLab() {
     } catch {
       // Ignore storage errors (e.g. private mode)
     }
-  }, [content, studioContext, studioSession]);
+  }, [content, currentLyrics, setCurrentLyrics, studioSession]);
 
   // Load session from URL parameters
   useEffect(() => {
@@ -347,10 +352,10 @@ export default function LyricLab() {
 
   // Check if there's already generated music in studio context and localStorage
   React.useEffect(() => {
-    const hasPattern = studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 &&
-      Object.values(studioContext.currentPattern).some(arr => Array.isArray(arr) && arr.some(val => val === true));
-    const hasMelody = studioContext.currentMelody && studioContext.currentMelody.length > 0;
-    const hasCodeMusic = studioContext.currentCodeMusic && Object.keys(studioContext.currentCodeMusic).length > 0;
+    const hasPattern = currentPattern && Object.keys(currentPattern).length > 0 &&
+      Object.values(currentPattern).some(arr => Array.isArray(arr) && arr.some(val => val === true));
+    const hasMelody = currentMelody && currentMelody.length > 0;
+    const hasCodeMusic = currentCodeMusic && Object.keys(currentCodeMusic).length > 0;
 
     // Also check localStorage for persisted data
     let hasStoredData = false;
@@ -370,7 +375,7 @@ export default function LyricLab() {
     } else {
       setHasGeneratedMusic(false);
     }
-  }, [studioContext.currentPattern, studioContext.currentMelody, studioContext.currentCodeMusic]);
+  }, [currentPattern, currentMelody, currentCodeMusic]);
 
   const { initialize, isInitialized } = useAudio();
 
@@ -383,7 +388,7 @@ export default function LyricLab() {
     },
     onSuccess: () => {
       // Save lyrics to studio context for master playback
-      studioContext.setCurrentLyrics(content);
+      setCurrentLyrics(content);
       studioSession.createLyricsVersion({
         content,
         source: "manual",
@@ -776,14 +781,14 @@ export default function LyricLab() {
         const text = await file.text();
         const structured = autoStructureLyrics(text);
         setContent(structured);
-        studioContext.setCurrentLyrics(structured);
+        setCurrentLyrics(structured);
         toast({ title: "Imported!", description: `Loaded lyrics from ${file.name}` });
       } catch {
         toast({ title: "Import Failed", description: "Could not read file", variant: "destructive" });
       }
     };
     input.click();
-  }, [studioContext, toast]);
+  }, [setCurrentLyrics, toast]);
 
   // ISSUE #3: Add section function
   const addSection = useCallback((sectionName: string) => {
@@ -848,7 +853,7 @@ export default function LyricLab() {
             label: "Transcription",
           });
           setContent(structured);
-          studioContext.setCurrentLyrics(structured);
+          setCurrentLyrics(structured);
         }}
       />
 
@@ -1242,14 +1247,14 @@ export default function LyricLab() {
                   </p>
                   <Button
                     onClick={() => masterSongMutation.mutate({
-                      pattern: studioContext.currentPattern,
-                      melody: studioContext.currentMelody,
-                      lyrics: studioContext.currentLyrics || content,
-                      codeMusic: studioContext.currentCodeMusic,
-                      bpm: studioContext.bpm,
+                      pattern: currentPattern,
+                      melody: currentMelody,
+                      lyrics: currentLyrics || content,
+                      codeMusic: currentCodeMusic,
+                      bpm: storeBpm,
                       genre,
                     })}
-                    disabled={masterSongMutation.isPending || (!studioContext.currentPattern && !studioContext.currentMelody)}
+                    disabled={masterSongMutation.isPending || (!currentPattern && !currentMelody)}
                     className="w-full bg-orange-600 hover:bg-orange-500"
                   >
                     {masterSongMutation.isPending ? (

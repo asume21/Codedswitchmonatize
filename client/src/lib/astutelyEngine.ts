@@ -657,6 +657,18 @@ export function stopActiveAstutelyAudio(): void {
   }
 }
 
+// Listen for global stop events so transport controls can kill Astutely audio
+if (typeof window !== 'undefined') {
+  window.addEventListener('globalAudio:stopAll', () => {
+    stopActiveAstutelyAudio();
+    stopAstutelyPreview();
+  });
+  window.addEventListener('stopAllTools', () => {
+    stopActiveAstutelyAudio();
+    stopAstutelyPreview();
+  });
+}
+
 export async function astutelyPlayAudio(audioUrl: string): Promise<HTMLAudioElement> {
   console.log(`🔊 ASTUTELY: Playing audio: ${audioUrl}`);
   

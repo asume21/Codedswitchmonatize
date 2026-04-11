@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore, getUploadedSongAudio, setUploadedSongAudio } from '@/stores/useStudioStore';
 import { AIMessageContext } from "@/contexts/AIMessageContext";
 import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionContext";
 import { SimpleFileUploader } from "@/components/SimpleFileUploader";
@@ -69,7 +69,11 @@ export default function SongUploader() {
   });
 
   const { toast } = useToast();
-  const studioContext = useContext(StudioAudioContext);
+  const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
+  const setCurrentUploadedSong = useStudioStore((s) => s.setCurrentUploadedSong);
+  const setCurrentLyrics = useStudioStore((s) => s.setCurrentLyrics);
+  const setCurrentCodeMusic = useStudioStore((s) => s.setCurrentCodeMusic);
+  const isPlaying = useStudioStore((s) => s.isPlaying);
   const aiContext = useContext(AIMessageContext);
   const addMessage = aiContext?.addMessage || (() => {});
   const { createSession, updateSession } = useSongWorkSession();
@@ -131,9 +135,7 @@ export default function SongUploader() {
         addMessage(`📝 **Transcribed Lyrics for ${song.name}:**\n\n${text}`, 'transcription');
 
         // Auto-send to Lyrics tab so user can find them immediately
-        if (studioContext?.setCurrentLyrics) {
-          studioContext.setCurrentLyrics(text);
-        }
+        setCurrentLyrics(text);
         window.dispatchEvent(new CustomEvent('lyrics:load', { detail: { lyrics: text, songName: song.name } }));
 
         return text;
@@ -411,7 +413,7 @@ export default function SongUploader() {
       // If deleted song was selected, clear selection
       if (selectedSong?.id.toString() === id) {
         setSelectedSong(null);
-        studioContext.setCurrentUploadedSong(null, null);
+        setCurrentUploadedSong(null); setUploadedSongAudio(null);
       }
     },
     onError: () => {
@@ -823,9 +825,10 @@ export default function SongUploader() {
       console.log(`🎵 Attempting to play: ${song.name} (format: ${songFormat}) from URL: ${accessibleURL.substring(0, 100)}...`);
 
       // Stop any currently playing audio
-      if (studioContext.uploadedSongAudio) {
-        studioContext.uploadedSongAudio.pause();
-        studioContext.uploadedSongAudio.src = '';
+      const prevAudio = getUploadedSongAudio();
+      if (prevAudio) {
+        prevAudio.pause();
+        prevAudio.src = '';
       }
 
       // Prepare candidate URLs for premixing (primary source + any separated stems stored in session)
@@ -902,7 +905,7 @@ export default function SongUploader() {
         description: `Cannot load ${song.name}. ${error instanceof Error ? error.message : 'The file may be corrupted or unsupported.'}`,
         variant: "destructive",
       });
-      studioContext.setCurrentUploadedSong(null, null);
+      setCurrentUploadedSong(null); setUploadedSongAudio(null);
     }
   };
 
@@ -1014,7 +1017,7 @@ export default function SongUploader() {
       });
 
       // Store analysis in studio context for other tools to use
-      studioContext.setCurrentCodeMusic?.({
+      setCurrentCodeMusic({
         ...analysis,
         source: 'uploaded_song',
         originalSong: song
@@ -1299,7 +1302,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
   };
 
   // If showing audio tools, render the tool router
-  if (showAudioTools && studioContext.currentUploadedSong && songAnalysis) {
+  if (showAudioTools && currentUploadedSong && songAnalysis) {
     return (
       <div className="h-full flex flex-col overflow-hidden p-6">
         <Button 
@@ -1310,8 +1313,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
           ← Back to Song Library
         </Button>
         <AudioToolRouter
-          songUrl={studioContext.currentUploadedSong.accessibleUrl || studioContext.currentUploadedSong.originalUrl || (studioContext.currentUploadedSong as any).songURL || ''}
-          songName={studioContext.currentUploadedSong.name}
+          songUrl={currentUploadedSong.accessibleUrl || currentUploadedSong.originalUrl || (currentUploadedSong as any).songURL || ''}
+          songName={currentUploadedSong.name}
           recommendations={songAnalysis.toolRecommendations || []}
         />
       </div>
@@ -1403,13 +1406,13 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
             <Badge variant="secondary">{songs.length} song{songs.length > 1 ? 's' : ''} uploaded</Badge>
           )}
 
-          {studioContext.currentUploadedSong && (
+          {currentUploadedSong && (
             <div className="space-y-3">
               <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <div className="text-sm text-gray-400">Selected Song</div>
-                    <div className="text-lg font-bold text-white">{studioContext.currentUploadedSong.name}</div>
+                    <div className="text-lg font-bold text-white">{currentUploadedSong.name}</div>
                   </div>
                   <div className="text-sm text-blue-400 flex items-center gap-2">
                     <i className="fas fa-info-circle"></i>
@@ -1418,14 +1421,14 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                 </div>
                 
                 {/* Waveform Visualizer */}
-                {studioContext.uploadedSongAudio && (
+                {(() => { const a = getUploadedSongAudio(); return a ? (
                   <WaveformVisualizer
-                    audioElement={studioContext.uploadedSongAudio}
-                    isPlaying={studioContext.isPlaying}
+                    audioElement={a}
+                    isPlaying={isPlaying}
                     height={100}
                     showControls={true}
                   />
-                )}
+                ) : null; })()}
               </div>
             </div>
           )}
@@ -1558,7 +1561,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
             <div className="grid gap-4">
               {songs.map((song) => (
-                <Card key={song.id} className={`border-gray-600 ${studioContext.currentUploadedSong?.id === song.id ? 'ring-2 ring-blue-500' : ''}`}>
+                <Card key={song.id} className={`border-gray-600 ${currentUploadedSong?.id === song.id ? 'ring-2 ring-blue-500' : ''}`}>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base flex items-center">
@@ -1569,12 +1572,12 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                         <Button
                           size="sm"
                           onClick={() => playSong(song)}
-                          disabled={studioContext.currentUploadedSong?.id === song.id}
+                          disabled={currentUploadedSong?.id === song.id}
                           className="bg-green-600 hover:bg-green-500"
                           data-testid={`button-load-song-${song.id}`}
                         >
                           <i className="fas fa-check-circle mr-1"></i>
-                          {studioContext.currentUploadedSong?.id === song.id ? 'Loaded' : 'Load'}
+                          {currentUploadedSong?.id === song.id ? 'Loaded' : 'Load'}
                         </Button>
                         <Button
                           size="sm"
@@ -1847,7 +1850,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                           </SelectContent>
                         </Select>
 
-                        {songAnalysis && studioContext.currentUploadedSong?.id === song.id && (
+                        {songAnalysis && currentUploadedSong?.id === song.id && (
                           <Button
                             size="sm"
                             onClick={() => setShowAudioTools(true)}
@@ -1910,13 +1913,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                                 className="h-7 text-xs text-cyan-300 hover:text-cyan-200"
                                 onClick={() => {
                                   const text = transcriptions.get(song.id.toString()) || '';
-                                  if (studioContext?.setCurrentLyrics) {
-                                    studioContext.setCurrentLyrics(text);
-                                    toast({ title: "Sent to Lyrics Tab", description: "Transcribed lyrics loaded into Lyric Lab." });
-                                  } else {
-                                    window.dispatchEvent(new CustomEvent('lyrics:load', { detail: { lyrics: text, songName: song.name } }));
-                                    toast({ title: "Sent to Lyrics Tab", description: "Transcribed lyrics dispatched to Lyric Lab." });
-                                  }
+                                  setCurrentLyrics(text);
+                                  toast({ title: "Sent to Lyrics Tab", description: "Transcribed lyrics loaded into Lyric Lab." });
                                 }}
                               >
                                 <Wand2 className="w-3 h-3 mr-1" />

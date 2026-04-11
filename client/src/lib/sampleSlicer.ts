@@ -3,6 +3,8 @@
  * Supports transient detection, equal-division slicing, and manual markers.
  */
 
+import { getAudioContext } from './audioContext';
+
 export interface SliceMarker {
   id: string;
   startSample: number;
@@ -31,7 +33,7 @@ export async function loadSampleForSlicing(
   source: string | File | Blob,
   name: string,
 ): Promise<SlicedSample> {
-  const ctx = new AudioContext();
+  const ctx = getAudioContext();
   let arrayBuffer: ArrayBuffer;
   let sourceUrl: string;
 
@@ -58,7 +60,7 @@ export async function loadSampleForSlicing(
       audioBuffer,
     };
   } finally {
-    await ctx.close();
+    // Do NOT close the shared AudioContext
   }
 }
 

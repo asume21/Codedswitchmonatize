@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
+import { getAudioContext } from '@/lib/audioContext';
 
 interface TunerModalProps {
   open: boolean;
@@ -17,7 +18,7 @@ export function TunerModal({ open, onClose, freq, setFreq }: TunerModalProps) {
 
   useEffect(() => {
     if (open) {
-      ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      ctxRef.current = getAudioContext();
       gainRef.current = ctxRef.current.createGain();
       gainRef.current.gain.value = 0.05;
       oscRef.current = ctxRef.current.createOscillator();
@@ -28,14 +29,14 @@ export function TunerModal({ open, onClose, freq, setFreq }: TunerModalProps) {
       oscRef.current?.stop();
       oscRef.current = null;
       gainRef.current = null;
-      ctxRef.current?.close();
+      // Do NOT close the shared AudioContext
       ctxRef.current = null;
     }
     return () => {
       oscRef.current?.stop();
       oscRef.current = null;
       gainRef.current = null;
-      ctxRef.current?.close();
+      // Do NOT close the shared AudioContext
       ctxRef.current = null;
     };
   }, [open]);

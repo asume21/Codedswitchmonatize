@@ -251,7 +251,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
               position: 'absolute' as const,
               top: `${yPosition}px`,
               left: 0,
-              right: 0,
+              width: `${steps * stepWidth * zoom}px`,
               height: `${keyHeight}px`,
               boxSizing: 'border-box',
               border: 'none',

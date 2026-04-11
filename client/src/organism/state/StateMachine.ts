@@ -244,6 +244,11 @@ export class StateMachine {
 
     if (to === OState.Flow) {
       this.state.cadenceLockAchieved = true
+      // Seed flowDepth and breathingWarmth so generators are immediately
+      // audible. Without this, flowDepth=0 means melody rests and bass is
+      // near-silent for several seconds while the values ramp up slowly.
+      if (this.state.flowDepth < 0.5) this.state.flowDepth = 0.5
+      if (this.state.breathingWarmth < 0.8) this.state.breathingWarmth = 0.8
     }
   }
 

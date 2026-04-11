@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Flame, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAudioContext } from '@/lib/audioContext';
 import PresetBrowser from './PresetBrowser';
 
 interface SaturationPluginProps {
@@ -36,8 +37,8 @@ export function SaturationPlugin({ audioUrl, onClose }: SaturationPluginProps) {
   useEffect(() => {
     if (!audioUrl) return;
 
-    // Initialize Web Audio API
-    audioContextRef.current = new AudioContext();
+    // Use the shared AudioContext — single source of truth for all audio
+    audioContextRef.current = getAudioContext();
     audioElementRef.current = new Audio(audioUrl);
     audioElementRef.current.crossOrigin = 'anonymous';
     
@@ -83,7 +84,7 @@ export function SaturationPlugin({ audioUrl, onClose }: SaturationPluginProps) {
 
     return () => {
       audioElementRef.current?.pause();
-      audioContextRef.current?.close();
+      // Do NOT close the shared AudioContext — other components depend on it
     };
   }, [audioUrl]);
 

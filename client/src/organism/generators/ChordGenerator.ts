@@ -17,7 +17,7 @@ import {
   type ParsedProgression,
   type ChordEvent,
 } from './patterns/ChordProgressionBank'
-import { createSoundfontSampler } from '../instruments/SamplerUtils'
+import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 
 export enum ChordBehavior {
   Silent  = 'silent',    // Dormant / Awakening — no chords
@@ -37,13 +37,16 @@ const MODE_OCTAVES: Record<string, number> = {
 export class ChordGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
-  private synth:   Tone.PolySynth | Tone.Sampler
+  private synth:   Tone.PolySynth | LoadableSampler
+  // Fallback synth — always available for instant playback while CDN samplers load
+  private fallbackSynth: Tone.PolySynth
   private chorus:  Tone.Chorus
   private reverb:  Tone.Reverb
   private dryBus:  Tone.Gain
   private reverbSend: Tone.Gain
   private reverbReturnHP: Tone.Filter
   private part:    Tone.Part | null = null
+  private hasStartedPlayback: boolean = false
 
   // Musical state
   private currentProgression: ParsedProgression | null = null
@@ -58,7 +61,7 @@ export class ChordGenerator extends GeneratorBase {
 
   // Tracked synth dispose timer
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
-  private pendingOldSynth: Tone.PolySynth | Tone.Sampler | null = null
+  private pendingOldSynth: Tone.PolySynth | LoadableSampler | null = null
   private lastOutputGain:   number = 0
 
   private chordChangeListeners: Array<(chord: ChordEvent, rootPitchClass: number) => void> = []
@@ -112,6 +115,7 @@ export class ChordGenerator extends GeneratorBase {
     this.output = new Tone.Gain(1)
 
     this.synth = this.buildDefaultSynth()
+    this.fallbackSynth = this.buildDefaultSynth()
 
     // FX chain: synth → chorus → dry bus → output
     //                           → reverb send → reverb → HP → output
@@ -122,6 +126,7 @@ export class ChordGenerator extends GeneratorBase {
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
     this.synth.connect(this.chorus)
+    this.fallbackSynth.connect(this.chorus)
     this.chorus.connect(this.dryBus)
     this.chorus.connect(this.reverbSend)
     this.dryBus.connect(this.output)
@@ -198,6 +203,7 @@ export class ChordGenerator extends GeneratorBase {
     this.currentBehavior = ChordBehavior.Silent
     this.currentProgression = null
     this.currentChordIndex = 0
+    this.hasStartedPlayback = false
     this.setOutputLevel(0)
   }
 
@@ -357,14 +363,16 @@ export class ChordGenerator extends GeneratorBase {
 
       const vel = Math.min(1, Math.max(0.1, event.vel + (Math.random() - 0.5) * 0.08))
 
-      // triggerAttackRelease gracefully ignores un-loaded sampler
-      this.synth.triggerAttackRelease(event.notes, event.dur, time, vel)
+      // Use sampler only if fully loaded; otherwise use fallback PolySynth
+      const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
+      voice.triggerAttackRelease(event.notes, event.dur, time, vel)
     }, events)
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    const nextBar = Tone.getTransport().nextSubdivision('1m')
-    this.part.start(nextBar)
+    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
+    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    this.hasStartedPlayback = true
 
     const firstChord = prog.chords[0]
     if (firstChord) {
@@ -417,7 +425,7 @@ export class ChordGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    let newSynth: Tone.PolySynth | Tone.Sampler
+    let newSynth: Tone.PolySynth | LoadableSampler
     if (voice.type === 'Sampler' && voice.presetId) {
       newSynth = createSoundfontSampler(
         voice.presetId, 
@@ -464,6 +472,12 @@ export class ChordGenerator extends GeneratorBase {
     this.output.gain.rampTo(linear, 0.35)
   }
 
+  /** Check if the current synth is a sampler AND has finished loading */
+  private isSamplerReady(): boolean {
+    if (this.synth instanceof Tone.PolySynth) return false
+    return (this.synth as LoadableSampler).isLoaded === true
+  }
+
   dispose(): void {
     this.stopPart()
     this.chordChangeListeners = []
@@ -477,6 +491,7 @@ export class ChordGenerator extends GeneratorBase {
       this.pendingOldSynth = null
     }
     this.synth.dispose()
+    this.fallbackSynth.dispose()
     this.chorus.dispose()
     this.dryBus.dispose()
     this.reverbSend.dispose()

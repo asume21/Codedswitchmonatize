@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Download, Save, Mic, MicOff, Play, Pause, Square } from 'lucide-react';
-import { StudioAudioContext } from '@/pages/studio';
+import { useStudioStore } from '@/stores/useStudioStore';
 
 interface ExportOptions {
   format: 'wav' | 'mp3' | 'midi';
@@ -148,7 +148,12 @@ function buildTrackChunk(data: number[]): Uint8Array {
 
 export default function ExportStudio() {
   const { toast } = useToast();
-  const studioContext = useContext(StudioAudioContext);
+  const currentTracks = useStudioStore((s) => s.currentTracks);
+  const bpm = useStudioStore((s) => s.bpm);
+  const key = useStudioStore((s) => s.key);
+  const setCurrentTracks = useStudioStore((s) => s.setCurrentTracks);
+  const setBpm = useStudioStore((s) => s.setBpm);
+  const setKey = useStudioStore((s) => s.setKey);
 
   // Export state
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
@@ -180,7 +185,7 @@ export default function ExportStudio() {
 
   // Export functionality — REAL audio rendering via OfflineAudioContext
   const handleExport = async () => {
-    if (!studioContext?.currentTracks || studioContext.currentTracks.length === 0) {
+    if (!currentTracks || currentTracks.length === 0) {
       toast({
         title: "Nothing to Export",
         description: "Please add some tracks to your project first.",
@@ -193,13 +198,13 @@ export default function ExportStudio() {
     setExportProgress(0);
 
     try {
-      const tracks = studioContext.currentTracks;
-      const bpm = studioContext.bpm || 120;
+      const tracks = currentTracks;
+      const exportBpm = bpm || 120;
 
       if (exportOptions.format === 'midi') {
         // MIDI export — generate a real Standard MIDI File (SMF)
         setExportProgress(20);
-        const midiBlob = buildMidiFile(tracks, bpm);
+        const midiBlob = buildMidiFile(tracks, exportBpm);
         setExportProgress(90);
 
         const url = URL.createObjectURL(midiBlob);
@@ -221,7 +226,7 @@ export default function ExportStudio() {
 
         const wavBlob = await renderMasterMix(tracks, {
           sampleRate: exportOptions.sampleRate,
-          bpm,
+          bpm: exportBpm,
           normalize: true,
         });
         setExportProgress(90);
@@ -267,9 +272,9 @@ export default function ExportStudio() {
 
     const projectData = {
       ...saveData,
-      tracks: studioContext?.currentTracks || [],
-      bpm: studioContext?.bpm || 120,
-      key: studioContext?.currentKey || 'C',
+      tracks: currentTracks || [],
+      bpm: bpm || 120,
+      key: key || 'C',
       savedAt: new Date().toISOString()
     };
 
@@ -287,15 +292,9 @@ export default function ExportStudio() {
   };
 
   const handleLoad = (project: SaveData) => {
-    if (studioContext?.setCurrentTracks) {
-      studioContext.setCurrentTracks(project.tracks);
-    }
-    if (studioContext?.setBpm) {
-      studioContext.setBpm(project.bpm);
-    }
-    if (studioContext?.setCurrentKey) {
-      studioContext.setCurrentKey(project.key);
-    }
+    setCurrentTracks(project.tracks);
+    setBpm(project.bpm);
+    setKey(project.key as any);
 
     toast({
       title: "Project Loaded",

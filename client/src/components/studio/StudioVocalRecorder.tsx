@@ -66,7 +66,7 @@ function linearToDb(linear: number) {
 }
 
 async function blobToWaveform(blob: Blob, points = 400): Promise<{ waveform: number[]; peakDb: number }> {
-  const ctx = new AudioContext();
+  const ctx = getAudioContext();
   const buf = await blob.arrayBuffer();
   const audio = await ctx.decodeAudioData(buf);
   const data = audio.getChannelData(0);
@@ -82,12 +82,11 @@ async function blobToWaveform(blob: Blob, points = 400): Promise<{ waveform: num
     }
     waveform.push(Math.sqrt(rms / blockSize));
   }
-  await ctx.close();
   return { waveform, peakDb: linearToDb(peak) };
 }
 
 async function encodeWav(blob: Blob): Promise<Blob> {
-  const ctx = new AudioContext();
+  const ctx = getAudioContext();
   const buf = await blob.arrayBuffer();
   const audio = await ctx.decodeAudioData(buf);
   const numCh = audio.numberOfChannels;
@@ -111,7 +110,7 @@ async function encodeWav(blob: Blob): Promise<Blob> {
       offset += 2;
     }
   }
-  await ctx.close();
+  // Do NOT close the shared AudioContext
   return new Blob([out], { type: 'audio/wav' });
 }
 

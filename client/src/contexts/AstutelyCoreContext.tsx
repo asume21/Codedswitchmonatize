@@ -367,20 +367,8 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
 
       setLastGeneratedAudio(generated);
 
-      // Auto-play
-      try {
-        const audio = await astutelyPlayAudio(result.audioUrl);
-        generatedAudioRef.current = audio;
-        setIsPlayingGeneratedAudio(true);
-        setActiveAudioUrl(result.audioUrl);
-        audio.onended = () => {
-          setIsPlayingGeneratedAudio(false);
-        };
-        audio.onpause = () => setIsPlayingGeneratedAudio(false);
-        audio.onplay = () => setIsPlayingGeneratedAudio(true);
-      } catch {
-        // autoplay blocked — user can click play
-      }
+      // Make audio available for manual playback — don't auto-play
+      setActiveAudioUrl(result.audioUrl);
 
       return generated;
     } catch (error: unknown) {
@@ -426,18 +414,8 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       };
       setLastGeneratedAudio(generated);
 
-      // Auto-play the instrumental immediately
-      try {
-        const audio = await astutelyPlayAudio(audioUrl);
-        generatedAudioRef.current = audio;
-        setIsPlayingGeneratedAudio(true);
-        setActiveAudioUrl(audioUrl);
-        audio.onended = () => setIsPlayingGeneratedAudio(false);
-        audio.onpause = () => setIsPlayingGeneratedAudio(false);
-        audio.onplay = () => setIsPlayingGeneratedAudio(true);
-      } catch {
-        // autoplay blocked — user can click play
-      }
+      // Make audio available for manual playback — don't auto-play
+      setActiveAudioUrl(audioUrl);
 
       // Step 2: Extract MIDI notes FROM the audio so Piano Roll matches
       console.log('🎵 Step 2/3: Extracting MIDI from audio for Piano Roll...');

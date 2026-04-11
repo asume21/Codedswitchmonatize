@@ -18,9 +18,10 @@
  * - Export to WAV/MIDI
  */
 
-import { useState, useRef, useEffect, useCallback, useContext } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'wouter';
-import { StudioAudioContext } from '@/pages/studio';
+import { useStudioStore } from '@/stores/useStudioStore';
+import { getAudioContext } from '@/lib/audioContext';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -420,7 +421,8 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   const [, setLocation] = useLocation();
   const { lastNote, activeNotes, isConnected: midiConnected, setDrumMode } = useMIDI();
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
-  const studioContext = useContext(StudioAudioContext);
+  const pendingBeatGrid = useStudioStore((s) => s.pendingBeatGrid);
+  const consumePendingBeatGrid = useStudioStore((s) => s.consumePendingBeatGrid);
 
   // Switch drum mode on/off based on whether Beat Lab is the visible tab.
   // Previously used mount/unmount but Beat Lab is now always-mounted (CSS hidden),
@@ -431,12 +433,12 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
 
   // Consume pending beat grid from Astutely Create tab
   useEffect(() => {
-    const pending = studioContext?.pendingBeatGrid;
+    const pending = pendingBeatGrid;
     if (!pending?.grid) return;
 
     const grid = pending.grid;
     // Consume it so we don't re-apply on next render
-    studioContext.consumePendingBeatGrid();
+    consumePendingBeatGrid();
 
     const pickGridRow = (trackId: string): Array<number | boolean> => {
       const drumType = DRUM_ID_TO_TYPE[trackId.toLowerCase()] || 'perc';
@@ -466,7 +468,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
     }));
 
     toast({ title: 'Beat Grid Applied', description: `${pending.genre} pattern loaded into step sequencer` });
-  }, [studioContext?.pendingBeatGrid]);
+  }, [pendingBeatGrid]);
 
   // 🔄 Listen for loop loading from Loop Library
   useEffect(() => {
@@ -639,8 +641,8 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   const lastScheduleRef = useRef<number | null>(null);
 
   useEffect(() => {
-    audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    return () => { if (audioCtx.current?.state !== 'closed') audioCtx.current?.close(); };
+    audioCtx.current = getAudioContext();
+    // Do NOT close the shared AudioContext on unmount
   }, []);
 
   useEffect(() => { if (tempo) setBpm(Math.round(tempo)); }, [tempo]);

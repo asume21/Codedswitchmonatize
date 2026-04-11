@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore } from "@/stores/useStudioStore";
 import { useAudio } from "@/hooks/use-audio";
 
 interface Layer {
@@ -46,7 +46,11 @@ export default function DynamicLayering() {
 
   const { toast } = useToast();
   const { playNote, initialize, isInitialized } = useAudio();
-  const studioContext = useContext(StudioAudioContext);
+  const currentPattern = useStudioStore((s) => s.currentPattern);
+  const currentMelody = useStudioStore((s) => s.currentMelody);
+  const currentLyrics = useStudioStore((s) => s.currentLyrics);
+  const currentCodeMusic = useStudioStore((s) => s.currentCodeMusic);
+  const setCurrentLayers = useStudioStore((s) => s.setCurrentLayers);
 
   // Helper function to convert frequency to note name and octave
   const frequencyToNote = (frequency: number): { note: string; octave: number } => {
@@ -83,8 +87,8 @@ export default function DynamicLayering() {
     onSuccess: (data: LayerResult) => {
       if (data.layers) {
         setGeneratedLayers(data.layers);
-        // Add layers to studio context
-        studioContext.setCurrentLayers?.(data.layers);
+        // Add layers to studio store
+        setCurrentLayers(data.layers);
       }
       toast({
         title: "Layers Generated",
@@ -102,10 +106,10 @@ export default function DynamicLayering() {
 
   const getCurrentArrangement = () => {
     return {
-      beatPattern: studioContext.currentPattern,
-      melody: studioContext.currentMelody,
-      lyrics: studioContext.currentLyrics,
-      codeMusic: studioContext.currentCodeMusic,
+      beatPattern: currentPattern,
+      melody: currentMelody,
+      lyrics: currentLyrics,
+      codeMusic: currentCodeMusic,
       bpm: 120, // Default BPM
       timestamp: Date.now()
     };
@@ -271,9 +275,9 @@ export default function DynamicLayering() {
               </p>
               <div className="text-sm text-gray-500 space-y-2">
                 <p><strong>Current Arrangement:</strong></p>
-                <p>• Beats: {studioContext.currentPattern ? 'Available' : 'None'}</p>
-                <p>• Melody: {studioContext.currentMelody?.length ? `${studioContext.currentMelody.length} notes` : 'None'}</p>
-                <p>• Lyrics: {studioContext.currentLyrics ? 'Available' : 'None'}</p>
+                <p>• Beats: {currentPattern ? 'Available' : 'None'}</p>
+                <p>• Melody: {currentMelody?.length ? `${currentMelody.length} notes` : 'None'}</p>
+                <p>• Lyrics: {currentLyrics ? 'Available' : 'None'}</p>
               </div>
               <div className="mt-4 p-3 bg-gray-800 rounded-lg">
                 <p className="text-xs text-gray-400 mb-2"><strong>Available Instruments:</strong></p>

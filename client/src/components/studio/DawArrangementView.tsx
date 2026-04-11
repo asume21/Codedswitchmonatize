@@ -19,17 +19,25 @@ import React, {
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { useTransport } from '@/contexts/TransportContext';
 import { useStudioStore } from '@/stores/useStudioStore';
+import { getAudioContext } from '@/lib/audioContext';
 import {
   Plus, ChevronRight, ChevronDown, ZoomIn, ZoomOut, Mic2, Piano,
   Layers, Music2, Drum, Trash2, Settings2, GripVertical, Sliders, Repeat, Download,
   X, Maximize2,
 } from 'lucide-react';
 import { SectionMarkers } from './SectionMarkers';
-import { AutomationLane, valueAt, AUTO_LANE_H, type AutoPoint, type AutoParam } from './AutomationLane';
+import { AutomationLane, valueAt, AUTO_LANE_H, EFFECT_AUTO_PARAMS, type AutoPoint, type AutoParam } from './AutomationLane';
 import { VerticalPianoRoll } from './VerticalPianoRoll';
 import { exportTracksToMidi, downloadMidi } from '@/lib/midiExport';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { cn } from '@/lib/utils';
+import { splitClip as splitAudioClip, duplicateClip as duplicateAudioClip } from '@/lib/clipEditor';
+import { copyClips, pasteClips, hasClipboardContent } from '@/lib/clipClipboard';
+import { useTrackStore } from '@/contexts/TrackStoreContext';
+import { barToBeat, beatToBar, createArrangementClip, type ArrangementClip } from '@/types/studioTracks';
+import { executeCommand, clipCommand, trackCommand } from '@/lib/undoSystem';
+import { UndoRedoToolbar } from './UndoRedoToolbar';
+import { Scissors, Copy, ClipboardPaste, Trash, CopyPlus } from 'lucide-react';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const HEADER_W    = 260;      // widened from 212 so track names aren't truncated
@@ -126,9 +134,8 @@ function ClipWaveformCanvas({
       try {
         const res  = await fetch(audioUrl);
         const buf  = await res.arrayBuffer();
-        const actx = new AudioContext();
+        const actx = getAudioContext();
         const decoded = await actx.decodeAudioData(buf);
-        actx.close();
         if (cancelled) return;
         const canvas = ref.current;
         if (!canvas) return;
@@ -209,6 +216,9 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
   const [autoParams,  setAutoParams]  = useState<Record<string, AutoParam>>({});
   const [editingId,   setEditingId]   = useState<string | null>(null);
   const [editName,    setEditName]    = useState('');
+  // ── Multi-clip selection + context menu ──
+  const [selectedClipIds, setSelectedClipIds] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; trackId: string; clipId: string } | null>(null);
   // ── Inline editor (Ableton-style bottom split pane) ────────────────────────
   const [editorTrackId, setEditorTrackId]   = useState<string | null>(null);
   const [splitPercent,  setSplitPercent]     = useState(35);  // % of height for arrangement (smaller = more room for piano roll)
@@ -343,24 +353,36 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
     if (!drag || drag.clipId !== clip.id) return;
     dragRef.current = null;
     const override = localPos[clip.id] ?? {};
-    // Persist to track — update clip in clips array or legacy fields
-    const clips = getClips(track);
-    const updatedClips = clips.map(c => c.id === clip.id
-      ? {
-          ...c,
-          startBar:   override.startBar   ?? c.startBar,
-          lengthBars: override.lengthBars ?? c.lengthBars,
-        }
+
+    // Skip if nothing actually changed
+    const newStart = override.startBar ?? clip.startBar;
+    const newLen = override.lengthBars ?? clip.lengthBars;
+    if (newStart === clip.startBar && newLen === clip.lengthBars) {
+      setLocalPos(p => { const n = { ...p }; delete n[clip.id]; return n; });
+      return;
+    }
+
+    const oldClips = getClips(track);
+    const updatedClips = oldClips.map(c => c.id === clip.id
+      ? { ...c, startBar: newStart, lengthBars: newLen }
       : c
     );
+
+    const action = drag.type === 'move' ? 'move' as const : 'trim' as const;
+
     if ((track as any).clips) {
-      updateTrack(track.id, { clips: updatedClips } as any);
+      executeCommand(clipCommand(
+        action, clip.id, oldClips, updatedClips,
+        (_id, state) => updateTrack(track.id, { clips: state } as any),
+      ));
     } else {
-      // Legacy single-clip: update top-level fields
-      updateTrack(track.id, {
-        startBar:   override.startBar   ?? clip.startBar,
-        lengthBars: override.lengthBars ?? clip.lengthBars,
-      } as any);
+      // Legacy single-clip
+      const oldState = { startBar: clip.startBar, lengthBars: clip.lengthBars };
+      const newState = { startBar: newStart, lengthBars: newLen };
+      executeCommand(clipCommand(
+        action, clip.id, oldState, newState,
+        (_id, state) => updateTrack(track.id, state as any),
+      ));
     }
     setLocalPos(p => { const n = { ...p }; delete n[clip.id]; return n; });
   }, [localPos, updateTrack, getClips]);
@@ -385,6 +407,152 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
     if (editName.trim()) updateTrack(track.id, { name: editName.trim() } as any);
     setEditingId(null);
   }, [editName, updateTrack]);
+
+  // ── Clip operations (copy, paste, split, duplicate, delete) ──────────────────
+  const { addClip, removeClip: removeClipFromStore } = useTrackStore();
+  const timeSignature = useStudioStore(s => s.timeSignature);
+  const beatsPerBar = timeSignature.numerator;
+
+  const handleCopyClip = useCallback((trackId: string, clip: DAWClip) => {
+    const arrClip = createArrangementClip({
+      name: clip.id,
+      type: clip.audioUrl ? 'audio' : 'midi',
+      startBeat: barToBeat(clip.startBar, beatsPerBar),
+      endBeat: barToBeat(clip.startBar + clip.lengthBars, beatsPerBar),
+      audioUrl: clip.audioUrl,
+      notes: clip.notes,
+    });
+    copyClips([arrClip], arrClip.startBeat, trackId);
+    setSelectedClipIds(new Set([clip.id]));
+  }, [beatsPerBar]);
+
+  const handlePasteClip = useCallback((trackId: string, atBar: number) => {
+    const result = pasteClips(barToBeat(atBar, beatsPerBar), trackId);
+    if (!result) return;
+    // Find the target track and add clips
+    const track = tracks.find(t => t.id === result.trackId);
+    if (!track) return;
+    const existingClips = getClips(track);
+    for (const arrClip of result.clips) {
+      const newClip: DAWClip = {
+        id: arrClip.id,
+        startBar: Math.round(beatToBar(arrClip.startBeat, beatsPerBar)),
+        lengthBars: Math.round(beatToBar(arrClip.endBeat - arrClip.startBeat, beatsPerBar)),
+        notes: arrClip.notes ?? [],
+        audioUrl: arrClip.audioUrl,
+      };
+      existingClips.push(newClip);
+    }
+    updateTrack(result.trackId, { clips: existingClips } as any);
+  }, [beatsPerBar, tracks, getClips, updateTrack]);
+
+  const handleDuplicateClip = useCallback((track: StudioTrack, clip: DAWClip) => {
+    const clips = getClips(track);
+    const newClip: DAWClip = {
+      id: `clip-${Date.now()}`,
+      startBar: clip.startBar + clip.lengthBars,
+      lengthBars: clip.lengthBars,
+      notes: [...clip.notes],
+      audioUrl: clip.audioUrl,
+    };
+    const newClips = [...clips, newClip];
+    const oldClips = [...clips];
+    executeCommand(clipCommand(
+      'add', newClip.id, null, newClip,
+      () => {},
+      (id) => updateTrack(track.id, { clips: oldClips } as any),
+      () => updateTrack(track.id, { clips: newClips } as any),
+    ));
+    setSelectedClipIds(new Set([newClip.id]));
+  }, [getClips, updateTrack]);
+
+  const handleSplitClip = useCallback((track: StudioTrack, clip: DAWClip) => {
+    const splitBar = Math.round(position / beatsPerBar);
+    if (splitBar <= clip.startBar || splitBar >= clip.startBar + clip.lengthBars) return;
+    const oldClips = getClips(track);
+    const leftLen = splitBar - clip.startBar;
+    const rightLen = clip.lengthBars - leftLen;
+    const leftClip: DAWClip = { ...clip, lengthBars: leftLen };
+    const rightClip: DAWClip = {
+      id: `clip-${Date.now()}`,
+      startBar: splitBar,
+      lengthBars: rightLen,
+      notes: clip.notes.filter((n: any) => (n.step ?? 0) >= leftLen * beatsPerBar * 4),
+      audioUrl: clip.audioUrl,
+    };
+    const updatedClips = oldClips.map(c => c.id === clip.id ? leftClip : c);
+    updatedClips.push(rightClip);
+    executeCommand(clipCommand(
+      'trim', clip.id, oldClips, updatedClips,
+      (_id, newState) => updateTrack(track.id, { clips: newState } as any),
+    ));
+  }, [getClips, updateTrack, position, beatsPerBar]);
+
+  const handleDeleteClip = useCallback((track: StudioTrack, clipId: string) => {
+    const oldClips = getClips(track);
+    const deletedClip = oldClips.find(c => c.id === clipId);
+    const newClips = oldClips.filter(c => c.id !== clipId);
+    executeCommand(clipCommand(
+      'remove', clipId, deletedClip, null,
+      () => {},
+      () => updateTrack(track.id, { clips: newClips } as any),
+      () => updateTrack(track.id, { clips: oldClips } as any),
+    ));
+    setSelectedClipIds(prev => {
+      const next = new Set(prev);
+      next.delete(clipId);
+      return next;
+    });
+  }, [getClips, updateTrack]);
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (editingId) return; // don't intercept when renaming
+      const sel = selectedClipIds;
+      if (sel.size === 0) return;
+
+      // Find the first selected clip's track
+      const selectedClipId = sel.values().next().value;
+      if (!selectedClipId) return;
+      let targetTrack: StudioTrack | undefined;
+      let targetClip: DAWClip | undefined;
+      for (const t of tracks) {
+        const clips = getClips(t);
+        const c = clips.find(cl => cl.id === selectedClipId);
+        if (c) { targetTrack = t; targetClip = c; break; }
+      }
+      if (!targetTrack || !targetClip) return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteClip(targetTrack, selectedClipId);
+      } else if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleDuplicateClip(targetTrack, targetClip);
+      } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleCopyClip(targetTrack.id, targetClip);
+      } else if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        const pasteBar = Math.round(position / beatsPerBar);
+        handlePasteClip(targetTrack.id, pasteBar);
+      } else if (e.key === 's' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleSplitClip(targetTrack, targetClip);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedClipIds, tracks, getClips, editingId, position, beatsPerBar, handleDeleteClip, handleDuplicateClip, handleCopyClip, handlePasteClip, handleSplitClip]);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = () => setContextMenu(null);
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, [contextMenu]);
 
   // ── Color picker ─────────────────────────────────────────────────────────────
   const openColorPicker = useCallback((trackId: string) => {
@@ -479,6 +647,10 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
             <ZoomIn className="w-3 h-3" />
           </button>
         </div>
+
+        <div className="w-px h-4 bg-white/10 mx-1" />
+
+        <UndoRedoToolbar />
 
         <div className="w-px h-4 bg-white/10 mx-1" />
 
@@ -801,13 +973,32 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                             top:             6,
                             backgroundColor: color.dim,
                             border:          `1px solid ${color.base}50`,
-                            boxShadow:       isSelected ? `0 0 0 1px ${color.base}, 0 0 14px ${color.glow}` : undefined,
+                            boxShadow:       (isSelected || selectedClipIds.has(clip.id)) ? `0 0 0 1px ${color.base}, 0 0 14px ${color.glow}` : undefined,
                             cursor:          dragRef.current?.clipId === clip.id && dragRef.current?.type === 'move' ? 'grabbing' : 'grab',
                           }}
-                          onPointerDown={e => startDrag(e, 'move', track, clip)}
+                          onPointerDown={e => {
+                            // Shift-click for multi-select
+                            if (e.shiftKey) {
+                              setSelectedClipIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(clip.id)) next.delete(clip.id);
+                                else next.add(clip.id);
+                                return next;
+                              });
+                              return;
+                            }
+                            setSelectedClipIds(new Set([clip.id]));
+                            startDrag(e, 'move', track, clip);
+                          }}
                           onPointerMove={e => onDragMove(e, clip)}
                           onPointerUp={e => onDragEnd(e, track, clip)}
                           onDoubleClick={e => { e.stopPropagation(); openEditor(track); }}
+                          onContextMenu={e => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedClipIds(new Set([clip.id]));
+                            setContextMenu({ x: e.clientX, y: e.clientY, trackId: track.id, clipId: clip.id });
+                          }}
                         >
                           <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: color.base }} />
                           <div className="absolute top-1.5 left-2 text-xs font-semibold pointer-events-none truncate"
@@ -858,8 +1049,9 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
                           className="bg-transparent text-[9px] text-gray-500 border border-white/10 rounded px-1 py-0.5 cursor-pointer"
                           onClick={e => e.stopPropagation()}
                         >
-                          <option value="volume">Volume</option>
-                          <option value="pan">Pan</option>
+                          {EFFECT_AUTO_PARAMS.map(p => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
                         </select>
                       </div>
                       <AutomationLane
@@ -986,6 +1178,53 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
         </>
       )}
 
+      {/* ── Clip Context Menu ──────────────────────────────────────────────── */}
+      {contextMenu && (() => {
+        const cmTrack = tracks.find(t => t.id === contextMenu.trackId);
+        const cmClip = cmTrack ? getClips(cmTrack).find(c => c.id === contextMenu.clipId) : null;
+        if (!cmTrack || !cmClip) return null;
+        return (
+          <div
+            className="fixed z-[999] bg-[#0a0e17] border border-cyan-500/20 rounded-lg shadow-2xl py-1 min-w-[160px]"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { handleCopyClip(cmTrack.id, cmClip); setContextMenu(null); }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors"
+            >
+              <Copy className="w-3 h-3" /> Copy <span className="ml-auto text-gray-600 text-[10px]">Ctrl+C</span>
+            </button>
+            <button
+              onClick={() => { handlePasteClip(cmTrack.id, Math.round(position / beatsPerBar)); setContextMenu(null); }}
+              disabled={!hasClipboardContent()}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ClipboardPaste className="w-3 h-3" /> Paste at Playhead <span className="ml-auto text-gray-600 text-[10px]">Ctrl+V</span>
+            </button>
+            <button
+              onClick={() => { handleDuplicateClip(cmTrack, cmClip); setContextMenu(null); }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors"
+            >
+              <CopyPlus className="w-3 h-3" /> Duplicate <span className="ml-auto text-gray-600 text-[10px]">Ctrl+D</span>
+            </button>
+            <div className="border-t border-white/[0.06] my-0.5" />
+            <button
+              onClick={() => { handleSplitClip(cmTrack, cmClip); setContextMenu(null); }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors"
+            >
+              <Scissors className="w-3 h-3" /> Split at Playhead <span className="ml-auto text-gray-600 text-[10px]">S</span>
+            </button>
+            <div className="border-t border-white/[0.06] my-0.5" />
+            <button
+              onClick={() => { handleDeleteClip(cmTrack, cmClip.id); setContextMenu(null); }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <Trash className="w-3 h-3" /> Delete <span className="ml-auto text-gray-600 text-[10px]">Del</span>
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

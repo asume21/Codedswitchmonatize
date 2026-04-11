@@ -10,6 +10,7 @@
  */
 
 import { PitchDetector } from '../organism/analysis/algorithms/PitchDetector'
+import { getAudioContext } from './audioContext'
 import { OnsetDetector } from '../organism/analysis/algorithms/OnsetDetector'
 
 const FRAME_SIZE  = 2048
@@ -102,9 +103,8 @@ export async function transcribeAudioUrl(
   if (!response.ok) throw new Error(`Failed to fetch audio: ${response.status}`)
   const arrayBuffer = await response.arrayBuffer()
 
-  const ctx    = new AudioContext()
+  const ctx    = getAudioContext()
   const buffer = await ctx.decodeAudioData(arrayBuffer)
-  await ctx.close()
 
   const sampleRate  = buffer.sampleRate
   const channelData = buffer.getChannelData(0)  // mono (left channel)

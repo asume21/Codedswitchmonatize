@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,8 @@ import {
   Piano, Mic2, ChevronUp, ChevronDown,
   Settings, Layers, Circle
 } from 'lucide-react';
-import { StudioAudioContext } from '@/pages/studio';
+import { useStudioStore, type MusicalKey } from '@/stores/useStudioStore';
+import { getUploadedSongAudio } from '@/stores/useStudioStore';
 import { useTransport } from '@/contexts/TransportContext';
 import { useAudio, useSequencer } from '@/hooks/use-audio';
 import { useTracks } from '@/hooks/useTracks';
@@ -36,8 +37,11 @@ interface GlobalTransportBarProps {
 
 export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTransportBarProps) {
   const isInline = variant === 'inline';
-  const studioContext = useContext(StudioAudioContext);
-  const { 
+  const currentPattern = useStudioStore((s) => s.currentPattern);
+  const currentMelody = useStudioStore((s) => s.currentMelody);
+  const currentTracks = useStudioStore((s) => s.currentTracks);
+  const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
+  const {
     tempo, setTempo, position, isPlaying: transportPlaying, 
     play: startTransport, pause: pauseTransport, stop: stopTransport, 
     loop, setLoop, seek,
@@ -159,7 +163,7 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     if (transportPlaying) {
       pauseTransport();
       stopPattern();
-      studioContext.stopFullSong();
+      window.dispatchEvent(new CustomEvent('stopAllTools'));
       return;
     }
 
@@ -167,8 +171,8 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
 
     // Determine what to play based on mode and channel states
     const soloChannels = channels.filter(c => c.solo);
-    const activeChannels = soloChannels.length > 0 
-      ? soloChannels 
+    const activeChannels = soloChannels.length > 0
+      ? soloChannels
       : channels.filter(c => !c.muted);
 
     const shouldPlayBeat = activeChannels.some(c => c.type === 'beat');
@@ -176,18 +180,19 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     const shouldPlayVocals = activeChannels.some(c => c.type === 'vocals');
 
     // Play drum pattern if beat channel is active
-    if (shouldPlayBeat && studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0) {
-      playPattern(studioContext.currentPattern, tempo);
+    if (shouldPlayBeat && currentPattern && Object.keys(currentPattern).length > 0) {
+      playPattern(currentPattern, tempo);
     }
 
     // Play full song (melody, vocals, etc.) if those channels are active
     if (shouldPlayMelody || shouldPlayVocals) {
-      await studioContext.playFullSong();
+      window.dispatchEvent(new CustomEvent('playAllTools'));
     }
 
     // Play uploaded song if available
-    if (studioContext.uploadedSongAudio && studioContext.currentUploadedSong) {
-      await studioContext.uploadedSongAudio.play();
+    const uploadedAudio = getUploadedSongAudio();
+    if (uploadedAudio && currentUploadedSong) {
+      await uploadedAudio.play();
     }
   };
 
@@ -201,12 +206,13 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
 
     stopTransport();
     stopPattern();
-    studioContext.stopFullSong();
+    window.dispatchEvent(new CustomEvent('stopAllTools'));
     seek(0);
 
-    if (studioContext.uploadedSongAudio) {
-      studioContext.uploadedSongAudio.pause();
-      studioContext.uploadedSongAudio.currentTime = 0;
+    const uploadedAudio = getUploadedSongAudio();
+    if (uploadedAudio) {
+      uploadedAudio.pause();
+      uploadedAudio.currentTime = 0;
     }
   };
 
@@ -327,10 +333,10 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
 
   // Check if we have content to play - always allow play for Piano Roll internal playback
   const hasContent = 
-    (studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0) ||
-    (studioContext.currentMelody && studioContext.currentMelody.length > 0) ||
-    (studioContext.currentTracks && studioContext.currentTracks.length > 0) ||
-    (studioContext.currentUploadedSong) ||
+    (currentPattern && Object.keys(currentPattern).length > 0) ||
+    (currentMelody && currentMelody.length > 0) ||
+    (currentTracks && currentTracks.length > 0) ||
+    (currentUploadedSong) ||
     (storeTracks && storeTracks.length > 0) ||
     true; // Always enable play - Piano Roll handles its own playback
 
@@ -463,7 +469,7 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
             variant={playbackMode === 'beat' ? 'default' : 'outline'}
             onClick={playBeatOnly}
             className="h-8 text-xs gap-1"
-            disabled={!studioContext.currentPattern || Object.keys(studioContext.currentPattern).length === 0}
+            disabled={!currentPattern || Object.keys(currentPattern).length === 0}
           >
             <Drum className="w-3 h-3" />
             Beat
@@ -473,7 +479,7 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
             variant={playbackMode === 'melody' ? 'default' : 'outline'}
             onClick={playMelodyOnly}
             className="h-8 text-xs gap-1"
-            disabled={!studioContext.currentMelody || studioContext.currentMelody.length === 0}
+            disabled={!currentMelody || currentMelody.length === 0}
           >
             <Piano className="w-3 h-3" />
             Melody
@@ -546,13 +552,13 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
 
         {/* Content Indicator */}
         <div className="flex items-center gap-1">
-          {studioContext.currentPattern && Object.keys(studioContext.currentPattern).length > 0 && (
+          {currentPattern && Object.keys(currentPattern).length > 0 && (
             <Badge variant="outline" className="text-orange-400 border-orange-400/50">Beat</Badge>
           )}
-          {studioContext.currentMelody && studioContext.currentMelody.length > 0 && (
+          {currentMelody && currentMelody.length > 0 && (
             <Badge variant="outline" className="text-blue-400 border-blue-400/50">Melody</Badge>
           )}
-          {studioContext.currentUploadedSong && (
+          {currentUploadedSong && (
             <Badge variant="outline" className="text-green-400 border-green-400/50">Song</Badge>
           )}
           {getCurrentProject()?.audioClips && getCurrentProject()!.audioClips.length > 0 && (

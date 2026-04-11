@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react';
-import type { TrackClip } from '@/types/studioTracks';
+import type { TrackClip, ArrangementClip } from '@/types/studioTracks';
 import { apiRequest } from '@/lib/queryClient';
 
 interface TrackStoreState {
@@ -24,7 +24,12 @@ type Action =
   | { type: 'CLEAR_TRACKS' }
   | { type: 'SET_PROJECT_ID'; projectId: string | null }
   | { type: 'SET_LOADING'; isLoading: boolean }
-  | { type: 'SET_SYNCED'; isSynced: boolean };
+  | { type: 'SET_SYNCED'; isSynced: boolean }
+  // ─── Clip-level actions ──────────────────────────────────────────
+  | { type: 'ADD_CLIP'; trackId: string; clip: ArrangementClip }
+  | { type: 'UPDATE_CLIP'; trackId: string; clipId: string; updates: Partial<ArrangementClip> }
+  | { type: 'REMOVE_CLIP'; trackId: string; clipId: string }
+  | { type: 'MOVE_CLIP'; fromTrackId: string; toTrackId: string; clipId: string; newStartBeat?: number };
 
 function trackReducer(state: TrackStoreState, action: Action): TrackStoreState {
   switch (action.type) {
@@ -62,6 +67,70 @@ function trackReducer(state: TrackStoreState, action: Action): TrackStoreState {
       return { ...state, isLoading: action.isLoading };
     case 'SET_SYNCED':
       return { ...state, isSynced: action.isSynced };
+
+    // ─── Clip-level reducers ──────────────────────────────────────
+    case 'ADD_CLIP':
+      return {
+        ...state,
+        tracks: state.tracks.map((track) =>
+          track.id === action.trackId
+            ? { ...track, clips: [...(track.clips ?? []), action.clip] }
+            : track
+        ),
+        isSynced: false,
+      };
+    case 'UPDATE_CLIP':
+      return {
+        ...state,
+        tracks: state.tracks.map((track) =>
+          track.id === action.trackId
+            ? {
+                ...track,
+                clips: (track.clips ?? []).map((c) =>
+                  c.id === action.clipId ? { ...c, ...action.updates } : c
+                ),
+              }
+            : track
+        ),
+        isSynced: false,
+      };
+    case 'REMOVE_CLIP':
+      return {
+        ...state,
+        tracks: state.tracks.map((track) =>
+          track.id === action.trackId
+            ? { ...track, clips: (track.clips ?? []).filter((c) => c.id !== action.clipId) }
+            : track
+        ),
+        isSynced: false,
+      };
+    case 'MOVE_CLIP': {
+      let clipToMove: ArrangementClip | undefined;
+      // Remove from source track
+      const tracksAfterRemove = state.tracks.map((track) => {
+        if (track.id !== action.fromTrackId) return track;
+        const clips = track.clips ?? [];
+        clipToMove = clips.find((c) => c.id === action.clipId);
+        return { ...track, clips: clips.filter((c) => c.id !== action.clipId) };
+      });
+      if (!clipToMove) return state;
+      // Adjust start position if specified
+      if (action.newStartBeat !== undefined) {
+        const duration = clipToMove.endBeat - clipToMove.startBeat;
+        clipToMove = { ...clipToMove, startBeat: action.newStartBeat, endBeat: action.newStartBeat + duration };
+      }
+      // Add to destination track
+      const finalClip = clipToMove;
+      return {
+        ...state,
+        tracks: tracksAfterRemove.map((track) =>
+          track.id === action.toTrackId
+            ? { ...track, clips: [...(track.clips ?? []), finalClip] }
+            : track
+        ),
+        isSynced: false,
+      };
+    }
     default:
       return state;
   }
@@ -80,6 +149,11 @@ export interface TrackStoreContextValue {
   setProjectId: (projectId: string | null) => void;
   loadTracksFromServer: (projectId?: string) => Promise<void>;
   saveTrackToServer: (track: TrackClip) => Promise<string | null>;
+  // ─── Clip-level operations ──────────────────────────────────────
+  addClip: (trackId: string, clip: ArrangementClip) => void;
+  updateClip: (trackId: string, clipId: string, updates: Partial<ArrangementClip>) => void;
+  removeClip: (trackId: string, clipId: string) => void;
+  moveClip: (fromTrackId: string, toTrackId: string, clipId: string, newStartBeat?: number) => void;
 }
 
 const TrackStoreContext = createContext<TrackStoreContextValue | undefined>(undefined);
@@ -109,6 +183,23 @@ export function TrackStoreProvider({ children }: { children: ReactNode }) {
 
   const setProjectId = useCallback((projectId: string | null) => {
     dispatch({ type: 'SET_PROJECT_ID', projectId });
+  }, []);
+
+  // ─── Clip-level callbacks ──────────────────────────────────────
+  const addClip = useCallback((trackId: string, clip: ArrangementClip) => {
+    dispatch({ type: 'ADD_CLIP', trackId, clip });
+  }, []);
+
+  const updateClip = useCallback((trackId: string, clipId: string, updates: Partial<ArrangementClip>) => {
+    dispatch({ type: 'UPDATE_CLIP', trackId, clipId, updates });
+  }, []);
+
+  const removeClip = useCallback((trackId: string, clipId: string) => {
+    dispatch({ type: 'REMOVE_CLIP', trackId, clipId });
+  }, []);
+
+  const moveClip = useCallback((fromTrackId: string, toTrackId: string, clipId: string, newStartBeat?: number) => {
+    dispatch({ type: 'MOVE_CLIP', fromTrackId, toTrackId, clipId, newStartBeat });
   }, []);
 
   const loadTracksFromServer = useCallback(async (projectId?: string) => {
@@ -203,7 +294,11 @@ export function TrackStoreProvider({ children }: { children: ReactNode }) {
     setProjectId,
     loadTracksFromServer,
     saveTrackToServer,
-  }), [state.tracks, state.currentProjectId, state.isLoading, state.isSynced, addTrack, updateTrack, removeTrack, setTracks, clearTracks, setProjectId, loadTracksFromServer, saveTrackToServer]);
+    addClip,
+    updateClip,
+    removeClip,
+    moveClip,
+  }), [state.tracks, state.currentProjectId, state.isLoading, state.isSynced, addTrack, updateTrack, removeTrack, setTracks, clearTracks, setProjectId, loadTracksFromServer, saveTrackToServer, addClip, updateClip, removeClip, moveClip]);
 
   return (
     <TrackStoreContext.Provider value={value}>

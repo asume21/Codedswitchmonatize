@@ -37,6 +37,7 @@ import { VibeMatcher }           from './VibeMatcher'
 import type { VibeClassification } from './VibeMatcher'
 import { FreestyleReportCard }   from './FreestyleReportCard'
 import type { FreestyleReport }  from './FreestyleReportCard'
+import type { AnalysisFrame }    from '../../organism/analysis/types'
 import { ScaleSnapEngine }       from '../../organism/scale/ScaleSnapEngine'
 import { PerformerAnalyzer }    from '../../organism/audio/PerformerAnalyzer'
 import { SelfListenAnalyzer }   from '../../organism/audio/SelfListenAnalyzer'
@@ -342,6 +343,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           Math.abs(pState.bpm - lastSyncedBpmRef.current) > 4
         ) {
           orchestr.setBpm(pState.bpm)
+          useStudioStore.getState().setBpm(pState.bpm)
           lastSyncedBpmRef.current = pState.bpm
           window.dispatchEvent(new CustomEvent('organism:bpm-locked', {
             detail: { bpm: pState.bpm, confidence: pState.bpmConfidence },
@@ -494,6 +496,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       reportCardLastLineIndexRef.current = -1
       await inputRef.current.start()
       await orchestrRef.current.start()
+      primeAutoGenerateStart()
       setIsRunning(true)
       // Start self-listen after audio is running
       selfListenRef.current?.start()
@@ -548,6 +551,48 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const downloadMidi = useCallback(() => {
     captureRef.current?.downloadMidi()
   }, [])
+
+  function primeAutoGenerateStart() {
+    if (inputSource !== 'autoGenerate') return
+    if (!physicsRef.current || !stateMachRef.current || !orchestrRef.current) return
+
+    const now = performance.now()
+    const baseRms = autoEnergy === 'chill' ? 0.30 : autoEnergy === 'intense' ? 0.56 : 0.42
+    const baseCentroid = autoEnergy === 'chill' ? 900 : autoEnergy === 'intense' ? 2400 : 1500
+
+    const startupFrame: AnalysisFrame = {
+      timestamp: now,
+      frameIndex: 0,
+      sampleRate: 44100,
+      rms: baseRms,
+      rmsRaw: baseRms,
+      pitch: autoEnergy === 'intense' ? 260 : 220,
+      pitchConfidence: 0.85,
+      pitchMidi: 57,
+      pitchCents: 0,
+      spectralCentroid: baseCentroid,
+      hnr: autoEnergy === 'chill' ? 12 : 8,
+      spectralFlux: 0.25,
+      onsetDetected: true,
+      onsetStrength: 0.75,
+      onsetTimestamp: now,
+      voiceActive: true,
+      voiceConfidence: 0.85,
+    }
+
+    physicsRef.current.processFrame(startupFrame)
+    const seededPhysics = physicsRef.current.getLastState()
+    if (!seededPhysics) return
+
+    // Seed the organism into a fully audible state immediately so ALL
+    // generators (drums, bass, melody, chords) produce sound from beat 1.
+    // Breathing alone leaves flowDepth=0 → melody rests, bass is quiet.
+    // Forcing to Flow gives flowDepth > 0 so every generator activates.
+    stateMachRef.current.forceState(OState.Awakening, seededPhysics)
+    stateMachRef.current.forceState(OState.Breathing, seededPhysics)
+    stateMachRef.current.forceState(OState.Flow, seededPhysics)
+    orchestrRef.current.regenerateAll()
+  }
 
   /**
    * Quick Start — skip the cold start entirely.
@@ -612,11 +657,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         frameIndex:       0,
       })
 
-      // 5. Force state machine straight to Breathing — skip Dormant + Awakening
+      // 5. Force state machine straight to Flow — skip Dormant + Awakening + Breathing
       //    forceState() chains through transitions so generators get their
-      //    onStateTransition callbacks with the synthetic physics
+      //    onStateTransition callbacks with the synthetic physics.
+      //    Flow ensures flowDepth > 0 so melody and bass are fully active.
       stateMachRef.current.forceState(OState.Awakening, syntheticPhysics)
       stateMachRef.current.forceState(OState.Breathing, syntheticPhysics)
+      stateMachRef.current.forceState(OState.Flow, syntheticPhysics)
 
       setIsRunning(true)
 
@@ -992,7 +1039,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           break
         case 'set-bpm': {
           const bpm = (detail as Record<string, unknown>).bpm as number | undefined
-          if (bpm && orchestrRef.current) orchestrRef.current.setBpm(bpm)
+          if (bpm && orchestrRef.current) {
+            orchestrRef.current.setBpm(bpm)
+            useStudioStore.getState().setBpm(bpm)
+          }
           break
         }
         case 'force-state': {

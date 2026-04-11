@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,7 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { useAIMessages } from "@/contexts/AIMessageContext";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore } from "@/stores/useStudioStore";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import type { UploadResult } from "@uppy/core";
 import { Upload, Music, Play, Pause, RotateCcw, Volume2, Square, FileText, Trash2 } from "lucide-react";
@@ -108,7 +108,8 @@ export default function AIAssistant() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const { messages: aiMessages, addMessage } = useAIMessages();
-  const studioContext = useContext(StudioAudioContext);
+  const setCurrentLyrics = useStudioStore((s) => s.setCurrentLyrics);
+  const setCurrentCodeMusic = useStudioStore((s) => s.setCurrentCodeMusic);
   const { requirePro, startUpgrade } = useLicenseGate();
 
   const transcribeSong = async (song: Song) => {
@@ -125,10 +126,8 @@ export default function AIAssistant() {
       if (data.transcription && data.transcription.text) {
         const message = `📝 **Transcribed Lyrics for ${song.name}:**\n\n${data.transcription.text}`;
         
-        // Sync transcribed lyrics into global studio context so Lyrics tab and unified editor can use them
-        if (studioContext?.setCurrentLyrics) {
-          studioContext.setCurrentLyrics(data.transcription.text);
-        }
+        // Sync transcribed lyrics into global studio store so Lyrics tab and unified editor can use them
+        setCurrentLyrics(data.transcription.text);
 
         const aiMessage: Message = {
           id: Date.now().toString(),
@@ -438,7 +437,7 @@ export default function AIAssistant() {
       });
 
       // Store analysis in studio context for other tools to use
-      studioContext.setCurrentCodeMusic?.({
+      setCurrentCodeMusic({
         ...analysis,
         source: 'uploaded_song',
         originalSong: song

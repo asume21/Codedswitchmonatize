@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,14 +7,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { StudioAudioContext } from "@/pages/studio";
+import { useStudioStore } from "@/stores/useStudioStore";
 import type { Playlist, Song } from "../../../../shared/schema";
 
 export default function PlaylistManager() {
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const { toast } = useToast();
-  const studioContext = useContext(StudioAudioContext);
+  const currentPlaylist = useStudioStore((s) => s.currentPlaylist);
+  const setCurrentPlaylist = useStudioStore((s) => s.setCurrentPlaylist);
+  const setCurrentPlaylistIndex = useStudioStore((s) => s.setCurrentPlaylistIndex);
 
   const { data: playlists, isLoading: playlistsLoading } = useQuery<Playlist[]>({
     queryKey: ['/api/playlists'],
@@ -103,11 +105,11 @@ export default function PlaylistManager() {
       const playlistWithSongs = await response.json();
       
       // Set as active playlist in studio context
-      studioContext.setCurrentPlaylist({
+      setCurrentPlaylist({
         ...playlist,
         songs: playlistWithSongs
       });
-      studioContext.setCurrentPlaylistIndex(0);
+      setCurrentPlaylistIndex(0);
       
       toast({
         title: "Active Playlist Set",
@@ -129,9 +131,9 @@ export default function PlaylistManager() {
           <h2 className="text-2xl font-heading font-bold">Playlist Manager</h2>
           <div className="text-xs text-gray-400 px-2">
             <div>Organize your uploaded songs into playlists</div>
-            {studioContext.currentPlaylist && (
+            {currentPlaylist && (
               <div className="mt-1 text-studio-accent font-medium">
-                🎵 Active: {studioContext.currentPlaylist.name}
+                🎵 Active: {currentPlaylist.name}
               </div>
             )}
           </div>

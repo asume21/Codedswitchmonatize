@@ -3,6 +3,8 @@
  * Real-time chord detection and BPM detection from audio
  */
 
+import { getAudioContext } from './audioContext';
+
 // Note frequencies for chord detection (A4 = 440Hz)
 const NOTE_FREQUENCIES: { [key: string]: number } = {
   'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13,
@@ -65,7 +67,7 @@ class AudioDetection {
 
   private async initializeContext(): Promise<void> {
     if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.audioContext = getAudioContext();
     }
     if (!this.analyser) {
       this.analyser = this.audioContext.createAnalyser();

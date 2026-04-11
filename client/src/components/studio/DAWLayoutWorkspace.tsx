@@ -1,5 +1,5 @@
 // client/src/components/studio/DAWLayoutWorkspace.tsx
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +11,6 @@ import TransportControls from "./TransportControls";
 import VerticalPianoRoll from "./VerticalPianoRoll";
 import ProfessionalMixer from "./ProfessionalMixer";
 import FloatingAIAssistant from "./FloatingAIAssistant";
-import { StudioAudioContext } from "@/pages/studio";
 import { 
   Music, Activity, Sparkles, Sliders, 
   Piano, Clock, Mic2, Volume2 

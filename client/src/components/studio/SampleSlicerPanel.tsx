@@ -3,6 +3,7 @@ import { Scissors, Grid3X3, Music, Waves, Plus, Trash2, Download, Play } from 'l
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getAudioContext } from '@/lib/audioContext';
 import { useToast } from '@/hooks/use-toast';
 import {
   loadSampleForSlicing,
@@ -43,7 +44,7 @@ export default function SampleSlicerPanel({
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext();
+      audioCtxRef.current = getAudioContext();
     }
     return audioCtxRef.current;
   }, []);

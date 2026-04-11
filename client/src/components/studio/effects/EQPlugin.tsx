@@ -5,6 +5,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Sliders, RotateCcw, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAudioContext } from '@/lib/audioContext';
 import PresetBrowser from './PresetBrowser';
 
 interface EQBand {
@@ -39,8 +40,8 @@ export function EQPlugin({ audioUrl, onClose }: EQPluginProps) {
   useEffect(() => {
     if (!audioUrl) return;
 
-    // Initialize Web Audio API
-    audioContextRef.current = new AudioContext();
+    // Use the shared AudioContext — single source of truth for all audio
+    audioContextRef.current = getAudioContext();
     audioElementRef.current = new Audio(audioUrl);
     audioElementRef.current.crossOrigin = 'anonymous';
     
@@ -68,7 +69,7 @@ export function EQPlugin({ audioUrl, onClose }: EQPluginProps) {
 
     return () => {
       audioElementRef.current?.pause();
-      audioContextRef.current?.close();
+      // Do NOT close the shared AudioContext — other components depend on it
     };
   }, [audioUrl]);
 

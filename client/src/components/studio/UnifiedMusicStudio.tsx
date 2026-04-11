@@ -1,10 +1,9 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Music, Code, Mic, Headphones, Play, Square } from "lucide-react";
 import { useAudio, useSequencer } from "@/hooks/use-audio";
-import { StudioAudioContext } from "@/pages/studio";
 import { useToast } from "@/hooks/use-toast";
 
 export default function UnifiedMusicStudio() {
@@ -12,7 +11,6 @@ export default function UnifiedMusicStudio() {
   const [isPlaying, setIsPlaying] = useState(false);
     const { initialize, isInitialized, playNote, playDrum } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
-  const studioContext = useContext(StudioAudioContext);
   const { toast } = useToast();
 
   // Demo melody pattern

@@ -79,14 +79,14 @@ export class GeneratorOrchestrator {
   // Total cycle: 28 bars, then repeats.
 
   private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
-    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, texture: 0, chord: 0.4 },
-    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, texture: 0, chord: 0.8 },
-    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0, chord: 1.0 },
+    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.8, melody: 0.5, texture: 0, chord: 0.7 },
+    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, texture: 0, chord: 0.9 },
+    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, texture: 0, chord: 1.0 },
     { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'breakdown', bars: 2, drums: 0.4, bass: 0.7, melody: 0.0, texture: 0, chord: 0.6 },
-    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, texture: 0, chord: 0.9 },
+    { name: 'breakdown', bars: 2, drums: 0.5, bass: 0.7, melody: 0.3, texture: 0, chord: 0.6 },
+    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, texture: 0, chord: 0.9 },
     { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'outro',     bars: 2, drums: 0.5, bass: 0.5, melody: 0.0, texture: 0, chord: 0.3 },
+    { name: 'outro',     bars: 2, drums: 0.6, bass: 0.6, melody: 0.3, texture: 0, chord: 0.4 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
@@ -159,7 +159,7 @@ export class GeneratorOrchestrator {
       this.lastOrganism = organism
     })
 
-    // Subscribe to transition events — stagger rebuilds across ~80ms so
+    // Subscribe to transition events — stagger rebuilds across ~200ms so
     // all 5 generators don't dispose + create Tone.Parts in one synchronous
     // burst, which floods the audio scheduler and causes crackling.
     this.unsubTransition = stateMachine.onTransition((event) => {
@@ -172,10 +172,10 @@ export class GeneratorOrchestrator {
       // Drums first (most audible if late)
       this.drum.onStateTransition(event.to, snap)
       this.texture.onStateTransition(event.to, snap)
-      // Stagger bass/melody/chord so Part rebuilds don't collide
-      setTimeout(() => this.bass.onStateTransition(event.to, snap), 20)
-      setTimeout(() => this.melody.onStateTransition(event.to, snap), 40)
-      setTimeout(() => this.chord.onStateTransition(event.to, snap), 60)
+      // Stagger bass/melody/chord so Part rebuilds don't collide on the audio thread
+      setTimeout(() => this.bass.onStateTransition(event.to, snap), 50)
+      setTimeout(() => this.melody.onStateTransition(event.to, snap), 120)
+      setTimeout(() => this.chord.onStateTransition(event.to, snap), 180)
     })
   }
 
@@ -184,21 +184,45 @@ export class GeneratorOrchestrator {
     await Tone.start()
 
     // Increase look-ahead so main-thread jank doesn't starve the audio graph.
-    // Default is ~0.1 s; 0.5 s gives a generous buffer against React re-renders,
+    // Default is ~0.1 s; 0.6 s gives a generous buffer against React re-renders,
     // physics computation spikes, 5 generators processing frames, and Part rebuilds.
-    // This adds ~500ms of output latency but eliminates buffer underrun crackling.
-    Tone.getContext().lookAhead = 0.5
+    // This adds ~600ms of output latency but eliminates buffer underrun crackling.
+    Tone.getContext().lookAhead = 0.6
 
-    Tone.getTransport().bpm.value = bpm ?? 90
-    Tone.getTransport().start()
+    // Mute the destination briefly to hide the initial scheduling burst that
+    // produces a sharp transient / crackle when all Parts start simultaneously.
+    const dest = Tone.getDestination()
+    dest.volume.value = -Infinity
+
+    // BPM is synced from TransportContext (the single source of truth).
+    // Only set BPM here as a fallback if Transport hasn't been configured yet.
+    const transport = Tone.getTransport()
+    if (bpm != null && transport.bpm.value !== bpm) {
+      transport.bpm.value = bpm
+    }
+
+    // Do NOT call Transport.start() — TransportContext owns the Transport
+    // lifecycle. If Transport isn't running yet (organism started before
+    // studio play), start it; but never stop it from here.
+    if (transport.state !== 'started') {
+      transport.start()
+    }
     this.running = true
+
+    // Fade in over 300ms — by this time the look-ahead buffer is primed
+    // and all generators have scheduled their first events cleanly.
+    setTimeout(() => {
+      dest.volume.rampTo(0, 0.3)
+    }, 250)
   }
 
   stop(): void {
-    Tone.getTransport().stop()
+    // Do NOT call Transport.stop() — TransportContext owns the Transport
+    // lifecycle. Stopping Transport here would kill studio playback (piano
+    // roll, beat maker) if the user stops the Organism mid-session.
     this.running = false
-    // Silence all generators immediately — Transport.stop() does not stop
-    // continuous sources like the pink noise in TextureGenerator.
+    // Silence all generators immediately — continuous sources like the pink
+    // noise in TextureGenerator keep producing audio after Transport stops.
     this.texture.reset()
     this.drum.reset()
     this.bass.reset()
@@ -206,7 +230,12 @@ export class GeneratorOrchestrator {
     this.chord.reset()
   }
 
-  /** Smoothly ramp BPM to a new value over 0.5 seconds. */
+  /**
+   * Smoothly ramp BPM to a new value over 0.5 seconds.
+   * NOTE: This updates Tone.Transport.bpm directly because the orchestrator
+   * may run outside TransportProvider (GlobalOrganismWrapper). Callers should
+   * also sync the Zustand store so TransportContext stays consistent.
+   */
   setBpm(bpm: number): void {
     const clamped = Math.max(40, Math.min(200, bpm))
     Tone.getTransport().bpm.rampTo(clamped, 0.5)

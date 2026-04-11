@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Mic, Square, Play, Pause, Trash2, Download, Volume2, VolumeX, Radio } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getAudioContext } from '@/lib/audioContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface VocalRecordingTrackProps {
@@ -89,9 +90,7 @@ export default function VocalRecordingTrack({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
+      // Do NOT close the shared AudioContext
     };
   }, [audioUrl]);
 
@@ -106,8 +105,8 @@ export default function VocalRecordingTrack({
         } 
       });
 
-      // Create audio context for visualization
-      audioContextRef.current = new AudioContext();
+      // Use shared audio context for visualization
+      audioContextRef.current = getAudioContext();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 2048;

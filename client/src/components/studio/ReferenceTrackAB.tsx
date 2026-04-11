@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { FileMusic, Play, Pause, Volume2, VolumeX, ToggleLeft, ToggleRight, Upload, X } from 'lucide-react';
 import { professionalAudio } from '@/lib/professionalAudio';
+import { getAudioContext } from '@/lib/audioContext';
 
 interface ReferenceTrackABProps {
   className?: string;
@@ -79,7 +80,7 @@ export default function ReferenceTrackAB({ className = '' }: ReferenceTrackABPro
 
     // Wire to Web Audio for volume control
     if (!ctxRef.current) {
-      ctxRef.current = new AudioContext();
+      ctxRef.current = getAudioContext();
     }
     const ctx = ctxRef.current;
     if (sourceRef.current) {

@@ -4,6 +4,9 @@
  */
 
 import type { Track, Note } from '@/components/studio/types/pianoRollTypes';
+import { getAudioContext } from './audioContext';
+import type { ArrangementClip, TrackClip } from '@/types/studioTracks';
+import type { AutomationLane, AutomationPoint } from './projectManager';
 
 // Audio rendering constants
 const DEFAULT_SAMPLE_RATE = 44100;
@@ -256,7 +259,7 @@ export function audioBufferToWav(buffer: AudioBuffer): Blob {
  * Normalize an AudioBuffer to prevent clipping
  */
 function normalizeBuffer(buffer: AudioBuffer): AudioBuffer {
-  const ctx = new AudioContext();
+  const ctx = getAudioContext();
   const normalizedBuffer = ctx.createBuffer(
     buffer.numberOfChannels,
     buffer.length,
@@ -468,7 +471,7 @@ export async function exportAndDownloadMaster(
   options: StemExportOptions = {}
 ): Promise<void> {
   const blob = await renderMasterMix(tracks, options);
-  
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -477,4 +480,212 @@ export async function exportAndDownloadMaster(
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+// ─── Arrangement-Aware Export ─────────────────────────────────────────────────
+// These functions render clips at their arrangement positions rather than
+// from step 0 in a pattern loop.
+
+interface ArrangementExportOptions extends StemExportOptions {
+  songEndBeat: number;
+  bufferMap?: Map<string, AudioBuffer>;       // pre-decoded audio buffers
+  automationLanes?: AutomationLane[];
+}
+
+/**
+ * Render a track with arrangement clips to an AudioBuffer.
+ * Each clip is positioned at its absolute beat on the timeline.
+ */
+export async function renderArrangementTrack(
+  track: TrackClip,
+  clips: ArrangementClip[],
+  options: ArrangementExportOptions,
+): Promise<AudioBuffer> {
+  const {
+    sampleRate = DEFAULT_SAMPLE_RATE,
+    bpm = DEFAULT_BPM,
+    songEndBeat,
+    bufferMap,
+    automationLanes,
+  } = options;
+
+  const beatsPerSecond = bpm / 60;
+  const totalDuration = songEndBeat / beatsPerSecond + 1; // +1s padding
+  const totalSamples = Math.ceil(totalDuration * sampleRate);
+
+  const offlineCtx = new OfflineAudioContext(2, totalSamples, sampleRate);
+  const trackGain = offlineCtx.createGain();
+  trackGain.gain.value = track.payload?.volume ?? 0.8;
+
+  // Apply volume automation if present
+  const volLane = automationLanes?.find(
+    l => l.trackId === track.id && l.parameter === 'volume' && l.enabled
+  );
+  if (volLane && volLane.points.length > 0) {
+    trackGain.gain.cancelScheduledValues(0);
+    for (let i = 0; i < volLane.points.length; i++) {
+      const pt = volLane.points[i];
+      const timeSec = pt.time / beatsPerSecond;
+      if (i === 0) {
+        trackGain.gain.setValueAtTime(pt.value, timeSec);
+      } else if (pt.curve === 'step') {
+        trackGain.gain.setValueAtTime(pt.value, timeSec);
+      } else if (pt.curve === 'exponential') {
+        trackGain.gain.exponentialRampToValueAtTime(Math.max(0.001, pt.value), timeSec);
+      } else {
+        trackGain.gain.linearRampToValueAtTime(pt.value, timeSec);
+      }
+    }
+  }
+
+  // Pan (simple stereo via StereoPanner)
+  const panner = offlineCtx.createStereoPanner();
+  panner.pan.value = track.payload?.pan ?? 0;
+
+  trackGain.connect(panner);
+  panner.connect(offlineCtx.destination);
+
+  for (const clip of clips) {
+    if (clip.type === 'audio' && clip.audioUrl) {
+      // ── Render audio clip ──
+      const audioBuffer = bufferMap?.get(clip.audioUrl);
+      if (!audioBuffer) continue;
+
+      const clipStartSec = clip.startBeat / beatsPerSecond;
+      const offsetSec = clip.offsetBeat / beatsPerSecond;
+      const durationSec = (clip.endBeat - clip.startBeat) / beatsPerSecond;
+
+      const source = offlineCtx.createBufferSource();
+      source.buffer = audioBuffer;
+
+      const clipGain = offlineCtx.createGain();
+      clipGain.gain.value = clip.gain;
+
+      // Fade in
+      if (clip.fadeInBeats > 0) {
+        const fadeDur = clip.fadeInBeats / beatsPerSecond;
+        clipGain.gain.setValueAtTime(0, clipStartSec);
+        clipGain.gain.linearRampToValueAtTime(clip.gain, clipStartSec + fadeDur);
+      }
+      // Fade out
+      if (clip.fadeOutBeats > 0) {
+        const fadeDur = clip.fadeOutBeats / beatsPerSecond;
+        const fadeStart = clipStartSec + durationSec - fadeDur;
+        clipGain.gain.setValueAtTime(clip.gain, fadeStart);
+        clipGain.gain.linearRampToValueAtTime(0, clipStartSec + durationSec);
+      }
+
+      source.connect(clipGain);
+      clipGain.connect(trackGain);
+
+      if (clip.loop) {
+        source.loop = true;
+        source.loopStart = offsetSec;
+        source.loopEnd = offsetSec + durationSec;
+      }
+      source.start(clipStartSec, offsetSec, clip.loop ? undefined : durationSec);
+
+    } else if (clip.type === 'midi' && clip.notes) {
+      // ── Render MIDI clip ──
+      const instrument = track.payload?.instrument ?? 'piano';
+      const waveType = getWaveTypeForInstrument(instrument);
+
+      for (const note of clip.notes) {
+        if (note.step === undefined || note.note === undefined) continue;
+        const noteBeat = clip.startBeat + (note.step ?? 0) * 0.25 - clip.offsetBeat;
+        if (noteBeat < clip.startBeat || noteBeat >= clip.endBeat) continue;
+
+        const noteStartSec = noteBeat / beatsPerSecond;
+        const noteDurSec = ((note.length ?? 1) * 0.25) / beatsPerSecond;
+        const freq = noteToFrequency(note.note, note.octave ?? 4);
+        const vel = note.velocity ?? 100;
+
+        const waveform = generateNoteWaveform(freq, noteDurSec, vel, sampleRate, waveType);
+        const noteBuffer = offlineCtx.createBuffer(1, waveform.length, sampleRate);
+        noteBuffer.getChannelData(0).set(waveform);
+
+        const source = offlineCtx.createBufferSource();
+        source.buffer = noteBuffer;
+
+        const noteGain = offlineCtx.createGain();
+        noteGain.gain.value = clip.gain;
+        source.connect(noteGain);
+        noteGain.connect(trackGain);
+        source.start(noteStartSec);
+      }
+    }
+  }
+
+  return offlineCtx.startRendering();
+}
+
+/**
+ * Render the full arrangement mix (all tracks) to a single stereo WAV blob.
+ */
+export async function renderArrangementMix(
+  tracks: TrackClip[],
+  options: ArrangementExportOptions,
+): Promise<Blob> {
+  const {
+    sampleRate = DEFAULT_SAMPLE_RATE,
+    bpm = DEFAULT_BPM,
+    songEndBeat,
+    normalize = true,
+  } = options;
+
+  const beatsPerSecond = bpm / 60;
+  const totalDuration = songEndBeat / beatsPerSecond + 1;
+  const totalSamples = Math.ceil(totalDuration * sampleRate);
+
+  const offlineCtx = new OfflineAudioContext(2, totalSamples, sampleRate);
+
+  for (const track of tracks) {
+    if (track.muted) continue;
+    const clips = track.clips ?? [];
+    if (clips.length === 0) continue;
+
+    const trackBuffer = await renderArrangementTrack(track, clips, options);
+
+    const source = offlineCtx.createBufferSource();
+    source.buffer = trackBuffer;
+    source.connect(offlineCtx.destination);
+    source.start(0);
+  }
+
+  let masterBuffer = await offlineCtx.startRendering();
+  if (normalize) {
+    masterBuffer = normalizeBuffer(masterBuffer);
+  }
+  return audioBufferToWav(masterBuffer);
+}
+
+/**
+ * Export arrangement as stems (individual tracks).
+ */
+export async function exportArrangementStems(
+  tracks: TrackClip[],
+  options: ArrangementExportOptions,
+): Promise<RenderedStem[]> {
+  const { normalize = true } = options;
+  const stems: RenderedStem[] = [];
+
+  for (const track of tracks) {
+    if (track.muted) continue;
+    const clips = track.clips ?? [];
+    if (clips.length === 0) continue;
+
+    let audioBuffer = await renderArrangementTrack(track, clips, options);
+    if (normalize) {
+      audioBuffer = normalizeBuffer(audioBuffer);
+    }
+
+    stems.push({
+      trackId: track.id,
+      trackName: track.name,
+      audioBuffer,
+      blob: audioBufferToWav(audioBuffer),
+    });
+  }
+
+  return stems;
 }

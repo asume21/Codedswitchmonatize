@@ -425,8 +425,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     pianoRollScheduler.setBpm(bpm);
   }, [bpm]);
 
-  // Stop scheduler on unmount
-  useEffect(() => () => { pianoRollScheduler.stop(); }, []);
+  // NOTE: Do NOT call pianoRollScheduler.stop() on unmount — TransportContext
+  // owns the scheduler lifecycle. Stopping it here would kill studio playback
+  // if the user navigates away from the piano roll tab while music is playing.
 
   // ─── Subscribe to the global scheduler — note playback + playhead ────────────
   // One effect, registered once. Callbacks use refs so they're always fresh
@@ -1010,8 +1011,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   }, [isPlaying, playTransport, pauseTransport]);
 
   const handleStop = useCallback(() => {
-    // Stop scheduler (replaces the old clearInterval)
-    pianoRollScheduler.stop();
+    // Do NOT call pianoRollScheduler.stop() here — TransportContext.stop()
+    // already stops both the scheduler and Tone.Transport in lock-step.
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
