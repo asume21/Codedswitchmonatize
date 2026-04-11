@@ -19,7 +19,7 @@ declare global {
   }
 }
 
-const API_KEY  = 'wbr_d461677168c417c329e0ea2e8342a44f8bb1169d506d99078ab53643d1065267'
+const API_KEY  = import.meta.env.VITE_WEBEAR_API_KEY ?? ''
 const CONNECT  = `/api/webear/connect?key=${API_KEY}`
 const BLOB_URL = (id: string) => `/api/webear/blob/${id}`
 
