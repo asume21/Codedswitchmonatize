@@ -80,10 +80,10 @@ export const DEFAULT_STATE_MACHINE_CONFIG: StateMachineConfig = {
   awakeningToSilenceMs:     12000,
   breathingToAwakeningMs:   6000,
   breathingToDormantMs:     45000,
-  flowToBreathingMs:        3000,
+  flowToBreathingMs:        10000,
   flowToDormantMs:          45000,
-  awakeningMinBars:         1.5,
-  awakeningMaxBars:         3,
+  awakeningMinBars:         1,
+  awakeningMaxBars:         2,
   syllabicDensityWindowBars: 3,
   autoBreathingToFlowBars: 4,
 }

@@ -31,29 +31,36 @@ function PhysicsBar({ label, value, max = 1 }: {
   const pct = Math.min(100, Math.round((value / max) * 100))
   const barColor = BAR_COLORS[label] || '#60a5fa'
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ marginBottom: 12 }}>
       <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        fontSize: 12, color: 'var(--color-text-secondary)',
-        marginBottom: 4,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        fontSize: 13, fontWeight: 600,
+        marginBottom: 5,
       }}>
-        <span>{label}</span>
-        <span style={{ fontVariantNumeric: 'tabular-nums', color: barColor }}>
-          {value.toFixed(2)}
-        </span>
+        <span style={{ color: '#e2e8f0', letterSpacing: '0.03em' }}>{label}</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontVariantNumeric: 'tabular-nums' }}>
+            {pct}%
+          </span>
+          <span style={{ fontVariantNumeric: 'tabular-nums', color: barColor, fontSize: 14, fontWeight: 700 }}>
+            {value.toFixed(2)}
+          </span>
+        </div>
       </div>
       <div style={{
-        height: 5,
-        background: 'var(--color-background-tertiary)',
-        borderRadius: 3,
+        height: 10,
+        background: 'rgba(255,255,255,0.06)',
+        borderRadius: 5,
         overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.08)',
       }}>
         <div style={{
           height: '100%',
           width: `${pct}%`,
-          background: barColor,
-          borderRadius: 3,
+          background: `linear-gradient(90deg, ${barColor}cc, ${barColor})`,
+          borderRadius: 5,
           transition: 'width 80ms linear',
+          boxShadow: `0 0 8px ${barColor}40`,
         }} />
       </div>
     </div>
@@ -176,16 +183,18 @@ export function OrganismVisualizer() {
                   {name}
                 </span>
                 <div style={{
-                  flex: 1, height: 4,
-                  background: 'var(--color-background-tertiary)',
-                  borderRadius: 2, overflow: 'hidden',
+                  flex: 1, height: 8,
+                  background: 'rgba(255,255,255,0.06)',
+                  borderRadius: 4, overflow: 'hidden',
+                  border: '1px solid rgba(255,255,255,0.08)',
                 }}>
                   <div style={{
                     height: '100%',
                     width: `${pct}%`,
-                    background: meterColor,
-                    borderRadius: 2,
+                    background: `linear-gradient(90deg, ${meterColor}cc, ${meterColor})`,
+                    borderRadius: 4,
                     transition: 'width 100ms linear',
+                    boxShadow: `0 0 6px ${meterColor}30`,
                   }} />
                 </div>
                 <span style={{
