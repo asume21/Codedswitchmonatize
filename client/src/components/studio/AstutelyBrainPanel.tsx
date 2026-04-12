@@ -86,8 +86,18 @@ export default function AstutelyBrainContent() {
   };
 
   const physics = organismPhysicsState;
-  const currentMode = physics?.mode ?? 'glow';
-  const currentStateName = organismCurrentState?.current?.toLowerCase() ?? 'dormant';
+
+  // Local overrides so buttons respond immediately even when the organism
+  // hasn't emitted a physics-update yet (e.g. organism not running).
+  const [localMode, setLocalMode] = useState<string | null>(null);
+  const [localState, setLocalState] = useState<string | null>(null);
+
+  // Sync: when the organism emits real state, clear local overrides
+  const bridgeMode = physics?.mode ?? null;
+  const bridgeState = organismCurrentState?.current?.toLowerCase() ?? null;
+
+  const currentMode = bridgeMode ?? localMode ?? 'glow';
+  const currentStateName = bridgeState ?? localState ?? 'dormant';
 
   return (
     <div className="space-y-2 p-3 overflow-y-auto">
@@ -184,17 +194,17 @@ export default function AstutelyBrainContent() {
                 active={currentMode === key}
                 tone={currentMode === key ? 'magenta' : 'cyan'}
                 size="sm"
-                onClick={() => organismLockMode(key as OrganismMode)}
+                onClick={() => { setLocalMode(key); organismLockMode(key as OrganismMode); }}
                 className="text-[9px]"
               >
                 {info.label}
               </AstutelyLedButton>
             ))}
             <AstutelyLedButton
-              active={false}
+              active={localMode === null && !bridgeMode}
               tone="cyan"
               size="sm"
-              onClick={organismUnlockMode}
+              onClick={() => { setLocalMode(null); organismUnlockMode(); }}
               className="text-[9px]"
             >
               Auto
@@ -211,7 +221,7 @@ export default function AstutelyBrainContent() {
                 active={currentStateName === key}
                 tone={currentStateName === key ? 'emerald' : 'cyan'}
                 size="sm"
-                onClick={() => organismForceState(key)}
+                onClick={() => { setLocalState(key); organismForceState(key); }}
                 className="text-[9px]"
               >
                 {label}
