@@ -85,7 +85,7 @@ export const DEFAULT_STATE_MACHINE_CONFIG: StateMachineConfig = {
   awakeningMinBars:         1.5,
   awakeningMaxBars:         3,
   syllabicDensityWindowBars: 3,
-  autoBreathingToFlowBars: 0,
+  autoBreathingToFlowBars: 4,
 }
 
 export type OrganismStateCallback    = (state: OrganismState)    => void

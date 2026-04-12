@@ -800,16 +800,48 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   const [organismIsRunning, setOrganismIsRunning] = useState(false);
   const [latestAudioReport, setLatestAudioReport] = useState<SelfListenReport | null>(null);
 
+  // Throttle bridge → React updates to ~4fps (250ms) to prevent main-thread
+  // overload that starves the audio thread and causes crackling.
+  // The bridge already receives data at ~15fps from OrganismProvider, but even
+  // 15fps of 4× setState batches is too much for the heavy Astutely UI tree.
   useEffect(() => {
     astutelyOrganismBridge.connect();
+    let pending: typeof astutelyOrganismBridge extends { getState(): infer S } ? S : never;
+    let rafId: number | null = null;
+    let lastFlush = 0;
+    const FLUSH_INTERVAL = 250; // ms — ~4fps, plenty for meters/indicators
+
+    const flush = () => {
+      rafId = null;
+      if (!pending) return;
+      const s = pending;
+      // Batch into a single React commit via unstable_batchedUpdates-like
+      // grouping (React 18 auto-batches inside rAF callbacks)
+      setOrganismPhysicsState(s.physicsState);
+      setOrganismCurrentState(s.organismState);
+      setOrganismIsRunning(s.isRunning);
+      setLatestAudioReport(s.selfListenReport);
+      lastFlush = performance.now();
+    };
+
     const unsub = astutelyOrganismBridge.subscribe((bridgeState) => {
-      setOrganismPhysicsState(bridgeState.physicsState);
-      setOrganismCurrentState(bridgeState.organismState);
-      setOrganismIsRunning(bridgeState.isRunning);
-      setLatestAudioReport(bridgeState.selfListenReport);
+      pending = bridgeState;
+      const now = performance.now();
+      // Immediately flush running/stopped transitions so the UI reacts fast
+      if (bridgeState.isRunning !== organismIsRunning) {
+        flush();
+        return;
+      }
+      if (now - lastFlush >= FLUSH_INTERVAL && rafId === null) {
+        rafId = requestAnimationFrame(flush);
+      }
     });
-    return () => { unsub(); astutelyOrganismBridge.disconnect(); };
-  }, []);
+    return () => {
+      unsub();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      astutelyOrganismBridge.disconnect();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const organismLockMode = useCallback((mode: OrganismMode) => {
     astutelyOrganismBridge.lockMode(mode);
