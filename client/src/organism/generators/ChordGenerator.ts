@@ -18,6 +18,8 @@ import {
   type ChordEvent,
 } from './patterns/ChordProgressionBank'
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { getTechnique, DEFAULT_TECHNIQUE_ID } from '../techniques/library'
+import type { TechniqueContext } from '../techniques/types'
 
 export enum ChordBehavior {
   Silent  = 'silent',    // Dormant / Awakening — no chords
@@ -58,6 +60,27 @@ export class ChordGenerator extends GeneratorBase {
 
   // Reactive state
   private volumeMultiplier: number = 1.0
+
+  // Active technique — controls how chord notes are distributed over time.
+  // Defaults to block-chord (simultaneous notes) for backward compatibility.
+  private currentTechniqueId: string = DEFAULT_TECHNIQUE_ID
+
+  /** Change the active playing technique (rebuilds the Part on next tick). */
+  setTechnique(techniqueId: string): void {
+    if (!getTechnique(techniqueId)) {
+      console.warn(`[ChordGenerator] Unknown technique: ${techniqueId}`)
+      return
+    }
+    if (this.currentTechniqueId === techniqueId) return
+    this.currentTechniqueId = techniqueId
+    // Rebuild on next tick so new technique takes effect at the next chord
+    this.lastRebuildTime = 0
+    if (this.currentProgression) this.rebuildPart()
+  }
+
+  getTechnique(): string {
+    return this.currentTechniqueId
+  }
 
   // Tracked synth dispose timer
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
@@ -365,7 +388,34 @@ export class ChordGenerator extends GeneratorBase {
 
       // Use sampler only if fully loaded; otherwise use fallback PolySynth
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
-      voice.triggerAttackRelease(event.notes, event.dur, time, vel)
+
+      // ── Technique dispatch ─────────────────────────────────────────
+      // Instead of firing all chord notes simultaneously (block-chord), the
+      // active technique returns per-note events with time offsets, allowing
+      // guitar-strum, piano-roll, Alberti patterns, etc. Falls back to
+      // simultaneous play when the default block-chord technique is active.
+      const technique = getTechnique(this.currentTechniqueId)
+      if (technique && this.currentTechniqueId !== DEFAULT_TECHNIQUE_ID) {
+        const tempo = Tone.getTransport().bpm.value || 90
+        const chordDurationSec = Tone.Time(event.dur).toSeconds()
+        const ctx: TechniqueContext = {
+          barIndex:         event.chordIdx,
+          beatPosition:     0,
+          swing:            this.currentSwing,
+          energy:           Math.max(0, Math.min(1, vel)),
+          mode:             this.currentMode as any,
+          tempo,
+          chordDurationSec,
+        }
+        const scheduled = technique.schedule(event.notes, ctx)
+        for (const n of scheduled) {
+          const noteVel = Math.min(1, Math.max(0.05, n.velocity * vel / 0.6))
+          voice.triggerAttackRelease(n.note, n.duration, time + n.timeOffset, noteVel)
+        }
+      } else {
+        // Legacy block-chord path: fire all notes simultaneously
+        voice.triggerAttackRelease(event.notes, event.dur, time, vel)
+      }
     }, events)
 
     this.part.loop = true

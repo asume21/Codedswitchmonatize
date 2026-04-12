@@ -539,6 +539,21 @@ export class GeneratorOrchestrator {
   }
 
   /**
+   * Set the playing technique on the chord generator.
+   * Available: 'piano-block-chord' (default), 'piano-rolled-chord',
+   * 'piano-alberti', 'piano-sustained-pad', 'guitar-strum-down',
+   * 'guitar-strum-up', 'guitar-arp-rolled', 'guitar-muted-stab'.
+   */
+  setChordTechnique(techniqueId: string): void {
+    this.chord.setTechnique(techniqueId)
+  }
+
+  /** Get the currently active chord technique id. */
+  getChordTechnique(): string {
+    return this.chord.getTechnique()
+  }
+
+  /**
    * Wire the kick trigger callback for sidechain ducking.
    * The MixEngine calls this to receive a callback on every kick hit.
    */

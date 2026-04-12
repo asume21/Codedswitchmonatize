@@ -155,6 +155,55 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
       density:  0.5,
     }),
   },
+
+  // ── Cypher: stripped-back freestyle loop ────────────────────────────
+  // Designed for freestyling OVER, not producing alongside.
+  // Differs from boombap-90 by: lower density (0.25 vs 0.45), higher pocket
+  // (0.7 — locked loop feel), lower presence (0.45 — beat recedes for voice).
+  // Chord generator stays sparse; melody is nearly absent. Pure drums+bass
+  // pocket with vinyl texture. 2-bar loop that hypnotizes.
+  {
+    id:     'cypher-90',
+    label:  'Cypher',
+    genre:  'Cypher / Freestyle',
+    bpm:    90,
+    mode:   OrganismMode.Smoke,
+    energy: 'medium',
+    icon:   '🎤',
+    physics: makePhysics({
+      mode:     OrganismMode.Smoke,
+      pulse:    90,
+      bounce:   0.5,
+      swing:    0.55,    // Boom-bap swing, head-nod pocket
+      pocket:   0.7,     // High pocket = tight loop feel
+      presence: 0.45,    // Low presence = beat sits back for the rapper
+      density:  0.25,    // Sparse — just drums + bass + occasional Rhodes hit
+    }),
+  },
+
+  // ── Storytelling: cinematic, piano-led, contemplative ───────────────
+  // Slower (80 BPM), moodier, jazz-inflected chord voicings. The chord
+  // generator runs in Pad behavior (long sustained chords). Drums are
+  // dusty and reverberant. Strings pad in background. Voice is lead.
+  // Think Nas "N.Y. State of Mind", Kendrick "Sing About Me", J. Cole.
+  {
+    id:     'storytelling-80',
+    label:  'Story',
+    genre:  'Storytelling / Narrative',
+    bpm:    80,
+    mode:   OrganismMode.Smoke,
+    energy: 'low',
+    icon:   '📖',
+    physics: makePhysics({
+      mode:     OrganismMode.Smoke,
+      pulse:    80,
+      bounce:   0.35,    // Lower bounce = more contemplative, less head-nod
+      swing:    0.55,    // Jazzy swing, spacious
+      pocket:   0.55,    // Medium pocket — room for voice to bend time
+      presence: 0.35,    // Very low presence = cinematic, voice-forward
+      density:  0.2,     // Extremely sparse — piano pad + drums + upright bass
+    }),
+  },
 ]
 
 /** Look up a preset by id, returns undefined if not found. */

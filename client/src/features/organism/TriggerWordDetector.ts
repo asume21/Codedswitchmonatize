@@ -32,10 +32,19 @@ export type TriggerAction =
   | { type: 'mood-signal';  mood: MoodSignal }
 
 /**
- * Mood signal from ad-lib/phrase detection.
- * Unlike explicit commands, mood signals are soft suggestions — the
- * MusicalDirector can weight them against current physics state.
+ * Which instruments to spotlight when the organism starts.
+ * Values are volume multipliers applied to each generator.
+ * Omitted keys default to 1.0 (no change).
  */
+export interface InstrumentFocus {
+  bass?:     number
+  melody?:   number
+  hats?:     number
+  kick?:     number
+  texture?:  number
+  chord?:    number
+}
+
 export interface MoodSignal {
   /** Energy level the phrase implies (0-1). 0.8+ = hype, 0.3- = chill */
   energy: number
@@ -43,6 +52,8 @@ export interface MoodSignal {
   preferredSubGenre?: string
   /** Intent category — helps the director decide what to adjust */
   intent: 'warmup' | 'hype' | 'chill' | 'aggro' | 'vibing' | 'transition' | 'adlib'
+  /** When present, tells the orchestrator which instruments to spotlight on startup */
+  instrumentFocus?: InstrumentFocus
 }
 
 export interface TriggerEvent {
@@ -125,16 +136,132 @@ const DEFAULT_TRIGGER_MAPPINGS: TriggerMapping[] = [
 // rather than force-switching presets. Grouped by intent category.
 
 const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
-  // ── WARMUP — Rapper is getting comfortable, testing the mic ──────────
-  // Signal: keep beat steady, don't change anything drastic
-  { phrases: ['yo yo yo', 'yo yo', 'check check', 'check the mic', 'mic check'],
-    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup' } }, cooldownMs: 8000 },
-  { phrases: ['1 2 1 2', 'one two one two', 'testing testing', 'test test'],
-    action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup' } }, cooldownMs: 8000 },
-  { phrases: ['ok ok', 'okay okay', 'alright alright', 'aight aight'],
-    action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup' } }, cooldownMs: 6000 },
+  // ── WARMUP — Cypher/Storytelling aesthetic ──────────────────────────
+  // Hip-hop cyphers + storytelling beats live on SPARSENESS, not layers.
+  // Warm-up phrases subtract instruments rather than adding them — the
+  // highlighted element becomes relatively louder because everything else
+  // gets dimmed. Rule: no instrument goes above 1.15x on warm-up.
+  //
+  // Texture always stays on at 0.3+ (vinyl crackle / tape hiss = the glue).
+
+  // ── CYPHER ENTRIES — Drums + Bass only, nothing melodic ─────────────
+
+  // "Yo yo yo" → Classic cypher opener. Upright bass + boom-bap drums.
+  { phrases: ['yo yo yo', 'yo yo', 'yoo yoo'],
+    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup',
+      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.9, melody: 0.0, chord: 0.0, texture: 0.3 } } }, cooldownMs: 8000 },
+
+  // "1-2 1-2" / "check check" → Mic check: drums ONLY, vinyl hiss
+  { phrases: ['1 2 1 2', 'one two one two', 'check check', 'check the mic', 'mic check', 'testing testing', 'test test'],
+    action: { type: 'mood-signal', mood: { energy: 0.3, intent: 'warmup',
+      instrumentFocus: { hats: 1.1, kick: 1.0, bass: 0.0, melody: 0.0, chord: 0.0, texture: 0.4 } } }, cooldownMs: 8000 },
+
+  // "Yeah yeah" → Head-nod cypher: drums + bass, no melody
   { phrases: ['yeah yeah', 'yea yea', 'ya ya'],
-    action: { type: 'mood-signal', mood: { energy: 0.5, intent: 'warmup' } }, cooldownMs: 6000 },
+    action: { type: 'mood-signal', mood: { energy: 0.5, intent: 'warmup',
+      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.95, melody: 0.2, chord: 0.4, texture: 0.3 } } }, cooldownMs: 6000 },
+
+  // "Uh huh uh huh" → Head-nod + sparse Rhodes stabs every 2 bars
+  { phrases: ['uh huh uh huh', 'uh huh', 'mmhmm mmhmm', 'mhm mhm'],
+    action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
+      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.85, chord: 0.6, melody: 0.2, texture: 0.3 } } }, cooldownMs: 8000 },
+
+  // "Ay ay ay" / "ey ey" → Percussive cypher entry: drums + bass
+  { phrases: ['ay ay ay', 'ey ey ey', 'ay ay', 'ey ey'],
+    action: { type: 'mood-signal', mood: { energy: 0.55, intent: 'warmup',
+      instrumentFocus: { hats: 1.0, kick: 1.0, bass: 0.9, melody: 0.2, chord: 0.3, texture: 0.3 } } }, cooldownMs: 6000 },
+
+  // "Aye aye aye" / "woah woah" → Bass-led head-nod starter
+  { phrases: ['aye aye aye', 'woah woah', 'whoa whoa', 'hold up hold up'],
+    action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
+      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.85, melody: 0.2, chord: 0.3, texture: 0.3 } } }, cooldownMs: 7000 },
+
+  // "Word word" / "real talk" → Confident cypher: full boom-bap loop minus melody
+  { phrases: ['word word', 'word up', 'real real', 'true true', 'real talk'],
+    action: { type: 'mood-signal', mood: { energy: 0.5, intent: 'warmup',
+      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.9, melody: 0.2, chord: 0.4, texture: 0.3 } } }, cooldownMs: 8000 },
+
+  // "Tick tick" / "bap bap" → Drums-only percussion mimicry
+  { phrases: ['tick tick', 'tick tock', 'bap bap bap', 'bap bap', 'uh uh uh', 'ts ts ts'],
+    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup',
+      instrumentFocus: { hats: 1.1, kick: 1.0, bass: 0.0, melody: 0.0, chord: 0.0, texture: 0.3 } } }, cooldownMs: 6000 },
+
+  // "Ok ok" / "okay okay" → Balanced sparse warm start
+  { phrases: ['ok ok', 'okay okay'],
+    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup',
+      instrumentFocus: { bass: 0.7, kick: 0.8, hats: 0.7, melody: 0.3, chord: 0.5, texture: 0.3 } } }, cooldownMs: 6000 },
+
+  // "Right right" / "bet bet" → Cypher confidence: drums + bass
+  { phrases: ['right right', 'bet bet', 'say less', 'say word'],
+    action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
+      instrumentFocus: { kick: 0.95, hats: 0.9, bass: 0.85, melody: 0.3, chord: 0.5, texture: 0.3 } } }, cooldownMs: 6000 },
+
+  // "Lets get it" → Revised: cypher drums + bass energy (NOT stadium hype)
+  { phrases: ['lets get it', 'let\'s get it', 'you already know', 'already know', 'we in here', 'we here'],
+    action: { type: 'mood-signal', mood: { energy: 0.6, intent: 'warmup',
+      instrumentFocus: { bass: 1.0, kick: 1.0, hats: 0.95, melody: 0.3, chord: 0.4, texture: 0.3 } } }, cooldownMs: 6000 },
+
+  // "About to go down" → Revised: energetic cypher, not maxed arena vibe
+  { phrases: ['its about to go down', 'it\'s about to go down', 'about to go down', 'about to pop off'],
+    action: { type: 'mood-signal', mood: { energy: 0.7, intent: 'warmup',
+      instrumentFocus: { bass: 1.1, kick: 1.1, hats: 1.0, melody: 0.4, chord: 0.5, texture: 0.3 } } }, cooldownMs: 8000 },
+
+  // ── STORYTELLING ENTRIES — Piano/Rhodes forward, cinematic sparseness ─
+
+  // "Let me paint the picture" → Storytelling classic: piano pad + soft drums
+  { phrases: ['let me paint the picture', 'paint the picture', 'paint a picture', 'paint this picture'],
+    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
+      instrumentFocus: { chord: 1.1, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5, melody: 0.4 } } }, cooldownMs: 10000 },
+
+  // "Let me tell you" / "tell you a story" → Storytelling piano lead
+  { phrases: ['let me tell you', 'tell you a story', 'tell a story', 'let me tell ya'],
+    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
+      instrumentFocus: { chord: 1.1, melody: 0.5, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5 } } }, cooldownMs: 10000 },
+
+  // "Back in the day" → Nostalgic soul sample vibe: Rhodes + dusty drums
+  { phrases: ['back in the day', 'back when', 'back in the days', 'remember when'],
+    action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
+      instrumentFocus: { chord: 1.0, texture: 0.9, bass: 0.8, kick: 0.7, hats: 0.65, melody: 0.4 } } }, cooldownMs: 10000 },
+
+  // "Come with me" / "take you on a journey" → Storytelling opener
+  { phrases: ['come with me', 'take you back', 'take a journey', 'come on a journey', 'let me take you'],
+    action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup', preferredSubGenre: 'boom-bap',
+      instrumentFocus: { chord: 1.1, texture: 0.8, bass: 0.6, kick: 0.5, hats: 0.4, melody: 0.5 } } }, cooldownMs: 10000 },
+
+  // "Picture this" / "imagine" → Cinematic storytelling: strings + piano
+  { phrases: ['picture this', 'imagine this', 'imagine that', 'visualize'],
+    action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup',
+      instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.4, bass: 0.6, kick: 0.5, hats: 0.4 } } }, cooldownMs: 10000 },
+
+  // "Once upon a time" / "story time" → Classic storytelling setup
+  { phrases: ['once upon a time', 'story time', 'storytime', 'gather round'],
+    action: { type: 'mood-signal', mood: { energy: 0.3, intent: 'warmup', preferredSubGenre: 'boom-bap',
+      instrumentFocus: { chord: 1.1, texture: 0.9, bass: 0.5, kick: 0.4, hats: 0.4, melody: 0.4 } } }, cooldownMs: 10000 },
+
+  // "Close your eyes" → Immersive cinematic
+  { phrases: ['close your eyes', 'close ya eyes', 'close them eyes', 'picture it'],
+    action: { type: 'mood-signal', mood: { energy: 0.3, intent: 'warmup',
+      instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.3, bass: 0.5, kick: 0.4, hats: 0.3 } } }, cooldownMs: 10000 },
+
+  // "Talk to me" / "come on now" → Storytelling piano lead with melody fill
+  { phrases: ['talk to me', 'come on now', 'sing to me', 'play something'],
+    action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
+      instrumentFocus: { chord: 1.1, melody: 0.6, texture: 0.7, bass: 0.7, kick: 0.5, hats: 0.5 } } }, cooldownMs: 8000 },
+
+  // "Ok yea ok lets go" → Storytelling entry: piano + drums delayed
+  { phrases: ['ok yea ok lets go', 'ok yeah ok lets go', 'ok ok lets go', 'alright lets go', 'alright alright', 'aight aight'],
+    action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
+      instrumentFocus: { chord: 1.1, melody: 0.4, texture: 0.5, bass: 0.7, kick: 0.6, hats: 0.5 } } }, cooldownMs: 8000 },
+
+  // "La la la" / "na na na" → Lo-fi storytelling: melody-forward but sparse
+  { phrases: ['la la la', 'la la', 'na na na', 'na na', 'da da da'],
+    action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup', preferredSubGenre: 'lo-fi',
+      instrumentFocus: { melody: 1.0, chord: 0.9, texture: 0.7, bass: 0.5, hats: 0.4, kick: 0.4 } } }, cooldownMs: 8000 },
+
+  // "Ooh ooh" / "hmm hmm" → Hummed storytelling warm-up
+  { phrases: ['ooh ooh', 'oooh oooh', 'hmm hmm', 'mmm mmm', 'sing it'],
+    action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup', preferredSubGenre: 'lo-fi',
+      instrumentFocus: { melody: 1.0, chord: 0.9, texture: 0.7, bass: 0.4, hats: 0.3, kick: 0.3 } } }, cooldownMs: 8000 },
 
   // ── HYPE — Rapper is building energy, wants the beat to match ────────
   // Signal: boost energy, increase hat density, consider trap/drill

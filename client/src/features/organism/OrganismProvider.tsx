@@ -1142,7 +1142,21 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           case 'vibing':
             // Rapper likes current beat — lock the groove (no-op: don't change anything)
             break
-          case 'warmup':
+          case 'warmup': {
+            // Warmup phrases carry instrumentFocus — spotlight specific
+            // instruments so the beat "grows from" the rapper's entrance style.
+            const focus = mood.instrumentFocus
+            if (focus) {
+              if (focus.bass     != null) orch.setBassVolumeMultiplier(focus.bass)
+              if (focus.melody   != null) orch.setMelodyVolumeMultiplier(focus.melody)
+              if (focus.hats     != null) orch.setHatDensityMultiplier(focus.hats)
+              if (focus.kick     != null) orch.setKickVelocityMultiplier(focus.kick)
+              if (focus.texture  != null) orch.setTextureVolumeMultiplier(focus.texture)
+              if (focus.chord    != null) orch.setChordVolumeMultiplier(focus.chord)
+              console.debug('🎛️ Warmup instrument focus applied:', focus)
+            }
+            break
+          }
           case 'adlib':
             // Slight energy nudge — rapper is engaged but not commanding
             break
