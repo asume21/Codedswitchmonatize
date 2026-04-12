@@ -2852,7 +2852,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   return (
     <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
       {/* Top Professional DAW Toolbar */}
-      <div className="flex flex-col gap-2 p-2 border-b border-cyan-500/30 astutely-header">
+      <div className="flex flex-col gap-2 p-2 border-b border-cyan-500/30 astutely-header flex-shrink-0">
         <GlobalTransportBar variant="inline" />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -3222,13 +3222,13 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       )}
 
       {/* Key / Scale selector + Chord progression row */}
-      <div className="flex items-center gap-2 px-2 py-1 border-b border-cyan-500/20 bg-black/60 overflow-x-auto">
+      <div className="flex items-center gap-2 px-2 py-1 border-b border-cyan-500/20 bg-black/60 overflow-x-auto flex-shrink-0">
         {keyScaleSelector}
         <div className="h-4 w-px bg-cyan-500/20 flex-shrink-0" />
         {chordProgressionDisplay}
       </div>
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {showAILoopGenerator && (
           <div className="absolute inset-0 z-[200] bg-black/70">
             <div className="absolute right-4 top-4 bottom-4 w-[min(760px,calc(100%-2rem))] overflow-y-auto">
@@ -3332,7 +3332,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         )}
 
         {/* Piano Roll Grid Area — shows vocal recorder for audio tracks, note grid for MIDI tracks */}
-        <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 min-h-0 flex overflow-hidden relative">
           {(selectedTrack as any)?.type === 'audio' ? (
             <StudioVocalRecorder
               trackId={selectedTrack.id}

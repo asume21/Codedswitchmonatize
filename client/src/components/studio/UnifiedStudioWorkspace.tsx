@@ -4299,7 +4299,7 @@ export default function UnifiedStudioWorkspace() {
 
           {/* PIANO ROLL VIEW — always mounted so MIDI listeners + note state survive tab switches */}
           <div
-            className="flex-1 overflow-hidden flex flex-col"
+            className="flex-1 min-h-0 overflow-hidden flex flex-col"
             style={{ display: activeView === 'piano-roll' ? 'flex' : 'none' }}
           >
             {(() => {
