@@ -188,6 +188,24 @@ class AstutelyOrganismBridge {
     this.dispatch('force-subgenre', { subGenre });
   }
 
+  // ── Playing Technique / Articulation ──────────────────────────────────
+
+  setChordTechnique(techniqueId: string): void {
+    this.dispatch('set-chord-technique', { techniqueId });
+  }
+
+  setMelodyArticulation(articulationId: string): void {
+    this.dispatch('set-melody-articulation', { articulationId });
+  }
+
+  setBassArticulation(articulationId: string): void {
+    this.dispatch('set-bass-articulation', { articulationId });
+  }
+
+  setStyleShiftsEnabled(enabled: boolean): void {
+    this.dispatch('set-style-shifts-enabled', { enabled });
+  }
+
   // ── State access ───────────────────────────────────────────────────────
 
   getState(): AstutelyOrganismBridgeState {

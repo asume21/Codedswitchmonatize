@@ -147,10 +147,7 @@ function parseNumeral(symbol: string): ChordEvent {
   } else if (suffix === 'aug') {
     intervals = [...CHORD_QUALITIES.aug]
   } else if (CHORD_QUALITIES[suffix]) {
-    // Direct match (sus2, sus4, 7, add9, etc.)
-    intervals = [...CHORD_QUALITIES[suffix]]
-  } else if (suffix.startsWith('m') && CHORD_QUALITIES[suffix]) {
-    // Minor quality variants (m7, m9, madd9, etc.)
+    // Direct match (sus2, sus4, 7, add9, m7, m9, madd9, etc.)
     intervals = [...CHORD_QUALITIES[suffix]]
   } else if (suffix.startsWith('m') && CHORD_QUALITIES[suffix.slice(1)]) {
     // e.g. "m7" where 'm' is quality prefix and '7' is the extension

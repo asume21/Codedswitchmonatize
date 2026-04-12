@@ -1086,6 +1086,34 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           }
           break
         }
+        case 'set-chord-technique': {
+          const { techniqueId } = detail as Record<string, unknown>
+          if (typeof techniqueId === 'string' && orchestrRef.current) {
+            orchestrRef.current.setChordTechnique(techniqueId)
+          }
+          break
+        }
+        case 'set-melody-articulation': {
+          const { articulationId } = detail as Record<string, unknown>
+          if (typeof articulationId === 'string' && orchestrRef.current) {
+            orchestrRef.current.setMelodyArticulation(articulationId)
+          }
+          break
+        }
+        case 'set-bass-articulation': {
+          const { articulationId } = detail as Record<string, unknown>
+          if (typeof articulationId === 'string' && orchestrRef.current) {
+            orchestrRef.current.setBassArticulation(articulationId)
+          }
+          break
+        }
+        case 'set-style-shifts-enabled': {
+          const { enabled } = detail as Record<string, unknown>
+          if (typeof enabled === 'boolean' && reactiveRef.current) {
+            reactiveRef.current.setStyleShiftsEnabled(enabled)
+          }
+          break
+        }
       }
     }
 

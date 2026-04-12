@@ -40,10 +40,21 @@ const LegatoSlur: Articulation = {
   family: ['wind', 'brass', 'bowed'],
   description: 'Lengthens note ~120% for smooth connection, softer attack',
   apply: (note, duration, velocity) => {
-    // Extend duration by 20% to slur into next note
-    const extDur = typeof duration === 'number'
-      ? duration * 1.2
-      : `${Tone.Time(duration).toSeconds() * 1.2}`
+    // Extend duration by 20% to slur into next note. Wrap Tone.Time in
+    // try/catch — in test/jsdom environments Tone's time parser may throw,
+    // in which case we fall back to the original duration (still slurred via
+    // softer velocity alone).
+    let extDur: string | number = duration
+    try {
+      if (typeof duration === 'number') {
+        extDur = duration * 1.2
+      } else {
+        const secs = Tone.Time(duration).toSeconds()
+        if (typeof secs === 'number' && secs > 0) {
+          extDur = secs * 1.2
+        }
+      }
+    } catch { /* keep original duration */ }
     return [{
       timeOffset: 0,
       note,
@@ -217,19 +228,29 @@ const BassOctaveJump: Articulation = {
     if (!ctx.isDownbeat) {
       return [{ timeOffset: 0, note, duration, velocity }]
     }
+    // Compute the octave-up pitch. If note is already a MIDI number, add 12
+    // directly; if a string like "E2" try Tone.Frequency; on any failure fall
+    // back to a second hit of the same note (still sounds like a double-pluck).
+    let octaveUp: string | number = note
+    let halfSec = 60 / ctx.tempo / 2  // default: half of a beat at this tempo
     try {
-      const midi = Tone.Frequency(note as any).toMidi()
-      const octaveUp = Tone.Frequency(midi + 12, 'midi').toNote()
-      const halfDur = typeof duration === 'number'
-        ? duration / 2
-        : `${Tone.Time(duration).toSeconds() / 2}`
-      return [
-        { timeOffset: 0,           note,       duration: halfDur, velocity },
-        { timeOffset: Tone.Time(halfDur).toSeconds(), note: octaveUp, duration: halfDur, velocity: velocity * 0.85 },
-      ]
-    } catch {
-      return [{ timeOffset: 0, note, duration, velocity }]
-    }
+      if (typeof note === 'number') {
+        octaveUp = note + 12
+      } else {
+        const midi = Tone.Frequency(note as any).toMidi()
+        if (typeof midi === 'number' && Number.isFinite(midi)) {
+          octaveUp = Tone.Frequency(midi + 12, 'midi').toNote()
+        }
+      }
+      const t = typeof duration === 'number' ? duration : Tone.Time(duration).toSeconds()
+      if (typeof t === 'number' && Number.isFinite(t) && t > 0) {
+        halfSec = t / 2
+      }
+    } catch { /* retain fallbacks */ }
+    return [
+      { timeOffset: 0,        note,             duration: halfSec, velocity },
+      { timeOffset: halfSec,  note: octaveUp,   duration: halfSec, velocity: velocity * 0.85 },
+    ]
   },
 }
 

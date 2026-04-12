@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
   Volume2,
+  Guitar,
 } from 'lucide-react';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { OrganismMode } from '@/organism/physics/types';
@@ -51,6 +52,8 @@ export default function AstutelyBrainContent() {
     organismPhysicsState, organismCurrentState, organismIsRunning,
     organismLockMode, organismUnlockMode, organismSetBpm, organismForceState,
     organismSetGeneratorVolume, organismSetTextureEnabled,
+    organismSetChordTechnique, organismSetMelodyArticulation,
+    organismSetBassArticulation, organismSetStyleShiftsEnabled,
     setMixerMasterLevel,
   } = useAstutelyCore();
 
@@ -83,6 +86,32 @@ export default function AstutelyBrainContent() {
     const next = !textureEnabled;
     setTextureLocal(next);
     organismSetTextureEnabled(next);
+  };
+
+  // Playing technique / articulation controls.
+  // Defaults match the engine side (piano-block-chord / none / none) so
+  // "Auto" reflects what's running when style-shifts are enabled.
+  const [chordTech, setChordTech] = useState<string>('piano-block-chord');
+  const [melodyArt, setMelodyArt] = useState<string>('none');
+  const [bassArt, setBassArt] = useState<string>('none');
+  const [styleShifts, setStyleShifts] = useState<boolean>(true);
+
+  const onChordTechChange = (id: string) => {
+    setChordTech(id);
+    organismSetChordTechnique(id);
+  };
+  const onMelodyArtChange = (id: string) => {
+    setMelodyArt(id);
+    organismSetMelodyArticulation(id);
+  };
+  const onBassArtChange = (id: string) => {
+    setBassArt(id);
+    organismSetBassArticulation(id);
+  };
+  const toggleStyleShifts = () => {
+    const next = !styleShifts;
+    setStyleShifts(next);
+    organismSetStyleShiftsEnabled(next);
   };
 
   const physics = organismPhysicsState;
@@ -296,6 +325,113 @@ export default function AstutelyBrainContent() {
           <AstutelyLedButton active={textureEnabled} tone={textureEnabled ? 'emerald' : 'red'} size="sm" onClick={toggleTexture}>
             Texture {textureEnabled ? 'On' : 'Off'}
           </AstutelyLedButton>
+        </div>
+      </Section>
+
+      {/* ═══ STYLE (Technique + Articulation) ════════════════════ */}
+      <Section
+        id="style"
+        label="Style"
+        icon={<Guitar className="w-4 h-4" />}
+        expanded={expandedSection === 'style'}
+        onToggle={() => toggleSection('style')}
+        badge={styleShifts ? 'AUTO' : 'MANUAL'}
+        badgeColor={styleShifts ? 'text-emerald-400' : 'text-amber-400'}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs text-white/70">Auto style-shifts</span>
+          <AstutelyLedButton
+            active={styleShifts}
+            tone={styleShifts ? 'emerald' : 'red'}
+            size="sm"
+            onClick={toggleStyleShifts}
+          >
+            {styleShifts ? 'On' : 'Off'}
+          </AstutelyLedButton>
+        </div>
+        <div className="text-[9px] text-white/40 mb-3 leading-relaxed">
+          When on, the reactive engine shifts technique + articulations based
+          on rapper energy (low/mid/high) with 8s cooldown. Manual picks
+          below override the engine until you change mode.
+        </div>
+
+        {/* Chord Technique */}
+        <div className="mb-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-wider block mb-1">
+            Chord Technique
+          </label>
+          <select
+            value={chordTech}
+            onChange={(e) => onChordTechChange(e.target.value)}
+            className="w-full h-8 rounded-lg border border-cyan-500/30 bg-black/60 px-2 text-xs text-cyan-100 focus:outline-none focus:border-cyan-400"
+          >
+            <optgroup label="Piano">
+              <option value="piano-block-chord">Block Chord (Default)</option>
+              <option value="piano-rolled-chord">Rolled Chord</option>
+              <option value="piano-alberti">Alberti 1-5-3-5</option>
+              <option value="piano-sustained-pad">Sustained Pad</option>
+            </optgroup>
+            <optgroup label="Guitar">
+              <option value="guitar-strum-down">Strum Down</option>
+              <option value="guitar-strum-up">Strum Up</option>
+              <option value="guitar-arp-rolled">Arpeggio Rolled</option>
+              <option value="guitar-muted-stab">Muted Stab</option>
+            </optgroup>
+            <optgroup label="Strings">
+              <option value="strings-pizzicato">Pizzicato</option>
+              <option value="strings-legato">Legato</option>
+              <option value="strings-tremolo">Tremolo</option>
+              <option value="strings-staccato">Staccato</option>
+            </optgroup>
+            <optgroup label="Brass">
+              <option value="brass-stab">Stab</option>
+              <option value="brass-swell">Swell</option>
+              <option value="brass-fanfare">Fanfare</option>
+              <option value="brass-section-pad">Section Pad</option>
+            </optgroup>
+            <optgroup label="Wind">
+              <option value="wind-legato">Legato Line</option>
+              <option value="wind-run">Scalar Run</option>
+              <option value="wind-staccato">Staccato</option>
+              <option value="wind-trill">Trill</option>
+            </optgroup>
+          </select>
+        </div>
+
+        {/* Melody Articulation */}
+        <div className="mb-2">
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-wider block mb-1">
+            Melody Articulation
+          </label>
+          <select
+            value={melodyArt}
+            onChange={(e) => onMelodyArtChange(e.target.value)}
+            className="w-full h-8 rounded-lg border border-cyan-500/30 bg-black/60 px-2 text-xs text-cyan-100 focus:outline-none focus:border-cyan-400"
+          >
+            <option value="none">None (Straight)</option>
+            <option value="legato-slur">Legato Slur</option>
+            <option value="staccato-pop">Staccato Pop</option>
+            <option value="grace-flick">Grace-Note Flick</option>
+            <option value="trill-ornament">Trill Ornament</option>
+          </select>
+        </div>
+
+        {/* Bass Articulation */}
+        <div>
+          <label className="text-[10px] font-bold text-white/50 uppercase tracking-wider block mb-1">
+            Bass Articulation
+          </label>
+          <select
+            value={bassArt}
+            onChange={(e) => onBassArtChange(e.target.value)}
+            className="w-full h-8 rounded-lg border border-cyan-500/30 bg-black/60 px-2 text-xs text-cyan-100 focus:outline-none focus:border-cyan-400"
+          >
+            <option value="none">None (Straight)</option>
+            <option value="bass-slide-up">Slide-Up</option>
+            <option value="bass-ghost-note">Ghost Note</option>
+            <option value="bass-octave-jump">Octave Jump</option>
+            <option value="bass-walking-step">Walking Step</option>
+          </select>
         </div>
       </Section>
 

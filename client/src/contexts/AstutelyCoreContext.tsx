@@ -159,6 +159,10 @@ export interface AstutelyCoreValue {
   organismSetTextureEnabled: (enabled: boolean) => void;
   organismSetMelodyOnly: (enabled: boolean) => void;
   organismQuickStart: (presetId: string) => void;
+  organismSetChordTechnique: (techniqueId: string) => void;
+  organismSetMelodyArticulation: (articulationId: string) => void;
+  organismSetBassArticulation: (articulationId: string) => void;
+  organismSetStyleShiftsEnabled: (enabled: boolean) => void;
 
   // ── Mixer Control ──
   getMixerSnapshot: () => MixerSnapshot;
@@ -875,6 +879,22 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     astutelyOrganismBridge.quickStart(presetId);
   }, []);
 
+  const organismSetChordTechnique = useCallback((techniqueId: string) => {
+    astutelyOrganismBridge.setChordTechnique(techniqueId);
+  }, []);
+
+  const organismSetMelodyArticulation = useCallback((articulationId: string) => {
+    astutelyOrganismBridge.setMelodyArticulation(articulationId);
+  }, []);
+
+  const organismSetBassArticulation = useCallback((articulationId: string) => {
+    astutelyOrganismBridge.setBassArticulation(articulationId);
+  }, []);
+
+  const organismSetStyleShiftsEnabled = useCallback((enabled: boolean) => {
+    astutelyOrganismBridge.setStyleShiftsEnabled(enabled);
+  }, []);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // MIXER CONTROL
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1067,6 +1087,10 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     organismSetTextureEnabled,
     organismSetMelodyOnly,
     organismQuickStart,
+    organismSetChordTechnique,
+    organismSetMelodyArticulation,
+    organismSetBassArticulation,
+    organismSetStyleShiftsEnabled,
 
     // Mixer Control
     getMixerSnapshot,
@@ -1137,6 +1161,10 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     organismSetTextureEnabled,
     organismSetMelodyOnly,
     organismQuickStart,
+    organismSetChordTechnique,
+    organismSetMelodyArticulation,
+    organismSetBassArticulation,
+    organismSetStyleShiftsEnabled,
     getMixerSnapshot,
     setMixerChannelVolume,
     setMixerChannelPan,
