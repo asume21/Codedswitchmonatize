@@ -49,6 +49,17 @@ export interface InstrumentFocus {
    * Examples: 'guitar-arp-rolled', 'piano-rolled-chord', 'strings-pizzicato'.
    */
   chordTechnique?: string
+  /**
+   * Articulation id for the MelodyGenerator (wind/lead articulation).
+   * Examples: 'legato-slur', 'staccato-pop', 'grace-flick', 'trill-ornament'.
+   */
+  melodyArticulation?: string
+  /**
+   * Articulation id for the BassGenerator.
+   * Examples: 'bass-slide-up', 'bass-ghost-note', 'bass-octave-jump',
+   * 'bass-walking-step'.
+   */
+  bassArticulation?: string
 }
 
 export interface MoodSignal {
@@ -217,47 +228,62 @@ const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
 
   // ── STORYTELLING ENTRIES — Piano/Rhodes forward, cinematic sparseness ─
 
-  // "Let me paint the picture" → piano-rolled-chord (emotional J. Cole/Alicia Keys roll)
+  // "Let me paint the picture" → piano-rolled-chord + grace-flick melody + walking bass
+  // (emotional J. Cole/Alicia Keys roll with jazz bass under it)
   { phrases: ['let me paint the picture', 'paint the picture', 'paint a picture', 'paint this picture'],
     action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
       instrumentFocus: { chord: 1.1, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5, melody: 0.4,
-        chordTechnique: 'piano-rolled-chord' } } }, cooldownMs: 10000 },
+        chordTechnique: 'piano-rolled-chord',
+        melodyArticulation: 'grace-flick',
+        bassArticulation: 'bass-walking-step' } } }, cooldownMs: 10000 },
 
-  // "Let me tell you" → piano-rolled-chord for narrative warmth
+  // "Let me tell you" → piano roll + legato melody slur + walking bass (warm narrative)
   { phrases: ['let me tell you', 'tell you a story', 'tell a story', 'let me tell ya'],
     action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
       instrumentFocus: { chord: 1.1, melody: 0.5, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5,
-        chordTechnique: 'piano-rolled-chord' } } }, cooldownMs: 10000 },
+        chordTechnique: 'piano-rolled-chord',
+        melodyArticulation: 'legato-slur',
+        bassArticulation: 'bass-walking-step' } } }, cooldownMs: 10000 },
 
-  // "Back in the day" → guitar-muted-stab for nostalgic soul-sample chunk
+  // "Back in the day" → muted stab + staccato melody + ghost-note bass (tight boom-bap pocket)
   { phrases: ['back in the day', 'back when', 'back in the days', 'remember when'],
     action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
       instrumentFocus: { chord: 1.0, texture: 0.9, bass: 0.8, kick: 0.7, hats: 0.65, melody: 0.4,
-        chordTechnique: 'guitar-muted-stab' } } }, cooldownMs: 10000 },
+        chordTechnique: 'guitar-muted-stab',
+        melodyArticulation: 'staccato-pop',
+        bassArticulation: 'bass-ghost-note' } } }, cooldownMs: 10000 },
 
-  // "Come with me" → piano-alberti for rolling journey feel
+  // "Come with me" → alberti + legato melody + slide bass (rolling journey feel)
   { phrases: ['come with me', 'take you back', 'take a journey', 'come on a journey', 'let me take you'],
     action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup', preferredSubGenre: 'boom-bap',
       instrumentFocus: { chord: 1.1, texture: 0.8, bass: 0.6, kick: 0.5, hats: 0.4, melody: 0.5,
-        chordTechnique: 'piano-alberti' } } }, cooldownMs: 10000 },
+        chordTechnique: 'piano-alberti',
+        melodyArticulation: 'legato-slur',
+        bassArticulation: 'bass-slide-up' } } }, cooldownMs: 10000 },
 
-  // "Picture this" → strings-legato for cinematic wash
+  // "Picture this" → strings legato + trill ornament + slide bass (cinematic wash)
   { phrases: ['picture this', 'imagine this', 'imagine that', 'visualize'],
     action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup',
       instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.4, bass: 0.6, kick: 0.5, hats: 0.4,
-        chordTechnique: 'strings-legato' } } }, cooldownMs: 10000 },
+        chordTechnique: 'strings-legato',
+        melodyArticulation: 'trill-ornament',
+        bassArticulation: 'bass-slide-up' } } }, cooldownMs: 10000 },
 
-  // "Once upon a time" → piano-sustained-pad for storytelling bed
+  // "Once upon a time" → sustained pad + legato + slide bass (storytelling bed)
   { phrases: ['once upon a time', 'story time', 'storytime', 'gather round'],
     action: { type: 'mood-signal', mood: { energy: 0.3, intent: 'warmup', preferredSubGenre: 'boom-bap',
       instrumentFocus: { chord: 1.1, texture: 0.9, bass: 0.5, kick: 0.4, hats: 0.4, melody: 0.4,
-        chordTechnique: 'piano-sustained-pad' } } }, cooldownMs: 10000 },
+        chordTechnique: 'piano-sustained-pad',
+        melodyArticulation: 'legato-slur',
+        bassArticulation: 'bass-slide-up' } } }, cooldownMs: 10000 },
 
-  // "Close your eyes" → strings-tremolo for tension/immersion
+  // "Close your eyes" → tremolo + trill + ghost bass (tension / immersion)
   { phrases: ['close your eyes', 'close ya eyes', 'close them eyes', 'picture it'],
     action: { type: 'mood-signal', mood: { energy: 0.3, intent: 'warmup',
       instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.3, bass: 0.5, kick: 0.4, hats: 0.3,
-        chordTechnique: 'strings-tremolo' } } }, cooldownMs: 10000 },
+        chordTechnique: 'strings-tremolo',
+        melodyArticulation: 'trill-ornament',
+        bassArticulation: 'bass-ghost-note' } } }, cooldownMs: 10000 },
 
   // "Talk to me" → guitar-arp-rolled for melodic call-and-response feel
   { phrases: ['talk to me', 'come on now', 'sing to me', 'play something'],

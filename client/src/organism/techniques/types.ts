@@ -81,3 +81,46 @@ export interface PlayingTechnique {
 
 /** Registry of all techniques, keyed by id. */
 export type TechniqueRegistry = Map<string, PlayingTechnique>
+
+// ─────────────────────────────────────────────────────────────────────
+// ARTICULATION (monophonic — for MelodyGenerator / BassGenerator)
+// ─────────────────────────────────────────────────────────────────────
+
+/** Context for a single-note articulation. */
+export interface ArticulationContext {
+  /** Tempo in BPM. */
+  tempo: number
+  /** Performer energy 0-1. */
+  energy: number
+  /** Whether this is a phrase downbeat (enables accent techniques). */
+  isDownbeat: boolean
+  /** Position in 16ths within the bar (0-15). */
+  sixteenthPos: number
+}
+
+/**
+ * An articulation is a transform on a single scheduled note — unlike a
+ * chord technique, it does NOT redistribute multiple notes across time.
+ * It can:
+ *   - adjust duration (legato: lengthen; staccato: shorten)
+ *   - add grace notes / slides before the attack
+ *   - add ghost notes / decorations after
+ *   - modulate velocity (accent / shadow)
+ */
+export interface Articulation {
+  id: string
+  name: string
+  family: InstrumentFamily[]
+  description: string
+  /**
+   * Transform a single note. Returns an array because some articulations
+   * (grace notes, ghost notes, trills) expand one note into multiple.
+   * The first event should be the main note at or near timeOffset=0.
+   */
+  apply: (
+    note: string | number,
+    originalDuration: string | number,
+    originalVelocity: number,
+    ctx: ArticulationContext
+  ) => ScheduledNote[]
+}

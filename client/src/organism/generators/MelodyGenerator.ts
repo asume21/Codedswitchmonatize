@@ -18,6 +18,12 @@ import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import {
+  applyArticulation,
+  DEFAULT_ARTICULATION_ID,
+  defaultMelodyArticulation,
+} from '../techniques/articulations'
+import type { ArticulationContext } from '../techniques/types'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -69,6 +75,27 @@ export class MelodyGenerator extends GeneratorBase {
   private pendingBehavior: MelodyBehavior | null = null
   private pendingBehaviorFrames: number = 0
   private static readonly BEHAVIOR_DEBOUNCE_FRAMES = 2
+
+  // Articulation — per-note transform applied on each Tone.Part callback.
+  // Defaults to 'none' (identity pass-through), preserving legacy behavior.
+  private currentArticulationId: string = DEFAULT_ARTICULATION_ID
+  private articulationOverridden: boolean = false
+  private lastModeForArticulation: string = ''
+
+  /** Set articulation. markAsOverride=true locks out mode-default auto-apply. */
+  setArticulation(articulationId: string, markAsOverride: boolean = true): void {
+    this.currentArticulationId = articulationId
+    if (markAsOverride) this.articulationOverridden = true
+  }
+
+  /** Clear override so mode defaults can drive articulation again. */
+  resetArticulationOverride(): void {
+    this.articulationOverridden = false
+  }
+
+  getArticulation(): string {
+    return this.currentArticulationId
+  }
 
   // ─── Dynamic Global Voices ──────────────────────────────────
   private static readonly GLOBAL_VOICES: Array<{
@@ -288,6 +315,13 @@ export class MelodyGenerator extends GeneratorBase {
     this.flowDepth       = organism.flowDepth
     this.currentSwing    = MelodyGenerator.MODE_SWING[physics.mode.toString()] ?? 0.35
 
+    // Auto-apply mode-default articulation if user/warmup hasn't overridden it.
+    const modeStr = physics.mode.toString()
+    if (!this.articulationOverridden && modeStr !== this.lastModeForArticulation) {
+      this.currentArticulationId = defaultMelodyArticulation(modeStr)
+      this.lastModeForArticulation = modeStr
+    }
+
     const newBehavior = getMelodyBehavior(
       physics.mode,
       physics.voiceActive,
@@ -418,14 +452,42 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
-      // Use sampler only if fully loaded; otherwise use fallback PolySynth
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
-      voice.triggerAttackRelease(
+      const finalVel = event.vel * presenceDuck
+
+      // Fast-path: default articulation skips the transform for zero overhead.
+      if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
+        voice.triggerAttackRelease(event.note, event.dur, time, finalVel)
+        return
+      }
+
+      // Decode sixteenthPos from event.time (bar:beat:sub) for articulation context.
+      const timeStr = String(event.time ?? '0:0:0')
+      const parts = timeStr.split(':')
+      const beat = parseFloat(parts[1] ?? '0')
+      const sub  = parseFloat(parts[2] ?? '0')
+      const sixteenthPos = Math.floor(beat * 4 + sub) % 16
+      const isDownbeat = sixteenthPos % 4 === 0
+
+      const artCtx: ArticulationContext = {
+        tempo: Tone.getTransport().bpm.value || 90,
+        energy: Math.max(0, Math.min(1, finalVel)),
+        isDownbeat,
+        sixteenthPos,
+      }
+
+      const scheduled = applyArticulation(
+        this.currentArticulationId,
         event.note,
         event.dur,
-        time,
-        event.vel * presenceDuck
+        finalVel,
+        artCtx
       )
+      for (const n of scheduled) {
+        // Guard against negative pre-beat offsets if we'd schedule in the past.
+        const t = Math.max(time + n.timeOffset, time - 0.02)
+        voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
+      }
     }, notes.map(n => ({ time: n.time, note: n.pitch, dur: n.duration, vel: n.velocity })))
 
     this.part.loop    = true

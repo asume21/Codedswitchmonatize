@@ -19,6 +19,12 @@ import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import {
+  applyArticulation,
+  DEFAULT_ARTICULATION_ID,
+  defaultBassArticulation,
+} from '../techniques/articulations'
+import type { ArticulationContext } from '../techniques/types'
 
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -52,6 +58,24 @@ export class BassGenerator extends GeneratorBase {
   private fallbackSynth: Tone.MonoSynth
   
   private isCurrentVoiceSampler: boolean = false
+
+  // Articulation — per-note transform. Defaults to 'none' (legacy behavior).
+  private currentArticulationId: string = DEFAULT_ARTICULATION_ID
+  private articulationOverridden: boolean = false
+  private lastModeForArticulation: string = ''
+
+  setArticulation(articulationId: string, markAsOverride: boolean = true): void {
+    this.currentArticulationId = articulationId
+    if (markAsOverride) this.articulationOverridden = true
+  }
+
+  resetArticulationOverride(): void {
+    this.articulationOverridden = false
+  }
+
+  getArticulation(): string {
+    return this.currentArticulationId
+  }
 
   // ─── Dynamic Global Voices ──────────────────────────────────
   private static readonly GLOBAL_VOICES = [
@@ -118,6 +142,13 @@ export class BassGenerator extends GeneratorBase {
   processFrame(physics: PhysicsState, organism: OrganismState): void {
     this.currentPocket = physics.pocket
     this.currentMode   = physics.mode
+
+    // Apply mode-default articulation unless explicitly overridden.
+    const modeStr = physics.mode.toString()
+    if (!this.articulationOverridden && modeStr !== this.lastModeForArticulation) {
+      this.currentArticulationId = defaultBassArticulation(modeStr)
+      this.lastModeForArticulation = modeStr
+    }
 
     const newBehavior = getBassBehavior(physics.mode, organism.current)
 
@@ -315,9 +346,41 @@ export class BassGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
-      // Use sampler only if fully loaded; otherwise use fallback MonoSynth
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
-      voice.triggerAttackRelease(event.note, event.dur, time + LAY_BACK_SEC, pocketVelocity)
+      const scheduledTime = time + LAY_BACK_SEC
+
+      // Fast-path: default articulation skips the transform.
+      if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
+        voice.triggerAttackRelease(event.note, event.dur, scheduledTime, pocketVelocity)
+        return
+      }
+
+      // Decode sixteenthPos from event.time for articulation context.
+      const timeStr = String(event.time ?? '0:0:0')
+      const parts = timeStr.split(':')
+      const beat = parseFloat(parts[1] ?? '0')
+      const sub  = parseFloat(parts[2] ?? '0')
+      const sixteenthPos = Math.floor(beat * 4 + sub) % 16
+      const isDownbeat = sixteenthPos % 4 === 0
+
+      const artCtx: ArticulationContext = {
+        tempo: Tone.getTransport().bpm.value || 90,
+        energy: Math.max(0, Math.min(1, pocketVelocity)),
+        isDownbeat,
+        sixteenthPos,
+      }
+
+      const scheduled = applyArticulation(
+        this.currentArticulationId,
+        event.note,
+        event.dur,
+        pocketVelocity,
+        artCtx
+      )
+      for (const n of scheduled) {
+        const t = Math.max(scheduledTime + n.timeOffset, scheduledTime - 0.02)
+        voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
+      }
     }, events)
 
     this.part.loop      = true

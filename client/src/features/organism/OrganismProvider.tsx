@@ -1161,6 +1161,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
                 orch.setChordTechnique(focus.chordTechnique)
                 console.debug(`🎸 Technique set: ${focus.chordTechnique}`)
               }
+              // Articulations — single-note transforms for melody (flute/sax/lead)
+              // and bass. Distinct from chord techniques because these generators
+              // play one note at a time, not a full chord.
+              if (focus.melodyArticulation) {
+                orch.setMelodyArticulation(focus.melodyArticulation)
+                console.debug(`🎺 Melody articulation: ${focus.melodyArticulation}`)
+              }
+              if (focus.bassArticulation) {
+                orch.setBassArticulation(focus.bassArticulation)
+                console.debug(`🎸 Bass articulation: ${focus.bassArticulation}`)
+              }
               console.debug('🎛️ Warmup instrument focus applied:', focus)
             }
             break

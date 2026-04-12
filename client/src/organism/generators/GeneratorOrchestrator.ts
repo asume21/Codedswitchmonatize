@@ -554,6 +554,40 @@ export class GeneratorOrchestrator {
   }
 
   /**
+   * Set melody articulation. Transforms each single-note melody event.
+   * Available: 'none' (default), 'legato-slur', 'staccato-pop',
+   * 'grace-flick', 'trill-ornament'.
+   */
+  setMelodyArticulation(articulationId: string): void {
+    this.melody.setArticulation(articulationId)
+  }
+
+  getMelodyArticulation(): string {
+    return this.melody.getArticulation()
+  }
+
+  resetMelodyArticulationOverride(): void {
+    this.melody.resetArticulationOverride()
+  }
+
+  /**
+   * Set bass articulation. Transforms each single-note bass event.
+   * Available: 'none' (default), 'bass-slide-up', 'bass-ghost-note',
+   * 'bass-octave-jump', 'bass-walking-step'.
+   */
+  setBassArticulation(articulationId: string): void {
+    this.bass.setArticulation(articulationId)
+  }
+
+  getBassArticulation(): string {
+    return this.bass.getArticulation()
+  }
+
+  resetBassArticulationOverride(): void {
+    this.bass.resetArticulationOverride()
+  }
+
+  /**
    * Wire the kick trigger callback for sidechain ducking.
    * The MixEngine calls this to receive a callback on every kick hit.
    */
