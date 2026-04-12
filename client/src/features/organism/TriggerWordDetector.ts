@@ -43,6 +43,12 @@ export interface InstrumentFocus {
   kick?:     number
   texture?:  number
   chord?:    number
+  /**
+   * Playing technique id to apply to the ChordGenerator.
+   * When present, overrides the mode default technique.
+   * Examples: 'guitar-arp-rolled', 'piano-rolled-chord', 'strings-pizzicato'.
+   */
+  chordTechnique?: string
 }
 
 export interface MoodSignal {
@@ -146,10 +152,12 @@ const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
 
   // ── CYPHER ENTRIES — Drums + Bass only, nothing melodic ─────────────
 
-  // "Yo yo yo" → Classic cypher opener. Upright bass + boom-bap drums.
+  // "Yo yo yo" → Classic cypher opener. Upright bass + boom-bap drums +
+  // muted guitar stabs on 2 & 4 (funk/boom-bap idiom).
   { phrases: ['yo yo yo', 'yo yo', 'yoo yoo'],
     action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup',
-      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.9, melody: 0.0, chord: 0.0, texture: 0.3 } } }, cooldownMs: 8000 },
+      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.9, melody: 0.0, chord: 0.4, texture: 0.3,
+        chordTechnique: 'guitar-muted-stab' } } }, cooldownMs: 8000 },
 
   // "1-2 1-2" / "check check" → Mic check: drums ONLY, vinyl hiss
   { phrases: ['1 2 1 2', 'one two one two', 'check check', 'check the mic', 'mic check', 'testing testing', 'test test'],
@@ -161,10 +169,11 @@ const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
     action: { type: 'mood-signal', mood: { energy: 0.5, intent: 'warmup',
       instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.95, melody: 0.2, chord: 0.4, texture: 0.3 } } }, cooldownMs: 6000 },
 
-  // "Uh huh uh huh" → Head-nod + sparse Rhodes stabs every 2 bars
+  // "Uh huh uh huh" → Head-nod + sparse Rhodes rolled chord every 2 bars
   { phrases: ['uh huh uh huh', 'uh huh', 'mmhmm mmhmm', 'mhm mhm'],
     action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
-      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.85, chord: 0.6, melody: 0.2, texture: 0.3 } } }, cooldownMs: 8000 },
+      instrumentFocus: { bass: 1.1, kick: 1.0, hats: 0.85, chord: 0.6, melody: 0.2, texture: 0.3,
+        chordTechnique: 'piano-rolled-chord' } } }, cooldownMs: 8000 },
 
   // "Ay ay ay" / "ey ey" → Percussive cypher entry: drums + bass
   { phrases: ['ay ay ay', 'ey ey ey', 'ay ay', 'ey ey'],
@@ -208,60 +217,71 @@ const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
 
   // ── STORYTELLING ENTRIES — Piano/Rhodes forward, cinematic sparseness ─
 
-  // "Let me paint the picture" → Storytelling classic: piano pad + soft drums
+  // "Let me paint the picture" → piano-rolled-chord (emotional J. Cole/Alicia Keys roll)
   { phrases: ['let me paint the picture', 'paint the picture', 'paint a picture', 'paint this picture'],
     action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
-      instrumentFocus: { chord: 1.1, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5, melody: 0.4 } } }, cooldownMs: 10000 },
+      instrumentFocus: { chord: 1.1, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5, melody: 0.4,
+        chordTechnique: 'piano-rolled-chord' } } }, cooldownMs: 10000 },
 
-  // "Let me tell you" / "tell you a story" → Storytelling piano lead
+  // "Let me tell you" → piano-rolled-chord for narrative warmth
   { phrases: ['let me tell you', 'tell you a story', 'tell a story', 'let me tell ya'],
     action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
-      instrumentFocus: { chord: 1.1, melody: 0.5, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5 } } }, cooldownMs: 10000 },
+      instrumentFocus: { chord: 1.1, melody: 0.5, texture: 0.7, bass: 0.7, kick: 0.6, hats: 0.5,
+        chordTechnique: 'piano-rolled-chord' } } }, cooldownMs: 10000 },
 
-  // "Back in the day" → Nostalgic soul sample vibe: Rhodes + dusty drums
+  // "Back in the day" → guitar-muted-stab for nostalgic soul-sample chunk
   { phrases: ['back in the day', 'back when', 'back in the days', 'remember when'],
     action: { type: 'mood-signal', mood: { energy: 0.4, intent: 'warmup', preferredSubGenre: 'boom-bap',
-      instrumentFocus: { chord: 1.0, texture: 0.9, bass: 0.8, kick: 0.7, hats: 0.65, melody: 0.4 } } }, cooldownMs: 10000 },
+      instrumentFocus: { chord: 1.0, texture: 0.9, bass: 0.8, kick: 0.7, hats: 0.65, melody: 0.4,
+        chordTechnique: 'guitar-muted-stab' } } }, cooldownMs: 10000 },
 
-  // "Come with me" / "take you on a journey" → Storytelling opener
+  // "Come with me" → piano-alberti for rolling journey feel
   { phrases: ['come with me', 'take you back', 'take a journey', 'come on a journey', 'let me take you'],
     action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup', preferredSubGenre: 'boom-bap',
-      instrumentFocus: { chord: 1.1, texture: 0.8, bass: 0.6, kick: 0.5, hats: 0.4, melody: 0.5 } } }, cooldownMs: 10000 },
+      instrumentFocus: { chord: 1.1, texture: 0.8, bass: 0.6, kick: 0.5, hats: 0.4, melody: 0.5,
+        chordTechnique: 'piano-alberti' } } }, cooldownMs: 10000 },
 
-  // "Picture this" / "imagine" → Cinematic storytelling: strings + piano
+  // "Picture this" → strings-legato for cinematic wash
   { phrases: ['picture this', 'imagine this', 'imagine that', 'visualize'],
     action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup',
-      instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.4, bass: 0.6, kick: 0.5, hats: 0.4 } } }, cooldownMs: 10000 },
+      instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.4, bass: 0.6, kick: 0.5, hats: 0.4,
+        chordTechnique: 'strings-legato' } } }, cooldownMs: 10000 },
 
-  // "Once upon a time" / "story time" → Classic storytelling setup
+  // "Once upon a time" → piano-sustained-pad for storytelling bed
   { phrases: ['once upon a time', 'story time', 'storytime', 'gather round'],
     action: { type: 'mood-signal', mood: { energy: 0.3, intent: 'warmup', preferredSubGenre: 'boom-bap',
-      instrumentFocus: { chord: 1.1, texture: 0.9, bass: 0.5, kick: 0.4, hats: 0.4, melody: 0.4 } } }, cooldownMs: 10000 },
+      instrumentFocus: { chord: 1.1, texture: 0.9, bass: 0.5, kick: 0.4, hats: 0.4, melody: 0.4,
+        chordTechnique: 'piano-sustained-pad' } } }, cooldownMs: 10000 },
 
-  // "Close your eyes" → Immersive cinematic
+  // "Close your eyes" → strings-tremolo for tension/immersion
   { phrases: ['close your eyes', 'close ya eyes', 'close them eyes', 'picture it'],
     action: { type: 'mood-signal', mood: { energy: 0.3, intent: 'warmup',
-      instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.3, bass: 0.5, kick: 0.4, hats: 0.3 } } }, cooldownMs: 10000 },
+      instrumentFocus: { chord: 1.1, texture: 1.0, melody: 0.3, bass: 0.5, kick: 0.4, hats: 0.3,
+        chordTechnique: 'strings-tremolo' } } }, cooldownMs: 10000 },
 
-  // "Talk to me" / "come on now" → Storytelling piano lead with melody fill
+  // "Talk to me" → guitar-arp-rolled for melodic call-and-response feel
   { phrases: ['talk to me', 'come on now', 'sing to me', 'play something'],
     action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
-      instrumentFocus: { chord: 1.1, melody: 0.6, texture: 0.7, bass: 0.7, kick: 0.5, hats: 0.5 } } }, cooldownMs: 8000 },
+      instrumentFocus: { chord: 1.1, melody: 0.6, texture: 0.7, bass: 0.7, kick: 0.5, hats: 0.5,
+        chordTechnique: 'guitar-arp-rolled' } } }, cooldownMs: 8000 },
 
-  // "Ok yea ok lets go" → Storytelling entry: piano + drums delayed
+  // "Ok yea ok lets go" → guitar-arp-rolled (user requested: guitar/violin entry)
   { phrases: ['ok yea ok lets go', 'ok yeah ok lets go', 'ok ok lets go', 'alright lets go', 'alright alright', 'aight aight'],
     action: { type: 'mood-signal', mood: { energy: 0.45, intent: 'warmup',
-      instrumentFocus: { chord: 1.1, melody: 0.4, texture: 0.5, bass: 0.7, kick: 0.6, hats: 0.5 } } }, cooldownMs: 8000 },
+      instrumentFocus: { chord: 1.1, melody: 0.4, texture: 0.5, bass: 0.7, kick: 0.6, hats: 0.5,
+        chordTechnique: 'guitar-arp-rolled' } } }, cooldownMs: 8000 },
 
-  // "La la la" / "na na na" → Lo-fi storytelling: melody-forward but sparse
+  // "La la la" → piano-alberti for lo-fi rolling melodic warm-up
   { phrases: ['la la la', 'la la', 'na na na', 'na na', 'da da da'],
     action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup', preferredSubGenre: 'lo-fi',
-      instrumentFocus: { melody: 1.0, chord: 0.9, texture: 0.7, bass: 0.5, hats: 0.4, kick: 0.4 } } }, cooldownMs: 8000 },
+      instrumentFocus: { melody: 1.0, chord: 0.9, texture: 0.7, bass: 0.5, hats: 0.4, kick: 0.4,
+        chordTechnique: 'piano-alberti' } } }, cooldownMs: 8000 },
 
-  // "Ooh ooh" / "hmm hmm" → Hummed storytelling warm-up
+  // "Ooh ooh" / "hmm hmm" → wind-legato (flute/sax monophonic lead)
   { phrases: ['ooh ooh', 'oooh oooh', 'hmm hmm', 'mmm mmm', 'sing it'],
     action: { type: 'mood-signal', mood: { energy: 0.35, intent: 'warmup', preferredSubGenre: 'lo-fi',
-      instrumentFocus: { melody: 1.0, chord: 0.9, texture: 0.7, bass: 0.4, hats: 0.3, kick: 0.3 } } }, cooldownMs: 8000 },
+      instrumentFocus: { melody: 1.0, chord: 0.9, texture: 0.7, bass: 0.4, hats: 0.3, kick: 0.3,
+        chordTechnique: 'wind-legato' } } }, cooldownMs: 8000 },
 
   // ── HYPE — Rapper is building energy, wants the beat to match ────────
   // Signal: boost energy, increase hat density, consider trap/drill

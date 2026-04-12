@@ -18,7 +18,7 @@ import {
   type ChordEvent,
 } from './patterns/ChordProgressionBank'
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
-import { getTechnique, DEFAULT_TECHNIQUE_ID } from '../techniques/library'
+import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
 
 export enum ChordBehavior {
@@ -65,17 +65,39 @@ export class ChordGenerator extends GeneratorBase {
   // Defaults to block-chord (simultaneous notes) for backward compatibility.
   private currentTechniqueId: string = DEFAULT_TECHNIQUE_ID
 
-  /** Change the active playing technique (rebuilds the Part on next tick). */
-  setTechnique(techniqueId: string): void {
+  // Tracks whether the technique was explicitly set by a warm-up phrase or
+  // external caller. When false, mode changes auto-update the technique to
+  // the new mode's default (e.g. heat → guitar-muted-stab). When true, the
+  // user/warmup intent is preserved across mode drift.
+  private techniqueOverridden: boolean = false
+  // Remember the last mode we saw, so we only re-apply defaults on actual change
+  private lastModeForTechnique: string | null = null
+
+  /**
+   * Change the active playing technique (rebuilds the Part on next tick).
+   * Explicit calls mark the technique as "overridden" — mode changes will
+   * no longer auto-swap it. Pass markAsOverride=false for mode-driven defaults.
+   */
+  setTechnique(techniqueId: string, markAsOverride: boolean = true): void {
     if (!getTechnique(techniqueId)) {
       console.warn(`[ChordGenerator] Unknown technique: ${techniqueId}`)
       return
     }
+    if (markAsOverride) this.techniqueOverridden = true
     if (this.currentTechniqueId === techniqueId) return
     this.currentTechniqueId = techniqueId
     // Rebuild on next tick so new technique takes effect at the next chord
     this.lastRebuildTime = 0
     if (this.currentProgression) this.rebuildPart()
+  }
+
+  /**
+   * Clear the override flag so mode changes can auto-select a default technique.
+   * Called when leaving Dormant / starting fresh.
+   */
+  resetTechniqueOverride(): void {
+    this.techniqueOverridden = false
+    this.lastModeForTechnique = null
   }
 
   getTechnique(): string {
@@ -176,6 +198,16 @@ export class ChordGenerator extends GeneratorBase {
   processFrame(physics: PhysicsState, organism: OrganismState): void {
     this.currentMode = physics.mode.toString()
     this.currentSwing = MODE_SWING[this.currentMode] ?? 0.35
+
+    // Mode-driven technique default: if the user/warmup hasn't overridden
+    // the technique, auto-select the mode's idiomatic playing style.
+    if (!this.techniqueOverridden && this.currentMode !== this.lastModeForTechnique) {
+      const modeDefault = defaultTechniqueForMode(this.currentMode)
+      if (modeDefault !== this.currentTechniqueId) {
+        this.setTechnique(modeDefault, /* markAsOverride */ false)
+      }
+      this.lastModeForTechnique = this.currentMode
+    }
 
     const newBehavior = this.getChordBehavior(organism)
 

@@ -10,7 +10,7 @@
  * strumming patterns.
  */
 
-import type { PlayingTechnique } from './types'
+import type { PlayingTechnique, ScheduledNote } from './types'
 
 // ─────────────────────────────────────────────────────────────────────
 // GUITAR TECHNIQUES
@@ -195,6 +195,293 @@ const PianoSustainedPad: PlayingTechnique = {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// STRING TECHNIQUES (violin, cello, upright bass)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Pizzicato — plucked strings, rhythmic and percussive.
+ * Each note gets a short, sharp attack. Used in storytelling for pulse.
+ */
+const StringsPizzicato: PlayingTechnique = {
+  id: 'strings-pizzicato',
+  name: 'Strings Pizzicato',
+  family: ['bowed'],
+  category: 'stab',
+  description: 'Plucked strings, short percussive hits — storytelling pulse',
+  schedule: (notes) => {
+    // Stagger minimally — ensemble plucks aren't perfectly synced
+    return notes.map((note, i) => ({
+      timeOffset: i * 0.004,
+      note,
+      duration: '16n',
+      velocity: 0.55,
+    }))
+  },
+}
+
+/**
+ * Legato bowing — long sustained, smooth notes. Classic cinematic strings.
+ */
+const StringsLegato: PlayingTechnique = {
+  id: 'strings-legato',
+  name: 'Strings Legato',
+  family: ['bowed'],
+  category: 'pad',
+  description: 'Sustained bowing — cinematic, emotional sustain',
+  schedule: (notes, ctx) => {
+    return notes.map(note => ({
+      timeOffset: 0,
+      note,
+      duration: ctx.chordDurationSec,
+      velocity: 0.48,
+    }))
+  },
+}
+
+/**
+ * Tremolo — rapid bow repetition for intensity/tension.
+ * Schedules 16th-note repeats across the chord duration.
+ */
+const StringsTremolo: PlayingTechnique = {
+  id: 'strings-tremolo',
+  name: 'Strings Tremolo',
+  family: ['bowed'],
+  category: 'pad',
+  description: 'Rapid bow repetition — tension, cinematic crescendo',
+  schedule: (notes, ctx) => {
+    const sixteenthSec = 60 / ctx.tempo / 4
+    const repeats = Math.max(1, Math.floor(ctx.chordDurationSec / sixteenthSec))
+    const events: ScheduledNote[] = []
+    for (let r = 0; r < repeats; r++) {
+      for (const note of notes) {
+        events.push({
+          timeOffset: r * sixteenthSec,
+          note,
+          duration: '32n',
+          velocity: 0.38 + (r / repeats) * 0.15,  // swells as it goes
+        })
+      }
+    }
+    return events
+  },
+}
+
+/**
+ * Staccato — very short bow strokes, detached and crisp.
+ */
+const StringsStaccato: PlayingTechnique = {
+  id: 'strings-staccato',
+  name: 'Strings Staccato',
+  family: ['bowed'],
+  category: 'stab',
+  description: 'Short detached bow strokes — crisp rhythmic punctuation',
+  schedule: (notes) => {
+    return notes.map(note => ({
+      timeOffset: 0,
+      note,
+      duration: '16n',
+      velocity: 0.58,
+    }))
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// BRASS TECHNIQUES (trumpet, trombone, french horn)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Brass stab — short punchy hit, classic soul/funk horn line.
+ * Think Stax/Motown sample, Kendrick "King Kunta" horns.
+ */
+const BrassStab: PlayingTechnique = {
+  id: 'brass-stab',
+  name: 'Brass Stab',
+  family: ['brass'],
+  category: 'stab',
+  description: 'Short punchy horn hit — soul/funk sample aesthetic',
+  schedule: (notes) => {
+    return notes.map((note, i) => ({
+      timeOffset: i * 0.006,  // tight but not perfectly simultaneous (real section)
+      note,
+      duration: '8n',
+      velocity: 0.68,
+    }))
+  },
+}
+
+/**
+ * Brass swell — slow crescendo into full chord. Cinematic entrance.
+ */
+const BrassSwell: PlayingTechnique = {
+  id: 'brass-swell',
+  name: 'Brass Swell',
+  family: ['brass'],
+  category: 'pad',
+  description: 'Crescendo entry — cinematic build into chord peak',
+  schedule: (notes, ctx) => {
+    // Split chord duration into 4 segments with increasing velocity
+    const segDur = ctx.chordDurationSec / 4
+    const events: ScheduledNote[] = []
+    for (let seg = 0; seg < 4; seg++) {
+      for (const note of notes) {
+        events.push({
+          timeOffset: seg * segDur,
+          note,
+          duration: segDur,
+          velocity: 0.28 + seg * 0.12,
+        })
+      }
+    }
+    return events
+  },
+}
+
+/**
+ * Brass fanfare — rhythmic staccato motif on downbeats.
+ */
+const BrassFanfare: PlayingTechnique = {
+  id: 'brass-fanfare',
+  name: 'Brass Fanfare',
+  family: ['brass'],
+  category: 'riff',
+  description: 'Rhythmic staccato motif — hype / buildup energy',
+  schedule: (notes, ctx) => {
+    const eighthSec = 60 / ctx.tempo / 2
+    // Fanfare pattern: hit-hit-rest-hit-hit across the chord
+    const pattern = [0, 1, 3, 4]  // 8th-note positions
+    const events: ScheduledNote[] = []
+    for (const pos of pattern) {
+      for (const note of notes) {
+        events.push({
+          timeOffset: pos * eighthSec,
+          note,
+          duration: '16n',
+          velocity: 0.65,
+        })
+      }
+    }
+    return events
+  },
+}
+
+/**
+ * Section pad — sustained horn section, long note holds like in R&B.
+ */
+const BrassSectionPad: PlayingTechnique = {
+  id: 'brass-section-pad',
+  name: 'Brass Section Pad',
+  family: ['brass'],
+  category: 'pad',
+  description: 'Sustained horn section — warm R&B backing',
+  schedule: (notes, ctx) => {
+    return notes.map(note => ({
+      timeOffset: 0,
+      note,
+      duration: ctx.chordDurationSec,
+      velocity: 0.40,
+    }))
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// WIND TECHNIQUES (flute, sax, clarinet — monophonic lead styles)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Wind legato — monophonic line played over the chord (top note only).
+ * Flute/sax idiom: single-note sustained melody.
+ */
+const WindLegato: PlayingTechnique = {
+  id: 'wind-legato',
+  name: 'Wind Legato Line',
+  family: ['wind'],
+  category: 'riff',
+  description: 'Monophonic sustained melody on top chord note — flute/sax lead',
+  schedule: (notes, ctx) => {
+    // Use just the top note of the chord for a monophonic line
+    const topNote = notes[notes.length - 1]
+    return [{
+      timeOffset: 0,
+      note: topNote,
+      duration: ctx.chordDurationSec,
+      velocity: 0.50,
+    }]
+  },
+}
+
+/**
+ * Wind run — fast scale passage, cascading through chord tones on 16ths.
+ */
+const WindRun: PlayingTechnique = {
+  id: 'wind-run',
+  name: 'Wind Run (Scalar)',
+  family: ['wind'],
+  category: 'riff',
+  description: 'Fast 16th-note run through chord tones — jazzy flute/sax fill',
+  schedule: (notes, ctx) => {
+    const sixteenthSec = 60 / ctx.tempo / 4
+    // Ascending then descending: 1-3-5-7-5-3 pattern
+    const pattern = [...notes, ...[...notes].reverse().slice(1, -1)]
+    return pattern.map((note, i) => ({
+      timeOffset: i * sixteenthSec,
+      note,
+      duration: '16n',
+      velocity: 0.48 + (i === 0 ? 0.1 : 0),
+    }))
+  },
+}
+
+/**
+ * Wind staccato — detached short notes, playful / bouncy.
+ */
+const WindStaccato: PlayingTechnique = {
+  id: 'wind-staccato',
+  name: 'Wind Staccato',
+  family: ['wind'],
+  category: 'stab',
+  description: 'Short detached notes on top chord tone — bouncy, playful',
+  schedule: (notes, ctx) => {
+    const eighthSec = 60 / ctx.tempo / 2
+    const topNote = notes[notes.length - 1]
+    // Three short hits across the chord
+    return [0, 2, 3].map(pos => ({
+      timeOffset: pos * eighthSec,
+      note: topNote,
+      duration: '16n',
+      velocity: 0.55,
+    }))
+  },
+}
+
+/**
+ * Wind trill — rapid alternation between two adjacent chord tones.
+ */
+const WindTrill: PlayingTechnique = {
+  id: 'wind-trill',
+  name: 'Wind Trill',
+  family: ['wind'],
+  category: 'riff',
+  description: 'Rapid alternation between two notes — ornamental flourish',
+  schedule: (notes, ctx) => {
+    if (notes.length < 2) return [{ timeOffset: 0, note: notes[0], duration: '4n', velocity: 0.5 }]
+    const thirtySecondSec = 60 / ctx.tempo / 8
+    const top = notes[notes.length - 1]
+    const second = notes[notes.length - 2]
+    const trillCount = Math.max(4, Math.floor(ctx.chordDurationSec / thirtySecondSec))
+    const events: ScheduledNote[] = []
+    for (let i = 0; i < trillCount; i++) {
+      events.push({
+        timeOffset: i * thirtySecondSec,
+        note: i % 2 === 0 ? top : second,
+        duration: '32n',
+        velocity: 0.45,
+      })
+    }
+    return events
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // REGISTRY
 // ─────────────────────────────────────────────────────────────────────
 
@@ -210,6 +497,24 @@ export const ALL_TECHNIQUES: PlayingTechnique[] = [
   PianoRolledChord,
   PianoAlberti,
   PianoSustainedPad,
+
+  // Strings
+  StringsPizzicato,
+  StringsLegato,
+  StringsTremolo,
+  StringsStaccato,
+
+  // Brass
+  BrassStab,
+  BrassSwell,
+  BrassFanfare,
+  BrassSectionPad,
+
+  // Wind
+  WindLegato,
+  WindRun,
+  WindStaccato,
+  WindTrill,
 ]
 
 export const TECHNIQUES_BY_ID: Map<string, PlayingTechnique> = new Map(
@@ -227,4 +532,29 @@ export const DEFAULT_TECHNIQUE_ID = 'piano-block-chord'
 /** Get all techniques compatible with a given instrument family. */
 export function techniquesForFamily(family: string): PlayingTechnique[] {
   return ALL_TECHNIQUES.filter(t => t.family.includes(family as any))
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// MODE → TECHNIQUE DEFAULTS
+// ─────────────────────────────────────────────────────────────────────
+// Each organism mode maps to an idiomatic default technique. These apply
+// when no warmup phrase has explicitly overridden the technique.
+//
+//   heat   → Trap / aggressive → guitar-muted-stab (percussive, funk-adjacent)
+//   ice    → Cloud rap / cold → piano-alberti (rolling, crystalline)
+//   smoke  → Boom-bap / jazz → piano-rolled-chord (warm, emotional)
+//   gravel → Drill / dark → guitar-muted-stab (tight, menacing)
+//   glow   → R&B / melodic → piano-rolled-chord (soulful, sustained)
+
+export const MODE_DEFAULT_TECHNIQUE: Record<string, string> = {
+  heat:   'guitar-muted-stab',
+  ice:    'piano-alberti',
+  smoke:  'piano-rolled-chord',
+  gravel: 'guitar-muted-stab',
+  glow:   'piano-rolled-chord',
+}
+
+/** Get the default technique id for an organism mode. */
+export function defaultTechniqueForMode(mode: string): string {
+  return MODE_DEFAULT_TECHNIQUE[mode] ?? DEFAULT_TECHNIQUE_ID
 }

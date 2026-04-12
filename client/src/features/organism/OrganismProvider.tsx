@@ -1153,6 +1153,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
               if (focus.kick     != null) orch.setKickVelocityMultiplier(focus.kick)
               if (focus.texture  != null) orch.setTextureVolumeMultiplier(focus.texture)
               if (focus.chord    != null) orch.setChordVolumeMultiplier(focus.chord)
+              // Technique hint — overrides the mode default with an
+              // instrument-specific playing style (guitar strum, piano roll,
+              // strings pizzicato, etc.). Lets warmup phrases carry musical
+              // intent beyond just loudness.
+              if (focus.chordTechnique) {
+                orch.setChordTechnique(focus.chordTechnique)
+                console.debug(`🎸 Technique set: ${focus.chordTechnique}`)
+              }
               console.debug('🎛️ Warmup instrument focus applied:', focus)
             }
             break
