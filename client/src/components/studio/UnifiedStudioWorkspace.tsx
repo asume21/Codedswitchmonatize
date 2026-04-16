@@ -44,6 +44,7 @@ import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 import { DawArrangementView } from './DawArrangementView';
 const MasterMultiTrackPlayer = React.lazy(() => import('./MasterMultiTrackPlayer'));
 import { OrganismPage } from '@/features/organism/OrganismPage';
+import { OrganismCommandCenter } from '@/features/organism/OrganismCommandCenter';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 const AIMasteringCard = React.lazy(() => import('./AIMasteringCard'));
 const AIArrangementBuilder = React.lazy(() => import('./AIArrangementBuilder'));
@@ -111,7 +112,7 @@ function OrganismAutoActivate() {
     );
   }
 
-  return <OrganismPage />;
+  return <OrganismCommandCenter />;
 }
 
 // Workflow Configuration Types
