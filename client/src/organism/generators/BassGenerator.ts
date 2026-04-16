@@ -154,7 +154,7 @@ export class BassGenerator extends GeneratorBase {
 
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
-      this.rebuildPart(physics)
+      this.rebuildPart()
     }
 
     // Only duck filter if we are using a MonoSynth (samplers bypass the filter entirely)
@@ -181,21 +181,31 @@ export class BassGenerator extends GeneratorBase {
 
     if (to === OState.Awakening) {
       this.stopPart()
-      this.rootMidi        = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+      // If chord key is known, stay in key; otherwise pick from pool
+      if (this.chordRootPitchClass !== null) {
+        this.rootMidi = Math.max(33, Math.min(48, 3 * 12 + this.chordRootPitchClass))
+      } else {
+        this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+      }
       this.currentMode     = physics.mode
       setBassSwing(physics.mode.toString())
       this.currentBehavior = getBassBehavior(physics.mode, to)
       this.applyBassPreset()
-      this.rebuildPart(physics)
+      this.rebuildPart()
       return
     }
 
-    this.rootMidi    = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+    // If chord key is known, stay in key; otherwise pick from pool
+    if (this.chordRootPitchClass !== null) {
+      this.rootMidi = Math.max(33, Math.min(48, 3 * 12 + this.chordRootPitchClass))
+    } else {
+      this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+    }
     this.currentMode = physics.mode
     setBassSwing(physics.mode.toString()) 
     this.currentBehavior = getBassBehavior(physics.mode, to)
     this.applyBassPreset()
-    this.rebuildPart(physics)
+    this.rebuildPart()
   }
 
   reset(): void {
@@ -282,7 +292,7 @@ export class BassGenerator extends GeneratorBase {
           attack: 0.04, decay: 0.15, sustain: 0.35, release: 0.15,
           baseFrequency: 80, octaves: voice.octaves || 2.0,
         },
-      } as any)
+      } as Partial<Tone.MonoSynthOptions>)
       this.synth.volume.value = voice.volume
       
       // Connect to Filter -> MonoSub -> Distortion -> Compressor chain
@@ -306,6 +316,8 @@ export class BassGenerator extends GeneratorBase {
     if (clamped !== this.rootMidi) {
       this.rootMidi = clamped
       this.chordRootPitchClass = bassPC
+      // Rebuild so the running Tone.Part immediately uses the new root
+      this.rebuildPart()
     }
   }
 
@@ -326,7 +338,7 @@ export class BassGenerator extends GeneratorBase {
   private lastRebuildTime: number = 0
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
-  private rebuildPart(_physics: PhysicsState): void {
+  private rebuildPart(): void {
     const now = performance.now()
     if (now - this.lastRebuildTime < BassGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
@@ -395,7 +407,7 @@ export class BassGenerator extends GeneratorBase {
     const portTime = getPortamentoTime(this.currentBehavior)
     if (!this.isCurrentVoiceSampler) {
       try {
-        (this.synth as any).portamento = slideActive ? portTime : 0
+        (this.synth as Tone.MonoSynth).portamento = slideActive ? portTime : 0
       } catch { /* */ }
     }
 

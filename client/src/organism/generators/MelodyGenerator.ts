@@ -410,6 +410,8 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   setCurrentChord(chord: ChordEvent, rootPitchClass: number): void {
+    // Keep rootPitchClass in sync so buildPhrase generates notes in the right key
+    this.rootPitchClass = rootPitchClass
     this.currentChordTones = getChordTones(chord, rootPitchClass)
     // Dynamic harmonic flow: when chord changes, auto-rebuild phrase to match
     this.scaleDirty = true
