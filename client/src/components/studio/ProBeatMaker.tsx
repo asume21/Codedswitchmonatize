@@ -413,6 +413,13 @@ interface Props {
   isActive?: boolean;
 }
 
+type ExternalBeatPatternEvent = {
+  tracks: Array<{ id: string; name: string; pattern: Array<{ active: boolean; velocity: number }> }>;
+  bpm: number;
+  source?: string;
+  silent?: boolean;
+};
+
 export default function ProBeatMaker({ onPatternChange, isActive = false }: Props) {
   const { toast } = useToast();
   const { tempo } = useTransport();
@@ -423,6 +430,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const pendingBeatGrid = useStudioStore((s) => s.pendingBeatGrid);
   const consumePendingBeatGrid = useStudioStore((s) => s.consumePendingBeatGrid);
+  const pendingExternalPatternRef = useRef<ExternalBeatPatternEvent | null>(null);
 
   // Switch drum mode on/off based on whether Beat Lab is the visible tab.
   // Previously used mount/unmount but Beat Lab is now always-mounted (CSS hidden),
@@ -430,6 +438,55 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   useEffect(() => {
     setDrumMode(isActive);
   }, [isActive, setDrumMode]);
+
+  const applyExternalBeatPattern = useCallback((detail: ExternalBeatPatternEvent) => {
+    const { tracks: aiTracks, bpm: aiBpm, silent } = detail;
+    if (!aiTracks || aiTracks.length === 0) return false;
+
+    const incomingSig = aiTracks
+      .map(t => `${t.id}:${t.pattern.map((s, i) => s.active ? `${i}@${s.velocity || 100}` : '').filter(Boolean).join(',')}`)
+      .join('|');
+
+    let changed = false;
+    setTracks(prev => {
+      const prevSig = prev
+        .map(t => {
+          const ai = aiTracks.find(at => at.id === t.id);
+          if (!ai) return '';
+          return `${t.id}:${t.pattern.map((s, i) => s.active ? `${i}@${s.velocity || 100}` : '').filter(Boolean).join(',')}`;
+        })
+        .filter(Boolean)
+        .join('|');
+      if (prevSig === incomingSig) return prev;
+      changed = true;
+      return prev.map(track => {
+        const aiTrack = aiTracks.find(at => at.id === track.id);
+        if (!aiTrack) return track;
+        return {
+          ...track,
+          pattern: track.pattern.map((step, i) => {
+            const aiStep = aiTrack.pattern[i];
+            if (!aiStep) return step;
+            return { ...step, active: aiStep.active, velocity: aiStep.velocity || 100 };
+          }),
+        };
+      });
+    });
+
+    if (!changed) return false;
+    setBpm(aiBpm || 90);
+    if (!silent) {
+      toast({ title: '🤖 AI Beat Loaded', description: `AI-generated drum pattern loaded into Beat Lab at ${aiBpm} BPM` });
+    }
+    return true;
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isActive || !pendingExternalPatternRef.current) return;
+    const pending = pendingExternalPatternRef.current;
+    pendingExternalPatternRef.current = null;
+    applyExternalBeatPattern(pending);
+  }, [applyExternalBeatPattern, isActive]);
 
   // Consume pending beat grid from Astutely Create tab
   useEffect(() => {
@@ -509,25 +566,18 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
     };
     
     // Listen for AI-generated beat patterns (from aiToEditorBridge or astutely)
-    const handleAIBeatPattern = (e: CustomEvent<{ tracks: Array<{ id: string; name: string; pattern: Array<{ active: boolean; velocity: number }> }>; bpm: number }>) => {
-      const { tracks: aiTracks, bpm: aiBpm } = e.detail;
-      if (!aiTracks || aiTracks.length === 0) return;
+    const handleAIBeatPattern = (e: CustomEvent<ExternalBeatPatternEvent>) => {
+      const detail = e.detail;
+      if (!detail?.tracks?.length) return;
 
-      setBpm(aiBpm || 90);
-      setTracks(prev => prev.map(track => {
-        const aiTrack = aiTracks.find(at => at.id === track.id);
-        if (!aiTrack) return track;
-        return {
-          ...track,
-          pattern: track.pattern.map((step, i) => {
-            const aiStep = aiTrack.pattern[i];
-            if (!aiStep) return step;
-            return { ...step, active: aiStep.active, velocity: aiStep.velocity || 100 };
-          }),
-        };
-      }));
+      // When Beat Lab is hidden, keep only the latest external pattern and defer
+      // the heavy state update until the user actually opens the tab.
+      if (!isActive) {
+        pendingExternalPatternRef.current = detail;
+        return;
+      }
 
-      toast({ title: '🤖 AI Beat Loaded', description: `AI-generated drum pattern loaded into Beat Lab at ${aiBpm} BPM` });
+      applyExternalBeatPattern(detail);
     };
 
     // Listen for astutely:generated and extract drum data for Beat Lab
@@ -588,7 +638,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
       window.removeEventListener('ai:loadBeatPattern', handleAIBeatPattern as EventListener);
       window.removeEventListener('astutely:generated', handleAstutelyForBeats as EventListener);
     };
-  }, [toast]);
+  }, [applyExternalBeatPattern, isActive, toast]);
   
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
     const initial = initTracks(16);

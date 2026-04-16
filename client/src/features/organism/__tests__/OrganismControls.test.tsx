@@ -55,6 +55,7 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     textureEnabled: false,
     setTextureEnabled: vi.fn(),
     quickStart: vi.fn().mockResolvedValue(undefined),
+    swapPreset: vi.fn().mockResolvedValue(undefined),
     quickStartPresets: [],
     activePresetId: null,
     countInStart: vi.fn().mockResolvedValue(undefined),

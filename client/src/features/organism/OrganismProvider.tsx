@@ -48,6 +48,7 @@ import * as Tone from 'tone'
 import { useStudioStore } from '../../stores/useStudioStore'
 import type { MusicalKey, KeyMode } from '../../stores/useStudioStore'
 import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
+import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
 
 interface Props {
   children:  React.ReactNode
@@ -205,11 +206,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const beatChunksRef      = useRef<Blob[]>([])
   const beatDestRef        = useRef<MediaStreamAudioDestinationNode | null>(null)
 
-  // Boot engines on mount — wiring order is critical
-  // Re-runs when userId, inputSource, or autoEnergy changes
+  // Boot engines on mount — wiring order is critical.
+  // Engines live for the lifetime of this provider (per userId). The input
+  // source is created + subscribed in a separate effect below so switching
+  // between Mic / Auto / Audio File does NOT tear down the orchestrator,
+  // which is the expensive, audible-latency-causing part of the teardown.
   useEffect(() => {
-    // 1. Create all engines
-    const input       = createInputSource(inputSource, audioFileRef.current, autoEnergy)
+    // 1. Create engine instances (input is handled by a separate effect)
     const physics     = new PhysicsEngine()
     const machine     = new StateMachine(
       inputSource === 'autoGenerate' ? { autoBreathingToFlowBars: 4 } : {}
@@ -220,7 +223,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const capture     = new CaptureEngine()
 
     // 2. Store refs
-    inputRef.current     = input
     physicsRef.current   = physics
 
     // Seed physics with user's historical groove profile so the organism
@@ -238,11 +240,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     //    generators → reactive behaviors
     //    generators → mix engine
     //    physics + state machine → capture engine
-
-    // input → physics
-    const unsubPhysics = input.subscribe((frame) => {
-      physics.processFrame(frame)
-    })
 
     // physics → state machine (always) + throttled UI state + broadcast
     // The state machine must receive every frame for accurate transitions,
@@ -317,43 +314,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     })
 
     // ── Ears system: performer analysis ──────────────────────────────────────
-    // Subscribe directly to input frames so we get raw mic data before
-    // the physics engine smooths everything away.
+    // The input → performer subscription is wired in the input-source effect
+    // below, since it depends on the current InputSource instance.
     const performer   = new PerformerAnalyzer()
     const selfListen  = new SelfListenAnalyzer()
     performerRef.current   = performer
     selfListenRef.current  = selfListen
-
-    let lastPerformerUIUpdate = 0
-    const unsubPerformer = input.subscribe((frame) => {
-      const pState = performer.processFrame(frame)
-
-      // Throttle React state updates to 15fps
-      const now = performance.now()
-      if (now - lastPerformerUIUpdate >= 66) {
-        lastPerformerUIUpdate = now
-        setPerformerState({ ...pState })
-
-        // Sync Transport BPM to performer when confidence is high enough
-        // and the drift is significant (> 4 BPM). Only during mic input.
-        if (
-          inputSource === 'mic' &&
-          pState.bpmConfidence > 0.55 &&
-          pState.isInPhrase &&
-          Math.abs(pState.bpm - lastSyncedBpmRef.current) > 4
-        ) {
-          orchestr.setBpm(pState.bpm)
-          useStudioStore.getState().setBpm(pState.bpm)
-          lastSyncedBpmRef.current = pState.bpm
-          window.dispatchEvent(new CustomEvent('organism:bpm-locked', {
-            detail: { bpm: pState.bpm, confidence: pState.bpmConfidence },
-          }))
-        }
-
-        // Let orchestrator react to the performer in real time
-        orchestr.applyPerformerState(pState)
-      }
-    })
 
     // ── Ears system: self-listen ─────────────────────────────────────────────
     const unsubSelfListen = selfListen.onReport((report) => {
@@ -388,10 +354,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setMeterReading(reading)
     })
 
-    // Subscribe to reactive behavior engine
+    // Subscribe to reactive behavior engine. Reads the live input via ref so
+    // it tracks whichever input source is currently active (swapped without
+    // requiring this effect to re-run).
     const unsubReactive = physics.subscribe((pState) => {
       const oState = machine.getCurrentState()
-      const lastFrame = input.getLastFrame()
+      const lastFrame = inputRef.current?.getLastFrame()
       if (lastFrame) {
         reactive.processFrame(lastFrame, pState, oState)
       }
@@ -409,26 +377,35 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // organism's vocabulary expands beyond the hardcoded library.
     // Cooldown: only generate a new pattern at most once every 30 seconds
     // to avoid toast/pattern spam from rapid section changes.
-    const GENERATIVE_SECTIONS = new Set(['drop', 'drop2'])
-    const PATTERN_GEN_COOLDOWN_MS = 30_000
-    let lastPatternGenTime = 0
+    // Fire on every musically interesting section — not just drops.
+    // Cooldown prevents spamming; each section has its own last-gen timestamp.
+    const GENERATIVE_SECTIONS = new Set(['intro', 'verse', 'verse2', 'build', 'drop', 'drop2', 'breakdown'])
+    const PATTERN_GEN_COOLDOWN_MS = 16_000   // ~1 full 4-bar loop at 90 BPM
+    const lastPatternGenBySection: Record<string, number> = {}
     let patternGenInFlight = false
     const handleSectionChange = async (e: Event) => {
       const { section, physics: sectionPhysics, bpm } = (e as CustomEvent).detail ?? {}
       if (!GENERATIVE_SECTIONS.has(section)) return
 
       const now = performance.now()
-      if (now - lastPatternGenTime < PATTERN_GEN_COOLDOWN_MS) return
+      const lastGen = lastPatternGenBySection[section] ?? 0
+      if (now - lastGen < PATTERN_GEN_COOLDOWN_MS) return
       if (patternGenInFlight) return
 
       patternGenInFlight = true
-      lastPatternGenTime = now
+      lastPatternGenBySection[section] = now
       patternGenAbort = new AbortController()
+
+      // Snapshot the last few words of live transcription for lyrical context
+      const tState = transcriberRef.current?.getState()
+      const lyricsSnippet = tState?.lines
+        .map(l => l.text).join(' ').slice(-120) ?? ''
+
       try {
         const res = await fetch('/api/organism/generate-pattern', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ section, physics: sectionPhysics, bpm }),
+          body: JSON.stringify({ section, physics: sectionPhysics, bpm, lyrics: lyricsSnippet }),
           signal: patternGenAbort.signal,
         })
         if (!res.ok) return
@@ -445,11 +422,33 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     setIsRunning(false)
     setError(null)
 
+    // 2-second heartbeat — surfaces state/arrangement/bpm to the console so
+    // "it just stopped" issues can be correlated to state regressions or
+    // arrangement section changes. Filter console to "[organism]" to isolate.
+    const stopHeartbeat = startOrgHeartbeat(() => {
+      const mach   = stateMachRef.current
+      const orch   = orchestrRef.current
+      const snap   = mach?.getCurrentState()
+      const lastPhys = physicsRef.current?.getLastState?.()
+      return {
+        running:     isRunningRef.current,
+        state:       snap?.current ?? 'none',
+        floor:       mach?.getStateFloor() ?? null,
+        bpm:         orch?.getBpm() ?? '?',
+        arrangement: orch?.isArrangementEnabled() ?? '?',
+        section:     orch?.getCurrentSection() ?? '?',
+        frameAge:    lastPhys ? Math.round(performance.now() - lastPhys.timestamp) : -1,
+        flowDepth:   snap ? Number(snap.flowDepth.toFixed(2)) : -1,
+        warmth:      snap ? Number(snap.breathingWarmth.toFixed(2)) : -1,
+        silence:     snap ? Math.round(snap.silenceDurationMs) : -1,
+      }
+    }, 2000)
+
     let patternGenAbort: AbortController | null = null
 
     return () => {
+      stopHeartbeat()
       patternGenAbort?.abort()
-      unsubPhysics()
       unsubPhysicsState()
       unsubOrganism()
       unsubCapturePhysics()
@@ -457,11 +456,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unsubCaptureEvent()
       unsubMeter()
       unsubReactive()
-      unsubPerformer()
       unsubSelfListen()
       unsubChord()
 
-      input.stop()
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
       mix.dispose()
       capture.reset()
@@ -469,12 +466,73 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unsubTranscription()
       performer.reset()
       selfListen.dispose()
-      lastSyncedBpmRef.current = 0
       window.removeEventListener('organism:section-change', handleSectionChange)
     }
-  // profile is intentionally excluded: it loads async and must NOT trigger
-  // a full engine teardown. Profile updates are applied via the effect below.
+  // Input-source changes do NOT tear down engines — a separate effect below
+  // swaps just the InputSource instance. Profile is applied via another
+  // effect above to avoid engine teardown during async profile fetch.
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
+  // Input-source effect — swap the InputSource without touching the
+  // orchestrator, mix, capture, or any Tone.js audio nodes. This is the
+  // path that fires when the user clicks Mic / Auto / Audio File / MIDI.
+  // Previously this triggered a full engine teardown (~500ms) because input
+  // was created inside the engine-init effect. Now it's a sub-100ms swap.
+  useEffect(() => {
+    const physics   = physicsRef.current
+    const performer = performerRef.current
+    const orchestr  = orchestrRef.current
+    if (!physics || !performer) return // engines not ready yet
+
+    // Stop + drop the previous input before creating a new one.
+    inputRef.current?.stop()
+
+    const input = createInputSource(inputSource, audioFileRef.current, autoEnergy)
+    inputRef.current = input
+
+    // input → physics (every frame must reach physics for accurate transitions)
+    const unsubPhysics = input.subscribe((frame) => {
+      physics.processFrame(frame)
+    })
+
+    // input → performer analysis + optional Transport BPM sync. React state
+    // updates throttled to ~15fps to keep the main thread free.
+    let lastPerformerUIUpdate = 0
+    const unsubPerformer = input.subscribe((frame) => {
+      const pState = performer.processFrame(frame)
+      const now = performance.now()
+      if (now - lastPerformerUIUpdate < 66) return
+      lastPerformerUIUpdate = now
+      setPerformerState({ ...pState })
+
+      if (
+        inputSource === 'mic' &&
+        pState.bpmConfidence > 0.55 &&
+        pState.isInPhrase &&
+        Math.abs(pState.bpm - lastSyncedBpmRef.current) > 4 &&
+        orchestr
+      ) {
+        orchestr.setBpm(pState.bpm)
+        useStudioStore.getState().setBpm(pState.bpm)
+        lastSyncedBpmRef.current = pState.bpm
+        window.dispatchEvent(new CustomEvent('organism:bpm-locked', {
+          detail: { bpm: pState.bpm, confidence: pState.bpmConfidence },
+        }))
+      }
+
+      orchestr?.applyPerformerState(pState)
+    })
+
+    setIsRunning(false)
+    setError(null)
+
+    return () => {
+      unsubPhysics()
+      unsubPerformer()
+      input.stop()
+      lastSyncedBpmRef.current = 0
+    }
   }, [userId, inputSource, autoEnergy])
 
   // Apply profile updates to the live physics engine without recreating engines.
@@ -486,10 +544,37 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
   }, [profile])
 
+  // Pre-warm Tone's AudioContext on the first user gesture inside the Organism
+  // page. Browsers require a user gesture to resume AudioContext, and calling
+  // Tone.start() cold inside orchestr.start() can cost 50–400ms on the click
+  // that actually starts the beat. By priming on any earlier click (input-
+  // source tile, preset hover, toggle), the real Start click is a no-op.
+  useEffect(() => {
+    let warmed = false
+    const prewarm = async () => {
+      if (warmed) return
+      warmed = true
+      try {
+        await Tone.start()
+      } catch {
+        // If this fails (e.g. no gesture yet), the real start() will retry.
+      }
+      window.removeEventListener('pointerdown', prewarm, true)
+      window.removeEventListener('keydown', prewarm, true)
+    }
+    window.addEventListener('pointerdown', prewarm, true)
+    window.addEventListener('keydown', prewarm, true)
+    return () => {
+      window.removeEventListener('pointerdown', prewarm, true)
+      window.removeEventListener('keydown', prewarm, true)
+    }
+  }, [])
+
   // ── Actions ───────────────────────────────────────────────────────
 
   const start = useCallback(async () => {
     if (!inputRef.current || !orchestrRef.current) return
+    const endPhase = orgPhase('provider:start', 400)
     try {
       setError(null)
       cadenceLastLineIndexRef.current   = -1
@@ -503,17 +588,23 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       if (transcriptionEnabled && transcriberRef.current) {
         transcriberRef.current.start()
       }
+      endPhase({ inputSource, bpm: orchestrRef.current.getBpm() })
+      orgLog('provider:started', { inputSource, bpm: orchestrRef.current.getBpm() })
       window.dispatchEvent(new CustomEvent('organism:started'))
     } catch (err) {
+      endPhase({ error: err instanceof Error ? err.message : String(err) })
+      orgLog('provider:start-error', { error: err instanceof Error ? err.message : String(err) }, 'error')
       setError(err instanceof Error ? err.message : 'Failed to start organism')
     }
-  }, [transcriptionEnabled])
+  }, [inputSource, transcriptionEnabled])
 
   const stop = useCallback(() => {
+    const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
     orchestrRef.current?.stop()
     transcriberRef.current?.stop()
     setIsRunning(false)
+    orgLog('provider:stopped', { inputSource, bpm })
 
     // Auto-bridge any accumulated generator events into the studio store
     // so they appear in Beat Lab / Piano Roll even when the user just hits Stop
@@ -529,7 +620,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
 
     window.dispatchEvent(new CustomEvent('organism:stopped'))
-  }, [])
+  }, [inputSource])
 
   const captureSession = useCallback(async (): Promise<SessionDNA | null> => {
     if (!captureRef.current) return null
@@ -613,6 +704,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       return
     }
 
+    const endPhase = orgPhase('quickstart', 500)
     try {
       setError(null)
       setActivePresetId(presetId)
@@ -625,8 +717,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // 2. Start the input source (mic, auto, etc.)
       await inputRef.current.start()
 
-      // 3. Start the Transport at the preset's BPM
+      // 3. Start the Transport at the preset's BPM + sync studio store so
+      //    the performer BPM subscriber doesn't immediately override it back
       await orchestrRef.current.start(preset.bpm)
+      useStudioStore.getState().setBpm(preset.bpm)
+      orgLog('quickstart:audio-check', {
+        ctxState:       Tone.getContext().state,
+        transportState: Tone.getTransport().state,
+        destVol:        Number(Tone.getDestination().volume.value.toFixed(1)),
+        bpm:            Number(Tone.getTransport().bpm.value.toFixed(1)),
+      })
 
       // 3. Stamp the synthetic physics with a fresh timestamp
       const syntheticPhysics = {
@@ -665,6 +765,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       stateMachRef.current.forceState(OState.Breathing, syntheticPhysics)
       stateMachRef.current.forceState(OState.Flow, syntheticPhysics)
 
+      // 5b. Belt + suspenders: force a full pattern regenerate so drums,
+      //     bass, melody, and chord are all guaranteed to have notes ready
+      //     for the very next Transport tick. Without this, bass/melody/chord
+      //     rely on the staggered setTimeout rebuilds (50/120/180ms) fired
+      //     from the wire() transition callback, which can miss the first bar.
+      orchestrRef.current.regenerateAll()
+
       setIsRunning(true)
 
       // 6. Start transcription if enabled
@@ -675,11 +782,56 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       window.dispatchEvent(new CustomEvent('organism:started', {
         detail: { quickStart: true, presetId, preset: preset.label },
       }))
+      endPhase({
+        presetId,
+        bpm: preset.bpm,
+        mode: preset.mode,
+        state: stateMachRef.current.getCurrentState().current,
+      })
+      orgLog('quickstart:applied', { presetId, bpm: preset.bpm, mode: preset.mode })
     } catch (err) {
+      endPhase({ presetId, error: err instanceof Error ? err.message : String(err) })
+      orgLog('quickstart:error', {
+        presetId,
+        error: err instanceof Error ? err.message : String(err),
+      }, 'error')
       setError(err instanceof Error ? err.message : 'Quick start failed')
       setActivePresetId(null)
     }
   }, [transcriptionEnabled])
+
+  /**
+   * Live preset swap — change the beat's genre + BPM without restarting.
+   * If the organism isn't running yet, delegates to quickStart (cold path).
+   * If already running, just relocks the physics mode, ramps BPM, and
+   * regenerates patterns immediately. The beat never stops.
+   */
+  const swapPreset = useCallback(async (presetId: string) => {
+    const preset = getQuickStartPreset(presetId)
+    if (!preset) {
+      setError(`Unknown preset: ${presetId}`)
+      return
+    }
+
+    // Cold path — not running yet, full quickStart
+    if (!isRunningRef.current) {
+      await quickStart(presetId)
+      return
+    }
+
+    // Hot path — live swap, no teardown
+    const physics = physicsRef.current
+    const orchestr = orchestrRef.current
+    if (!physics || !orchestr) return
+
+    const endSwap = orgPhase('swapPreset', 100)
+    physics.lockMode(preset.mode)
+    orchestr.setBpm(preset.bpm)
+    useStudioStore.getState().setBpm(preset.bpm)
+    orchestr.regenerateAll()
+    setActivePresetId(presetId)
+    endSwap({ presetId, bpm: preset.bpm, mode: preset.mode })
+  }, [quickStart])
 
   /**
    * Count-In Start — plays a "1, 2, 3, 4" metronome at the preset BPM,
@@ -782,8 +934,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   // ── Recording: captures beat audio (master bus) + vocal audio (mic) ──
 
+  // Tracks whether startRecording owns the vocal mic stream (true) or is
+  // reusing the AudioAnalysisEngine's stream (false). Controls whether
+  // stopRecording stops the tracks at end-of-session.
+  const ownsVocalStreamRef = useRef(false)
+
   const startRecording = useCallback(async () => {
     if (isRecording) return
+    const endPhase = orgPhase('recording:start', 500)
 
     // If organism isn't running yet, start it first
     if (!isRunning) {
@@ -794,11 +952,26 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     vocalChunksRef.current = []
     beatChunksRef.current = []
 
-    // 1. Vocal recording — get a fresh mic stream for MediaRecorder
+    // 1. Vocal recording — prefer to reuse the AudioAnalysisEngine's open mic
+    //    stream so we avoid opening a third competing audio session (Windows
+    //    drops one of the streams under contention, which makes the beat
+    //    "just stop" mid-freestyle).
     try {
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      })
+      let micStream: MediaStream | null = null
+      const analyzerInput = inputRef.current as unknown as { getStream?: () => MediaStream | null }
+      if (inputSource === 'mic' && typeof analyzerInput?.getStream === 'function') {
+        micStream = analyzerInput.getStream() ?? null
+      }
+
+      if (micStream) {
+        ownsVocalStreamRef.current = false  // shared — don't stop tracks in stopRecording
+      } else {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        })
+        ownsVocalStreamRef.current = true
+      }
+
       vocalStreamRef.current = micStream
       const vocalRecorder = new MediaRecorder(micStream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -811,6 +984,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       vocalRecorder.start(200)
     } catch (err) {
       console.warn('[OrganismProvider] Vocal recording failed (mic access):', err)
+      orgLog('recording:vocal-error', { error: String(err) }, 'warn')
     }
 
     // 2. Beat recording — tap into Tone.js audio context master output
@@ -834,14 +1008,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       beatRecorder.start(200)
     } catch (err) {
       console.warn('[OrganismProvider] Beat recording failed:', err)
+      orgLog('recording:beat-error', { error: String(err) }, 'warn')
     }
 
     setIsRecording(true)
+    endPhase({ inputSource, reusedMic: !ownsVocalStreamRef.current })
+    orgLog('recording:started', { inputSource, reusedMic: !ownsVocalStreamRef.current })
     window.dispatchEvent(new CustomEvent('organism:recording-started'))
-  }, [isRecording, isRunning, start])
+  }, [isRecording, isRunning, start, inputSource])
 
   const stopRecording = useCallback(async (): Promise<SavedSession | null> => {
     if (!isRecording) return null
+    const endPhase = orgPhase('recording:stop', 700)
 
     const durationMs = Date.now() - recordingStartRef.current
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -857,10 +1035,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         vocalBlob = new Blob(vocalChunksRef.current, { type: 'audio/webm' })
       }
     }
-    // Release mic stream
-    vocalStreamRef.current?.getTracks().forEach(t => t.stop())
+    // Release mic stream — but ONLY if startRecording opened it. When we
+    // reuse the AudioAnalysisEngine's stream, stopping tracks here would
+    // kill the organism's mic input too.
+    if (ownsVocalStreamRef.current) {
+      vocalStreamRef.current?.getTracks().forEach(t => t.stop())
+    }
     vocalStreamRef.current = null
     vocalRecorderRef.current = null
+    ownsVocalStreamRef.current = false
 
     // Stop beat recorder
     let beatBlob: Blob | null = null
@@ -939,6 +1122,22 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     setIsRecording(false)
     setLastSessionDNA(dna)
+    endPhase({
+      durationMs,
+      sessionId,
+      hasBeat: !!beatBlob,
+      hasVocals: !!vocalBlob,
+      hasMidi: !!midiBlob,
+      hasLyrics: !!session.lyrics,
+    })
+    orgLog('recording:stopped', {
+      durationMs,
+      sessionId,
+      hasBeat: !!beatBlob,
+      hasVocals: !!vocalBlob,
+      hasMidi: !!midiBlob,
+      hasLyrics: !!session.lyrics,
+    })
     window.dispatchEvent(new CustomEvent('organism:recording-stopped', { detail: session }))
 
     return session
@@ -1343,11 +1542,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const bassVolumeRef = useRef(bassVolume)
   const callResponseEnabledRef = useRef(callResponseEnabled)
   const isRunningRef = useRef(isRunning)
+  const isRecordingRef = useRef(isRecording)
   const dropDetectorEnabledRef = useRef(dropDetectorEnabled)
   melodyVolumeRef.current = melodyVolume
   bassVolumeRef.current = bassVolume
   callResponseEnabledRef.current = callResponseEnabled
   isRunningRef.current = isRunning
+  isRecordingRef.current = isRecording
   dropDetectorEnabledRef.current = dropDetectorEnabled
 
   // Track how many transcription lines we've already processed, so we never
@@ -1595,6 +1796,86 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
   }, [transcription])
 
+  // ── Freestyle Lock ──
+  //
+  // While the user is recording a freestyle, two things must be guaranteed:
+  //   1. The beat does NOT fade during rapper pauses. Normally physics
+  //      collapses when RMS drops → StateMachine regresses toward Breathing
+  //      / Awakening / Dormant → DrumGenerator applies a volume multiplier
+  //      of 0–0.5 → the beat gets quiet or disappears.
+  //   2. The arrangement cycler does NOT dip. The built-in 28-bar
+  //      breakdown + outro sections drop drums to 0.5–0.6× for several bars
+  //      each minute, which during a freestyle feels like the beat stopped.
+  //
+  // This effect pins the StateMachine to a minimum of Flow (so regressions
+  // are ignored) and disables the arrangement cycler for the duration of
+  // the recording. Both constraints lift the moment recording stops.
+  useEffect(() => {
+    const machine = stateMachRef.current
+    const orchestr = orchestrRef.current
+    if (!machine || !orchestr) return
+
+    if (isRecording) {
+      orgLog('recording:lock-engaged', {
+        arrangementEnabled: orchestr.isArrangementEnabled(),
+        floor: OState.Flow,
+      })
+      // Force up to Flow immediately so drums/bass/melody are at full level.
+      const physics = physicsRef.current?.getLastState()
+      if (physics) {
+        machine.forceState(OState.Awakening, physics)
+        machine.forceState(OState.Breathing, physics)
+        machine.forceState(OState.Flow, physics)
+      }
+      machine.setStateFloor(OState.Flow)
+      orchestr.setArrangementEnabled(false)
+    } else {
+      machine.setStateFloor(null)
+      orchestr.setArrangementEnabled(true)
+      orgLog('recording:lock-released', {
+        arrangementEnabled: orchestr.isArrangementEnabled(),
+        floor: null,
+      })
+    }
+  }, [isRecording])
+
+  useEffect(() => startOrgHeartbeat(() => {
+    const physics = physicsRef.current?.getLastState()
+    const organism = stateMachRef.current?.getCurrentState()
+    const musical = orchestrRef.current?.getMusicalState()
+    const now = performance.now()
+
+    const toneCtx   = Tone.getContext()
+    const transport = Tone.getTransport()
+    const dest      = Tone.getDestination()
+    return {
+      running: isRunningRef.current,
+      recording: isRecordingRef.current,
+      input: inputSource,
+      preset: activePresetId,
+      bpm: orchestrRef.current?.getBpm(),
+      state: organism?.current,
+      stateFloor: stateMachRef.current?.getStateFloor(),
+      stateMs: organism ? Math.round(organism.msInState) : null,
+      frameAgeMs: physics ? Math.round(now - physics.timestamp) : null,
+      mode: physics?.mode,
+      bounce: physics?.bounce !== undefined ? Number(physics.bounce.toFixed(2)) : undefined,
+      density: physics?.density !== undefined ? Number(physics.density.toFixed(2)) : undefined,
+      presence: physics?.presence !== undefined ? Number(physics.presence.toFixed(2)) : undefined,
+      voiceActive: physics?.voiceActive,
+      section: musical?.section,
+      sectionBar: musical?.sectionBar,
+      subGenre: musical?.subGenre,
+      drumFill: musical?.drums.fillRequested,
+      drumDropout: musical?.drums.dropout,
+      melodyDropout: musical?.melody.dropout,
+      // Audio system diagnostics — key for silence debugging
+      ctxState: toneCtx.state,
+      transportState: transport.state,
+      destVol: Number(dest.volume.value.toFixed(1)),
+    }
+  }), [activePresetId, inputSource])
+
   // generateReport callback
   const generateReport = useCallback((): FreestyleReport | null => {
     const card = reportCardRef.current
@@ -1711,6 +1992,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     // Quick Start
     quickStart,
+    swapPreset,
     quickStartPresets: QUICK_START_PRESETS,
     activePresetId,
 
@@ -1840,7 +2122,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }), [
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
-    quickStart, activePresetId,
+    quickStart, swapPreset, activePresetId,
     countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     cadenceLockEnabled, cadenceSnapshot,

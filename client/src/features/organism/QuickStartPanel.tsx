@@ -11,7 +11,7 @@ import { useOrganism } from './OrganismContext'
 
 export function QuickStartPanel() {
   const {
-    quickStart,
+    swapPreset,
     quickStartPresets,
     activePresetId,
     isRunning,
@@ -56,8 +56,8 @@ export function QuickStartPanel() {
         )}
       </div>
 
-      {/* Running state: show active preset badge */}
-      {isRunning ? (
+      {/* Active-preset badge (only while running) */}
+      {isRunning && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '8px 12px',
@@ -69,7 +69,7 @@ export function QuickStartPanel() {
           {activePresetId ? (
             <>
               <span style={{ fontSize: 16 }}>{activePreset?.icon ?? '🎵'}</span>
-              <span>{activePreset?.genre ?? 'Custom'} — {activePreset?.bpm ?? '?'} BPM</span>
+              <span>{activePreset?.genre ?? 'Custom'} — {activePreset?.bpm ?? '?'} BPM · tap another to swap</span>
             </>
           ) : (
             <>
@@ -78,8 +78,9 @@ export function QuickStartPanel() {
             </>
           )}
         </div>
-      ) : (
-        <>
+      )}
+
+      <>
           {/* Count-In big indicator (shown while counting in) */}
           {countingIn && (
             <div style={{
@@ -110,45 +111,55 @@ export function QuickStartPanel() {
             </div>
           )}
 
-          {/* Preset grid (hidden while counting in) */}
+          {/* Preset grid — visible at cold start AND while running (tap to swap) */}
           {!countingIn && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-              {quickStartPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  onClick={() => quickStart(preset.id)}
-                  title={`${preset.genre} — ${preset.bpm} BPM`}
-                  style={{
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center',
-                    gap: 3, padding: '10px 4px 8px',
-                    borderRadius: 'var(--border-radius-md)',
-                    border: '0.5px solid var(--color-border-secondary)',
-                    background: 'var(--color-background-secondary)',
-                    color: 'var(--color-text-primary)',
-                    cursor: 'pointer', fontSize: 10, fontWeight: 500,
-                    transition: 'all 0.15s ease', minWidth: 0,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.border = '1.5px solid var(--color-border-accent)'
-                    e.currentTarget.style.background = 'var(--color-background-accent-subtle)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.border = '0.5px solid var(--color-border-secondary)'
-                    e.currentTarget.style.background = 'var(--color-background-secondary)'
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>{preset.icon}</span>
-                  <span style={{ fontWeight: 600 }}>{preset.label}</span>
-                  <span style={{ fontSize: 9, color: 'var(--color-text-tertiary)', fontWeight: 400 }}>
-                    {preset.bpm} BPM
-                  </span>
-                </button>
-              ))}
+              {quickStartPresets.map((preset) => {
+                const isActive = preset.id === activePresetId
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => swapPreset(preset.id)}
+                    title={`${preset.genre} — ${preset.bpm} BPM${isRunning ? ' · swap live' : ''}`}
+                    style={{
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center',
+                      gap: 3, padding: '10px 4px 8px',
+                      borderRadius: 'var(--border-radius-md)',
+                      border: isActive
+                        ? '1.5px solid var(--color-border-accent)'
+                        : '0.5px solid var(--color-border-secondary)',
+                      background: isActive
+                        ? 'var(--color-background-accent-subtle)'
+                        : 'var(--color-background-secondary)',
+                      color: 'var(--color-text-primary)',
+                      cursor: 'pointer', fontSize: 10, fontWeight: 500,
+                      transition: 'all 0.15s ease', minWidth: 0,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (isActive) return
+                      e.currentTarget.style.border = '1.5px solid var(--color-border-accent)'
+                      e.currentTarget.style.background = 'var(--color-background-accent-subtle)'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isActive) return
+                      e.currentTarget.style.border = '0.5px solid var(--color-border-secondary)'
+                      e.currentTarget.style.background = 'var(--color-background-secondary)'
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>{preset.icon}</span>
+                    <span style={{ fontWeight: 600 }}>{preset.label}</span>
+                    <span style={{ fontSize: 9, color: 'var(--color-text-tertiary)', fontWeight: 400 }}>
+                      {preset.bpm} BPM
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           )}
 
-          {/* ── Alternate start modes ──────────────────────────────── */}
+          {/* ── Alternate start modes (cold start only) ─────────────── */}
+          {!isRunning && (
           <div style={{
             borderTop: '0.5px solid var(--color-border-tertiary)',
             paddingTop: 10,
@@ -231,12 +242,14 @@ export function QuickStartPanel() {
               </span>
             </button>
           </div>
+          )}
 
-          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
-            Tap a preset for instant start. The organism still reacts to your voice.
-          </div>
+          {!isRunning && (
+            <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
+              Tap a preset for instant start. The organism still reacts to your voice.
+            </div>
+          )}
         </>
-      )}
     </div>
   )
 }

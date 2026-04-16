@@ -53,15 +53,18 @@ interface ArrangementSlot {
   melodyDropout: boolean
 }
 
+// Freestyle arrangement: full beat from bar 1, melody never drops out.
+// All instruments are always on — the volume multipliers handle dynamics,
+// but nothing is silenced so the MC always has something to rap over.
 const ARRANGEMENT: ArrangementSlot[] = [
-  { name: 'intro',     bars: 4, drums: 1.0, bass: 0.0, melody: 0.0, chord: 0.4, texture: 0, drumDropout: false, bassDropout: true,  melodyDropout: true  },
-  { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.0, chord: 0.8, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: true  },
-  { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, chord: 1.0, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'intro',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, chord: 0.8, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, chord: 0.9, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, chord: 1.0, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
   { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, chord: 1.0, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 2, drums: 0.4, bass: 0.7, melody: 0.0, chord: 0.6, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: true  },
-  { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.6, chord: 0.9, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'breakdown', bars: 2, drums: 0.6, bass: 0.8, melody: 0.6, chord: 0.7, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, chord: 0.9, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
   { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, chord: 1.0, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'outro',     bars: 2, drums: 0.5, bass: 0.5, melody: 0.0, chord: 0.3, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: true  },
+  { name: 'outro',     bars: 2, drums: 0.7, bass: 0.8, melody: 0.7, chord: 0.6, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const ARRANGEMENT_TOTAL_BARS = ARRANGEMENT.reduce((sum, s) => sum + s.bars, 0)

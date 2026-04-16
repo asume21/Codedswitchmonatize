@@ -16,6 +16,7 @@ import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
 import { buildSubGenrePattern, mutatePattern } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
+import { orgLog } from '../../lib/perf/organismLog'
 
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
@@ -78,15 +79,17 @@ export class GeneratorOrchestrator {
   //
   // Total cycle: 28 bars, then repeats.
 
+  // Freestyle arrangement: full beat from bar 1, melody never drops out.
+  // Mirrors MusicalDirector.ARRANGEMENT — no instrument silence, only dynamics.
   private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
-    { name: 'intro',     bars: 4, drums: 1.0, bass: 0.8, melody: 0.5, texture: 0, chord: 0.7 },
-    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, texture: 0, chord: 0.9 },
+    { name: 'intro',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, texture: 0, chord: 0.8 },
+    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0, chord: 0.9 },
     { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, texture: 0, chord: 1.0 },
     { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'breakdown', bars: 2, drums: 0.5, bass: 0.7, melody: 0.3, texture: 0, chord: 0.6 },
-    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, texture: 0, chord: 0.9 },
+    { name: 'breakdown', bars: 2, drums: 0.6, bass: 0.8, melody: 0.6, texture: 0, chord: 0.7 },
+    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, texture: 0, chord: 0.9 },
     { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'outro',     bars: 2, drums: 0.6, bass: 0.6, melody: 0.3, texture: 0, chord: 0.4 },
+    { name: 'outro',     bars: 2, drums: 0.7, bass: 0.8, melody: 0.7, texture: 0, chord: 0.6 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
@@ -120,16 +123,35 @@ export class GeneratorOrchestrator {
 
     // When director changes sub-genre, rebuild drum + bass patterns
     this.unsubDirectorSubGenre = this.director.onSubGenreChange((subGenre) => {
+      orgLog('subgenre:change', { subGenre })
       this.onSubGenreChange(subGenre)
     })
 
     // When director triggers mutation, mutate current patterns
     this.unsubDirectorMutation = this.director.onMutation(() => {
+      const state = this.director.getState()
+      orgLog('pattern:mutation', {
+        subGenre: state.subGenre,
+        section: state.section,
+        variant: state.drums.variantIndex,
+      })
       this.onPatternMutation()
     })
 
     // When director changes section, dispatch event for AI pattern generation
-    this.unsubDirectorSection = this.director.onSectionChange((section, _slot) => {
+    this.unsubDirectorSection = this.director.onSectionChange((section, slot) => {
+      orgLog('arrangement:section', {
+        section,
+        bars: slot.bars,
+        drums: slot.drums,
+        bass: slot.bass,
+        melody: slot.melody,
+        chord: slot.chord,
+        drumDropout: slot.drumDropout,
+        bassDropout: slot.bassDropout,
+        melodyDropout: slot.melodyDropout,
+        bpm: Tone.getTransport().bpm.value,
+      })
       window.dispatchEvent(new CustomEvent('organism:section-change', {
         detail: {
           section,
@@ -144,13 +166,22 @@ export class GeneratorOrchestrator {
   // Wire to physics and state machine outputs
   // Call this once after both engines are constructed
   wire(physicsEngine: PhysicsEngine, stateMachine: StateMachine): void {
+    console.log('[Organism] wire() called — subscribing to physics + state machine')
     // Store reference for density feedback loop (avoids circular import)
     this.physicsEngineRef = physicsEngine
+
+    let physicsFrameCount = 0
 
     // Subscribe to physics updates — store unsub so dispose() can break the
     // circular reference: physics.callbacks → orchestrator → generators
     this.unsubPhysics = physicsEngine.subscribe((physics) => {
       this.lastPhysics = physics
+      physicsFrameCount++
+      // Log the first frame and every 120th (~every 3s at 43fps) so we can see
+      // whether physics is firing at all, without spamming.
+      if (physicsFrameCount === 1 || physicsFrameCount % 120 === 0) {
+        console.log('[Organism] physics frame #' + physicsFrameCount, { hasOrganism: !!this.lastOrganism, running: this.running })
+      }
       this.onFrame(physics, this.lastOrganism)
     })
 
@@ -163,8 +194,16 @@ export class GeneratorOrchestrator {
     // all 5 generators don't dispose + create Tone.Parts in one synchronous
     // burst, which floods the audio scheduler and causes crackling.
     this.unsubTransition = stateMachine.onTransition((event) => {
-      if (!this.lastPhysics) return
+      console.log('[Organism] state transition', { from: event.from, to: event.to, hasPhysics: !!this.lastPhysics })
+      // Use event.physicsSnapshot which is ALWAYS valid — it was captured at
+      // the moment the transition fired, even if lastPhysics hasn't been set
+      // yet by the physics subscriber (race on first quickStart frame).
       const snap = event.physicsSnapshot
+      if (this.lastPhysics === null) {
+        // First transition: seed lastPhysics from the snapshot so subsequent
+        // onFrame calls don't skip the first seeding.
+        this.lastPhysics = snap
+      }
 
       // Notify director FIRST so it sets sub-genre + groove before generators rebuild
       this.director.onStateTransition(event.to, snap)
@@ -177,22 +216,34 @@ export class GeneratorOrchestrator {
       setTimeout(() => this.melody.onStateTransition(event.to, snap), 120)
       setTimeout(() => this.chord.onStateTransition(event.to, snap), 180)
     })
+    console.log('[Organism] wire() complete — all subscriptions attached')
   }
 
   async start(bpm?: number): Promise<void> {
-    if (this.running) return
+    const dest = Tone.getDestination()
+    console.log('[Organism] start() called', { alreadyRunning: this.running, destVol: dest.volume.value, ctxState: Tone.getContext().state })
+    // Always ensure destination is audible — a previous start() that mutes then
+    // loses its ramp (StrictMode remount, start/stop thrash) must not leave the
+    // global destination at -Infinity and silence the whole app.
+    if (this.running) {
+      if (dest.volume.value < -60) {
+        console.warn('[Organism] destination was stuck at silence; restoring to 0 dB')
+        dest.volume.value = 0
+      }
+      return
+    }
     await Tone.start()
 
-    // Increase look-ahead so main-thread jank doesn't starve the audio graph.
-    // Default is ~0.1 s; 0.6 s gives a generous buffer against React re-renders,
-    // physics computation spikes, 5 generators processing frames, and Part rebuilds.
-    // This adds ~600ms of output latency but eliminates buffer underrun crackling.
-    Tone.getContext().lookAhead = 0.6
+    // Look-ahead controls scheduling latency — the time between a scheduled
+    // event and when it becomes audible. A high value (0.6s) hides main-thread
+    // jank but adds 600ms of silence before the first drum hit, which is
+    // unacceptable for live freestyle. 0.1s is tight but audible within a
+    // fraction of a beat, and modern machines don't need the wider window.
+    Tone.getContext().lookAhead = 0.1
 
-    // Mute the destination briefly to hide the initial scheduling burst that
-    // produces a sharp transient / crackle when all Parts start simultaneously.
-    const dest = Tone.getDestination()
-    dest.volume.value = -Infinity
+    // Start at 0 dB. The prior pre-mute-to-silence was hiding an initial
+    // transient, but when the ramp was skipped it silently bricked audio.
+    dest.volume.value = 0
 
     // BPM is synced from TransportContext (the single source of truth).
     // Only set BPM here as a fallback if Transport hasn't been configured yet.
@@ -208,12 +259,7 @@ export class GeneratorOrchestrator {
       transport.start()
     }
     this.running = true
-
-    // Fade in over 300ms — by this time the look-ahead buffer is primed
-    // and all generators have scheduled their first events cleanly.
-    setTimeout(() => {
-      dest.volume.rampTo(0, 0.3)
-    }, 250)
+    console.log('[Organism] start() complete', { destVol: dest.volume.value, transportState: transport.state, bpm: transport.bpm.value, ctxState: Tone.getContext().state })
   }
 
   stop(): void {
@@ -732,6 +778,46 @@ export class GeneratorOrchestrator {
     this.director.forceSubGenre(subGenre)
   }
 
+  /**
+   * Enable/disable the 28-bar arrangement cycler. When disabled, generators
+   * stay at their base multipliers instead of being scaled by breakdown/outro
+   * sections — critical for freestyle recording where the beat must not dip.
+   */
+  setArrangementEnabled(enabled: boolean): void {
+    if (this.arrangementEnabled === enabled) return
+    this.arrangementEnabled = enabled
+    orgLog('arrangement:toggle', { enabled })
+    if (!enabled) {
+      // Restore full multipliers so the drums don't stay at whatever reduced
+      // level the last arrangement section applied.
+      this.drum.applyArrangementMultiplier(1.0)
+      this.bass.applyArrangementMultiplier(1.0)
+      this.melody.applyArrangementMultiplier(1.0)
+      this.chord.applyArrangementMultiplier(1.0)
+      this.lastArrangementBar = -1
+      this.lastArrangementSection = ''
+    }
+  }
+
+  isArrangementEnabled(): boolean {
+    return this.arrangementEnabled
+  }
+
+  getCurrentSection(): string {
+    return this.lastArrangementSection || 'none'
+  }
+
+  /**
+   * Live preset swap — change sub-genre + BPM without teardown. Patterns
+   * rebuild via the director's sub-genre listener, and an explicit
+   * regenerateAll() ensures bass/melody/chord rebuild as well.
+   */
+  swapSubGenre(subGenre: HipHopSubGenre, bpm?: number): void {
+    if (bpm != null) this.setBpm(bpm)
+    this.director.forceSubGenre(subGenre)
+    this.regenerateAll()
+  }
+
   /** Reads the current Transport bar and applies arrangement section multipliers. */
   private applyArrangement(): void {
     if (!this.arrangementEnabled || !this.running) return
@@ -768,6 +854,16 @@ export class GeneratorOrchestrator {
     // so they can request an AI-generated pattern variation
     if (section.name !== this.lastArrangementSection) {
       this.lastArrangementSection = section.name
+      orgLog('arrangement:apply', {
+        section: section.name,
+        bar: barNumber,
+        cycleBar,
+        drums: section.drums,
+        bass: section.bass,
+        melody: section.melody,
+        texture: this.textureEnabled ? section.texture : 0,
+        chord: section.chord,
+      })
       window.dispatchEvent(new CustomEvent('organism:section-change', {
         detail: {
           section:  section.name,

@@ -7,6 +7,7 @@ import { Music, ChevronDown, ChevronUp, Pin, PinOff } from "lucide-react";
 import WaveformVisualizer from "@/components/studio/WaveformVisualizer";
 import { useTracks } from "@/hooks/useTracks";
 import { useTransport } from "@/contexts/TransportContext";
+import { useRenderCounter } from "@/lib/perf/useRenderCounter";
 
 interface TransportControlsProps {
   currentTool?: string;
@@ -18,6 +19,7 @@ const FLOAT_MIN_HEIGHT = 200;
 const FALLBACK_DURATION_SECONDS = 165; // 02:45 fallback when no duration available
 
 export default function TransportControls({ currentTool = "Studio" }: TransportControlsProps) {
+  useRenderCounter('TransportControls');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [currentTime, setCurrentTime] = useState("00:00");

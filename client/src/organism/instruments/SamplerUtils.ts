@@ -1,6 +1,9 @@
 import * as Tone from 'tone';
 
-const BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/MusyngKite/';
+// Soundfonts are self-hosted under client/public/soundfonts/ so the app stops
+// depending on a third-party CDN (gleitz.github.io) at runtime. Only the 20
+// samples per instrument the app actually requests are bundled (~11 MB total).
+const BASE_URL = '/soundfonts/';
 
 /** Extended Sampler type with loading state tracking */
 export type LoadableSampler = Tone.Sampler & {
@@ -29,15 +32,19 @@ export function createSoundfontSampler(
   onLoad?: () => void
 ): LoadableSampler {
   const sfUrl = `${BASE_URL}${instrumentName}-mp3/`;
-  
-  // Sample every minor third for reasonable coverage without fetching 88 files
+
+  // Sample every minor third for reasonable coverage without fetching 88 files.
+  // The MusyngKite repo names black keys with FLATS (Db, Eb, Gb, Ab, Bb) — sharp
+  // variants (Ds4.mp3, Fs4.mp3, etc.) return 404 and silently break every
+  // sample-based instrument. Keep the enharmonic equivalents: D# = Eb, F# = Gb.
+  // Tone.js normalizes sharp/flat spellings internally when looking up samples.
   const noteMap: Record<string, string> = {};
-  const noteNames = ['C', 'D#', 'F#', 'A']; 
-  
+  const noteNames = ['C', 'Eb', 'Gb', 'A'];
+
   for (let octave = 2; octave <= 6; octave++) {
     for (const n of noteNames) {
       const key = `${n}${octave}`;
-      noteMap[key] = `${sfUrl}${n.replace('#', 's')}${octave}.mp3`;
+      noteMap[key] = `${sfUrl}${n}${octave}.mp3`;
     }
   }
 

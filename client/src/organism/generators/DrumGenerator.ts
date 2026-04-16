@@ -1,6 +1,7 @@
 // Section 04 — Drum Generator
 
 import * as Tone from 'tone'
+import { orgLog }             from '../../lib/perf/organismLog'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, DrumInstrument } from './types'
 import type { DrumHit }       from './types'
@@ -64,6 +65,11 @@ export class DrumGenerator extends GeneratorBase {
   // Track last kick time for hat-on-kick ducking
   private lastKickTime: number = 0
   private lastOutputGain: number = 0
+
+  // Per-voice last-trigger time. Monophonic Tone synths (MembraneSynth, NoiseSynth,
+  // MetalSynth) require every new trigger time to be ≥ the previous one on that voice.
+  // Humanization jitter can go negative, so we clamp each voice's next time here.
+  private lastTriggerByVoice: Map<string, number> = new Map()
 
   constructor() {
     super(GeneratorName.Drum)
@@ -180,8 +186,6 @@ export class DrumGenerator extends GeneratorBase {
 
     if (to === OState.Awakening) {
       this.stopPart()
-      // Commit the full beat immediately — don't make the listener wait.
-      // The activity level ramps up naturally so it still fades in; no silent "figuring out" period.
       this.currentPhysicsMode = physics.mode
       const kit     = getDrumKit(physics.mode)
       const pattern = buildDrumPattern(kit, physics.mode)
@@ -205,6 +209,9 @@ export class DrumGenerator extends GeneratorBase {
     this.currentPresence = 0
     this.currentPocket   = 0
     this.hasStartedPlayback = false
+    this.lastTriggerByVoice.clear()
+    this.lastBroadcastSig  = ''
+    this.lastBroadcastTime = 0
     this.setOutputLevel(0)
   }
 
@@ -336,18 +343,41 @@ export class DrumGenerator extends GeneratorBase {
     // Start at next bar boundary — prevents past-event burst where all
     // events before current Transport position fire simultaneously.
     const startGrid = this.hasStartedPlayback ? '1m' : '16n'
-    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    const startAt = Tone.getTransport().nextSubdivision(startGrid)
+    this.part.start(startAt)
     this.hasStartedPlayback = true
+    orgLog('drum:part-started', {
+      hits: events.length,
+      startGrid,
+      startAt: typeof startAt === 'number' ? Number(startAt.toFixed(3)) : startAt,
+      transportState: Tone.getTransport().state,
+      transportPos:   Tone.getTransport().position,
+      ctxState:       Tone.getContext().state,
+    })
 
     // Gap 3 — mirror current pattern into ProBeatMaker for visual display
     this.broadcastToBeatMaker(hits)
   }
+
+  // Broadcast dedup — avoids spamming React with identical beat-grid events.
+  // Rebuilds can fire on physics changes that produce the exact same hits.
+  private lastBroadcastSig: string = ''
+  private lastBroadcastTime: number = 0
+  private static readonly MIN_BROADCAST_INTERVAL_MS = 500
 
   /**
    * Converts organism drum hits to the ProBeatMaker step format and dispatches
    * 'ai:loadBeatPattern' so the Beat Maker tab shows what the Organism is playing.
    */
   private broadcastToBeatMaker(hits: DrumHit[]): void {
+    // Cheap pattern fingerprint — if identical to last broadcast, skip.
+    const sig = hits.map(h => `${h.instrument}@${h.time}:${h.velocity.toFixed(2)}`).join('|')
+    const now = performance.now()
+    if (sig === this.lastBroadcastSig) return
+    if (now - this.lastBroadcastTime < DrumGenerator.MIN_BROADCAST_INTERVAL_MS) return
+    this.lastBroadcastSig  = sig
+    this.lastBroadcastTime = now
+
     const STEPS = 64 // 4 bars × 16 steps per bar
     // DrumInstrument 'hat' → ProBeatMaker track id 'hihat'
     const instToId: Record<string, string> = {
@@ -387,6 +417,8 @@ export class DrumGenerator extends GeneratorBase {
           pattern,
         })),
         bpm: Tone.getTransport().bpm.value,
+        source: 'organism',
+        silent: true,
       },
     }))
   }
@@ -412,6 +444,15 @@ export class DrumGenerator extends GeneratorBase {
     return Math.min(1, Math.max(0, vel))
   }
 
+  // Enforce monotonic scheduling per voice. Monophonic Tone synths throw when
+  // a new event lands before the previous one on the same voice's timeline.
+  private clampTime(voice: string, t: number): number {
+    const last = this.lastTriggerByVoice.get(voice) ?? 0
+    const safe = t > last + 0.001 ? t : last + 0.001
+    this.lastTriggerByVoice.set(voice, safe)
+    return safe
+  }
+
   private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
     // Micro-timing humanization: ghost notes (low vel) get more timing drift than
     // downbeats (high vel) — mimics a real drummer who locks kicks/snares but floats ghosts
@@ -421,29 +462,39 @@ export class DrumGenerator extends GeneratorBase {
     const t = Math.max(0, time + jitterSec)
 
     switch (instrument) {
-      case DrumInstrument.Kick:
-        this.kickSub.triggerAttackRelease(this.currentKickNote, '8n', t, velocity)
-        this.kickClick.triggerAttackRelease('32n', t, velocity * 0.6)
-        this.lastKickTime = t
+      case DrumInstrument.Kick: {
+        const tSub = this.clampTime('kickSub', t)
+        const tClick = this.clampTime('kickClick', t)
+        this.kickSub.triggerAttackRelease(this.currentKickNote, '8n', tSub, velocity)
+        this.kickClick.triggerAttackRelease('32n', tClick, velocity * 0.6)
+        this.lastKickTime = tSub
         // Fire sidechain callback so bass channel ducks on kick
-        if (this.onKickTrigger) this.onKickTrigger(t)
+        if (this.onKickTrigger) this.onKickTrigger(tSub)
         break
-      case DrumInstrument.Snare:
-        this.snareBody.triggerAttackRelease('8n', t, velocity)
-        this.snareTone.triggerAttackRelease('E3', '16n', t, velocity * 0.7)
+      }
+      case DrumInstrument.Snare: {
+        const tBody = this.clampTime('snareBody', t)
+        const tTone = this.clampTime('snareTone', t)
+        this.snareBody.triggerAttackRelease('8n', tBody, velocity)
+        this.snareTone.triggerAttackRelease('E3', '16n', tTone, velocity * 0.7)
         break
+      }
       case DrumInstrument.Hat:
         if (velocity > 0.55) {
           // Accented = open hat (longer decay gives breath and swing feel)
-          this.hatOpen.triggerAttackRelease('32n', t, velocity * 0.85)
+          const tOpen = this.clampTime('hatOpen', t)
+          this.hatOpen.triggerAttackRelease('32n', tOpen, velocity * 0.85)
         } else {
           // Ghost/quiet = tight closed hat
-          this.hat.triggerAttackRelease('32n', t, velocity)
+          const tHat = this.clampTime('hat', t)
+          this.hat.triggerAttackRelease('32n', tHat, velocity)
         }
         break
-      case DrumInstrument.Perc:
-        this.perc.triggerAttackRelease('16n', t, velocity)
+      case DrumInstrument.Perc: {
+        const tPerc = this.clampTime('perc', t)
+        this.perc.triggerAttackRelease('16n', tPerc, velocity)
         break
+      }
     }
   }
 

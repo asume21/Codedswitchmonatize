@@ -3,7 +3,7 @@
  * Handles commands, polling for captures, and retrieval.
  */
 
-const BASE = process.env.AUDIO_DEBUG_BASE_URL ?? 'http://localhost:4000'
+const BASE = process.env.AUDIO_DEBUG_BASE_URL ?? 'http://localhost:5000'
 
 function log(msg: string) {
   process.stderr.write(`[audio-debug-mcp] ${msg}\n`)

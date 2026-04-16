@@ -31,6 +31,7 @@ import { KeyScaleSelector } from "./KeyScaleSelector";
 import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
 import GlobalTransportBar from "./GlobalTransportBar";
 import { duplicateTrackData } from "@/lib/trackClone";
+import { useRenderCounter } from "@/lib/perf/useRenderCounter";
 import { apiRequest } from "@/lib/queryClient";
 import { useMIDI } from "@/hooks/use-midi";
 import { 
@@ -45,7 +46,7 @@ import {
   STEP_WIDTH,
   AVAILABLE_INSTRUMENTS
 } from "./types/pianoRollTypes";
-import { createTrackPayload } from "@/types/studioTracks";
+import { createTrackPayload, createArrangementClip } from "@/types/studioTracks";
 import { openMidiFilePicker, readFileAsArrayBuffer, parseMidiFile, parseMidiBase64 } from "@/lib/midiImport";
 import { pianoRollScheduler } from "@/lib/pianoRollScheduler";
 import { StudioVocalRecorder, type VocalTake } from "./StudioVocalRecorder";
@@ -173,8 +174,16 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   onPlayNoteOff,
   onNotesChange
 }) => {
+  useRenderCounter('VerticalPianoRoll');
   // Get transport state from context for sync with floating transport
-  const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx, timeSignature } = useTransport();
+  const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx, timeSignature, position: transportPosition } = useTransport();
+
+  // Clip-level ops — used to commit recorded vocal takes onto the arrangement timeline
+  const { addClip: addArrangementClip } = useTrackStore();
+
+  // Ref keeps latest transport beat without retriggering useCallback deps
+  const transportPositionRef = useRef(transportPosition);
+  useEffect(() => { transportPositionRef.current = transportPosition; }, [transportPosition]);
   
   // Get global instrument context for unified MIDI/piano roll sync
   const globalInstrument = useInstrumentOptional();
@@ -370,12 +379,6 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     });
   }, []);
 
-  // ─── Vocal takes storage (per track ID) ─────────────────────────────────────
-  const [vocalTakes, setVocalTakes] = useState<Record<string, VocalTake[]>>({});
-  const handleVocalTakesChange = useCallback((trackId: string, takes: VocalTake[]) => {
-    setVocalTakes(prev => ({ ...prev, [trackId]: takes }));
-  }, []);
-
   // ─── Scheduler visual step (replaces internalCurrentStep for playback) ──────
   // The scheduler fires the onVisualStep callback via RAF so the playhead moves
   // smoothly without setInterval drift.
@@ -385,6 +388,54 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const { currentSession, updateSession } = useSongWorkSession();
   // Use useTracks hook for persistence
   const { tracks: registeredClips, addAndSaveTrack, updateTrack: updateTrackInStore, removeTrack } = useTracks();
+
+  // ─── Vocal takes storage (per track ID) ─────────────────────────────────────
+  // Each new take also gets committed to the arrangement timeline as an
+  // ArrangementClip so it appears as a draggable block the user can move/mix.
+  const [vocalTakes, setVocalTakes] = useState<Record<string, VocalTake[]>>({});
+  const handleVocalTakesChange = useCallback((trackId: string, takes: VocalTake[]) => {
+    setVocalTakes(prev => {
+      const prevList = prev[trackId] ?? [];
+      const prevIds = new Set(prevList.map(t => t.id));
+      const newTakes = takes.filter(t => !prevIds.has(t.id));
+
+      if (newTakes.length > 0) {
+        const bpm = Math.max(1, transportTempo || 120);
+        const beatsPerSecond = bpm / 60;
+        // Place clip so it ends at the playhead (where the user hit stop).
+        const playheadBeat = Math.max(0, transportPositionRef.current || 0);
+
+        for (const take of newTakes) {
+          const durationBeats = Math.max(
+            0.25,
+            (take.durationMs / 1000) * beatsPerSecond,
+          );
+          const startBeat = Math.max(0, playheadBeat - durationBeats);
+          const clip = createArrangementClip({
+            name: take.name,
+            type: 'audio',
+            startBeat,
+            endBeat: startBeat + durationBeats,
+            audioUrl: take.url,
+            source: 'recording',
+          });
+          addArrangementClip(trackId, clip);
+        }
+
+        // Mirror latest take onto the track itself so playback engines that
+        // still read `track.audioUrl` pick it up.
+        const latest = newTakes[newTakes.length - 1];
+        updateTrackInStore(trackId, { audioUrl: latest.url });
+
+        toast({
+          title: newTakes.length === 1 ? '🎙️ Take added to arrangement' : `🎙️ ${newTakes.length} takes added`,
+          description: 'Drag the clip on the timeline to reposition.',
+        });
+      }
+
+      return { ...prev, [trackId]: takes };
+    });
+  }, [transportTempo, addArrangementClip, updateTrackInStore, toast]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const tracksRef = useRef<Track[]>([]); // Ref to always have latest tracks for playback
   const pianoKeysRef = useRef<HTMLDivElement>(null);

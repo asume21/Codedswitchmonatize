@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { sessionService } from "./sessionService";
 import { makeAICall } from "../../services/grok";
+import { localAI } from "../../services/localAI";
 
 export const sessionRouter = Router();
 
@@ -34,8 +35,9 @@ sessionRouter.get("/:userId", async (req, res) => {
 // Takes the current physics state and arrangement section, returns a novel
 // AI-generated drum pattern as DrumHit[] so the organism expands beyond its
 // hardcoded pattern library.
+// Uses Ollama (local/Railway) first, falls back to Grok-3 cloud.
 sessionRouter.post("/generate-pattern", async (req, res) => {
-  const { section = "verse", physics = {}, bpm = 90 } = req.body;
+  const { section = "verse", physics = {}, bpm = 90, lyrics = "" } = req.body;
 
   const mode     = physics.mode     ?? "boom_bap";
   const bounce   = ((physics.bounce   ?? 0.5) * 100).toFixed(0);
@@ -43,31 +45,64 @@ sessionRouter.post("/generate-pattern", async (req, res) => {
   const presence = ((physics.presence ?? 0.3) * 100).toFixed(0);
   const density  = ((physics.density  ?? 0.5) * 100).toFixed(0);
 
-  const prompt = `You are a hip-hop drum programmer. Generate a fresh 16-step drum pattern for the "${section}" section.
+  // Tailor the pattern feel to the arrangement section
+  const sectionHint: Record<string, string> = {
+    intro:     "sparse — just kick and hat, leave room for the voice to enter",
+    verse:     "tight and pocketed — support the rapper without fighting the vocals",
+    verse2:    "same as verse but add one extra syncopated kick for energy lift",
+    build:     "escalating — add hat density and a snare roll on beats 14–15",
+    drop:      "maximum impact — punchy kick, crisp snare, driving hats",
+    drop2:     "maximum impact with variation — change the kick syncopation from drop",
+    breakdown: "stripped — just kick on 0, snare on 8, half-time feel",
+    outro:     "winding down — fewer hats, relaxed kick",
+  };
+  const feel = sectionHint[section] ?? "balanced";
 
-Physics context: mode=${mode}, bounce=${bounce}%, swing=${swing}%, presence=${presence}%, density=${density}%, bpm=${bpm}
+  const lyricsLine = lyrics.trim()
+    ? `\nLast lyrical phrase: "${lyrics.slice(-120).trim()}" — match the energy.`
+    : "";
 
-Return ONLY a JSON object. Each key is an array of active step indices (0–15, one bar of 16th notes):
+  const systemPrompt = "You are a hip-hop beat programmer. Always respond with valid JSON only, no markdown, no explanation.";
+  const userPrompt = `Generate a fresh 16-step drum pattern for the "${section}" section.
+Feel: ${feel}${lyricsLine}
+
+Physics: mode=${mode}, bounce=${bounce}%, swing=${swing}%, presence=${presence}%, density=${density}%, bpm=${bpm}
+
+Return ONLY this JSON shape:
 {"kicks": [...], "snares": [...], "hats": [...], "percs": [...]}
 
-Rules:
-- kicks: 1–4 hits. Beat 0 always, beat 8 common. Higher bounce = more syncopation.
-- snares: exactly 2 hits on beats 4 and 12 (backbeat). Fill allowed on beat 14–15 for drop sections.
-- hats: 4–14 hits. Higher density = more 16th-note hats. Higher swing = bias off-beats (1,3,5,7...).
-- percs: 0–3 hits for rim/shaker accents.
-Vary from standard patterns — be creative but musical.`;
+Step indices 0–15 (16th-note grid, one bar).
+- kicks: 1–4 hits. Beat 0 almost always. Higher bounce = more syncopation.
+- snares: 2 hits on beats 4 and 12 (backbeat). Drop sections can add beat 14–15.
+- hats: 4–14 hits. Higher density = denser. Higher swing = favour odd steps.
+- percs: 0–3 rim/shaker accents.`;
+
+  let raw: string | null = null;
+
+  // Try local Ollama first (free, fast on Railway), fall back to Grok-3 cloud
+  try {
+    raw = await localAI.generate(userPrompt, { format: "json", temperature: 0.85 });
+    console.log("[organism:generate-pattern] Used local AI (Ollama)");
+  } catch {
+    // Ollama not running in this environment — use cloud
+    try {
+      const response = await makeAICall(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user",   content: userPrompt  },
+        ],
+        { response_format: { type: "json_object" }, temperature: 0.85, max_tokens: 200 }
+      );
+      raw = response.choices?.[0]?.message?.content ?? "{}";
+      console.log("[organism:generate-pattern] Used cloud AI (Grok-3 fallback)");
+    } catch (cloudErr) {
+      console.error("[organism:generate-pattern] Both AI providers failed:", cloudErr);
+      return res.status(500).json({ error: "Pattern generation failed" });
+    }
+  }
 
   try {
-    const response = await makeAICall(
-      [
-        { role: "system", content: "You are a hip-hop beat programmer. Always respond with valid JSON only, no markdown." },
-        { role: "user", content: prompt },
-      ],
-      { response_format: { type: "json_object" }, temperature: 0.85, max_tokens: 200 }
-    );
-
-    const raw = response.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw ?? "{}");
 
     // Convert step indices (0–15) to DrumHit time format "bar:beat:sub"
     // The organism plays 4-bar loops; we populate bar 0 and let it loop.
@@ -93,9 +128,9 @@ Vary from standard patterns — be creative but musical.`;
     ];
 
     return res.json({ hits });
-  } catch (err) {
-    console.error("[organism:generate-pattern] AI call failed:", err);
-    return res.status(500).json({ error: "Pattern generation failed" });
+  } catch (parseErr) {
+    console.error("[organism:generate-pattern] Failed to parse AI JSON:", parseErr, "\nRaw:", raw?.slice(0, 200));
+    return res.status(500).json({ error: "Pattern generation failed — invalid JSON" });
   }
 });
 

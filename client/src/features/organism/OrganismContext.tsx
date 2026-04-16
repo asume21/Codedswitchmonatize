@@ -64,6 +64,8 @@ export interface OrganismContextValue {
 
   // Quick Start — skip cold start, instant beat
   quickStart:         (presetId: string) => Promise<void>
+  /** Live-swap the active preset without tearing down engines (starts cold if not running). */
+  swapPreset:         (presetId: string) => Promise<void>
   quickStartPresets:  QuickStartPreset[]
   activePresetId:     string | null
 

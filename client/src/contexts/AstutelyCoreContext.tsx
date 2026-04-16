@@ -198,6 +198,65 @@ const ASTUTELY_CHANNEL_MAPPING: Record<'drums' | 'bass' | 'chords' | 'melody', s
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// USER-TRACK ROLE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+// When the user adds a clip matching an Organism role, the matching generator
+// silences itself so the two aren't fighting. Detection is kind-first, then
+// name-based as a fallback (same convention as astutelyDecisionLoop).
+
+type OrganismRole = 'drums' | 'bass' | 'melody' | 'chords';
+
+const ASTUTELY_TRACK_ID_PREFIX = 'track-astutely-';
+
+function detectUserRoles(tracks: TrackClip[]): Set<OrganismRole> {
+  const roles = new Set<OrganismRole>();
+  for (const t of tracks) {
+    if (t.id.startsWith(ASTUTELY_TRACK_ID_PREFIX)) continue;
+    if (t.muted) continue;
+    const name = (t.name || '').toLowerCase();
+    const kind = t.kind;
+
+    if (kind === 'beat' || /\b(drum|beat|kick|snare|hat)\b/.test(name)) roles.add('drums');
+    if (/\bbass\b/.test(name) || /\b808\b/.test(name)) roles.add('bass');
+    if (kind === 'vocal' || /\b(melody|lead|vocal|top\s?line)\b/.test(name)) roles.add('melody');
+    if (kind === 'piano' || /\b(chord|pad|keys|piano)\b/.test(name)) roles.add('chords');
+  }
+  return roles;
+}
+
+// Role-specific backoff levels applied when a user track covers that role.
+// Melody ducks but stays audible — rappers use the organism melody as a
+// rhyme-scheme scaffold, so killing it removes a tool they're actively
+// using. Bass/drums/chords fully mute because user-provided versions are
+// almost always "replace" not "layer underneath".
+const ORGANISM_DUCK_LEVELS: Record<OrganismRole, number> = {
+  melody: 0.35,
+  chords: 0.4,
+  bass: 0,
+  drums: 0,
+};
+
+function applyOrganismBackoff(role: OrganismRole, backingOff: boolean): void {
+  const level = backingOff ? ORGANISM_DUCK_LEVELS[role] : 1;
+  switch (role) {
+    case 'bass':
+      astutelyOrganismBridge.setGeneratorVolume('bass', level);
+      break;
+    case 'melody':
+      astutelyOrganismBridge.setGeneratorVolume('melody', level);
+      break;
+    case 'chords':
+      astutelyOrganismBridge.setGeneratorVolume('chord', level);
+      break;
+    case 'drums':
+      // No single drum volume — duck both density axes the bridge exposes.
+      astutelyOrganismBridge.setGeneratorVolume('kickVelocity', level);
+      astutelyOrganismBridge.setGeneratorVolume('hatDensity', level);
+      break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PROVIDER
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -846,6 +905,39 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       astutelyOrganismBridge.disconnect();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── User-track awareness: Organism backs off on competing roles ───────────
+  // If the user drops a bass/drum/melody/chord clip onto the timeline while
+  // the Organism is running, the matching generator silences itself. When
+  // that track is removed (or muted), the generator restores.
+  const previousUserRolesRef = useRef<Set<OrganismRole>>(new Set());
+  useEffect(() => {
+    if (!organismIsRunning) {
+      // Fresh start gets a fresh diff — otherwise stale state would mis-attribute
+      // on the next run.
+      previousUserRolesRef.current = new Set();
+      return;
+    }
+
+    // Debounce: clip drag/resize can churn the tracks array many times per
+    // second. Wait for the dust to settle before committing a backoff change.
+    const handle = window.setTimeout(() => {
+      const roles = detectUserRoles(trackStore.tracks);
+      const prev = previousUserRolesRef.current;
+
+      const added: OrganismRole[] = [];
+      const removed: OrganismRole[] = [];
+      for (const r of roles) if (!prev.has(r)) added.push(r);
+      for (const r of prev) if (!roles.has(r)) removed.push(r);
+
+      for (const role of added) applyOrganismBackoff(role, true);
+      for (const role of removed) applyOrganismBackoff(role, false);
+
+      previousUserRolesRef.current = roles;
+    }, 200);
+
+    return () => window.clearTimeout(handle);
+  }, [trackStore.tracks, organismIsRunning]);
 
   const organismLockMode = useCallback((mode: OrganismMode) => {
     astutelyOrganismBridge.lockMode(mode);

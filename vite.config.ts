@@ -46,5 +46,46 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['@babel/plugin-transform-react-jsx']
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/');
+          if (!normalizedId.includes('/node_modules/')) return undefined;
+
+          if (
+            normalizedId.includes('/node_modules/react/') ||
+            normalizedId.includes('/node_modules/react-dom/') ||
+            normalizedId.includes('/node_modules/scheduler/')
+          ) {
+            return 'react-vendor';
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@radix-ui/') ||
+            normalizedId.includes('/node_modules/lucide-react/')
+          ) {
+            return 'ui-vendor';
+          }
+
+          if (
+            normalizedId.includes('/node_modules/tone/') ||
+            normalizedId.includes('/node_modules/standardized-audio-context/')
+          ) {
+            return 'audio-vendor';
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@tanstack/') ||
+            normalizedId.includes('/node_modules/wouter/')
+          ) {
+            return 'app-vendor';
+          }
+
+          return 'vendor';
+        },
+      },
+    },
+  },
 });

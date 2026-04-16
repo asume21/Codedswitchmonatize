@@ -33,26 +33,28 @@ export const MODE_OCTAVES: Record<string, [number, number]> = {
 
 /**
  * Determine melody behavior from mode, voice activity, and flow depth.
+ *
+ * Freestyle rule: melody NEVER rests — it's always at least Hint so the
+ * MC always has harmonic context to rap over. When the voice is active,
+ * melody drops to Hint (gentle fill-the-gap accompaniment). When silent,
+ * it steps up to Respond or Lead depending on how deep into flow we are.
  */
 export function getMelodyBehavior(
   mode: OrganismMode | string,
   voiceActive: boolean,
   flowDepth: number,
 ): MelodyBehavior {
-  // While voice is active with very low flow depth, melody rests
-  if (voiceActive && flowDepth < 0.15) return MelodyBehavior.Rest
-
-  // Voice active → hint (gentle accompaniment)
+  // Voice active → melody hints quietly (call-and-response: MC leads, melody supports)
   if (voiceActive) return MelodyBehavior.Hint
 
-  // No voice, moderate flow → respond
+  // No voice, moderate flow → melody responds (takes the spotlight between bars)
   if (flowDepth >= 0.2 && flowDepth < 0.5) return MelodyBehavior.Respond
 
-  // No voice, deep flow → lead
+  // No voice, deep flow → melody leads (full melodic phrase)
   if (flowDepth >= 0.5) return MelodyBehavior.Lead
 
-  // Default: rest
-  return MelodyBehavior.Rest
+  // Low flow, no voice → still hint so there's always something playing
+  return MelodyBehavior.Hint
 }
 
 // ── NEW: Hip-Hop Motif Bank For True Harmonic Flow ────────────────────

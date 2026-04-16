@@ -30,6 +30,7 @@ import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import SidechainControl from './SidechainControl';
+import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 
 interface ChannelMeterData {
   peak: number;
@@ -47,6 +48,7 @@ interface MixerState {
 }
 
 export default function ProfessionalMixer() {
+  useRenderCounter('ProfessionalMixer');
   const { toast } = useToast();
   const { currentSession, setCurrentSessionId } = useSongWorkSession();
   const { tracks, updateTrack: updateStudioTrack } = useTracks();

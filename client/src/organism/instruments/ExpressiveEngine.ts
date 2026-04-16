@@ -868,9 +868,9 @@ export class ExpressiveEngine {
   private loadSampler(preset: InstrumentPreset): void {
     this.samplerReady = false;
 
-    // Use Tone.js Sampler with General MIDI soundfont URLs
-    // This provides realistic acoustic samples with loop support
-    const baseUrl = 'https://gleitz.github.io/midi-js-soundfonts/MusyngKite/';
+    // Soundfonts are self-hosted under client/public/soundfonts/ — see
+    // SamplerUtils.ts for the rationale and bundled file list.
+    const baseUrl = '/soundfonts/';
     
     // Map preset IDs to MusyngKite soundfont instrument folder names
     const instrumentMap: Record<string, string> = {
@@ -901,13 +901,16 @@ export class ExpressiveEngine {
     const sfInstrument = instrumentMap[preset.id] || 'violin';
     const sfUrl = `${baseUrl}${sfInstrument}-mp3/`;
 
-    // Build a sampler that covers a few octaves
+    // Build a sampler that covers a few octaves.
+    // MusyngKite names black keys with FLATS (Eb, Gb, Ab, Bb, Db). Sharp-named
+    // paths (Ds, Fs, …) 404 and silently break the sampler — same bug as
+    // SamplerUtils.ts. Use enharmonic equivalents: D# = Eb, F# = Gb.
     const noteMap: Record<string, string> = {};
-    const noteNames = ['C', 'D#', 'F#', 'A']; // Sample every minor third for coverage
+    const noteNames = ['C', 'Eb', 'Gb', 'A']; // every minor third, flat spellings
     for (let octave = 2; octave <= 6; octave++) {
       for (const n of noteNames) {
         const key = `${n}${octave}`;
-        noteMap[key] = `${sfUrl}${n.replace('#', 's')}${octave}.mp3`;
+        noteMap[key] = `${sfUrl}${n}${octave}.mp3`;
       }
     }
 

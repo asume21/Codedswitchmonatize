@@ -33,6 +33,15 @@ export class AudioAnalysisEngine {
   private running = false
   private frameIndex = 0
   private lastFrame: AnalysisFrame | null = null
+
+  /**
+   * Returns the live MediaStream if the mic is open, else null. Callers
+   * (e.g. the Organism's MediaRecorder) can reuse this instead of calling
+   * getUserMedia a second time, which would open a competing mic stream.
+   */
+  getStream(): MediaStream | null {
+    return this.stream
+  }
   private readonly frequencyData: Float32Array<ArrayBuffer>
 
   private readonly linearSpectrumData: Float32Array<ArrayBuffer>

@@ -82,10 +82,14 @@ export const DEFAULT_STATE_MACHINE_CONFIG: StateMachineConfig = {
   breathingToDormantMs:     45000,
   flowToBreathingMs:        10000,
   flowToDormantMs:          45000,
-  awakeningMinBars:         1,
-  awakeningMaxBars:         2,
+  // Startup should become musical almost immediately in auto-generate mode.
+  // Keeping Awakening under half a bar avoids the long "nothing happens"
+  // window before the organism reaches Breathing/Flow.
+  awakeningMinBars:         0.25,
+  awakeningMaxBars:         0.5,
   syllabicDensityWindowBars: 3,
-  autoBreathingToFlowBars: 4,
+  // Promote quickly when there is no real voice input to lock onto.
+  autoBreathingToFlowBars: 0.5,
 }
 
 export type OrganismStateCallback    = (state: OrganismState)    => void

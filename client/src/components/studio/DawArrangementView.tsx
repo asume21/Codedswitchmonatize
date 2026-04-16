@@ -38,6 +38,7 @@ import { barToBeat, beatToBar, createArrangementClip, type ArrangementClip } fro
 import { executeCommand, clipCommand, trackCommand } from '@/lib/undoSystem';
 import { UndoRedoToolbar } from './UndoRedoToolbar';
 import { Scissors, Copy, ClipboardPaste, Trash, CopyPlus } from 'lucide-react';
+import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const HEADER_W    = 260;      // widened from 212 so track names aren't truncated
@@ -201,6 +202,7 @@ export interface DawArrangementViewProps {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementViewProps) {
+  useRenderCounter('DawArrangementView');
   const { tracks, updateTrack, removeTrack } = useTracks();
   const { position, tempo, isPlaying, setLoop, clearLoop } = useTransport();
   const loop    = useStudioStore(s => s.loop);
@@ -1082,19 +1084,37 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
 
           {/* ── Empty state ───────────────────────────────────────────────────────── */}
           {tracks.length === 0 && (
-            <div className="absolute flex flex-col items-center justify-center gap-4"
+            <div className="absolute flex flex-col items-center justify-center gap-5 px-6"
               style={{ left: HEADER_W, right: 0, top: RULER_H, bottom: 0 }}>
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center"
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center"
                 style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.18)' }}>
-                <Layers className="w-6 h-6 text-cyan-500/40" />
+                <Layers className="w-7 h-7 text-cyan-400/60" />
               </div>
-              <p className="text-[11px] text-gray-700 text-center">
-                No tracks yet.<br />Create something in Beat Lab or Piano Roll,<br />or click Add Track.
+              <div className="text-center max-w-md">
+                <p className="text-[13px] font-semibold text-cyan-300/90 mb-1">
+                  This is your song.
+                </p>
+                <p className="text-[11px] text-cyan-200/50 leading-relaxed">
+                  Every beat, melody, vocal, and AI-generated part lands here as a clip you can drag, trim, loop, and mix.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button onClick={() => onAddTrack?.('Drums', 'beat')}
+                  className="px-3 py-1.5 rounded border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 text-[11px] text-orange-300 hover:text-orange-100 transition-all flex items-center gap-1.5">
+                  <Drum className="w-3 h-3" /> Add Beat
+                </button>
+                <button onClick={() => onAddTrack?.('Melody', 'midi')}
+                  className="px-3 py-1.5 rounded border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-[11px] text-cyan-300 hover:text-cyan-100 transition-all flex items-center gap-1.5">
+                  <Piano className="w-3 h-3" /> Add Melody
+                </button>
+                <button onClick={() => onAddTrack?.('Vocals', 'vocal')}
+                  className="px-3 py-1.5 rounded border border-pink-500/30 bg-pink-500/10 hover:bg-pink-500/20 text-[11px] text-pink-300 hover:text-pink-100 transition-all flex items-center gap-1.5">
+                  <Mic2 className="w-3 h-3" /> Record Vocal
+                </button>
+              </div>
+              <p className="text-[10px] text-cyan-200/30 text-center">
+                Tip: generate with AI in the Organism or Astutely tab — output also lands here.
               </p>
-              <button onClick={() => onAddTrack?.('New Track', 'midi')}
-                className="px-4 py-2 rounded border border-cyan-500/25 bg-cyan-500/10 hover:bg-cyan-500/20 text-xs text-cyan-400 hover:text-cyan-100 transition-all">
-                + Add Track
-              </button>
             </div>
           )}
 

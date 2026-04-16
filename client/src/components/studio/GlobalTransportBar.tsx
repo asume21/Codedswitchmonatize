@@ -19,6 +19,7 @@ import { getCurrentProject, markDirty, type AudioClip } from '@/lib/projectManag
 import { professionalAudio } from '@/lib/professionalAudio';
 import { MasterBusPanel } from './MasterBusPanel';
 import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
+import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 
 interface TrackChannel {
   id: string;
@@ -36,6 +37,7 @@ interface GlobalTransportBarProps {
 }
 
 export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTransportBarProps) {
+  useRenderCounter('GlobalTransportBar');
   const isInline = variant === 'inline';
   const currentPattern = useStudioStore((s) => s.currentPattern);
   const currentMelody = useStudioStore((s) => s.currentMelody);

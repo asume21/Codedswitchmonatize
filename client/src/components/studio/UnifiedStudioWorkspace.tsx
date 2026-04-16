@@ -40,6 +40,7 @@ const AudioToolsPage = React.lazy(() => import('./AudioToolsPage'));
 import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin, NoiseGatePlugin, type ToolType } from './effects';
 import type { Note } from './types/pianoRollTypes';
 import BeatLab from './BeatLab';
+import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 import { DawArrangementView } from './DawArrangementView';
 const MasterMultiTrackPlayer = React.lazy(() => import('./MasterMultiTrackPlayer'));
 import { OrganismPage } from '@/features/organism/OrganismPage';
@@ -71,7 +72,7 @@ const InspectorPanel = React.lazy(() => import('./InspectorPanel'));
 const InstrumentLibrary = React.lazy(() => import('./InstrumentLibrary'));
 import { WindowManagerProvider } from '@/contexts/WindowManagerContext';
 import WindowLauncher from './WindowLauncher';
-import StudioWindowRenderer from './StudioWindowRenderer';
+const StudioWindowRenderer = React.lazy(() => import('./StudioWindowRenderer'));
 import UndoRedoControls from './UndoRedoControls';
 
 function TabLoadingFallback() {
@@ -500,6 +501,7 @@ function chooseAstutelyFocusTrack(groupedNotes: ReturnType<typeof convertAstutel
 }
 
 export default function UnifiedStudioWorkspace() {
+  useRenderCounter('UnifiedStudioWorkspace');
   const isMobile = useIsMobile();
   const currentKey = useStudioStore((s) => s.key);
   const { toast } = useToast();
@@ -1927,7 +1929,7 @@ export default function UnifiedStudioWorkspace() {
     setShowWorkflowSelector(false);
   };
 
-  const addTrack = (instrument: string, type: 'midi' | 'audio') => {
+  const addTrack = (instrument: string, type: 'midi' | 'audio' | 'beat' | 'vocal') => {
     if (!isPro && tracks.length >= 8) {
       setShowLicenseModal(true);
       toast({
@@ -1936,14 +1938,22 @@ export default function UnifiedStudioWorkspace() {
       });
       return;
     }
+    // Map friendly intents to the underlying track kind/type used by the store.
+    // 'beat'  → midi track pre-wired to the drum grid
+    // 'vocal' → audio track that will render the StudioVocalRecorder in the piano roll
+    const kind: StudioTrack['kind'] =
+      type === 'beat' ? 'beat' :
+      type === 'vocal' ? 'vocal' :
+      type === 'audio' ? 'audio' : 'midi';
+    const payloadType = type === 'vocal' || type === 'audio' ? 'audio' : type === 'beat' ? 'beat' : 'midi';
     const newTrack: StudioTrack = {
       id: `track-${Date.now()}`,
       name: `${instrument} ${tracks.length + 1}`,
-      kind: type === 'midi' ? 'midi' : 'audio',
-      type,
+      kind,
+      type: payloadType as StudioTrack['type'],
       instrument,
       data: [],
-      notes: [], // Initialize notes array for Piano Roll
+      notes: [],
       volume: 0.8,
       pan: 0,
       muted: false,
@@ -1952,13 +1962,20 @@ export default function UnifiedStudioWorkspace() {
       startBar: 0,
       source: 'user-created',
       bpm: 120,
-      payload: createTrackPayload({ type: 'midi' }),
+      payload: createTrackPayload({ type: payloadType as any }),
       sendA: -60,
       sendB: -60,
     };
     setTracks([...tracks, newTrack]);
     setSelectedTrack(newTrack.id);
-    setPianoRollExpanded(true);
+    // Vocals should open the piano roll so the recorder is visible; beats should
+    // jump the user straight to BeatLab so they can start programming.
+    if (type === 'beat') {
+      setActiveView('beat-lab');
+    } else {
+      setPianoRollExpanded(true);
+      if (type === 'vocal') setActiveView('piano-roll');
+    }
   };
 
   // Playback is now controlled by Global Transport
@@ -3231,19 +3248,21 @@ export default function UnifiedStudioWorkspace() {
       {/* Presence-driven ambient light — syncs CSS vars to Living Glyph state */}
       <PresenceAmbientLight />
       {/* Floating Window Renderer — renders all open draggable windows */}
-      <StudioWindowRenderer
-        recordingTrackId={selectedTrackEntity?.id}
-        recordingTrackName={selectedTrackEntity?.name || 'Track'}
-        currentBeat={position}
-        onTakeReady={handleWindowTakeReady}
-        onRecordingLatencyMeasured={handleRecordingLatencyMeasured}
-        freezeTracks={freezeWindowTracks}
-        freezeBpm={tempo}
-        freezeTotalBeats={Math.max(64, Math.ceil(playheadPosition || 64))}
-        onTrackFrozen={handleWindowTrackFrozen}
-        onTrackUnfrozen={handleWindowTrackUnfrozen}
-        onBounceComplete={handleWindowBounceComplete}
-      />
+      <React.Suspense fallback={null}>
+        <StudioWindowRenderer
+          recordingTrackId={selectedTrackEntity?.id}
+          recordingTrackName={selectedTrackEntity?.name || 'Track'}
+          currentBeat={position}
+          onTakeReady={handleWindowTakeReady}
+          onRecordingLatencyMeasured={handleRecordingLatencyMeasured}
+          freezeTracks={freezeWindowTracks}
+          freezeBpm={tempo}
+          freezeTotalBeats={Math.max(64, Math.ceil(playheadPosition || 64))}
+          onTrackFrozen={handleWindowTrackFrozen}
+          onTrackUnfrozen={handleWindowTrackUnfrozen}
+          onBounceComplete={handleWindowBounceComplete}
+        />
+      </React.Suspense>
       {/* Top Bar */}
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-2 sm:px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
@@ -4254,7 +4273,9 @@ export default function UnifiedStudioWorkspace() {
         )}
 
         {/* Center: Main Workspace with Tab Views */}
-        <div className={cn("flex-1 flex flex-col overflow-auto relative",
+        {/* NOTE: overflow-hidden here is load-bearing — child views (piano-roll, arrangement)
+            use internal flex-1 min-h-0 scrolling; parent overflow-auto collapses them to 0h. */}
+        <div className={cn("flex-1 flex flex-col overflow-hidden relative",
           (activeView === 'piano-roll' || activeView === 'arrangement') && "pb-20"
         )}>
           
@@ -4282,7 +4303,7 @@ export default function UnifiedStudioWorkspace() {
                   setSelectedTrack(trackId);
                   setActiveView(view ?? 'piano-roll');
                 }}
-                onAddTrack={(name, type) => addTrack(name, type as 'midi' | 'audio')}
+                onAddTrack={(name, type) => addTrack(name, type as 'midi' | 'audio' | 'beat' | 'vocal')}
               />
             </div>
           )}

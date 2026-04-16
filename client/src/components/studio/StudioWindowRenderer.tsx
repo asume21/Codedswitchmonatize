@@ -1,21 +1,23 @@
+import React from 'react';
 import { useWindowManager, STUDIO_WINDOWS } from '@/contexts/WindowManagerContext';
 import FloatingWindow from '@/components/studio/FloatingWindow';
-import ProjectManagerPanel from '@/components/studio/ProjectManagerPanel';
 import UndoRedoControls from '@/components/studio/UndoRedoControls';
-import AutomationLaneEditor from '@/components/studio/AutomationLaneEditor';
-import EffectsChainPanel from '@/components/studio/EffectsChainPanel';
-import MixerWithBuses from '@/components/studio/MixerWithBuses';
-import RecordingPanel from '@/components/studio/RecordingPanel';
-import SampleSlicerPanel from '@/components/studio/SampleSlicerPanel';
-import FreezeBounceControls from '@/components/studio/FreezeBounceControls';
-import ClipEditorOverlay from '@/components/studio/ClipEditorOverlay';
-import MidiEditorPanel from '@/components/studio/MidiEditorPanel';
-import SampleLibrary from '@/components/studio/SampleLibrary';
-import AIStemSeparation from '@/components/studio/AIStemSeparation';
 import { Save, Undo2, Sliders, Music, Mic, Scissors, Snowflake, Layers, Wand2 } from 'lucide-react';
 import type { AutomationLane, AudioClip, MixerChannel, MixBus } from '@/lib/projectManager';
 import type { EffectInstance } from '@/lib/effectsChain';
 import type { Note } from '../../../../shared/studioTypes';
+
+const ProjectManagerPanel = React.lazy(() => import('@/components/studio/ProjectManagerPanel'));
+const AutomationLaneEditor = React.lazy(() => import('@/components/studio/AutomationLaneEditor'));
+const EffectsChainPanel = React.lazy(() => import('@/components/studio/EffectsChainPanel'));
+const MixerWithBuses = React.lazy(() => import('@/components/studio/MixerWithBuses'));
+const RecordingPanel = React.lazy(() => import('@/components/studio/RecordingPanel'));
+const SampleSlicerPanel = React.lazy(() => import('@/components/studio/SampleSlicerPanel'));
+const FreezeBounceControls = React.lazy(() => import('@/components/studio/FreezeBounceControls'));
+const ClipEditorOverlay = React.lazy(() => import('@/components/studio/ClipEditorOverlay'));
+const MidiEditorPanel = React.lazy(() => import('@/components/studio/MidiEditorPanel'));
+const SampleLibrary = React.lazy(() => import('@/components/studio/SampleLibrary'));
+const AIStemSeparation = React.lazy(() => import('@/components/studio/AIStemSeparation'));
 
 interface StudioWindowRendererProps {
   // Project
@@ -104,11 +106,18 @@ interface StudioWindowRendererProps {
 
 export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
   const { windows, closeWindow, focusWindow, minimizeWindow, isOpen, isMinimized, getZIndex, getConfig } = useWindowManager();
+  const deferredFallback = <div className="p-4 text-cyan-300/60 text-sm">Loading window…</div>;
+
+  const renderDeferred = (node: React.ReactNode) => (
+    <React.Suspense fallback={deferredFallback}>
+      {node}
+    </React.Suspense>
+  );
 
   const renderWindowContent = (windowId: string) => {
     switch (windowId) {
       case 'project-manager':
-        return (
+        return renderDeferred(
           <ProjectManagerPanel
             onProjectLoaded={props.onProjectLoaded}
             onClose={() => closeWindow('project-manager')}
@@ -123,7 +132,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'automation':
-        return (
+        return renderDeferred(
           <AutomationLaneEditor
             trackId={props.automationTrackId || ''}
             trackName={props.automationTrackName || 'Track'}
@@ -136,7 +145,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'effects-chain':
-        return (
+        return renderDeferred(
           <EffectsChainPanel
             trackId={props.effectsTrackId || ''}
             trackName={props.effectsTrackName || 'Track'}
@@ -146,7 +155,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'mixer':
-        return (
+        return renderDeferred(
           <MixerWithBuses
             channels={props.mixerChannels || []}
             buses={props.mixerBuses || []}
@@ -160,7 +169,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'recording':
-        return (
+        return renderDeferred(
           <RecordingPanel
             trackId={props.recordingTrackId || ''}
             trackName={props.recordingTrackName || 'Track'}
@@ -171,7 +180,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'sample-slicer':
-        return (
+        return renderDeferred(
           <SampleSlicerPanel
             audioUrl={props.slicerAudioUrl}
             audioName={props.slicerAudioName}
@@ -181,7 +190,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'freeze-bounce':
-        return (
+        return renderDeferred(
           <FreezeBounceControls
             tracks={props.freezeTracks || []}
             bpm={props.freezeBpm || 120}
@@ -193,7 +202,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'clip-editor':
-        return (
+        return renderDeferred(
           <ClipEditorOverlay
             clips={props.clips || []}
             selectedClipId={props.selectedClipId ?? null}
@@ -207,7 +216,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'midi-editor':
-        return (
+        return renderDeferred(
           <MidiEditorPanel
             trackId={props.midiTrackId || ''}
             notes={props.midiNotes || []}
@@ -222,10 +231,10 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         );
 
       case 'sample-library':
-        return <SampleLibrary />;
+        return renderDeferred(<SampleLibrary />);
 
       case 'stem-generator':
-        return <AIStemSeparation />;
+        return renderDeferred(<AIStemSeparation />);
 
       default:
         return <div className="p-4 text-zinc-500 text-sm">Window not configured</div>;

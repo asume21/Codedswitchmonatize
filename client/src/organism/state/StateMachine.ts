@@ -13,6 +13,7 @@ import { evaluateDormantTransition }   from './transitions/DormantTransition'
 import { evaluateAwakeningTransition } from './transitions/AwakeningTransition'
 import { evaluateBreathingTransition } from './transitions/BreathingTransition'
 import { evaluateFlowTransition }      from './transitions/FlowTransition'
+import { orgLog }                      from '../../lib/perf/organismLog'
 
 const FRAME_ESTIMATE_MS = 1000 / 43
 
@@ -28,6 +29,14 @@ export class StateMachine {
   private currentBeatOnsets: number = 0
   private lastBeatTimestamp: number = Number.NEGATIVE_INFINITY
   private lastFrameTimestamp: number = Number.NEGATIVE_INFINITY
+
+  /**
+   * Minimum state floor. While set, the state machine refuses to regress
+   * below this state — fallback transitions (Flow→Breathing, etc.) that
+   * would drop below the floor are ignored. Used by the freestyle lock to
+   * keep the beat at full volume even during rapper pauses.
+   */
+  private stateFloor: OState | null = null
 
   constructor(config: Partial<StateMachineConfig> = {}) {
     this.config = { ...DEFAULT_STATE_MACHINE_CONFIG, ...config }
@@ -81,7 +90,22 @@ export class StateMachine {
 
   forceState(target: OState, physics: PhysicsState): void {
     const transition = this.resolveForceTransition(this.state.current, target)
-    if (transition) this.applyTransition(transition, physics)
+    // forceState is explicit user intent — bypasses the state floor.
+    if (transition) this.applyTransition(transition, physics, true)
+  }
+
+  /**
+   * Lock minimum state — refuses transitions that would drop below `floor`.
+   * Pass null to clear. forceState() bypasses this (explicit user intent).
+   */
+  setStateFloor(floor: OState | null): void {
+    if (this.stateFloor === floor) return
+    orgLog('state:floor-change', { from: this.stateFloor, to: floor })
+    this.stateFloor = floor
+  }
+
+  getStateFloor(): OState | null {
+    return this.stateFloor
   }
 
   reset(): void {
@@ -202,9 +226,17 @@ export class StateMachine {
     }
   }
 
-  private applyTransition(transition: OTransition, physics: PhysicsState): void {
+  private applyTransition(transition: OTransition, physics: PhysicsState, bypassFloor: boolean = false): void {
     const from = this.state.current
     const to = this.resolveTargetState(transition)
+
+    // Honor state floor for auto-transitions. Regressions below the floor
+    // are silently dropped; forward/lateral transitions pass through.
+    if (!bypassFloor && this.stateFloor !== null && this.isBelowFloor(to, this.stateFloor)) {
+      orgLog('state:floor-block', { from, to, floor: this.stateFloor, transition }, 'info')
+      return
+    }
+    orgLog('state:transition', { from, to, transition, forced: bypassFloor }, 'info')
 
     const event: TransitionEvent = {
       from,
@@ -250,6 +282,11 @@ export class StateMachine {
       if (this.state.flowDepth < 0.5) this.state.flowDepth = 0.5
       if (this.state.breathingWarmth < 0.8) this.state.breathingWarmth = 0.8
     }
+  }
+
+  private isBelowFloor(candidate: OState, floor: OState): boolean {
+    const order: OState[] = [OState.Dormant, OState.Awakening, OState.Breathing, OState.Flow]
+    return order.indexOf(candidate) < order.indexOf(floor)
   }
 
   private resolveTargetState(transition: OTransition): OState {
