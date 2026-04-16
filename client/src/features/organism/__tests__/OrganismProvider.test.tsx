@@ -23,6 +23,8 @@ vi.mock('../../../organism/physics/PhysicsEngine', () => ({
     processFrame = vi.fn()
     getLastState = vi.fn().mockReturnValue(null)
     reset = vi.fn()
+    lockMode = vi.fn()
+    unlockMode = vi.fn()
   },
 }))
 
@@ -31,6 +33,8 @@ vi.mock('../../../organism/state/StateMachine', () => ({
     subscribe = vi.fn().mockReturnValue(noop)
     onTransition = vi.fn().mockReturnValue(noop)
     processFrame = vi.fn()
+    setStateFloor = vi.fn()
+    forceState = vi.fn()
     getCurrentState = vi.fn().mockReturnValue({
       current: 'DORMANT', previous: null,
       framesInState: 0, msInState: 0, barsInState: 0,
@@ -48,6 +52,13 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     start = vi.fn().mockResolvedValue(undefined)
     stop = vi.fn()
     reset = vi.fn()
+    dispose = vi.fn()
+    setBpm = vi.fn()
+    forceSubGenre = vi.fn()
+    regenerateAll = vi.fn()
+    setArrangementEnabled = vi.fn()
+    isArrangementEnabled = vi.fn().mockReturnValue(true)
+    getMusicalState = vi.fn().mockReturnValue(null)
     onChordChange = vi.fn().mockReturnValue(noop)
     getCurrentChord = vi.fn().mockReturnValue(null)
   },

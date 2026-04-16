@@ -84,6 +84,8 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     lastSharedPostUrl: null,
     performerState: null,
     selfListenReport: null,
+    interpretVibe: vi.fn().mockResolvedValue(undefined),
+    vibeInterpretation: null,
     ...overrides,
   }
 }

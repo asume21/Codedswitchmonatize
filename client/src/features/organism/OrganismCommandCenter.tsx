@@ -8,13 +8,58 @@
  * Voice command (mic button) is stubbed here — wired in Feature 2.
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { Link } from 'wouter'
 import { useOrganism, useOrganismPhysics } from './OrganismContext'
 import { OrganismVisualizer } from './OrganismVisualizer'
 import { InputSourceSelector } from './InputSourceSelector'
 import { useOrganismShortcuts } from './useOrganismShortcuts'
 import { OState } from '../../organism/state/types'
+import { useStudioStore } from '../../stores/useStudioStore'
+
+// ── Web Speech API local typings ───────────────────────────────────────────
+// The browser's SpeechRecognition is experimental — TS lib doesn't always
+// provide it, and ESLint's no-undef flags the DOM globals even when TS knows
+// them. These minimal interfaces capture just the surface we use below.
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string
+}
+
+interface SpeechRecognitionResultLike {
+  readonly length: number
+  readonly isFinal: boolean
+  readonly [index: number]: SpeechRecognitionAlternativeLike
+}
+
+interface SpeechRecognitionResultListLike {
+  readonly length: number
+  readonly [index: number]: SpeechRecognitionResultLike
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number
+  results: SpeechRecognitionResultListLike
+}
+
+interface SpeechRecognitionLike {
+  continuous:     boolean
+  interimResults: boolean
+  lang:           string
+  onstart:  (() => void) | null
+  onend:    (() => void) | null
+  onerror:  (() => void) | null
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  start: () => void
+  stop:  () => void
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+
+interface SpeechRecognitionWindow {
+  SpeechRecognition?:       SpeechRecognitionCtor
+  webkitSpeechRecognition?: SpeechRecognitionCtor
+}
 
 // ── Style constants ────────────────────────────────────────────────────────────
 
@@ -119,11 +164,10 @@ export function OrganismCommandCenter() {
   useOrganismShortcuts()
 
   const {
-    start, stop, isRunning, error,
+    stop, isRunning, error,
     quickStartPresets, activePresetId, swapPreset, countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
-    isRecording, startRecording, stopRecording, lastSavedSession, downloadSession,
-    savedSessions,
+    isRecording, startRecording, stopRecording,
     // Tweak controls
     hatDensity,   setHatDensity,
     kickVelocity, setKickVelocity,
@@ -140,20 +184,132 @@ export function OrganismCommandCenter() {
     // Report card
     lastReport, generateReport,
     // Session
-    lastSessionDNA, capture, downloadMidi,
+    lastSessionDNA, capture,
     shareSession, isSharingSession, lastSharedPostUrl,
     // Input
     inputSource, setInputSource, autoEnergy, setAutoEnergy,
     // Guest
-    guestSecondsRemaining, isGuestNudgeVisible, dismissGuestNudge,
+    isGuestNudgeVisible, dismissGuestNudge,
     // Vibe
     currentVibe,
+    // Vibe Interpreter
+    interpretVibe,
+    vibeInterpretation,
+    // Engines (for direct mode + technique control)
+    physicsEngine,
+    orchestrator,
+    reactiveBehaviors,
   } = useOrganism()
 
-  const { physicsState, organismState, meterReading } = useOrganismPhysics()
+  const { physicsState, organismState } = useOrganismPhysics()
+
+  // ── Voice command state ──────────────────────────────────────────────────
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const [isListening,  setIsListening]  = useState(false)
+  const [vibeText,     setVibeText]     = useState('')
+  const [vibeStatus,   setVibeStatus]   = useState<'idle' | 'interpreting' | 'done'>('idle')
+
+  // Resolve the SpeechRecognition constructor once — null when unsupported.
+  const SpeechRecognitionCtor = useMemo<SpeechRecognitionCtor | null>(() => {
+    if (typeof window === 'undefined') return null
+    const w = window as unknown as SpeechRecognitionWindow
+    return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
+  }, [])
+  const hasSpeechRecognition = SpeechRecognitionCtor !== null
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop()
+      setIsListening(false)
+      return
+    }
+
+    if (!SpeechRecognitionCtor) return
+
+    const recog = new SpeechRecognitionCtor()
+    recog.continuous      = false
+    recog.interimResults  = true
+    recog.lang            = 'en-US'
+
+    recog.onstart = () => {
+      setIsListening(true)
+      setVibeText('')
+      setVibeStatus('idle')
+    }
+    recog.onend = () => setIsListening(false)
+    recog.onerror = () => {
+      setIsListening(false)
+      setVibeStatus('idle')
+    }
+
+    recog.onresult = async (event: SpeechRecognitionEventLike) => {
+      let interim = ''
+      let final   = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const r = event.results[i]
+        if (r.isFinal) final   += r[0].transcript
+        else           interim += r[0].transcript
+      }
+      const current = final || interim
+      setVibeText(current)
+
+      if (final) {
+        setVibeStatus('interpreting')
+        await interpretVibe(final.trim())
+        setVibeStatus('done')
+      }
+    }
+
+    recognitionRef.current = recog
+    recog.start()
+  }, [isListening, interpretVibe, SpeechRecognitionCtor])
+
+  // ── Mode + Technique state ───────────────────────────────────────────────
+  const [lockedMode,   setLockedMode]   = useState<string | null>(null)
+  const [chordTech,    setChordTechLocal]  = useState('piano-block-chord')
+  const [melodyArt,    setMelodyArtLocal]  = useState('none')
+  const [bassArt,      setBassArtLocal]    = useState('none')
+  const [styleShifts,  setStyleShiftsLocal] = useState(true)
+  const [bpmInput,     setBpmInput]     = useState('')
+
+  const applyMode = useCallback((mode: string | null) => {
+    setLockedMode(mode)
+    if (mode) physicsEngine?.lockMode(mode as import('../../organism/physics/types').OrganismMode)
+    else       physicsEngine?.unlockMode()
+  }, [physicsEngine])
+
+  const applyChordTech = useCallback((id: string) => {
+    setChordTechLocal(id)
+    orchestrator?.setChordTechnique(id)
+  }, [orchestrator])
+
+  const applyMelodyArt = useCallback((id: string) => {
+    setMelodyArtLocal(id)
+    orchestrator?.setMelodyArticulation(id)
+  }, [orchestrator])
+
+  const applyBassArt = useCallback((id: string) => {
+    setBassArtLocal(id)
+    orchestrator?.setBassArticulation(id)
+  }, [orchestrator])
+
+  const toggleStyleShifts = useCallback(() => {
+    const next = !styleShifts
+    setStyleShiftsLocal(next)
+    reactiveBehaviors?.setStyleShiftsEnabled(next)
+  }, [styleShifts, reactiveBehaviors])
+
+  const commitBpm = useCallback(() => {
+    const v = parseInt(bpmInput)
+    if (v >= 40 && v <= 220) {
+      orchestrator?.setBpm(v)
+      // Also sync the studio store BPM
+      useStudioStore.getState().setBpm(v)
+    }
+    setBpmInput('')
+  }, [bpmInput, orchestrator])
 
   const lyricsEndRef = useRef<HTMLDivElement>(null)
-  const [showReport, setShowReport] = useState(false)
   const [shareCaption, setShareCaption] = useState('')
   const [shareConfirmed, setShareConfirmed] = useState(false)
   const [triggerPresetId, setTriggerPresetId] = useState<string>(
@@ -168,7 +324,6 @@ export function OrganismCommandCenter() {
   const currentBpm = isRunning && physicsState?.pulse
     ? Math.round(physicsState.pulse)
     : (activePreset?.bpm ?? null)
-  const currentMode = physicsState?.mode ?? activePreset?.mode
   const countingIn = countInBeat !== null
 
   const ostate = organismState?.current
@@ -183,9 +338,6 @@ export function OrganismCommandCenter() {
     lyricsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcription?.lines.length])
 
-  useEffect(() => {
-    if (!isRunning && lastReport) setShowReport(true)
-  }, [isRunning, lastReport])
 
   // ── Section helpers ──────────────────────────────────────────────────────
 
@@ -336,37 +488,90 @@ export function OrganismCommandCenter() {
           overflow: 'hidden',
         }}>
 
-          {/* Voice command placeholder */}
+          {/* Voice command */}
           <div style={{
             padding: '12px 14px 10px',
             borderBottom: `0.5px solid ${C.border}`,
             flexShrink: 0,
           }}>
-            <div style={{ ...label11, marginBottom: 8 }}>Vibe Command</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ ...label11 }}>Vibe Command</span>
+              {!hasSpeechRecognition && (
+                <span style={{ fontSize: 9, color: C.text3 }}>Chrome only</span>
+              )}
+            </div>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
+              display: 'flex', flexDirection: 'column', gap: 6,
               padding: '8px 10px',
               borderRadius: 8,
-              border: `0.5px solid ${C.border2}`,
-              background: C.bg2,
-              opacity: 0.6,
+              border: isListening
+                ? `0.5px solid rgba(34,211,238,0.5)`
+                : `0.5px solid ${C.border2}`,
+              background: isListening ? 'rgba(34,211,238,0.04)' : C.bg2,
+              transition: 'all 0.2s',
             }}>
-              <button
-                disabled
-                title="Voice command — coming soon"
-                style={{
-                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                  background: 'rgba(34,211,238,0.08)',
-                  border: '1px solid rgba(34,211,238,0.2)',
-                  color: C.cyan, fontSize: 14, cursor: 'not-allowed',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                🎤
-              </button>
-              <span style={{ fontSize: 12, color: C.text3, fontStyle: 'italic' }}>
-                "dark trap beat like Kendrick…" — coming soon
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={toggleListening}
+                  disabled={!hasSpeechRecognition}
+                  title={
+                    !hasSpeechRecognition ? 'Speech recognition requires Chrome'
+                    : isListening ? 'Stop listening'
+                    : 'Say your vibe (e.g. "dark drill beat like Kendrick")'
+                  }
+                  style={{
+                    width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                    background: isListening
+                      ? 'rgba(34,211,238,0.20)'
+                      : 'rgba(34,211,238,0.08)',
+                    border: isListening
+                      ? '1px solid rgba(34,211,238,0.60)'
+                      : '1px solid rgba(34,211,238,0.20)',
+                    color: C.cyan, fontSize: 14,
+                    cursor: hasSpeechRecognition ? 'pointer' : 'not-allowed',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: isListening ? 'pulse 1s ease-in-out infinite' : 'none',
+                    opacity: hasSpeechRecognition ? 1 : 0.5,
+                  }}
+                >
+                  🎤
+                </button>
+                <span style={{
+                  fontSize: 12,
+                  color: isListening ? C.cyan : (vibeText ? C.text : C.text3),
+                  fontStyle: (isListening || vibeText) ? 'normal' : 'italic',
+                  flex: 1, minWidth: 0,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {isListening
+                    ? (vibeText || 'Listening…')
+                    : vibeStatus === 'interpreting'
+                    ? 'Interpreting…'
+                    : (vibeText || '"dark drill beat like Kendrick…"')
+                  }
+                </span>
+                {vibeText && !isListening && vibeStatus !== 'interpreting' && (
+                  <button
+                    onClick={() => { setVibeText(''); setVibeStatus('idle') }}
+                    style={{
+                      fontSize: 10, color: C.text3, background: 'transparent',
+                      border: 'none', cursor: 'pointer', flexShrink: 0, padding: 2,
+                    }}
+                    title="Clear"
+                  >✕</button>
+                )}
+              </div>
+              {/* Interpretation result */}
+              {vibeStatus === 'interpreting' && (
+                <div style={{ fontSize: 10, color: C.amber, paddingLeft: 38, fontWeight: 500 }}>
+                  Interpreting…
+                </div>
+              )}
+              {vibeInterpretation && vibeStatus === 'done' && (
+                <div style={{ fontSize: 10, color: C.green, paddingLeft: 38, fontWeight: 500 }}>
+                  ✓ {vibeInterpretation.result}
+                </div>
+              )}
             </div>
           </div>
 
@@ -529,11 +734,69 @@ export function OrganismCommandCenter() {
           </div>
         </div>
 
-        {/* ── RIGHT: Beat shape + feature toggles + session sidebar ────── */}
+        {/* ── RIGHT: controls ─────────────────────────────────────────── */}
         <div style={{
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
         }}>
+
+          {/* ── Pinned transport bar — always visible ─────────────────── */}
+          <div style={{
+            padding: '8px 14px',
+            borderBottom: `0.5px solid ${C.border}`,
+            flexShrink: 0,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            {/* Flow meter inline */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FlowMeter depth={flowDepth} />
+            </div>
+            {/* Transport buttons */}
+            <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+              {!isRunning ? (
+                <button
+                  onClick={() => swapPreset(activePresetId ?? quickStartPresets[0]?.id ?? '')}
+                  style={{
+                    padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: '#166534', color: C.green,
+                    border: '1px solid rgba(34,197,94,0.3)', cursor: 'pointer',
+                  }}
+                >▶ Start</button>
+              ) : (
+                <button
+                  onClick={stop}
+                  style={{
+                    padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: 'rgba(239,68,68,0.15)', color: C.red,
+                    border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer',
+                  }}
+                >⏹ Stop</button>
+              )}
+              <button
+                onClick={isRecording ? () => stopRecording() : () => startRecording()}
+                style={{
+                  padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                  background: isRecording ? 'rgba(239,68,68,0.15)' : 'transparent',
+                  color: isRecording ? C.red : C.text2,
+                  border: isRecording ? '1px solid rgba(239,68,68,0.4)' : `1px solid ${C.border2}`,
+                  cursor: 'pointer',
+                  animation: isRecording ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                }}
+              >{isRecording ? '⏺ REC' : '⏺ REC'}</button>
+              <button
+                onClick={() => capture()}
+                style={{
+                  padding: '5px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                  background: 'transparent', color: C.text2,
+                  border: `1px solid ${C.border2}`, cursor: 'pointer',
+                }}
+                title="Capture session DNA"
+              >💾</button>
+            </div>
+          </div>
+
+          {/* ── Scrollable sections ───────────────────────────────────── */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
 
           {/* Beat shape: tweak sliders */}
           <div style={{
@@ -547,6 +810,187 @@ export function OrganismCommandCenter() {
               <SliderRow label="Kick vel."    value={kickVelocity} onChange={setKickVelocity} color='#f472b6' />
               <SliderRow label="Bass vol."    value={bassVolume}   onChange={setBassVolume}   color={C.green} />
               <SliderRow label="Melody vol."  value={melodyVolume} onChange={setMelodyVolume} color='#38bdf8' />
+            </div>
+          </div>
+
+          {/* Organism Mode + BPM */}
+          <div style={{
+            padding: '10px 14px 8px',
+            borderBottom: `0.5px solid ${C.border}`,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ ...label11 }}>Mode</span>
+              {/* BPM manual input */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: C.text3 }}>BPM</span>
+                <input
+                  type="number" min={40} max={220}
+                  value={bpmInput || (physicsState?.pulse ? Math.round(physicsState.pulse) : (activePreset?.bpm ?? ''))}
+                  onChange={e => setBpmInput(e.target.value)}
+                  onBlur={commitBpm}
+                  onKeyDown={e => { if (e.key === 'Enter') commitBpm() }}
+                  style={{
+                    width: 52, height: 24, borderRadius: 5, textAlign: 'center',
+                    border: `0.5px solid ${C.border2}`, background: C.bg2,
+                    color: C.text, fontSize: 11, fontWeight: 700,
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            </div>
+            {/* Mode buttons — Heat / Ice / Smoke / Gravel / Glow + Auto */}
+            {(() => {
+              const MODES = [
+                { key: 'heat',   label: 'Heat',   color: '#f87171' },
+                { key: 'ice',    label: 'Ice',    color: '#93c5fd' },
+                { key: 'smoke',  label: 'Smoke',  color: '#d1d5db' },
+                { key: 'gravel', label: 'Gravel', color: '#fbbf24' },
+                { key: 'glow',   label: 'Glow',   color: '#6ee7b7' },
+              ]
+              const currentMode = (physicsState?.mode as string) ?? lockedMode
+              return (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {MODES.map(m => {
+                    const active = currentMode === m.key
+                    return (
+                      <button
+                        key={m.key}
+                        onClick={() => applyMode(m.key)}
+                        style={{
+                          padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+                          cursor: 'pointer',
+                          border: active ? `1px solid ${m.color}55` : `1px solid rgba(100,116,139,0.2)`,
+                          background: active ? `${m.color}18` : 'transparent',
+                          color: active ? m.color : C.text3,
+                          transition: 'all 0.15s',
+                        }}
+                      >{m.label}</button>
+                    )
+                  })}
+                  <button
+                    onClick={() => applyMode(null)}
+                    style={{
+                      padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+                      cursor: 'pointer',
+                      border: lockedMode === null ? `1px solid ${C.cyan}55` : `1px solid rgba(100,116,139,0.2)`,
+                      background: lockedMode === null ? `${C.cyan}18` : 'transparent',
+                      color: lockedMode === null ? C.cyan : C.text3,
+                      transition: 'all 0.15s',
+                    }}
+                  >Auto</button>
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* Playing Style: chord technique + articulations + style shifts */}
+          <div style={{
+            padding: '10px 14px 8px',
+            borderBottom: `0.5px solid ${C.border}`,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ ...label11 }}>Playing Style</span>
+              {/* Style Shifts toggle */}
+              <button
+                onClick={toggleStyleShifts}
+                style={{
+                  padding: '2px 8px', borderRadius: 999, fontSize: 9, fontWeight: 600,
+                  cursor: 'pointer',
+                  border: styleShifts ? `1px solid ${C.green}55` : `1px solid rgba(100,116,139,0.2)`,
+                  background: styleShifts ? `${C.green}18` : 'transparent',
+                  color: styleShifts ? C.green : C.text3,
+                  letterSpacing: '0.05em',
+                }}
+                title="Auto style-shifts — reactive engine adapts technique based on rapper energy"
+              >
+                {styleShifts ? 'AUTO SHIFTS' : 'MANUAL'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Chord technique */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, color: C.text3, width: 62, flexShrink: 0 }}>Chords</span>
+                <select
+                  value={chordTech}
+                  onChange={e => applyChordTech(e.target.value)}
+                  style={{
+                    flex: 1, height: 26, borderRadius: 5, fontSize: 10,
+                    border: `0.5px solid ${C.border2}`, background: C.bg2,
+                    color: C.text, paddingLeft: 6, outline: 'none',
+                  }}
+                >
+                  <optgroup label="Piano">
+                    <option value="piano-block-chord">Block Chord</option>
+                    <option value="piano-rolled-chord">Rolled Chord</option>
+                    <option value="piano-alberti">Alberti 1-5-3-5</option>
+                    <option value="piano-sustained-pad">Sustained Pad</option>
+                  </optgroup>
+                  <optgroup label="Guitar">
+                    <option value="guitar-strum-down">Strum Down</option>
+                    <option value="guitar-strum-up">Strum Up</option>
+                    <option value="guitar-arp-rolled">Arpeggio Rolled</option>
+                    <option value="guitar-muted-stab">Muted Stab</option>
+                  </optgroup>
+                  <optgroup label="Strings">
+                    <option value="strings-pizzicato">Strings Pizzicato</option>
+                    <option value="strings-legato">Strings Legato</option>
+                    <option value="strings-tremolo">Tremolo</option>
+                    <option value="strings-staccato">Staccato</option>
+                  </optgroup>
+                  <optgroup label="Brass">
+                    <option value="brass-stab">Brass Stab</option>
+                    <option value="brass-swell">Swell</option>
+                    <option value="brass-fanfare">Fanfare</option>
+                    <option value="brass-section-pad">Section Pad</option>
+                  </optgroup>
+                  <optgroup label="Wind">
+                    <option value="wind-legato">Wind Legato</option>
+                    <option value="wind-run">Scalar Run</option>
+                    <option value="wind-staccato">Wind Staccato</option>
+                    <option value="wind-trill">Trill</option>
+                  </optgroup>
+                </select>
+              </div>
+              {/* Melody articulation */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, color: C.text3, width: 62, flexShrink: 0 }}>Melody</span>
+                <select
+                  value={melodyArt}
+                  onChange={e => applyMelodyArt(e.target.value)}
+                  style={{
+                    flex: 1, height: 26, borderRadius: 5, fontSize: 10,
+                    border: `0.5px solid ${C.border2}`, background: C.bg2,
+                    color: C.text, paddingLeft: 6, outline: 'none',
+                  }}
+                >
+                  <option value="none">Straight</option>
+                  <option value="legato-slur">Legato Slur</option>
+                  <option value="staccato-pop">Staccato Pop</option>
+                  <option value="grace-flick">Grace-Note Flick</option>
+                  <option value="trill-ornament">Trill Ornament</option>
+                </select>
+              </div>
+              {/* Bass articulation */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 10, color: C.text3, width: 62, flexShrink: 0 }}>Bass</span>
+                <select
+                  value={bassArt}
+                  onChange={e => applyBassArt(e.target.value)}
+                  style={{
+                    flex: 1, height: 26, borderRadius: 5, fontSize: 10,
+                    border: `0.5px solid ${C.border2}`, background: C.bg2,
+                    color: C.text, paddingLeft: 6, outline: 'none',
+                  }}
+                >
+                  <option value="none">Straight</option>
+                  <option value="bass-slide-up">Slide-Up</option>
+                  <option value="bass-ghost-note">Ghost Note</option>
+                  <option value="bass-octave-jump">Octave Jump</option>
+                  <option value="bass-walking-step">Walking Step</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -581,70 +1025,8 @@ export function OrganismCommandCenter() {
             </div>
           </div>
 
-          {/* Session: flow meter + controls */}
-          <div style={{
-            padding: '10px 14px 8px',
-            borderBottom: `0.5px solid ${C.border}`,
-            flexShrink: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <FlowMeter depth={flowDepth} />
-            </div>
-
-            {/* Main transport buttons */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {!isRunning ? (
-                <button
-                  onClick={() => swapPreset(activePresetId ?? quickStartPresets[0]?.id ?? '')}
-                  style={{
-                    padding: '6px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                    background: '#166534', color: C.green,
-                    border: '1px solid rgba(34,197,94,0.3)', cursor: 'pointer',
-                  }}
-                >
-                  ▶ Start
-                </button>
-              ) : (
-                <button
-                  onClick={stop}
-                  style={{
-                    padding: '6px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                    background: 'rgba(239,68,68,0.15)', color: C.red,
-                    border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer',
-                  }}
-                >
-                  ⏹ Stop
-                </button>
-              )}
-              <button
-                onClick={isRecording ? () => stopRecording() : () => startRecording()}
-                style={{
-                  padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                  background: isRecording ? 'rgba(239,68,68,0.15)' : 'transparent',
-                  color: isRecording ? C.red : C.text2,
-                  border: isRecording ? '1px solid rgba(239,68,68,0.4)' : `1px solid ${C.border2}`,
-                  cursor: 'pointer',
-                  animation: isRecording ? 'pulse 1.5s ease-in-out infinite' : 'none',
-                }}
-              >
-                {isRecording ? '⏺ Recording…' : '⏺ Record'}
-              </button>
-              <button
-                onClick={() => capture()}
-                style={{
-                  padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                  background: 'transparent', color: C.text2,
-                  border: `1px solid ${C.border2}`, cursor: 'pointer',
-                }}
-                title="Capture session DNA"
-              >
-                💾 Save
-              </button>
-            </div>
-          </div>
-
-          {/* Scrollable bottom: lyrics + report card + share */}
-          <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px' }}>
+          {/* Lyrics + report card + share */}
+          <div style={{ padding: '10px 14px' }}>
 
             {/* Error */}
             {error && (
@@ -834,6 +1216,8 @@ export function OrganismCommandCenter() {
             )}
 
           </div>
+
+          </div>{/* end scrollable sections */}
         </div>
       </div>
     </div>

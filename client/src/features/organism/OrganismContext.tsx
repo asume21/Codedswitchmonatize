@@ -166,6 +166,12 @@ export interface OrganismContextValue {
   performerState:   PerformerState   | null
   /** Periodic self-analysis of Astutely's own audio output. */
   selfListenReport: SelfListenReport | null
+
+  // Natural Language Vibe Interpreter
+  /** Interpret a free-text vibe description and apply it to the organism. */
+  interpretVibe:      (text: string) => Promise<void>
+  /** Last interpretation result — null until first voice command. */
+  vibeInterpretation: { text: string; result: string; confidence: number } | null
 }
 
 const OrganismContext = createContext<OrganismContextValue | null>(null)

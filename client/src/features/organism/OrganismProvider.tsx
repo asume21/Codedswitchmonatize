@@ -18,6 +18,7 @@ import { AutoGenerateSource }    from '../../organism/input/AutoGenerateSource'
 import type { InputSource, InputSourceType } from '../../organism/input/types'
 
 import { OrganismMode, type PhysicsState } from '../../organism/physics/types'
+import type { HipHopSubGenre } from '../../organism/state/MusicalState'
 import type { OrganismState }   from '../../organism/state/types'
 import type { MixMeterReading } from '../../organism/mix/types'
 import type { SessionDNA }      from '../../organism/session/types'
@@ -49,6 +50,7 @@ import { useStudioStore } from '../../stores/useStudioStore'
 import type { MusicalKey, KeyMode } from '../../stores/useStudioStore'
 import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
+import { interpretVibeRuleBased, type VibeParams } from './ArtistReferenceBank'
 
 interface Props {
   children:  React.ReactNode
@@ -188,6 +190,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [bassVolume,       setBassVolumeState]  = useState(1)
   const [melodyVolume,     setMelodyVolumeState]= useState(1)
   const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
+  const [vibeInterpretation, setVibeInterpretation] = useState<{ text: string; result: string; confidence: number } | null>(null)
 
   // Recording state — captures beat audio + vocal audio + MIDI + lyrics
   const [isRecording,      setIsRecording]      = useState(false)
@@ -301,7 +304,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     // Bridge chord changes to external listeners (Astutely, UI)
     const unsubChord = orchestr.onChordChange((chord, rootPitchClass) => {
-      const progression = orchestr.getCurrentChord()
       window.dispatchEvent(new CustomEvent('organism:chord-change', {
         detail: {
           currentChord: chord,
@@ -583,6 +585,35 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       await orchestrRef.current.start()
       primeAutoGenerateStart()
       setIsRunning(true)
+
+      // Fast-boot: skip the Dormant wait, start playing immediately from bar 1.
+      // Set a floor of Breathing so a quiet mic can't regress to Dormant mid-session.
+      if (stateMachRef.current && physicsRef.current) {
+        const fallbackPulse = 90
+        const fallbackBeatMs = 60000 / fallbackPulse
+        const fallbackSixteenthMs = fallbackBeatMs / 4
+        const fallbackPhysics: PhysicsState = {
+          mode: OrganismMode.Glow,
+          pulse: fallbackPulse,
+          bounce: 0.5,
+          swing: 0.5,
+          pocket: 0.5,
+          presence: 0.4,
+          density: 0.4,
+          beatDurationMs: fallbackBeatMs,
+          sixteenthDurationMs: fallbackSixteenthMs,
+          swungSixteenthMs: fallbackSixteenthMs,
+          timestamp: Date.now(),
+          frameIndex: 0,
+          voiceActive: false,
+        }
+        const seedPhysics = physicsRef.current.getLastState() ?? fallbackPhysics
+        stateMachRef.current.forceState(OState.Awakening, seedPhysics)
+        stateMachRef.current.forceState(OState.Breathing, seedPhysics)
+        stateMachRef.current.setStateFloor(OState.Breathing)
+        orchestrRef.current.regenerateAll()
+      }
+
       // Start self-listen after audio is running
       selfListenRef.current?.start()
       if (transcriptionEnabled && transcriberRef.current) {
@@ -603,6 +634,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     inputRef.current?.stop()
     orchestrRef.current?.stop()
     transcriberRef.current?.stop()
+    // Clear state floor so the machine fully resets on the next start()
+    stateMachRef.current?.setStateFloor(null)
     setIsRunning(false)
     orgLog('provider:stopped', { inputSource, bpm })
 
@@ -831,6 +864,83 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     orchestr.regenerateAll()
     setActivePresetId(presetId)
     endSwap({ presetId, bpm: preset.bpm, mode: preset.mode })
+  }, [quickStart])
+
+  /**
+   * Natural Language Vibe Interpreter
+   *
+   * Takes a free-text description ("dark drill beat like Kendrick, fired up")
+   * and applies matching beat parameters to the live organism.
+   *
+   * Resolution order:
+   *   1. /api/organism/interpret-vibe (Ollama → Grok AI)
+   *   2. ArtistReferenceBank.interpretVibeRuleBased (rule-based fallback)
+   *
+   * If the organism isn't running, it cold-starts on the closest preset
+   * and then overrides with the interpreted params.
+   */
+  const interpretVibe = useCallback(async (text: string) => {
+    let params: VibeParams | null = null
+
+    // 1. Try server AI (Ollama → Grok fallback).
+    // 4s timeout via AbortController — Ollama can hang on cold model load,
+    // and we'd rather drop to the instant rule-based path than freeze the UI.
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 4000)
+    try {
+      const res = await fetch('/api/organism/interpret-vibe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      })
+      if (res.ok) {
+        params = await res.json() as VibeParams
+        orgLog('interpretVibe:ai', { text: text.slice(0, 60), interpretation: params.interpretation })
+      }
+    } catch {
+      // Network error, abort, or timeout — fall through to rule-based
+    } finally {
+      clearTimeout(timeoutId)
+    }
+
+    // 2. Rule-based fallback
+    if (!params) {
+      params = interpretVibeRuleBased(text)
+      orgLog('interpretVibe:ruleBased', { text: text.slice(0, 60), interpretation: params.interpretation })
+    }
+
+    // Update UI state so CommandCenter can show what was understood
+    setVibeInterpretation({
+      text,
+      result: params.interpretation,
+      confidence: params.confidence,
+    })
+
+    // Hot path: apply params to the running organism
+    const mode = params.mode as OrganismMode
+
+    // Cold start if not already running — pick closest preset by mode, then override
+    if (!isRunningRef.current) {
+      const closestPreset = QUICK_START_PRESETS.find(p => p.mode === mode) ?? QUICK_START_PRESETS[0]
+      await quickStart(closestPreset.id)
+      // Give quickStart a tick to complete before overriding
+      await new Promise<void>(resolve => setTimeout(resolve, 120))
+    }
+
+    const physics = physicsRef.current
+    const orchestr = orchestrRef.current
+    if (physics && orchestr) {
+      physics.lockMode(mode)
+      orchestr.setBpm(params.bpm)
+      useStudioStore.getState().setBpm(params.bpm)
+      orchestr.forceSubGenre(params.subGenre as HipHopSubGenre)
+      orchestr.regenerateAll()
+      orgLog('interpretVibe:applied', {
+        bpm: params.bpm, mode, subGenre: params.subGenre,
+        confidence: params.confidence,
+      })
+    }
   }, [quickStart])
 
   /**
@@ -1347,7 +1457,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         const { mood } = action
         // Force sub-genre if the phrase strongly implies one
         if (mood.preferredSubGenre) {
-          orch.forceSubGenre(mood.preferredSubGenre as any)
+          orch.forceSubGenre(mood.preferredSubGenre as HipHopSubGenre)
         }
         // Nudge energy via volume multipliers based on intent
         switch (mood.intent) {
@@ -2119,6 +2229,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Ears system
     performerState,
     selfListenReport,
+
+    // Natural Language Vibe Interpreter
+    interpretVibe,
+    vibeInterpretation,
   }), [
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
@@ -2140,6 +2254,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     shareSession, isSharingSession, lastSharedPostUrl,
     isRunning, isCapturing, error,
     performerState, selfListenReport,
+    interpretVibe, vibeInterpretation,
   ])
 
   return (

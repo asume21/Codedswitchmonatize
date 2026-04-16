@@ -134,6 +134,83 @@ Step indices 0–15 (16th-note grid, one bar).
   }
 });
 
+// POST /api/organism/interpret-vibe
+// Takes a free-text vibe description ("dark trap beat like Kendrick, fired up drill style")
+// and returns structured beat parameters ready to apply to the organism.
+// Uses Ollama (local/Railway) first, falls back to Grok-3 cloud.
+// Client falls back to ArtistReferenceBank if this endpoint returns 503.
+sessionRouter.post("/interpret-vibe", async (req, res) => {
+  const { text } = req.body as { text?: string }
+  if (!text || typeof text !== "string" || text.trim().length === 0) {
+    return res.status(400).json({ error: "Missing text" })
+  }
+
+  const clampedText = text.trim().slice(0, 300)
+
+  const systemPrompt = `You are a hip-hop beat interpreter for a real-time beat maker. Convert natural language descriptions into beat parameters. Always respond with valid JSON only — no markdown, no explanation.
+
+You understand:
+ARTIST REFERENCES: Tupac (boom-bap, 90 BPM, soulful minor, piano), Eminem (boom-bap, 105 BPM, aggressive, strings), Drake (chill, 80 BPM, piano-pad, smooth), Kendrick (boom-bap, 88 BPM, complex), Travis Scott (trap, 140 BPM, atmospheric synth), J Cole (boom-bap, 85 BPM, warm), Future (trap, 130 BPM, hazy melodic), Nas (boom-bap, 92 BPM, raw lyrical), 21 Savage (trap, 140 BPM, dark minimal), Pop Smoke (drill, 140 BPM, heavy dark), Gunna (trap, 142 BPM, smooth drip), Chief Keef (drill, 145 BPM, menacing), Playboi Carti (trap, 140 BPM, hypnotic), Lil Uzi Vert (trap, 138 BPM, melodic), Rod Wave (melodic, 80 BPM, emotional), Polo G (melodic trap, 140 BPM, introspective).
+
+GENRE TERMS: "drill" → drill/gravel/145 BPM/dark. "trap" → trap/heat/140 BPM. "boom bap" or "boom-bap" → boom-bap/smoke/90 BPM/swingy. "lo-fi" or "lofi" → lo-fi/ice/78 BPM/mellow. "phonk" → phonk/heat/130 BPM/dark. "west coast" → west-coast/gravel/90 BPM/soulful. "dirty south" → dirty-south/smoke/100 BPM.
+
+ENERGY/MOOD SLANG: "fired up", "drip", "fire", "lit", "hard" → high energy. "icy", "cold", "frozen" → mode ice. "raw", "gritty" → mode gravel. "chill", "smooth", "mellow" → low energy glow. "dark" → minor, lower energy, gravel. "punchy" → high bounce/density. "soulful" → swing 0.6+, mode smoke. "story beat", "cinematic" → slower, sparse, breathing room. "aggressive" → energy 0.85+. "melodic" → mode glow, melody forward. "drip" → trap, ice mode.
+
+MODES: heat (trap/drill energy, dark), ice (lo-fi/jazzy, cool), smoke (boom-bap, soulful), gravel (drill/gritty, menacing), glow (chill/warm, melodic).
+SUBGENRES (exact strings to use): boom-bap, trap, drill, lo-fi, west-coast, dirty-south, phonk, jersey-club, bounce, reggaeton, afrobeat, chill`
+
+  const userPrompt = `Interpret this freestyle beat request: "${clampedText}"
+
+Return ONLY this JSON (no markdown, no explanation):
+{"bpm":<60-180>,"mode":<"heat"|"ice"|"smoke"|"gravel"|"glow">,"subGenre":<"boom-bap"|"trap"|"drill"|"lo-fi"|"west-coast"|"dirty-south"|"phonk"|"jersey-club"|"bounce"|"reggaeton"|"afrobeat"|"chill">,"energy":<0.0-1.0>,"swing":<0.0-1.0>,"bounce":<0.0-1.0>,"density":<0.0-1.0>,"interpretation":<"short label like 'Drill — dark, 145 BPM'">,"confidence":<0.0-1.0>}`
+
+  let raw: string | null = null
+
+  try {
+    raw = await localAI.generate(userPrompt, { format: "json", temperature: 0.7 })
+    console.log("[organism:interpret-vibe] Used local AI (Ollama)")
+  } catch {
+    try {
+      const response = await makeAICall(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user",   content: userPrompt   },
+        ],
+        { response_format: { type: "json_object" }, temperature: 0.7, max_tokens: 300 }
+      )
+      raw = response.choices?.[0]?.message?.content ?? "{}"
+      console.log("[organism:interpret-vibe] Used cloud AI (Grok-3 fallback)")
+    } catch (cloudErr) {
+      console.error("[organism:interpret-vibe] Both AI providers failed:", cloudErr)
+      return res.status(503).json({ error: "AI unavailable — use rule-based fallback" })
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(raw ?? "{}")
+    const VALID_MODES    = ["heat", "ice", "smoke", "gravel", "glow"]
+    const VALID_SUBGENRES = ["boom-bap", "trap", "drill", "lo-fi", "west-coast", "dirty-south", "phonk", "jersey-club", "bounce", "reggaeton", "afrobeat", "chill"]
+
+    const result = {
+      bpm:            Math.max(60, Math.min(200, Number(parsed.bpm)    || 90)),
+      mode:           VALID_MODES.includes(parsed.mode)         ? parsed.mode     : "heat",
+      subGenre:       VALID_SUBGENRES.includes(parsed.subGenre) ? parsed.subGenre : "trap",
+      energy:         Math.max(0, Math.min(1, Number(parsed.energy)  || 0.70)),
+      swing:          Math.max(0, Math.min(1, Number(parsed.swing)   || 0.45)),
+      bounce:         Math.max(0, Math.min(1, Number(parsed.bounce)  || 0.60)),
+      density:        Math.max(0, Math.min(1, Number(parsed.density) || 0.60)),
+      interpretation: typeof parsed.interpretation === "string"
+        ? parsed.interpretation.slice(0, 100)
+        : "Beat interpreted",
+      confidence:     Math.max(0, Math.min(1, Number(parsed.confidence) || 0.70)),
+    }
+    return res.json(result)
+  } catch (parseErr) {
+    console.error("[organism:interpret-vibe] Failed to parse AI JSON:", parseErr, "\nRaw:", raw?.slice(0, 200))
+    return res.status(500).json({ error: "Interpretation failed — invalid AI response" })
+  }
+})
+
 // GET /api/organism/sessions/:userId/:sessionId
 sessionRouter.get("/:userId/:sessionId", async (req, res) => {
   try {
