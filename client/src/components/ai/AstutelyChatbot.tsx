@@ -189,9 +189,6 @@ Try: "play", "make a drill beat", or "analyze my project".`,
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const getChatAbortSignal = useAbortableRequest();
-  const getDrumsAbortSignal = useAbortableRequest();
-  const getMelodyAbortSignal = useAbortableRequest();
-  const getLyricsAbortSignal = useAbortableRequest();
   const recognitionRef = useRef<any>(null);
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -1767,6 +1764,9 @@ function AstutelyCreateContent({
   saveTrackToServer: (t: any) => Promise<any>;
 }) {
   const { generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
+  const getDrumsAbortSignal = useAbortableRequest();
+  const getMelodyAbortSignal = useAbortableRequest();
+  const getLyricsAbortSignal = useAbortableRequest();
 
   // Track which cards are expanded
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({ beat: true });
