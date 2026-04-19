@@ -6,6 +6,7 @@ if (isProduction && !process.env.AUTH_TOKEN_SECRET) {
   console.error(
     "❌ FATAL: AUTH_TOKEN_SECRET environment variable is required in production",
   );
+  process.exit(1);
 }
 
 const SECRET =

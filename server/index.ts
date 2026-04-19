@@ -46,6 +46,19 @@ if (isProduction && !process.env.SESSION_SECRET) {
   process.exit(1);
 }
 
+// Require AUTH_TOKEN_SECRET in production (JWT signing key)
+if (isProduction && !process.env.AUTH_TOKEN_SECRET) {
+  console.error('❌ FATAL: AUTH_TOKEN_SECRET environment variable is required in production');
+  process.exit(1);
+}
+
+// OWNER_KEY length floor — the middleware already enforces this, but a startup
+// warning makes a silently-disabled admin surface visible in boot logs instead
+// of only surfacing when someone tries to use it.
+if (process.env.OWNER_KEY && process.env.OWNER_KEY.length < 32) {
+  console.warn(`⚠️  OWNER_KEY is ${process.env.OWNER_KEY.length} chars — admin bypass requires ≥32. Rotate the key to re-enable x-owner-key auth.`);
+}
+
 const dataRoot = path.resolve("data");
 ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));

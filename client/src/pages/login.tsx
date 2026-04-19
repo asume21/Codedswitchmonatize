@@ -45,6 +45,9 @@ export default function Login() {
       if (data.token) {
         localStorage.setItem('authToken', data.token);
       }
+      if (data.userId) {
+        localStorage.setItem('authUserId', data.userId);
+      }
 
       toast({
         title: "Welcome back!",

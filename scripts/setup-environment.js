@@ -35,8 +35,13 @@ const ENV_VARS = {
     default: 'your-session-secret-here',
     required: true
   },
+  'AUTH_TOKEN_SECRET': {
+    description: 'Secret for signing/verifying JWT auth tokens',
+    default: 'your-auth-token-secret-here',
+    required: true
+  },
   'OWNER_KEY': {
-    description: 'Owner authentication key',
+    description: 'Owner authentication key (must be at least 32 characters)',
     default: 'owner-key-12345',
     required: true
   },

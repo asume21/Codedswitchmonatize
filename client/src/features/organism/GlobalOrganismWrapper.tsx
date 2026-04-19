@@ -57,11 +57,11 @@ export function GlobalOrganismWrapper({ children }: Props) {
 
   const activationValue = { isActivated, activate }
 
-  // Derive user ID from stored auth token (format: "Bearer <userId>") or fall back to guest
+  // userId is stashed by login/signup alongside the JWT — the JWT is opaque to the
+  // client now, so we can't derive userId from it without a decode dependency.
   const userId = useMemo(() => {
     if (!isAuthenticated) return 'guest-user'
-    const token = localStorage.getItem('authToken') ?? ''
-    const id = token.startsWith('Bearer ') ? token.slice(7).trim() : token.trim()
+    const id = (localStorage.getItem('authUserId') ?? '').trim()
     return id || 'guest-user'
   }, [isAuthenticated])
 

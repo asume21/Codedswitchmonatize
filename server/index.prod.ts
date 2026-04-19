@@ -15,9 +15,16 @@ if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
   process.exit(1);
 }
+if (!process.env.AUTH_TOKEN_SECRET) {
+  console.error('❌ FATAL: AUTH_TOKEN_SECRET environment variable is required in production');
+  process.exit(1);
+}
 if (!process.env.APP_URL) {
   console.error('❌ FATAL: APP_URL environment variable is required in production (e.g. https://www.codedswitch.com)');
   process.exit(1);
+}
+if (process.env.OWNER_KEY && process.env.OWNER_KEY.length < 32) {
+  console.warn(`⚠️  OWNER_KEY is ${process.env.OWNER_KEY.length} chars — admin bypass requires ≥32. Rotate the key to re-enable x-owner-key auth.`);
 }
 
 const app = express();

@@ -65,6 +65,9 @@ export default function Signup() {
       if (data.token) {
         localStorage.setItem('authToken', data.token);
       }
+      if (data.userId) {
+        localStorage.setItem('authUserId', data.userId);
+      }
 
       // If activation key provided, activate the account
       if (formData.activationKey.trim()) {
