@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { X, Save, Sparkles, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { CreditBadge } from '@/components/ui/CreditBadge';
 
 interface LyricsSection {
   id: string;
@@ -313,6 +314,7 @@ Feeling rhythm in my feet
                   <>
                     <Sparkles className="w-4 h-4 mr-2" />
                     Generate Lyrics
+                    <CreditBadge operation="LYRICS_GENERATION" variant="pill" className="ml-3" />
                   </>
                 )}
               </Button>

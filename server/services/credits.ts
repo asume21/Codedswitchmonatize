@@ -5,40 +5,10 @@
 
 import type { IStorage } from "../storage";
 
-// Credit costs for different operations
-// Based on actual API costs with 2.5x profit margin
-// See PRICING_CALCULATOR.md for detailed breakdown
-export const CREDIT_COSTS = {
-  // Tier 1: Suno (Premium AI) - Most Expensive
-  SONG_GENERATION: 125,         // API: ~$2.00 (50 Suno credits) → User: $5.00
-  SONG_EXTENSION: 80,           // API: ~$1.25 → User: $3.20
-  CUSTOM_VOCALS: 110,           // API: ~$1.75 → User: $4.40
-  STEM_SEPARATION: 19,          // API: $0.30 → User: $0.76
-  
-  // Tier 2: MusicGen (Advanced AI)
-  BEAT_GENERATION: 5,           // API: $0.075 → User: $0.20
-  MELODY_GENERATION: 5,         // API: $0.075 → User: $0.20
-  INSTRUMENTAL_GENERATION: 8,   // API: $0.125 → User: $0.32
-  GENRE_BLENDING: 10,           // API: $0.15 → User: $0.40
-  DRUM_GENERATION: 3,           // API: $0.04 → User: $0.12
-  
-  // Tier 3: Grok/OpenAI (Text AI)
-  LYRICS_GENERATION: 4,         // API: $0.055 → User: $0.16
-  LYRICS_ANALYSIS: 2,           // API: $0.035 → User: $0.08
-  RHYME_SUGGESTIONS: 1,         // API: $0.015 → User: $0.04
-  SONG_ANALYSIS: 2,             // API: $0.035 → User: $0.08
-  CODE_TRANSLATION: 2,          // API: $0.035 → User: $0.08
-  
-  // Tier 4: Audio Processing
-  AI_MIXING: 7,                 // API: $0.10 → User: $0.28
-  AUDIO_MASTERING: 8,           // API: $0.125 → User: $0.32
-  TRANSCRIPTION: 5,             // API: $0.08 → User: $0.20
-  AI_ENHANCEMENT: 6,            // API: $0.09 → User: $0.24
-  
-  // Tier 5: Voice Conversion (cloud mode only — BYO keys = 0 credits)
-  VOICE_CONVERT_2STEM: 30,      // API: $0.50 → User: $1.20 (stem sep + voice convert + remix)
-  VOICE_CONVERT_4STEM: 38,      // API: $0.62 → User: $1.52 (stem sep + voice convert + instrumental mix + remix)
-} as const;
+// Credit costs moved to shared/creditCosts.ts so client badges and server
+// deductions share one source of truth. See PRICING_CALCULATOR.md for the
+// API-cost → user-price reasoning behind each number.
+export { CREDIT_COSTS } from "../../shared/creditCosts";
 
 // Membership tiers (recurring subscriptions)
 export const MEMBERSHIP_TIERS = {

@@ -11,6 +11,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Play, Pause, Square, RotateCcw, Sparkles, Edit3, Download, Upload } from 'lucide-react';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
+import { CreditBadge } from '@/components/ui/CreditBadge';
 
 interface HybridProject {
   id: string;
@@ -344,6 +345,7 @@ export default function HybridWorkflow() {
                       >
                         <Sparkles className="w-4 h-4 mr-2" />
                         Generate AI Beat
+                        <CreditBadge operation="BEAT_GENERATION" variant="pill" className="ml-3" />
                       </Button>
                     </CardContent>
                   </Card>
@@ -382,6 +384,7 @@ export default function HybridWorkflow() {
                       >
                         <Sparkles className="w-4 h-4 mr-2" />
                         Generate AI Melody
+                        <CreditBadge operation="MELODY_GENERATION" variant="pill" className="ml-3" />
                       </Button>
                     </CardContent>
                   </Card>

@@ -20,6 +20,7 @@ import {
   Copy, Check, ChefHat, Lightbulb, Clock, Save, Edit3,
 } from 'lucide-react';
 import { PROVIDER_CAPABILITIES, resolveGenerationConstraints } from '../../../../shared/aiProviderCapabilities';
+import { CreditBadge } from '@/components/ui/CreditBadge';
 
 interface GenerationVariation {
   audio_url: string;
@@ -1201,6 +1202,7 @@ export function ProAudioGenerator() {
                   <>
                     <Music className="mr-2 h-5 w-5" />
                     {generateMultiple ? 'Generate 3 Options' : 'Generate Song'}
+                    <CreditBadge operation="SONG_GENERATION" variant="pill" className="ml-3" />
                   </>
                 )}
               </Button>
