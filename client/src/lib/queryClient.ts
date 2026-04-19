@@ -206,7 +206,7 @@ export const getQueryFn: <T>(options: {
     const headers: Record<string, string> = {};
     const token = localStorage.getItem('authToken');
     if (token) {
-      headers['Authorization'] = token;
+      headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     }
 
     const res = await fetch(queryKey.join("/") as string, {

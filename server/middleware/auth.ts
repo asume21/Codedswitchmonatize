@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import type { IStorage } from "../storage";
+import { verifyUserToken } from "../lib/jwt";
 
 export function currentUser(storage: IStorage) {
   return async (req: Request, _res: Response, next: NextFunction) => {
@@ -21,12 +22,12 @@ export function currentUser(storage: IStorage) {
         return next();
       }
 
-      // Fallback: Check Authorization header for userId (format: "Bearer userId")
-      // SECURITY: Validate that the userId actually exists in the database
-      // to prevent impersonation via arbitrary Bearer tokens.
+      // Fallback: Authorization header carries a signed JWT (format: "Bearer <jwt>").
+      // JWT proves the token was issued by us; we then verify the user still exists.
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
-        const userId = authHeader.substring(7).trim();
+        const token = authHeader.substring(7).trim();
+        const userId = token ? verifyUserToken(token) : null;
         if (userId) {
           try {
             const user = await storage.getUser(userId);
@@ -35,7 +36,7 @@ export function currentUser(storage: IStorage) {
               return next();
             }
           } catch {
-            // Invalid userId — fall through to unauthenticated
+            // User lookup failed — fall through to unauthenticated
           }
         }
       }

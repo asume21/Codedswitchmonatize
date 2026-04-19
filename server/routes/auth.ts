@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { IStorage } from "../storage";
 import { grantTrialCredits } from "../middleware/trialCredits";
+import { signUserToken } from "../lib/jwt";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -65,11 +66,11 @@ export function createAuthRoutes(storage: IStorage) {
 
       // Return user without password
       const { password: _, ...userWithoutPassword } = user;
-      res.status(201).json({ 
+      res.status(201).json({
         message: "Account created successfully",
         user: userWithoutPassword,
         userId: user.id,
-        token: `Bearer ${user.id}`
+        token: signUserToken(user.id)
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -126,11 +127,11 @@ export function createAuthRoutes(storage: IStorage) {
 
       // Return user without password
       const { password: _, ...userWithoutPassword } = user;
-      res.json({ 
+      res.json({
         message: "Login successful",
         user: userWithoutPassword,
         userId: user.id,
-        token: `Bearer ${user.id}`
+        token: signUserToken(user.id)
       });
     } catch (error: any) {
       console.error("Login error:", error?.message || error);
