@@ -614,14 +614,24 @@ export default function UnifiedStudioWorkspace() {
   const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
   const [activeView, setActiveViewRaw] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism'>(() => {
     const valid = ['arrangement','piano-roll','mixer','ai-studio','lyrics','song-uploader','code-to-music','audio-tools','beat-lab','multitrack','organism'];
+    const params = new URLSearchParams(window.location.search);
     // ?popout=view — used when the user pops a tab out into its own window
-    const popout = new URLSearchParams(window.location.search).get('popout');
+    const popout = params.get('popout');
     if (popout && valid.includes(popout)) return popout as any;
+    // ?tab=view — deep-link into a specific studio tab (beats sessionStorage)
+    const tab = params.get('tab');
+    if (tab && valid.includes(tab)) return tab as any;
     const saved = sessionStorage.getItem('studio:activeView');
     return (saved && valid.includes(saved) ? saved : 'arrangement') as any;
   });
   const setActiveView = useCallback((v: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism') => {
     sessionStorage.setItem('studio:activeView', v);
+    // Sync URL so refresh/back-button/deep-link all work. Skip in popout mode — that's a separate-window concept.
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get('popout')) {
+      url.searchParams.set('tab', v);
+      window.history.replaceState({}, '', url.toString());
+    }
     setActiveViewRaw(v);
   }, []);
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);

@@ -125,27 +125,6 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
-function LyricLabRoute() {
-  useEffect(() => {
-    const fire = () =>
-      window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'lyrics' }));
-    fire();
-    window.setTimeout(fire, 0);
-  }, []);
-
-  return <UnifiedStudioWorkspace />;
-}
-
-function OrganismRoute() {
-  useEffect(() => {
-    const fire = () =>
-      window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'organism' }));
-    fire();
-    window.setTimeout(fire, 0);
-  }, []);
-
-  return <UnifiedStudioWorkspace />;
-}
 
 function App() {
   // Initialize Google Analytics when app loads
@@ -302,29 +281,11 @@ function App() {
                 </ProtectedRoute>
               </Route>
 
-              {/* Lyric Lab - Special route that opens lyrics tab */}
-              <Route path="/lyric-lab">
-                <ProtectedRoute teaserMode>
-                  <StudioProviders>
-                    <AIMessageProvider>
-                      <TeaserOverlay />
-                      <AppLayout><LyricLabRoute /></AppLayout>
-                    </AIMessageProvider>
-                  </StudioProviders>
-                </ProtectedRoute>
-              </Route>
-
-              {/* Organism - opens studio directly on Organism tab */}
-              <Route path="/organism">
-                <ProtectedRoute teaserMode>
-                  <StudioProviders>
-                    <AIMessageProvider>
-                      <TeaserOverlay />
-                      <AppLayout><OrganismRoute /></AppLayout>
-                    </AIMessageProvider>
-                  </StudioProviders>
-                </ProtectedRoute>
-              </Route>
+              {/* Lyric Lab / Organism — deep-links that land on a specific studio tab.
+                  Redirect is cheaper than remounting the full StudioProviders stack;
+                  UnifiedStudioWorkspace reads ?tab=… from the URL on mount. */}
+              <Route path="/lyric-lab"><Redirect to="/studio?tab=lyrics" /></Route>
+              <Route path="/organism"><Redirect to="/studio?tab=organism" /></Route>
 
               {/* ============================================
                   LEGACY STUDIO ROUTES - Redirect to /studio
