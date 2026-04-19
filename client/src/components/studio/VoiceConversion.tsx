@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAbortableRequest, isAbortError } from "@/hooks/use-abortable-request";
 import {
   Mic,
   Upload,
@@ -49,6 +50,7 @@ const DEFAULT_SETTINGS: ConvertSettings = {
 
 export default function VoiceConversion() {
   const { toast } = useToast();
+  const getConvertAbortSignal = useAbortableRequest();
 
   // State
   const [voices, setVoices] = useState<VoiceRecord[]>([]);
@@ -216,7 +218,7 @@ export default function VoiceConversion() {
       const res = await apiRequest("POST", `/api/voices/${selectedVoice.voiceId}/convert`, {
         objectKey: sourceObjectKey,
         ...settings,
-      });
+      }, { signal: getConvertAbortSignal() });
       const data = await res.json();
       if (data.success && data.url) {
         setConvertedUrl(data.url);
@@ -225,6 +227,7 @@ export default function VoiceConversion() {
         throw new Error(data.message || "Conversion failed");
       }
     } catch (error) {
+      if (isAbortError(error)) return;
       toast({
         title: "Conversion Failed",
         description: error instanceof Error ? error.message : "Could not convert audio",

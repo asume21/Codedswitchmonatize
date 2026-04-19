@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { X, Minus, MessageSquare, Sparkles, GripHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -70,6 +71,7 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -170,7 +172,7 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
           ...messages.map(m => ({ role: m.role, content: m.content })),
           { role: 'user', content: input },
         ],
-      });
+      }, { signal: getAbortSignal() });
 
       const data = await response.json();
       
@@ -182,13 +184,14 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error('AI chat error:', error);
       toast({
         title: 'Error',
         description: 'Failed to get AI response. Please try again.',
         variant: 'destructive',
       });
-      
+
       const errorMessage: Message = {
         role: 'assistant',
         content: 'I apologize, I encountered an error connecting to the AI service. Please try again.',

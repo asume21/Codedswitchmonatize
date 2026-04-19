@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAbortableRequest } from "./use-abortable-request";
 
 export interface VoiceConvertJobSummary {
   id: string;
@@ -56,9 +57,10 @@ export interface StoredApiKey {
 
 export function useSubmitJob() {
   const queryClient = useQueryClient();
+  const getAbortSignal = useAbortableRequest();
   return useMutation({
     mutationFn: async (params: SubmitJobParams) => {
-      const res = await apiRequest("POST", "/api/voice-convert/jobs", params);
+      const res = await apiRequest("POST", "/api/voice-convert/jobs", params, { signal: getAbortSignal() });
       return res.json() as Promise<{ success: boolean; jobId: string; status: string; message?: string }>;
     },
     onSuccess: () => {
@@ -68,9 +70,10 @@ export function useSubmitJob() {
 }
 
 export function useCostCheck() {
+  const getAbortSignal = useAbortableRequest();
   return useMutation({
     mutationFn: async (params: { stemMode: 2 | 4; executionMode: "cloud" | "byo_keys" }) => {
-      const res = await apiRequest("POST", "/api/voice-convert/cost-check", params);
+      const res = await apiRequest("POST", "/api/voice-convert/cost-check", params, { signal: getAbortSignal() });
       return res.json() as Promise<CostCheckResult>;
     },
   });
@@ -146,9 +149,10 @@ export function useApiKeys() {
 
 export function useStoreApiKey() {
   const queryClient = useQueryClient();
+  const getAbortSignal = useAbortableRequest();
   return useMutation({
     mutationFn: async (params: { service: string; apiKey: string }) => {
-      const res = await apiRequest("POST", "/api/voice-convert/api-keys", params);
+      const res = await apiRequest("POST", "/api/voice-convert/api-keys", params, { signal: getAbortSignal() });
       return res.json() as Promise<{ success: boolean; message: string; keyHint: string }>;
     },
     onSuccess: () => {
@@ -159,9 +163,10 @@ export function useStoreApiKey() {
 
 export function useDeleteApiKey() {
   const queryClient = useQueryClient();
+  const getAbortSignal = useAbortableRequest();
   return useMutation({
     mutationFn: async (service: string) => {
-      const res = await apiRequest("DELETE", `/api/voice-convert/api-keys/${service}`);
+      const res = await apiRequest("DELETE", `/api/voice-convert/api-keys/${service}`, undefined, { signal: getAbortSignal() });
       return res.json() as Promise<{ success: boolean; message: string }>;
     },
     onSuccess: () => {

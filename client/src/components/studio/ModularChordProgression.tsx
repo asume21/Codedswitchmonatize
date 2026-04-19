@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Play, Sparkles } from 'lucide-react';
@@ -74,12 +75,13 @@ export default function ModularChordProgression({ progression, onProgressionChan
   const [error, setError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState('C');
   const [selectedMood, setSelectedMood] = useState('happy');
-  
+  const getAbortSignal = useAbortableRequest();
+
   const handleAISuggest = async () => {
     if (!onProgressionChange) return;
     setLoading(true); setError(null);
     try {
-      const res = await apiRequest('POST', '/api/chords', { key: selectedKey, mood: selectedMood });
+      const res = await apiRequest('POST', '/api/chords', { key: selectedKey, mood: selectedMood }, { signal: getAbortSignal() });
       
       const data = await res.json();
       
@@ -103,6 +105,7 @@ export default function ModularChordProgression({ progression, onProgressionChan
         setError(data.error || 'Invalid response from AI');
       }
     } catch (e: any) {
+      if (isAbortError(e)) return;
       setError(e.message || 'AI suggestion failed');
     } finally {
       setLoading(false);

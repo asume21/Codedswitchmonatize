@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Music, Code, Play, Pause, Volume2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { useAbortableRequest, isAbortError } from "@/hooks/use-abortable-request";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { useStudioStore } from "@/stores/useStudioStore";
@@ -59,6 +60,8 @@ export default function MusicToCode() {
   const [useCurrentComposition, setUseCurrentComposition] = useState(false);
 
   const { toast } = useToast();
+  const getAnalyzeAbortSignal = useAbortableRequest();
+  const getCircularAbortSignal = useAbortableRequest();
   const { playNote, playDrum, initialize, isInitialized } = useAudio();
   const currentPattern = useStudioStore((s) => s.currentPattern);
   const currentMelody = useStudioStore((s) => s.currentMelody);
@@ -84,7 +87,7 @@ export default function MusicToCode() {
       formData.append("codeStyle", data.codeStyle);
       formData.append("complexity", data.complexity.toString());
 
-      const response = await apiRequest("POST", "/api/music-to-code", formData);
+      const response = await apiRequest("POST", "/api/music-to-code", formData, { signal: getAnalyzeAbortSignal() });
       return response.json();
     },
     onSuccess: (data) => {
@@ -107,6 +110,7 @@ export default function MusicToCode() {
       });
     },
     onError: (error: unknown) => {
+      if (isAbortError(error)) return;
       toast({
         title: "Analysis Failed",
         description:
@@ -125,6 +129,7 @@ export default function MusicToCode() {
         {
           sourceCode: "CodedSwitch", // Special flag to use our own codebase
         },
+        { signal: getCircularAbortSignal() },
       );
       return response.json();
     },

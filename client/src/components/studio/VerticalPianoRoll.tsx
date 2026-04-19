@@ -32,6 +32,7 @@ import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
 import { duplicateTrackData } from "@/lib/trackClone";
 import { useRenderCounter } from "@/lib/perf/useRenderCounter";
 import { apiRequest } from "@/lib/queryClient";
+import { useAbortableRequest, isAbortError } from "@/hooks/use-abortable-request";
 import { useMIDI } from "@/hooks/use-midi";
 import { 
   Note, 
@@ -384,6 +385,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const schedulerStepRef = useRef(0);
 
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
   const { currentSession, updateSession } = useSongWorkSession();
   // Use useTracks hook for persistence
   const { tracks: registeredClips, addAndSaveTrack, updateTrack: updateTrackInStore, removeTrack } = useTracks();
@@ -2249,7 +2251,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           key: currentKey,
           timeSignature: '4/4',
         },
-      });
+      }, { signal: getAbortSignal() });
 
       const result = await response.json();
       const aiNotes = result?.data?.notes || result?.data || [];
@@ -2285,14 +2287,15 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         description: `Successfully injected ${generatedNotes.length} notes into ${selectedTrack.name}`,
       });
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error('Neural suggestion failed:', error);
-      toast({ 
-        title: 'Neural Engine Error', 
+      toast({
+        title: 'Neural Engine Error',
         description: error instanceof Error ? error.message : 'Could not synchronize melody sequence',
         variant: 'destructive'
       });
     }
-  }, [apiRequest, addToHistory, bpm, currentKey, selectedTrack.name, selectedTrackIndex, toast, tracks]);
+  }, [apiRequest, addToHistory, bpm, currentKey, selectedTrack.name, selectedTrackIndex, toast, tracks, getAbortSignal]);
 
   const noteToMidi = (key: string) => {
     const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];

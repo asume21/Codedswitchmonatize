@@ -26,6 +26,7 @@ import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { useTracks, type StudioTrack } from '@/hooks/useTracks';
 import { professionalAudio, type MixerChannel, type SendReturn } from '@/lib/professionalAudio';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
@@ -50,6 +51,7 @@ interface MixerState {
 export default function ProfessionalMixer() {
   useRenderCounter('ProfessionalMixer');
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
   const { currentSession, setCurrentSessionId } = useSongWorkSession();
   const { tracks, updateTrack: updateStudioTrack } = useTracks();
   const transport = useTransport();
@@ -114,7 +116,7 @@ export default function ProfessionalMixer() {
   // AI-powered mixing mutation
   const aiMixMutation = useMutation({
     mutationFn: async (params: any) => {
-      const response = await apiRequest("POST", "/api/mix/generate", params);
+      const response = await apiRequest("POST", "/api/mix/generate", params, { signal: getAbortSignal() });
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -173,7 +175,8 @@ export default function ProfessionalMixer() {
         });
       }
     },
-    onError: () => {
+    onError: (error: unknown) => {
+      if (isAbortError(error)) return;
       toast({
         title: "AI Mix Failed",
         description: "Please try again",

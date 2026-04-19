@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAbortableRequest, isAbortError } from "@/hooks/use-abortable-request";
 import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 
 export default function CodeTranslator() {
@@ -23,10 +24,11 @@ for (let i = 0; i < 10; i++) {
   const [translatedCode, setTranslatedCode] = useState("");
 
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
 
   const translateMutation = useMutation({
     mutationFn: async (data: { sourceCode: string; sourceLanguage: string; targetLanguage: string; aiProvider: string }) => {
-      const response = await apiRequest("POST", "/api/ai/translate-code", data);
+      const response = await apiRequest("POST", "/api/ai/translate-code", data, { signal: getAbortSignal() });
       return response.json();
     },
     onSuccess: (data) => {
@@ -37,6 +39,7 @@ for (let i = 0; i < 10; i++) {
       });
     },
     onError: (error) => {
+      if (isAbortError(error)) return;
       toast({
         title: "Translation Failed",
         description: "Failed to translate code. Please try again.",

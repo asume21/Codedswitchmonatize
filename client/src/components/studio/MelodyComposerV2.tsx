@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TrackControlsPlugin } from './plugins/TrackControlsPlugin';
@@ -26,6 +27,7 @@ interface Track {
 
 function MelodyComposerV2() {
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
   const session = useStudioSession();
 
   // Core state (notes mirror the currently selected track and are also stored in the shared session)
@@ -218,7 +220,7 @@ function MelodyComposerV2() {
             key: 'C',
             timeSignature: '4/4'
           }
-      });
+      }, { signal: getAbortSignal() });
 
       console.log('📡 Response status:', response.status, response.statusText);
       
@@ -263,9 +265,10 @@ function MelodyComposerV2() {
         });
       }
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error('AI generation error:', error);
-      toast({ 
-        title: "Generation Failed", 
+      toast({
+        title: "Generation Failed",
         description: "Could not generate melody. Please try again.",
         variant: "destructive"
       });

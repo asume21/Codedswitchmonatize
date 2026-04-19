@@ -14,6 +14,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { useQuery } from '@tanstack/react-query';
 import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
@@ -187,6 +188,10 @@ Try: "play", "make a drill beat", or "analyze my project".`,
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const getChatAbortSignal = useAbortableRequest();
+  const getDrumsAbortSignal = useAbortableRequest();
+  const getMelodyAbortSignal = useAbortableRequest();
+  const getLyricsAbortSignal = useAbortableRequest();
   const recognitionRef = useRef<any>(null);
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -1055,7 +1060,7 @@ Be concise, friendly, and direct. Skip formalities.`,
           ...messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
           { role: 'user', content: currentInput },
         ],
-      });
+      }, { signal: getChatAbortSignal() });
 
       const data = await response.json();
       
@@ -1067,6 +1072,7 @@ Be concise, friendly, and direct. Skip formalities.`,
       setMessages(prev => [...prev, assistantMessage]);
 
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error('Astutely chat error:', error);
       const errorMessage: Message = {
         role: 'assistant',
@@ -1816,6 +1822,7 @@ function AstutelyCreateContent({
       await fn();
       setProgress(100);
     } catch (error: any) {
+      if (isAbortError(error)) return;
       setAudioError(error?.message || 'Generation failed');
       toast({ title: 'Generation Failed', description: error?.message || 'Something went wrong.', variant: 'destructive' });
     } finally {
@@ -1860,7 +1867,7 @@ function AstutelyCreateContent({
       aiProvider: beatGridProvider,
       generationSeed: Date.now() + Math.floor(Math.random() * 100000),
       gridResolution: '1/16',
-    });
+    }, { signal: getDrumsAbortSignal() });
     const data = await response.json();
 
     // Store the grid in context so ProBeatMaker can pick it up
@@ -1889,7 +1896,7 @@ function AstutelyCreateContent({
         key: currentKey || 'C',
         timeSignature: '4/4',
       },
-    });
+    }, { signal: getMelodyAbortSignal() });
     const result = await response.json();
     const data = result.data || result;
     if (data?.audioUrl) {
@@ -1912,7 +1919,7 @@ function AstutelyCreateContent({
       genre: lyricGenre,
       mood: lyricMood,
       aiProvider: lyricProvider,
-    });
+    }, { signal: getLyricsAbortSignal() });
     const data = await response.json();
     // Push lyrics into studio context
     if (data.content) {

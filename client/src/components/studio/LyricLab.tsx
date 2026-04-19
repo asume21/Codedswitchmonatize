@@ -20,6 +20,7 @@ import {
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAbortableRequest, isAbortError } from "@/hooks/use-abortable-request";
 import { useToast } from "@/hooks/use-toast";
 import { useAudio } from "@/hooks/use-audio";
 import { useStudioStore } from '@/stores/useStudioStore';
@@ -378,12 +379,16 @@ export default function LyricLab() {
   }, [currentPattern, currentMelody, currentCodeMusic]);
 
   const { initialize, isInitialized } = useAudio();
+  const getSaveAbortSignal = useAbortableRequest();
+  const getMasterAbortSignal = useAbortableRequest();
+  const getRhymesAbortSignal = useAbortableRequest();
+  const getAnalyzeAbortSignal = useAbortableRequest();
 
   // generateLyricsMutation removed — moved to Astutely Create tab
 
   const saveLyricsMutation = useMutation({
     mutationFn: async (data: { title: string; content: string; genre: string; rhymeScheme: string }) => {
-      const response = await apiRequest("POST", "/api/lyrics", data);
+      const response = await apiRequest("POST", "/api/lyrics", data, { signal: getSaveAbortSignal() });
       return response.json();
     },
     onSuccess: () => {
@@ -412,7 +417,7 @@ export default function LyricLab() {
       bpm: number;
       genre: string;
     }) => {
-      const response = await apiRequest("POST", "/api/master", data);
+      const response = await apiRequest("POST", "/api/master", data, { signal: getMasterAbortSignal() });
       return response.json();
     },
     onSuccess: (data) => {
@@ -425,7 +430,8 @@ export default function LyricLab() {
         console.log("Mastered settings applied:", data.masteredSettings);
       }
     },
-    onError: () => {
+    onError: (error: unknown) => {
+      if (isAbortError(error)) return;
       toast({
         title: "Mastering Failed",
         description: "Failed to master the song. Please try again.",
@@ -436,12 +442,13 @@ export default function LyricLab() {
 
   const fetchRhymes = useCallback(async (word: string): Promise<RhymeResponse> => {
     try {
-      const response = await apiRequest("POST", "/api/lyrics/rhymes", { word });
+      const response = await apiRequest("POST", "/api/lyrics/rhymes", { word }, { signal: getRhymesAbortSignal() });
       const data = await response.json();
       if (Array.isArray(data?.rhymes) && data.rhymes.length > 0) {
         return { rhymes: data.rhymes, source: "api" };
       }
     } catch (err) {
+      if (isAbortError(err)) throw err;
       // fall through to datamuse
       console.warn("Primary rhyme API failed, falling back to Datamuse", err);
     }
@@ -459,7 +466,7 @@ export default function LyricLab() {
     }
 
     return { rhymes: [], source: "api" };
-  }, []);
+  }, [getRhymesAbortSignal]);
 
   const rhymeMutation = useMutation({
     mutationFn: async (data: { word: string }) => {
@@ -481,6 +488,7 @@ export default function LyricLab() {
       }
     },
     onError: (error: Error) => {
+      if (isAbortError(error)) return;
       toast({
         title: "Rhyme Finder Error",
         description: error.message,
@@ -491,7 +499,7 @@ export default function LyricLab() {
 
   const analyzeLyricsMutation = useMutation({
     mutationFn: async (data: { lyrics: string; genre: string; enhanceWithAI?: boolean }) => {
-      const response = await apiRequest("POST", "/api/lyrics/analyze", data);
+      const response = await apiRequest("POST", "/api/lyrics/analyze", data, { signal: getAnalyzeAbortSignal() });
       return response.json();
     },
     onSuccess: (data) => {
@@ -503,6 +511,7 @@ export default function LyricLab() {
       });
     },
     onError: (error: Error) => {
+      if (isAbortError(error)) return;
       const message = error?.message || "";
       const statusCode = parseInt(message.split(":")[0], 10);
 

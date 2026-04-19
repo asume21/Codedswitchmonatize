@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAbortableRequest, isAbortError } from "@/hooks/use-abortable-request";
 import { useStudioStore, getUploadedSongAudio, setUploadedSongAudio } from '@/stores/useStudioStore';
 import { AIMessageContext } from "@/contexts/AIMessageContext";
 import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionContext";
@@ -69,6 +70,11 @@ export default function SongUploader() {
   });
 
   const { toast } = useToast();
+  const getTranscribeAbortSignal = useAbortableRequest();
+  const getLyricsAnalyzeAbortSignal = useAbortableRequest();
+  const getSpeechCorrectionAbortSignal = useAbortableRequest();
+  const getSongAnalyzeAbortSignal = useAbortableRequest();
+  const getSunoAbortSignal = useAbortableRequest();
   const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
   const setCurrentUploadedSong = useStudioStore((s) => s.setCurrentUploadedSong);
   const setCurrentLyrics = useStudioStore((s) => s.setCurrentLyrics);
@@ -114,9 +120,9 @@ export default function SongUploader() {
       
       const response = await apiRequest('POST', '/api/transcribe', {
         fileUrl: audioUrl
-      });
+      }, { signal: getTranscribeAbortSignal() });
       const data = await response.json();
-      
+
       if (data.transcription && data.transcription.text) {
         const text = data.transcription.text;
         setTranscriptions(prev => {
@@ -142,6 +148,7 @@ export default function SongUploader() {
       }
       return null;
     } catch (error) {
+      if (isAbortError(error)) return null;
       console.error('Transcription error:', error);
       toast({
         title: "Transcription Failed",
@@ -182,7 +189,7 @@ export default function SongUploader() {
         lyrics,
         genre: songGenre,
         enhanceWithAI: true,
-      });
+      }, { signal: getLyricsAnalyzeAbortSignal() });
       const data = await response.json();
       if (data.analysis) {
         setLyricsAnalyses(prev => {
@@ -253,6 +260,7 @@ export default function SongUploader() {
       }
       return null;
     } catch (error) {
+      if (isAbortError(error)) return null;
       console.error('Lyrics analysis error:', error);
       toast({
         title: "Lyrics Analysis Failed",
@@ -440,10 +448,11 @@ export default function SongUploader() {
     setSpeechLoading((p) => ({ ...p, transcribe: true }));
 
     try {
+      const speechSignal = getSpeechCorrectionAbortSignal();
       // First, create a voiceprint from the original audio for voice cloning
       const voiceprintResponse = await apiRequest("POST", "/api/speech-correction/voiceprint", {
         songId: song.id,
-      });
+      }, { signal: speechSignal });
       const voiceprintData = await voiceprintResponse.json();
       if (voiceprintData.voiceId) {
         setSpeechVoiceId(voiceprintData.voiceId);
@@ -453,7 +462,7 @@ export default function SongUploader() {
       // Then transcribe the audio
       const response = await apiRequest("POST", "/api/speech-correction/transcribe", {
         songId: song.id,
-      });
+      }, { signal: speechSignal });
       const data = await response.json();
       if (data.transcript) {
         setSpeechTranscript(data.transcript);
@@ -466,6 +475,7 @@ export default function SongUploader() {
         description: "Word-level transcript loaded for editing. Voice sample captured for cloning.",
       });
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error("Speech correction transcribe error:", error);
       toast({
         title: "Transcription failed",
@@ -504,7 +514,7 @@ export default function SongUploader() {
         guideAudioId: song.id,
         keepTiming: true,
         voiceId: speechVoiceId, // Pass voice ID for cloning
-      });
+      }, { signal: getSpeechCorrectionAbortSignal() });
       const data = await response.json();
       setSpeechPreviewUrl(data.previewUrl || data.url || null);
       setSpeechPreviewId(data.previewId || data.id || null);
@@ -518,6 +528,7 @@ export default function SongUploader() {
           : "Listen and compare with the original.",
       });
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error("Speech correction preview error:", error);
       toast({
         title: "Preview failed",
@@ -542,7 +553,7 @@ export default function SongUploader() {
     try {
       const response = await apiRequest("POST", "/api/speech-correction/commit", {
         previewId: speechPreviewId,
-      });
+      }, { signal: getSpeechCorrectionAbortSignal() });
       const data = await response.json().catch(() => ({}));
       if (data.finalStemUrl) {
         setSpeechPreviewUrl(data.finalStemUrl);
@@ -552,6 +563,7 @@ export default function SongUploader() {
         description: "Corrected vocal saved as a new version.",
       });
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error("Speech correction commit error:", error);
       toast({
         title: "Commit failed",
@@ -954,7 +966,7 @@ export default function SongUploader() {
         songId: song.id,
         songURL: song.originalUrl,
         songName: song.name
-      });
+      }, { signal: getSongAnalyzeAbortSignal() });
       const analysis = await response.json();
       
       console.log('🔍 FRONTEND RECEIVED ANALYSIS:', {
@@ -1133,10 +1145,11 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
       addMessage(analysisMessage, 'song-analysis', analysis.actionableRecommendations);
 
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error('❌ Analysis error:', error);
       console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
       toast({
-        title: "Analysis Failed", 
+        title: "Analysis Failed",
         description: "Could not analyze the song. Please try again.",
         variant: "destructive",
       });
@@ -1162,8 +1175,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
         audioUrl,
         prompt,
         model: sunoModel
-      });
-      
+      }, { signal: getSunoAbortSignal() });
+
       const data = await response.json();
       toast({
         title: "Suno Cover Started!",
@@ -1172,6 +1185,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
       addMessage(`🎵 Started Suno cover for "${song.name}": ${prompt}`, 'suno-cover');
     } catch (error) {
+      if (isAbortError(error)) return;
       toast({
         title: "Suno Cover Failed",
         description: error instanceof Error ? error.message : "Failed to start cover",
@@ -1192,8 +1206,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
         audioUrl,
         prompt: sunoPrompt || undefined,
         model: sunoModel
-      });
-      
+      }, { signal: getSunoAbortSignal() });
+
       const data = await response.json();
       toast({
         title: "Suno Extend Started!",
@@ -1202,6 +1216,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
       addMessage(`🎵 Started Suno extend for "${song.name}"`, 'suno-extend');
     } catch (error) {
+      if (isAbortError(error)) return;
       toast({
         title: "Suno Extend Failed",
         description: error instanceof Error ? error.message : "Failed to extend song",
@@ -1220,8 +1235,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
       const audioUrl = song.accessibleUrl || song.originalUrl || (song as any).songURL;
       const response = await apiRequest('POST', '/api/songs/suno/separate', {
         audioUrl
-      });
-      
+      }, { signal: getSunoAbortSignal() });
+
       const data = await response.json();
       toast({
         title: "Vocal Separation Started!",
@@ -1230,6 +1245,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
       addMessage(`🎵 Started vocal separation for "${song.name}"`, 'suno-separate');
     } catch (error) {
+      if (isAbortError(error)) return;
       toast({
         title: "Separation Failed",
         description: error instanceof Error ? error.message : "Failed to separate vocals",
@@ -1250,8 +1266,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
         audioUrl,
         prompt,
         model: sunoModel
-      });
-      
+      }, { signal: getSunoAbortSignal() });
+
       const data = await response.json();
       toast({
         title: "Adding Vocals Started!",
@@ -1260,6 +1276,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
       addMessage(`🎵 Started adding vocals to "${song.name}": ${prompt}`, 'suno-add-vocals');
     } catch (error) {
+      if (isAbortError(error)) return;
       toast({
         title: "Add Vocals Failed",
         description: error instanceof Error ? error.message : "Failed to add vocals",
@@ -1280,8 +1297,8 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
         audioUrl,
         prompt,
         model: sunoModel
-      });
-      
+      }, { signal: getSunoAbortSignal() });
+
       const data = await response.json();
       toast({
         title: "Adding Instrumental Started!",
@@ -1290,6 +1307,7 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
 
       addMessage(`🎵 Started adding instrumental to "${song.name}": ${prompt}`, 'suno-add-instrumental');
     } catch (error) {
+      if (isAbortError(error)) return;
       toast({
         title: "Add Instrumental Failed",
         description: error instanceof Error ? error.message : "Failed to add instrumental",

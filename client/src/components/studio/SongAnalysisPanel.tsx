@@ -8,6 +8,7 @@ import { AudioToolRouter } from './effects/AudioToolRouter';
 import type { ToolRecommendation } from './effects';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { useToast } from '@/hooks/use-toast';
 
 interface SongAnalysisPanelProps {
@@ -28,12 +29,14 @@ export function SongAnalysisPanel({ songUrl, songName, analysis }: SongAnalysisP
   const [lyricAnalysis, setLyricAnalysis] = useState<any>(null);
   const [showTranscription, setShowTranscription] = useState(false);
   const { toast } = useToast();
+  const getTranscribeAbortSignal = useAbortableRequest();
+  const getAnalyzeAbortSignal = useAbortableRequest();
 
   const transcribeMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/transcribe', {
         fileUrl: songUrl
-      });
+      }, { signal: getTranscribeAbortSignal() });
       return response.json();
     },
     onSuccess: (data) => {
@@ -47,6 +50,7 @@ export function SongAnalysisPanel({ songUrl, songName, analysis }: SongAnalysisP
       analyzeLyricsMutation.mutate(data.transcription.text);
     },
     onError: (error: Error) => {
+      if (isAbortError(error)) return;
       toast({
         title: "Transcription Failed",
         description: error.message,
@@ -61,7 +65,7 @@ export function SongAnalysisPanel({ songUrl, songName, analysis }: SongAnalysisP
         lyrics: text,
         genre: analysis?.genre || 'unknown',
         enhanceWithAI: true
-      });
+      }, { signal: getAnalyzeAbortSignal() });
       return response.json();
     },
     onSuccess: (data) => {
@@ -72,6 +76,7 @@ export function SongAnalysisPanel({ songUrl, songName, analysis }: SongAnalysisP
       });
     },
     onError: (error: Error) => {
+      if (isAbortError(error)) return;
       toast({
         title: "Analysis Failed",
         description: error.message,
