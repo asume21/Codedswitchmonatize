@@ -87,10 +87,10 @@ export default function Landing() {
           </div>
           <div className="hidden md:flex items-center gap-8">
             <a href="#organism" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Organism</a>
-            <a href="#features" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-purple-400 transition-colors">Features</a>
-            <a href="#modes" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-emerald-400 transition-colors">Modes</a>
-            <a href="#social" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-pink-400 transition-colors">Social</a>
-            <Link href="/organism"><span className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-yellow-400 transition-colors cursor-pointer">Try Now</span></Link>
+            <a href="#features" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Features</a>
+            <a href="#modes" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Modes</a>
+            <a href="#social" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Social</a>
+            <Link href="/organism"><span className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors cursor-pointer">Try Now</span></Link>
             <Link href="/studio">
               <Button variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 uppercase tracking-widest font-bold">
                 Launch Studio
