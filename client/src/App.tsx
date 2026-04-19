@@ -32,6 +32,7 @@ const SessionDestinationProvider = React.lazy(() => import("@/contexts/SessionDe
 const AstutelyCoreProvider = React.lazy(() => import("@/contexts/AstutelyCoreContext").then(m => ({ default: m.AstutelyCoreProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const GlobalAudioPlayer = React.lazy(() => import("@/components/GlobalAudioPlayer").then(m => ({ default: m.GlobalAudioPlayer })).catch(() => ({ default: () => null })));
 const GlobalTransportBar = React.lazy(() => import("@/components/studio/GlobalTransportBar"));
+const KeyboardShortcutsHelp = React.lazy(() => import("@/components/studio/KeyboardShortcutsHelp"));
 
 // Eagerly loaded pages (small, frequently accessed) - FAST INITIAL LOAD
 import Landing from "@/pages/landing";
@@ -111,6 +112,8 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
                           {children}
                           {/* Persistent DAW transport — fixed to viewport bottom, shared by every studio tab */}
                           <GlobalTransportBar />
+                          {/* Press ? to see the keyboard-shortcuts cheatsheet */}
+                          <KeyboardShortcutsHelp />
                         </SessionDestinationProvider>
                       </SongWorkSessionProvider>
                     </StudioSessionProvider>

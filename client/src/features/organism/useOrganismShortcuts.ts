@@ -11,17 +11,22 @@ export function useOrganismShortcuts() {
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
       if ((e.target as HTMLElement)?.isContentEditable) return
 
+      // Space intentionally NOT bound here — it belongs to the transport
+      // (MasterMultiTrackPlayer). Previously this raced with two other
+      // window-level listeners and made Space behavior non-deterministic.
+      // Use `o` to toggle the Organism generator explicitly.
+      if (e.metaKey || e.ctrlKey) return
+
       switch (e.key) {
-        case ' ':
+        case 'o':
+        case 'O':
           e.preventDefault()
           isRunning ? stop() : start()
           break
         case 'c':
         case 'C':
-          if (!e.metaKey && !e.ctrlKey) {
-            e.preventDefault()
-            capture()
-          }
+          e.preventDefault()
+          capture()
           break
         case 'm':
         case 'M':
