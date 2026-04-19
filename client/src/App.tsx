@@ -33,6 +33,7 @@ const AstutelyCoreProvider = React.lazy(() => import("@/contexts/AstutelyCoreCon
 const GlobalAudioPlayer = React.lazy(() => import("@/components/GlobalAudioPlayer").then(m => ({ default: m.GlobalAudioPlayer })).catch(() => ({ default: () => null })));
 const GlobalTransportBar = React.lazy(() => import("@/components/studio/GlobalTransportBar"));
 const KeyboardShortcutsHelp = React.lazy(() => import("@/components/studio/KeyboardShortcutsHelp"));
+const OnboardingTour = React.lazy(() => import("@/components/studio/OnboardingTour"));
 
 // Eagerly loaded pages (small, frequently accessed) - FAST INITIAL LOAD
 import Landing from "@/pages/landing";
@@ -114,6 +115,8 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
                           <GlobalTransportBar />
                           {/* Press ? to see the keyboard-shortcuts cheatsheet */}
                           <KeyboardShortcutsHelp />
+                          {/* First-run studio walkthrough (self-gated on localStorage) */}
+                          <OnboardingTour />
                         </SessionDestinationProvider>
                       </SongWorkSessionProvider>
                     </StudioSessionProvider>
