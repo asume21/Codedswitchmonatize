@@ -31,6 +31,7 @@ const SongWorkSessionProvider = React.lazy(() => import("@/contexts/SongWorkSess
 const SessionDestinationProvider = React.lazy(() => import("@/contexts/SessionDestinationContext").then(m => ({ default: m.SessionDestinationProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const AstutelyCoreProvider = React.lazy(() => import("@/contexts/AstutelyCoreContext").then(m => ({ default: m.AstutelyCoreProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const GlobalAudioPlayer = React.lazy(() => import("@/components/GlobalAudioPlayer").then(m => ({ default: m.GlobalAudioPlayer })).catch(() => ({ default: () => null })));
+const GlobalTransportBar = React.lazy(() => import("@/components/studio/GlobalTransportBar"));
 
 // Eagerly loaded pages (small, frequently accessed) - FAST INITIAL LOAD
 import Landing from "@/pages/landing";
@@ -108,6 +109,8 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
                           <GlobalAudioPlayer />
                           <GlobalLivingGlyph position="bottom-right" size={48} />
                           {children}
+                          {/* Persistent DAW transport — fixed to viewport bottom, shared by every studio tab */}
+                          <GlobalTransportBar />
                         </SessionDestinationProvider>
                       </SongWorkSessionProvider>
                     </StudioSessionProvider>

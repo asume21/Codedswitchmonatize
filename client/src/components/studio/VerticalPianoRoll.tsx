@@ -29,7 +29,6 @@ import AILoopGenerator from "./AILoopGenerator";
 import { PlaybackControls } from "./PlaybackControls";
 import { KeyScaleSelector } from "./KeyScaleSelector";
 import { ChordProgressionDisplay } from "./ChordProgressionDisplay";
-import GlobalTransportBar from "./GlobalTransportBar";
 import { duplicateTrackData } from "@/lib/trackClone";
 import { useRenderCounter } from "@/lib/perf/useRenderCounter";
 import { apiRequest } from "@/lib/queryClient";
@@ -2902,9 +2901,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-black/90 text-cyan-500 font-mono overflow-hidden astutely-panel rounded-none">
-      {/* Top Professional DAW Toolbar */}
+      {/* Top Professional DAW Toolbar — transport now lives in the persistent studio chrome (App.tsx StudioProviders) */}
       <div className="flex flex-col gap-2 p-2 border-b border-cyan-500/30 astutely-header flex-shrink-0">
-        <GlobalTransportBar variant="inline" />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30">
