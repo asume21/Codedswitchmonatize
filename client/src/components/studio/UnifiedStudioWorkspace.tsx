@@ -1079,7 +1079,7 @@ export default function UnifiedStudioWorkspace() {
         case 'arrangement':
           setActiveView('arrangement');
           break;
-        // PluginHub and legacy aliases
+        // Legacy tab-ID aliases → canonical mixer view
         case 'musicmixer':
         case 'professionalmixer':
           setActiveView('mixer');
