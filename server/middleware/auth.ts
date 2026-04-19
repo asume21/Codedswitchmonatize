@@ -1,18 +1,36 @@
 import type { Request, Response, NextFunction } from "express";
+import { timingSafeEqual } from "node:crypto";
 import type { IStorage } from "../storage";
 import { verifyUserToken } from "../lib/jwt";
+
+const MIN_OWNER_KEY_LENGTH = 32;
+
+function safeEqualString(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
 
 export function currentUser(storage: IStorage) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       const isPlaywright = process.env.PLAYWRIGHT === 'true' || process.env.NODE_ENV === 'test';
-      // Check for owner key (x-owner-key header)
-      const ownerKey = req.headers['x-owner-key'];
-      const expectedOwnerKey = process.env.OWNER_KEY;
-      
-      if (ownerKey && expectedOwnerKey && ownerKey === expectedOwnerKey) {
+      // Check for owner key (x-owner-key header) — constant-time compare + length floor.
+      // An OWNER_KEY shorter than MIN_OWNER_KEY_LENGTH is treated as unset to prevent
+      // weak/empty values from silently granting admin access.
+      const rawOwnerKey = req.headers['x-owner-key'];
+      const ownerKey = typeof rawOwnerKey === 'string' ? rawOwnerKey : '';
+      const expectedOwnerKey = process.env.OWNER_KEY || '';
+
+      if (
+        ownerKey &&
+        expectedOwnerKey.length >= MIN_OWNER_KEY_LENGTH &&
+        safeEqualString(ownerKey, expectedOwnerKey)
+      ) {
         req.userId = 'owner-user';
         req.isOwner = true;
+        console.log(`🔑 owner-key auth: ${req.method} ${req.path}`);
         return next();
       }
 
@@ -41,11 +59,13 @@ export function currentUser(storage: IStorage) {
         }
       }
 
-      // No auto-login - users must activate with a key
-      // Dev-only convenience: allow local testing without a full auth flow.
-      // Enabled by default in non-production; set DISABLE_DEV_AUTO_LOGIN=true to turn off.
-      // Optionally set DEV_USER_ID to control which userId is used.
+      // Dev-only convenience: structurally impossible to enable in production so that
+      // a stray ENABLE_DEV_AUTO_LOGIN=true in a prod env cannot silently auth every
+      // request as DEV_USER_ID. Guard has to be the literal NODE_ENV check, not just
+      // the env flag.
+      const isProduction = process.env.NODE_ENV === 'production';
       const devAutoLoginEnabled =
+        !isProduction &&
         !isPlaywright &&
         process.env.ENABLE_DEV_AUTO_LOGIN === 'true';
       if (devAutoLoginEnabled) {
