@@ -7,6 +7,7 @@ import { X, Save, Sparkles, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { CreditBadge } from '@/components/ui/CreditBadge';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface LyricsSection {
   id: string;
@@ -34,6 +35,7 @@ export default function LyricsFocusMode({ onClose, initialLyrics = '', onSave }:
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
 
   const sectionTypes: Array<LyricsSection['type']> = ['intro', 'verse', 'pre-chorus', 'chorus', 'bridge', 'outro'];
 
@@ -89,6 +91,8 @@ export default function LyricsFocusMode({ onClose, initialLyrics = '', onSave }:
         prompt: aiPrompt,
         style: 'professional',
         structure: sections.map(s => s.type).join(','),
+      }, {
+        signal: getAbortSignal(),
       });
 
       const data = await response.json();
@@ -126,6 +130,7 @@ export default function LyricsFocusMode({ onClose, initialLyrics = '', onSave }:
         });
       }
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error('Lyric generation error:', error);
       toast({
         title: 'Generation Failed',

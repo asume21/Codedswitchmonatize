@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { PROVIDER_CAPABILITIES, resolveGenerationConstraints } from '../../../../shared/aiProviderCapabilities';
 import { CreditBadge } from '@/components/ui/CreditBadge';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface GenerationVariation {
   audio_url: string;
@@ -197,6 +198,7 @@ const KEYS = ['C Major', 'G Major', 'D Major', 'A Major', 'E Major', 'B Major', 
 
 export function ProAudioGenerator() {
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
 
   // Form state
   const [songDescription, setSongDescription] = useState('');
@@ -492,7 +494,9 @@ export function ProAudioGenerator() {
         setGenerationProgress(`${effectiveLabel}: generating audio (est. ${estTime})...`);
       }
 
-      const response = await apiRequest('POST', '/api/music/generate-complete', payload);
+      const response = await apiRequest('POST', '/api/music/generate-complete', payload, {
+        signal: getAbortSignal(),
+      });
 
       if (!response.ok) {
         let detail = 'Failed to generate song';
@@ -593,6 +597,8 @@ export function ProAudioGenerator() {
     },
     onError: (error) => {
       setGenerationProgress('');
+      // Silently swallow user-initiated cancellations (unmount, new generation request)
+      if (isAbortError(error)) return;
       const message = String(error?.message || 'Generation failed');
       const requestIdMatch = message.match(/requestId=([^\]\s|]+)/i);
       const providerMatch = message.match(/provider=([^\]\s|]+)/i);

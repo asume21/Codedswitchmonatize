@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -46,6 +47,7 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm
   const playbackRef = useRef<NodeJS.Timeout | null>(null);
   const recordStartTimeRef = useRef<number>(0);
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
   
   // Connect to session contexts for track-aware bass generation
   const { tempo: transportBpm } = useTransport();
@@ -596,7 +598,7 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm
           bpm: effectiveBpm,
           key: effectiveKey,
           name: `Bass ${patternType}`,
-      });
+      }, { signal: getAbortSignal() });
 
       if (!response.ok) {
         throw new Error('Failed to generate bass line');
@@ -655,6 +657,7 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm
       })();
 
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error('Bass generation error:', error);
       toast({
         title: "Generation Failed",

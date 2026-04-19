@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useLocation } from 'wouter';
 import { useTracks } from '@/hooks/useTracks';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface StemResult {
   vocals?: string;
@@ -49,6 +50,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
   const remixedObjectUrlRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
   const [, setLocation] = useLocation();
   const { addTrack } = useTracks();
 
@@ -282,10 +284,11 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
     setPipelineStatus('Cloning vocal stem with ElevenLabs...');
 
     try {
+      const signal = getAbortSignal();
       const cloneResponse = await apiRequest('POST', `/api/voices/${encodeURIComponent(voiceId.trim())}/convert`, {
         audioUrl: stems.vocals,
         provider: 'elevenlabs',
-      });
+      }, { signal });
 
       const cloneData = await cloneResponse.json();
       if (!cloneData?.success || !cloneData?.url) {
@@ -315,7 +318,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         rmsLevel: -14,
         genre: 'pop',
         targetLoudness: -14,
-      });
+      }, { signal });
       const masterData = await masterResponse.json();
       if (masterData?.success && masterData?.analysis) {
         setMasteringAnalysis(masterData.analysis);
@@ -327,6 +330,10 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         description: 'Cloned vocal and remix/mastering outputs are ready below.',
       });
     } catch (error: any) {
+      if (isAbortError(error)) {
+        setPipelineStatus('Pipeline cancelled.');
+        return;
+      }
       setPipelineStatus('Pipeline failed.');
       toast({
         title: 'Clone/remix failed',
@@ -359,7 +366,7 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       const response = await apiRequest('POST', '/api/ai/stem-separation', {
         audioUrl,
         stemCount: parseInt(stemCount)
-      });
+      }, { signal: getAbortSignal() });
 
       const data = await response.json();
 
@@ -386,6 +393,10 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       }
     } catch (error: any) {
       setIsProcessing(false);
+      if (isAbortError(error)) {
+        setPipelineStatus('Stem separation cancelled.');
+        return;
+      }
       setPipelineStatus('Stem separation failed.');
       toast({
         title: "Separation Failed",

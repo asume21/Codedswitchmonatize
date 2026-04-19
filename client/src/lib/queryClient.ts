@@ -77,15 +77,17 @@ async function throwIfResNotOk(res: Response) {
 
 // ── Retry with exponential backoff ───────────────────────────────────────────
 
-interface RetryOptions {
+export interface RetryOptions {
   maxRetries?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
   /** Only retry these status codes. Default: [429, 502, 503, 504] */
   retryableStatuses?: number[];
+  /** Caller-owned AbortSignal. Aborts the fetch AND interrupts any retry backoff. */
+  signal?: AbortSignal;
 }
 
-const DEFAULT_RETRY: Required<RetryOptions> = {
+const DEFAULT_RETRY: Required<Omit<RetryOptions, 'signal'>> = {
   maxRetries: 3,
   baseDelayMs: 1000,
   maxDelayMs: 30_000,
@@ -101,12 +103,17 @@ async function fetchWithRetry(
     ...DEFAULT_RETRY,
     ...opts,
   };
+  const signal = opts.signal ?? init.signal ?? undefined;
 
   let lastError: ApiError | undefined;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Caller aborted between retries — bail before firing the next request
+    if (signal?.aborted) {
+      throw new DOMException('Request aborted', 'AbortError');
+    }
     try {
-      const res = await fetch(input, init);
+      const res = await fetch(input, { ...init, signal });
 
       if (res.ok) return res;
 
@@ -119,6 +126,8 @@ async function fetchWithRetry(
       // Retryable status — parse error, then decide
       await throwIfResNotOk(res);
     } catch (err) {
+      // Fetch itself was aborted — surface as AbortError, don't retry
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
       if (!(err instanceof ApiError)) throw err;
       lastError = err;
 
@@ -147,7 +156,18 @@ async function fetchWithRetry(
         `after ${Math.round(delayMs)}ms (status ${err.status})`,
       );
 
-      await new Promise(r => setTimeout(r, delayMs));
+      // Abort-aware sleep: bail early if caller cancels during backoff
+      await new Promise<void>((resolve, reject) => {
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(new DOMException('Request aborted', 'AbortError'));
+        };
+        const timer = setTimeout(() => {
+          signal?.removeEventListener('abort', onAbort);
+          resolve();
+        }, delayMs);
+        signal?.addEventListener('abort', onAbort, { once: true });
+      });
     }
   }
 
@@ -177,11 +197,18 @@ export async function apiRequest(
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
+    signal: retryOpts?.signal,
   };
 
   // Use retry logic for mutations (POST/PUT/PATCH) to AI endpoints,
   // but not for idempotency-unsafe operations unless explicitly requested.
-  const shouldRetry = retryOpts !== undefined ||
+  // Note: passing a `signal` alone does NOT force retry mode — signal is a
+  // transport concern (always respected), not a retry opt-in. Any *other*
+  // RetryOptions field (maxRetries, baseDelayMs, maxDelayMs, retryableStatuses)
+  // is treated as an explicit request to enable retry.
+  const hasRetryConfig = retryOpts !== undefined &&
+    Object.keys(retryOpts).some(k => k !== 'signal');
+  const shouldRetry = hasRetryConfig ||
     (method === 'POST' && /\/(ai|grok|generate|astutely|chords|lyrics|melody|drums|bass|mix|mastering|arrangement|vocal-melody|stem-separation|chord-progression)/.test(url));
 
   if (shouldRetry) {
@@ -202,16 +229,20 @@ export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
+  async ({ queryKey, signal }) => {
     const headers: Record<string, string> = {};
     const token = localStorage.getItem('authToken');
     if (token) {
       headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     }
 
+    // TanStack Query supplies an AbortSignal that fires when the query is
+    // cancelled (component unmount, refetch, etc.) — wiring it here means
+    // every useQuery automatically cancels its in-flight request.
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",
       headers,
+      signal,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

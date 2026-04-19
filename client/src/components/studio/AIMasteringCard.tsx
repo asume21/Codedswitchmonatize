@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { Loader2, Volume2, Gauge, Waves, Zap, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface MasteringAnalysis {
   loudnessAnalysis: {
@@ -60,6 +61,7 @@ export default function AIMasteringCard({
   const [genre, setGenre] = useState('pop');
   const [targetLoudness, setTargetLoudness] = useState(-14);
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
 
   const analyzeMix = async () => {
     setIsAnalyzing(true);
@@ -70,7 +72,7 @@ export default function AIMasteringCard({
         frequencyData,
         genre,
         targetLoudness
-      });
+      }, { signal: getAbortSignal() });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -86,6 +88,7 @@ export default function AIMasteringCard({
         });
       }
     } catch (error: any) {
+      if (isAbortError(error)) return;
       toast({
         title: "Analysis Failed",
         description: error.message || "Could not analyze mix",

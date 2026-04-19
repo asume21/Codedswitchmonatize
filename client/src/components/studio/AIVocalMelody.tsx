@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useOrganismChords, pitchClassName } from '@/organism/generators/useOrganismChords';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface VocalNote {
   syllable: string;
@@ -45,6 +46,7 @@ export default function AIVocalMelody({
   const [mood, setMood] = useState('uplifting');
   const [vocalRange, setVocalRange] = useState('tenor');
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const organismChord = useOrganismChords();
 
@@ -75,7 +77,7 @@ export default function AIVocalMelody({
         mood,
         vocalRange,
         chordContext,
-      });
+      }, { signal: getAbortSignal() });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -105,6 +107,7 @@ export default function AIVocalMelody({
         }
       }
     } catch (error: any) {
+      if (isAbortError(error)) return;
       toast({
         title: "Generation Failed",
         description: error.message || "Could not generate vocal melody",

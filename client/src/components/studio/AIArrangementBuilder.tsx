@@ -8,6 +8,7 @@ import { Loader2, LayoutList, ArrowRight, Music2, Play, Volume2, VolumeX, Check 
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface TrackState {
   active: boolean;
@@ -67,6 +68,7 @@ export default function AIArrangementBuilder({
   const [duration, setDuration] = useState(3);
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const { toast } = useToast();
+  const getAbortSignal = useAbortableRequest();
 
   const generateArrangement = useCallback(async () => {
     setIsGenerating(true);
@@ -86,7 +88,7 @@ export default function AIArrangementBuilder({
         mood,
         durationMinutes: duration,
         tracks: trackData,
-      });
+      }, { signal: getAbortSignal() });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -117,6 +119,7 @@ export default function AIArrangementBuilder({
         }
       }
     } catch (error: any) {
+      if (isAbortError(error)) return;
       toast({
         title: "Generation Failed",
         description: error.message || "Could not generate arrangement",
@@ -125,7 +128,7 @@ export default function AIArrangementBuilder({
     } finally {
       setIsGenerating(false);
     }
-  }, [bpm, key, genre, mood, duration, projectTracks, toast]);
+  }, [bpm, key, genre, mood, duration, projectTracks, toast, getAbortSignal]);
 
   const previewSection = useCallback((sectionIndex: number) => {
     if (!arrangement) return;

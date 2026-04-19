@@ -12,6 +12,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { Play, Pause, Square, RotateCcw, Sparkles, Edit3, Download, Upload } from 'lucide-react';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { CreditBadge } from '@/components/ui/CreditBadge';
+import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface HybridProject {
   id: string;
@@ -47,6 +48,8 @@ interface MixedElement {
 export default function HybridWorkflow() {
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const { toast } = useToast();
+  const getBeatAbortSignal = useAbortableRequest();
+  const getMelodyAbortSignal = useAbortableRequest();
   const [activeProject, setActiveProject] = useState<HybridProject | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -55,7 +58,9 @@ export default function HybridWorkflow() {
   // AI Generation Mutations
   const generateBeatMutation = useMutation({
     mutationFn: async (data: { style: string; bpm: number; complexity: number }) => {
-      const response = await apiRequest('POST', '/api/beats/generate', data);
+      const response = await apiRequest('POST', '/api/beats/generate', data, {
+        signal: getBeatAbortSignal(),
+      });
       return await response.json();
     },
     onSuccess: (beat) => {
@@ -97,7 +102,9 @@ export default function HybridWorkflow() {
 
   const generateMelodyMutation = useMutation({
     mutationFn: async (data: { scale: string; style: string; complexity: number }) => {
-      const response = await apiRequest('POST', '/api/melodies/generate', data);
+      const response = await apiRequest('POST', '/api/melodies/generate', data, {
+        signal: getMelodyAbortSignal(),
+      });
       return await response.json();
     },
     onSuccess: (melody) => {
