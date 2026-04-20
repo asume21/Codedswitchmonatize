@@ -19,6 +19,7 @@ import { GlobalOrganismWrapper } from "@/features/organism/GlobalOrganismWrapper
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { TeaserOverlay } from "@/components/auth/TeaserOverlay";
+import { CommandPalette } from "@/components/CommandPalette";
 
 // Lazy load heavy audio providers - only needed for studio routes
 const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
@@ -198,6 +199,8 @@ function App() {
           <GlobalOrganismWrapper>
           <TooltipProvider>
             <Toaster />
+            {/* Cmd/Ctrl+K command palette — available everywhere, mounts only the dialog shell until invoked */}
+            <CommandPalette />
             {/* GLOBAL NAVIGATION - Available on ALL pages */}
             <GlobalNav className="fixed top-4 left-4 z-[9999]" />
             <Suspense fallback={<LoadingFallback />}>
