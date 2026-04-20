@@ -1,13 +1,6 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, ApiError } from "@/lib/queryClient";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -30,41 +23,47 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const SUBSCRIPTION_QUERY_KEY = ["/api/subscription-status"] as const;
+
+const UNAUTHENTICATED_FALLBACK: SubscriptionStatus = {
+  hasActiveSubscription: false,
+  tier: "free",
+  monthlyUploads: 0,
+  monthlyGenerations: 0,
+  isAuthenticated: false,
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus>("loading");
-  const [subscription, setSubscription] =
-    useState<SubscriptionStatus | undefined>(undefined);
+  const queryClient = useQueryClient();
 
-  const fetchSubscription = useCallback(async () => {
-    setStatus((prev) => (prev === "loading" ? prev : "loading"));
-    try {
-      const response = await apiRequest("GET", "/api/subscription-status");
-      const data = (await response.json()) as SubscriptionStatus;
-      setSubscription(data);
-      // Only treat as authenticated if backend marks user as authenticated
-      setStatus(data.isAuthenticated ? "authenticated" : "unauthenticated");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.startsWith("401")) {
-        setSubscription(undefined);
-        setStatus("unauthenticated");
-        return;
+  const { data, isLoading, isError } = useQuery<SubscriptionStatus>({
+    queryKey: SUBSCRIPTION_QUERY_KEY,
+    queryFn: async ({ signal }) => {
+      try {
+        const response = await apiRequest("GET", "/api/subscription-status", undefined, { signal });
+        return (await response.json()) as SubscriptionStatus;
+      } catch (error) {
+        if (error instanceof ApiError && error.isAuthError) {
+          return UNAUTHENTICATED_FALLBACK;
+        }
+        throw error;
       }
-      // Handle server errors gracefully - don't expose to user
-      console.warn("Subscription service unavailable, using defaults");
-      setSubscription({
-        hasActiveSubscription: false,
-        tier: "free",
-        monthlyUploads: 0,
-        monthlyGenerations: 0
-      });
-      setStatus("unauthenticated"); // Don't falsely mark as logged in
-    }
-  }, []);
+    },
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.isAuthError) return false;
+      return failureCount < 2;
+    },
+  });
 
-  useEffect(() => {
-    void fetchSubscription();
-  }, [fetchSubscription]);
+  const subscription = isError ? UNAUTHENTICATED_FALLBACK : data;
+
+  const status: AuthStatus = isLoading
+    ? "loading"
+    : subscription?.isAuthenticated
+      ? "authenticated"
+      : "unauthenticated";
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -73,9 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: status === "authenticated",
       isPro:
         subscription?.tier === "pro" || subscription?.hasActiveSubscription === true,
-      refresh: fetchSubscription,
+      refresh: async () => {
+        await queryClient.invalidateQueries({ queryKey: SUBSCRIPTION_QUERY_KEY });
+      },
     }),
-    [fetchSubscription, status, subscription],
+    [queryClient, status, subscription],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
