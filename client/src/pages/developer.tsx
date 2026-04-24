@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,20 +29,22 @@ export default function DeveloperPage() {
   const [revealed, setRevealed] = useState(false);
   const [fullKey, setFullKey] = useState<string | null>(null);
 
-  // Redirect if not logged in
-  if (!isAuthenticated) {
-    navigate("/login");
-    return null;
-  }
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/login");
+    }
+  }, [isAuthenticated, navigate]);
 
   const { data: keyData, isLoading } = useQuery({
     queryKey: ["/api/webear-keys"],
     queryFn: () => apiRequest("GET", "/api/webear-keys").then(r => r.json()),
+    enabled: isAuthenticated,
   });
 
   const { data: creditsData } = useQuery({
     queryKey: ["/api/credits/balance"],
     queryFn: () => apiRequest("GET", "/api/credits/balance").then(r => r.json()),
+    enabled: isAuthenticated,
   });
 
   const generateMutation = useMutation({
@@ -74,6 +76,10 @@ export default function DeveloperPage() {
 
   const displayKey = revealed && fullKey ? fullKey : (keyData?.maskedKey || "No key generated yet");
   const hasKey = !!keyData?.id;
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const apiKey = fullKey || 'YOUR_API_KEY';
   const claudeCodeConfig = `{

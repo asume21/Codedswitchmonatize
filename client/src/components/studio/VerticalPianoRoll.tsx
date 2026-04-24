@@ -219,13 +219,17 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     if (propTracks && propTracks.length > 0) {
       return propTracks.map(t => {
         const override = trackSettingsOverrides[t.id] || {};
+        const normalizedVolume = typeof t.volume === 'number'
+          ? (t.volume <= 1 ? t.volume * 100 : t.volume)
+          : 80;
         return {
+          ...t,
           id: t.id,
           name: t.name,
           color: t.color || 'bg-blue-500',
           notes: t.notes || [],
           muted: override.muted ?? t.muted ?? false,
-          volume: override.volume ?? ((t.volume || 0.8) * 100),
+          volume: override.volume ?? normalizedVolume,
           instrument: override.instrument ?? (t.instrument || 'piano')
         };
       });
@@ -3280,7 +3284,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         {chordProgressionDisplay}
       </div>
 
-      <div className="flex flex-1 min-h-0 overflow-hidden relative">
+      <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden relative">
         {showAILoopGenerator && (
           <div className="absolute inset-0 z-[200] bg-black/70">
             <div className="absolute right-4 top-4 bottom-4 w-[min(760px,calc(100%-2rem))] overflow-y-auto">
@@ -3384,7 +3388,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
         )}
 
         {/* Piano Roll Grid Area — shows vocal recorder for audio tracks, note grid for MIDI tracks */}
-        <div className="flex-1 min-h-0 flex overflow-hidden relative">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden relative">
           {(selectedTrack as any)?.type === 'audio' ? (
             <StudioVocalRecorder
               trackId={selectedTrack.id}
@@ -3396,6 +3400,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
               onTakesChange={takes => handleVocalTakesChange(selectedTrack.id, takes)}
             />
           ) : (<>
+          <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
           <PianoKeys
             pianoKeys={PIANO_KEYS}
             selectedTrack={selectedTrack}
@@ -3450,6 +3455,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             }}
             timeSignature={timeSignature}
           />
+          </div>
           {/* ── Velocity lane ─────────────────────────────────────────────── */}
           {showVelocityEditor && selectedTrack && (
             <VelocityLane

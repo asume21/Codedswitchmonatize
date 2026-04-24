@@ -219,7 +219,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
   return (
     <div 
       ref={scrollRef || ref}
-      className="flex-1 overflow-auto astutely-scrollbar"
+      className="flex-1 min-w-0 min-h-0 overflow-auto astutely-scrollbar"
       onScroll={onScroll}
     >
       <div className="relative bg-black" style={{...gridBackdropStyle, borderTop: 'none', width: `${steps * stepWidth * zoom}px`}}>

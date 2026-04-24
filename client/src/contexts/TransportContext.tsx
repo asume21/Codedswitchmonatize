@@ -10,6 +10,11 @@ import { arrangementScheduler } from '@/lib/arrangementScheduler';
 import { getAudioContext } from '@/lib/audioContext';
 import * as Tone from 'tone';
 
+// Expose Tone to the global kill switch so it can stop the transport during panic-stop.
+if (typeof window !== 'undefined') {
+  (window as any).__toneRef = Tone;
+}
+
 // Re-export types so existing consumers don't need to change imports
 export type LoopRegion = StoreLoopRegion;
 export type TimeSignature = StoreTimeSignature;

@@ -92,6 +92,16 @@ class GlobalAudioKillSwitch {
       if (proCtx && proCtx.state !== 'closed') { proCtx.suspend(); }
     } catch { /* ignore */ }
 
+    // 6b. Stop Tone.js transport — scheduled events keep firing even when ctx is suspended
+    try {
+      const toneRef = (window as any).__toneRef;
+      if (toneRef) {
+        const t = typeof toneRef.getTransport === 'function' ? toneRef.getTransport() : toneRef.Transport;
+        t?.stop?.();
+        t?.cancel?.(0);
+      }
+    } catch { /* ignore */ }
+
     // 7. BRUTE FORCE: Stop ALL <audio> and <video> elements in the DOM
     document.querySelectorAll('audio, video').forEach(el => {
       try {
@@ -149,6 +159,54 @@ if (typeof window !== 'undefined') {
     } as unknown as typeof AudioContext;
 
     window.AudioContext.prototype = OriginalAudioContext.prototype;
+  }
+
+  // Also patch webkitAudioContext (Safari) if it's a distinct constructor
+  const WebkitAC = (window as any).webkitAudioContext;
+  if (WebkitAC && WebkitAC !== OriginalAudioContext) {
+    (window as any).webkitAudioContext = function PatchedWebkitAudioContext(
+      ...args: any[]
+    ): AudioContext {
+      const ctx = new WebkitAC(...args);
+      globalAudioKillSwitch.registerAudioContext(ctx);
+      return ctx;
+    };
+    (window as any).webkitAudioContext.prototype = WebkitAC.prototype;
+  }
+
+  // Patch BaseAudioContext prototype — every createBufferSource / createOscillator
+  // call auto-registers, so all ~25 files using raw Web Audio are covered without edits.
+  const BAC = (window as any).BaseAudioContext;
+  if (BAC && BAC.prototype) {
+    const origCBS = BAC.prototype.createBufferSource;
+    if (origCBS) {
+      BAC.prototype.createBufferSource = function (...args: any[]) {
+        const source = origCBS.apply(this, args);
+        try { globalAudioKillSwitch.registerAudioSource(source); } catch { /* ignore */ }
+        return source;
+      };
+    }
+    const origCO = BAC.prototype.createOscillator;
+    if (origCO) {
+      BAC.prototype.createOscillator = function (...args: any[]) {
+        const osc = origCO.apply(this, args);
+        try { globalAudioKillSwitch.registerOscillator(osc); } catch { /* ignore */ }
+        return osc;
+      };
+    }
+  }
+
+  // Patch document.createElement so <audio> created via DOM API is also tracked
+  // (covers SongUploader / SongUploadPanel which bypass `new Audio()`).
+  if (typeof document !== 'undefined') {
+    const origCreateElement = document.createElement.bind(document);
+    (document as any).createElement = function (tagName: string, ...rest: any[]) {
+      const el = origCreateElement(tagName as any, ...(rest as []));
+      if (typeof tagName === 'string' && tagName.toLowerCase() === 'audio') {
+        try { globalAudioKillSwitch.registerAudioElement(el as HTMLAudioElement); } catch { /* ignore */ }
+      }
+      return el;
+    };
   }
 }
 

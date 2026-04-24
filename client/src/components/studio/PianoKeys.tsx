@@ -207,7 +207,7 @@ const PianoKeysComponent = forwardRef<HTMLDivElement, PianoKeysProps>(({
   return (
     <div 
       ref={scrollRef || ref}
-      className="w-28 bg-black border-r border-cyan-500/30 shadow-2xl overflow-y-auto astutely-scrollbar"
+      className="w-28 flex-shrink-0 min-h-0 bg-black border-r border-cyan-500/30 shadow-2xl overflow-y-auto astutely-scrollbar"
       onScroll={onScroll}
       style={{ borderTop: 'none' }}
     >
