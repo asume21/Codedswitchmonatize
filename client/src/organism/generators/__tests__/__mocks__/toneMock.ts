@@ -16,6 +16,24 @@ export const mockTransportStart = vi.fn()
 export const mockTransportStop = vi.fn()
 export const mockToneStart = vi.fn().mockResolvedValue(undefined)
 
+// Tone.js audio-param shape. Production code calls cancelScheduledValues +
+// rampTo back-to-back (cancel pending automation, then schedule new ramp).
+// Real Tone params expose the full Web Audio AudioParam surface plus rampTo;
+// we stub all of it so any caller works without per-test boilerplate.
+function audioParam(value = 0, rampToFn: ReturnType<typeof vi.fn> = vi.fn()) {
+  return {
+    value,
+    rampTo: rampToFn,
+    cancelScheduledValues: vi.fn(),
+    setValueAtTime: vi.fn(),
+    linearRampTo: vi.fn(),
+    linearRampToValueAtTime: vi.fn(),
+    exponentialRampTo: vi.fn(),
+    exponentialRampToValueAtTime: vi.fn(),
+    setTargetAtTime: vi.fn(),
+  }
+}
+
 function makeSynth() {
   return {
     toDestination: vi.fn().mockReturnThis(),
@@ -26,14 +44,14 @@ function makeSynth() {
     triggerRelease: mockTriggerRelease,
     releaseAll: vi.fn(),
     dispose: vi.fn(),
-    volume: { value: 0, rampTo: mockRampTo },
+    volume: audioParam(0, mockRampTo),
   }
 }
 
 function makeMonoSynth() {
   return {
     ...makeSynth(),
-    filter: { Q: { value: 1 }, frequency: { value: 400, rampTo: vi.fn() } },
+    filter: { Q: { value: 1 }, frequency: audioParam(400) },
     filterEnvelope: { octaves: 2, decay: 0.5, attack: 0.01, release: 2, baseFrequency: 200 },
     envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 1 },
   }
@@ -69,8 +87,22 @@ export function createToneMock() {
       bpm: { value: 90 },
       start: mockTransportStart,
       stop: mockTransportStop,
+      pause: vi.fn(),
+      cancel: vi.fn(),
+      position: '0:0:0',
+      state: 'stopped',
+      nextSubdivision: vi.fn().mockReturnValue(0),
+      schedule: vi.fn().mockReturnValue(0),
+      scheduleOnce: vi.fn().mockReturnValue(0),
+      scheduleRepeat: vi.fn().mockReturnValue(0),
+      clear: vi.fn(),
     }),
     getContext: vi.fn().mockReturnValue({ lookAhead: 0 }),
+    getDestination: vi.fn().mockReturnValue({
+      mute: false,
+      volume: audioParam(0),
+      chain: vi.fn().mockReturnThis(),
+    }),
     // Use function() constructors so `new` works
     MembraneSynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, makeMembraneSynth())
@@ -91,6 +123,9 @@ export function createToneMock() {
     FMSynth: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, makeSynth())
     }),
+    Sampler: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, makeSynth())
+    }),
     Compressor: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
@@ -101,15 +136,15 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
-        wet: { value: 0, rampTo: vi.fn() },
+        wet: audioParam(0),
       })
     }),
     FeedbackDelay: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
-        wet: { value: 0, rampTo: vi.fn() },
-        feedback: { value: 0, rampTo: vi.fn() },
+        wet: audioParam(0),
+        feedback: audioParam(0),
       })
     }),
     Chorus: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
@@ -117,21 +152,21 @@ export function createToneMock() {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
         start: vi.fn(),
-        wet: { value: 0, rampTo: vi.fn() },
+        wet: audioParam(0),
       })
     }),
     Filter: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
-        frequency: { value: 400, rampTo: mockFilterFreqRampTo },
+        frequency: audioParam(400, mockFilterFreqRampTo),
       })
     }),
     Reverb: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
-        wet: { value: 0.5, rampTo: mockReverbWetRampTo },
+        wet: audioParam(0.5, mockReverbWetRampTo),
       })
     }),
     Noise: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
@@ -144,7 +179,7 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
-        gain: { value: 0, rampTo: mockGainRampTo },
+        gain: audioParam(0, mockGainRampTo),
       })
     }),
     Part: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
