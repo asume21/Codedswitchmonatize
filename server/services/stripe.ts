@@ -286,5 +286,5 @@ export async function handleStripeWebhook(
       break;
   }
 
-  return { received: true };
+  return { received: true, type: event.type, eventId: event.id };
 }
