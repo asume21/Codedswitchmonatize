@@ -115,7 +115,6 @@ export default [
       'client/src/lib/timelineRecorder.ts',
       'client/src/organism/input/AudioFileSource.ts',
       'client/src/organism/analysis/AudioAnalysisEngine.ts',
-      'client/src/components/IOSAudioEnable.tsx',
     ],
     rules: {
       'no-restricted-syntax': 'off',

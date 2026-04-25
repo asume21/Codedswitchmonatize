@@ -1,18 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  Volume2, 
+import {
+  Volume2,
   Smartphone
 } from "lucide-react";
 import { realisticAudio } from "@/lib/realisticAudio";
+import { getAudioContext } from "@/lib/audioContext";
 import * as Tone from "tone";
-
-interface AudioContextWithWebkit extends Window {
-  webkitAudioContext?: typeof AudioContext;
-}
-
-const getAudioContextCtor = () => window.AudioContext || (window as AudioContextWithWebkit).webkitAudioContext;
 
 export function IOSAudioEnable() {
   const [isMobile, setIsMobile] = useState(false);
@@ -23,70 +18,58 @@ export function IOSAudioEnable() {
     // Detect ALL mobile devices (iOS + Android)
     const mobile = /iPad|iPhone|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     setIsMobile(mobile);
-    
+
     if (mobile) {
-      // Check if audio context is already enabled
-      const checkAudioContext = () => {
-        try {
-          const AudioContextCtor = getAudioContextCtor();
-          if (!AudioContextCtor) {
-            setShowPrompt(false);
-            return;
-          }
-          const audioContext = new AudioContextCtor();
-          if (audioContext.state === 'suspended') {
-            setShowPrompt(true);
-          } else {
-            setAudioEnabled(true);
-          }
-          // Close this test context
-          audioContext.close();
-        } catch {
-          console.warn('AudioContext not supported');
+      // Check the shared AudioContext singleton — not a throwaway. The unlock
+      // we ultimately perform must target this same context, so checking a
+      // separate one would mismeasure whether the real audio path is unlocked.
+      try {
+        const ctx = getAudioContext();
+        if (ctx.state === 'suspended') {
+          setShowPrompt(true);
+        } else {
+          setAudioEnabled(true);
         }
-      };
-      
-      checkAudioContext();
+      } catch {
+        console.warn('AudioContext not supported');
+      }
     }
   }, []);
 
   const enableAudio = async () => {
     try {
       console.log('🔊 iOS Audio Enable: Starting audio unlock...');
-      
+
       // 1. Start Tone.js (used by many components)
       await Tone.start();
       console.log('🔊 Tone.js started');
-      
+
       // 2. Initialize and resume the realistic audio engine
       await realisticAudio.initialize();
       await realisticAudio.resume();
       console.log('🔊 RealisticAudio resumed');
-      
-      // 3. Create a brief silent audio to fully unlock iOS audio
-      const AudioContextCtor = getAudioContextCtor();
-      if (AudioContextCtor) {
-        const audioContext = new AudioContextCtor();
-        
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
-        
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        // Silent oscillator
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.1);
-        
-        console.log('🔊 Silent oscillator played to unlock audio');
+
+      // 3. Play a silent oscillator on the SHARED AudioContext to fully unlock
+      // iOS audio. The previous code created a throwaway context — unlocking
+      // that didn't transfer to the singleton everything else uses.
+      const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
       }
+
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      oscillator.frequency.setValueAtTime(440, ctx.currentTime);
+
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.1);
+
+      console.log('🔊 Silent oscillator played to unlock audio');
       
       // 4. Dispatch a custom event so other components can react
       window.dispatchEvent(new CustomEvent('ios-audio-enabled'));
