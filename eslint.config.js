@@ -107,7 +107,6 @@ export default [
   // shrinks to zero. New violations should fail CI.
   {
     files: [
-      'client/src/hooks/use-audio.ts',
       'client/src/lib/advancedAudio.ts',
       'client/src/lib/audio.ts',
       'client/src/lib/audioEngine.ts',

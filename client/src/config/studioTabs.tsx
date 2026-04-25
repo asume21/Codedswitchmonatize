@@ -17,7 +17,6 @@ const MusicToCode = lazy(() => import("@/components/studio/MusicToCode"));
 const PackGenerator = lazy(() => import("@/components/producer/PackGenerator"));
 const ProfessionalMixer = lazy(() => import("@/components/studio/ProfessionalMixer"));
 const SongUploader = lazy(() => import("@/components/studio/SongUploader"));
-const UnifiedMusicStudio = lazy(() => import("@/components/studio/UnifiedMusicStudio"));
 const UnifiedStudioWorkspace = lazy(() => import("@/components/studio/UnifiedStudioWorkspace"));
 const VulnerabilityScanner = lazy(() => import("@/components/studio/VulnerabilityScanner"));
 const GranularEngine = lazy(() => import("@/components/producer/GranularEngine"));
@@ -230,16 +229,6 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     routes: ["/lyric-lab"],
     requireAuth: true,
     component: withSuspense(LyricLab),
-  },
-  {
-    id: "musicmixer",
-    label: "Music Studio",
-    shortName: "Music Studio",
-    icon: "fas fa-sliders-h",
-    description: "Unified music studio with all advanced tools",
-    routes: ["/music-studio"],
-    requirePro: true,
-    component: withSuspense(UnifiedMusicStudio),
   },
   {
     id: "professionalmixer",

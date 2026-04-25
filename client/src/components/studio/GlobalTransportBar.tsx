@@ -171,8 +171,6 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
       return;
     }
 
-    startTransport();
-
     // Determine what to play based on mode and channel states
     const soloChannels = channels.filter(c => c.solo);
     const activeChannels = soloChannels.length > 0
@@ -183,10 +181,14 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     const shouldPlayMelody = activeChannels.some(c => c.type === 'melody' || c.type === 'bass');
     const shouldPlayVocals = activeChannels.some(c => c.type === 'vocals');
 
-    // Play drum pattern if beat channel is active
+    // Schedule drum pattern BEFORE starting transport — Tone.Transport.schedule
+    // anchors callbacks to absolute Transport time, so registering at time 0
+    // after the clock has already advanced past 0 means step 0 never fires.
     if (shouldPlayBeat && currentPattern && Object.keys(currentPattern).length > 0) {
       playPattern(currentPattern, tempo);
     }
+
+    startTransport();
 
     // Play full song (melody, vocals, etc.) if those channels are active
     if (shouldPlayMelody || shouldPlayVocals) {

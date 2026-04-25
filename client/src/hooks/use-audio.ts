@@ -77,6 +77,11 @@ interface SequenceStep {
 
 type PatternType = SequenceStep[] | Record<string, boolean[]>;
 
+// useSequencer schedules drum-pattern callbacks against Tone.Transport but does
+// NOT own start/stop — TransportContext is the single owner of the audio clock.
+// Callers must invoke playPattern() BEFORE useTransport().play() so callbacks
+// register at Transport time 0 before the clock advances; calling start first
+// would put time 0 in the past and step 0 would never fire.
 export function useSequencer() {
   const { playDrum } = useAudio();
   const scheduledIds = useRef<number[]>([]);
@@ -86,8 +91,6 @@ export function useSequencer() {
     isPlayingRef.current = false;
     scheduledIds.current.forEach((id) => Tone.Transport.clear(id));
     scheduledIds.current = [];
-    Tone.Transport.stop();
-    Tone.Transport.position = 0;
   }, []);
 
   const playPattern = useCallback((pattern: PatternType, bpm: number = 120) => {
@@ -109,8 +112,6 @@ export function useSequencer() {
       }, step * stepDuration);
       scheduledIds.current.push(id);
     }
-
-    Tone.Transport.start();
   }, [playDrum, stopPattern]);
 
   const isPlaying = useCallback(() => isPlayingRef.current, []);
@@ -118,57 +119,6 @@ export function useSequencer() {
   useEffect(() => () => stopPattern(), [stopPattern]);
 
   return { playPattern, stopPattern, isPlaying };
-}
-
-// Melody player hook for playing note sequences
-export function useMelodyPlayer() {
-  const { playNote } = useAudio();
-  const scheduledIds = useRef<number[]>([]);
-  const isPlayingRef = useRef(false);
-
-  const stopMelody = useCallback(() => {
-    isPlayingRef.current = false;
-    scheduledIds.current.forEach((id) => Tone.Transport.clear(id));
-    scheduledIds.current = [];
-    Tone.Transport.stop();
-    Tone.Transport.position = 0;
-  }, []);
-
-  const playMelody = useCallback((notes: any[], bpm: string = '120', tracks?: any[]) => {
-    stopMelody();
-    isPlayingRef.current = true;
-
-    const bpmNumber = parseFloat(bpm) || 120;
-    Tone.Transport.bpm.value = bpmNumber;
-
-    notes.forEach((note) => {
-      if (!note || typeof note.startStep === 'undefined') return;
-      const startTime = (note.start || note.startTime || note.startStep) / 4;
-      const duration = note.duration || 0.5;
-      const instrument = tracks?.find((t) => t.id === note.track)?.instrument || 'piano';
-
-      const id = Tone.Transport.schedule(() => {
-        if (!isPlayingRef.current) return;
-        playNote(note.note ?? note.pitch, note.octave || 4, duration, instrument);
-      }, startTime);
-
-      scheduledIds.current.push(id);
-    });
-
-    Tone.Transport.start();
-  }, [playNote, stopMelody]);
-
-  const playChord = useCallback((notes: any[], instrument: string = 'piano') => {
-    notes.forEach(note => {
-      if (note && note.note) {
-        playNote(note.note, note.octave || 4, note.duration || 1.0, instrument);
-      }
-    });
-  }, [playNote]);
-
-  useEffect(() => () => stopMelody(), [stopMelody]);
-
-  return { playMelody, playChord, stopMelody };
 }
 
 export function useAudio(): UseAudioReturn {
