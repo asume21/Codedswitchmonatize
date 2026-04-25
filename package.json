@@ -27,7 +27,6 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.37.0",
     "@babel/core": "^7.28.4",
     "@babel/plugin-transform-react-jsx": "^7.27.1",
     "@babel/preset-env": "^7.28.3",
@@ -38,7 +37,6 @@
     "@google/genai": "^1.15.0",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.10.0",
-    "@huggingface/inference": "^4.7.1",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@neondatabase/serverless": "^0.10.4",

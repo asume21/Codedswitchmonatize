@@ -9,7 +9,6 @@
       "version": "1.0.0",
       "license": "MIT",
       "dependencies": {
-        "@anthropic-ai/sdk": "^0.37.0",
         "@babel/core": "^7.28.4",
         "@babel/plugin-transform-react-jsx": "^7.27.1",
         "@babel/preset-env": "^7.28.3",
@@ -20,7 +19,6 @@
         "@google/genai": "^1.15.0",
         "@google/generative-ai": "^0.24.1",
         "@hookform/resolvers": "^3.10.0",
-        "@huggingface/inference": "^4.7.1",
         "@jridgewell/trace-mapping": "^0.3.25",
         "@modelcontextprotocol/sdk": "^1.26.0",
         "@neondatabase/serverless": "^0.10.4",
@@ -209,36 +207,6 @@
       "funding": {
         "url": "https://github.com/sponsors/sindresorhus"
       }
-    },
-    "node_modules/@anthropic-ai/sdk": {
-      "version": "0.37.0",
-      "resolved": "https://registry.npmjs.org/@anthropic-ai/sdk/-/sdk-0.37.0.tgz",
-      "integrity": "sha512-tHjX2YbkUBwEgg0JZU3EFSSAQPoK4qQR/NFYa8Vtzd5UAyXzZksCw2In69Rml4R/TyHPBfRYaLK35XiOe33pjw==",
-      "license": "MIT",
-      "dependencies": {
-        "@types/node": "^18.11.18",
-        "@types/node-fetch": "^2.6.4",
-        "abort-controller": "^3.0.0",
-        "agentkeepalive": "^4.2.1",
-        "form-data-encoder": "1.7.2",
-        "formdata-node": "^4.3.2",
-        "node-fetch": "^2.6.7"
-      }
-    },
-    "node_modules/@anthropic-ai/sdk/node_modules/@types/node": {
-      "version": "18.19.123",
-      "resolved": "https://registry.npmjs.org/@types/node/-/node-18.19.123.tgz",
-      "integrity": "sha512-K7DIaHnh0mzVxreCR9qwgNxp3MH9dltPNIEddW9MYUlcKAzm+3grKNSTe2vCJHI1FaLpvpL5JGJrz1UZDKYvDg==",
-      "license": "MIT",
-      "dependencies": {
-        "undici-types": "~5.26.4"
-      }
-    },
-    "node_modules/@anthropic-ai/sdk/node_modules/undici-types": {
-      "version": "5.26.5",
-      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz",
-      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==",
-      "license": "MIT"
     },
     "node_modules/@asamuzakjp/css-color": {
       "version": "4.1.1",
@@ -3497,34 +3465,6 @@
       "peerDependencies": {
         "react-hook-form": "^7.0.0"
       }
-    },
-    "node_modules/@huggingface/inference": {
-      "version": "4.7.1",
-      "resolved": "https://registry.npmjs.org/@huggingface/inference/-/inference-4.7.1.tgz",
-      "integrity": "sha512-gXrMocGDsE6kUZPEj82c3O+/OKnIfbHvg9rYjGA6svbWrYVmHCIAdCrrgCwNl2v5GELfPJrrfIv0bvzCTfa64A==",
-      "license": "MIT",
-      "dependencies": {
-        "@huggingface/jinja": "^0.5.1",
-        "@huggingface/tasks": "^0.19.35"
-      },
-      "engines": {
-        "node": ">=18"
-      }
-    },
-    "node_modules/@huggingface/jinja": {
-      "version": "0.5.1",
-      "resolved": "https://registry.npmjs.org/@huggingface/jinja/-/jinja-0.5.1.tgz",
-      "integrity": "sha512-yUZLld4lrM9iFxHCwFQ7D1HW2MWMwSbeB7WzWqFYDWK+rEb+WldkLdAJxUPOmgICMHZLzZGVcVjFh3w/YGubng==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=18"
-      }
-    },
-    "node_modules/@huggingface/tasks": {
-      "version": "0.19.37",
-      "resolved": "https://registry.npmjs.org/@huggingface/tasks/-/tasks-0.19.37.tgz",
-      "integrity": "sha512-Te1VB1tB1HoLfTGluCwy8sLO90YV+uNOAFktQ1h7jKas4TlHT/7SlfwFaDJFTV8lN7qCw2nDB+7PRkKzwIb/hg==",
-      "license": "MIT"
     },
     "node_modules/@humanfs/core": {
       "version": "0.19.1",

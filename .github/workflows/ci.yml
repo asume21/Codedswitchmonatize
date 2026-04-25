@@ -6,28 +6,39 @@ on:
   pull_request:
     branches: [ "main" ]
 
-jobs:
-  build:
+# Cancel in-progress runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
+  verify:
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [18.x]
+        node-version: [20.x]
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - uses: actions/checkout@v4
 
-    - name: Install Dependencies
-      run: npm install
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
 
-    - name: Run Build
-      run: npm run build
+      - name: Install Dependencies
+        run: npm ci
 
-    - name: Run Type Check
-      run: npm run check
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npm run check
+
+      - name: Unit Tests
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build

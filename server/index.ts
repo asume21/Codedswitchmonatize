@@ -13,6 +13,7 @@ import { currentUser, requireAuthExcept } from "./middleware/auth";
 import { runMigrations } from "./migrations/runMigrations";
 import { ensureDataRoots } from "./services/localStorageService";
 import { globalLimiter } from "./middleware/rateLimiting";
+import { logger } from "./lib/logger";
 
 // Set LOCAL_OBJECTS_DIR early so all routes use consistent paths
 // Use /data if available (Railway persistent volume), otherwise use local objects
@@ -40,24 +41,75 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // Detect environment
 const isProduction = process.env.NODE_ENV === "production";
 
-// Require SESSION_SECRET in production
-if (isProduction && !process.env.SESSION_SECRET) {
-  console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
-  process.exit(1);
+// Boot-time env validation. Fail fast in production rather than discovering a
+// missing key the first time a customer hits the failing route.
+//
+// Hard requirements (process.exit on miss):
+//   SESSION_SECRET          — session cookie signing
+//   AUTH_TOKEN_SECRET       — JWT signing
+//   STRIPE_SECRET_KEY       — every revenue path
+//   STRIPE_WEBHOOK_SECRET   — webhook signature verification (silent
+//                             corruption of credit ledger if missing)
+//   DATABASE_URL or DATABASE_PUBLIC_URL — without a DB the server falls
+//                             back to MemStorage, which wipes auth/credits/
+//                             sessions on every restart. Catastrophic in
+//                             production; not just slow — actively wrong.
+//
+// Soft warnings (log + continue): things the studio needs but won't corrupt
+// data if missing.
+function validateEnv() {
+  const missing: string[] = [];
+
+  if (isProduction) {
+    if (!process.env.SESSION_SECRET) missing.push("SESSION_SECRET");
+    if (!process.env.AUTH_TOKEN_SECRET) missing.push("AUTH_TOKEN_SECRET");
+    if (!process.env.STRIPE_SECRET_KEY) missing.push("STRIPE_SECRET_KEY");
+    if (!process.env.STRIPE_WEBHOOK_SECRET) missing.push("STRIPE_WEBHOOK_SECRET");
+    if (!process.env.DATABASE_URL && !process.env.DATABASE_PUBLIC_URL) {
+      missing.push("DATABASE_URL (or DATABASE_PUBLIC_URL)");
+    }
+  }
+
+  if (missing.length > 0) {
+    logger.fatal(
+      { missing },
+      "FATAL: required env vars missing for production boot — refusing to start",
+    );
+    // Mirror to stderr in plain text so platform logs catch it even if the
+    // JSON drain isn't wired up yet.
+    console.error(
+      `❌ FATAL: missing required env vars in production: ${missing.join(", ")}`,
+    );
+    process.exit(1);
+  }
+
+  if (process.env.OWNER_KEY && process.env.OWNER_KEY.length < 32) {
+    logger.warn(
+      { ownerKeyLength: process.env.OWNER_KEY.length },
+      "OWNER_KEY < 32 chars — admin bypass disabled until rotated",
+    );
+  }
+
+  if (isProduction) {
+    const aiKeys = [
+      process.env.XAI_API_KEY,
+      process.env.OPENAI_API_KEY,
+      process.env.GEMINI_API_KEY,
+      process.env.REPLICATE_API_TOKEN,
+    ].filter(Boolean);
+    if (aiKeys.length === 0) {
+      logger.warn(
+        {},
+        "no AI provider keys set (XAI/OPENAI/GEMINI/REPLICATE) — generation routes will 500",
+      );
+    }
+    if (!process.env.APP_URL) {
+      logger.warn({}, "APP_URL not set — CSP connectSrc and CORS may be too tight");
+    }
+  }
 }
 
-// Require AUTH_TOKEN_SECRET in production (JWT signing key)
-if (isProduction && !process.env.AUTH_TOKEN_SECRET) {
-  console.error('❌ FATAL: AUTH_TOKEN_SECRET environment variable is required in production');
-  process.exit(1);
-}
-
-// OWNER_KEY length floor — the middleware already enforces this, but a startup
-// warning makes a silently-disabled admin surface visible in boot logs instead
-// of only surfacing when someone tries to use it.
-if (process.env.OWNER_KEY && process.env.OWNER_KEY.length < 32) {
-  console.warn(`⚠️  OWNER_KEY is ${process.env.OWNER_KEY.length} chars — admin bypass requires ≥32. Rotate the key to re-enable x-owner-key auth.`);
-}
+validateEnv();
 
 const dataRoot = path.resolve("data");
 ensureDataRoots(dataRoot);
@@ -299,9 +351,18 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     if (res.headersSent) {
-      // Headers already sent — nothing we can do, log and bail
-      console.error(`[ERROR] Headers already sent for ${req.method} ${req.path}:`, message);
+      logger.error(
+        { method: req.method, path: req.path, status, err },
+        "headers already sent — error swallowed",
+      );
       return;
+    }
+
+    if (status >= 500) {
+      logger.error(
+        { method: req.method, path: req.path, status, err },
+        "unhandled api error",
+      );
     }
 
     // Force JSON for API routes to prevent "HTML instead of JSON" errors
