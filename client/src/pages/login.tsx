@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Music, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { refresh } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -48,6 +50,11 @@ export default function Login() {
       if (data.userId) {
         localStorage.setItem('authUserId', data.userId);
       }
+
+      // Force AuthContext to re-fetch with the new token so the UI updates
+      // immediately — without this the query cache stays stale for 60s and
+      // the user appears logged-out until they manually refresh the page.
+      await refresh();
 
       toast({
         title: "Welcome back!",

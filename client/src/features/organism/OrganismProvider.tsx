@@ -572,10 +572,28 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
   }, [])
 
+  // Re-resume AudioContext when the tab becomes visible again — browsers
+  // can suspend the context when the tab is backgrounded, and without this
+  // the Organism stays silent even though Tone.Transport is still running.
+  useEffect(() => {
+    const handleVisible = () => {
+      if (!document.hidden) {
+        Tone.start().catch(() => { /* ignore if already running */ })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+    return () => document.removeEventListener('visibilitychange', handleVisible)
+  }, [])
+
   // ── Actions ───────────────────────────────────────────────────────
 
   const start = useCallback(async () => {
     if (!inputRef.current || !orchestrRef.current) return
+    // Resume AudioContext NOW, while we are still inside the user-gesture window.
+    // Browsers only allow AudioContext.resume() shortly after a click/keydown (~1s).
+    // inputRef.current.start() below can consume that window, so we must call
+    // Tone.start() first — before any other awaits — to guarantee audio unlocks.
+    try { await Tone.start() } catch { /* already running is fine */ }
     const endPhase = orgPhase('provider:start', 400)
     try {
       setError(null)
