@@ -38,7 +38,9 @@ export function SectionMarkers({ pxPerBar, headerWidth, rulerHeight, beatsPerBar
   const setSectionMarkers = useStudioStore((s) => s.setSectionMarkers);
   const songEndBeat = useStudioStore((s) => s.songEndBeat);
   const setSongEnd = useStudioStore((s) => s.setSongEnd);
-  const { seek, position } = useTransport();
+  const { seek } = useTransport();
+  // Playhead: direct store subscription — only this component re-renders on tick.
+  const position = useStudioStore((s) => s.position);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');

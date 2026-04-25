@@ -176,7 +176,10 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 }) => {
   useRenderCounter('VerticalPianoRoll');
   // Get transport state from context for sync with floating transport
-  const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx, timeSignature, position: transportPosition } = useTransport();
+  const { isPlaying: transportIsPlaying, tempo: transportTempo, play: playTransport, pause: pauseTransport, stop: stopTransportCtx, timeSignature } = useTransport();
+  // Playhead position subscribed directly from the store — only this component
+  // re-renders on RAF tick, not every useTransport consumer in the app.
+  const transportPosition = useStudioStore((s) => s.position);
 
   // Clip-level ops — used to commit recorded vocal takes onto the arrangement timeline
   const { addClip: addArrangementClip } = useTrackStore();

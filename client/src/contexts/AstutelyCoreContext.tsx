@@ -24,6 +24,7 @@ import { astutelyMixerBridge, type MixerSnapshot, type GenreMixPreset, type EQBa
 import { AstutelyDecisionLoop, type DecisionResult } from '@/lib/astutelyDecisionLoop';
 import { astutelyGenreEnforcer, type GenreProfile } from '@/lib/astutelyGenreEnforcer';
 import { useTransport } from '@/contexts/TransportContext';
+import { useStudioStore } from '@/stores/useStudioStore';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import type { TrackClip } from '@/types/studioTracks';
 import {
@@ -312,7 +313,9 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   const getTransportState = useCallback(() => ({
     isPlaying: transport.isPlaying,
     tempo: transport.tempo,
-    position: transport.position,
+    // Read position fresh from the store — it's no longer exposed on the
+    // transport context (avoids 60fps re-renders of every useTransport consumer).
+    position: useStudioStore.getState().position,
   }), [transport]);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -331,7 +334,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       bpm: transport.tempo,
       key: 'C',
       isPlaying: transport.isPlaying,
-      currentPosition: transport.position,
+      currentPosition: useStudioStore.getState().position,
       tracks: trackStore.tracks.slice(0, 20).map((t: TrackClip) => ({
         id: t.id,
         name: t.name || t.kind || 'Track',

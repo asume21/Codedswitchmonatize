@@ -44,13 +44,15 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   const currentTracks = useStudioStore((s) => s.currentTracks);
   const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
   const {
-    tempo, setTempo, position, isPlaying: transportPlaying, 
-    play: startTransport, pause: pauseTransport, stop: stopTransport, 
+    tempo, setTempo, isPlaying: transportPlaying,
+    play: startTransport, pause: pauseTransport, stop: stopTransport,
     loop, setLoop, seek,
     timeSignature,
     setTimeSignature,
     isRecordArmed, toggleRecordArm
   } = useTransport();
+  // Playhead: direct store subscription — only this component re-renders on tick.
+  const position = useStudioStore((s) => s.position);
   const { initialize, isInitialized, playNote, playDrum, setMasterVolume } = useAudio();
   const { playPattern, stopPattern } = useSequencer();
   const { tracks: storeTracks } = useTracks();

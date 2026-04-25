@@ -509,7 +509,6 @@ export default function UnifiedStudioWorkspace() {
   const {
     tempo,
     setTempo: setTransportTempo,
-    position,
     isPlaying: transportPlaying,
     play: startTransport,
     pause: pauseTransport,
@@ -520,6 +519,10 @@ export default function UnifiedStudioWorkspace() {
     isRecordArmed,
     toggleRecordArm,
   } = useTransport();
+  // Playhead: direct store subscription. Note this still re-renders this file on
+  // every RAF tick because Bar/Beat displays inline below read `position`. A follow-up
+  // improvement would extract those into a small subcomponent that owns the subscription.
+  const position = useStudioStore((s) => s.position);
   const {
     tracks,
     addTrack: addTrackToStore,

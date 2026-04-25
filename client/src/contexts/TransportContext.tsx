@@ -22,7 +22,6 @@ export type TimeSignature = StoreTimeSignature;
 export interface TransportContextValue {
   tempo: number;
   isPlaying: boolean;
-  position: number; // measured in beats
   loop: LoopRegion;
   timeSignature: TimeSignature;
   play: () => void;
@@ -60,9 +59,12 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to store slices
+  // NOTE: `position` is deliberately NOT subscribed here — it changes 60×/sec during
+  // playback. Subscribing at the provider level re-renders the entire studio tree
+  // on every RAF tick. Consumers that need the live playhead read it directly via
+  // `useStudioStore(s => s.position)` so only they feel the re-render.
   const tempo         = useStudioStore((s) => s.bpm);
   const isPlaying     = useStudioStore((s) => s.isPlaying);
-  const position      = useStudioStore((s) => s.position);
   const loop          = useStudioStore((s) => s.loop);
   const timeSignature = useStudioStore((s) => s.timeSignature);
   const isRecordArmed = useStudioStore((s) => s.isRecordArmed);
@@ -132,9 +134,10 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
       clearRaf(); // cancel any existing chain before starting a new one
       advancePosition();
       
-      // Start recording if armed
+      // Start recording if armed — read position fresh from store, not from
+      // a closure-captured value (we no longer subscribe to position here).
       if (isRecordArmed) {
-        recorder.startRecording(position).catch(err => {
+        recorder.startRecording(useStudioStore.getState().position).catch(err => {
           toast({
             title: "Recording Failed",
             description: err.message,
@@ -182,7 +185,9 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     return () => { 
       clearRaf(); 
     };
-  }, [isPlaying, isRecordArmed, advancePosition, clearRaf, recorder, position, addTrack, tempo, toast, toggleRecordArm]);
+    // Intentionally do NOT depend on `position` — this effect should only run when
+    // play/record state toggles, not on every 60fps position tick.
+  }, [isPlaying, isRecordArmed, advancePosition, clearRaf, recorder, addTrack, tempo, toast, toggleRecordArm]);
 
   // ── Song-end auto-stop (arrangement mode) ──
   // When the arrangement scheduler reaches songEndBeat, stop the transport.
@@ -253,7 +258,6 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   const value = useMemo<TransportContextValue>(() => ({
     tempo,
     isPlaying,
-    position,
     loop,
     timeSignature,
     play,
@@ -266,7 +270,7 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     setTimeSignature,
     isRecordArmed,
     toggleRecordArm,
-  }), [tempo, isPlaying, position, loop, timeSignature, play, pause, stop, setTempo, seek, setLoop, clearLoop, setTimeSignature, isRecordArmed, toggleRecordArm]);
+  }), [tempo, isPlaying, loop, timeSignature, play, pause, stop, setTempo, seek, setLoop, clearLoop, setTimeSignature, isRecordArmed, toggleRecordArm]);
 
   return (
     <TransportContext.Provider value={value}>

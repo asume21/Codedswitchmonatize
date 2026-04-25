@@ -98,6 +98,9 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   // Studio Store (Zustand) - patterns, melodies, lyrics, uploaded songs
   const currentKey = useStudioStore((s) => s.key);
   const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
+  // Playhead: subscribe here so ONLY this component re-renders on tick, not the
+  // whole transport context. Chatbot is mounted only when open.
+  const transportPosition = useStudioStore((s) => s.position);
 
   // Astutely Core - organism controls routed through context
   const { startOrganism, stopOrganism, captureOrganism, generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
@@ -121,7 +124,7 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
       bpm: transport.tempo || 120,
       key: currentKey || 'C',
       isPlaying: transport.isPlaying || false,
-      currentPosition: transport.position || 0,
+      currentPosition: useStudioStore.getState().position || 0,
       hasUploadedSong: !!currentUploadedSong,
       songName: currentUploadedSong?.name || songSession.currentSession?.songName,
     };
@@ -1331,7 +1334,7 @@ Be concise, friendly, and direct. Skip formalities.`,
                     volume: (t.payload?.volume || 0.8) * 100,
                     instrument: t.payload?.instrument || 'piano'
                   })) as any}
-                  currentStep={Math.floor(transport.position * 4)}
+                  currentStep={Math.floor(transportPosition * 4)}
                   totalSteps={64}
                   isPlaying={transport.isPlaying}
                 />

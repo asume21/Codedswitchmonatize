@@ -204,7 +204,10 @@ export interface DawArrangementViewProps {
 export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementViewProps) {
   useRenderCounter('DawArrangementView');
   const { tracks, updateTrack, removeTrack } = useTracks();
-  const { position, tempo, isPlaying, setLoop, clearLoop } = useTransport();
+  const { tempo, isPlaying, setLoop, clearLoop } = useTransport();
+  // Playhead: subscribed directly from the store so only this component
+  // re-renders at 60fps during playback (not the entire studio tree).
+  const position = useStudioStore(s => s.position);
   const loop    = useStudioStore(s => s.loop);
   // Loop region in BARS (4 beats per bar)
   const loopStartBar = loop.enabled ? loop.start / 4 : null;

@@ -19,6 +19,7 @@ import {
 } from '@/lib/automationEngine';
 import type { AutomationPoint, AutomationLane } from '@/lib/projectManager';
 import { useTransport } from '@/contexts/TransportContext';
+import { useStudioStore } from '@/stores/useStudioStore';
 
 interface AutomationLaneEditorProps {
   trackId: string;
@@ -50,7 +51,9 @@ export default function AutomationLaneEditor({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Automation recording integration
-  const { position, isPlaying } = useTransport();
+  const { isPlaying } = useTransport();
+  // Playhead: direct store subscription — only this component re-renders on tick.
+  const position = useStudioStore((s) => s.position);
   const recordSessionRef = useRef<AutomationRecordSession | null>(null);
   const lastUserValueRef = useRef<number | null>(null);
 
