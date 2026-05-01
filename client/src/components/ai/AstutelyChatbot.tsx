@@ -89,10 +89,21 @@ interface OrganismSnapshot {
   updatedAt: number;
 }
 
+interface WebEarBridgeStatus {
+  state: 'initializing' | 'connected' | 'disconnected' | 'no-auth' | 'no-key' | 'error';
+  message: string;
+  updatedAt: number;
+}
+
 const readOrganismSnapshot = (): OrganismSnapshot | null => {
   if (typeof window === 'undefined') return null;
   const snapshot = (window as unknown as { __organismSnapshot?: OrganismSnapshot }).__organismSnapshot;
   return snapshot ?? null;
+};
+
+const readWebEarStatus = (): WebEarBridgeStatus | null => {
+  if (typeof window === 'undefined') return null;
+  return (window as unknown as { __webearStatus?: WebEarBridgeStatus }).__webearStatus ?? null;
 };
 
 const STORAGE_KEY = 'astutelyChatbot';
@@ -170,7 +181,7 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
     return readOrganismSnapshot();
   };
 
-  const describeOrganism = (snapshot: OrganismSnapshot): string => {
+  const describeOrganism = (snapshot: OrganismSnapshot, webearStatus: WebEarBridgeStatus | null): string => {
     const physics = snapshot.physics;
     const organism = snapshot.organism;
     const generators = snapshot.generators;
@@ -181,8 +192,12 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
           .join(', ')
       : 'generator activity is still warming up';
 
+    const hearingLine = webearStatus?.state === 'connected'
+      ? `Yes, I hear it through WebEar.`
+      : `I can read the Organism's live state, but WebEar is not connected yet (${webearStatus?.message ?? 'no WebEar status'}).`;
+
     return [
-      `Yes, I hear it.`,
+      hearingLine,
       `The Organism is ${snapshot.running ? 'playing' : snapshot.starting ? 'starting' : 'not currently running'} at about ${Math.round(snapshot.bpm)} BPM.`,
       physics ? `Mode is ${physics.mode}, with bounce ${physics.bounce.toFixed(2)}, swing ${physics.swing.toFixed(2)}, density ${physics.density.toFixed(2)}, and presence ${physics.presence.toFixed(2)}.` : '',
       organism ? `State is ${organism.state}, flow depth ${(organism.flowDepth * 100).toFixed(0)}%.` : '',
@@ -844,6 +859,7 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
       const lowerInput = currentInput.toLowerCase().trim();
       const status = getProjectStatus();
       const organismSnapshot = getOrganismSnapshot();
+      const webearStatus = readWebEarStatus();
 
       const asksIfAstutelyHearsOrganism =
         (lowerInput.includes('hear') || lowerInput.includes('hearing') || lowerInput.includes('listen')) &&
@@ -853,7 +869,7 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
         const assistantMessage: Message = {
           role: 'assistant',
           content: organismSnapshot
-            ? describeOrganism(organismSnapshot)
+            ? describeOrganism(organismSnapshot, webearStatus)
             : `I do not have a live Organism signal yet. Start the Organism first, then ask me again.`,
           timestamp: new Date(),
         };

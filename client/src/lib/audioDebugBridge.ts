@@ -15,13 +15,21 @@ declare global {
       startCapture: (durationMs?: number) => Promise<string>
       getLastCaptureId: () => string | null
       status: () => 'connected' | 'disconnected' | 'capturing'
+      webearStatus: () => WebEarBridgeStatus
     }
+    __webearStatus?: WebEarBridgeStatus
   }
 }
 
-const API_KEY  = import.meta.env.VITE_WEBEAR_API_KEY ?? ''
-const CONNECT  = `/api/webear/connect?key=${API_KEY}`
 const BLOB_URL = (id: string) => `/api/webear/blob/${id}`
+
+type WebEarBridgeState = 'initializing' | 'connected' | 'disconnected' | 'no-auth' | 'no-key' | 'error'
+
+interface WebEarBridgeStatus {
+  state: WebEarBridgeState
+  message: string
+  updatedAt: number
+}
 
 let tapNode:        MediaStreamAudioDestinationNode | null = null
 let tapContext:     AudioContext | null = null  // track which context the tap belongs to
@@ -31,9 +39,98 @@ let localSseSource: EventSource   | null = null
 let isCapturing   = false
 let isConnected   = false
 let lastCaptureId: string | null = null
+let resolvedApiKey: string | null = null
+let reconnectTimer: number | null = null
+let reconnectDelayMs = 3000
+let isResolvingKey = false
+let status: WebEarBridgeStatus = {
+  state: 'initializing',
+  message: 'WebEar bridge starting',
+  updatedAt: Date.now(),
+}
 
 function log(msg: string) {
   console.debug(`[webear-bridge] ${msg}`)
+}
+
+function setWebEarStatus(state: WebEarBridgeState, message: string) {
+  status = { state, message, updatedAt: Date.now() }
+  window.__webearStatus = status
+  window.dispatchEvent(new CustomEvent('webear:status', { detail: status }))
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('authToken')
+  if (!token) return {}
+  return { Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` }
+}
+
+async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; body: T | null }> {
+  const res = await fetch(url, {
+    ...init,
+    credentials: 'include',
+    headers: {
+      ...getAuthHeaders(),
+      ...(init.headers ?? {}),
+    },
+  })
+
+  const body = await res.json().catch(() => null) as T | null
+  return { ok: res.ok, status: res.status, body }
+}
+
+async function resolveWebEarApiKey(): Promise<string | null> {
+  if (resolvedApiKey?.startsWith('wbr_')) return resolvedApiKey
+  if (isResolvingKey) return null
+
+  isResolvingKey = true
+  try {
+    const envKey = import.meta.env.VITE_WEBEAR_API_KEY as string | undefined
+    if (envKey?.startsWith('wbr_')) {
+      resolvedApiKey = envKey
+      return resolvedApiKey
+    }
+
+    const revealed = await fetchJson<{ key?: string }>('/api/webear-keys/reveal')
+    if (revealed.ok && revealed.body?.key?.startsWith('wbr_')) {
+      resolvedApiKey = revealed.body.key
+      return resolvedApiKey
+    }
+
+    if (revealed.status === 401) {
+      setWebEarStatus('no-auth', 'Log in before WebEar can connect')
+      return null
+    }
+
+    if (revealed.status !== 404) {
+      setWebEarStatus('error', `Could not reveal WebEar key (${revealed.status})`)
+      return null
+    }
+
+    const generated = await fetchJson<{ key?: string }>('/api/webear-keys/generate', { method: 'POST' })
+    if (generated.ok && generated.body?.key?.startsWith('wbr_')) {
+      resolvedApiKey = generated.body.key
+      log('Generated WebEar key for browser relay')
+      return resolvedApiKey
+    }
+
+    setWebEarStatus(generated.status === 401 ? 'no-auth' : 'no-key', `Could not generate WebEar key (${generated.status})`)
+    return null
+  } catch (e) {
+    setWebEarStatus('error', `WebEar key lookup failed: ${e instanceof Error ? e.message : String(e)}`)
+    return null
+  } finally {
+    isResolvingKey = false
+  }
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer !== null) return
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null
+    connectSSE()
+  }, reconnectDelayMs)
+  reconnectDelayMs = Math.min(reconnectDelayMs * 1.5, 30000)
 }
 
 async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
@@ -134,13 +231,22 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
   isCapturing = false
 }
 
-function connectSSE() {
+async function connectSSE() {
   if (sseSource) return
 
-  sseSource = new EventSource(CONNECT)
+  const apiKey = await resolveWebEarApiKey()
+  if (!apiKey) {
+    if (status.state !== 'no-auth') scheduleReconnect()
+    return
+  }
+
+  setWebEarStatus('initializing', 'Connecting WebEar audio relay')
+  sseSource = new EventSource(`/api/webear/connect?key=${encodeURIComponent(apiKey)}`)
 
   sseSource.addEventListener('connected', () => {
     isConnected = true
+    reconnectDelayMs = 3000
+    setWebEarStatus('connected', 'WebEar is connected to this browser audio output')
     log('Connected to webear relay ✓')
   })
 
@@ -151,9 +257,10 @@ function connectSSE() {
 
   sseSource.onerror = () => {
     isConnected = false
+    setWebEarStatus('disconnected', 'WebEar relay disconnected; reconnecting')
     sseSource?.close()
     sseSource = null
-    setTimeout(connectSSE, 3000)
+    scheduleReconnect()
   }
 }
 
@@ -228,6 +335,7 @@ export function initAudioDebugBridge(): void {
     },
     getLastCaptureId: () => lastCaptureId,
     status: () => isCapturing ? 'capturing' : isConnected ? 'connected' : 'disconnected',
+    webearStatus: () => status,
   }
 
   log('Bridge ready. window.__audioDebug available.')
