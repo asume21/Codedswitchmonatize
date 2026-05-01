@@ -5,7 +5,7 @@ export function OrganismControls() {
   const {
     start, stop, capture, downloadMidi,
     quickStartPresets, activePresetId, swapPreset,
-    isRunning, isCapturing, error,
+    isRunning, isStarting, isCapturing, error,
     lastSessionDNA,
     transcription,
     transcriptionEnabled,
@@ -28,6 +28,7 @@ export function OrganismControls() {
   const isStoryMode = isPatternLocked
 
   const handleStart = () => {
+    if (isStarting) return
     const presetId = activePresetId ?? quickStartPresets[0]?.id
     if (presetId) {
       void swapPreset(presetId)
@@ -98,6 +99,7 @@ export function OrganismControls() {
         {/* Start / Stop */}
         <button
           onClick={isRunning ? stop : handleStart}
+          disabled={isStarting}
           style={{
             ...btnBase,
             padding: '7px 22px',
@@ -105,10 +107,12 @@ export function OrganismControls() {
             letterSpacing: '0.02em',
             border: isRunning ? '1px solid #ef4444' : '1px solid #22c55e',
             background: isRunning ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)',
-            color: isRunning ? '#f87171' : '#4ade80',
+            color: isStarting ? 'var(--color-text-tertiary)' : isRunning ? '#f87171' : '#4ade80',
+            cursor: isStarting ? 'not-allowed' : 'pointer',
+            opacity: isStarting ? 0.6 : 1,
           }}
         >
-          {isRunning ? '⏹ Stop' : '▶ Start'}
+          {isStarting ? 'Starting...' : isRunning ? '⏹ Stop' : '▶ Start'}
         </button>
 
         {/* Record */}

@@ -163,6 +163,7 @@ export interface OrganismContextValue {
 
   // Status
   isRunning:    boolean
+  isStarting:   boolean
   isCapturing:  boolean
   error:        string | null
 

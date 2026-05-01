@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useOrganism } from './OrganismContext'
 
 export function useOrganismShortcuts() {
-  const { start, stop, capture, downloadMidi, isRunning } = useOrganism()
+  const { start, stop, capture, downloadMidi, isRunning, isStarting } = useOrganism()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -21,6 +21,7 @@ export function useOrganismShortcuts() {
         case 'o':
         case 'O':
           e.preventDefault()
+          if (isStarting) return
           isRunning ? stop() : start()
           break
         case 'c':
@@ -38,5 +39,5 @@ export function useOrganismShortcuts() {
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [start, stop, capture, downloadMidi, isRunning])
+  }, [start, stop, capture, downloadMidi, isRunning, isStarting])
 }

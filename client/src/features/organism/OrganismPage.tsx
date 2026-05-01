@@ -16,6 +16,7 @@ export function OrganismPage() {
     autoEnergy,
     setAutoEnergy,
     isRunning,
+    isStarting,
     transcription,
     // Tweak controls
     hatDensity,  setHatDensity,
@@ -161,7 +162,7 @@ export function OrganismPage() {
           <InputSourceSelector
             current={inputSource}
             onChange={setInputSource}
-            disabled={isRunning}
+            disabled={isRunning || isStarting}
             autoEnergy={autoEnergy}
             onAutoEnergyChange={setAutoEnergy}
           />

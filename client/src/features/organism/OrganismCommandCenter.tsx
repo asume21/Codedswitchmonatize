@@ -164,7 +164,7 @@ export function OrganismCommandCenter() {
   useOrganismShortcuts()
 
   const {
-    start, stop, isRunning, error,
+    start, stop, isRunning, isStarting, error,
     quickStartPresets, activePresetId, swapPreset, countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     isRecording, startRecording, stopRecording,
@@ -321,19 +321,21 @@ export function OrganismCommandCenter() {
     : null
 
   const handleInstantStart = useCallback(() => {
+    if (isStarting) return
     const presetId = activePresetId ?? quickStartPresets[0]?.id
     if (presetId) {
       void swapPreset(presetId)
       return
     }
     void start()
-  }, [activePresetId, quickStartPresets, swapPreset, start])
+  }, [activePresetId, quickStartPresets, swapPreset, start, isStarting])
 
   const flowDepth  = organismState?.flowDepth ?? 0
   const currentBpm = isRunning && physicsState?.pulse
     ? Math.round(physicsState.pulse)
     : (activePreset?.bpm ?? null)
   const countingIn = countInBeat !== null
+  const startLocked = isStarting || countingIn
 
   const ostate = organismState?.current
   const isFlow = ostate === OState.Flow
@@ -400,7 +402,7 @@ export function OrganismCommandCenter() {
           <div>
             <h1 style={{ margin: 0, fontSize: 16, fontWeight: 900, letterSpacing: -0.5 }}>AI PRODUCER</h1>
             <p style={{ margin: 0, fontSize: 10, color: C.text3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
-              {isRunning ? 'Listening & Reacting' : 'Ready to Create'}
+              {isStarting ? 'Starting...' : isRunning ? 'Listening & Reacting' : 'Ready to Create'}
             </p>
           </div>
 
@@ -408,13 +410,18 @@ export function OrganismCommandCenter() {
             {!isRunning ? (
               <button
                 onClick={handleInstantStart}
+                disabled={startLocked}
                 style={{
                   padding: '8px 20px', borderRadius: 20, border: 'none',
-                  background: C.green, color: '#000', fontWeight: 900,
-                  fontSize: 12, cursor: 'pointer', boxShadow: '0 4px 10px rgba(16,185,129,0.3)',
+                  background: startLocked ? '#334155' : C.green,
+                  color: startLocked ? C.text3 : '#000',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  cursor: startLocked ? 'not-allowed' : 'pointer',
+                  boxShadow: startLocked ? 'none' : '0 4px 10px rgba(16,185,129,0.3)',
                 }}
               >
-                START ENGINE
+                {isStarting ? 'STARTING...' : 'START ENGINE'}
               </button>
             ) : (
               <button
@@ -732,6 +739,7 @@ export function OrganismCommandCenter() {
                     <button
                       key={preset.id}
                       onClick={() => swapPreset(preset.id)}
+                      disabled={isStarting}
                       title={`${preset.genre} · ${preset.bpm} BPM`}
                       style={{
                         display: 'flex', flexDirection: 'column',
@@ -745,17 +753,19 @@ export function OrganismCommandCenter() {
                           ? 'var(--color-background-accent-subtle)'
                           : C.bg2,
                         color: C.text,
-                        cursor: 'pointer', fontSize: 10, fontWeight: 500,
+                        cursor: isStarting ? 'not-allowed' : 'pointer',
+                        opacity: isStarting ? 0.55 : 1,
+                        fontSize: 10, fontWeight: 500,
                         transition: 'all 0.15s',
                       }}
                       onMouseEnter={e => {
-                        if (!active) {
+                        if (!active && !isStarting) {
                           e.currentTarget.style.border = `1.5px solid ${C.borderAccent}`
                           e.currentTarget.style.background = 'var(--color-background-accent-subtle)'
                         }
                       }}
                       onMouseLeave={e => {
-                        if (!active) {
+                        if (!active && !isStarting) {
                           e.currentTarget.style.border = `0.5px solid ${C.border2}`
                           e.currentTarget.style.background = C.bg2
                         }
@@ -783,11 +793,14 @@ export function OrganismCommandCenter() {
                   <select
                     value={triggerPresetId}
                     onChange={e => setTriggerPresetId(e.target.value)}
+                    disabled={startLocked}
                     style={{
                       flex: 1, fontSize: 11, padding: '3px 6px',
                       borderRadius: 4,
                       border: `0.5px solid ${C.border2}`,
-                      background: C.bg2, color: C.text, cursor: 'pointer',
+                      background: C.bg2, color: C.text,
+                      cursor: startLocked ? 'not-allowed' : 'pointer',
+                      opacity: startLocked ? 0.6 : 1,
                     }}
                   >
                     {quickStartPresets.map(p => (
@@ -797,14 +810,14 @@ export function OrganismCommandCenter() {
                 </div>
                 <button
                   onClick={() => countInStart(triggerPresetId)}
-                  disabled={countingIn}
+                  disabled={startLocked}
                   style={{
                     padding: '6px 8px',
                     borderRadius: 6,
                     border: countingIn ? '1px solid rgba(34,197,94,0.5)' : '1px solid rgba(34,197,94,0.25)',
                     background: countingIn ? 'rgba(34,197,94,0.15)' : 'transparent',
                     color: countingIn ? C.green : C.text2,
-                    cursor: countingIn ? 'not-allowed' : 'pointer',
+                    cursor: startLocked ? 'not-allowed' : 'pointer',
                     fontSize: 11, fontWeight: 500,
                     display: 'flex', alignItems: 'center', gap: 5,
                   }}
@@ -815,12 +828,15 @@ export function OrganismCommandCenter() {
                 </button>
                 <button
                   onClick={soundTriggerArmed ? disarmSoundTrigger : () => armSoundTrigger(triggerPresetId)}
+                  disabled={isStarting && !soundTriggerArmed}
                   style={{
                     padding: '6px 8px', borderRadius: 6,
                     border: soundTriggerArmed ? '1px solid rgba(249,115,22,0.6)' : '1px solid rgba(249,115,22,0.25)',
                     background: soundTriggerArmed ? 'rgba(249,115,22,0.15)' : 'transparent',
                     color: soundTriggerArmed ? '#fb923c' : C.text2,
-                    cursor: 'pointer', fontSize: 11, fontWeight: 500,
+                    cursor: isStarting && !soundTriggerArmed ? 'not-allowed' : 'pointer',
+                    opacity: isStarting && !soundTriggerArmed ? 0.55 : 1,
+                    fontSize: 11, fontWeight: 500,
                     display: 'flex', alignItems: 'center', gap: 5,
                     animation: soundTriggerArmed ? 'pulse 1.5s ease-in-out infinite' : 'none',
                   }}
@@ -866,12 +882,15 @@ export function OrganismCommandCenter() {
               {!isRunning ? (
                 <button
                   onClick={handleInstantStart}
+                  disabled={startLocked}
                   style={{
                     padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                    background: '#166534', color: C.green,
-                    border: '1px solid rgba(34,197,94,0.3)', cursor: 'pointer',
+                    background: startLocked ? '#1f2937' : '#166534',
+                    color: startLocked ? C.text3 : C.green,
+                    border: '1px solid rgba(34,197,94,0.3)',
+                    cursor: startLocked ? 'not-allowed' : 'pointer',
                   }}
-                >▶ Start</button>
+                >{isStarting ? 'Starting...' : '▶ Start'}</button>
               ) : (
                 <button
                   onClick={stop}
@@ -1113,7 +1132,7 @@ export function OrganismCommandCenter() {
             <InputSourceSelector
               current={inputSource}
               onChange={setInputSource}
-              disabled={isRunning}
+              disabled={isRunning || isStarting}
               autoEnergy={autoEnergy}
               onAutoEnergyChange={setAutoEnergy}
             />

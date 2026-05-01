@@ -15,6 +15,7 @@ export function QuickStartPanel() {
     quickStartPresets,
     activePresetId,
     isRunning,
+    isStarting,
     countInStart,
     countInBeat,
     soundTriggerArmed,
@@ -32,6 +33,7 @@ export function QuickStartPanel() {
   )
 
   const countingIn = countInBeat !== null
+  const startLocked = isStarting || countingIn
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -44,6 +46,16 @@ export function QuickStartPanel() {
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
         Quick Start
+        {isStarting && (
+          <span style={{
+            fontSize: 10, fontWeight: 500,
+            color: 'var(--color-text-warning)',
+            textTransform: 'none' as const,
+            letterSpacing: 'normal',
+          }}>
+            - Starting...
+          </span>
+        )}
         {isRunning && activePresetId && (
           <span style={{
             fontSize: 10, fontWeight: 500,
@@ -120,6 +132,7 @@ export function QuickStartPanel() {
                   <button
                     key={preset.id}
                     onClick={() => swapPreset(preset.id)}
+                    disabled={isStarting}
                     title={`${preset.genre} — ${preset.bpm} BPM${isRunning ? ' · swap live' : ''}`}
                     style={{
                       display: 'flex', flexDirection: 'column',
@@ -133,16 +146,18 @@ export function QuickStartPanel() {
                         ? 'var(--color-background-accent-subtle)'
                         : 'var(--color-background-secondary)',
                       color: 'var(--color-text-primary)',
-                      cursor: 'pointer', fontSize: 10, fontWeight: 500,
+                      cursor: isStarting ? 'not-allowed' : 'pointer',
+                      opacity: isStarting ? 0.55 : 1,
+                      fontSize: 10, fontWeight: 500,
                       transition: 'all 0.15s ease', minWidth: 0,
                     }}
                     onMouseEnter={(e) => {
-                      if (isActive) return
+                      if (isActive || isStarting) return
                       e.currentTarget.style.border = '1.5px solid var(--color-border-accent)'
                       e.currentTarget.style.background = 'var(--color-background-accent-subtle)'
                     }}
                     onMouseLeave={(e) => {
-                      if (isActive) return
+                      if (isActive || isStarting) return
                       e.currentTarget.style.border = '0.5px solid var(--color-border-secondary)'
                       e.currentTarget.style.background = 'var(--color-background-secondary)'
                     }}
@@ -173,13 +188,15 @@ export function QuickStartPanel() {
               <select
                 value={triggerPresetId}
                 onChange={(e) => setTriggerPresetId(e.target.value)}
+                disabled={startLocked}
                 style={{
                   flex: 1, fontSize: 11, padding: '3px 6px',
                   borderRadius: 'var(--border-radius-sm)',
                   border: '0.5px solid var(--color-border-secondary)',
                   background: 'var(--color-background-secondary)',
                   color: 'var(--color-text-primary)',
-                  cursor: 'pointer',
+                  cursor: startLocked ? 'not-allowed' : 'pointer',
+                  opacity: startLocked ? 0.6 : 1,
                 }}
               >
                 {quickStartPresets.map((p) => (
@@ -193,7 +210,7 @@ export function QuickStartPanel() {
             {/* Count-In Start */}
             <button
               onClick={() => countInStart(triggerPresetId)}
-              disabled={countingIn}
+              disabled={startLocked}
               style={{
                 padding: '7px 10px',
                 borderRadius: 'var(--border-radius-md)',
@@ -202,7 +219,7 @@ export function QuickStartPanel() {
                   : '1px solid rgba(34,197,94,0.25)',
                 background: countingIn ? 'rgba(34,197,94,0.15)' : 'transparent',
                 color: countingIn ? '#4ade80' : 'var(--color-text-secondary)',
-                cursor: countingIn ? 'not-allowed' : 'pointer',
+                cursor: startLocked ? 'not-allowed' : 'pointer',
                 fontSize: 12, fontWeight: 500,
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
@@ -220,6 +237,7 @@ export function QuickStartPanel() {
               onClick={soundTriggerArmed
                 ? disarmSoundTrigger
                 : () => armSoundTrigger(triggerPresetId)}
+              disabled={isStarting && !soundTriggerArmed}
               style={{
                 padding: '7px 10px',
                 borderRadius: 'var(--border-radius-md)',
@@ -228,7 +246,8 @@ export function QuickStartPanel() {
                   : '1px solid rgba(249,115,22,0.25)',
                 background: soundTriggerArmed ? 'rgba(249,115,22,0.15)' : 'transparent',
                 color: soundTriggerArmed ? '#fb923c' : 'var(--color-text-secondary)',
-                cursor: 'pointer',
+                cursor: isStarting && !soundTriggerArmed ? 'not-allowed' : 'pointer',
+                opacity: isStarting && !soundTriggerArmed ? 0.55 : 1,
                 fontSize: 12, fontWeight: 500,
                 display: 'flex', alignItems: 'center', gap: 6,
                 animation: soundTriggerArmed ? 'pulse 1.5s ease-in-out infinite' : 'none',

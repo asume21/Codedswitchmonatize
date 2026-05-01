@@ -113,6 +113,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [meterReading,   setMeterReading]   = useState<MixMeterReading | null>(null)
   const [lastSessionDNA, setLastSessionDNA] = useState<SessionDNA      | null>(null)
   const [isRunning,      setIsRunning]      = useState(false)
+  const [isStarting,     setIsStarting]     = useState(false)
   const [isCapturing,    setIsCapturing]    = useState(false)
   const [error,          setError]          = useState<string | null>(null)
 
@@ -577,7 +578,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     const token = ++startTokenRef.current
     const run = (async () => {
-    // Resume AudioContext NOW, while we are still inside the user-gesture window.
+      setIsStarting(true)
+      // Resume AudioContext NOW, while we are still inside the user-gesture window.
     // Browsers only allow AudioContext.resume() shortly after a click/keydown (~1s).
     // inputRef.current.start() below can consume that window, so we must call
     // Tone.start() first — before any other awaits — to guarantee audio unlocks.
@@ -657,6 +659,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     } finally {
       if (startInFlightRef.current === run) {
         startInFlightRef.current = null
+        setIsStarting(false)
       }
     }
   }, [inputSource, transcriptionEnabled])
@@ -664,6 +667,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const stop = useCallback(() => {
     startTokenRef.current += 1
     startInFlightRef.current = null
+    setIsStarting(false)
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
     orchestrRef.current?.stop()
@@ -776,7 +780,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const token = ++startTokenRef.current
 
     const run = (async () => {
-    const endPhase = orgPhase('quickstart', 500)
+      setIsStarting(true)
+      const endPhase = orgPhase('quickstart', 500)
     try {
       setError(null)
       setActivePresetId(presetId)
@@ -896,6 +901,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     } finally {
       if (startInFlightRef.current === run) {
         startInFlightRef.current = null
+        setIsStarting(false)
       }
     }
   }, [transcriptionEnabled])
@@ -1016,6 +1022,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
    * then drops the beat on the downbeat of bar 2 via quickStart.
    */
   const countInStart = useCallback(async (presetId: string) => {
+    if (isRunningRef.current || startInFlightRef.current) return
+
     const preset = getQuickStartPreset(presetId)
     if (!preset) {
       setError(`Unknown preset: ${presetId}`)
@@ -1059,6 +1067,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
    * Uses the specified preset but may override the energy based on trigger volume.
    */
   const armSoundTrigger = useCallback((presetId: string) => {
+    if (isRunningRef.current || startInFlightRef.current) return
+
     // Disarm any previous trigger
     soundTriggerCleanupRef.current?.()
 
@@ -2158,6 +2168,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }, [isSharingSession, lastSavedSession])
 
   const handleSetInputSource = useCallback((type: InputSourceType, file?: File) => {
+    if (startInFlightRef.current) return
+
     // Stop current session before switching
     inputRef.current?.stop()
     orchestrRef.current?.stop()
@@ -2336,6 +2348,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     lastSharedPostUrl,
 
     isRunning,
+    isStarting,
     isCapturing,
     error,
 
@@ -2365,7 +2378,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     hatDensity, kickVelocity, bassVolume, melodyVolume, textureEnabled,
     guestSecondsRemaining, isGuestNudgeVisible, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
-    isRunning, isCapturing, error,
+    isRunning, isStarting, isCapturing, error,
     performerState, selfListenReport,
     interpretVibe, vibeInterpretation,
   ])
