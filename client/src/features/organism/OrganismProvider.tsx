@@ -132,6 +132,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   // Quick Start state
   const [activePresetId, setActivePresetId] = useState<string | null>(null)
+  const startTokenRef = useRef(0)
+  const startInFlightRef = useRef<Promise<void> | null>(null)
 
   // Count-In state
   const [countInBeat, setCountInBeat] = useState<number | null>(null)
@@ -570,6 +572,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   const start = useCallback(async () => {
     if (!inputRef.current || !orchestrRef.current) return
+    if (isRunningRef.current) return
+    if (startInFlightRef.current) return startInFlightRef.current
+
+    const token = ++startTokenRef.current
+    const run = (async () => {
     // Resume AudioContext NOW, while we are still inside the user-gesture window.
     // Browsers only allow AudioContext.resume() shortly after a click/keydown (~1s).
     // inputRef.current.start() below can consume that window, so we must call
@@ -581,7 +588,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       cadenceLastLineIndexRef.current   = -1
       reportCardLastLineIndexRef.current = -1
       await inputRef.current.start()
+      if (startTokenRef.current !== token) {
+        inputRef.current?.stop()
+        return
+      }
       await orchestrRef.current.start(undefined, false)
+      if (startTokenRef.current !== token) {
+        orchestrRef.current?.stop()
+        inputRef.current?.stop()
+        return
+      }
       primeAutoGenerateStart()
 
       // Fast-boot: skip the Dormant wait, start playing immediately from bar 1.
@@ -613,6 +629,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }
 
       await orchestrRef.current.start()
+      if (startTokenRef.current !== token) {
+        orchestrRef.current?.stop()
+        inputRef.current?.stop()
+        return
+      }
       setIsRunning(true)
 
       // Start self-listen after audio is running
@@ -628,9 +649,21 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orgLog('provider:start-error', { error: err instanceof Error ? err.message : String(err) }, 'error')
       setError(err instanceof Error ? err.message : 'Failed to start organism')
     }
+    })()
+
+    startInFlightRef.current = run
+    try {
+      await run
+    } finally {
+      if (startInFlightRef.current === run) {
+        startInFlightRef.current = null
+      }
+    }
   }, [inputSource, transcriptionEnabled])
 
   const stop = useCallback(() => {
+    startTokenRef.current += 1
+    startInFlightRef.current = null
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
     orchestrRef.current?.stop()
@@ -737,7 +770,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError('Engines not initialized')
       return
     }
+    if (isRunningRef.current) return
+    if (startInFlightRef.current) return startInFlightRef.current
 
+    const token = ++startTokenRef.current
+
+    const run = (async () => {
     const endPhase = orgPhase('quickstart', 500)
     try {
       setError(null)
@@ -750,6 +788,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
       // 2. Start the input source (mic, auto, etc.)
       await inputRef.current.start()
+      if (startTokenRef.current !== token) {
+        inputRef.current?.stop()
+        return
+      }
 
       // 3. Prepare Organism audio at the preset BPM, but do not start the
       //    clock until after the initial patterns are built. Starting first
@@ -757,6 +799,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       //    Do not set the global studio play state; arrangement/piano-roll
       //    playheads follow that state and should remain independent.
       await orchestrRef.current.start(preset.bpm, false)
+      if (startTokenRef.current !== token) {
+        orchestrRef.current?.stop()
+        inputRef.current?.stop()
+        return
+      }
       useStudioStore.getState().setBpm(preset.bpm)
       orgLog('quickstart:audio-check', {
         ctxState:       Tone.getContext().state,
@@ -810,6 +857,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestrRef.current.regenerateAll()
 
       await orchestrRef.current.start(preset.bpm)
+      if (startTokenRef.current !== token) {
+        orchestrRef.current?.stop()
+        inputRef.current?.stop()
+        return
+      }
       setIsRunning(true)
 
       // 6. Start transcription if enabled
@@ -835,6 +887,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }, 'error')
       setError(err instanceof Error ? err.message : 'Quick start failed')
       setActivePresetId(null)
+    }
+    })()
+
+    startInFlightRef.current = run
+    try {
+      await run
+    } finally {
+      if (startInFlightRef.current === run) {
+        startInFlightRef.current = null
+      }
     }
   }, [transcriptionEnabled])
 
