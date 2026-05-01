@@ -55,6 +55,40 @@ interface ProjectStatus {
   songName?: string;
 }
 
+interface OrganismSnapshot {
+  running: boolean;
+  starting: boolean;
+  inputSource: string;
+  activePresetId: string | null;
+  bpm: number;
+  physics: {
+    mode: string;
+    pulse: number;
+    bounce: number;
+    swing: number;
+    pocket: number;
+    presence: number;
+    density: number;
+    voiceActive: boolean;
+  } | null;
+  organism: {
+    state: string;
+    flowDepth: number;
+  } | null;
+  levels: {
+    masterRmsDb: number;
+    channels: Record<string, number>;
+  } | null;
+  generators: Record<string, number> | null;
+  transcription: {
+    supported: boolean;
+    enabled: boolean;
+    lineCount: number;
+    latestLine: string | null;
+  } | null;
+  updatedAt: number;
+}
+
 const STORAGE_KEY = 'astutelyChatbot';
 const DEFAULT_WIDTH = 420; // Increased for HUD
 const DEFAULT_HEIGHT = 650; // Increased for HUD
@@ -128,6 +162,32 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
       hasUploadedSong: !!currentUploadedSong,
       songName: currentUploadedSong?.name || songSession.currentSession?.songName,
     };
+  };
+
+  const getOrganismSnapshot = (): OrganismSnapshot | null => {
+    const snapshot = (window as unknown as { __organismSnapshot?: OrganismSnapshot }).__organismSnapshot;
+    return snapshot ?? null;
+  };
+
+  const describeOrganism = (snapshot: OrganismSnapshot): string => {
+    const physics = snapshot.physics;
+    const organism = snapshot.organism;
+    const generators = snapshot.generators;
+    const generatorText = generators
+      ? Object.entries(generators)
+          .filter(([, level]) => level > 0.05)
+          .map(([name, level]) => `${name} ${(level * 100).toFixed(0)}%`)
+          .join(', ')
+      : 'generator activity is still warming up';
+
+    return [
+      `Yes, I hear it.`,
+      `The Organism is ${snapshot.running ? 'playing' : snapshot.starting ? 'starting' : 'not currently running'} at about ${Math.round(snapshot.bpm)} BPM.`,
+      physics ? `Mode is ${physics.mode}, with bounce ${physics.bounce.toFixed(2)}, swing ${physics.swing.toFixed(2)}, density ${physics.density.toFixed(2)}, and presence ${physics.presence.toFixed(2)}.` : '',
+      organism ? `State is ${organism.state}, flow depth ${(organism.flowDepth * 100).toFixed(0)}%.` : '',
+      `I’m seeing ${generatorText}.`,
+      `Tell me what you want changed and I can help direct it.`
+    ].filter(Boolean).join('\n');
   };
 
   const getSavedState = () => {
@@ -706,6 +766,62 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
       // ═══════════════════════════════════════════════════════════════════════════
       const lowerInput = currentInput.toLowerCase().trim();
       const status = getProjectStatus();
+      const organismSnapshot = getOrganismSnapshot();
+
+      const asksIfAstutelyHearsOrganism =
+        (lowerInput.includes('hear') || lowerInput.includes('hearing') || lowerInput.includes('listen')) &&
+        (lowerInput.includes('organism') || lowerInput.includes('him') || lowerInput.includes('it'));
+
+      if (asksIfAstutelyHearsOrganism) {
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: organismSnapshot
+            ? describeOrganism(organismSnapshot)
+            : `I do not have a live Organism signal yet. Start the Organism first, then ask me again.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        return;
+      }
+
+      const asksForBetterMelody =
+        (lowerInput.includes('melody') || lowerInput.includes('melodie') || lowerInput.includes('melodi') || lowerInput.includes('mealodie')) &&
+        (
+          lowerInput.includes('better') ||
+          lowerInput.includes('improve') ||
+          lowerInput.includes('help') ||
+          lowerInput.includes('fix') ||
+          lowerInput.includes('make it good')
+        );
+
+      if (asksForBetterMelody && organismSnapshot?.running) {
+        window.dispatchEvent(new CustomEvent('organism:command', {
+          detail: {
+            action: 'improve-melody',
+            articulationId: 'legato',
+            source: 'astutely-chat',
+          },
+        }));
+
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `Got it. I’m keeping the drums, bass, and chords locked, then asking the Organism to rebuild only the melody against the current ${Math.round(organismSnapshot.bpm)} BPM ${organismSnapshot.physics?.mode ?? ''} groove.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        toast({ title: 'Melody update sent', description: 'Organism is rebuilding melody only.' });
+        return;
+      }
+
+      if (asksForBetterMelody && organismSnapshot && !organismSnapshot.running) {
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `I can help with the melody, but the Organism is not playing right now. Start it first, then tell me to improve the melody.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        return;
+      }
       
       // PLAYBACK COMMANDS
       if (lowerInput === 'play' || lowerInput === 'start' || lowerInput.includes('play it') || lowerInput.includes('start playing')) {

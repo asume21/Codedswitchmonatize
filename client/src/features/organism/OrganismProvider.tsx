@@ -1487,6 +1487,20 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           }
           break
         }
+        case 'improve-melody': {
+          const orch = orchestrRef.current
+          if (!orch) break
+          const articulationId = (detail as Record<string, unknown>).articulationId
+          if (typeof articulationId === 'string') {
+            orch.setMelodyArticulation(articulationId)
+          }
+          orch.setMelodyVolumeMultiplier(Math.max(1, melodyVolumeRef.current) * 1.08)
+          orch.regenerateMelody()
+          window.dispatchEvent(new CustomEvent('organism:melody-improved', {
+            detail: (window as unknown as { __organismSnapshot?: unknown }).__organismSnapshot ?? null,
+          }))
+          break
+        }
         case 'set-bass-articulation': {
           const { articulationId } = detail as Record<string, unknown>
           if (typeof articulationId === 'string' && orchestrRef.current) {
@@ -2190,6 +2204,63 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     organismState,
     meterReading,
   }), [physicsState, organismState, meterReading])
+
+  useEffect(() => {
+    const output = orchestrRef.current?.getOutput()
+    const snapshot = {
+      running: isRunning,
+      starting: isStarting,
+      inputSource,
+      activePresetId,
+      bpm: orchestrRef.current?.getBpm() ?? useStudioStore.getState().bpm,
+      physics: physicsState ? {
+        mode: physicsState.mode,
+        pulse: physicsState.pulse,
+        bounce: physicsState.bounce,
+        swing: physicsState.swing,
+        pocket: physicsState.pocket,
+        presence: physicsState.presence,
+        density: physicsState.density,
+        voiceActive: physicsState.voiceActive,
+      } : null,
+      organism: organismState ? {
+        state: organismState.current,
+        flowDepth: organismState.flowDepth,
+      } : null,
+      levels: meterReading ? {
+        masterRmsDb: meterReading.masterRmsDb,
+        channels: Object.fromEntries(
+          Object.entries(meterReading.channels).map(([name, ch]) => [name, ch.rmsDb])
+        ),
+      } : null,
+      generators: output ? {
+        drum: output.drum.activityLevel,
+        bass: output.bass.activityLevel,
+        melody: output.melody.activityLevel,
+        chord: output.chord.activityLevel,
+        texture: output.texture.activityLevel,
+      } : null,
+      transcription: transcription ? {
+        supported: transcription.isSupported,
+        enabled: transcriptionEnabled,
+        lineCount: transcription.lines.length,
+        latestLine: transcription.lines.at(-1)?.text ?? null,
+      } : null,
+      updatedAt: Date.now(),
+    }
+    ;(window as unknown as { __organismSnapshot?: typeof snapshot }).__organismSnapshot = snapshot
+    window.dispatchEvent(new CustomEvent('organism:snapshot', { detail: snapshot }))
+  }, [
+    isRunning,
+    isStarting,
+    inputSource,
+    activePresetId,
+    physicsState,
+    organismState,
+    meterReading,
+    transcription,
+    transcriptionEnabled,
+  ])
 
   const value: OrganismContextValue = useMemo(() => ({
     analysisEngine:    inputSource === 'mic' ? inputRef.current as unknown as AudioAnalysisEngine : null,

@@ -295,6 +295,13 @@ export class GeneratorOrchestrator {
     this.chord.onStateTransition(state, physics)
   }
 
+  /** Rebuild only the melody against the current rhythm/harmony. */
+  regenerateMelody(): void {
+    if (!this.lastPhysics) return
+    const state = this.lastOrganism?.current ?? OState.Flow
+    this.melody.onStateTransition(state, this.lastPhysics)
+  }
+
   /**
    * Fully dispose all four generators and free their Tone.js audio nodes.
    * Call this in the useEffect cleanup instead of reset() to prevent node leaks
