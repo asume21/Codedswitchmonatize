@@ -4544,6 +4544,44 @@ ${code}
 
   // Transcription endpoint
   app.post(
+    "/api/organism/live-transcribe",
+    requireAuth(),
+    upload.single("audio"),
+    async (req: Request, res: Response) => {
+      const uploaded = req.file;
+      if (!uploaded?.buffer?.length) {
+        return sendError(res, 400, "Missing audio chunk");
+      }
+
+      const liveDir = path.join(os.tmpdir(), "codedswitch-live-transcribe");
+      fs.mkdirSync(liveDir, { recursive: true });
+
+      const safeExt = uploaded.mimetype.includes("ogg") ? "ogg" : "webm";
+      const tempPath = path.join(liveDir, `${crypto.randomUUID()}.${safeExt}`);
+
+      try {
+        fs.writeFileSync(tempPath, uploaded.buffer);
+        const result = await transcribeAudio(tempPath);
+        const text = typeof result === "string" ? result : result.text || "";
+        res.json({ success: true, text, transcription: result });
+      } catch (error) {
+        console.error("❌ Live organism transcription failed:", error);
+        return sendError(
+          res,
+          500,
+          error instanceof Error ? error.message : "Live transcription failed"
+        );
+      } finally {
+        try {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        } catch {
+          // Best effort cleanup.
+        }
+      }
+    }
+  );
+
+  app.post(
     "/api/transcribe",
     requireAuth(),
     requireCredits(CREDIT_COSTS.TRANSCRIPTION, storage),

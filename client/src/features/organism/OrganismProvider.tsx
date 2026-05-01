@@ -24,6 +24,7 @@ import type { MixMeterReading } from '../../organism/mix/types'
 import type { SessionDNA }      from '../../organism/session/types'
 import { FreestyleTranscriber }  from './FreestyleTranscriber'
 import type { TranscriptionState } from './FreestyleTranscriber'
+import { LiveFreestyleTranscriber } from './LiveFreestyleTranscriber'
 import { useProfile }             from '../../organism/evolution/useProfile'
 import { QUICK_START_PRESETS, getQuickStartPreset } from './QuickStartPresets'
 import { CountInEngine }         from './CountInEngine'
@@ -128,7 +129,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [lastSharedPostUrl, setLastSharedPostUrl]  = useState<string | null>(null)
 
   // Transcription state
-  const transcriberRef = useRef<FreestyleTranscriber | null>(null)
+  const transcriberRef = useRef<FreestyleTranscriber | LiveFreestyleTranscriber | null>(null)
   const [transcription,         setTranscription]         = useState<TranscriptionState | null>(null)
   const [transcriptionEnabled,  setTranscriptionEnabled]  = useState(true)
 
@@ -375,8 +376,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }
     })
 
-    // Create transcriber
-    const transcriber = new FreestyleTranscriber()
+    // Create live transcriber from the Organism-owned mic stream. This avoids
+    // Web Speech opening a second microphone path while Tone.js is playing.
+    const transcriber = new LiveFreestyleTranscriber(() => {
+      const source = inputRef.current
+      if (!source || !('getStream' in source)) return null
+      return (source as unknown as { getStream: () => MediaStream | null }).getStream()
+    })
     transcriberRef.current = transcriber
     const unsubTranscription = transcriber.subscribe((state) => {
       setTranscription(state)
