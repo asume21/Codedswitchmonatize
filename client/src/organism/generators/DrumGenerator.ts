@@ -447,10 +447,32 @@ export class DrumGenerator extends GeneratorBase {
   // Enforce monotonic scheduling per voice. Monophonic Tone synths throw when
   // a new event lands before the previous one on the same voice's timeline.
   private clampTime(voice: string, t: number): number {
+    const now = Tone.now()
     const last = this.lastTriggerByVoice.get(voice) ?? 0
-    const safe = t > last + 0.001 ? t : last + 0.001
+    const safeBase = Math.max(t, now + 0.002)
+    const safe = safeBase > last + 0.001 ? safeBase : last + 0.001
     this.lastTriggerByVoice.set(voice, safe)
     return safe
+  }
+
+  private triggerNoise(
+    voice: string,
+    synth: Tone.NoiseSynth,
+    duration: Tone.Unit.Time,
+    time: number,
+    velocity: number,
+  ): void {
+    const t = this.clampTime(voice, time)
+    try {
+      synth.triggerAttackRelease(duration, t, velocity)
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('Start time must be strictly greater')) {
+        const retry = this.clampTime(voice, Tone.now() + 0.01)
+        synth.triggerAttackRelease(duration, retry, velocity)
+        return
+      }
+      throw err
+    }
   }
 
   private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
@@ -464,18 +486,16 @@ export class DrumGenerator extends GeneratorBase {
     switch (instrument) {
       case DrumInstrument.Kick: {
         const tSub = this.clampTime('kickSub', t)
-        const tClick = this.clampTime('kickClick', t)
         this.kickSub.triggerAttackRelease(this.currentKickNote, '8n', tSub, velocity)
-        this.kickClick.triggerAttackRelease('32n', tClick, velocity * 0.6)
+        this.triggerNoise('kickClick', this.kickClick, '32n', t, velocity * 0.6)
         this.lastKickTime = tSub
         // Fire sidechain callback so bass channel ducks on kick
         if (this.onKickTrigger) this.onKickTrigger(tSub)
         break
       }
       case DrumInstrument.Snare: {
-        const tBody = this.clampTime('snareBody', t)
         const tTone = this.clampTime('snareTone', t)
-        this.snareBody.triggerAttackRelease('8n', tBody, velocity)
+        this.triggerNoise('snareBody', this.snareBody, '8n', t, velocity)
         this.snareTone.triggerAttackRelease('E3', '16n', tTone, velocity * 0.7)
         break
       }
@@ -491,8 +511,7 @@ export class DrumGenerator extends GeneratorBase {
         }
         break
       case DrumInstrument.Perc: {
-        const tPerc = this.clampTime('perc', t)
-        this.perc.triggerAttackRelease('16n', tPerc, velocity)
+        this.triggerNoise('perc', this.perc, '16n', t, velocity)
         break
       }
     }
@@ -509,6 +528,7 @@ export class DrumGenerator extends GeneratorBase {
       this.part.dispose()
       this.part = null
     }
+    this.lastTriggerByVoice.clear()
   }
 
   /** Register a callback fired on every kick hit — used for sidechain ducking. */
