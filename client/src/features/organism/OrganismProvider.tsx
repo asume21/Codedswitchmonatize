@@ -244,17 +244,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     //    generators → mix engine
     //    physics + state machine → capture engine
 
-    // physics → state machine (always) + throttled UI state + broadcast
-    // The state machine must receive every frame for accurate transitions,
-    // but React re-renders + CustomEvent dispatches are throttled to ~15fps
-    // to prevent main-thread overload that causes audio crackling.
+    // physics → state machine (always) + throttled UI state + broadcast.
+    // The audio/physics engine receives every frame, but React does not. The
+    // command center subscribes to this context, so frequent updates make hover
+    // states blink and steal time from the audio thread.
     let lastPhysicsUIUpdate = 0
-    const PHYSICS_UI_INTERVAL_MS = 66 // ~15fps — visually smooth, CPU friendly
+    const ORGANISM_UI_INTERVAL_MS = 250
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
 
       const now = performance.now()
-      if (now - lastPhysicsUIUpdate >= PHYSICS_UI_INTERVAL_MS) {
+      if (now - lastPhysicsUIUpdate >= ORGANISM_UI_INTERVAL_MS) {
         lastPhysicsUIUpdate = now
         setPhysicsState(state)
 
@@ -275,9 +275,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     let prevOrganismState: OrganismState | null = null
     let lastOrganismUIUpdate = 0
     const unsubOrganism = machine.subscribe((state) => {
-      // Throttle React state updates to match physics (15fps)
+      // Throttle React state updates to match physics UI updates.
       const now = performance.now()
-      if (now - lastOrganismUIUpdate >= PHYSICS_UI_INTERVAL_MS) {
+      if (now - lastOrganismUIUpdate >= ORGANISM_UI_INTERVAL_MS) {
         lastOrganismUIUpdate = now
         setOrganismState(state)
       }
@@ -352,7 +352,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     // Wire metering
     mix.startMetering()
+    let lastMeterUIUpdate = 0
     const unsubMeter = mix.onMeter((reading) => {
+      const now = performance.now()
+      if (now - lastMeterUIUpdate < ORGANISM_UI_INTERVAL_MS) return
+      lastMeterUIUpdate = now
       setMeterReading(reading)
     })
 
@@ -424,32 +428,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     setIsRunning(false)
     setError(null)
 
-    // 2-second heartbeat — surfaces state/arrangement/bpm to the console so
-    // "it just stopped" issues can be correlated to state regressions or
-    // arrangement section changes. Filter console to "[organism]" to isolate.
-    const stopHeartbeat = startOrgHeartbeat(() => {
-      const mach   = stateMachRef.current
-      const orch   = orchestrRef.current
-      const snap   = mach?.getCurrentState()
-      const lastPhys = physicsRef.current?.getLastState?.()
-      return {
-        running:     isRunningRef.current,
-        state:       snap?.current ?? 'none',
-        floor:       mach?.getStateFloor() ?? null,
-        bpm:         orch?.getBpm() ?? '?',
-        arrangement: orch?.isArrangementEnabled() ?? '?',
-        section:     orch?.getCurrentSection() ?? '?',
-        frameAge:    lastPhys ? Math.round(performance.now() - lastPhys.timestamp) : -1,
-        flowDepth:   snap ? Number(snap.flowDepth.toFixed(2)) : -1,
-        warmth:      snap ? Number(snap.breathingWarmth.toFixed(2)) : -1,
-        silence:     snap ? Math.round(snap.silenceDurationMs) : -1,
-      }
-    }, 2000)
-
     let patternGenAbort: AbortController | null = null
 
     return () => {
-      stopHeartbeat()
       patternGenAbort?.abort()
       unsubPhysicsState()
       unsubOrganism()
@@ -499,12 +480,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     })
 
     // input → performer analysis + optional Transport BPM sync. React state
-    // updates throttled to ~15fps to keep the main thread free.
+    // updates stay slow; audio reactions still run from refs/engines.
     let lastPerformerUIUpdate = 0
     const unsubPerformer = input.subscribe((frame) => {
       const pState = performer.processFrame(frame)
       const now = performance.now()
-      if (now - lastPerformerUIUpdate < 66) return
+      if (now - lastPerformerUIUpdate < 250) return
       lastPerformerUIUpdate = now
       setPerformerState({ ...pState })
 

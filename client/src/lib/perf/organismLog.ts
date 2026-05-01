@@ -1,7 +1,7 @@
 // Organism-specific structured logger. Emits [organism] events so the user can
 // filter the console (DevTools → type "[organism]" in the filter box).
 //
-// Enabled in DEV, or in prod when the URL contains ?organism-log=1. The phase
+// Enabled only when the URL contains ?organism-log=1. The phase
 // helper times a block; the heartbeat publishes a periodic snapshot of the
 // live state so stalls can be correlated to state/preset/arrangement changes.
 //
@@ -11,7 +11,6 @@ type LogLevel = 'info' | 'warn' | 'error'
 
 const enabled: boolean = (() => {
   try {
-    if (import.meta.env.DEV) return true
     if (typeof window !== 'undefined') {
       return new URLSearchParams(window.location.search).has('organism-log')
     }

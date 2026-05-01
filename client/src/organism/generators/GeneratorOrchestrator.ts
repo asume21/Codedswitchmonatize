@@ -166,22 +166,13 @@ export class GeneratorOrchestrator {
   // Wire to physics and state machine outputs
   // Call this once after both engines are constructed
   wire(physicsEngine: PhysicsEngine, stateMachine: StateMachine): void {
-    console.log('[Organism] wire() called — subscribing to physics + state machine')
     // Store reference for density feedback loop (avoids circular import)
     this.physicsEngineRef = physicsEngine
-
-    let physicsFrameCount = 0
 
     // Subscribe to physics updates — store unsub so dispose() can break the
     // circular reference: physics.callbacks → orchestrator → generators
     this.unsubPhysics = physicsEngine.subscribe((physics) => {
       this.lastPhysics = physics
-      physicsFrameCount++
-      // Log the first frame and every 120th (~every 3s at 43fps) so we can see
-      // whether physics is firing at all, without spamming.
-      if (physicsFrameCount === 1 || physicsFrameCount % 120 === 0) {
-        console.log('[Organism] physics frame #' + physicsFrameCount, { hasOrganism: !!this.lastOrganism, running: this.running })
-      }
       this.onFrame(physics, this.lastOrganism)
     })
 
@@ -194,7 +185,6 @@ export class GeneratorOrchestrator {
     // all 5 generators don't dispose + create Tone.Parts in one synchronous
     // burst, which floods the audio scheduler and causes crackling.
     this.unsubTransition = stateMachine.onTransition((event) => {
-      console.log('[Organism] state transition', { from: event.from, to: event.to, hasPhysics: !!this.lastPhysics })
       // Use event.physicsSnapshot which is ALWAYS valid — it was captured at
       // the moment the transition fired, even if lastPhysics hasn't been set
       // yet by the physics subscriber (race on first quickStart frame).
@@ -216,12 +206,10 @@ export class GeneratorOrchestrator {
       setTimeout(() => this.melody.onStateTransition(event.to, snap), 120)
       setTimeout(() => this.chord.onStateTransition(event.to, snap), 180)
     })
-    console.log('[Organism] wire() complete — all subscriptions attached')
   }
 
   async start(bpm?: number, startTransport: boolean = true): Promise<void> {
     const dest = Tone.getDestination()
-    console.log('[Organism] start() called', { alreadyRunning: this.running, startTransport, destVol: dest.volume.value, ctxState: Tone.getContext().state })
     // Always ensure destination is audible — a previous start() that mutes then
     // loses its ramp (StrictMode remount, start/stop thrash) must not leave the
     // global destination at -Infinity and silence the whole app.
@@ -253,7 +241,6 @@ export class GeneratorOrchestrator {
     }
 
     if (!startTransport) {
-      console.log('[Organism] audio prepared', { destVol: dest.volume.value, transportState: transport.state, bpm: transport.bpm.value, ctxState: Tone.getContext().state })
       return
     }
 
@@ -264,7 +251,6 @@ export class GeneratorOrchestrator {
       transport.start()
     }
     this.running = true
-    console.log('[Organism] start() complete', { destVol: dest.volume.value, transportState: transport.state, bpm: transport.bpm.value, ctxState: Tone.getContext().state })
   }
 
   stop(): void {
