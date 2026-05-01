@@ -29,6 +29,7 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
   const [liveStats, setLiveStats] = useState({
     level: 0,
     active: false,
+    hasFrames: false,
     rate: 0,
     bright: 0,
   })
@@ -61,13 +62,15 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
     const render = () => {
       const now = performance.now()
       const latestFrame = analysisEngine?.getLastFrame?.() ?? null
+      const hasMicAnalyzer = inputSource === 'mic' && !!analysisEngine
+      const hasFreshFrame = !!latestFrame && now - latestFrame.timestamp < 1200
       const rawLevel = latestFrame
         ? Math.max(latestFrame.rms * 8, latestFrame.voiceConfidence * 0.9)
         : fallbackVoiceLevel
-      const liveLevel = isRunning && inputSource === 'mic'
+      const liveLevel = hasMicAnalyzer
         ? Math.max(0, Math.min(1, rawLevel))
         : 0
-      const activeNow = inputSource === 'mic' && isRunning && (
+      const activeNow = hasMicAnalyzer && hasFreshFrame && (
         latestFrame?.voiceActive ||
         liveLevel > 0.08
       )
@@ -83,6 +86,7 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
         setLiveStats({
           level: liveLevel,
           active: !!activeNow,
+          hasFrames: hasFreshFrame,
           rate: performerState?.syllabicRate ?? 0,
           bright: latestFrame
             ? Math.max(0, Math.min(1, latestFrame.spectralCentroid / 5000))
@@ -164,9 +168,15 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
   if (!open) return null
 
   const monitorLabel = inputSource === 'mic'
-    ? isRunning
-      ? voiceActive ? 'VOICE' : 'WAITING'
-      : 'READY'
+    ? !analysisEngine
+      ? 'CONNECTING'
+      : liveStats.hasFrames
+        ? voiceActive
+          ? 'VOICE'
+          : isRunning
+            ? 'WAITING'
+            : 'MONITORING'
+        : 'NO MIC FRAMES'
     : 'MIC OFF'
 
   return (

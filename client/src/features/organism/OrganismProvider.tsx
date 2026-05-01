@@ -92,6 +92,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [inputSource,  setInputSourceType] = useState<InputSourceType>('autoGenerate')
   const [autoEnergy,   setAutoEnergy]      = useState<'chill' | 'medium' | 'intense'>('medium')
   const [micMonitoringEnabled, setMicMonitoringEnabled] = useState(false)
+  const [inputSourceRevision, setInputSourceRevision] = useState(0)
   const audioFileRef = useRef<File | null>(null)
 
   // Stable refs for values used in callbacks but not needed as deps
@@ -483,6 +484,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     const input = createInputSource(inputSource, audioFileRef.current, autoEnergy)
     inputRef.current = input
+    setInputSourceRevision((revision) => revision + 1)
 
     // input → physics (every frame must reach physics for accurate transitions)
     const unsubPhysics = input.subscribe((frame) => {
@@ -527,6 +529,28 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       lastSyncedBpmRef.current = 0
     }
   }, [userId, inputSource, autoEnergy])
+
+  // Capture Monitor preflight: when the user enables monitoring before starting
+  // the Organism, open the same mic input source so the monitor can prove the
+  // mic is live. start() later reuses this source instead of opening another mic.
+  useEffect(() => {
+    if (!micMonitoringEnabled || inputSource !== 'mic' || isRunning || isStarting) return
+    const input = inputRef.current
+    if (!input) return
+
+    let disposed = false
+    input.start().catch((err) => {
+      if (disposed) return
+      setError(err instanceof Error ? err.message : 'Failed to start mic monitor')
+    })
+
+    return () => {
+      disposed = true
+      if (!startInFlightRef.current && !isRunningRef.current && inputRef.current === input) {
+        input.stop()
+      }
+    }
+  }, [inputSource, inputSourceRevision, isRunning, isStarting, micMonitoringEnabled])
 
   // Apply profile updates to the live physics engine without recreating engines.
   // This prevents the async profile fetch (~2-8s network) from tearing down
@@ -2270,7 +2294,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   ])
 
   const value: OrganismContextValue = useMemo(() => ({
-    analysisEngine:    inputSource === 'mic' ? inputRef.current as unknown as AudioAnalysisEngine : null,
+    analysisEngine:    inputSource === 'mic' && inputRef.current && 'getStream' in inputRef.current
+      ? inputRef.current as unknown as AudioAnalysisEngine
+      : null,
     physicsEngine:     physicsRef.current,
     stateMachine:      stateMachRef.current,
     orchestrator:      orchestrRef.current,
@@ -2450,7 +2476,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     dropDetectorEnabled, lastDropIntensity,
     vibeMatchEnabled, currentVibe,
     lastReport, generateReport,
-    inputSource, handleSetInputSource, autoEnergy, micMonitoringEnabled,
+    inputSource, inputSourceRevision, handleSetInputSource, autoEnergy, micMonitoringEnabled,
     transcription, transcriptionEnabled,
     isRecording, startRecording, stopRecording,
     lastSavedSession, savedSessions, downloadSession,
