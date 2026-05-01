@@ -601,7 +601,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       reportCardLastLineIndexRef.current = -1
       await inputRef.current.start()
       await orchestrRef.current.start()
-      useStudioStore.getState().play() // Sync global transport
       primeAutoGenerateStart()
       setIsRunning(true)
 
@@ -652,7 +651,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
     orchestrRef.current?.stop()
-    useStudioStore.getState().stop() // Sync global transport
     transcriberRef.current?.stop()
     // Clear state floor so the machine fully resets on the next start()
     stateMachRef.current?.setStateFloor(null)
@@ -770,8 +768,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // 2. Start the input source (mic, auto, etc.)
       await inputRef.current.start()
 
-      // 3. Start the Transport at the preset's BPM + sync studio store so
-      //    the performer BPM subscriber doesn't immediately override it back
+      // 3. Start the Organism Transport at the preset's BPM + sync BPM only.
+      //    Do not set the global studio play state; arrangement/piano-roll
+      //    playheads follow that state and should remain independent.
       await orchestrRef.current.start(preset.bpm)
       useStudioStore.getState().setBpm(preset.bpm)
       orgLog('quickstart:audio-check', {
@@ -825,7 +824,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       //     from the wire() transition callback, which can miss the first bar.
       orchestrRef.current.regenerateAll()
 
-      useStudioStore.getState().play() // Sync global transport
       setIsRunning(true)
 
       // 6. Start transcription if enabled
@@ -958,11 +956,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestr.forceSubGenre(params.subGenre as HipHopSubGenre)
       orchestr.regenerateAll()
       
-      // Force global transport to play if we just cold-started
-      if (!useStudioStore.getState().isPlaying) {
-        useStudioStore.getState().play()
-      }
-
       orgLog('interpretVibe:applied', {
         bpm: params.bpm, mode, subGenre: params.subGenre,
         confidence: params.confidence,
