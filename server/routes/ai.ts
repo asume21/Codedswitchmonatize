@@ -163,57 +163,6 @@ export function createAIRoutes() {
     }
   });
 
-  // Get available AI providers
-  router.get("/ai-providers", requireAuth(), async (req: Request, res: Response) => {
-    try {
-      const providers = aiProviderManager.getAvailableProviders();
-      const authenticated = aiProviderManager.getAuthenticatedProviders();
-      
-      res.json({
-        status: 'success',
-        providers: providers,
-        authenticated: authenticated.map(p => p.name),
-        message: 'Available AI providers'
-      });
-    } catch (error) {
-      console.error('❌ Error fetching providers:', error);
-      res.status(500).json({ success: false, message: "Failed to fetch AI providers" });
-    }
-  });
-
-  // Set user's AI provider preference
-  router.post("/ai-provider/set", requireAuth(), async (req: Request, res: Response) => {
-    try {
-      const { feature, provider } = req.body;
-      
-      if (!feature || !provider) {
-        return res.status(400).json({ success: false, message: "Missing feature or provider" });
-      }
-
-      // Validate provider exists
-      if (!aiProviderManager.getAvailableProviders().find(p => p.name === provider)) {
-        return res.status(400).json({ success: false, message: "Invalid provider" });
-      }
-
-      // Check if provider is authenticated
-      if (!aiProviderManager.isAuthenticated(provider)) {
-        return res.status(401).json({ success: false, message: `Provider ${provider} is not authenticated` });
-      }
-
-      aiProviderManager.setProvider(feature, provider);
-      
-      res.json({
-        status: 'success',
-        message: `AI provider set to ${provider} for ${feature}`,
-        feature: feature,
-        provider: provider
-      });
-    } catch (error) {
-      console.error('❌ Error setting provider:', error);
-      res.status(500).json({ success: false, message: "Failed to set AI provider" });
-    }
-  });
-
   // Comprehensive AI status — tells the frontend exactly what's working
   router.get("/status", requireAuth(), async (_req: Request, res: Response) => {
     try {
@@ -296,23 +245,6 @@ export function createAIRoutes() {
     } catch (error: any) {
       console.error('AI status check error:', error);
       res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Get user's AI provider preference
-  router.get("/ai-provider/:feature", requireAuth(), async (req: Request, res: Response) => {
-    try {
-      const { feature } = req.params;
-      const provider = aiProviderManager.getProvider(feature);
-      
-      res.json({
-        status: 'success',
-        feature: feature,
-        provider: provider
-      });
-    } catch (error) {
-      console.error('❌ Error getting provider:', error);
-      res.status(500).json({ success: false, message: "Failed to get AI provider" });
     }
   });
 

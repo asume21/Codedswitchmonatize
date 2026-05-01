@@ -323,9 +323,28 @@ async function doLocalCapture(captureId: string, durationMs: number): Promise<vo
   isCapturing = false
 }
 
+export function disposeAudioDebugBridge(): void {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  sseSource?.close()
+  sseSource = null
+  localSseSource?.close()
+  localSseSource = null
+  isConnected = false
+  if (recorder?.state === 'recording') recorder.stop()
+}
+
 export function initAudioDebugBridge(): void {
   connectSSE()
   connectLocalSSE()
+
+  window.addEventListener('beforeunload', disposeAudioDebugBridge, { once: true })
+
+  if (import.meta.hot) {
+    import.meta.hot.dispose(disposeAudioDebugBridge)
+  }
 
   window.__audioDebug = {
     startCapture: async (durationMs = 3000) => {
