@@ -467,8 +467,12 @@ export class DrumGenerator extends GeneratorBase {
       synth.triggerAttackRelease(duration, t, velocity)
     } catch (err) {
       if (err instanceof Error && err.message.includes('Start time must be strictly greater')) {
-        const retry = this.clampTime(voice, Tone.now() + 0.01)
-        synth.triggerAttackRelease(duration, retry, velocity)
+        console.warn('[Organism] dropped drum noise hit with invalid schedule time', {
+          voice,
+          requestedTime: time,
+          clampedTime: t,
+          now: Tone.now(),
+        })
         return
       }
       throw err

@@ -600,9 +600,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       cadenceLastLineIndexRef.current   = -1
       reportCardLastLineIndexRef.current = -1
       await inputRef.current.start()
-      await orchestrRef.current.start()
+      await orchestrRef.current.start(undefined, false)
       primeAutoGenerateStart()
-      setIsRunning(true)
 
       // Fast-boot: skip the Dormant wait, start playing immediately from bar 1.
       // Set a floor of Breathing so a quiet mic can't regress to Dormant mid-session.
@@ -631,6 +630,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         stateMachRef.current.setStateFloor(OState.Breathing)
         orchestrRef.current.regenerateAll()
       }
+
+      await orchestrRef.current.start()
+      setIsRunning(true)
 
       // Start self-listen after audio is running
       selfListenRef.current?.start()
@@ -768,10 +770,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // 2. Start the input source (mic, auto, etc.)
       await inputRef.current.start()
 
-      // 3. Start the Organism Transport at the preset's BPM + sync BPM only.
+      // 3. Prepare Organism audio at the preset BPM, but do not start the
+      //    clock until after the initial patterns are built. Starting first
+      //    makes Tone.Part rebuilds miss the first grid and bunch into crackle.
       //    Do not set the global studio play state; arrangement/piano-roll
       //    playheads follow that state and should remain independent.
-      await orchestrRef.current.start(preset.bpm)
+      await orchestrRef.current.start(preset.bpm, false)
       useStudioStore.getState().setBpm(preset.bpm)
       orgLog('quickstart:audio-check', {
         ctxState:       Tone.getContext().state,
@@ -824,6 +828,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       //     from the wire() transition callback, which can miss the first bar.
       orchestrRef.current.regenerateAll()
 
+      await orchestrRef.current.start(preset.bpm)
       setIsRunning(true)
 
       // 6. Start transcription if enabled

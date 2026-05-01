@@ -219,9 +219,9 @@ export class GeneratorOrchestrator {
     console.log('[Organism] wire() complete — all subscriptions attached')
   }
 
-  async start(bpm?: number): Promise<void> {
+  async start(bpm?: number, startTransport: boolean = true): Promise<void> {
     const dest = Tone.getDestination()
-    console.log('[Organism] start() called', { alreadyRunning: this.running, destVol: dest.volume.value, ctxState: Tone.getContext().state })
+    console.log('[Organism] start() called', { alreadyRunning: this.running, startTransport, destVol: dest.volume.value, ctxState: Tone.getContext().state })
     // Always ensure destination is audible — a previous start() that mutes then
     // loses its ramp (StrictMode remount, start/stop thrash) must not leave the
     // global destination at -Infinity and silence the whole app.
@@ -252,9 +252,14 @@ export class GeneratorOrchestrator {
       transport.bpm.value = bpm
     }
 
-    // Do NOT call Transport.start() — TransportContext owns the Transport
-    // lifecycle. If Transport isn't running yet (organism started before
-    // studio play), start it; but never stop it from here.
+    if (!startTransport) {
+      console.log('[Organism] audio prepared', { destVol: dest.volume.value, transportState: transport.state, bpm: transport.bpm.value, ctxState: Tone.getContext().state })
+      return
+    }
+
+    // Organism owns Tone.Transport only for its own live generator clock. It
+    // must start after the initial parts are built, otherwise rebuilt parts can
+    // miss the first grid and bunch events into the next audible tick.
     if (transport.state !== 'started') {
       transport.start()
     }
