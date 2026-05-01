@@ -25,6 +25,66 @@ const BAR_COLORS: Record<string, string> = {
   Density:  '#f87171',
 }
 
+const CHANNEL_ORDER = ['drum', 'bass', 'melody', 'texture', 'chord']
+
+function dbToPct(db: number): number {
+  if (!Number.isFinite(db)) return 0
+  return Math.max(0, Math.min(100, ((db + 60) / 60) * 100))
+}
+
+function LevelMeter({ label, db, compact = false }: {
+  label: string
+  db: number
+  compact?: boolean
+}) {
+  const pct = dbToPct(db)
+  const meterColor = pct > 85 ? '#ef4444' : pct > 60 ? '#fbbf24' : '#22d3ee'
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: compact ? '52px 1fr 38px' : '64px 1fr 44px',
+      alignItems: 'center',
+      gap: 8,
+      minWidth: 0,
+    }}>
+      <span style={{
+        fontSize: 10,
+        color: 'var(--color-text-tertiary)',
+        textTransform: 'capitalize',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}>
+        {label}
+      </span>
+      <div style={{
+        height: compact ? 7 : 8,
+        background: 'rgba(255,255,255,0.06)',
+        borderRadius: 4,
+        overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.08)',
+      }}>
+        <div style={{
+          height: '100%',
+          width: `${pct}%`,
+          background: `linear-gradient(90deg, ${meterColor}cc, ${meterColor})`,
+          borderRadius: 4,
+          transition: 'width 160ms linear',
+          boxShadow: `0 0 6px ${meterColor}30`,
+        }} />
+      </div>
+      <span style={{
+        fontSize: 10,
+        textAlign: 'right',
+        color: 'var(--color-text-tertiary)',
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        {db === -Infinity ? '-inf' : db.toFixed(1)}
+      </span>
+    </div>
+  )
+}
+
 function PhysicsBar({ label, value, max = 1 }: {
   label: string, value: number, max?: number
 }) {
@@ -161,52 +221,32 @@ export function OrganismVisualizer() {
 
       {/* Meter */}
       {meterReading && (
-        <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', paddingTop: 12 }}>
+        <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', paddingTop: 10 }}>
           <div style={{
             fontSize: 11, fontWeight: 600, color: 'var(--color-text-tertiary)',
-            marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+            marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' as const,
           }}>
             Levels
           </div>
-          {Object.entries(meterReading.channels).map(([name, ch]) => {
-            const pct = Math.max(0, Math.min(100, (ch.rmsDb + 60) / 60 * 100))
-            const meterColor = pct > 85 ? '#ef4444' : pct > 60 ? '#fbbf24' : '#22d3ee'
-            return (
-              <div key={name} style={{
-                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
-              }}>
-                <span style={{
-                  width: 56, fontSize: 11,
-                  color: 'var(--color-text-tertiary)',
-                  textTransform: 'capitalize',
-                }}>
-                  {name}
-                </span>
-                <div style={{
-                  flex: 1, height: 8,
-                  background: 'rgba(255,255,255,0.06)',
-                  borderRadius: 4, overflow: 'hidden',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                }}>
-                  <div style={{
-                    height: '100%',
-                    width: `${pct}%`,
-                    background: `linear-gradient(90deg, ${meterColor}cc, ${meterColor})`,
-                    borderRadius: 4,
-                    transition: 'width 100ms linear',
-                    boxShadow: `0 0 6px ${meterColor}30`,
-                  }} />
-                </div>
-                <span style={{
-                  width: 40, fontSize: 11, textAlign: 'right',
-                  color: 'var(--color-text-tertiary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}>
-                  {ch.rmsDb === -Infinity ? '–∞' : ch.rmsDb.toFixed(1)}
-                </span>
-              </div>
-            )
-          })}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: '7px 14px',
+            marginBottom: 8,
+          }}>
+            {CHANNEL_ORDER.map((name) => {
+              const channel = meterReading.channels[name]
+              return (
+                <LevelMeter
+                  key={name}
+                  label={name}
+                  db={channel?.rmsDb ?? -Infinity}
+                  compact
+                />
+              )
+            })}
+          </div>
+          <LevelMeter label="master" db={meterReading.masterRmsDb} />
         </div>
       )}
     </div>

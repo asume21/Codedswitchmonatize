@@ -473,7 +473,7 @@ export function OrganismCommandCenter() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 96, boxSizing: 'border-box' }}>
         {/* Guest nudge moved inside scrollable area */}
         {isGuestNudgeVisible && (
           <div style={{
@@ -585,18 +585,17 @@ export function OrganismCommandCenter() {
 
       {/* ── Main grid: left (voice + styles) | right (beat shape + tweaks) ─ */}
       <div style={{
-        flex: 1, overflow: 'hidden',
+        flex: 1,
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gridTemplateRows: '1fr',
-        gap: 0,
+        gridTemplateColumns: 'minmax(440px, 1fr) minmax(360px, 1fr)',
+        gap: 20,
+        alignItems: 'start',
       }}>
 
         {/* ── LEFT: Voice command + Style picker + Visualizer ─────────── */}
         <div style={{
-          borderRight: `0.5px solid ${C.border}`,
           display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
+          minWidth: 0,
         }}>
 
           {/* Voice command */}
@@ -848,7 +847,7 @@ export function OrganismCommandCenter() {
         {/* ── RIGHT: controls ─────────────────────────────────────────── */}
         <div style={{
           display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
+          minWidth: 0,
         }}>
 
           {/* ── Pinned transport bar — always visible ─────────────────── */}
