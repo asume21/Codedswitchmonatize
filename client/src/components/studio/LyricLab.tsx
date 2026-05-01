@@ -257,7 +257,7 @@ export default function LyricLab() {
       setContent(currentLyrics);
       studioSession.setLyrics(currentLyrics);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []); // Run only on mount
 
   // Pick up transcribed lyrics pushed into store from SongUploader
@@ -271,7 +271,7 @@ export default function LyricLab() {
       } catch { /* ignore */ }
     }
     // Only react to external changes in currentLyrics, not our own edits
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentLyrics]);
 
   // Update studio context and localStorage whenever lyrics content changes

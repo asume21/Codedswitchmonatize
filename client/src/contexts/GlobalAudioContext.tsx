@@ -1,4 +1,5 @@
 import { createContext, useContext, useRef, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { getAudioContext as getSharedAudioContext, resumeAudioContext } from '@/lib/audioContext';
 
 interface AudioSource {
   id: string;
@@ -58,6 +59,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   const startTimeRef = useRef<number>(0);
   const pauseTimeRef = useRef<number>(0);
   const decodedBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const playEpochRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -67,20 +69,14 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   const [playlist, setPlaylist] = useState<AudioSource[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
 
-  const getAudioContext = useCallback(() => {
+  const getGlobalAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
-      const AudioContextConstructor =
-        window.AudioContext ||
-        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioContextConstructor) {
-        throw new Error('Web Audio API not supported in this browser');
-      }
-      audioContextRef.current = new AudioContextConstructor();
+      audioContextRef.current = getSharedAudioContext();
       masterGainRef.current = audioContextRef.current.createGain();
       masterGainRef.current.connect(audioContextRef.current.destination);
     }
     if (audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
+      void resumeAudioContext();
     }
     return audioContextRef.current;
   }, []);
@@ -123,41 +119,47 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   );
 
   const play = useCallback(() => {
-    const ctx = getAudioContext();
-    const buffer = audioBufferRef.current;
-    if (!buffer || !masterGainRef.current) return;
+    const epoch = ++playEpochRef.current;
+    void (async () => {
+      await resumeAudioContext();
+      if (epoch !== playEpochRef.current) return;
+      const ctx = getGlobalAudioContext();
+      const buffer = audioBufferRef.current;
+      if (!buffer || !masterGainRef.current) return;
 
-    // Stop other players globally before starting
-    window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+      // Stop other players globally before starting
+      window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
 
-    if (sourceNodeRef.current) {
-      try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
-      try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
-      sourceNodeRef.current = null;
-    }
-
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(masterGainRef.current);
-    const offset = pauseTimeRef.current % buffer.duration;
-    source.start(0, offset);
-    startTimeRef.current = ctx.currentTime;
-    sourceNodeRef.current = source;
-    setIsPlaying(true);
-
-    source.onended = () => {
-      setIsPlaying(false);
-      if (currentIndex >= 0 && currentIndex < playlist.length - 1) {
-        setTimeout(() => next(), 10);
-      } else {
-        pauseTimeRef.current = 0;
-        setCurrentTime(0);
+      if (sourceNodeRef.current) {
+        try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
+        try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
+        sourceNodeRef.current = null;
       }
-    };
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(masterGainRef.current);
+      const offset = pauseTimeRef.current % buffer.duration;
+      source.start(0, offset);
+      startTimeRef.current = ctx.currentTime;
+      sourceNodeRef.current = source;
+      setIsPlaying(true);
+
+      source.onended = () => {
+        setIsPlaying(false);
+        if (currentIndex >= 0 && currentIndex < playlist.length - 1) {
+          setTimeout(() => next(), 10);
+        } else {
+          pauseTimeRef.current = 0;
+          setCurrentTime(0);
+        }
+      };
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, getAudioContext, playlist.length]);
+  }, [currentIndex, getGlobalAudioContext, playlist.length]);
 
   const pause = useCallback(() => {
+    playEpochRef.current++;
     if (sourceNodeRef.current && isPlaying) {
       try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
       try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
@@ -171,6 +173,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   }, [isPlaying]);
 
   const stop = useCallback(() => {
+    playEpochRef.current++;
     if (sourceNodeRef.current) {
       try { sourceNodeRef.current.stop(); } catch { /* ignore */ }
       try { sourceNodeRef.current.disconnect(); } catch { /* ignore */ }
@@ -229,7 +232,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       } else if (target.url) {
         void (async () => {
           try {
-            const ctx = getAudioContext();
+            const ctx = getGlobalAudioContext();
             const cacheKey = target.url!;
             let buf = decodedBufferCacheRef.current.get(cacheKey);
             if (!buf) {
@@ -255,7 +258,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
         })();
       }
     },
-    [getAudioContext, playlist, setSourceFromBuffer],
+    [getGlobalAudioContext, playlist, setSourceFromBuffer],
   );
 
   const next = useCallback(() => {
@@ -277,17 +280,17 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
   }, [currentIndex, jumpToIndex, seek]);
 
   const loadAudioFile = useCallback(async (file: File) => {
-    const ctx = getAudioContext();
+    const ctx = getGlobalAudioContext();
     const arrayBuffer = await file.arrayBuffer();
     const buffer = await ctx.decodeAudioData(arrayBuffer);
     const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: file.name };
     setPlaylist([src]);
     setCurrentIndex(0);
     setSourceFromBuffer(buffer, src, false);
-  }, [getAudioContext, setSourceFromBuffer]);
+  }, [getGlobalAudioContext, setSourceFromBuffer]);
 
   const loadAudioUrl = useCallback(async (url: string, name?: string) => {
-    const ctx = getAudioContext();
+    const ctx = getGlobalAudioContext();
     
     try {
       const response = await fetch(url);
@@ -320,19 +323,19 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       console.error('❌ Failed to load audio:', err);
       throw new Error(`Unable to load audio file: ${err.message || 'Invalid or corrupted audio data'}`);
     }
-  }, [getAudioContext, setSourceFromBuffer]);
+  }, [getGlobalAudioContext, setSourceFromBuffer]);
 
   const loadAudioBuffer = useCallback((buffer: AudioBuffer, name?: string) => {
-    const ctx = getAudioContext();
+    getGlobalAudioContext();
     const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: name || 'Buffer' };
     setPlaylist([src]);
     setCurrentIndex(0);
     setSourceFromBuffer(buffer, src, false);
-    ctx.resume();
-  }, [getAudioContext, setSourceFromBuffer]);
+    void resumeAudioContext();
+  }, [getGlobalAudioContext, setSourceFromBuffer]);
 
   const addToPlaylistUrl = useCallback(async (url: string, name?: string, autoplay = false) => {
-    const ctx = getAudioContext();
+    const ctx = getGlobalAudioContext();
     
     try {
       const response = await fetch(url);
@@ -368,10 +371,10 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       console.error('❌ Failed to add audio to playlist:', err);
       throw new Error(`Unable to load audio file: ${err.message || 'Invalid or corrupted audio data'}`);
     }
-  }, [getAudioContext, setSourceFromBuffer]);
+  }, [getGlobalAudioContext, setSourceFromBuffer]);
 
   const addToPlaylistBuffer = useCallback((buffer: AudioBuffer, name?: string, autoplay = false) => {
-    const ctx = getAudioContext();
+    getGlobalAudioContext();
     const src: AudioSource = { id: crypto.randomUUID(), type: 'buffer', buffer, name: name || 'Buffer' };
     setPlaylist(prev => {
       const nextList = [...prev, src];
@@ -382,8 +385,8 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       }
       return nextList;
     });
-    ctx.resume();
-  }, [getAudioContext, setSourceFromBuffer]);
+    void resumeAudioContext();
+  }, [getGlobalAudioContext, setSourceFromBuffer]);
 
   useEffect(() => {
     const handleVolumeChange = (event: Event) => {
@@ -423,7 +426,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       (async () => {
         try {
           const audioEl = e.detail.element;
-          const ctx = getAudioContext();
+          const ctx = getGlobalAudioContext();
           const response = await fetch(audioEl.src);
           if (!response.ok) {
             console.warn(`⚠️ Audio element fetch failed (${response.status}) for: ${audioEl.src}`);
@@ -466,7 +469,7 @@ export function GlobalAudioProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('globalAudio:prev', handlePrev);
       window.removeEventListener('globalAudio:setElement', handleSetElement);
     };
-  }, [addToPlaylistUrl, getAudioContext, loadAudioUrl, next, pause, play, previous, setVolume, stop, setSourceFromBuffer]);
+  }, [addToPlaylistUrl, getGlobalAudioContext, loadAudioUrl, next, pause, play, previous, setVolume, stop, setSourceFromBuffer]);
 
   return (
     <GlobalAudioContext.Provider

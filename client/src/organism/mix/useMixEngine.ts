@@ -32,7 +32,7 @@ export function useMixEngine(
       unsubMeter()
       mixRef.current?.dispose()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [orchestrator])
 
   return { mixEngine: mixRef.current, meterReading }

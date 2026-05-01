@@ -127,10 +127,15 @@ export interface OrganismContextValue {
   latchMode:    boolean
   setLatchMode: (enabled: boolean) => void
 
-  // Pattern lock — freeze the current drum groove so it loops unchanged
+  // Pattern lock / Story Mode — freeze the current drum groove so it loops unchanged
   isPatternLocked:  boolean
   lockPattern:      () => void
   unlockPattern:    () => void
+  setGrooveLocked:  (locked: boolean) => void
+  // Story Mode toggle: combined unlock+groove-unlock or lock+groove-lock.
+  // Use this from UI rather than calling lock/unlock + setGrooveLocked
+  // separately (the audit flagged three near-identical copies of this logic).
+  toggleStoryMode:  () => void
 
   // Tweak controls (active even when locked)
   hatDensity:         number   // 0–2, default 1

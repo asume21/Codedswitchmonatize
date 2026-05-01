@@ -86,9 +86,16 @@ export function requireCredits(cost: number, storage: IStorage) {
 }
 
 /**
- * Middleware to deduct credits after successful operation
- * Should be called AFTER the operation succeeds
- * Usage: Call manually in success handler or use deductCreditsOnSuccess middleware
+ * Middleware to deduct credits after a successful operation.
+ * Call AFTER the operation succeeds, BEFORE sending the response.
+ *
+ * M-H3: this helper now throws on failure instead of silently swallowing.
+ * The previous behavior ("operation already succeeded, just log") meant a
+ * transient DB blip would award the user a free generation — silently. With
+ * the throw, the route's normal error handler turns it into a 500, the user
+ * doesn't get the response, and a retry deducts correctly. Choosing
+ * "occasional 500 on a DB blip" over "silent free credits" is the right
+ * tradeoff for revenue paths.
  */
 export async function deductCredits(
   req: Request,
@@ -101,21 +108,15 @@ export async function deductCredits(
   }
 
   if (!req.userId || !req.creditCost || !req.creditService) {
-    console.warn('⚠️ Attempted to deduct credits without proper setup');
-    return;
+    throw new Error('Credit deduction attempted without proper setup (missing userId/creditCost/creditService)');
   }
 
-  try {
-    await req.creditService.deductCredits(
-      req.userId,
-      req.creditCost,
-      reason,
-      metadata
-    );
-  } catch (error) {
-    console.error('❌ Failed to deduct credits:', error);
-    // Don't throw - operation already succeeded, just log the error
-  }
+  await req.creditService.deductCredits(
+    req.userId,
+    req.creditCost,
+    reason,
+    metadata
+  );
 }
 
 // Note: Request type extensions are defined in server/types/express.d.ts

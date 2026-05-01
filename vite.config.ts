@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import fs from "fs";
 
 export default defineConfig({
   root: './client',
@@ -45,7 +46,37 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@babel/plugin-transform-react-jsx']
+    include: ['@babel/plugin-transform-react-jsx'],
+    // Audit 2026-04-30 fix: Vite's pre-bundle dep-scanner runs in esbuild
+    // and doesn't see Vite's resolve.alias. When it hits `@shared/creditCosts`
+    // it treats `@shared` as an npm scope and fails to find it, logging:
+    //   (!) Failed to run dependency scan. Skipping dependency pre-bundling.
+    // Teach the scanner the same alias so it can resolve local source paths.
+    esbuildOptions: {
+      plugins: [
+        {
+          name: 'resolve-shared-alias',
+          setup(build) {
+            build.onResolve({ filter: /^@shared\// }, (args) => {
+              const rel = args.path.replace(/^@shared\//, '');
+              const base = path.resolve(__dirname, 'shared', rel);
+              for (const candidate of [
+                base,
+                `${base}.ts`,
+                `${base}.tsx`,
+                path.join(base, 'index.ts'),
+                path.join(base, 'index.tsx'),
+              ]) {
+                if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                  return { path: candidate };
+                }
+              }
+              return null;
+            });
+          },
+        },
+      ],
+    },
   },
   build: {
     rollupOptions: {

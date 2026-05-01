@@ -21,8 +21,10 @@ export function OrganismControls() {
     callResponseEnabled,   setCallResponseEnabled,   callResponsePhase,
     dropDetectorEnabled,   setDropDetectorEnabled,   lastDropIntensity,
     vibeMatchEnabled,      setVibeMatchEnabled,       currentVibe,
-    isPatternLocked,       lockPattern,               unlockPattern,
+    isPatternLocked,       toggleStoryMode,
   } = useOrganism()
+
+  const isStoryMode = isPatternLocked
 
   const hasLyrics = (transcription?.lines.length ?? 0) > 0
 
@@ -298,14 +300,14 @@ export function OrganismControls() {
           )}
         </button>
 
-        {/* Pattern Lock */}
+        {/* Story Mode */}
         <button
-          onClick={isPatternLocked ? unlockPattern : lockPattern}
-          style={pill(isPatternLocked, '#f472b6')}
-          title={isPatternLocked ? 'Pattern locked — click to unlock and let it evolve again' : 'Lock the current drum groove so it loops unchanged'}
+          onClick={toggleStoryMode}
+          style={pill(isStoryMode, '#f472b6')}
+          title={isStoryMode ? 'Story Mode ACTIVE — groove is frozen. Click to unlock.' : 'Story Mode — freeze the current rhythm so it evolves without changing the core beat.'}
         >
-          {isPatternLocked ? '🔒' : '🔓'} Pattern
-          {isPatternLocked && <span style={{ fontSize: 10, opacity: 0.8 }}>Locked</span>}
+          {isStoryMode ? '🔒 STORY' : '🔓 STORY'}
+          {isStoryMode && <span style={{ fontSize: 10, opacity: 0.8 }}>Active</span>}
         </button>
       </div>
     </div>

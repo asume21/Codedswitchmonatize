@@ -32,7 +32,7 @@ export type RouteName = keyof typeof routes;
  * Studio Router Hook
  */
 export function useStudioRouter() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { createSession, currentSession } = useSongWorkSession();
 
   /**
@@ -85,7 +85,6 @@ export function useStudioRouter() {
    * Get current route name
    */
   const getCurrentRoute = (): RouteName | null => {
-    const [location] = useLocation();
     const path = location.split('?')[0];
     
     for (const [name, routePath] of Object.entries(routes)) {
@@ -101,7 +100,6 @@ export function useStudioRouter() {
    * Get session ID from current URL
    */
   const getSessionFromUrl = (): string | null => {
-    const [location] = useLocation();
     const params = new URLSearchParams(location.split('?')[1]);
     return params.get('session');
   };

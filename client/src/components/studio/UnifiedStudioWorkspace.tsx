@@ -962,7 +962,7 @@ export default function UnifiedStudioWorkspace() {
     } catch {
       // ignore
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
   const { isPro, requirePro, startUpgrade } = useLicenseGate();
   const [showLicenseModal, setShowLicenseModal] = useState(false);
@@ -2380,7 +2380,7 @@ export default function UnifiedStudioWorkspace() {
     } catch {
       // ignore corrupted autosave payloads
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const handleNewProject = () => {

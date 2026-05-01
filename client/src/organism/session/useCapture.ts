@@ -48,7 +48,7 @@ export function useCapture(
       unsubCapture()
       engineRef.current?.reset()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [physicsEngine, stateMachine, userId])
 
   const capture = useCallback(async (): Promise<SessionDNA | null> => {

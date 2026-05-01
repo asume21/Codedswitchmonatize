@@ -14,6 +14,11 @@ const SUCCESS_URL =
   process.env.STRIPE_SUCCESS_URL || `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
 const CANCEL_URL = process.env.STRIPE_CANCEL_URL || `${APP_URL}/billing/cancel`;
 
+// M-M2: Single source of truth for the Stripe API version. Previously this
+// string was duplicated in services/stripe.ts and routes/credits.ts; an upgrade
+// to one would silently leave the other on a stale version.
+export const STRIPE_API_VERSION = "2025-08-27.basil" as const;
+
 function deriveTier(status?: string | null) {
   return status === "active" || status === "trialing" ? "pro" : "free";
 }
@@ -27,12 +32,13 @@ function normalizeTier(raw?: unknown): string | undefined {
   return undefined;
 }
 
-function getStripe(): Stripe {
-  if (!STRIPE_SECRET_KEY) {
+export function getStripe(): Stripe {
+  const secretKey = process.env.STRIPE_SECRET_KEY || "";
+  if (!secretKey) {
     throw new Error("STRIPE_SECRET_KEY is not set");
   }
-  return new Stripe(STRIPE_SECRET_KEY, {
-    apiVersion: "2025-08-27.basil",
+  return new Stripe(secretKey, {
+    apiVersion: STRIPE_API_VERSION,
   });
 }
 
@@ -74,12 +80,49 @@ export async function handleStripeWebhook(
   signature: string | string[] | undefined,
 ) {
   const stripe = getStripe();
-  if (!STRIPE_WEBHOOK_SECRET) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+  if (!webhookSecret) {
     throw new Error("STRIPE_WEBHOOK_SECRET is not set");
   }
   const sig = Array.isArray(signature) ? signature[0] : signature || "";
 
-  const event = stripe.webhooks.constructEvent(payload, sig, STRIPE_WEBHOOK_SECRET);
+  const event = Stripe.webhooks.constructEvent(payload, sig, webhookSecret);
+
+  // M-C2 / M-H4: every handled branch claims the event up-front via the unique
+  // index on processed_stripe_events. If claim returns false, the event was
+  // already processed (Stripe retry, manual replay, race) and we no-op.
+  // Helper closure keeps the signature compact at call sites.
+  async function claimEvent(extra: { userId?: string; paymentIntentId?: string } = {}): Promise<boolean> {
+    return storage.tryClaimStripeEvent({
+      eventId: event.id,
+      eventType: event.type,
+      userId: extra.userId,
+      paymentIntentId: extra.paymentIntentId,
+      processedAt: new Date(),
+    });
+  }
+
+  // Audit 2026-04-30: claim + execute + release-on-failure. Without the
+  // release, a throw inside `work()` leaves the claim row committed so
+  // Stripe's retry sees a "processed" row and skips — the user permanently
+  // loses the credit grant or subscription update. Releasing on failure
+  // lets the retry try again with a fresh claim.
+  async function withClaim(
+    extra: { userId?: string; paymentIntentId?: string } | undefined,
+    work: () => Promise<void>,
+  ): Promise<{ claimed: boolean }> {
+    if (!(await claimEvent(extra))) {
+      console.log(`⚡ Skipping duplicate ${event.type} ${event.id}`);
+      return { claimed: false };
+    }
+    try {
+      await work();
+      return { claimed: true };
+    } catch (err) {
+      await storage.releaseStripeEvent(event.id);
+      throw err;
+    }
+  }
 
   switch (event.type) {
     case "checkout.session.completed": {
@@ -92,11 +135,13 @@ export async function handleStripeWebhook(
         throw new Error("Missing customer on checkout session");
       }
 
-      // Try to locate by metadata userId or fallback to customerId
       if (!userId && customerId) {
         const user = await storage.getUserByStripeCustomerId(customerId);
         userId = user?.id;
       }
+
+      const paymentIntentId =
+        typeof session.payment_intent === "string" ? session.payment_intent : undefined;
 
       const subscriptionResponse =
         subscriptionId && subscriptionId.length > 0
@@ -116,7 +161,6 @@ export async function handleStripeWebhook(
       if (session.mode === "payment" && userId) {
         const packageKey = session.metadata?.packageKey as keyof typeof CREDIT_PACKAGES;
         const credits = parseInt(session.metadata?.credits || "0");
-        const paymentIntentId = session.payment_intent as string;
 
         if (!packageKey || !credits || !paymentIntentId) {
           throw new Error(
@@ -126,58 +170,49 @@ export async function handleStripeWebhook(
           );
         }
 
-        const recent = await storage.getCreditTransactions(userId, 200, 0);
-        const alreadyProcessed = recent.some((t: any) => {
-          const meta = (t as any)?.metadata;
-          // Check both stripeEventId (primary) and paymentIntentId (fallback)
-          return meta && (meta.stripeEventId === event.id || meta.paymentIntentId === paymentIntentId);
-        });
-
-        if (!alreadyProcessed) {
+        await withClaim({ userId, paymentIntentId }, async () => {
           const creditService = getCreditService(storage);
           await creditService.purchaseCredits(userId, packageKey, paymentIntentId);
           console.log(
-            `?? Credits purchased via webhook: User ${userId}, +${credits} credits (${packageKey})`,
+            `💳 Credits purchased via webhook: User ${userId}, +${credits} credits (${packageKey})`,
           );
-        }
+        });
       }
 
       // Handle subscription checkouts
       if (userId && customerId && subscriptionId) {
-        await storage.upsertUserSubscription({
-          userId,
-          stripeCustomerId: customerId,
-          stripeSubscriptionId: subscriptionId,
-          status,
-          currentPeriodEnd,
-        });
+        await withClaim({ userId, paymentIntentId }, async () => {
+          await storage.upsertUserSubscription({
+            userId,
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: subscriptionId,
+            status,
+            currentPeriodEnd,
+          });
 
-        const tier = metadataTier || deriveTier(status);
+          const tier = metadataTier || deriveTier(status);
+          const activationKey = generateActivationKey("pro");
 
-        // Generate activation key for new pro subscribers
-        const activationKey = generateActivationKey("pro");
+          await storage.updateUserStripeInfo(userId, {
+            customerId,
+            subscriptionId,
+            status,
+            tier,
+          });
+          await storage.setUserActivationKey(userId, activationKey);
 
-        // Update user with Stripe info AND activation key
-        await storage.updateUserStripeInfo(userId, {
-          customerId,
-          subscriptionId,
-          status,
-          tier,
-        });
-        await storage.setUserActivationKey(userId, activationKey);
-        
-        // Send activation key email to user
-        const user = await storage.getUser(userId);
-        if (user?.email) {
-          const emailSent = await sendActivationKeyEmail(user.email, activationKey, user.username || undefined);
-          if (emailSent) {
-            console.log(`Activation key email sent successfully to user ${userId}`);
+          const user = await storage.getUser(userId);
+          if (user?.email) {
+            const emailSent = await sendActivationKeyEmail(user.email, activationKey, user.username || undefined);
+            if (emailSent) {
+              console.log(`Activation key email sent successfully to user ${userId}`);
+            } else {
+              console.log(`Activation key generated for user ${userId} but email delivery failed`);
+            }
           } else {
-            console.log(`Activation key generated for user ${userId} but email delivery failed`);
+            console.log(`Activation key generated for user ${userId} (no email on file)`);
           }
-        } else {
-          console.log(`Activation key generated for user ${userId} (no email on file)`);
-        }
+        });
       }
       break;
     }
@@ -212,18 +247,20 @@ export async function handleStripeWebhook(
           (customerId ? (await storage.getUserByStripeCustomerId(customerId))?.id : undefined);
 
         if (userId) {
-          await storage.upsertUserSubscription({
-            userId,
-            stripeCustomerId: customerId,
-            stripeSubscriptionId: subscriptionId,
-            status,
-            currentPeriodEnd,
-          });
-          await storage.updateUserStripeInfo(userId, {
-            customerId: customerId || undefined,
-            subscriptionId,
-            status,
-            tier: metadataTier || deriveTier(status),
+          await withClaim({ userId }, async () => {
+            await storage.upsertUserSubscription({
+              userId,
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: subscriptionId,
+              status,
+              currentPeriodEnd,
+            });
+            await storage.updateUserStripeInfo(userId, {
+              customerId: customerId || undefined,
+              subscriptionId,
+              status,
+              tier: metadataTier || deriveTier(status),
+            });
           });
         }
       }
@@ -240,43 +277,89 @@ export async function handleStripeWebhook(
       const user = await storage.getUserByStripeCustomerId(customerId);
       if (!user) break;
 
-      // Idempotency: skip if we've already processed this exact event
-      const recentTxns = await storage.getCreditTransactions(user.id, 50, 0);
-      const alreadyProcessed = recentTxns.some((t: any) => t?.metadata?.stripeEventId === event.id);
-      if (alreadyProcessed) {
-        console.log(`⚡ Skipping duplicate subscription event ${event.id}`);
-        break;
-      }
-
       const status = sub.status;
       const tier = deriveTier(status);
       const currentPeriodEnd = (sub as any).current_period_end
         ? new Date((sub as any).current_period_end * 1000)
         : null;
-      await storage.upsertUserSubscription({
-        userId: user.id,
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subscriptionId,
-        status,
-        currentPeriodEnd,
+      await withClaim({ userId: user.id }, async () => {
+        await storage.upsertUserSubscription({
+          userId: user.id,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId,
+          status,
+          currentPeriodEnd,
+        });
+        await storage.updateUserStripeInfo(user.id, {
+          customerId,
+          subscriptionId,
+          status,
+          tier,
+        });
       });
-      await storage.updateUserStripeInfo(user.id, {
-        customerId,
-        subscriptionId,
-        status,
-        tier,
+      break;
+    }
+
+    case "charge.refunded":
+    case "charge.dispute.created": {
+      // M-H1: claw back credits granted via the disputed/refunded charge so
+      // refunds and chargebacks don't leave free credits in the user's account.
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId =
+        typeof charge.payment_intent === "string" ? charge.payment_intent : undefined;
+      const customerId = (charge.customer as string) || undefined;
+
+      if (!paymentIntentId) break;
+
+      const user = customerId
+        ? await storage.getUserByStripeCustomerId(customerId)
+        : undefined;
+      if (!user) break;
+
+      // Find the original credit-purchase transaction for this paymentIntent.
+      // Scanning recent history is acceptable here — refunds are rare and we
+      // need only one match. If more rigor is needed later, add an indexed
+      // lookup by metadata->>'paymentIntentId'.
+      const recent = await storage.getCreditTransactions(user.id, 500, 0);
+      const original = recent.find((t: any) => {
+        const meta = (t as any)?.metadata;
+        return meta?.paymentIntentId === paymentIntentId && (t as any).amount > 0;
       });
-      // Log event ID so retries are skipped
-      await storage.logCreditTransaction({
-        id: crypto.randomUUID(),
-        userId: user.id,
-        amount: 0,
-        type: 'subscription_event' as any,
-        reason: `Stripe ${event.type}`,
-        balanceBefore: 0,
-        balanceAfter: 0,
-        metadata: { stripeEventId: event.id },
-        createdAt: new Date(),
+      if (!original) {
+        console.warn(
+          `Refund/dispute received for ${paymentIntentId} but no matching purchase found`,
+        );
+        break;
+      }
+
+      const clawbackAmount = Math.abs((original as any).amount);
+      await withClaim({ userId: user.id, paymentIntentId }, async () => {
+        // Use atomicAddCredits with a negative delta — the same SQL UPDATE that
+        // grants credits is also race-safe for clawback. We deliberately allow
+        // the balance to go negative; the next `requireCredits` check will block
+        // further AI work until the user buys more.
+        const { balanceBefore, balanceAfter } = await storage.atomicAddCredits(
+          user.id,
+          -clawbackAmount,
+        );
+        await storage.logCreditTransaction({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          amount: -clawbackAmount,
+          type: "refund" as any,
+          reason: event.type === "charge.refunded" ? "Stripe refund clawback" : "Stripe dispute clawback",
+          balanceBefore,
+          balanceAfter,
+          metadata: {
+            stripeEventId: event.id,
+            paymentIntentId,
+            originalTransactionId: (original as any).id,
+          },
+          createdAt: new Date(),
+        });
+        console.log(
+          `↩️ Clawed back ${clawbackAmount} credits from user ${user.id} for ${event.type}`,
+        );
       });
       break;
     }

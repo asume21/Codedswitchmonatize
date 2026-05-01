@@ -43,6 +43,8 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     isPatternLocked: false,
     lockPattern: vi.fn(),
     unlockPattern: vi.fn(),
+    setGrooveLocked: vi.fn(),
+    toggleStoryMode: vi.fn(),
     hatDensity: 1,
     kickVelocity: 1,
     bassVolume: 1,

@@ -9,8 +9,14 @@ export default defineConfig({
   plugins: [react()],
 
   resolve: {
+    // Aliases must mirror vite.config.ts. A previous "simplify to barebones"
+    // commit (bbe4899) dropped @shared and @assets here while leaving them in
+    // the dev config — every client import of `@shared/...` then dev-passed
+    // and prod-failed silently until a build hit Railway.
     alias: {
       '@': path.resolve(__dirname, 'client', 'src'),
+      '@shared': path.resolve(__dirname, 'shared'),
+      '@assets': path.resolve(__dirname, 'attached_assets'),
     },
   },
 
@@ -28,8 +34,6 @@ export default defineConfig({
       output: {
         // Manual chunk splitting for better caching
         manualChunks: {
-          // Core React
-          'react-vendor': ['react', 'react-dom'],
           // Audio libraries (heavy)
           'audio-vendor': ['tone', 'soundfont-player'],
           // UI components
@@ -51,7 +55,9 @@ export default defineConfig({
     },
     
     // Chunk size warnings
-    chunkSizeWarningLimit: 500,
+    // This is a DAW-style app with route-level workspaces. Keep warnings for
+    // genuinely oversized chunks without flagging the current audited baseline.
+    chunkSizeWarningLimit: 700,
     
     // Source maps for debugging (optional in prod)
     sourcemap: false,

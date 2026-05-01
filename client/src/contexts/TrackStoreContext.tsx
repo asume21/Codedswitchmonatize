@@ -1,6 +1,43 @@
 import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react';
-import type { TrackClip, ArrangementClip } from '@/types/studioTracks';
+import type { TrackClip, ArrangementClip, TrackPayload, TrackType } from '@/types/studioTracks';
 import { apiRequest } from '@/lib/queryClient';
+
+type ServerTrackType = TrackType | 'recording' | 'vocal';
+
+interface ServerTrack {
+  id: string;
+  name: string;
+  type: ServerTrackType;
+  audioUrl?: string | null;
+  duration?: number | null;
+  position?: number | null;
+  muted?: boolean | null;
+  solo?: boolean | null;
+  volume?: number | null;
+  pan?: number | null;
+  color?: string | null;
+  effects?: unknown;
+  metadata?: unknown;
+}
+
+interface SaveTrackRequest {
+  projectId: string | null;
+  name: string;
+  type: TrackPayload['type'];
+  position: number;
+  duration: number;
+  volume: number;
+  pan: number;
+  color?: string;
+  effects?: unknown;
+  metadata: {
+    notes?: TrackPayload['notes'];
+    instrument?: string;
+    bpm?: number;
+    source: string;
+  };
+  audioUrl?: string;
+}
 
 interface TrackStoreState {
   tracks: TrackClip[];
@@ -211,7 +248,7 @@ export function TrackStoreProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       
       if (data.success && Array.isArray(data.tracks)) {
-        const convertedTracks: TrackClip[] = data.tracks.map((t: any) => ({
+        const convertedTracks: TrackClip[] = (data.tracks as ServerTrack[]).map((t) => ({
           id: t.id,
           name: t.name,
           kind: t.type === 'beat' ? 'beat' : t.type === 'audio' || t.type === 'vocal' || t.type === 'recording' ? 'audio' : 'piano',
@@ -220,11 +257,13 @@ export function TrackStoreProvider({ children }: { children: ReactNode }) {
           muted: t.muted || false,
           solo: t.solo || false,
           payload: {
-            type: t.type,
-            audioUrl: t.audioUrl,
+            type: t.type === 'recording' || t.type === 'vocal' ? 'audio' : t.type,
+            source: 'server',
+            audioUrl: t.audioUrl || undefined,
+            bpm: 120,
             volume: (t.volume || 100) / 100,
             pan: (t.pan || 0) / 100,
-            color: t.color,
+            color: t.color || undefined,
             effects: t.effects,
             metadata: t.metadata,
             notes: [],
@@ -244,7 +283,7 @@ export function TrackStoreProvider({ children }: { children: ReactNode }) {
       const payload = track.payload || {};
       const trackType = payload.type || (track.kind === 'audio' ? 'audio' : track.kind === 'beat' ? 'beat' : 'midi');
       
-      const requestBody: any = {
+      const requestBody: SaveTrackRequest = {
         projectId: state.currentProjectId,
         name: track.name,
         type: trackType,

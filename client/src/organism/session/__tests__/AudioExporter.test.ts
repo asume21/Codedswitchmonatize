@@ -31,7 +31,7 @@ vi.stubGlobal('MediaRecorder', function MediaRecorderStub(this: Record<string, u
 
 function makeMockDestination(): MediaStreamAudioDestinationNode {
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     stream: new (MediaStream as any)(),
   } as unknown as MediaStreamAudioDestinationNode
 }

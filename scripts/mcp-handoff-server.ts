@@ -61,8 +61,6 @@ async function loadMessages(): Promise<HandoffMessage[]> {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       return parsed.map((entry) => ({
-        history: [],
-        attachments: [],
         ...entry,
         history: Array.isArray(entry.history) ? entry.history : [],
         attachments: Array.isArray(entry.attachments) ? entry.attachments : [],

@@ -114,6 +114,7 @@ export class MusicalDirector {
   private lastArrangementBar = -1
   private lastSubGenre: HipHopSubGenre = 'chill'
   private subGenreLockBars = 0  // don't change sub-genre too often
+  private isGrooveLocked = false // Story Mode: lock the rhythm once in Flow
 
   // ── Change listeners ────────────────────────────────────────────
   private subGenreChangeListeners: Array<(subGenre: HipHopSubGenre) => void> = []
@@ -121,6 +122,11 @@ export class MusicalDirector {
   private mutationListeners: Array<() => void> = []
 
   // ── Public API ──────────────────────────────────────────────────
+
+  /** Set Story Mode (Groove Lock) status */
+  setGrooveLocked(locked: boolean): void {
+    this.isGrooveLocked = locked
+  }
 
   /** Get the current unified musical state (read-only snapshot) */
   getState(): Readonly<MusicalState> {
@@ -145,7 +151,14 @@ export class MusicalDirector {
     this.state.flowDepth = organism.flowDepth
 
     // ── Sub-genre classification ──────────────────────────────────
-    if (this.subGenreLockBars <= 0) {
+    // STORY MODE: If groove is locked or we're in Flow state, freeze the
+    // sub-genre entirely so the core rhythm doesn't shift mid-performance.
+    // Audit 2026-04-30 fix: previous condition `&& subGenre !== 'chill'`
+    // let chill drift away from chill mid-lock — clearly not the intent.
+    const isFlow = organism.current === OState.Flow
+    const shouldSkipGenreShift = this.isGrooveLocked || isFlow
+
+    if (this.subGenreLockBars <= 0 && !shouldSkipGenreShift) {
       const newSubGenre = classifySubGenre(physics.mode, this.state.energy, physics.density)
       if (newSubGenre !== this.lastSubGenre) {
         this.lastSubGenre = newSubGenre
@@ -165,9 +178,10 @@ export class MusicalDirector {
       if (this.subGenreLockBars > 0) this.subGenreLockBars--
       this.state.barsSinceLastMutation++
 
-      // Mutation probability increases over time — prevents staleness
-      this.state.mutationProbability = Math.min(0.8,
-        this.state.barsSinceLastMutation / 32
+      // STORY MODE: Reduced mutation probability during Flow to keep the story consistent
+      const mutationBias = isFlow ? 0.5 : 1.0
+      this.state.mutationProbability = Math.min(0.6 * mutationBias,
+        this.state.barsSinceLastMutation / 48
       )
 
       // Find current arrangement section
@@ -200,10 +214,15 @@ export class MusicalDirector {
         this.state.sectionBar++
       }
 
-      // Update arrangement-driven dropout flags
-      this.state.drums.dropout = slot.drumDropout
-      this.state.bass.dropout = slot.bassDropout
-      this.state.melody.dropout = slot.melodyDropout
+      // STORY MODE: We prevent full dropouts during a performance (Flow) 
+      // unless the arrangement slot name is 'breakdown' or 'outro'.
+      // This ensures the MC always has a scaffold.
+      const isBreatherSection = slot.name === 'breakdown' || slot.name === 'outro'
+      const allowDropouts = !isFlow || isBreatherSection
+
+      this.state.drums.dropout = allowDropouts ? slot.drumDropout : false
+      this.state.bass.dropout = allowDropouts ? slot.bassDropout : false
+      this.state.melody.dropout = allowDropouts ? slot.melodyDropout : false
 
       // Fill request on last bar of each section
       const barsIntoSection = cycleBar - accumulated

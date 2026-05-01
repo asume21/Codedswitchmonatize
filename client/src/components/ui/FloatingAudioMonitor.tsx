@@ -124,10 +124,12 @@ function OrganismMiniControls() {
     isRunning, isRecording, start, stop, startRecording, stopRecording,
     downloadSession, lastSavedSession,
     latchMode, setLatchMode,
-    isPatternLocked, lockPattern, unlockPattern,
+    isPatternLocked, toggleStoryMode,
     hatDensity, kickVelocity, bassVolume, melodyVolume,
     setHatDensity, setKickVelocity, setBassVolume, setMelodyVolume,
   } = organism;
+
+  const isStoryMode = isPatternLocked;
 
   return (
     <div className="px-3 py-2.5 border-b border-cyan-500/20 space-y-2">
@@ -151,7 +153,6 @@ function OrganismMiniControls() {
 
       {/* Control buttons */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {/* Start / Stop */}
         <button
           onClick={isRunning ? stop : start}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
@@ -167,7 +168,6 @@ function OrganismMiniControls() {
           )}
         </button>
 
-        {/* Record / Stop Recording */}
         <button
           onClick={isRecording ? () => stopRecording() : startRecording}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
@@ -184,7 +184,6 @@ function OrganismMiniControls() {
           )}
         </button>
 
-        {/* Download last session */}
         {lastSavedSession && (
           <button
             onClick={() => downloadSession(lastSavedSession)}
@@ -195,7 +194,6 @@ function OrganismMiniControls() {
           </button>
         )}
 
-        {/* Latch toggle — keeps organism alive when MIDI keys are released */}
         <button
           onClick={() => setLatchMode(!latchMode)}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
@@ -203,35 +201,35 @@ function OrganismMiniControls() {
               ? 'bg-yellow-500/25 border border-yellow-400/50 text-yellow-200 hover:bg-yellow-500/35'
               : 'bg-gray-700/50 border border-gray-600/50 text-gray-400 hover:bg-gray-700'
           }`}
-          title={latchMode ? 'Latch ON — organism holds energy when keys release. Click to turn off.' : 'Latch OFF — organism fades when you stop playing. Click to hold energy.'}
+          title={latchMode ? 'Latch ON - organism holds energy when keys release. Click to turn off.' : 'Latch OFF - organism fades when you stop playing. Click to hold energy.'}
         >
           {latchMode ? 'LATCH ON' : 'LATCH'}
         </button>
 
-        {/* Pattern lock — freeze the groove */}
+        {/* Story Mode toggle — freeze the groove */}
         {isRunning && (
           <button
-            onClick={isPatternLocked ? unlockPattern : lockPattern}
+            onClick={toggleStoryMode}
             className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
-              isPatternLocked
+              isStoryMode
                 ? 'bg-cyan-500/25 border border-cyan-400/50 text-cyan-200 hover:bg-cyan-500/35'
                 : 'bg-gray-700/50 border border-gray-600/50 text-gray-400 hover:bg-gray-700'
             }`}
-            title={isPatternLocked ? 'Pattern LOCKED — groove is frozen. Click to unlock.' : 'Lock Pattern — freeze the current groove so it loops unchanged.'}
+            title={isStoryMode ? 'Story Mode ACTIVE — groove is frozen. Click to unlock.' : 'Story Mode — freeze the current rhythm so it evolves without changing the core beat.'}
           >
-            {isPatternLocked ? (
-              <><Lock className="w-3 h-3" /> LOCKED</>
+            {isStoryMode ? (
+              <><Lock className="w-3 h-3" /> STORY ON</>
             ) : (
-              <><Unlock className="w-3 h-3" /> Lock</>
+              <><Unlock className="w-3 h-3" /> STORY</>
             )}
           </button>
         )}
       </div>
 
-      {/* Tweak sliders — only visible when pattern is locked */}
-      {isPatternLocked && (
+      {/* Tweak sliders — only visible when story mode is active */}
+      {isStoryMode && (
         <div className="space-y-1.5 pt-1 border-t border-cyan-500/15">
-          <p className="text-[9px] text-cyan-400/70 font-semibold uppercase tracking-wider">Groove Tweaks</p>
+          <p className="text-[9px] text-cyan-400/70 font-semibold uppercase tracking-wider">Story Tweaks</p>
 
           {/* Hat density */}
           <div className="flex items-center gap-2">

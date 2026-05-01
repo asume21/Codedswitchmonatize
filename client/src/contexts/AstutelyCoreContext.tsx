@@ -19,6 +19,7 @@ import { OrganismMode, type PhysicsState } from '@/organism/physics/types';
 import {
   astutelyOrganismBridge,
   type OrganismStateSnapshot,
+  type AstutelyOrganismBridgeState,
 } from '@/lib/astutelyOrganismBridge';
 import { astutelyMixerBridge, type MixerSnapshot, type GenreMixPreset, type EQBand } from '@/lib/astutelyMixerBridge';
 import { AstutelyDecisionLoop, type DecisionResult } from '@/lib/astutelyDecisionLoop';
@@ -163,6 +164,10 @@ export interface AstutelyCoreValue {
   organismSetChordTechnique: (techniqueId: string) => void;
   organismSetMelodyArticulation: (articulationId: string) => void;
   organismSetBassArticulation: (articulationId: string) => void;
+  organismSetGrooveLocked: (locked: boolean) => void;
+  organismResetMelodyArticulationOverride: () => void;
+  organismResetBassArticulationOverride: () => void;
+  organismResetChordTechniqueOverride: () => void;
   organismSetStyleShiftsEnabled: (enabled: boolean) => void;
 
   // ── Mixer Control ──
@@ -748,7 +753,6 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     trackStore.updateTrack(trackId, { muted });
   }, [trackStore]);
 
-// ... (rest of the code remains the same)
   const removeTrack = useCallback((trackId: string) => {
     trackStore.removeTrack(trackId);
   }, [trackStore]);
@@ -870,9 +874,20 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
   // overload that starves the audio thread and causes crackling.
   // The bridge already receives data at ~15fps from OrganismProvider, but even
   // 15fps of 4× setState batches is too much for the heavy Astutely UI tree.
+  // Audit 2026-04-30 fix: dep array reverted from [organismIsRunning] to [].
+  // With the previous deps, the bridge connect/disconnect cycled on every
+  // play/stop transition, losing any state update that arrived between
+  // disconnect and the next connect. A ref tracks the last-flushed running
+  // state so the transition check stays accurate without re-running the effect.
+  const lastFlushedRunningRef = useRef(false);
   useEffect(() => {
     astutelyOrganismBridge.connect();
-    let pending: typeof astutelyOrganismBridge extends { getState(): infer S } ? S : never;
+    // Audit 2026-04-30 fix: pending was incorrectly typed as
+    // OrganismStateSnapshot, but the bridge subscriber receives the full
+    // AstutelyOrganismBridgeState. The WIP commit also wrote `setOrganismCurrentState(s)`
+    // (the bridge state) into a slot typed OrganismStateSnapshot — wrong shape.
+    // Restored: state goes from `s.organismState` (the snapshot field).
+    let pending: AstutelyOrganismBridgeState | null = null;
     let rafId: number | null = null;
     let lastFlush = 0;
     const FLUSH_INTERVAL = 250; // ms — ~4fps, plenty for meters/indicators
@@ -887,6 +902,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       setOrganismCurrentState(s.organismState);
       setOrganismIsRunning(s.isRunning);
       setLatestAudioReport(s.selfListenReport);
+      lastFlushedRunningRef.current = s.isRunning;
       lastFlush = performance.now();
     };
 
@@ -894,7 +910,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       pending = bridgeState;
       const now = performance.now();
       // Immediately flush running/stopped transitions so the UI reacts fast
-      if (bridgeState.isRunning !== organismIsRunning) {
+      if (bridgeState.isRunning !== lastFlushedRunningRef.current) {
         flush();
         return;
       }
@@ -907,7 +923,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
       if (rafId !== null) cancelAnimationFrame(rafId);
       astutelyOrganismBridge.disconnect();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // ── User-track awareness: Organism backs off on competing roles ───────────
   // If the user drops a bass/drum/melody/chord clip onto the timeline while
@@ -984,6 +1000,22 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
 
   const organismSetBassArticulation = useCallback((articulationId: string) => {
     astutelyOrganismBridge.setBassArticulation(articulationId);
+  }, []);
+
+  const organismSetGrooveLocked = useCallback((locked: boolean) => {
+    astutelyOrganismBridge.setGrooveLocked(locked);
+  }, []);
+
+  const organismResetMelodyArticulationOverride = useCallback(() => {
+    astutelyOrganismBridge.resetMelodyArticulationOverride();
+  }, []);
+
+  const organismResetBassArticulationOverride = useCallback(() => {
+    astutelyOrganismBridge.resetBassArticulationOverride();
+  }, []);
+
+  const organismResetChordTechniqueOverride = useCallback(() => {
+    astutelyOrganismBridge.resetChordTechniqueOverride();
   }, []);
 
   const organismSetStyleShiftsEnabled = useCallback((enabled: boolean) => {
@@ -1185,6 +1217,10 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     organismSetChordTechnique,
     organismSetMelodyArticulation,
     organismSetBassArticulation,
+    organismSetGrooveLocked,
+    organismResetMelodyArticulationOverride,
+    organismResetBassArticulationOverride,
+    organismResetChordTechniqueOverride,
     organismSetStyleShiftsEnabled,
 
     // Mixer Control
@@ -1259,6 +1295,10 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     organismSetChordTechnique,
     organismSetMelodyArticulation,
     organismSetBassArticulation,
+    organismSetGrooveLocked,
+    organismResetMelodyArticulationOverride,
+    organismResetBassArticulationOverride,
+    organismResetChordTechniqueOverride,
     organismSetStyleShiftsEnabled,
     getMixerSnapshot,
     setMixerChannelVolume,

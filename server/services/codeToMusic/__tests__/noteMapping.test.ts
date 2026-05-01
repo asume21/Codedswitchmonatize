@@ -3,6 +3,7 @@
  * Ensures deterministic behavior and musical correctness
  */
 
+import { describe, it, expect } from 'vitest';
 import { hashString, mapElementToNote, mapElementToNoteIntelligent } from '../noteMapping';
 import { FOUR_CHORDS_C_MAJOR } from '../chordDefinitions';
 import type { CodeElement } from '../../../../shared/types/codeToMusic';

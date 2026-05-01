@@ -26,6 +26,8 @@ import {
   type InsertLyricsAnalysis,
   type CreditTransaction,
   type InsertCreditTransaction,
+  type ProcessedStripeEvent,
+  type InsertProcessedStripeEvent,
   type UserSubscription,
   type InsertUserSubscription,
   type Track,
@@ -65,6 +67,7 @@ import {
   samples,
   lyricsAnalyses,
   creditTransactions,
+  processedStripeEvents,
   tracks,
   jamSessions,
   jamContributions,
@@ -105,6 +108,20 @@ export interface IStorage {
   incrementUserUsage(userId: string, type: 'uploads' | 'generations'): Promise<User>;
   updateUserCredits(userId: string, creditsDelta: number): Promise<User>;
   atomicDeductCredits(userId: string, amount: number): Promise<User>;
+  // M-C1: race-free credit grant. Returns balanceBefore/balanceAfter so callers
+  // can log a transaction with accurate snapshot values without a separate read.
+  atomicAddCredits(userId: string, amount: number): Promise<{ user: User; balanceBefore: number; balanceAfter: number }>;
+  // Audit 2026-04-30 (followup): single DB transaction wrapping the balance
+  // update + ledger insert. Without this, a logCreditTransaction failure
+  // after atomicAddCredits succeeds would leave credits granted with no
+  // ledger row — and Stripe's retry would double-grant because the
+  // ledger-based dedup wouldn't see the orphan grant. Both writes commit
+  // together or both roll back; nothing in between.
+  grantCreditsAtomic(
+    userId: string,
+    amount: number,
+    txn: Omit<InsertCreditTransaction, 'balanceBefore' | 'balanceAfter'>,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number; transaction: CreditTransaction }>;
   updateUser(userId: string, data: Partial<User>): Promise<User>;
   getUserByActivationKey(activationKey: string): Promise<User | undefined>;
   activateUserKey(userId: string): Promise<User>;
@@ -121,6 +138,18 @@ export interface IStorage {
   logCreditTransaction(transaction: any): Promise<void>;
   getCreditTransactions(userId: string, limit: number, offset: number): Promise<any[]>;
   getCreditTransaction(transactionId: string): Promise<any | undefined>;
+
+  // M-C2 / M-H4: Stripe webhook idempotency. tryClaimStripeEvent returns false
+  // if this event was already processed (so the caller skips the side-effect),
+  // true if the caller now owns processing for this event.
+  tryClaimStripeEvent(event: InsertProcessedStripeEvent): Promise<boolean>;
+  hasProcessedPaymentIntent(paymentIntentId: string): Promise<boolean>;
+  // Audit 2026-04-30: release a claim if the post-claim work threw before
+  // committing. Without this, a transient failure during purchaseCredits
+  // (DB blip, network) leaves the claim row locked, so Stripe's retry sees
+  // the row, skips, and the user permanently loses credits. The webhook
+  // handler must call this in a catch block before re-throwing.
+  releaseStripeEvent(eventId: string): Promise<void>;
 
   // Projects
   getProject(id: string): Promise<Project | undefined>;
@@ -336,6 +365,7 @@ export class MemStorage implements IStorage {
   private samples: Map<string, Sample>;
   private creditTransactions: Map<string, CreditTransaction>;
   private subscriptions: Map<string, UserSubscription>;
+  private processedStripeEvents: Map<string, ProcessedStripeEvent>;
 
   constructor() {
     this.users = new Map();
@@ -353,6 +383,7 @@ export class MemStorage implements IStorage {
     this.samples = new Map();
     this.creditTransactions = new Map();
     this.subscriptions = new Map();
+    this.processedStripeEvents = new Map();
 
     // Create default user
     const defaultUser: User = {
@@ -515,6 +546,82 @@ export class MemStorage implements IStorage {
     };
     this.users.set(userId, updated);
     return updated;
+  }
+
+  async atomicAddCredits(
+    userId: string,
+    amount: number,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number }> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const balanceBefore = user.credits || 0;
+    const balanceAfter = balanceBefore + amount;
+    const updated: User = { ...user, credits: balanceAfter };
+    this.users.set(userId, updated);
+    return { user: updated, balanceBefore, balanceAfter };
+  }
+
+  async grantCreditsAtomic(
+    userId: string,
+    amount: number,
+    txn: Omit<InsertCreditTransaction, 'balanceBefore' | 'balanceAfter'>,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number; transaction: CreditTransaction }> {
+    // MemStorage simulates the transaction: snapshot the user, do the writes,
+    // and rewind on failure. Production safety lives in DatabaseStorage; this
+    // exists so tests can simulate a logCreditTransaction failure and assert
+    // that the user balance was not committed.
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const balanceBefore = user.credits || 0;
+    const balanceAfter = balanceBefore + amount;
+    const updated: User = { ...user, credits: balanceAfter };
+    this.users.set(userId, updated);
+    try {
+      const transaction: CreditTransaction = {
+        id: txn.id ?? crypto.randomUUID(),
+        userId: txn.userId,
+        amount: txn.amount,
+        type: txn.type,
+        reason: txn.reason,
+        balanceBefore,
+        balanceAfter,
+        metadata: txn.metadata as any,
+        createdAt: txn.createdAt ?? new Date(),
+      } as CreditTransaction;
+      this.creditTransactions.set(transaction.id, transaction);
+      return { user: updated, balanceBefore, balanceAfter, transaction };
+    } catch (err) {
+      // Roll back the user balance.
+      this.users.set(userId, user);
+      throw err;
+    }
+  }
+
+  async tryClaimStripeEvent(event: InsertProcessedStripeEvent): Promise<boolean> {
+    if (this.processedStripeEvents.has(event.eventId)) return false;
+    this.processedStripeEvents.set(event.eventId, {
+      ...event,
+      processedAt: event.processedAt ?? new Date(),
+    } as ProcessedStripeEvent);
+    return true;
+  }
+
+  async releaseStripeEvent(eventId: string): Promise<void> {
+    this.processedStripeEvents.delete(eventId);
+  }
+
+  async hasProcessedPaymentIntent(paymentIntentId: string): Promise<boolean> {
+    // Mirror the DatabaseStorage semantic: "was credit successfully granted
+    // for this paymentIntent?" — scan the credit-transactions ledger rather
+    // than the idempotency log. See DatabaseStorage.hasProcessedPaymentIntent
+    // for the audit-2026-04-30 reasoning.
+    for (const txn of this.creditTransactions.values()) {
+      const meta = (txn as { metadata?: { paymentIntentId?: string } }).metadata;
+      if (meta?.paymentIntentId === paymentIntentId && (txn.amount ?? 0) > 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async updateUser(userId: string, data: Partial<User>): Promise<User> {
@@ -1911,6 +2018,119 @@ export class DatabaseStorage implements IStorage {
       .returning();
     if (!user) throw new Error(`Insufficient credits or user not found`);
     return user;
+  }
+
+  async atomicAddCredits(
+    userId: string,
+    amount: number,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number }> {
+    // M-C1: race-free grant. The previous addCredits did read-then-write
+    // (getUser → updateUser({credits: balance + amount})), which two concurrent
+    // grants could race and lose. This single UPDATE returns the post-update
+    // balance; we reconstruct balanceBefore from it.
+    const [user] = await db
+      .update(users)
+      .set({
+        credits: sql`COALESCE(${users.credits}, 0) + ${amount}`,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!user) throw new Error("User not found");
+    const balanceAfter = user.credits || 0;
+    const balanceBefore = balanceAfter - amount;
+    return { user, balanceBefore, balanceAfter };
+  }
+
+  async grantCreditsAtomic(
+    userId: string,
+    amount: number,
+    txn: Omit<InsertCreditTransaction, 'balanceBefore' | 'balanceAfter'>,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number; transaction: CreditTransaction }> {
+    // Audit 2026-04-30 (followup): single Postgres transaction wrapping the
+    // balance UPDATE and the ledger INSERT. Either both commit or neither
+    // does — no orphan grants where the user got credits but the ledger
+    // didn't record them. This closes the residual idempotency hole that
+    // would otherwise let Stripe's retry double-grant after a transient
+    // logCreditTransaction failure.
+    // `tx` is explicitly typed as any because the `db` Proxy in server/db.ts
+    // erases Drizzle's generic types. Drizzle's transaction wrapper still works
+    // correctly at runtime — Postgres BEGIN/COMMIT/ROLLBACK are issued by the driver.
+    return await db.transaction(async (tx: any) => {
+      const [user] = await tx
+        .update(users)
+        .set({
+          credits: sql`COALESCE(${users.credits}, 0) + ${amount}`,
+        })
+        .where(eq(users.id, userId))
+        .returning();
+      if (!user) throw new Error("User not found");
+      const balanceAfter = user.credits || 0;
+      const balanceBefore = balanceAfter - amount;
+
+      const [transaction] = await tx
+        .insert(creditTransactions)
+        .values({
+          ...txn,
+          balanceBefore,
+          balanceAfter,
+        })
+        .returning();
+      if (!transaction) throw new Error("Failed to insert credit transaction");
+
+      return {
+        user,
+        balanceBefore,
+        balanceAfter,
+        transaction: transaction as CreditTransaction,
+      };
+    });
+  }
+
+  async tryClaimStripeEvent(event: InsertProcessedStripeEvent): Promise<boolean> {
+    // M-C2 / M-H4: ON CONFLICT DO NOTHING gives us atomic "first writer wins".
+    // If the row already exists, the insert affects 0 rows and we return false
+    // so the caller knows to skip the side-effect.
+    const inserted = await db
+      .insert(processedStripeEvents)
+      .values(event)
+      .onConflictDoNothing()
+      .returning();
+    return inserted.length > 0;
+  }
+
+  async releaseStripeEvent(eventId: string): Promise<void> {
+    // Audit 2026-04-30: deletes a claim so a Stripe retry can re-process
+    // an event whose original handler threw before committing the grant.
+    // Race note: the catch path runs synchronously after the failed grant
+    // throws, well before Stripe's retry interval (seconds-to-minutes), so
+    // there's no realistic window where a parallel retry could see and
+    // re-claim the row before this delete lands.
+    await db
+      .delete(processedStripeEvents)
+      .where(eq(processedStripeEvents.eventId, eventId));
+  }
+
+  async hasProcessedPaymentIntent(paymentIntentId: string): Promise<boolean> {
+    // M-C3 fix (audit 2026-04-30): the old query against processed_stripe_events
+    // raced with the webhook's tryClaimStripeEvent — the claim row carries
+    // paymentIntentId, so this lookup found *that very row* and short-circuited
+    // the credit grant on first delivery. The correct semantic is "did we ever
+    // successfully grant credits for this paymentIntent?" — answered by the
+    // credit-transactions ledger, not the idempotency log. This preserves both
+    // properties the original comments cite: legacy-row cross-check (the ledger
+    // predates processed_stripe_events) AND admin-replay safety (a manual
+    // purchaseCredits invocation still won't double-grant).
+    const [row] = await db
+      .select({ id: creditTransactions.id })
+      .from(creditTransactions)
+      .where(
+        and(
+          sql`${creditTransactions.metadata}->>'paymentIntentId' = ${paymentIntentId}`,
+          sql`${creditTransactions.amount} > 0`,
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
   }
 
   async updateUser(userId: string, data: Partial<User>): Promise<User> {

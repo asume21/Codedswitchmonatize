@@ -473,7 +473,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Input-source changes do NOT tear down engines — a separate effect below
   // swaps just the InputSource instance. Profile is applied via another
   // effect above to avoid engine teardown during async profile fetch.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [userId])
 
   // Input-source effect — swap the InputSource without touching the
@@ -601,6 +601,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       reportCardLastLineIndexRef.current = -1
       await inputRef.current.start()
       await orchestrRef.current.start()
+      useStudioStore.getState().play() // Sync global transport
       primeAutoGenerateStart()
       setIsRunning(true)
 
@@ -651,6 +652,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
     orchestrRef.current?.stop()
+    useStudioStore.getState().stop() // Sync global transport
     transcriberRef.current?.stop()
     // Clear state floor so the machine fully resets on the next start()
     stateMachRef.current?.setStateFloor(null)
@@ -823,6 +825,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       //     from the wire() transition callback, which can miss the first bar.
       orchestrRef.current.regenerateAll()
 
+      useStudioStore.getState().play() // Sync global transport
       setIsRunning(true)
 
       // 6. Start transcription if enabled
@@ -942,8 +945,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     if (!isRunningRef.current) {
       const closestPreset = QUICK_START_PRESETS.find(p => p.mode === mode) ?? QUICK_START_PRESETS[0]
       await quickStart(closestPreset.id)
-      // Give quickStart a tick to complete before overriding
-      await new Promise<void>(resolve => setTimeout(resolve, 120))
+      // Small delay to ensure engines have fully initialized before applying overrides
+      await new Promise<void>(resolve => setTimeout(resolve, 200))
     }
 
     const physics = physicsRef.current
@@ -954,6 +957,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       useStudioStore.getState().setBpm(params.bpm)
       orchestr.forceSubGenre(params.subGenre as HipHopSubGenre)
       orchestr.regenerateAll()
+      
+      // Force global transport to play if we just cold-started
+      if (!useStudioStore.getState().isPlaying) {
+        useStudioStore.getState().play()
+      }
+
       orgLog('interpretVibe:applied', {
         bpm: params.bpm, mode, subGenre: params.subGenre,
         confidence: params.confidence,
@@ -1431,6 +1440,31 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           const { articulationId } = detail as Record<string, unknown>
           if (typeof articulationId === 'string' && orchestrRef.current) {
             orchestrRef.current.setBassArticulation(articulationId)
+          }
+          break
+        }
+        case 'reset-melody-articulation-override': {
+          if (orchestrRef.current) {
+            orchestrRef.current.resetMelodyArticulationOverride()
+          }
+          break
+        }
+        case 'reset-bass-articulation-override': {
+          if (orchestrRef.current) {
+            orchestrRef.current.resetBassArticulationOverride()
+          }
+          break
+        }
+        case 'reset-chord-technique-override': {
+          if (orchestrRef.current) {
+            orchestrRef.current.resetChordTechniqueOverride()
+          }
+          break
+        }
+        case 'set-groove-locked': {
+          const { locked } = detail as Record<string, unknown>
+          if (typeof locked === 'boolean' && orchestrRef.current) {
+            orchestrRef.current.setGrooveLocked(locked)
           }
           break
         }
@@ -2199,6 +2233,26 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     unlockPattern: () => {
       orchestrRef.current?.unlockDrumPattern()
       setIsPatternLocked(false)
+    },
+    setGrooveLocked: (locked: boolean) => {
+      orchestrRef.current?.setGrooveLocked(locked)
+    },
+    toggleStoryMode: () => {
+      // Audit 2026-04-30: consolidated from three near-identical copies
+      // (OrganismCommandCenter, OrganismControls, FloatingAudioMonitor).
+      // Reads the latest isPatternLocked from the React state setter form
+      // so it can't drift in stale closures held by event handlers.
+      setIsPatternLocked(prev => {
+        const next = !prev
+        if (next) {
+          orchestrRef.current?.lockDrumPattern()
+          orchestrRef.current?.setGrooveLocked(true)
+        } else {
+          orchestrRef.current?.unlockDrumPattern()
+          orchestrRef.current?.setGrooveLocked(false)
+        }
+        return next
+      })
     },
 
     // Tweak controls

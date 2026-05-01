@@ -19,6 +19,7 @@ import { getCurrentProject, markDirty, type AudioClip } from '@/lib/projectManag
 import { professionalAudio } from '@/lib/professionalAudio';
 import { MasterBusPanel } from './MasterBusPanel';
 import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
+import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 
 interface TrackChannel {
@@ -51,6 +52,9 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     setTimeSignature,
     isRecordArmed, toggleRecordArm
   } = useTransport();
+
+  const { organismIsRunning } = useAstutelyCore();
+
   // Playhead: direct store subscription — only this component re-renders on tick.
   const position = useStudioStore((s) => s.position);
   const { initialize, isInitialized, playNote, playDrum, setMasterVolume } = useAudio();
@@ -468,38 +472,40 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
           </div>
         )}
 
-        {/* Quick Play Mode Buttons */}
-        <div className="flex items-center gap-1 border-l border-gray-700 pl-4">
-          <Button
-            size="sm"
-            variant={playbackMode === 'beat' ? 'default' : 'outline'}
-            onClick={playBeatOnly}
-            className="h-8 text-xs gap-1"
-            disabled={!currentPattern || Object.keys(currentPattern).length === 0}
-          >
-            <Drum className="w-3 h-3" />
-            Beat
-          </Button>
-          <Button
-            size="sm"
-            variant={playbackMode === 'melody' ? 'default' : 'outline'}
-            onClick={playMelodyOnly}
-            className="h-8 text-xs gap-1"
-            disabled={!currentMelody || currentMelody.length === 0}
-          >
-            <Piano className="w-3 h-3" />
-            Melody
-          </Button>
-          <Button
-            size="sm"
-            variant={playbackMode === 'all' ? 'default' : 'outline'}
-            onClick={playAll}
-            className="h-8 text-xs gap-1"
-          >
-            <Layers className="w-3 h-3" />
-            All
-          </Button>
-        </div>
+        {/* Quick Play Mode Buttons — Hidden when Organism is running to avoid confusion */}
+        {!organismIsRunning && (
+          <div className="flex items-center gap-1 border-l border-gray-700 pl-4">
+            <Button
+              size="sm"
+              variant={playbackMode === 'beat' ? 'default' : 'outline'}
+              onClick={playBeatOnly}
+              className="h-8 text-xs gap-1"
+              disabled={!currentPattern || Object.keys(currentPattern).length === 0}
+            >
+              <Drum className="w-3 h-3" />
+              Beat
+            </Button>
+            <Button
+              size="sm"
+              variant={playbackMode === 'melody' ? 'default' : 'outline'}
+              onClick={playMelodyOnly}
+              className="h-8 text-xs gap-1"
+              disabled={!currentMelody || currentMelody.length === 0}
+            >
+              <Piano className="w-3 h-3" />
+              Melody
+            </Button>
+            <Button
+              size="sm"
+              variant={playbackMode === 'all' ? 'default' : 'outline'}
+              onClick={playAll}
+              className="h-8 text-xs gap-1"
+            >
+              <Layers className="w-3 h-3" />
+              All
+            </Button>
+          </div>
+        )}
 
         {/* Tempo */}
         <div className="flex items-center gap-2 border-l border-gray-700 pl-4">

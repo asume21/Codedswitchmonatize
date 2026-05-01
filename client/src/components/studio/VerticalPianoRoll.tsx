@@ -548,7 +548,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     });
 
     return () => { unsubStep(); unsubVisual(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // Listen for loop-take events and save the take into React state
   useEffect(() => {
@@ -674,7 +674,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     const noteName = noteNames[midiNote % 12];
     const instrument = selectedTrack?.instrument || 'piano';
     realisticAudio.playNote(noteName, octave, velocity / 127, instrument, 0.8);
-  }, [midiLastNote]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [midiLastNote]);  
 
   // Update MIDI channel setting when changed
   useEffect(() => {

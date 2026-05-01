@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -128,6 +129,10 @@ export function OnboardingTour() {
               {slide.title}
             </DialogTitle>
           </div>
+          <DialogDescription className="sr-only">
+            CodedSwitch Studio onboarding walkthrough covering beat creation,
+            melody and bass, arrangement, mixing, and export.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="text-gray-200 leading-relaxed mt-2 min-h-[120px]">

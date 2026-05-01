@@ -164,7 +164,7 @@ export function OrganismCommandCenter() {
   useOrganismShortcuts()
 
   const {
-    stop, isRunning, error,
+    start, stop, isRunning, error,
     quickStartPresets, activePresetId, swapPreset, countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     isRecording, startRecording, stopRecording,
@@ -178,7 +178,7 @@ export function OrganismCommandCenter() {
     callResponseEnabled, setCallResponseEnabled,
     dropDetectorEnabled, setDropDetectorEnabled,
     vibeMatchEnabled, setVibeMatchEnabled,
-    isPatternLocked, lockPattern, unlockPattern,
+    isPatternLocked, toggleStoryMode,
     // Transcription
     transcription,
     // Report card
@@ -364,49 +364,151 @@ export function OrganismCommandCenter() {
     )
   }
 
+  // Story Mode (formerly Pattern Lock) — toggle is on the context now.
+  const isStoryMode = isPatternLocked
+
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column',
-      height: '100%',
-      background: C.bg,
-      overflow: 'hidden',
+      display: 'flex', flexDirection: 'column', height: '100%',
+      backgroundColor: '#0a0a0a', color: C.text,
+      fontFamily: 'Inter, system-ui, sans-serif',
     }}>
+      {/* ═══ INSTANT VIBE HEADER ═══ */}
+      <div style={{
+        padding: '16px 20px', borderBottom: `1px solid ${C.border}`,
+        background: 'linear-gradient(180deg, #111 0%, #0a0a0a 100%)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 15px rgba(6,182,212,0.3)',
+          }}>
+            <span style={{ fontSize: 18 }}>🧠</span>
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 900, letterSpacing: -0.5 }}>AI PRODUCER</h1>
+            <p style={{ margin: 0, fontSize: 10, color: C.text3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+              {isRunning ? 'Listening & Reacting' : 'Ready to Create'}
+            </p>
+          </div>
 
-      {/* ── Guest nudge ─────────────────────────────────────────────────── */}
-      {isGuestNudgeVisible && (
-        <div style={{
-          background: 'linear-gradient(90deg,#0e7490,#7c3aed)',
-          padding: '8px 16px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-          flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>
-            You've been jamming for 60s — sign up to save it forever.
-          </span>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <Link href="/signup">
-              <button style={{
-                fontSize: 11, fontWeight: 700, padding: '3px 10px',
-                background: '#fff', color: '#0e7490', borderRadius: 6, border: 'none', cursor: 'pointer',
-              }}>Sign Up Free</button>
-            </Link>
-            <button onClick={dismissGuestNudge} style={{
-              fontSize: 11, padding: '3px 7px',
-              background: 'transparent', color: 'rgba(255,255,255,0.6)',
-              border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6, cursor: 'pointer',
-            }}>✕</button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {!isRunning ? (
+              <button
+                onClick={start}
+                style={{
+                  padding: '8px 20px', borderRadius: 20, border: 'none',
+                  background: C.green, color: '#000', fontWeight: 900,
+                  fontSize: 12, cursor: 'pointer', boxShadow: '0 4px 10px rgba(16,185,129,0.3)',
+                }}
+              >
+                START ENGINE
+              </button>
+            ) : (
+              <button
+                onClick={stop}
+                style={{
+                  padding: '8px 20px', borderRadius: 20, border: `1px solid ${C.red}44`,
+                  background: `${C.red}15`, color: C.red, fontWeight: 900,
+                  fontSize: 12, cursor: 'pointer',
+                }}
+              >
+                STOP
+              </button>
+            )}
           </div>
         </div>
-      )}
 
-      {/* ── Top bar: organism name + status ─────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 16px 8px',
-        borderBottom: `0.5px solid ${C.border}`,
-        flexShrink: 0,
-      }}>
+        {/* Voice/Text Vibe Input — The primary way to interact */}
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            placeholder={'Say something like "I\'m having a bad day" or "Dark drill vibe"...'}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                interpretVibe(e.currentTarget.value)
+                e.currentTarget.value = ''
+              }
+            }}
+            style={{
+              width: '100%', padding: '12px 16px', borderRadius: 12,
+              background: '#1a1a1a', border: '1px solid #333',
+              color: '#fff', fontSize: 14, outline: 'none',
+              transition: 'border-color 0.2s',
+            }}
+          />
+          <div style={{ 
+            marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap'
+          }}>
+            {[
+              { label: 'Bad Day', text: "I'm having a bad day, play something moody" },
+              { label: 'Hype Me Up', text: 'Give me something high energy and aggressive' },
+              { label: 'Lofi Chill', text: 'Lo-fi chill beat for late night' },
+            ].map(hint => (
+              <button
+                key={hint.label}
+                onClick={() => interpretVibe(hint.text)}
+                style={{
+                  padding: '4px 10px', borderRadius: 6, border: 'none',
+                  background: '#222', color: C.text3, fontSize: 10,
+                  fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                + {hint.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Guest nudge moved inside scrollable area */}
+        {isGuestNudgeVisible && (
+          <div style={{
+            background: 'linear-gradient(90deg,#0e7490,#7c3aed)',
+            padding: '8px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>
+              You&apos;ve been jamming for 60s — sign up to save it forever.
+            </span>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <Link href="/signup">
+                <button style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px',
+                  background: '#fff', color: '#0e7490', borderRadius: 6, border: 'none', cursor: 'pointer',
+                }}>Sign Up Free</button>
+              </Link>
+              <button onClick={dismissGuestNudge} style={{
+                fontSize: 11, padding: '3px 7px',
+                background: 'transparent', color: 'rgba(255,255,255,0.6)',
+                border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6, cursor: 'pointer',
+              }}>✕</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ padding: 20 }}>
+          {/* Vibe Status Indicator */}
+          {vibeInterpretation && (
+            <div style={{
+              marginBottom: 20, padding: 12, borderRadius: 8,
+              background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.1)',
+            }}>
+              <div style={{ fontSize: 10, color: C.text3, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>
+                Current Intent
+              </div>
+              <div style={{ fontSize: 13, color: '#06b6d4', fontWeight: 600 }}>
+                {vibeInterpretation.result}
+              </div>
+            </div>
+          )}
+
+          {/* ── Top bar removed, redundant with AI PRODUCER header ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: '0.04em' }}>
             ORGANISM
@@ -1021,7 +1123,7 @@ export function OrganismCommandCenter() {
               <PillToggle active={callResponseEnabled}  label="Call + Response" onToggle={() => setCallResponseEnabled(!callResponseEnabled)} color={C.purple} />
               <PillToggle active={dropDetectorEnabled}  label="Drop Detector" onToggle={() => setDropDetectorEnabled(!dropDetectorEnabled)}   color={C.amber} />
               <PillToggle active={vibeMatchEnabled}     label="Vibe Match"    onToggle={() => setVibeMatchEnabled(!vibeMatchEnabled)}         color={C.green} />
-              <PillToggle active={isPatternLocked}      label="Lock Pattern"  onToggle={isPatternLocked ? unlockPattern : lockPattern}        color={C.red} />
+              <PillToggle active={isStoryMode}          label="Story Mode"    onToggle={toggleStoryMode}                                     color={C.red} />
             </div>
           </div>
 
@@ -1220,6 +1322,7 @@ export function OrganismCommandCenter() {
           </div>{/* end scrollable sections */}
         </div>
       </div>
+    </div>
     </div>
   )
 }

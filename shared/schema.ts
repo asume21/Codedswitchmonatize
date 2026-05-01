@@ -66,6 +66,18 @@ export const creditTransactions = pgTable("credit_transactions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// M-C2 / M-H4: Stripe event idempotency table.
+// The previous "scan recent credit transactions" check has a sliding window
+// that misses duplicates once a user accumulates more rows than the limit.
+// A unique primary key on event_id makes dedup constant-time and bulletproof.
+export const processedStripeEvents = pgTable("processed_stripe_events", {
+  eventId: varchar("event_id").primaryKey(), // Stripe event id (evt_...)
+  eventType: text("event_type").notNull(),
+  userId: varchar("user_id"),
+  paymentIntentId: text("payment_intent_id"), // for cross-checks against legacy rows
+  processedAt: timestamp("processed_at").defaultNow(),
+}, (t) => [index("idx_processed_stripe_events_payment_intent").on(t.paymentIntentId)]);
+
 export const projects = pgTable("projects", {
   id: varchar("id")
     .primaryKey()
@@ -688,6 +700,8 @@ export type LyricsAnalysis = typeof lyricsAnalyses.$inferSelect;
 export type InsertLyricsAnalysis = z.infer<typeof insertLyricsAnalysisSchema>;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
 export type InsertCreditTransaction = typeof creditTransactions.$inferInsert;
+export type ProcessedStripeEvent = typeof processedStripeEvents.$inferSelect;
+export type InsertProcessedStripeEvent = typeof processedStripeEvents.$inferInsert;
 export type SamplePack = typeof samplePacks.$inferSelect;
 export type InsertSamplePack = z.infer<typeof insertSamplePackSchema>;
 export type Sample = typeof samples.$inferSelect;

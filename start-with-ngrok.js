@@ -1,5 +1,4 @@
 const { spawn } = require('child_process');
-const path = require('path');
 
 // Start ngrok tunnel to port 5000
 console.log('🚀 Starting ngrok tunnel for port 5000...');

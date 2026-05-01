@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { OrganismMode } from '../../physics/types'
 import type { PhysicsState } from '../../physics/types'
@@ -145,11 +148,13 @@ describe('GeneratorOrchestrator', () => {
     expect(output!.chord.name).toBe('chord')
   })
 
-  it('reset() stops transport and zeros all generators', async () => {
+  it('reset() zeros all generators and clears lastPhysics', async () => {
     await orchestrator.start()
     orchestrator.reset()
 
-    expect(mockTransportStop).toHaveBeenCalled()
+    // reset() calls stop(), but stop() must NOT stop Tone.Transport 
+    // to preserve studio playback (piano roll, etc.)
+    expect(mockTransportStop).not.toHaveBeenCalled()
 
     // After reset, getOutput returns null (no lastPhysics)
     expect(orchestrator.getOutput()).toBeNull()

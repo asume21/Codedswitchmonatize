@@ -545,6 +545,10 @@ export class GeneratorOrchestrator {
   unlockDrumPattern(): void { this.drum.unlockPattern() }
   isDrumPatternLocked(): boolean { return this.drum.isPatternLocked() }
 
+  setGrooveLocked(locked: boolean): void {
+    this.director.setGrooveLocked(locked)
+  }
+
   connectDrumOutput(destination: Tone.InputNode): void {
     this.drum.output.connect(destination)
   }
@@ -631,6 +635,10 @@ export class GeneratorOrchestrator {
 
   resetBassArticulationOverride(): void {
     this.bass.resetArticulationOverride()
+  }
+
+  resetChordTechniqueOverride(): void {
+    this.chord.resetTechniqueOverride()
   }
 
   /**

@@ -63,7 +63,7 @@ export function ObjectUploader({
   const [showModal, setShowModal] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
   const dashboardRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const dashboardInstanceRef = useRef<any>(null);
   
   const [uppy] = useState(() => {

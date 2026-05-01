@@ -42,6 +42,6 @@ export function useReactiveBehaviors(
       unsubPhysics()
       engineRef.current?.reset()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [analysisEngine, physicsEngine, stateMachine, orchestrator])
 }

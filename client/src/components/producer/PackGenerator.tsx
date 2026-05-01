@@ -570,7 +570,7 @@ export default function PackGenerator() {
     generateMutation.mutate({ prompt: prompt.trim(), count: packCount, provider: aiProvider });
   };
 
-  const useGenreTemplate = (genre: string) => {
+  const applyGenreTemplate = (genre: string) => {
     const templates = PROMPT_TEMPLATES[genre];
     if (templates) setPrompt(templates[Math.floor(Math.random() * templates.length)]);
   };
@@ -635,7 +635,7 @@ export default function PackGenerator() {
                       <Dice1 className="h-4 w-4 mr-2" /> Random
                     </Button>
                     {Object.keys(PROMPT_TEMPLATES).map(genre => (
-                      <Button key={genre} variant="outline" size="sm" onClick={() => useGenreTemplate(genre)} className="bg-white/5 border-white/10 text-white/40 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-tighter">
+                      <Button key={genre} variant="outline" size="sm" onClick={() => applyGenreTemplate(genre)} className="bg-white/5 border-white/10 text-white/40 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-tighter">
                         {genre}
                       </Button>
                     ))}

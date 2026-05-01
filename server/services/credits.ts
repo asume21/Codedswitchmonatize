@@ -201,7 +201,16 @@ export class CreditService {
   }
 
   /**
-   * Add credits to user's account
+   * Add credits to user's account.
+   *
+   * M-C1: uses atomicAddCredits (single SQL UPDATE) instead of the previous
+   * read-then-write pattern. Two concurrent grants can no longer race and lose.
+   *
+   * Audit 2026-04-30 (followup): routes through grantCreditsAtomic which
+   * wraps the balance UPDATE and ledger INSERT in a single DB transaction.
+   * Without this, a logCreditTransaction failure after the balance update
+   * leaves credits granted with no ledger row, and Stripe's retry would
+   * double-grant because the ledger-based dedup wouldn't see the orphan.
    */
   async addCredits(
     userId: string,
@@ -210,37 +219,19 @@ export class CreditService {
     reason: string,
     metadata?: Record<string, any>
   ): Promise<CreditTransaction> {
-    const user = await this.storage.getUser(userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const balanceBefore = user.credits || 0;
-    const balanceAfter = balanceBefore + amount;
-
-    // Update user balance
-    await this.storage.updateUser(userId, {
-      credits: balanceAfter,
-    });
-
-    // Log transaction
-    const transaction: CreditTransaction = {
+    const { transaction } = await this.storage.grantCreditsAtomic(userId, amount, {
       id: crypto.randomUUID(),
       userId,
-      amount: amount,
+      amount,
       type,
       reason,
-      balanceBefore,
-      balanceAfter,
       metadata,
       createdAt: new Date(),
-    };
-
-    await this.storage.logCreditTransaction(transaction);
+    });
 
     console.log(`💳 Credits added: User ${userId}, +${amount} credits, Reason: ${reason}`);
 
-    return transaction;
+    return transaction as CreditTransaction;
   }
 
   /**
@@ -305,15 +296,24 @@ export class CreditService {
   }
 
   /**
-   * Purchase credits via Stripe
+   * Purchase credits via Stripe.
+   *
+   * M-C3: defense-in-depth dedup at the service layer. The webhook caller
+   * also dedupes (via tryClaimStripeEvent), but if `purchaseCredits` is ever
+   * invoked from another path (admin tool, manual replay), this check stops
+   * a duplicate grant cold instead of silently doubling credits.
    */
   async purchaseCredits(
     userId: string,
     packageKey: keyof typeof CREDIT_PACKAGES,
     paymentIntentId: string
-  ): Promise<CreditTransaction> {
+  ): Promise<CreditTransaction | null> {
+    if (await this.storage.hasProcessedPaymentIntent(paymentIntentId)) {
+      console.log(`⏭️ purchaseCredits: paymentIntent ${paymentIntentId} already processed`);
+      return null;
+    }
     const creditPackage = CREDIT_PACKAGES[packageKey];
-    
+
     return this.addCredits(
       userId,
       creditPackage.credits,
@@ -399,4 +399,11 @@ export function getCreditService(storage: IStorage): CreditService {
     creditServiceInstance = new CreditService(storage);
   }
   return creditServiceInstance;
+}
+
+// Test-only: reset the cached singleton so each test can bind its own
+// IStorage mock. Production code should never call this — the singleton
+// pattern matters there to keep one CreditService per process.
+export function __resetCreditServiceForTests(): void {
+  creditServiceInstance = null;
 }

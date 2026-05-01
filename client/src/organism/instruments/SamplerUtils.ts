@@ -5,6 +5,44 @@ import * as Tone from 'tone';
 // samples per instrument the app actually requests are bundled (~11 MB total).
 const BASE_URL = '/soundfonts/';
 
+const SELF_HOSTED_INSTRUMENTS = new Set([
+  'acoustic_bass',
+  'acoustic_grand_piano',
+  'acoustic_guitar_nylon',
+  'alto_sax',
+  'cello',
+  'choir_aahs',
+  'clarinet',
+  'distortion_guitar',
+  'electric_bass_finger',
+  'electric_guitar_clean',
+  'electric_piano_1',
+  'flute',
+  'french_horn',
+  'marimba',
+  'oboe',
+  'orchestral_harp',
+  'sitar',
+  'string_ensemble_1',
+  'synth_bass_1',
+  'trombone',
+  'trumpet',
+  'vibraphone',
+  'violin',
+]);
+
+const SAMPLER_FALLBACKS: Record<string, string> = {
+  electric_bass_pick: 'electric_bass_finger',
+  fretless_bass: 'electric_bass_finger',
+  slap_bass_1: 'electric_bass_finger',
+  synth_bass_2: 'synth_bass_1',
+};
+
+function resolveSelfHostedInstrument(instrumentName: string): string {
+  if (SELF_HOSTED_INSTRUMENTS.has(instrumentName)) return instrumentName;
+  return SAMPLER_FALLBACKS[instrumentName] || 'acoustic_grand_piano';
+}
+
 /** Extended Sampler type with loading state tracking */
 export type LoadableSampler = Tone.Sampler & {
   isLoaded: boolean;
@@ -31,7 +69,8 @@ export function createSoundfontSampler(
   volume: number = -12,
   onLoad?: () => void
 ): LoadableSampler {
-  const sfUrl = `${BASE_URL}${instrumentName}-mp3/`;
+  const resolvedInstrument = resolveSelfHostedInstrument(instrumentName);
+  const sfUrl = `${BASE_URL}${resolvedInstrument}-mp3/`;
 
   // Sample every minor third for reasonable coverage without fetching 88 files.
   // The MusyngKite repo names black keys with FLATS (Db, Eb, Gb, Ab, Bb) — sharp
@@ -57,7 +96,9 @@ export function createSoundfontSampler(
     release: envelope.release,
     volume,
     onload: () => {
-      console.log(`🎵 Sampler loaded: ${instrumentName}`);
+      console.log(`🎵 Sampler loaded: ${instrumentName}`, {
+        source: resolvedInstrument,
+      });
       (sampler as LoadableSampler).isLoaded = true;
       resolveLoaded!();
       if (onLoad) onLoad();

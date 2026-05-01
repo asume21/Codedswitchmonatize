@@ -213,7 +213,7 @@ export function useStudioEvent<K extends keyof StudioEvents>(
   useEffect(() => {
     eventBus.on(type, handler);
     return () => eventBus.off(type, handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, deps);
 }
 
@@ -229,7 +229,7 @@ export function useStudioEvents(
   useEffect(() => {
     const cleanup = subscribeToEvents(subscriptions);
     return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, deps);
 }
 

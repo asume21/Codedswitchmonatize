@@ -46,7 +46,7 @@ export function orgLog(
     ? ' ' + Object.entries(data).map(([k, v]) => `${k}=${formatValue(v)}`).join(' ')
     : ''
   const method = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'
-  // eslint-disable-next-line no-console
+   
   ;(console as unknown as Record<string, (...a: unknown[]) => void>)[method](
     `%c[organism]%c ${t}ms  ${event}${payload}`,
     levelStyle[level],

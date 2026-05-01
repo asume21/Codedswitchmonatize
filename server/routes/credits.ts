@@ -5,23 +5,18 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import Stripe from 'stripe';
 import type { IStorage } from '../storage';
 import { getCreditService, CREDIT_COSTS, CREDIT_PACKAGES, MEMBERSHIP_TIERS } from '../services/credits';
+// M-M2: use the shared Stripe client/version from services/stripe.ts so an
+// API version bump only needs to happen in one place.
+import { getStripe } from '../services/stripe';
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const APP_URL = process.env.APP_URL || (process.env.NODE_ENV === 'production'
   ? (() => { throw new Error('APP_URL is required in production'); })()
   : 'http://localhost:5000');
 
-function getStripe(): Stripe {
-  if (!STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not set');
-  }
-  return new Stripe(STRIPE_SECRET_KEY, {
-    apiVersion: '2025-08-27.basil',
-  });
-}
+// Expected currency for all Stripe prices (lowercase, ISO 4217). M-M1.
+const EXPECTED_CURRENCY = (process.env.STRIPE_EXPECTED_CURRENCY || 'usd').toLowerCase();
 
 export function createCreditRoutes(storage: IStorage) {
   const router = Router();
@@ -219,13 +214,33 @@ export function createCreditRoutes(storage: IStorage) {
 
       // Use provided userId or fall back to requester
       const targetUserId = userId || req.userId;
+      // M-M4: capture which admin performed the refund. The current
+      // refundCredits signature doesn't take metadata, so we record an
+      // explicit audit transaction alongside the credit return.
       const transaction = await creditService.refundCredits(
         targetUserId,
         transactionId,
         reason
       );
-      
-      res.json({ 
+      // Audit log: who did this, against whom, why.
+      await storage.logCreditTransaction({
+        id: crypto.randomUUID(),
+        userId: targetUserId,
+        amount: 0,
+        type: 'admin_audit' as any,
+        reason: `Admin refund by ${req.userId}: ${reason}`,
+        balanceBefore: 0,
+        balanceAfter: 0,
+        metadata: {
+          adminUserId: req.userId,
+          targetUserId,
+          refundedTransactionId: transactionId,
+          refundResultTransactionId: transaction?.id,
+        },
+        createdAt: new Date(),
+      });
+
+      res.json({
         message: 'Credits refunded successfully',
         transaction
       });
@@ -278,6 +293,7 @@ export function createCreditRoutes(storage: IStorage) {
 
       const stripePrice = await stripe.prices.retrieve(creditPackage.priceId);
       const stripeUnitAmount = (stripePrice as any)?.unit_amount as number | null | undefined;
+      const stripeCurrency = ((stripePrice as any)?.currency as string | undefined)?.toLowerCase();
       const isRecurring = Boolean((stripePrice as any)?.recurring);
       if (isRecurring) {
         return res.status(500).json({
@@ -287,6 +303,13 @@ export function createCreditRoutes(storage: IStorage) {
       if (typeof stripeUnitAmount === 'number' && stripeUnitAmount !== creditPackage.price) {
         return res.status(500).json({
           error: `Stripe price amount mismatch for ${packageKey}. Expected ${creditPackage.price} cents but Stripe price is ${stripeUnitAmount} cents. Check STRIPE_PRICE_ID_*_CREDITS env vars.`,
+        });
+      }
+      // M-M1: currency check. Without this, a misconfigured EUR/BRL price could
+      // match cents but charge in the wrong currency.
+      if (!stripeCurrency || stripeCurrency !== EXPECTED_CURRENCY) {
+        return res.status(500).json({
+          error: `Stripe price currency mismatch for ${packageKey}. Expected ${EXPECTED_CURRENCY.toUpperCase()} but got ${(stripeCurrency || 'missing').toUpperCase()}. Check STRIPE_PRICE_ID_*_CREDITS env vars.`,
         });
       }
 
@@ -379,9 +402,16 @@ export function createCreditRoutes(storage: IStorage) {
 
       const stripePrice = await stripe.prices.retrieve(membership.priceId);
       const isRecurring = Boolean((stripePrice as any)?.recurring);
+      const stripeCurrency = ((stripePrice as any)?.currency as string | undefined)?.toLowerCase();
       if (!isRecurring) {
         return res.status(500).json({
           error: `Stripe price for ${tierKey} is one-time but membership requires a recurring price. Check STRIPE_PRICE_ID_* membership env vars.`,
+        });
+      }
+      // M-M1: same currency guard for memberships.
+      if (!stripeCurrency || stripeCurrency !== EXPECTED_CURRENCY) {
+        return res.status(500).json({
+          error: `Stripe price currency mismatch for membership ${tierKey}. Expected ${EXPECTED_CURRENCY.toUpperCase()} but got ${(stripeCurrency || 'missing').toUpperCase()}.`,
         });
       }
 

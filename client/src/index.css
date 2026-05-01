@@ -148,87 +148,6 @@
     overflow-x: hidden;
   }
   
-  /* iPhone specific fixes */
-  @media (max-width: 768px) {
-    /* Prevent zoom on form inputs */
-    input, select, textarea {
-      font-size: 16px !important;
-    }
-    
-    /* Improve touch targets - Apple recommends 44x44px minimum */
-    button:not(.no-touch-expand), 
-    .clickable, 
-    .touch-target,
-    [role="button"] {
-      min-height: 44px;
-      min-width: 44px;
-    }
-    
-    /* Smaller buttons in toolbars get touch padding */
-    .h-6, .h-7, .w-6, .w-7 {
-      min-height: 40px !important;
-      min-width: 40px !important;
-    }
-    
-    /* Piano roll buttons need touch-friendly sizing */
-    .piano-roll-toolbar button {
-      min-height: 44px;
-      min-width: 44px;
-      padding: 8px;
-    }
-    
-    /* Better scrolling */
-    body {
-      -webkit-overflow-scrolling: touch;
-    }
-    
-    /* Prevent horizontal scroll */
-    .container {
-      max-width: 100%;
-      padding-left: 1rem;
-      padding-right: 1rem;
-    }
-    
-    /* Mobile studio layout */
-    .studio-content {
-      padding: 1rem !important;
-    }
-    
-    /* Hide sidebar on mobile, show as bottom tabs instead */
-    .mobile-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--studio-panel);
-      border-top: 1px solid var(--border);
-      z-index: 50;
-      padding: 8px;
-      display: flex;
-      overflow-x: auto;
-      gap: 4px;
-    }
-    
-    .mobile-nav-item {
-      min-width: 64px;
-      height: 48px;
-      border-radius: 8px;
-      background: var(--studio-bg);
-      border: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      white-space: nowrap;
-    }
-    
-    .mobile-nav-item.active {
-      background: var(--studio-accent);
-      color: white;
-    }
-  }
-  
   /* Audio context requirements for iOS */
   .audio-enable-button {
     position: fixed;
@@ -316,6 +235,87 @@
 
   code, pre {
     font-family: var(--font-mono);
+  }
+}
+
+/* iPhone specific fixes */
+@media (max-width: 768px) {
+  /* Prevent zoom on form inputs */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Improve touch targets - Apple recommends 44x44px minimum */
+  button:not(.no-touch-expand),
+  .clickable,
+  .touch-target,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Smaller buttons in toolbars get touch padding */
+  .h-6, .h-7, .w-6, .w-7 {
+    min-height: 40px !important;
+    min-width: 40px !important;
+  }
+
+  /* Piano roll buttons need touch-friendly sizing */
+  .piano-roll-toolbar button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px;
+  }
+
+  /* Better scrolling */
+  body {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent horizontal scroll */
+  .container {
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Mobile studio layout */
+  .studio-content {
+    padding: 1rem !important;
+  }
+
+  /* Hide sidebar on mobile, show as bottom tabs instead */
+  .mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--studio-panel);
+    border-top: 1px solid var(--border);
+    z-index: 50;
+    padding: 8px;
+    display: flex;
+    overflow-x: auto;
+    gap: 4px;
+  }
+
+  .mobile-nav-item {
+    min-width: 64px;
+    height: 48px;
+    border-radius: 8px;
+    background: var(--studio-bg);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .mobile-nav-item.active {
+    background: var(--studio-accent);
+    color: white;
   }
 }
 

@@ -90,6 +90,21 @@ export async function runMigrations() {
     console.log('✅ Migration: credit_transactions table ensured');
 
     await sql`
+      CREATE TABLE IF NOT EXISTS processed_stripe_events (
+        event_id VARCHAR PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        user_id VARCHAR,
+        payment_intent_id TEXT,
+        processed_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_processed_stripe_events_payment_intent
+      ON processed_stripe_events(payment_intent_id)
+    `;
+    console.log('✅ Migration: processed_stripe_events table ensured');
+
+    await sql`
       CREATE TABLE IF NOT EXISTS session (
         sid VARCHAR NOT NULL PRIMARY KEY,
         sess JSON NOT NULL,

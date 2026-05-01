@@ -61,8 +61,19 @@ export function checkLicenseHandler(storage: IStorage) {
         stripeSubscriptionId: subscription?.stripeSubscriptionId || user.stripeSubscriptionId,
       });
     } catch (error: any) {
-      console.error("License check failed:", error);
-      return res.status(500).json({
+      // Audit 2026-04-30 fix: a license-check failure must NEVER block login.
+      // Previously this returned HTTP 500, which the client treated as a hard
+      // error — the user couldn't proceed even though the only thing wrong was
+      // a transient DB hiccup or missing subscription row. Now we fail open:
+      // return 200 with `isPro: false` and the actual reason so the client can
+      // continue to the login screen. The error is still logged server-side
+      // with full detail for debugging.
+      console.error("License check failed:", {
+        userId: req.userId,
+        message: error?.message,
+        stack: error?.stack,
+      });
+      return res.json({
         isPro: false,
         status: "error",
         reason: error?.message || "unknown_error",

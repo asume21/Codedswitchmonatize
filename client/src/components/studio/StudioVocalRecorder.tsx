@@ -622,7 +622,7 @@ export const StudioVocalRecorder: React.FC<Props> = ({
       if (timerRef.current) clearInterval(timerRef.current);
       if (peakHoldTimer.current) clearTimeout(peakHoldTimer.current);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // ── Update input gain live ────────────────────────────────────────────────
   useEffect(() => {

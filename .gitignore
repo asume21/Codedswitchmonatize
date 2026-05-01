@@ -61,3 +61,10 @@ tests/.auth/
 
 # Claude local settings (may contain deploy tokens)
 .claude/settings.local.json
+.claude/
+
+# Generated repo snapshots
+repo_tree*.txt
+
+# Rust build output
+**/target/

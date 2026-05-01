@@ -3,7 +3,7 @@ import type { IStorage } from "../storage";
 import { checkUsageLimit } from "../middleware/featureGating";
 import ffmpeg from "fluent-ffmpeg";
 import { createWriteStream, existsSync, mkdirSync, readFileSync, copyFileSync, statSync } from "fs";
-import { join, resolve } from "path";
+import { join, resolve, sep } from "path";
 import { tmpdir } from "os";
 import { createReadStream } from "fs";
 import { parseFile } from "music-metadata";
@@ -104,14 +104,31 @@ export function createSongRoutes(storage: IStorage) {
       // Persist audio bytes into the database so they survive ephemeral disk wipes
       try {
         const objectsDir = process.env.LOCAL_OBJECTS_DIR || join(process.cwd(), 'objects');
-        // Resolve the on-disk path from the stored URL
+        const objectsDirAbs = resolve(objectsDir);
+        // Resolve the on-disk path from the stored URL.
+        // Audit 2026-04-30 fix (security #4): the previous join(objectsDir, key)
+        // was a path-traversal vector — `key` came from URL-decoded user input
+        // and could contain `../` segments to escape the objects dir. Now we
+        // resolve to an absolute path and verify it's still under objectsDirAbs
+        // before reading. If a request tries to traverse out, diskPath stays
+        // empty and the readFile branch is skipped.
         let diskPath = '';
         const urlForDisk = finalURL || songURL;
+        const safeJoin = (rel: string): string => {
+          const candidate = resolve(objectsDirAbs, rel);
+          // Ensure candidate is strictly under objectsDirAbs (with a trailing
+          // separator on the prefix so /tmp/objectsDir-evil can't sneak past
+          // a startsWith check on /tmp/objectsDir).
+          const prefix = objectsDirAbs.endsWith(sep) ? objectsDirAbs : objectsDirAbs + sep;
+          return candidate.startsWith(prefix) || candidate === objectsDirAbs
+            ? candidate
+            : '';
+        };
         if (urlForDisk.includes('/api/internal/uploads/')) {
           const key = decodeURIComponent(urlForDisk.split('/api/internal/uploads/')[1]?.split('?')[0] || '');
-          if (key) diskPath = join(objectsDir, key);
+          if (key) diskPath = safeJoin(key);
         } else if (urlForDisk.startsWith('/objects/')) {
-          diskPath = join(objectsDir, urlForDisk.replace('/objects/', ''));
+          diskPath = safeJoin(urlForDisk.replace('/objects/', ''));
         }
 
         if (diskPath && existsSync(diskPath)) {

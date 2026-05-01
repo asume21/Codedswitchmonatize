@@ -853,65 +853,16 @@ Return ONLY valid JSON:
     name: z.string().optional(),
   });
 
-  // Beat generation endpoint using MusicGen AI with model selection
-  // Credit purchase endpoint
+  // Legacy direct credit purchase endpoint.
+  // Revenue safety: do not grant credits from an authenticated POST body. All
+  // paid credit purchases must go through Stripe Checkout and the signed
+  // webhook path in createCreditRoutes().
   app.post("/api/credits/purchase", requireAuth(), async (req: Request, res: Response) => {
-    try {
-      if (!req.userId) {
-        return sendError(res, 401, "Authentication required");
-      }
-
-      const { amount } = req.body;
-      if (!amount || amount <= 0) {
-        return sendError(res, 400, "Invalid credit amount");
-      }
-
-      // Get user to check subscription status
-      const user = await storage.getUser(req.userId);
-      if (!user) {
-        return sendError(res, 404, "User not found");
-      }
-
-      // Credit packages with subscriber bonuses
-      let creditPackages = {
-        10: { price: 4.99, credits: 10 },
-        25: { price: 9.99, credits: 25 },
-        50: { price: 17.99, credits: 50 },
-        100: { price: 29.99, credits: 100 },
-      };
-
-      // Add bonus credits for active subscribers
-      if (user.subscriptionStatus === 'active' && user.subscriptionTier !== 'free') {
-        creditPackages = {
-          10: { price: 4.99, credits: 12 },  // +2 bonus
-          25: { price: 9.99, credits: 30 },  // +5 bonus
-          50: { price: 17.99, credits: 65 }, // +15 bonus
-          100: { price: 29.99, credits: 140 }, // +40 bonus
-        };
-      }
-
-      const packageInfo = creditPackages[amount as keyof typeof creditPackages];
-      if (!packageInfo) {
-        return sendError(res, 400, "Invalid credit package");
-      }
-
-      // Add credits to user account
-      const updatedUser = await storage.updateUserCredits(req.userId, packageInfo.credits);
-
-      const bonusText = user.subscriptionStatus === 'active' ? ' (includes subscriber bonus!)' : '';
-
-      res.json({
-        success: true,
-        creditsAdded: packageInfo.credits,
-        newBalance: updatedUser.credits,
-        price: packageInfo.price,
-        isSubscriber: user.subscriptionStatus === 'active',
-        message: `Successfully purchased ${packageInfo.credits} credits for $${packageInfo.price}${bonusText}`
-      });
-    } catch (error: any) {
-      console.error("Credit purchase error:", error);
-      sendError(res, 500, error.message || "Failed to purchase credits");
-    }
+    return res.status(410).json({
+      error: "Legacy purchase endpoint disabled",
+      message: "Use /api/credits/purchase-checkout to create a Stripe Checkout session.",
+      checkoutEndpoint: "/api/credits/purchase-checkout",
+    });
   });
 
   // Get user credits

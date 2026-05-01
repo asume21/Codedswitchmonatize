@@ -48,10 +48,8 @@ const OnboardingPage = React.lazy(() => import("@/pages/onboarding").catch(() =>
 const Dashboard = React.lazy(() => import("@/pages/dashboard").catch(() => ({ default: () => <NotFound /> })));
 const UnifiedStudioWorkspace = React.lazy(() => import("@/components/studio/UnifiedStudioWorkspace").catch(() => ({ default: () => <NotFound /> })));
 const Settings = React.lazy(() => import("@/pages/settings").catch(() => ({ default: () => <NotFound /> })));
-const Subscribe = React.lazy(() => import("@/pages/Subscribe").catch(() => ({ default: () => <NotFound /> })));
 const AIAssistantPage = React.lazy(() => import("@/pages/ai-assistant").catch(() => ({ default: () => <NotFound /> })));
 const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner").catch(() => ({ default: () => <NotFound /> })));
-const BuyCreditsPage = React.lazy(() => import("@/pages/buy-credits").catch(() => ({ default: () => <NotFound /> })));
 const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success").catch(() => ({ default: () => <NotFound /> })));
 const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel").catch(() => ({ default: () => <NotFound /> })));
 const ActivatePage = React.lazy(() => import("@/pages/activate").catch(() => ({ default: () => <NotFound /> })));

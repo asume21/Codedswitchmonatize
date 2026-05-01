@@ -129,7 +129,7 @@ export function startLongTaskMonitor(): void {
       const tag = isFreeze ? '[PERF:LongTask FREEZE]' : '[PERF:LongTask]';
       const method = isFreeze ? 'error' : 'warn';
       const suffix = attrNames.length ? ' ← ' + attrNames.join(',') : '';
-      // eslint-disable-next-line no-console
+       
       (console as unknown as Record<string, (...a: unknown[]) => void>)[method](
         `${tag} ${entry.duration.toFixed(0)}ms ${entry.name}${suffix}`
       );
@@ -169,7 +169,7 @@ export function startLongTaskMonitor(): void {
         const isFreeze = entry.duration >= 1000;
         const tag = isFreeze ? '[PERF:Trace FREEZE]' : '[PERF:Trace]';
         const method = isFreeze ? 'error' : 'warn';
-        // eslint-disable-next-line no-console
+         
         (console as unknown as Record<string, (...a: unknown[]) => void>)[method](
           `${tag} ${entry.duration.toFixed(0)}ms ← ${label}`
         );

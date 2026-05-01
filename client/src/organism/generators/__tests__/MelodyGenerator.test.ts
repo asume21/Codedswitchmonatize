@@ -56,9 +56,9 @@ describe('MelodyGenerator', () => {
     expect(behavior).toBe(MelodyBehavior.Respond)
   })
 
-  it('voiceActive=true, flowDepth=0.1 → behavior = Rest', () => {
+  it('voiceActive=true, flowDepth=0.1 → behavior = Hint', () => {
     const behavior = getMelodyBehavior(OrganismMode.Glow, true, 0.1)
-    expect(behavior).toBe(MelodyBehavior.Rest)
+    expect(behavior).toBe(MelodyBehavior.Hint)
   })
 
   it('voiceActive=false, flowDepth=0.8 → behavior = Lead', () => {
@@ -70,8 +70,9 @@ describe('MelodyGenerator', () => {
     const physics = makePhysics({ voiceActive: false })
     const organism = makeOrganism({ current: OState.Flow, flowDepth: 0.8 })
 
-    // First frame with Lead behavior should rebuild
-    gen.processFrame(physics, organism)
+    // Need 2 frames to satisfy debounce (BEHAVIOR_DEBOUNCE_FRAMES = 2)
+    gen.processFrame(physics, organism) // Frame 1: pending
+    gen.processFrame(physics, organism) // Frame 2: committed + rebuild
     expect(mockPartStart).toHaveBeenCalled()
   })
 

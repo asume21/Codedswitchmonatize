@@ -7,12 +7,18 @@ import { useTrackStore } from './TrackStoreContext';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
 import { arrangementScheduler } from '@/lib/arrangementScheduler';
-import { getAudioContext } from '@/lib/audioContext';
+import { getAudioContext, resumeAudioContext } from '@/lib/audioContext';
 import * as Tone from 'tone';
+
+declare global {
+  interface Window {
+    __toneRef?: typeof Tone;
+  }
+}
 
 // Expose Tone to the global kill switch so it can stop the transport during panic-stop.
 if (typeof window !== 'undefined') {
-  (window as any).__toneRef = Tone;
+  window.__toneRef = Tone;
 }
 
 // Re-export types so existing consumers don't need to change imports
@@ -90,6 +96,12 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   // directly (via refs) to avoid stale closures.
   const rafRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number | null>(null);
+  // Audit 2026-04-30: play() now awaits resumeAudioContext(), so a Stop click
+  // arriving during the resume could be silently reverted when the resume
+  // resolves and the post-await side-effects fire. The epoch ref is bumped
+  // by both play() (on entry) and stop() (on entry); the post-await branch
+  // checks the captured epoch matches before scheduling Tone.Transport.start.
+  const playEpochRef = useRef(0);
 
   const clearRaf = useCallback(() => {
     if (rafRef.current !== null) {
@@ -205,11 +217,16 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
 
   // Wrap store actions to match TransportContextValue signature exactly
   const play = useCallback(() => {
-    storePlay();
-    // Start both clocks anchored to the same AudioContext timestamp — zero drift
-    const ctx = getAudioContext();
-    if (ctx) {
-      if (ctx.state === 'suspended') ctx.resume();
+    const epoch = ++playEpochRef.current;
+    void (async () => {
+      await resumeAudioContext();
+      // If a stop() (or another play()) ran while we awaited the resume,
+      // bail out — the user's most recent intent wins.
+      if (epoch !== playEpochRef.current) return;
+      storePlay();
+
+      // Start both clocks anchored to the same AudioContext timestamp — zero drift
+      const ctx = getAudioContext();
       const startAt = ctx.currentTime + 0.05;
       const { bpm, transportMode, position: pos, songEndBeat } = useStudioStore.getState();
       const effectiveBpm = bpm ?? 120;
@@ -226,7 +243,7 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
       // Start Tone.Transport at the same offset so Tone.js generators are in lock-step
       Tone.getTransport().bpm.value = effectiveBpm;
       Tone.getTransport().start(`+0.05`);
-    }
+    })();
   }, [storePlay]);
   const pause = useCallback(() => {
     clearRaf();
@@ -238,6 +255,9 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
   }, [clearRaf, storePause]);
   const stop = useCallback(() => {
+    // Bump the epoch so any in-flight play() awaiting resumeAudioContext()
+    // bails out instead of clobbering the stop.
+    playEpochRef.current++;
     clearRaf();
     storeStop();
     pianoRollScheduler.stop();

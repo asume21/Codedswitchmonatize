@@ -294,12 +294,20 @@ Match the beat to the lyrics mood. Use 64 steps (4 bars). Follow genre specifica
         let result;
         let usedFallback = false;
         try {
+          // Audit 2026-04-30 fix (security #2): lyrics is user input embedded
+          // in an AI prompt. The previous template-literal interpolation let a
+          // malicious user inject prompt-control sequences (closing the quote,
+          // adding new instructions, etc.). JSON.stringify gives us a properly
+          // escaped string literal — newlines, quotes, control chars all
+          // neutralized. Truncate to 100 chars BEFORE stringifying so length
+          // is bounded on the user-visible portion.
+          const safeLyrics = JSON.stringify((lyrics || '').substring(0, 100));
           const response = await makeAICall(
             [
               { role: 'system', content: systemPrompt },
               {
                 role: 'user',
-                content: `Create a ${safeGenre} beat for these lyrics: "${(lyrics || '').substring(0, 100)}..."`,
+                content: `Create a ${safeGenre} beat for these lyrics: ${safeLyrics}`,
               },
             ],
             {

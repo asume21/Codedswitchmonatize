@@ -202,6 +202,22 @@ class AstutelyOrganismBridge {
     this.dispatch('set-bass-articulation', { articulationId });
   }
 
+  setGrooveLocked(locked: boolean): void {
+    this.dispatch('set-groove-locked', { locked });
+  }
+
+  resetMelodyArticulationOverride(): void {
+    this.dispatch('reset-melody-articulation-override');
+  }
+
+  resetBassArticulationOverride(): void {
+    this.dispatch('reset-bass-articulation-override');
+  }
+
+  resetChordTechniqueOverride(): void {
+    this.dispatch('reset-chord-technique-override');
+  }
+
   setStyleShiftsEnabled(enabled: boolean): void {
     this.dispatch('set-style-shifts-enabled', { enabled });
   }

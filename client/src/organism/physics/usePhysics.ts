@@ -33,7 +33,7 @@ export function usePhysics(
       unsubscribePhysics()
       physicsRef.current?.reset()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [analysisEngine])
 
   return { lastState, engine: physicsRef.current }
