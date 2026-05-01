@@ -90,6 +90,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // explicitly if they want reactive-to-voice mode.
   const [inputSource,  setInputSourceType] = useState<InputSourceType>('autoGenerate')
   const [autoEnergy,   setAutoEnergy]      = useState<'chill' | 'medium' | 'intense'>('medium')
+  const [micMonitoringEnabled, setMicMonitoringEnabled] = useState(false)
   const audioFileRef = useRef<File | null>(null)
 
   // Stable refs for values used in callbacks but not needed as deps
@@ -2319,6 +2320,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     setInputSource: handleSetInputSource,
     autoEnergy,
     setAutoEnergy,
+    micMonitoringEnabled,
+    setMicMonitoringEnabled,
     transcription,
     transcriptionEnabled,
     setTranscriptionEnabled: (enabled: boolean) => {
@@ -2441,7 +2444,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     dropDetectorEnabled, lastDropIntensity,
     vibeMatchEnabled, currentVibe,
     lastReport, generateReport,
-    inputSource, handleSetInputSource, autoEnergy,
+    inputSource, handleSetInputSource, autoEnergy, micMonitoringEnabled,
     transcription, transcriptionEnabled,
     isRecording, startRecording, stopRecording,
     lastSavedSession, savedSessions, downloadSession,

@@ -13,6 +13,7 @@ import { Link } from 'wouter'
 import { useOrganism, useOrganismPhysics } from './OrganismContext'
 import { OrganismVisualizer } from './OrganismVisualizer'
 import { InputSourceSelector } from './InputSourceSelector'
+import { VoiceMonitorWindow } from './VoiceMonitorWindow'
 import { useOrganismShortcuts } from './useOrganismShortcuts'
 import { OState } from '../../organism/state/types'
 import { useStudioStore } from '../../stores/useStudioStore'
@@ -188,6 +189,7 @@ export function OrganismCommandCenter() {
     shareSession, isSharingSession, lastSharedPostUrl,
     // Input
     inputSource, setInputSource, autoEnergy, setAutoEnergy,
+    micMonitoringEnabled, setMicMonitoringEnabled,
     // Guest
     isGuestNudgeVisible, dismissGuestNudge,
     // Vibe
@@ -344,6 +346,27 @@ export function OrganismCommandCenter() {
     const result = await shareSession(shareCaption)
     if (result) setShareConfirmed(true)
   }, [shareSession, shareCaption])
+
+  const micMonitorBlocked = isRunning && inputSource !== 'mic'
+  const handleMicMonitorToggle = useCallback(() => {
+    if (micMonitoringEnabled) {
+      setMicMonitoringEnabled(false)
+      return
+    }
+
+    if (inputSource !== 'mic') {
+      if (isRunning || isStarting) return
+      setInputSource('mic')
+    }
+    setMicMonitoringEnabled(true)
+  }, [
+    inputSource,
+    isRunning,
+    isStarting,
+    micMonitoringEnabled,
+    setInputSource,
+    setMicMonitoringEnabled,
+  ])
 
   useEffect(() => {
     lyricsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -1136,6 +1159,48 @@ export function OrganismCommandCenter() {
               autoEnergy={autoEnergy}
               onAutoEnergyChange={setAutoEnergy}
             />
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: `0.5px solid ${C.border2}`,
+            }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.text }}>Capture Monitor</div>
+                <div style={{ fontSize: 10, color: micMonitorBlocked ? C.red : C.text3 }}>
+                  {micMonitorBlocked
+                    ? 'Stop to switch input'
+                    : micMonitoringEnabled
+                      ? 'Capture window active'
+                      : inputSource === 'mic'
+                        ? 'Ready for voice capture'
+                        : 'Selects mic before start'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleMicMonitorToggle}
+                disabled={micMonitorBlocked || isStarting}
+                style={{
+                  minWidth: 92,
+                  height: 30,
+                  borderRadius: 6,
+                  border: `0.5px solid ${micMonitoringEnabled ? C.cyan : C.border2}`,
+                  background: micMonitoringEnabled ? 'rgba(34,211,238,0.16)' : C.bg2,
+                  color: micMonitoringEnabled ? C.cyan : C.text2,
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: '0.03em',
+                  cursor: micMonitorBlocked || isStarting ? 'not-allowed' : 'pointer',
+                  opacity: micMonitorBlocked || isStarting ? 0.55 : 1,
+                }}
+              >
+                {micMonitoringEnabled ? 'ON' : 'MONITOR'}
+              </button>
+            </div>
           </div>
 
           {/* Feature toggles */}
@@ -1348,6 +1413,10 @@ export function OrganismCommandCenter() {
 
           </div>{/* end scrollable sections */}
         </div>
+        <VoiceMonitorWindow
+          open={micMonitoringEnabled}
+          onClose={() => setMicMonitoringEnabled(false)}
+        />
       </div>
     </div>
     </div>

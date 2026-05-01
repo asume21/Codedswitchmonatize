@@ -107,6 +107,8 @@ export interface OrganismContextValue {
   setInputSource:    (type: InputSourceType, file?: File) => void
   autoEnergy:        'chill' | 'medium' | 'intense'
   setAutoEnergy:     (energy: 'chill' | 'medium' | 'intense') => void
+  micMonitoringEnabled: boolean
+  setMicMonitoringEnabled: (enabled: boolean) => void
 
   // Transcription
   transcription:         TranscriptionState | null
