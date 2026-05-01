@@ -10,7 +10,9 @@ import path from "path";
 import fs from "fs";
 import { ensureDataRoots } from "./services/localStorageService";
 
-// Require critical env vars in production
+// Require critical env vars in production. Keep /api/health reachable even if
+// optional app configuration is missing; deploy platforms need the process to
+// bind before they can report a healthy rollout.
 if (!process.env.SESSION_SECRET) {
   console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
   process.exit(1);
@@ -20,14 +22,21 @@ if (!process.env.AUTH_TOKEN_SECRET) {
   process.exit(1);
 }
 if (!process.env.APP_URL) {
-  console.error('❌ FATAL: APP_URL environment variable is required in production (e.g. https://www.codedswitch.com)');
-  process.exit(1);
+  console.warn('⚠️ APP_URL not set — CSP connectSrc/canonical redirects may be limited');
 }
 if (process.env.OWNER_KEY && process.env.OWNER_KEY.length < 32) {
   console.warn(`⚠️  OWNER_KEY is ${process.env.OWNER_KEY.length} chars — admin bypass requires ≥32. Rotate the key to re-enable x-owner-key auth.`);
 }
 
 const app = express();
+
+// Lightweight healthcheck for Railway and other deploy platforms.
+// Register this before sessions, auth, database-backed storage, and static
+// serving so a boot-time dependency slowdown does not make the container look
+// dead while it is still initializing.
+app.get("/api/health", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
+});
 
 // Trust proxy for secure cookies behind Railway/load balancers
 app.set('trust proxy', 1);
@@ -68,14 +77,15 @@ app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 const PgSession = connectPgSimple(session);
 
 let sessionStore;
-const hasDatabase = process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
+const databaseUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
+const hasDatabase = Boolean(databaseUrl && databaseUrl.length > 0);
 
 if (hasDatabase) {
   console.log('🔄 Initializing PostgreSQL session store...');
   try {
     // Force rebuild - PostgreSQL sessions v2 + PUBLIC URL fix
     sessionStore = new PgSession({
-      conString: process.env.DATABASE_URL,
+      conString: databaseUrl,
       tableName: 'session',
       createTableIfMissing: true,
       pruneSessionInterval: 60,
@@ -150,7 +160,7 @@ app.use((req, res, next) => {
 
 (async () => {
   // Choose storage implementation
-  const storage: IStorage = process.env.DATABASE_URL
+  const storage: IStorage = databaseUrl
     ? new DatabaseStorage()
     : new MemStorage();
 
