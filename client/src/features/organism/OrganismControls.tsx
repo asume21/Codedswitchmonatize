@@ -4,6 +4,7 @@ import { useOrganism } from './OrganismContext'
 export function OrganismControls() {
   const {
     start, stop, capture, downloadMidi,
+    quickStartPresets, activePresetId, swapPreset,
     isRunning, isCapturing, error,
     lastSessionDNA,
     transcription,
@@ -25,6 +26,15 @@ export function OrganismControls() {
   } = useOrganism()
 
   const isStoryMode = isPatternLocked
+
+  const handleStart = () => {
+    const presetId = activePresetId ?? quickStartPresets[0]?.id
+    if (presetId) {
+      void swapPreset(presetId)
+      return
+    }
+    void start()
+  }
 
   const hasLyrics = (transcription?.lines.length ?? 0) > 0
 
@@ -87,7 +97,7 @@ export function OrganismControls() {
 
         {/* Start / Stop */}
         <button
-          onClick={isRunning ? stop : start}
+          onClick={isRunning ? stop : handleStart}
           style={{
             ...btnBase,
             padding: '7px 22px',

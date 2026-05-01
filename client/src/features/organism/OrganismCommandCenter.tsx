@@ -320,6 +320,15 @@ export function OrganismCommandCenter() {
     ? quickStartPresets.find(p => p.id === activePresetId) ?? null
     : null
 
+  const handleInstantStart = useCallback(() => {
+    const presetId = activePresetId ?? quickStartPresets[0]?.id
+    if (presetId) {
+      void swapPreset(presetId)
+      return
+    }
+    void start()
+  }, [activePresetId, quickStartPresets, swapPreset, start])
+
   const flowDepth  = organismState?.flowDepth ?? 0
   const currentBpm = isRunning && physicsState?.pulse
     ? Math.round(physicsState.pulse)
@@ -398,7 +407,7 @@ export function OrganismCommandCenter() {
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             {!isRunning ? (
               <button
-                onClick={start}
+                onClick={handleInstantStart}
                 style={{
                   padding: '8px 20px', borderRadius: 20, border: 'none',
                   background: C.green, color: '#000', fontWeight: 900,
@@ -857,7 +866,7 @@ export function OrganismCommandCenter() {
             <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
               {!isRunning ? (
                 <button
-                  onClick={() => swapPreset(activePresetId ?? quickStartPresets[0]?.id ?? '')}
+                  onClick={handleInstantStart}
                   style={{
                     padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700,
                     background: '#166534', color: C.green,
