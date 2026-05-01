@@ -63,26 +63,28 @@ export function createVoiceConvertRoutes(storage: IStorage) {
             ? CREDIT_COSTS.VOICE_CONVERT_4STEM
             : CREDIT_COSTS.VOICE_CONVERT_2STEM;
 
-          // Manually check credits (we can't use middleware dynamically)
           const creditService = (await import("../services/credits")).getCreditService(storage);
-          const hasEnough = await creditService.hasCredits(userId, creditCost);
-          if (!hasEnough) {
-            const balance = await creditService.getBalance(userId);
-            return res.status(402).json({
-              success: false,
-              message: `This operation requires ${creditCost} credits. You have ${balance} credits.`,
-              required: creditCost,
-              current: balance,
-              purchaseUrl: "/pricing",
-            });
-          }
 
-          // Deduct credits upfront
-          await creditService.deductCredits(userId, creditCost, "Voice conversion (cloud)", {
-            stemMode,
-            provider,
-            executionMode,
-          });
+          try {
+            await creditService.deductCredits(userId, creditCost, "Voice conversion (cloud)", {
+              stemMode,
+              provider,
+              executionMode,
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (/insufficient credits/i.test(message)) {
+              const balance = await creditService.getBalance(userId);
+              return res.status(402).json({
+                success: false,
+                message: `This operation requires ${creditCost} credits. You have ${balance} credits.`,
+                required: creditCost,
+                current: balance,
+                purchaseUrl: "/pricing",
+              });
+            }
+            throw err;
+          }
         }
 
         // BYO keys: verify user has the required keys stored

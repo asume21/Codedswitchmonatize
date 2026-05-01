@@ -164,7 +164,7 @@ export function createAIRoutes() {
   });
 
   // Get available AI providers
-  router.get("/ai-providers", async (req: Request, res: Response) => {
+  router.get("/ai-providers", requireAuth(), async (req: Request, res: Response) => {
     try {
       const providers = aiProviderManager.getAvailableProviders();
       const authenticated = aiProviderManager.getAuthenticatedProviders();
@@ -182,7 +182,7 @@ export function createAIRoutes() {
   });
 
   // Set user's AI provider preference
-  router.post("/ai-provider/set", async (req: Request, res: Response) => {
+  router.post("/ai-provider/set", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { feature, provider } = req.body;
       
@@ -215,7 +215,7 @@ export function createAIRoutes() {
   });
 
   // Comprehensive AI status — tells the frontend exactly what's working
-  router.get("/status", async (_req: Request, res: Response) => {
+  router.get("/status", requireAuth(), async (_req: Request, res: Response) => {
     try {
       const providerStatus = getAIProviderStatus();
       const replicateConfigured = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
@@ -300,7 +300,7 @@ export function createAIRoutes() {
   });
 
   // Get user's AI provider preference
-  router.get("/ai-provider/:feature", async (req: Request, res: Response) => {
+  router.get("/ai-provider/:feature", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { feature } = req.params;
       const provider = aiProviderManager.getProvider(feature);

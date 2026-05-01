@@ -4469,7 +4469,7 @@ ${code}
   // /api/lyrics/* handlers; extend server/routes/lyrics.ts instead.
 
   // Get available AI providers
-  app.get("/api/ai-providers", async (req: Request, res: Response) => {
+  app.get("/api/ai-providers", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { aiProviderManager } = await import('./services/aiProviderManager');
       
@@ -4524,7 +4524,7 @@ ${code}
   });
 
   // Get user's AI provider preference
-  app.get("/api/ai-provider/:feature", async (req: Request, res: Response) => {
+  app.get("/api/ai-provider/:feature", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { feature } = req.params;
       const { aiProviderManager } = await import('./services/aiProviderManager');

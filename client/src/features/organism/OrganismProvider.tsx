@@ -22,7 +22,6 @@ import type { HipHopSubGenre } from '../../organism/state/MusicalState'
 import type { OrganismState }   from '../../organism/state/types'
 import type { MixMeterReading } from '../../organism/mix/types'
 import type { SessionDNA }      from '../../organism/session/types'
-import { FreestyleTranscriber }  from './FreestyleTranscriber'
 import type { TranscriptionState } from './FreestyleTranscriber'
 import { LiveFreestyleTranscriber } from './LiveFreestyleTranscriber'
 import { useProfile }             from '../../organism/evolution/useProfile'
@@ -130,7 +129,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [lastSharedPostUrl, setLastSharedPostUrl]  = useState<string | null>(null)
 
   // Transcription state
-  const transcriberRef = useRef<FreestyleTranscriber | LiveFreestyleTranscriber | null>(null)
+  const transcriberRef = useRef<LiveFreestyleTranscriber | null>(null)
   const [transcription,         setTranscription]         = useState<TranscriptionState | null>(null)
   const [transcriptionEnabled,  setTranscriptionEnabled]  = useState(true)
 
