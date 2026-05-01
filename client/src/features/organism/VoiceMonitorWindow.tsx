@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useOrganism, useOrganismPhysics } from './OrganismContext'
 
 interface VoiceMonitorWindowProps {
@@ -21,11 +21,19 @@ const COLORS = {
 
 export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const historyRef = useRef<number[]>(Array.from({ length: 72 }, () => 0))
-  const { isRunning, inputSource, performerState } = useOrganism()
+  const historyRef = useRef<number[]>(Array.from({ length: 112 }, () => 0))
+  const lastSampleAtRef = useRef(0)
+  const lastStatsAtRef = useRef(0)
+  const { analysisEngine, isRunning, inputSource, performerState } = useOrganism()
   const { physicsState } = useOrganismPhysics()
+  const [liveStats, setLiveStats] = useState({
+    level: 0,
+    active: false,
+    rate: 0,
+    bright: 0,
+  })
 
-  const voiceLevel = useMemo(() => {
+  const fallbackVoiceLevel = useMemo(() => {
     const performerEnergy = performerState?.energy ?? 0
     const physicsPresence = physicsState?.presence ?? 0
     const density = physicsState?.density ?? 0
@@ -36,19 +44,11 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
   }, [inputSource, performerState?.energy, physicsState?.density, physicsState?.presence])
 
   const voiceActive = inputSource === 'mic' && (
+    liveStats.active ||
     performerState?.isInPhrase ||
     physicsState?.voiceActive ||
-    voiceLevel > 0.08
+    liveStats.level > 0.08
   )
-
-  useEffect(() => {
-    if (!open) return
-
-    const next = isRunning && inputSource === 'mic' ? voiceLevel : 0
-    const values = historyRef.current
-    values.push(next)
-    while (values.length > 72) values.shift()
-  }, [inputSource, isRunning, open, voiceLevel])
 
   useEffect(() => {
     if (!open) return
@@ -59,6 +59,38 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
     if (!canvas || !ctx) return
 
     const render = () => {
+      const now = performance.now()
+      const latestFrame = analysisEngine?.getLastFrame?.() ?? null
+      const rawLevel = latestFrame
+        ? Math.max(latestFrame.rms * 8, latestFrame.voiceConfidence * 0.9)
+        : fallbackVoiceLevel
+      const liveLevel = isRunning && inputSource === 'mic'
+        ? Math.max(0, Math.min(1, rawLevel))
+        : 0
+      const activeNow = inputSource === 'mic' && isRunning && (
+        latestFrame?.voiceActive ||
+        liveLevel > 0.08
+      )
+
+      if (now - lastSampleAtRef.current > 33) {
+        const values = historyRef.current
+        values.push(liveLevel)
+        while (values.length > 112) values.shift()
+        lastSampleAtRef.current = now
+      }
+
+      if (now - lastStatsAtRef.current > 90) {
+        setLiveStats({
+          level: liveLevel,
+          active: !!activeNow,
+          rate: performerState?.syllabicRate ?? 0,
+          bright: latestFrame
+            ? Math.max(0, Math.min(1, latestFrame.spectralCentroid / 5000))
+            : performerState?.spectralBrightness ?? 0,
+        })
+        lastStatsAtRef.current = now
+      }
+
       const rect = canvas.getBoundingClientRect()
       const dpr = window.devicePixelRatio || 1
       const width = Math.max(1, Math.floor(rect.width * dpr))
@@ -78,8 +110,6 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
 
       const center = h / 2
       const values = historyRef.current
-      const barGap = 3
-      const barWidth = Math.max(2, (w - (values.length - 1) * barGap) / values.length)
 
       ctx.strokeStyle = 'rgba(125, 211, 252, 0.12)'
       ctx.beginPath()
@@ -87,18 +117,32 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
       ctx.lineTo(w, center)
       ctx.stroke()
 
+      const step = values.length > 1 ? w / (values.length - 1) : w
+      ctx.beginPath()
       values.forEach((value, index) => {
-        const x = index * (barWidth + barGap)
-        const phase = (performance.now() / 130) + index * 0.32
-        const idleMotion = inputSource === 'mic' && isRunning ? (Math.sin(phase) + 1) * 0.025 : 0
-        const shaped = Math.min(1, value * 1.15 + idleMotion)
-        const barHeight = Math.max(3, shaped * (h * 0.82))
-        const hueColor = shaped > 0.72 ? COLORS.amber : shaped > 0.22 ? COLORS.green : COLORS.cyan
-
-        ctx.fillStyle = hueColor
-        ctx.globalAlpha = 0.28 + shaped * 0.68
-        ctx.fillRect(x, center - barHeight / 2, barWidth, barHeight)
+        const x = index * step
+        const direction = index % 2 === 0 ? -1 : 1
+        const y = center + direction * Math.max(1, value * h * 0.42)
+        if (index === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
       })
+      ctx.strokeStyle = activeNow ? COLORS.green : COLORS.cyan
+      ctx.lineWidth = 2
+      ctx.globalAlpha = 0.88
+      ctx.stroke()
+
+      ctx.beginPath()
+      values.forEach((value, index) => {
+        const x = index * step
+        const barHeight = Math.max(1, value * h * 0.74)
+        if (index % 3 === 0) {
+          ctx.moveTo(x, center - barHeight / 2)
+          ctx.lineTo(x, center + barHeight / 2)
+        }
+      })
+      ctx.strokeStyle = activeNow ? 'rgba(52, 211, 153, 0.55)' : 'rgba(34, 211, 238, 0.28)'
+      ctx.lineWidth = 1
+      ctx.stroke()
 
       ctx.globalAlpha = 1
       ctx.restore()
@@ -107,7 +151,15 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
 
     render()
     return () => cancelAnimationFrame(frame)
-  }, [inputSource, isRunning, open])
+  }, [
+    analysisEngine,
+    fallbackVoiceLevel,
+    inputSource,
+    isRunning,
+    open,
+    performerState?.spectralBrightness,
+    performerState?.syllabicRate,
+  ])
 
   if (!open) return null
 
@@ -186,9 +238,9 @@ export function VoiceMonitorWindow({ open, onClose }: VoiceMonitorWindowProps) {
           gap: 8,
           marginTop: 10,
         }}>
-          <MonitorStat label="Level" value={`${Math.round(voiceLevel * 100)}%`} color={voiceActive ? COLORS.green : COLORS.textDim} />
-          <MonitorStat label="Rate" value={`${(performerState?.syllabicRate ?? 0).toFixed(1)}/s`} color={COLORS.cyan} />
-          <MonitorStat label="Bright" value={`${Math.round((performerState?.spectralBrightness ?? 0) * 100)}%`} color={COLORS.amber} />
+          <MonitorStat label="Level" value={`${Math.round(liveStats.level * 100)}%`} color={voiceActive ? COLORS.green : COLORS.textDim} />
+          <MonitorStat label="Rate" value={`${liveStats.rate.toFixed(1)}/s`} color={COLORS.cyan} />
+          <MonitorStat label="Bright" value={`${Math.round(liveStats.bright * 100)}%`} color={COLORS.amber} />
         </div>
       </div>
     </div>
