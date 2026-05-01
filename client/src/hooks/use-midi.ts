@@ -7,6 +7,9 @@ import { getExpressiveEngine } from "@/organism/instruments/ExpressiveEngine";
 // Global drum mode flag - shared across all useMIDI instances
 // When true, MIDI notes only trigger drums (no instrument sounds)
 let globalDrumMode = false;
+let sharedMidiAccess: any | null = null;
+let sharedMidiAccessPromise: Promise<any> | null = null;
+let sharedMidiInitialized = false;
 
 interface MIDIDevice {
   id: string;
@@ -650,8 +653,6 @@ export function useMIDI() {
 
   // SIMPLIFIED MIDI INITIALIZATION - Direct connection approach
   const initializeMIDI = useCallback(async () => {
-    console.log("🎹 === SIMPLE MIDI INIT STARTING ===");
-
     if (!(navigator as any).requestMIDIAccess) {
       console.log("❌ Web MIDI API not supported");
       setIsSupported(false);
@@ -659,26 +660,37 @@ export function useMIDI() {
     }
 
     try {
-      console.log("🔑 Requesting basic MIDI access...");
       setIsSupported(true);
 
-      // Simple, basic MIDI access request
-      const access = await (navigator as any).requestMIDIAccess();
+      if (!sharedMidiAccessPromise) {
+        console.log("🎹 === SIMPLE MIDI INIT STARTING ===");
+        console.log("🔑 Requesting basic MIDI access...");
+        sharedMidiAccessPromise = (navigator as any).requestMIDIAccess();
+      }
 
-      console.log("✅ MIDI ACCESS SUCCESS!");
-      console.log("Inputs:", access.inputs.size);
-      console.log("Outputs:", access.outputs.size);
+      const access = await sharedMidiAccessPromise;
+      sharedMidiAccess = access;
+
+      if (!sharedMidiInitialized) {
+        console.log("✅ MIDI ACCESS SUCCESS!");
+        console.log("Inputs:", access.inputs.size);
+        console.log("Outputs:", access.outputs.size);
+      }
 
       setMidiAccess(access);
 
       // Simple device listing
-      console.log("💵 MIDI DEVICES FOUND:");
-      for (const input of access.inputs.values()) {
-        console.log(`🎹 INPUT: ${input.name} (${input.state})`);
+      if (!sharedMidiInitialized) {
+        console.log("💵 MIDI DEVICES FOUND:");
+        for (const input of access.inputs.values()) {
+          console.log(`🎹 INPUT: ${input.name} (${input.state})`);
+        }
       }
 
       // DIRECT MESSAGE HANDLER SETUP
-      console.log("🔌 Setting up direct MIDI listeners...");
+      if (!sharedMidiInitialized) {
+        console.log("🔌 Setting up direct MIDI listeners...");
+      }
       for (const input of access.inputs.values()) {
         if (input.state === "connected") {
           input.onmidimessage = (msg: any) => {
@@ -699,7 +711,9 @@ export function useMIDI() {
               handleNoteOff(note, status & 0x0f);
             }
           };
-          console.log(`✅ Connected to: ${input.name}`);
+          if (!sharedMidiInitialized) {
+            console.log(`✅ Connected to: ${input.name}`);
+          }
         }
       }
 
@@ -707,10 +721,12 @@ export function useMIDI() {
       const hasInputs = access.inputs.size > 0;
       setIsConnected(hasInputs);
 
-      if (hasInputs) {
-        console.log("✨ MIDI SYSTEM READY! Press keys on your controller.");
-      } else {
-        console.log("⚠️ No MIDI controllers found. Connect one and refresh.");
+      if (!sharedMidiInitialized) {
+        if (hasInputs) {
+          console.log("✨ MIDI SYSTEM READY! Press keys on your controller.");
+        } else {
+          console.log("⚠️ No MIDI controllers found. Connect one and refresh.");
+        }
       }
 
       // Update device list
@@ -737,7 +753,9 @@ export function useMIDI() {
         updateDeviceList(access);
         setIsConnected(access.inputs.size > 0);
       };
+      sharedMidiInitialized = true;
     } catch (error) {
+      sharedMidiAccessPromise = null;
       console.error("❌ MIDI FAILED:", error);
       setIsSupported(false);
       setIsConnected(false);
@@ -748,13 +766,14 @@ export function useMIDI() {
   const refreshDevices = useCallback(() => {
     console.log("🔄 REFRESHING MIDI DEVICES...");
 
-    if (midiAccess) {
+    const access = midiAccess ?? sharedMidiAccess;
+    if (access) {
       console.log("Rescanning connected devices...");
-      updateDeviceList(midiAccess);
-      setupMIDIInputs(midiAccess);
+      updateDeviceList(access);
+      setupMIDIInputs(access);
 
-      const inputCount = midiAccess.inputs.size;
-      const outputCount = midiAccess.outputs.size;
+      const inputCount = access.inputs.size;
+      const outputCount = access.outputs.size;
 
       console.log(
         `📊 Device refresh complete: ${inputCount} inputs, ${outputCount} outputs`,
@@ -773,61 +792,22 @@ export function useMIDI() {
   const hasInitialized = useRef(false);
   
   useEffect(() => {
-    // Only initialize once
     if (!hasInitialized.current) {
-      console.log("🚀 MIDI HOOK INITIALIZING...");
       hasInitialized.current = true;
-      
-      // Immediate initialization
-      initializeMIDI();
 
-      // Additional detection after delay (for devices that connect slowly)
-      const delayedDetection = setTimeout(() => {
-        console.log("🔍 Secondary MIDI device scan...");
-        if (midiAccess) {
-          refreshDevices();
-        }
-      }, 2000);
+      if (!sharedMidiInitialized && !sharedMidiAccessPromise) {
+        console.log("🚀 MIDI HOOK INITIALIZING...");
+        initializeMIDI();
+      } else if (sharedMidiAccess) {
+        setMidiAccess(sharedMidiAccess);
+        setIsSupported(true);
+        setIsConnected(sharedMidiAccess.inputs.size > 0);
+        updateDeviceList(sharedMidiAccess);
+      }
 
-      // Cleanup delayed detection on unmount
-      return () => {
-        clearTimeout(delayedDetection);
-      };
+      return undefined;
     }
-  }, []); // Empty dependency array - only run once on mount
-
-  // Separate effect for visibility/focus handlers
-  useEffect(() => {
-    // Enhanced visibility change handler
-    const handleVisibilityChange = () => {
-      if (!document.hidden && autoConnectionEnabled && hasInitialized.current) {
-        console.log("🔄 Tab became visible - forcing MIDI rescan...");
-        setTimeout(() => {
-          refreshDevices();
-        }, 500);
-      }
-    };
-
-    // Focus handler for additional detection
-    const handleWindowFocus = () => {
-      if (autoConnectionEnabled && hasInitialized.current) {
-        console.log("🎯 Window focused - checking MIDI devices...");
-        setTimeout(() => {
-          refreshDevices();
-        }, 200);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleWindowFocus);
-
-    // Cleanup
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleWindowFocus);
-    };
-     
-  }, [autoConnectionEnabled]); // Removed refreshDevices to prevent infinite loop
+  }, [initializeMIDI, updateDeviceList]);
 
   return {
     isSupported,
