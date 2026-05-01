@@ -89,6 +89,12 @@ interface OrganismSnapshot {
   updatedAt: number;
 }
 
+const readOrganismSnapshot = (): OrganismSnapshot | null => {
+  if (typeof window === 'undefined') return null;
+  const snapshot = (window as unknown as { __organismSnapshot?: OrganismSnapshot }).__organismSnapshot;
+  return snapshot ?? null;
+};
+
 const STORAGE_KEY = 'astutelyChatbot';
 const DEFAULT_WIDTH = 420; // Increased for HUD
 const DEFAULT_HEIGHT = 650; // Increased for HUD
@@ -132,10 +138,6 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   // Studio Store (Zustand) - patterns, melodies, lyrics, uploaded songs
   const currentKey = useStudioStore((s) => s.key);
   const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
-  // Playhead: subscribe here so ONLY this component re-renders on tick, not the
-  // whole transport context. Chatbot is mounted only when open.
-  const transportPosition = useStudioStore((s) => s.position);
-
   // Astutely Core - organism controls routed through context
   const { startOrganism, stopOrganism, captureOrganism, generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   
@@ -165,8 +167,7 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   };
 
   const getOrganismSnapshot = (): OrganismSnapshot | null => {
-    const snapshot = (window as unknown as { __organismSnapshot?: OrganismSnapshot }).__organismSnapshot;
-    return snapshot ?? null;
+    return readOrganismSnapshot();
   };
 
   const describeOrganism = (snapshot: OrganismSnapshot): string => {
@@ -256,10 +257,44 @@ Try: "play", "make a drill beat", or "analyze my project".`,
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [organismSnapshotForUi, setOrganismSnapshotForUi] = useState<OrganismSnapshot | null>(() => readOrganismSnapshot());
+  const lastOrganismCommandAtRef = useRef(0);
+  const queuedOrganismCommandRef = useRef<number | null>(null);
+  const performanceSafeMode = !!organismSnapshotForUi?.running || !!organismSnapshotForUi?.starting;
+  const organismUiSummary = organismSnapshotForUi
+    ? `${Math.round(organismSnapshotForUi.bpm)} BPM / ${organismSnapshotForUi.physics?.mode ?? 'warming'} / ${organismSnapshotForUi.physics?.voiceActive ? 'voice active' : 'voice waiting'}`
+    : 'No Organism signal';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const refreshSnapshot = () => setOrganismSnapshotForUi(readOrganismSnapshot());
+    let lastFlush = 0;
+
+    const handleSnapshot = () => {
+      const next = readOrganismSnapshot();
+      const now = performance.now();
+      const previousLive = !!organismSnapshotForUi?.running || !!organismSnapshotForUi?.starting;
+      const nextLive = !!next?.running || !!next?.starting;
+
+      if (previousLive !== nextLive || now - lastFlush > 1000) {
+        lastFlush = now;
+        setOrganismSnapshotForUi(next);
+      }
+    };
+
+    refreshSnapshot();
+    window.addEventListener('organism:snapshot', handleSnapshot);
+    return () => window.removeEventListener('organism:snapshot', handleSnapshot);
+  }, [organismSnapshotForUi?.running, organismSnapshotForUi?.starting]);
+
+  useEffect(() => {
+    if (performanceSafeMode && activeTab !== 'chat') {
+      setActiveTab('chat');
+    }
+  }, [activeTab, performanceSafeMode]);
 
   useEffect(() => {
     try {
@@ -362,6 +397,12 @@ Try: "play", "make a drill beat", or "analyze my project".`,
     document.removeEventListener('pointerup', handleResizePointerUp);
   }, [handleResizePointerMove, handleResizePointerUp]);
 
+  useEffect(() => () => {
+    if (queuedOrganismCommandRef.current !== null) {
+      window.clearTimeout(queuedOrganismCommandRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (!showResizeGuide) return;
     const timer = setTimeout(() => setShowResizeGuide(false), 5000);
@@ -420,6 +461,10 @@ Try: "play", "make a drill beat", or "analyze my project".`,
   }, []);
 
   const handleStartListening = () => {
+    if (performanceSafeMode) {
+      setSpeechError('Type while the Organism is playing so Astutely does not open another mic listener.');
+      return;
+    }
     if (!speechSupported || !recognitionRef.current) {
       toast({ title: 'Voice Input Not Supported', description: 'Your browser does not support speech recognition.' });
       return;
@@ -746,6 +791,38 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
     }
   };
 
+  const dispatchOrganismCommandSafely = (detail: Record<string, unknown>, snapshot: OrganismSnapshot | null) => {
+    if (queuedOrganismCommandRef.current !== null) {
+      window.clearTimeout(queuedOrganismCommandRef.current);
+      queuedOrganismCommandRef.current = null;
+    }
+
+    const now = performance.now();
+    const msSinceLastCommand = now - lastOrganismCommandAtRef.current;
+    const delay = snapshot?.starting
+      ? 700
+      : msSinceLastCommand < 1500
+        ? 1500 - msSinceLastCommand
+        : 0;
+
+    const send = () => {
+      lastOrganismCommandAtRef.current = performance.now();
+      window.dispatchEvent(new CustomEvent('organism:command', {
+        detail: {
+          ...detail,
+          source: 'astutely-safe-chat',
+        },
+      }));
+      queuedOrganismCommandRef.current = null;
+    };
+
+    if (delay > 0) {
+      queuedOrganismCommandRef.current = window.setTimeout(send, delay);
+    } else {
+      send();
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim()) return;
 
@@ -795,13 +872,10 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
         );
 
       if (asksForBetterMelody && organismSnapshot?.running) {
-        window.dispatchEvent(new CustomEvent('organism:command', {
-          detail: {
-            action: 'improve-melody',
-            articulationId: 'legato',
-            source: 'astutely-chat',
-          },
-        }));
+        dispatchOrganismCommandSafely({
+          action: 'improve-melody',
+          articulationId: 'legato',
+        }, organismSnapshot);
 
         const assistantMessage: Message = {
           role: 'assistant',
@@ -1161,6 +1235,19 @@ CURRENT PROJECT STATE:
 - Playing: ${status.isPlaying ? 'Yes' : 'No'}
 - Position: Beat ${status.currentPosition.toFixed(1)}
 ${status.songName ? `- Song: "${status.songName}"` : ''}
+${organismSnapshot ? `
+CURRENT ORGANISM STATE:
+- Performance safe mode: ${organismSnapshot.running || organismSnapshot.starting ? 'On' : 'Off'}
+- Running: ${organismSnapshot.running ? 'Yes' : 'No'}
+- Starting: ${organismSnapshot.starting ? 'Yes' : 'No'}
+- Input: ${organismSnapshot.inputSource}
+- BPM: ${Math.round(organismSnapshot.bpm)}
+- Mode: ${organismSnapshot.physics?.mode ?? 'unknown'}
+- Voice capture: ${organismSnapshot.physics?.voiceActive ? 'active' : 'waiting'}
+- Organism state: ${organismSnapshot.organism?.state ?? 'unknown'}
+- Active generators: ${organismSnapshot.generators ? Object.entries(organismSnapshot.generators).filter(([, level]) => level > 0.05).map(([name, level]) => `${name} ${(level * 100).toFixed(0)}%`).join(', ') || 'quiet' : 'unknown'}
+${organismSnapshot.transcription?.latestLine ? `- Latest lyric: "${organismSnapshot.transcription.latestLine}"` : ''}
+` : ''}
 
 You help with: music production, beat making, mixing, mastering, music theory, and creative suggestions.
 
@@ -1244,11 +1331,11 @@ Be concise, friendly, and direct. Skip formalities.`,
         height: `${panelSize.height}px`,
         zIndex: 9999,
       }}
-      className="animate-in fade-in zoom-in duration-300"
+      className={performanceSafeMode ? '' : 'animate-in fade-in zoom-in duration-300'}
     >
       <div className="relative group">
         {/* Holographic Border Glow */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 animate-pulse" />
+        <div className={`absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 ${performanceSafeMode ? '' : 'animate-pulse'}`} />
         
         <Card className="relative shadow-2xl border border-cyan-500/50 bg-black/80 backdrop-blur-3xl rounded-xl overflow-hidden shadow-[0_0_50px_rgba(6,182,212,0.2)]">
           {/* Scanline Effect Overlay */}
@@ -1267,8 +1354,8 @@ Be concise, friendly, and direct. Skip formalities.`,
               <div className="flex items-center gap-3">
                 <div className="relative group/brain">
                   <div className="absolute -inset-2 bg-cyan-500/20 rounded-full blur-xl group-hover/brain:bg-cyan-500/40 transition-all duration-500" />
-                  <Cpu className="w-7 h-7 text-cyan-400 relative z-10 animate-[pulse_2s_infinite]" />
-                  <Sparkles className="w-3 h-3 text-white absolute -top-1 -right-1 z-20 animate-spin-slow" />
+                  <Cpu className={`w-7 h-7 text-cyan-400 relative z-10 ${performanceSafeMode ? '' : 'animate-[pulse_2s_infinite]'}`} />
+                  <Sparkles className={`w-3 h-3 text-white absolute -top-1 -right-1 z-20 ${performanceSafeMode ? '' : 'animate-spin-slow'}`} />
                 </div>
                 <div>
                   <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-200 to-cyan-400 uppercase tracking-[0.2em] leading-none">
@@ -1276,10 +1363,12 @@ Be concise, friendly, and direct. Skip formalities.`,
                   </h3>
                   <div className="flex items-center gap-2 mt-1.5">
                     <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                      <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Neural Link Active</span>
+                      <div className={`w-1.5 h-1.5 rounded-full ${performanceSafeMode ? 'bg-amber-400' : 'bg-emerald-500 animate-ping'}`} />
+                      <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">
+                        {performanceSafeMode ? 'Performance Safe' : 'Neural Link Active'}
+                      </span>
                     </div>
-                    <Activity className="w-3 h-3 text-cyan-500/50 animate-pulse" />
+                    <Activity className={`w-3 h-3 text-cyan-500/50 ${performanceSafeMode ? '' : 'animate-pulse'}`} />
                   </div>
                 </div>
               </div>
@@ -1316,11 +1405,15 @@ Be concise, friendly, and direct. Skip formalities.`,
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
+                disabled={performanceSafeMode && tab.id !== 'chat'}
                 className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 bg-transparent cursor-pointer ${
                   activeTab === tab.id
                     ? 'border-cyan-400 text-cyan-300 bg-cyan-500/10'
+                    : performanceSafeMode && tab.id !== 'chat'
+                      ? 'border-transparent text-white/20 cursor-not-allowed'
                     : 'border-transparent text-white/40 hover:text-white/70 hover:bg-white/5'
                 }`}
+                title={performanceSafeMode && tab.id !== 'chat' ? 'Locked while Organism is playing' : undefined}
               >
                 <tab.icon className="w-3.5 h-3.5" />
                 {tab.label}
@@ -1354,6 +1447,17 @@ Be concise, friendly, and direct. Skip formalities.`,
 
             {/* ═══ CHAT TAB ════════════════════════════════════════ */}
             {activeTab === 'chat' && <>
+            {performanceSafeMode && (
+              <div className="px-4 py-2 border-b border-amber-400/20 bg-amber-400/10 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-amber-300">Performance Safe</div>
+                  <div className="text-[10px] text-cyan-100/70 truncate">{organismUiSummary}</div>
+                </div>
+                <div className="text-[9px] font-bold uppercase tracking-widest text-cyan-300/70 whitespace-nowrap">
+                  Type to control
+                </div>
+              </div>
+            )}
             {/* HOLOGRAPHIC ASTRO-HUD */}
             <div className="p-5 bg-gradient-to-b from-cyan-950/30 to-transparent relative overflow-hidden group/hud">
               {/* Dynamic Grid Background for HUD area */}
@@ -1426,35 +1530,60 @@ Be concise, friendly, and direct. Skip formalities.`,
                 </div>
               </div>
               
-              <div
-                className={`relative ${syncLocked ? 'cursor-not-allowed' : 'cursor-crosshair'}`}
-                onClick={(e) => {
-                  if (syncLocked) return;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const newPos = (x / rect.width) * 16;
-                  transport.seek(newPos);
-                }}
-                title={syncLocked ? 'Unlock sync to scrub position' : 'Click to seek'}
-              >
-                <AstroHUD 
-                  tracks={tracks.map(t => ({
-                    id: t.id,
-                    name: t.name || 'Unnamed Track',
-                    color: t.payload?.color || '#3b82f6',
-                    notes: (t.payload?.notes || []).map(n => ({
-                      ...n,
-                      id: n.id || `note-${Math.random().toString(36).substr(2, 9)}`
-                    })),
-                    muted: false, // Default for HUD
-                    volume: (t.payload?.volume || 0.8) * 100,
-                    instrument: t.payload?.instrument || 'piano'
-                  })) as any}
-                  currentStep={Math.floor(transportPosition * 4)}
-                  totalSteps={64}
-                  isPlaying={transport.isPlaying}
-                />
-              </div>
+              {performanceSafeMode ? (
+                <div className="relative rounded-xl border border-amber-400/20 bg-black/40 p-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-cyan-500/60">Organism</div>
+                      <div className="mt-1 text-sm font-black text-cyan-200">
+                        {organismSnapshotForUi?.running ? 'Playing' : organismSnapshotForUi?.starting ? 'Starting' : 'Ready'}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-cyan-500/60">Groove</div>
+                      <div className="mt-1 text-sm font-black text-cyan-200">
+                        {organismSnapshotForUi ? `${Math.round(organismSnapshotForUi.bpm)} BPM` : '-- BPM'}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-cyan-500/60">Capture</div>
+                      <div className="mt-1 text-sm font-black text-cyan-200">
+                        {organismSnapshotForUi?.physics?.voiceActive ? 'Voice' : 'Waiting'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={`relative ${syncLocked ? 'cursor-not-allowed' : 'cursor-crosshair'}`}
+                  onClick={(e) => {
+                    if (syncLocked) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const newPos = (x / rect.width) * 16;
+                    transport.seek(newPos);
+                  }}
+                  title={syncLocked ? 'Unlock sync to scrub position' : 'Click to seek'}
+                >
+                  <AstroHUD
+                    tracks={tracks.map(t => ({
+                      id: t.id,
+                      name: t.name || 'Unnamed Track',
+                      color: t.payload?.color || '#3b82f6',
+                      notes: (t.payload?.notes || []).map(n => ({
+                        ...n,
+                        id: n.id || `note-${Math.random().toString(36).substr(2, 9)}`
+                      })),
+                      muted: false, // Default for HUD
+                      volume: (t.payload?.volume || 0.8) * 100,
+                      instrument: t.payload?.instrument || 'piano'
+                    })) as any}
+                    currentStep={Math.floor((useStudioStore.getState().position || 0) * 4)}
+                    totalSteps={64}
+                    isPlaying={transport.isPlaying}
+                  />
+                </div>
+              )}
 
               {/* HOLOGRAPHIC TRANSPORT CONTROLS */}
               <div className="mt-5 flex items-center justify-between bg-cyan-950/40 border border-cyan-500/30 rounded-xl p-2.5 backdrop-blur-xl relative z-10 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
@@ -1762,8 +1891,9 @@ Be concise, friendly, and direct. Skip formalities.`,
                     <Button
                       type="button"
                       onClick={isListening ? handleStopListening : handleStartListening}
-                      disabled={!speechSupported || isLoading}
-                      className={`h-[50px] w-[50px] border border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-cyan-500/10 transition-all active:scale-95 ${!speechSupported ? 'opacity-40 cursor-not-allowed' : ''} ${isListening ? 'shadow-[0_0_15px_rgba(34,211,238,0.6)] bg-cyan-500/30 text-white' : ''}`}
+                      disabled={!speechSupported || isLoading || performanceSafeMode}
+                      title={performanceSafeMode ? 'Type while Organism is playing to avoid opening another mic listener' : undefined}
+                      className={`h-[50px] w-[50px] border border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-cyan-500/10 transition-all active:scale-95 ${!speechSupported || performanceSafeMode ? 'opacity-40 cursor-not-allowed' : ''} ${isListening ? 'shadow-[0_0_15px_rgba(34,211,238,0.6)] bg-cyan-500/30 text-white' : ''}`}
                     >
                       <Mic2 className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
                     </Button>
