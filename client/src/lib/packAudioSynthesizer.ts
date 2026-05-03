@@ -304,8 +304,15 @@ export class PackAudioSynthesizer {
       }
     }, '16n');
 
-    Tone.Transport.position = 0;
-    Tone.Transport.start();
+    // Pack preview lives outside the studio's TransportContext; if the studio
+    // transport is already running (user is jamming and opens pack browser),
+    // schedule into the running transport instead of yanking the playhead
+    // back to 0 and re-issuing start. The Tone.Loop callback uses `time` for
+    // sample-accurate scheduling either way.
+    if (Tone.Transport.state !== 'started') {
+      Tone.Transport.position = 0;
+      Tone.Transport.start();
+    }
   }
 
   async generateAudioBlob(pack: GeneratedPack): Promise<Blob> {

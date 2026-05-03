@@ -119,23 +119,11 @@ class AudioEngine {
     }
   }
 
-  // Transport control
-  startTransport(bpm = 120) {
-    if (!this.isInitialized) {
-      console.warn('AudioEngine not initialized');
-      return;
-    }
-    Tone.Transport.bpm.value = bpm;
-    Tone.Transport.start();
-  }
+  // Transport control removed: TransportContext is the sole owner of
+  // Tone.Transport.start/stop. If anything in this file needs to schedule on
+  // the transport, it must do so via the React-side useTransport() API.
 
-  stopTransport() {
-    if (!this.isInitialized) return;
-    Tone.Transport.stop();
-    Tone.Transport.cancel();
-  }
-
-  // Note playback - ALWAYS use RealisticAudioEngine when available
+// Note playback - ALWAYS use RealisticAudioEngine when available
   playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: string = 'piano', targetNode?: AudioNode) {
     if (!this.isInitialized) {
       console.warn('AudioEngine not initialized');
@@ -429,11 +417,6 @@ class AudioEngine {
   // Alias for initialize for backward compatibility
   async init() {
     return this.initialize();
-  }
-
-  // Alias for stopTransport for backward compatibility
-  stop() {
-    this.stopTransport();
   }
 
   // Get loading progress (0-100)

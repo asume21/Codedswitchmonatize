@@ -32,7 +32,6 @@ import { useInstrumentOptional } from '@/contexts/InstrumentContext';
 import { AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
 import { getAudioContext } from '@/lib/audioContext';
-import { AudioEngine } from '@/lib/audio';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
 const AudioAnalysisPanel = React.lazy(() => import('./AudioAnalysisPanel'));
