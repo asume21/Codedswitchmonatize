@@ -320,8 +320,17 @@ app.use((req, res, next) => {
   // Run database migrations first
   await runMigrations();
   
-  // Choose storage implementation - prefer internal URL (free on Railway)
+  // Choose storage implementation - prefer internal URL (free on Railway).
+  // Defense-in-depth: validateEnv() already exits in production if no DB URL
+  // is set, but guard here too so any future refactor that loosens boot-time
+  // validation cannot silently fall back to MemStorage in prod (which wipes
+  // auth/credits on every restart).
   const hasDatabaseUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
+  if (isProduction && !hasDatabaseUrl) {
+    logger.fatal({}, "FATAL: refusing to boot in production with MemStorage — set DATABASE_URL");
+    console.error("❌ FATAL: production storage selection reached without DATABASE_URL");
+    process.exit(1);
+  }
   const storage: IStorage = hasDatabaseUrl
     ? new DatabaseStorage()
     : new MemStorage();
