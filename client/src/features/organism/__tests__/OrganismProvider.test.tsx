@@ -54,6 +54,8 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     reset = vi.fn()
     dispose = vi.fn()
     setBpm = vi.fn()
+    getBpm = vi.fn().mockReturnValue(120)
+    getOutput = vi.fn().mockReturnValue(null)
     forceSubGenre = vi.fn()
     regenerateAll = vi.fn()
     setArrangementEnabled = vi.fn()
@@ -61,6 +63,15 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     getMusicalState = vi.fn().mockReturnValue(null)
     onChordChange = vi.fn().mockReturnValue(noop)
     getCurrentChord = vi.fn().mockReturnValue(null)
+    // Drum/groove/voice controls invoked by control handlers in OrganismProvider
+    lockDrumPattern = vi.fn()
+    unlockDrumPattern = vi.fn()
+    setGrooveLocked = vi.fn()
+    setHatDensityMultiplier = vi.fn()
+    setKickVelocityMultiplier = vi.fn()
+    setBassVolumeMultiplier = vi.fn()
+    setMelodyVolumeMultiplier = vi.fn()
+    setTextureEnabled = vi.fn()
   },
 }))
 
