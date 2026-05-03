@@ -152,6 +152,43 @@ export class ChordGenerator extends GeneratorBase {
     { name: 'String Ensemble', type: 'Sampler', presetId: 'string_ensemble_1', options: {
       envelope: { attack: 0.4, release: 1.5 }
     }, volume: -10, chorusWet: 0.4, reverbDecay: 2.0, modes: ['glow'] },
+
+    // Guitars — fingerpicked, funk chunks, trap rock
+    { name: 'Nylon Guitar', type: 'Sampler', presetId: 'acoustic_guitar_nylon', options: {
+      envelope: { attack: 0.005, release: 0.6 }
+    }, volume: -8, chorusWet: 0.15, reverbDecay: 1.2, modes: ['ice', 'glow', 'smoke'] },
+    { name: 'Clean Guitar', type: 'Sampler', presetId: 'electric_guitar_clean', options: {
+      envelope: { attack: 0.005, release: 0.4 }
+    }, volume: -10, chorusWet: 0.2, reverbDecay: 0.8, modes: ['smoke', 'glow', 'gravel'] },
+    { name: 'Distortion Guitar', type: 'Sampler', presetId: 'distortion_guitar', options: {
+      envelope: { attack: 0.005, release: 0.3 }
+    }, volume: -14, chorusWet: 0.1, reverbDecay: 0.6, modes: ['heat', 'gravel'] },
+
+    // Bowed low strings — warm chord bed, jazz / cinematic
+    { name: 'Cello', type: 'Sampler', presetId: 'cello', options: {
+      envelope: { attack: 0.15, release: 1.2 }
+    }, volume: -10, chorusWet: 0.2, reverbDecay: 2.0, modes: ['smoke', 'gravel', 'glow'] },
+
+    // Mallet — boom-bap / Madlib aesthetic, lo-fi stabs
+    { name: 'Vibraphone', type: 'Sampler', presetId: 'vibraphone', options: {
+      envelope: { attack: 0.005, release: 1.5 }
+    }, volume: -8, chorusWet: 0.3, reverbDecay: 2.0, modes: ['smoke', 'ice'] },
+    { name: 'Marimba', type: 'Sampler', presetId: 'marimba', options: {
+      envelope: { attack: 0.005, release: 0.6 }
+    }, volume: -7, chorusWet: 0.2, reverbDecay: 1.2, modes: ['ice', 'smoke'] },
+
+    // Tenor brass — section pads, low/warm horns
+    { name: 'Trombone Section', type: 'Sampler', presetId: 'trombone', options: {
+      envelope: { attack: 0.06, release: 0.4 }
+    }, volume: -11, chorusWet: 0.15, reverbDecay: 1.0, modes: ['gravel', 'heat'] },
+    { name: 'French Horn', type: 'Sampler', presetId: 'french_horn', options: {
+      envelope: { attack: 0.1, release: 0.8 }
+    }, volume: -9, chorusWet: 0.2, reverbDecay: 1.5, modes: ['glow', 'smoke'] },
+
+    // Exotic / sample-flip flavor
+    { name: 'Sitar', type: 'Sampler', presetId: 'sitar', options: {
+      envelope: { attack: 0.005, release: 1.0 }
+    }, volume: -8, chorusWet: 0.4, reverbDecay: 1.8, modes: ['ice', 'smoke'] },
   ]
 
   constructor() {

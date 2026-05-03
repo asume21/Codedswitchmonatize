@@ -339,6 +339,11 @@ app.use((req, res, next) => {
     "/api/blog",              // public blog content
     "/api/social/feed/public", // public social feed
     "/api/songs/public",      // public shared songs
+    // Dev-only: audio-debug bridge is gated by NODE_ENV !== 'production' at
+    // route mount time (server/routes.ts), so the prefix can never reach
+    // production. Whitelisted here so the local MCP capture flow works
+    // without an auth token.
+    ...(process.env.NODE_ENV !== 'production' ? ["/api/audio-debug"] : []),
   ]));
 
   const server = await registerRoutes(app, storage);

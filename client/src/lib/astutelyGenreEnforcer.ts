@@ -32,6 +32,12 @@ export interface GenreProfile {
     chordVolume: number;
   };
   mixPreset: GenreMixPreset;
+  /**
+   * Chord-technique IDs that fit this genre's aesthetic. The Brain panel
+   * surfaces only these for user selection while the genre is locked. IDs
+   * must match entries in `client/src/organism/techniques/library.ts`.
+   */
+  allowedChordTechniques: string[];
 }
 
 export interface OrganismCommand {
@@ -75,6 +81,13 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
       },
       masterLevel: 0.8,
     },
+    allowedChordTechniques: [
+      'guitar-muted-stab',
+      'piano-block-chord',
+      'brass-stab',
+      'strings-staccato',
+      'strings-pizzicato',
+    ],
   },
   lofi: {
     id: 'lofi',
@@ -96,6 +109,13 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
       },
       masterLevel: 0.7,
     },
+    allowedChordTechniques: [
+      'piano-rolled-chord',
+      'piano-alberti',
+      'piano-sustained-pad',
+      'strings-legato',
+      'brass-section-pad',
+    ],
   },
   'boom-bap': {
     id: 'boom-bap',
@@ -117,6 +137,13 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
       },
       masterLevel: 0.78,
     },
+    allowedChordTechniques: [
+      'piano-rolled-chord',
+      'guitar-muted-stab',
+      'piano-alberti',
+      'brass-stab',
+      'strings-pizzicato',
+    ],
   },
   drill: {
     id: 'drill',
@@ -138,6 +165,13 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
       },
       masterLevel: 0.82,
     },
+    allowedChordTechniques: [
+      'guitar-muted-stab',
+      'piano-block-chord',
+      'strings-staccato',
+      'strings-tremolo',
+      'brass-stab',
+    ],
   },
   chill: {
     id: 'chill',
@@ -159,6 +193,13 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
       },
       masterLevel: 0.68,
     },
+    allowedChordTechniques: [
+      'piano-rolled-chord',
+      'piano-sustained-pad',
+      'strings-legato',
+      'brass-section-pad',
+      'wind-legato',
+    ],
   },
   funk: {
     id: 'funk',
@@ -180,6 +221,13 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
       },
       masterLevel: 0.78,
     },
+    allowedChordTechniques: [
+      'guitar-strum-down',
+      'guitar-strum-up',
+      'guitar-muted-stab',
+      'brass-stab',
+      'brass-fanfare',
+    ],
   },
 };
 

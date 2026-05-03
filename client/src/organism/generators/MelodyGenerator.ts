@@ -140,6 +140,60 @@ export class MelodyGenerator extends GeneratorBase {
       harmonicity: 1, modulationIndex: 0.2, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
       envelope: { attack: 1.0, decay: 1.0, sustain: 1.0, release: 3.0 },
     }, volume: -15, chorusWet: 0.4, reverbDecay: 5.0, delayFeedback: 0.3, tags: ['chill', 'ethereal'] },
+
+    // Bowed strings — solo violin (Drake/Alchemist soul), expressive cello
+    { name: 'Solo Violin', type: 'Sampler', presetId: 'violin', options: {
+      envelope: { attack: 0.08, release: 0.5 }
+    }, volume: -6, chorusWet: 0.25, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'soulful', 'warm'] },
+    { name: 'Cello Lead', type: 'Sampler', presetId: 'cello', options: {
+      envelope: { attack: 0.1, release: 0.8 }
+    }, volume: -7, chorusWet: 0.2, reverbDecay: 1.8, delayFeedback: 0.08, tags: ['acoustic', 'dark', 'soulful'] },
+
+    // Winds — Future Hendrix flute, jazz-rap clarinet, cinematic oboe
+    { name: 'Flute', type: 'Sampler', presetId: 'flute', options: {
+      envelope: { attack: 0.04, release: 0.3 }
+    }, volume: -5, chorusWet: 0.3, reverbDecay: 1.5, delayFeedback: 0.15, tags: ['acoustic', 'ethereal', 'chill'] },
+    { name: 'Clarinet', type: 'Sampler', presetId: 'clarinet', options: {
+      envelope: { attack: 0.05, release: 0.35 }
+    }, volume: -7, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.1, tags: ['acoustic', 'warm', 'dark'] },
+    { name: 'Oboe', type: 'Sampler', presetId: 'oboe', options: {
+      envelope: { attack: 0.06, release: 0.4 }
+    }, volume: -8, chorusWet: 0.2, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'dark', 'soulful'] },
+
+    // Brass leads — solo trumpet, trombone, french horn
+    { name: 'Trumpet Lead', type: 'Sampler', presetId: 'trumpet', options: {
+      envelope: { attack: 0.03, release: 0.25 }
+    }, volume: -7, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.1, tags: ['acoustic', 'aggressive', 'soulful'] },
+    { name: 'Trombone Lead', type: 'Sampler', presetId: 'trombone', options: {
+      envelope: { attack: 0.06, release: 0.3 }
+    }, volume: -8, chorusWet: 0.15, reverbDecay: 1.0, delayFeedback: 0.08, tags: ['acoustic', 'warm', 'dark'] },
+    { name: 'French Horn Lead', type: 'Sampler', presetId: 'french_horn', options: {
+      envelope: { attack: 0.1, release: 0.6 }
+    }, volume: -8, chorusWet: 0.2, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'warm', 'soulful'] },
+
+    // Guitar leads — clean and distorted single-note lines
+    { name: 'Clean Guitar Lead', type: 'Sampler', presetId: 'electric_guitar_clean', options: {
+      envelope: { attack: 0.005, release: 0.3 }
+    }, volume: -8, chorusWet: 0.25, reverbDecay: 1.0, delayFeedback: 0.12, tags: ['acoustic', 'warm', 'chill'] },
+    { name: 'Dist Guitar Lead', type: 'Sampler', presetId: 'distortion_guitar', options: {
+      envelope: { attack: 0.005, release: 0.25 }
+    }, volume: -12, chorusWet: 0.1, reverbDecay: 0.8, delayFeedback: 0.1, tags: ['aggressive', 'electronic'] },
+
+    // Mallet & keys leads
+    { name: 'Vibes Lead', type: 'Sampler', presetId: 'vibraphone', options: {
+      envelope: { attack: 0.005, release: 1.2 }
+    }, volume: -5, chorusWet: 0.3, reverbDecay: 1.8, delayFeedback: 0.15, tags: ['ethereal', 'chill', 'soulful'] },
+    { name: 'Rhodes Lead', type: 'Sampler', presetId: 'electric_piano_1', options: {
+      envelope: { attack: 0.005, release: 0.6 }
+    }, volume: -6, chorusWet: 0.4, reverbDecay: 1.2, delayFeedback: 0.1, tags: ['warm', 'soulful', 'chill'] },
+
+    // Cascading & exotic
+    { name: 'Harp Lead', type: 'Sampler', presetId: 'orchestral_harp', options: {
+      envelope: { attack: 0.005, release: 1.2 }
+    }, volume: -5, chorusWet: 0.45, reverbDecay: 2.5, delayFeedback: 0.2, tags: ['ethereal', 'chill'] },
+    { name: 'Sitar Lead', type: 'Sampler', presetId: 'sitar', options: {
+      envelope: { attack: 0.005, release: 0.8 }
+    }, volume: -7, chorusWet: 0.4, reverbDecay: 1.5, delayFeedback: 0.18, tags: ['ethereal', 'dark'] },
   ]
 
   private reverb:          Tone.Reverb
