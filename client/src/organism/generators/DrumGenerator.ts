@@ -82,7 +82,7 @@ export class DrumGenerator extends GeneratorBase {
     // Lighter drum bus compression — master bus handles the glue
     this.compressor = new Tone.Compressor({ threshold: -24, ratio: 2.4, attack: 0.012, release: 0.18 })
     this.compressor.connect(this.output)
-    this.sampleBus = new Tone.Gain(0.95)
+    this.sampleBus = new Tone.Gain(0.78)
     this.sampleBus.connect(this.compressor)
     this.sampledKit = new SampledDrumKit(this.sampleBus)
 
@@ -263,8 +263,8 @@ export class DrumGenerator extends GeneratorBase {
     switch (organism.current) {
       case OState.Dormant:   return 0
       case OState.Awakening: return 0.25 * organism.awakeningProgress
-      case OState.Breathing: return 0.65 * organism.breathingWarmth
-      case OState.Flow:      return 0.92
+      case OState.Breathing: return 0.56 * organism.breathingWarmth
+      case OState.Flow:      return 0.78
     }
   }
 

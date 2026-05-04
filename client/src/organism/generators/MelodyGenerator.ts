@@ -664,7 +664,7 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const shaped = level * this.arrangementMultiplier * Math.min(1.4, this.volumeMultiplier)
+    const shaped = level * this.arrangementMultiplier * Math.min(2, this.volumeMultiplier)
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return

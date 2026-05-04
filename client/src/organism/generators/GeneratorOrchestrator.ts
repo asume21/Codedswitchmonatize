@@ -401,9 +401,8 @@ export class GeneratorOrchestrator {
 
     // 2. Syllabic rate → hi-hat density
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
-    this.drum.setHatDensityMultiplier(
-      Math.max(0.3, Math.min(1.5, 0.5 + normalSyllabic))
-    )
+    const hatPerformance = Math.max(0.35, Math.min(1.35, 0.55 + normalSyllabic * 0.75))
+    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * hatPerformance)
 
     // 3. Breathing / rest → call-and-response
     // Melody volume is computed ONCE per frame combining energy + breathing.
@@ -489,7 +488,7 @@ export class GeneratorOrchestrator {
 
   setBassVolumeMultiplier(multiplier: number): void {
     this.bassVolumeMultiplier = Math.max(0, multiplier)
-    this.bass.applyVolumeMultiplier(multiplier)
+    this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * this.selfListenGainCorrection)
   }
 
   setMelodyPitchOffset(semitones: number): void {
@@ -499,7 +498,7 @@ export class GeneratorOrchestrator {
 
   setMelodyVolumeMultiplier(multiplier: number): void {
     this.melodyVolumeMultiplier = Math.max(0, multiplier)
-    this.melody.applyVolumeMultiplier(multiplier)
+    this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * this.selfListenGainCorrection)
   }
 
   setTextureVolumeMultiplier(multiplier: number): void {

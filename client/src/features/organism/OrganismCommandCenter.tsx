@@ -435,6 +435,7 @@ export function OrganismCommandCenter() {
   const activePreset = activePresetId
     ? quickStartPresets.find(p => p.id === activePresetId) ?? null
     : null
+  const studioBpm = useStudioStore(s => s.bpm)
 
   const handleInstantStart = useCallback(() => {
     if (isStarting) return
@@ -447,9 +448,7 @@ export function OrganismCommandCenter() {
   }, [activePresetId, quickStartPresets, swapPreset, start, isStarting])
 
   const flowDepth  = organismState?.flowDepth ?? 0
-  const currentBpm = isRunning && physicsState?.pulse
-    ? Math.round(physicsState.pulse)
-    : (activePreset?.bpm ?? null)
+  const currentBpm = Math.round(orchestrator?.getBpm() ?? studioBpm ?? activePreset?.bpm ?? 0)
   const countingIn = countInBeat !== null
   const startLocked = isStarting || countingIn
 
@@ -1083,7 +1082,7 @@ export function OrganismCommandCenter() {
                 <span style={{ fontSize: 10, color: C.text3 }}>BPM</span>
                 <input
                   type="number" min={40} max={220}
-                  value={bpmInput || (physicsState?.pulse ? Math.round(physicsState.pulse) : (activePreset?.bpm ?? ''))}
+                  value={bpmInput || (currentBpm || '')}
                   onChange={e => setBpmInput(e.target.value)}
                   onBlur={commitBpm}
                   onKeyDown={e => { if (e.key === 'Enter') commitBpm() }}

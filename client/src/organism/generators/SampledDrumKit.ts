@@ -47,11 +47,11 @@ const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
 }
 
 const VOICE_TRIM_DB: Record<SampleVoice, number> = {
-  kick: -3,
-  snare: -5,
-  hatClosed: -12,
-  hatOpen: -14,
-  perc: -10,
+  kick: -5,
+  snare: -7,
+  hatClosed: -21,
+  hatOpen: -23,
+  perc: -14,
 }
 
 const VOICE_DURATION: Record<SampleVoice, Tone.Unit.Time> = {

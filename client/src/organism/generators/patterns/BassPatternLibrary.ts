@@ -105,11 +105,11 @@ export function buildBreatheNotes(rootMidi: number, density: number = 0.5): Sche
   // High density makes breathe more rhythmic (shorter notes)
   const dur = density > 0.75 ? '2n' : '1m'
 
-  notes.push({ pitch: midiToNote(root),    duration: dur, velocity: hv(0.60, 0, 0, 0), time: swingTime(0, 0, 0) })
-  notes.push({ pitch: midiToNote(octDown), duration: dur, velocity: hv(0.55, 1, 0, 0), time: swingTime(1, 0, 0) })
-  notes.push({ pitch: midiToNote(root),    duration: '2n', velocity: hv(0.58, 2, 0, 0), time: swingTime(2, 0, 0) })
-  notes.push({ pitch: midiToNote(fifth),   duration: '2n', velocity: hv(0.50, 2, 2, 0), time: swingTime(2, 2, 0) })
-  notes.push({ pitch: midiToNote(root),    duration: dur, velocity: hv(0.62, 3, 0, 0), time: swingTime(3, 0, 0) })
+  for (let bar = 0; bar < 4; bar++) {
+    const anchor = bar % 2 === 1 ? octDown : root
+    notes.push({ pitch: midiToNote(anchor), duration: dur, velocity: hv(0.64, bar, 0, 0), time: swingTime(bar, 0, 0) })
+    notes.push({ pitch: midiToNote(bar === 2 ? fifth : root), duration: '4n', velocity: hv(0.48, bar, 2, 0), time: swingTime(bar, 2, 0) })
+  }
 
   return notes
 }
@@ -405,6 +405,9 @@ export function buildDirtySouthNotes(rootMidi: number, density: number = 0.5): S
 
     // Beat 1: SLAM on sub root — long sustain
     notes.push({ pitch: midiToNote(octDown), duration: mainDur, velocity: hv(1.0, bar, 0, 0), time: swingTime(bar, 0, 0) })
+
+    // Beat 3: reinforce the sub so sampled basses do not feel like one-shot dropouts
+    notes.push({ pitch: midiToNote(bar % 2 === 0 ? fifth - 12 : octDown), duration: '4n', velocity: hv(0.72, bar, 2, 0), time: swingTime(bar, 2, 0) })
 
     // Beat 3 "and": short pickup hit
     if (bar % 2 === 0) {

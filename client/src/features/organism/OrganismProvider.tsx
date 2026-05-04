@@ -198,10 +198,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Latch + pattern lock state
   const [latchMode,        setLatchModeState]   = useState(false)
   const [isPatternLocked,  setIsPatternLocked]  = useState(false)
-  const [hatDensity,       setHatDensityState]  = useState(1)
-  const [kickVelocity,     setKickVelocityState]= useState(1)
-  const [bassVolume,       setBassVolumeState]  = useState(1)
-  const [melodyVolume,     setMelodyVolumeState]= useState(1)
+  const [hatDensity,       setHatDensityState]  = useState(0.55)
+  const [kickVelocity,     setKickVelocityState]= useState(0.82)
+  const [bassVolume,       setBassVolumeState]  = useState(1.25)
+  const [melodyVolume,     setMelodyVolumeState]= useState(1.2)
   const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
@@ -669,9 +669,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     orchestr.setArrangementEnabled(false)
     orchestr.setGrooveLocked(true)
-    orchestr.setBassVolumeMultiplier(1.0)
-    orchestr.setMelodyVolumeMultiplier(0.42)
-    orchestr.setChordVolumeMultiplier(0.48)
+    setHatDensityState(0.55)
+    setKickVelocityState(0.82)
+    setBassVolumeState(1.25)
+    setMelodyVolumeState(1.2)
+    orchestr.setHatDensityMultiplier(0.55)
+    orchestr.setKickVelocityMultiplier(0.82)
+    orchestr.setBassVolumeMultiplier(1.25)
+    orchestr.setMelodyVolumeMultiplier(1.2)
+    orchestr.setChordVolumeMultiplier(0.58)
     orchestr.setTextureVolumeMultiplier(0)
     orchestr.setTextureEnabled(false)
   }, [])
@@ -1578,12 +1584,24 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           const { generator, volume } = detail as Record<string, unknown>
           const orch = orchestrRef.current
           if (!orch || typeof volume !== 'number') break
-          if (generator === 'bass') orch.setBassVolumeMultiplier(volume)
-          else if (generator === 'melody') orch.setMelodyVolumeMultiplier(volume)
-          else if (generator === 'hatDensity') orch.setHatDensityMultiplier(volume)
-          else if (generator === 'kickVelocity') orch.setKickVelocityMultiplier(volume)
-          else if (generator === 'texture') orch.setTextureVolumeMultiplier(volume)
-          else if (generator === 'chord') orch.setChordVolumeMultiplier(volume)
+          const v = Math.max(0, Math.min(2, volume))
+          if (generator === 'bass') {
+            setBassVolumeState(v)
+            orch.setBassVolumeMultiplier(v)
+          } else if (generator === 'melody') {
+            setMelodyVolumeState(v)
+            orch.setMelodyVolumeMultiplier(v)
+          } else if (generator === 'hatDensity') {
+            setHatDensityState(v)
+            orch.setHatDensityMultiplier(v)
+          } else if (generator === 'kickVelocity') {
+            setKickVelocityState(v)
+            orch.setKickVelocityMultiplier(v)
+          } else if (generator === 'texture') {
+            orch.setTextureVolumeMultiplier(v)
+          } else if (generator === 'chord') {
+            orch.setChordVolumeMultiplier(v)
+          }
           break
         }
         case 'set-texture-enabled': {
