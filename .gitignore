@@ -63,6 +63,10 @@ tests/.auth/
 .claude/settings.local.json
 .claude/
 
+# Codex local settings and audio captures
+.codex/
+.codex-audio-capture-*.webm
+
 # Generated repo snapshots
 repo_tree*.txt
 
