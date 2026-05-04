@@ -15,6 +15,7 @@ import { generateTimeline, generateDrumPattern, calculateOptimalBPM } from './co
 import { generateAdvancedMelody } from './codeToMusic/melodyGenerator';
 import { generateAdvancedDrumPattern, drumPatternToNotes } from './codeToMusic/advancedDrums';
 import { getChordsForGenre } from './codeToMusic/chordDefinitions';
+import { arrangeCodeMusic } from './codeToMusic/compositionArranger';
 import { enhanceCodeToMusic, isAIAvailable } from './codeToMusic/aiEnhancer';
 
 /**
@@ -572,23 +573,37 @@ export async function convertCodeToMusicEnhanced(
     );
     
     // Combine all melodic elements
-    const allMelody = [...melody, ...bass, ...pads];
+    const rawMelody = [...melody, ...bass, ...pads];
     
     // Calculate duration from all notes
-    const duration = allMelody.length > 0 
-      ? Math.max(...allMelody.map(n => n.start + n.duration))
+    const rawDuration = rawMelody.length > 0 
+      ? Math.max(...rawMelody.map(n => n.start + n.duration))
       : 16;
+    const barDuration = (60 / bpm) * 4;
+    const drumDuration = Math.max(rawDuration, barDuration * 8);
     
     // Use ADVANCED drum generator
     const advancedDrums = generateAdvancedDrumPattern(
       parsedCode,
       genreConfig.name,
       bpm,
-      duration
+      drumDuration
     );
     
     // Convert drum hits to melody note format for unified playback
-    const drumNotes = drumPatternToNotes(advancedDrums);
+    const rawDrumNotes = drumPatternToNotes(advancedDrums);
+    const arranged = arrangeCodeMusic({
+      melody: rawMelody,
+      drumNotes: rawDrumNotes,
+      chords,
+      parsedCode,
+      genre: genreConfig.name,
+      bpm,
+      duration: drumDuration,
+    });
+    const allMelody = arranged.melody;
+    const drumNotes = arranged.drumNotes;
+    const duration = arranged.duration;
     
     // Create timeline events from all elements
     const timeline = allMelody.map((note, index) => ({
@@ -644,6 +659,7 @@ export async function convertCodeToMusicEnhanced(
         duration,
         generatedAt: new Date().toISOString(),
         seed: generateSeed(request.code, request.variation || 0),
+        sections: arranged.sections,
       },
     };
 

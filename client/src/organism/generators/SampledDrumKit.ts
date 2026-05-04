@@ -5,13 +5,17 @@ import { OrganismMode } from '../physics/types'
 type SampleVoice = 'kick' | 'snare' | 'hatClosed' | 'hatOpen' | 'perc'
 
 type SampleKitDefinition = Record<SampleVoice, string>
+type SampleVoiceSlot = {
+  gain: Tone.Gain
+  player: Tone.Player
+}
 
 const sampleUrl = (filename: string): string => `/api/samples/${encodeURIComponent(filename)}`
 
 const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
   [OrganismMode.Heat]: {
-    kick: 'kick_._e808_bd[short]-03.wav',
-    snare: 'snare_._e808_sd-08.wav',
+    kick: 'kick_808.wav',
+    snare: 'snare_808.wav',
     hatClosed: 'hihat_cycdh_eleck01-cl01.wav',
     hatOpen: 'hihat_cycdh_eleck01-op01.wav',
     perc: 'percussion_perc-808.wav',
@@ -48,9 +52,9 @@ const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
 
 const VOICE_TRIM_DB: Record<SampleVoice, number> = {
   kick: -5,
-  snare: -7,
-  hatClosed: -21,
-  hatOpen: -23,
+  snare: -12,
+  hatClosed: -31,
+  hatOpen: -33,
   perc: -14,
 }
 
@@ -62,10 +66,18 @@ const VOICE_DURATION: Record<SampleVoice, Tone.Unit.Time> = {
   perc: 0.22,
 }
 
+const VOICE_POOL_SIZE: Record<SampleVoice, number> = {
+  kick: 3,
+  snare: 4,
+  hatClosed: 10,
+  hatOpen: 5,
+  perc: 4,
+}
+
 export class SampledDrumKit {
   private readonly output: Tone.Gain
-  private readonly voiceGains = new Map<SampleVoice, Tone.Gain>()
-  private readonly players = new Map<SampleVoice, Tone.Player>()
+  private readonly slots = new Map<SampleVoice, SampleVoiceSlot[]>()
+  private readonly slotCursor = new Map<SampleVoice, number>()
   private currentMode: OrganismMode | null = null
   private warnedVoices = new Set<SampleVoice>()
 
@@ -81,41 +93,66 @@ export class SampledDrumKit {
 
     const definition = KIT_DEFINITIONS[mode] ?? KIT_DEFINITIONS[OrganismMode.Glow]
     for (const [voice, filename] of Object.entries(definition) as [SampleVoice, string][]) {
-      const gain = new Tone.Gain(0)
-      gain.connect(this.output)
+      const voiceSlots: SampleVoiceSlot[] = []
+      const poolSize = VOICE_POOL_SIZE[voice]
 
-      const player = new Tone.Player({
-        url: sampleUrl(filename),
-        fadeOut: 0.006,
-        onerror: (error) => {
-          if (this.warnedVoices.has(voice)) return
-          this.warnedVoices.add(voice)
-          console.warn('[Organism] sampled drum voice failed to load; using synth fallback', {
-            voice,
-            filename,
-            error,
-          })
-        },
-      })
-      player.volume.value = VOICE_TRIM_DB[voice]
-      player.connect(gain)
+      for (let i = 0; i < poolSize; i++) {
+        const gain = new Tone.Gain(0)
+        gain.connect(this.output)
 
-      this.voiceGains.set(voice, gain)
-      this.players.set(voice, player)
+        const player = new Tone.Player({
+          url: sampleUrl(filename),
+          fadeOut: 0.006,
+          onerror: (error) => {
+            if (this.warnedVoices.has(voice)) return
+            this.warnedVoices.add(voice)
+            console.warn('[Organism] sampled drum voice failed to load; using synth fallback', {
+              voice,
+              filename,
+              error,
+            })
+          },
+        })
+        player.volume.value = VOICE_TRIM_DB[voice]
+        player.connect(gain)
+        voiceSlots.push({ gain, player })
+      }
+
+      this.slots.set(voice, voiceSlots)
+      this.slotCursor.set(voice, 0)
     }
   }
 
   trigger(instrument: DrumInstrument, time: number, velocity: number): boolean {
     const voice = this.resolveVoice(instrument, velocity)
-    const player = this.players.get(voice)
-    const gain = this.voiceGains.get(voice)
-    if (!player || !gain || !player.loaded) return false
+    const voiceSlots = this.slots.get(voice)
+    if (!voiceSlots || voiceSlots.length === 0) return false
+
+    const cursor = this.slotCursor.get(voice) ?? 0
+    const slot = voiceSlots[cursor % voiceSlots.length]
+    this.slotCursor.set(voice, (cursor + 1) % voiceSlots.length)
+
+    // If the sample is still loading, drop this one hit instead of falling back
+    // to the synthetic drum voice. The synth fallback was making kicks sound
+    // broken during startup or after a kit swap.
+    if (!slot.player.loaded) return true
 
     const shapedVelocity = Math.max(0, Math.min(1, velocity))
-    gain.gain.cancelScheduledValues(time)
-    gain.gain.setValueAtTime(shapedVelocity, time)
-    player.start(time, 0, VOICE_DURATION[voice])
-    return true
+    try {
+      slot.gain.gain.cancelScheduledValues(time)
+      slot.gain.gain.setValueAtTime(shapedVelocity, time)
+      slot.player.start(time, 0, VOICE_DURATION[voice])
+      return true
+    } catch (error) {
+      if (!this.warnedVoices.has(voice)) {
+        this.warnedVoices.add(voice)
+        console.warn('[Organism] sampled drum voice could not be scheduled; using synth fallback', {
+          voice,
+          error,
+        })
+      }
+      return false
+    }
   }
 
   dispose(): void {
@@ -136,9 +173,13 @@ export class SampledDrumKit {
   }
 
   private disposeVoices(): void {
-    for (const player of this.players.values()) player.dispose()
-    for (const gain of this.voiceGains.values()) gain.dispose()
-    this.players.clear()
-    this.voiceGains.clear()
+    for (const voiceSlots of this.slots.values()) {
+      for (const { player, gain } of voiceSlots) {
+        player.dispose()
+        gain.dispose()
+      }
+    }
+    this.slots.clear()
+    this.slotCursor.clear()
   }
 }

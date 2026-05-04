@@ -4,7 +4,7 @@
  */
 
 import type { ParsedCode, CodeElement, TimelineEvent, ChordProgression, MelodyNote } from '../../../shared/types/codeToMusic';
-import { getChordsForGenre, getChordByIndex } from './chordDefinitions';
+import { getChordByIndex, getChordByName } from './chordDefinitions';
 import { mapElementToNoteIntelligent, calculateNoteDuration, calculateNoteVelocity, selectInstrument } from './noteMapping';
 import { getProgressionForMood, getGenreConfig } from './genreConfigs';
 
@@ -32,18 +32,11 @@ export function generateTimeline(
   const secondsPerElement = 0.5;
   const totalDuration = Math.max(16, Math.min(32, elements.length * secondsPerElement));
   
-  // Divide into 4 sections (one per chord)
+  // Divide into sections (one per chord)
   const elementsPerSection = Math.ceil(elements.length / 4);
   const secondsPerChord = totalDuration / 4;
 
-  // Progression variations to avoid same order every time
-  const progressions = [
-    [0, 1, 2, 3], // I-V-vi-IV
-    [0, 3, 1, 2], // I-IV-V-vi
-    [2, 0, 3, 1], // vi-I-IV-V
-    [3, 0, 1, 2], // IV-I-V-vi
-  ];
-  const progression = progressions[Math.abs(variation) % progressions.length];
+  const progression = getProgressionForMood(genre, parsedCode.mood || 'neutral', Math.abs(variation));
   
   const timeline: TimelineEvent[] = [];
   const chords: ChordProgression[] = [];
@@ -53,8 +46,8 @@ export function generateTimeline(
   
   // Generate chord progression (4 chords, repeating if needed)
   for (let i = 0; i < 4; i++) {
-    const chordIndex = progression[i % progression.length];
-    const chord = getChordByIndex(genre, chordIndex);
+    const chordName = progression[i % progression.length];
+    const chord = chordName ? getChordByName(chordName) : getChordByIndex(genre, i);
 
     chords.push({
       chord: chord.name,
@@ -68,8 +61,8 @@ export function generateTimeline(
   elements.forEach((element, index) => {
     // Determine which chord we're in
     const chordSlot = Math.floor(index / elementsPerSection) % 4;
-    const chordIndex = progression[chordSlot % progression.length];
-    const chord = getChordByIndex(genre, chordIndex);
+    const chordName = progression[chordSlot % progression.length];
+    const chord = chordName ? getChordByName(chordName) : getChordByIndex(genre, chordSlot);
     
     // Map element to note
     const note = mapElementToNoteIntelligent(element, chord, variation);

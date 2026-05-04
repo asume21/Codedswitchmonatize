@@ -274,6 +274,11 @@ export class StateMachine {
       }
     }
 
+    if (to === OState.Breathing) {
+      if (this.state.awakeningProgress < 1) this.state.awakeningProgress = 1
+      if (this.state.breathingWarmth < 0.65) this.state.breathingWarmth = 0.65
+    }
+
     if (to === OState.Flow) {
       this.state.cadenceLockAchieved = true
       // Seed flowDepth and breathingWarmth so generators are immediately

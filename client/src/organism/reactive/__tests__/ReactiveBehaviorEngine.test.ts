@@ -42,6 +42,7 @@ function makeOrganism(overrides: Partial<OrganismState> = {}): OrganismState {
 
 function createMockOrchestrator() {
   return {
+    applyReactiveMultipliers: vi.fn(),
     setHatDensityMultiplier:   vi.fn(),
     setKickVelocityMultiplier: vi.fn(),
     setBassVolumeMultiplier:   vi.fn(),
@@ -74,18 +75,13 @@ describe('ReactiveBehaviorEngine', () => {
       makeOrganism({ current: OState.Dormant }),
     )
     expect(engine.isActive()).toBe(false)
-    expect(mockOrch.setHatDensityMultiplier).not.toHaveBeenCalled()
+    expect(mockOrch.applyReactiveMultipliers).not.toHaveBeenCalled()
   })
 
-  it('in OState.Flow → processFrame calls all 6 mutation methods', () => {
+  it('in OState.Flow → processFrame applies one reactive multiplier batch', () => {
     engine.processFrame(makeFrame(), makePhysics(), makeOrganism())
     expect(engine.isActive()).toBe(true)
-    expect(mockOrch.setHatDensityMultiplier).toHaveBeenCalledOnce()
-    expect(mockOrch.setKickVelocityMultiplier).toHaveBeenCalledOnce()
-    expect(mockOrch.setBassVolumeMultiplier).toHaveBeenCalledOnce()
-    expect(mockOrch.setMelodyPitchOffset).toHaveBeenCalledOnce()
-    expect(mockOrch.setMelodyVolumeMultiplier).toHaveBeenCalledOnce()
-    expect(mockOrch.setTextureVolumeMultiplier).toHaveBeenCalledOnce()
+    expect(mockOrch.applyReactiveMultipliers).toHaveBeenCalledOnce()
   })
 
   it('BehaviorOutput merging is multiplicative', () => {
@@ -97,16 +93,13 @@ describe('ReactiveBehaviorEngine', () => {
     )
 
     // masterDuckMultiplier should be < 1 and multiply into bass/melody/texture
-    const bassCall = mockOrch.setBassVolumeMultiplier.mock.calls[0][0]
-    expect(bassCall).toBeLessThan(1.0)
-
-    const melodyCall = mockOrch.setMelodyVolumeMultiplier.mock.calls[0][0]
-    expect(melodyCall).toBeLessThan(1.0)
+    const output = mockOrch.applyReactiveMultipliers.mock.calls[0][0]
+    expect(output.bassVolumeMultiplier).toBeLessThan(1.0)
+    expect(output.melodyVolumeMultiplier).toBeLessThan(1.0)
   })
 
   it('wire(orchestrator) stores reference — applyToOrchestrator called', () => {
     engine.processFrame(makeFrame(), makePhysics(), makeOrganism())
-    // All 6 methods called = orchestrator reference works
-    expect(mockOrch.setHatDensityMultiplier).toHaveBeenCalled()
+    expect(mockOrch.applyReactiveMultipliers).toHaveBeenCalled()
   })
 })

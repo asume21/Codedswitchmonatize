@@ -8,6 +8,7 @@ import {
   AnalysisFrameCallback,
   DEFAULT_ANALYSIS_CONFIG,
 } from './types'
+import { getAudioContext, resumeAudioContext } from '../../lib/audioContext'
 
 type MessagePayload = {
   type: 'frame'
@@ -21,6 +22,7 @@ export class AudioAnalysisEngine {
   private workletNode: AudioWorkletNode | null = null
   private analyserNode: AnalyserNode | null = null
   private sourceNode: MediaStreamAudioSourceNode | null = null
+  private silentSink: GainNode | null = null
   private stream: MediaStream | null = null
 
   private readonly rmsAnalyzer: RmsAnalyzer
@@ -96,9 +98,8 @@ export class AudioAnalysisEngine {
       },
     })
 
-    this.audioContext = new AudioContext({
-      sampleRate: this.config.sampleRate,
-    })
+    await resumeAudioContext()
+    this.audioContext = getAudioContext()
 
     await this.audioContext.audioWorklet.addModule('/organism/worklets/analysis-worklet-processor.js')
 
@@ -114,6 +115,10 @@ export class AudioAnalysisEngine {
 
     this.sourceNode.connect(this.analyserNode)
     this.analyserNode.connect(this.workletNode)
+    this.silentSink = this.audioContext.createGain()
+    this.silentSink.gain.value = 0
+    this.workletNode.connect(this.silentSink)
+    this.silentSink.connect(this.audioContext.destination)
 
     this.workletNode.port.onmessage = (event: MessageEvent<unknown>) => {
       const data = event.data
@@ -145,14 +150,15 @@ export class AudioAnalysisEngine {
       this.workletNode.port.onmessage = null
     }
     this.workletNode?.disconnect()
+    this.silentSink?.disconnect()
     this.analyserNode?.disconnect()
     this.sourceNode?.disconnect()
     this.stream?.getTracks().forEach((track) => track.stop())
-    this.audioContext?.close()
 
     this.workletNode = null
     this.analyserNode = null
     this.sourceNode = null
+    this.silentSink = null
     this.stream = null
     this.audioContext = null
     this.running = false

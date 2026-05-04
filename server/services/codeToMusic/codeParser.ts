@@ -62,6 +62,56 @@ const LANGUAGE_PATTERNS = {
     import: /^\s*#include\s+/,
     return: /^\s*return\s+/,
   },
+
+  csharp: {
+    class: /^\s*(public|private|protected|internal)?\s*(partial\s+)?(class|interface|struct|record)\s+(\w+)/,
+    function: /^\s*(public|private|protected|internal)?\s*(static\s+|async\s+)?[\w<>\[\],\s]+\s+(\w+)\s*\(/,
+    variable: /^\s*(public|private|protected|internal)?\s*(static\s+|readonly\s+|const\s+)?(var|[\w<>\[\],]+)\s+(\w+)\s*=/,
+    loop: /^\s*(for|foreach|while|do)\s*[({]/,
+    conditional: /^\s*(if|switch)\s*\(/,
+    import: /^\s*using\s+/,
+    return: /^\s*return\s+/,
+  },
+
+  go: {
+    class: /^\s*type\s+(\w+)\s+(struct|interface)\b/,
+    function: /^\s*func\s+(\(\s*\w+\s+\*?\w+\s*\)\s*)?(\w+)\s*\(/,
+    variable: /^\s*(var|const)\s+(\w+)\s*[=:]?|^\s*(\w+)\s*:=/,
+    loop: /^\s*for\b/,
+    conditional: /^\s*(if|switch|select)\b/,
+    import: /^\s*import\s+/,
+    return: /^\s*return\s+/,
+  },
+
+  rust: {
+    class: /^\s*(pub\s+)?(struct|enum|trait|impl)\s+(\w+)/,
+    function: /^\s*(pub\s+)?(async\s+)?fn\s+(\w+)/,
+    variable: /^\s*let\s+(mut\s+)?(\w+)\s*[:=]/,
+    loop: /^\s*(for|while|loop)\b/,
+    conditional: /^\s*(if|match)\b/,
+    import: /^\s*use\s+/,
+    return: /^\s*return\s+/,
+  },
+
+  ruby: {
+    class: /^\s*class\s+(\w+)/,
+    function: /^\s*def\s+([\w!?=]+)/,
+    variable: /^\s*(@{0,2}\w+)\s*=/,
+    loop: /^\s*(for|while|until)\b|\.each\s+do\b/,
+    conditional: /^\s*(if|unless|case)\b/,
+    import: /^\s*(require|load|include)\s+/,
+    return: /^\s*return\s+/,
+  },
+
+  php: {
+    class: /^\s*(abstract\s+|final\s+)?(class|interface|trait)\s+(\w+)/,
+    function: /^\s*(public|private|protected)?\s*(static\s+)?function\s+(\w+)/,
+    variable: /^\s*(public|private|protected)?\s*(static\s+)?\$\w+\s*=/,
+    loop: /^\s*(for|foreach|while|do)\s*[({]/,
+    conditional: /^\s*(if|switch)\s*\(/,
+    import: /^\s*(use|require|include|require_once|include_once)\s+/,
+    return: /^\s*return\s+/,
+  },
 };
 
 /**
@@ -75,6 +125,11 @@ function normalizeLanguage(language: string): keyof typeof LANGUAGE_PATTERNS {
   if (['py', 'python'].includes(normalized)) return 'python';
   if (['java'].includes(normalized)) return 'java';
   if (['c', 'cpp', 'c++', 'cc', 'cxx'].includes(normalized)) return 'cpp';
+  if (['cs', 'c#', 'csharp'].includes(normalized)) return 'csharp';
+  if (['go', 'golang'].includes(normalized)) return 'go';
+  if (['rs', 'rust'].includes(normalized)) return 'rust';
+  if (['rb', 'ruby'].includes(normalized)) return 'ruby';
+  if (['php'].includes(normalized)) return 'php';
   
   return 'javascript'; // Default fallback
 }
@@ -176,8 +231,22 @@ export function parseCodeStructure(code: string, language: string): ParsedCode {
     }
   });
   
-  // Calculate complexity (simple heuristic)
-  const complexity = Math.min(10, Math.max(1, Math.floor(elements.length / 3) + 1));
+  const loops = elements.filter(e => e.type === 'loop').length;
+  const conditionals = elements.filter(e => e.type === 'conditional').length;
+  const classes = elements.filter(e => e.type === 'class').length;
+  const functions = elements.filter(e => e.type === 'function').length;
+  const maxNesting = Math.max(...elements.map(e => e.nestingLevel), 0);
+  const activeLineCount = lines.filter(line => line.trim().length > 0).length;
+  const complexityScore =
+    1 +
+    (elements.length * 0.35) +
+    (loops * 0.9) +
+    (conditionals * 0.7) +
+    (classes * 0.5) +
+    (functions * 0.35) +
+    (maxNesting * 0.55) +
+    Math.min(2, activeLineCount / 40);
+  const complexity = Math.min(10, Math.max(1, Math.round(complexityScore)));
   
   // Detect mood based on keywords (use cleaned code for better accuracy)
   const mood = detectMood(cleanedCode);

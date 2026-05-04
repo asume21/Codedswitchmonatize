@@ -5,6 +5,7 @@ import { SpectralAnalyzer } from '../analysis/algorithms/SpectralAnalyzer'
 import type { AnalysisFrame, AnalysisFrameCallback } from '../analysis/types'
 import { DEFAULT_ANALYSIS_CONFIG } from '../analysis/types'
 import type { InputSource } from './types'
+import { getAudioContext, resumeAudioContext } from '../../lib/audioContext'
 
 /**
  * Routes audio file playback through the same analysis pipeline
@@ -23,6 +24,7 @@ export class AudioFileSource implements InputSource {
   private sourceNode: MediaElementAudioSourceNode | null = null
   private analyserNode: AnalyserNode | null = null
   private scriptNode: ScriptProcessorNode | null = null
+  private silentSink: GainNode | null = null
   private audioElement: HTMLAudioElement | null = null
 
   private readonly rmsAnalyzer: RmsAnalyzer
@@ -60,7 +62,8 @@ export class AudioFileSource implements InputSource {
   async start(): Promise<void> {
     if (this.running) return
 
-    this.audioContext = new AudioContext({ sampleRate: this.config.sampleRate })
+    await resumeAudioContext()
+    this.audioContext = getAudioContext()
 
     // Create audio element from File or URL
     this.audioElement = new Audio()
@@ -92,7 +95,10 @@ export class AudioFileSource implements InputSource {
 
     this.sourceNode.connect(this.analyserNode)
     this.analyserNode.connect(this.scriptNode)
-    this.scriptNode.connect(this.audioContext.destination)
+    this.silentSink = this.audioContext.createGain()
+    this.silentSink.gain.value = 0
+    this.scriptNode.connect(this.silentSink)
+    this.silentSink.connect(this.audioContext.destination)
     // Also let the audio play through speakers
     this.sourceNode.connect(this.audioContext.destination)
 
@@ -118,9 +124,9 @@ export class AudioFileSource implements InputSource {
     }
 
     this.scriptNode?.disconnect()
+    this.silentSink?.disconnect()
     this.analyserNode?.disconnect()
     this.sourceNode?.disconnect()
-    this.audioContext?.close()
 
     if (this.objectUrl) {
       URL.revokeObjectURL(this.objectUrl)
@@ -128,6 +134,7 @@ export class AudioFileSource implements InputSource {
     }
 
     this.scriptNode = null
+    this.silentSink = null
     this.analyserNode = null
     this.sourceNode = null
     this.audioContext = null

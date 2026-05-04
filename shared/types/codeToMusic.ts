@@ -90,6 +90,12 @@ export interface MusicMetadata {
   generatedAt: string;
   seed: number;        // for reproducibility
   aiEnhanced?: boolean;
+  sections?: {
+    name: string;
+    start: number;
+    duration: number;
+    focus: string;
+  }[];
 }
 
 export interface GenreConfig {

@@ -234,7 +234,8 @@ export function generatePhraseFromElement(
 export function generateBassLine(
   chords: { chord: string; notes: string[]; start: number; duration: number }[],
   parsedCode: ParsedCode,
-  bpm: number
+  bpm: number,
+  genre: string
 ): MelodyNote[] {
   const bassNotes: MelodyNote[] = [];
   const beatDuration = 60 / bpm;
@@ -242,6 +243,7 @@ export function generateBassLine(
   // Bass pattern based on genre/complexity
   const isComplex = parsedCode.complexity > 5;
   const hasLoops = parsedCode.elements.filter(e => e.type === 'loop').length > 0;
+  const wantsContinuousBass = ['hiphop', 'lofi', 'rnb', 'edm'].includes(genre);
   
   chords.forEach((chord, chordIndex) => {
     const rootNote = chord.notes[0]; // First note is root
@@ -252,6 +254,32 @@ export function generateBassLine(
     
     for (let beat = 0; beat < beatsInChord; beat++) {
       const beatTime = chord.start + (beat * beatDuration);
+      const fifthNote = chord.notes[Math.min(2, chord.notes.length - 1)]?.replace(/\d+/, (m) => String(Math.max(1, parseInt(m) - 2))) || bassNote;
+      const octaveRoot = bassNote.replace(/\d+/, (m) => String(Math.min(3, Math.max(1, parseInt(m) + 1))));
+
+      if (wantsContinuousBass) {
+        const patternNote = beat % 4 === 2 ? fifthNote : beat % 4 === 3 && (isComplex || hasLoops) ? octaveRoot : bassNote;
+        bassNotes.push({
+          note: patternNote,
+          start: beatTime,
+          duration: beatDuration * (beat % 2 === 0 ? 0.85 : 0.55),
+          velocity: beat % 4 === 0 ? 102 : 82,
+          instrument: 'bass',
+          source: `Bass: ${chord.chord}`,
+        });
+
+        if ((genre === 'hiphop' || genre === 'lofi') && (hasLoops || isComplex) && beat % 2 === 1) {
+          bassNotes.push({
+            note: bassNote,
+            start: beatTime + beatDuration * 0.5,
+            duration: beatDuration * 0.35,
+            velocity: 70,
+            instrument: 'bass',
+            source: `Bass pickup: ${chord.chord}`,
+          });
+        }
+        continue;
+      }
       
       // Basic pattern: root on 1, fifth on 3 (if complex)
       if (beat === 0) {
@@ -265,7 +293,6 @@ export function generateBassLine(
         });
       } else if (isComplex && beat === 2 && chord.notes.length > 2) {
         // Play fifth on beat 3
-        const fifthNote = chord.notes[2].replace(/\d/, (m) => String(Math.max(1, parseInt(m) - 2)));
         bassNotes.push({
           note: fifthNote,
           start: beatTime,
@@ -307,7 +334,7 @@ export function generatePadLayer(
         note,
         start: chord.start,
         duration: chord.duration * 0.95,
-        velocity: mood === 'energetic' ? 70 : 50, // Softer for calm moods
+        velocity: mood === 'energetic' ? 54 : 42,
         instrument: 'pad',
         source: `Pad: ${chord.chord}`,
       });
@@ -401,22 +428,22 @@ export function generateAdvancedMelody(
   const beatDuration = 60 / bpm;
   
   parsedCode.elements.forEach((element, index) => {
-    // Align to chord boundaries for musicality
-    const chordIndex = Math.floor(currentTime / (beatDuration * 4)) % chords.length;
-    
+    const phraseSlotBeats = element.type === 'class' || element.type === 'function' ? 2 : 1;
+    const phraseSlot = beatDuration * phraseSlotBeats;
+    currentTime = Math.ceil(currentTime / phraseSlot) * phraseSlot;
+
     const phrase = generatePhraseFromElement(element, config, currentTime, index);
     melody = melody.concat(phrase);
     
-    // Move time forward
-    const phraseDuration = phrase.reduce((sum, n) => sum + n.duration, 0);
-    currentTime += phraseDuration + (beatDuration * 0.5); // Small gap between phrases
+    const phraseEnd = phrase.reduce((end, n) => Math.max(end, n.start + n.duration), currentTime);
+    currentTime = phraseEnd + (beatDuration * (index % 4 === 3 ? 1 : 0.25));
   });
   
   // Add ornaments for complex code
   melody = addOrnaments(melody, parsedCode.complexity, scale, rootNote);
   
   // Generate bass line
-  const bass = generateBassLine(chords, parsedCode, bpm);
+  const bass = generateBassLine(chords, parsedCode, bpm, genre);
   
   // Generate pad layer
   const pads = generatePadLayer(chords, parsedCode.mood || 'neutral');

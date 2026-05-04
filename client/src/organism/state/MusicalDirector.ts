@@ -37,7 +37,7 @@ import { getMelodyBehavior } from '../generators/patterns/MelodyPatternLibrary'
 import type { ChordEvent } from '../generators/patterns/ChordProgressionBank'
 
 // ── Arrangement Template ──────────────────────────────────────────────
-// 28-bar cycle with per-instrument multipliers AND dropout flags.
+// 32-bar cycle with per-instrument multipliers AND dropout flags.
 
 interface ArrangementSlot {
   name: ArrangementSection
@@ -53,18 +53,13 @@ interface ArrangementSlot {
   melodyDropout: boolean
 }
 
-// Freestyle arrangement: full beat from bar 1, melody never drops out.
-// All instruments are always on — the volume multipliers handle dynamics,
-// but nothing is silenced so the MC always has something to rap over.
 const ARRANGEMENT: ArrangementSlot[] = [
-  { name: 'intro',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, chord: 0.8, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, chord: 0.9, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, chord: 1.0, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, chord: 1.0, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 2, drums: 0.6, bass: 0.8, melody: 0.6, chord: 0.7, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, chord: 0.9, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, chord: 1.0, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'outro',     bars: 2, drums: 0.7, bass: 0.8, melody: 0.7, chord: 0.6, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'intro',     bars: 4, drums: 0.28, bass: 0.35, melody: 0.0, chord: 0.72, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: true },
+  { name: 'verse',     bars: 8, drums: 0.58, bass: 0.88, melody: 0.32, chord: 0.54, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'build',     bars: 4, drums: 0.7, bass: 0.92, melody: 0.72, chord: 0.66, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 8, drums: 0.88, bass: 1.0, melody: 1.15, chord: 0.74, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'breakdown', bars: 4, drums: 0.3, bass: 0.55, melody: 0.45, chord: 0.8, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 0.88, bass: 1.0, melody: 1.2, chord: 0.72, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const ARRANGEMENT_TOTAL_BARS = ARRANGEMENT.reduce((sum, s) => sum + s.bars, 0)
@@ -218,15 +213,11 @@ export class MusicalDirector {
         this.state.sectionBar++
       }
 
-      // STORY MODE: We prevent full dropouts during a performance (Flow) 
-      // unless the arrangement slot name is 'breakdown' or 'outro'.
-      // This ensures the MC always has a scaffold.
-      const isBreatherSection = slot.name === 'breakdown' || slot.name === 'outro'
-      const allowDropouts = !isFlow || isBreatherSection
-
-      this.state.drums.dropout = allowDropouts ? slot.drumDropout : false
-      this.state.bass.dropout = allowDropouts ? slot.bassDropout : false
-      this.state.melody.dropout = allowDropouts ? slot.melodyDropout : false
+      // Section masks are intentional song structure. Groove lock freezes the
+      // pattern pocket, but it should not flatten the arrangement into a loop.
+      this.state.drums.dropout = slot.drumDropout
+      this.state.bass.dropout = slot.bassDropout
+      this.state.melody.dropout = slot.melodyDropout
 
       // Fill request on last bar of each section
       const barsIntoSection = cycleBar - accumulated

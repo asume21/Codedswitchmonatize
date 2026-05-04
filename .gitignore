@@ -72,3 +72,4 @@ repo_tree*.txt
 
 # Rust build output
 **/target/
+audio/reference-beats/

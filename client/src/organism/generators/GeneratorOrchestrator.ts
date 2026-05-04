@@ -44,16 +44,22 @@ export class GeneratorOrchestrator {
   private lastFrameTime: number = 0
   private static readonly MIN_FRAME_INTERVAL_MS = 55  // ~18fps — plenty for musical reactivity
 
-  // Reactive multiplier state (Section 05)
-  // These are BASE multipliers set by ReactiveBehaviorEngine.
-  // Performer and self-listen corrections are applied as TEMPORARY modifiers
-  // on top — they never write back to these fields to prevent compounding.
+  // Mix multiplier state (Section 05)
+  // Public setters own the user's base slider values. Reactive automation,
+  // performer state, and self-listen are layered separately so frame-by-frame
+  // behavior cannot overwrite what the user set in the UI.
   private hatDensityMultiplier:   number = 1.0
   private kickVelocityMultiplier: number = 1.0
   private bassVolumeMultiplier:   number = 1.0
   private melodyPitchOffset:      number = 0
   private melodyVolumeMultiplier: number = 1.0
   private textureVolumeMultiplier: number = 1.0
+
+  private reactiveHatDensityMultiplier:   number = 1.0
+  private reactiveKickVelocityMultiplier: number = 1.0
+  private reactiveBassVolumeMultiplier:   number = 1.0
+  private reactiveMelodyVolumeMultiplier: number = 1.0
+  private reactiveTextureVolumeMultiplier: number = 1.0
 
   // Self-listen correction factor — applied multiplicatively to all generators
   // but stored separately so it doesn't compound with performer/reactive state.
@@ -65,32 +71,26 @@ export class GeneratorOrchestrator {
 
   // ── Arrangement state ─────────────────────────────────────────────
   //
-  // Cycles through 28-bar arrangement sections to add dynamic variation.
-  // Each section shapes which generators are active and at what level.
-  // Texture is fully disabled — no ambient noise layer.
+  // Cycles through a 32-bar song-form sketch. Each section is a hard mask
+  // plus a level shape, so the Organism can create an intro/verse/build/drop
+  // arc instead of layering every generator from bar 1.
   //
-  //   intro (4 bars)     → drums only, building
-  //   verse (4 bars)     → drums + bass
-  //   build (4 bars)     → drums + bass + melody
-  //   drop  (4 bars)     → drums + bass + melody, full energy
-  //   breakdown (2 bars) → light drums + bass (breathing room)
-  //   verse2 (4 bars)    → drums + bass + melody variation
-  //   drop2  (4 bars)    → drums + bass + melody, peak
-  //   outro (2 bars)     → light drums + bass fade
+  //   intro (4 bars)     → chords only
+  //   verse (8 bars)     → sparse drums + bass
+  //   build (4 bars)     → hats/melody rise toward the drop
+  //   drop  (8 bars)     → full mix
+  //   breakdown (4 bars) → half-energy drums, sustained harmony
+  //   drop2  (4 bars)    → return hook/drop energy
   //
-  // Total cycle: 28 bars, then repeats.
+  // Total cycle: 32 bars, then repeats.
 
-  // Freestyle arrangement: full beat from bar 1, melody never drops out.
-  // Mirrors MusicalDirector.ARRANGEMENT — no instrument silence, only dynamics.
   private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
-    { name: 'intro',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.7, texture: 0, chord: 0.8 },
-    { name: 'verse',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.8, texture: 0, chord: 0.9 },
-    { name: 'build',     bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, texture: 0, chord: 1.0 },
-    { name: 'drop',      bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'breakdown', bars: 2, drums: 0.6, bass: 0.8, melody: 0.6, texture: 0, chord: 0.7 },
-    { name: 'verse2',    bars: 4, drums: 1.0, bass: 1.0, melody: 0.9, texture: 0, chord: 0.9 },
-    { name: 'drop2',     bars: 4, drums: 1.0, bass: 1.0, melody: 1.0, texture: 0, chord: 1.0 },
-    { name: 'outro',     bars: 2, drums: 0.7, bass: 0.8, melody: 0.7, texture: 0, chord: 0.6 },
+    { name: 'intro',     bars: 4, drums: 0.28, bass: 0.35, melody: 0.0, texture: 0, chord: 0.72 },
+    { name: 'verse',     bars: 8, drums: 0.58, bass: 0.88, melody: 0.32, texture: 0, chord: 0.54 },
+    { name: 'build',     bars: 4, drums: 0.7, bass: 0.92, melody: 0.72, texture: 0, chord: 0.66 },
+    { name: 'drop',      bars: 8, drums: 0.88, bass: 1.0, melody: 1.15, texture: 0, chord: 0.74 },
+    { name: 'breakdown', bars: 4, drums: 0.3, bass: 0.55, melody: 0.45, texture: 0, chord: 0.8 },
+    { name: 'drop2',     bars: 4, drums: 0.88, bass: 1.0, melody: 1.2, texture: 0, chord: 0.72 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
@@ -292,11 +292,30 @@ export class GeneratorOrchestrator {
     if (!this.lastPhysics) return
     const physics = this.lastPhysics
     const state = this.lastOrganism?.current ?? OState.Breathing
+    const live = Tone.getTransport().state === 'started'
+
+    if (live) {
+      this.drum.onStateTransition(state, physics)
+      globalThis.setTimeout(() => this.bass.onStateTransition(state, physics), 80)
+      globalThis.setTimeout(() => this.melody.onStateTransition(state, physics), 160)
+      globalThis.setTimeout(() => this.texture.onStateTransition(state, physics), 220)
+      globalThis.setTimeout(() => this.chord.onStateTransition(state, physics), 280)
+      return
+    }
+
     this.drum.onStateTransition(state, physics)
     this.bass.onStateTransition(state, physics)
     this.melody.onStateTransition(state, physics)
     this.texture.onStateTransition(state, physics)
     this.chord.onStateTransition(state, physics)
+  }
+
+  /** Prime one audible frame after a forced startup transition. */
+  primeFrame(physics: PhysicsState, organism: OrganismState): void {
+    this.lastPhysics = physics
+    this.lastOrganism = organism
+    this.lastFrameTime = 0
+    this.onFrame(physics, organism)
   }
 
   /** Rebuild only the melody against the current rhythm/harmony. */
@@ -394,7 +413,10 @@ export class GeneratorOrchestrator {
 
     // 1. Energy → kick punch + melody presence
     const energyBias = 0.7 + performer.energy * 0.6   // 0.7–1.3
-    const kickMult   = Math.min(1.4, this.kickVelocityMultiplier * energyBias)
+    const kickMult = Math.min(
+      1.4,
+      this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier * energyBias,
+    )
     this.drum.setKickVelocityMultiplier(kickMult)
 
     const melodyEnergy = Math.min(1.2, 0.8 + performer.energy * 0.4)
@@ -402,15 +424,17 @@ export class GeneratorOrchestrator {
     // 2. Syllabic rate → hi-hat density
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
     const hatPerformance = Math.max(0.35, Math.min(1.35, 0.55 + normalSyllabic * 0.75))
-    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * hatPerformance)
+    this.drum.setHatDensityMultiplier(
+      this.hatDensityMultiplier * this.reactiveHatDensityMultiplier * hatPerformance,
+    )
 
     // 3. Breathing / rest → call-and-response
     // Melody volume is computed ONCE per frame combining energy + breathing.
     // Previous code wrote melody gain twice per frame, interrupting the 100ms
     // ramp each time and causing crackling/distortion.
     const breathingBoost = performer.breathingNow ? 1.2 : 1.0
-    const melodyTarget = Math.min(1.3,
-      this.melodyVolumeMultiplier * melodyEnergy * breathingBoost
+    const melodyTarget = Math.min(1.85,
+      this.melodyVolumeMultiplier * this.reactiveMelodyVolumeMultiplier * melodyEnergy * breathingBoost
     ) * this.selfListenGainCorrection
     this.melody.applyVolumeMultiplier(melodyTarget)
 
@@ -478,17 +502,19 @@ export class GeneratorOrchestrator {
 
   setHatDensityMultiplier(multiplier: number): void {
     this.hatDensityMultiplier = Math.max(0, multiplier)
-    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier)
+    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.reactiveHatDensityMultiplier)
   }
 
   setKickVelocityMultiplier(multiplier: number): void {
     this.kickVelocityMultiplier = Math.max(0, multiplier)
-    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier)
+    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier)
   }
 
   setBassVolumeMultiplier(multiplier: number): void {
     this.bassVolumeMultiplier = Math.max(0, multiplier)
-    this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier * this.selfListenGainCorrection)
+    this.bass.applyVolumeMultiplier(
+      this.bassVolumeMultiplier * this.reactiveBassVolumeMultiplier * this.selfListenGainCorrection,
+    )
   }
 
   setMelodyPitchOffset(semitones: number): void {
@@ -498,12 +524,47 @@ export class GeneratorOrchestrator {
 
   setMelodyVolumeMultiplier(multiplier: number): void {
     this.melodyVolumeMultiplier = Math.max(0, multiplier)
-    this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier * this.selfListenGainCorrection)
+    this.melody.applyVolumeMultiplier(
+      this.melodyVolumeMultiplier * this.reactiveMelodyVolumeMultiplier * this.selfListenGainCorrection,
+    )
   }
 
   setTextureVolumeMultiplier(multiplier: number): void {
     this.textureVolumeMultiplier = Math.max(0, multiplier)
-    this.texture.applyVolumeMultiplier(this.textureEnabled ? multiplier : 0)
+    this.texture.applyVolumeMultiplier(
+      this.textureEnabled ? this.textureVolumeMultiplier * this.reactiveTextureVolumeMultiplier : 0,
+    )
+  }
+
+  applyReactiveMultipliers(output: {
+    hatDensityMultiplier?: number
+    kickVelocityMultiplier?: number
+    bassVolumeMultiplier?: number
+    melodyPitchOffsetSemitones?: number
+    melodyVolumeMultiplier?: number
+    textureVolumeMultiplier?: number
+  }): void {
+    this.reactiveHatDensityMultiplier = Math.max(0, output.hatDensityMultiplier ?? 1)
+    this.reactiveKickVelocityMultiplier = Math.max(0, output.kickVelocityMultiplier ?? 1)
+    this.reactiveBassVolumeMultiplier = Math.max(0, output.bassVolumeMultiplier ?? 1)
+    this.reactiveMelodyVolumeMultiplier = Math.max(0, output.melodyVolumeMultiplier ?? 1)
+    this.reactiveTextureVolumeMultiplier = Math.max(0, output.textureVolumeMultiplier ?? 1)
+
+    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.reactiveHatDensityMultiplier)
+    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier)
+    this.bass.applyVolumeMultiplier(
+      this.bassVolumeMultiplier * this.reactiveBassVolumeMultiplier * this.selfListenGainCorrection,
+    )
+    this.melody.applyVolumeMultiplier(
+      this.melodyVolumeMultiplier * this.reactiveMelodyVolumeMultiplier * this.selfListenGainCorrection,
+    )
+    this.texture.applyVolumeMultiplier(
+      this.textureEnabled ? this.textureVolumeMultiplier * this.reactiveTextureVolumeMultiplier : 0,
+    )
+
+    if (output.melodyPitchOffsetSemitones != null) {
+      this.setMelodyPitchOffset(output.melodyPitchOffsetSemitones)
+    }
   }
 
   /** Enable or disable the texture generator entirely. */
@@ -872,6 +933,15 @@ export class GeneratorOrchestrator {
   /** Reads the current Transport bar and applies arrangement section multipliers. */
   private applyArrangement(): void {
     if (!this.arrangementEnabled || !this.running) return
+
+    if (this.melodyOnlyMode) {
+      this.drum.applyArrangementMultiplier(0)
+      this.bass.applyArrangementMultiplier(0)
+      this.texture.applyArrangementMultiplier(0)
+      this.melody.applyArrangementMultiplier(1)
+      this.chord.applyArrangementMultiplier(0.5)
+      return
+    }
 
     // Get current bar from Tone.js Transport
     const transport = Tone.getTransport()

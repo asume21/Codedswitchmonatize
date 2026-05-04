@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Link } from 'wouter'
-import { OrganismControls }       from './OrganismControls'
 import { OrganismVisualizer }     from './OrganismVisualizer'
 import { InputSourceSelector }    from './InputSourceSelector'
 import { QuickStartPanel }        from './QuickStartPanel'
@@ -134,9 +133,6 @@ export function OrganismPage() {
           Voice, MIDI, audio file, or auto — the organism reacts and creates.
         </p>
       </div>
-
-      {/* Controls (2 rows) */}
-      <OrganismControls />
 
       {/* Main content: visualizer + sidebar */}
       <div style={{

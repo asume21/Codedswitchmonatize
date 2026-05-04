@@ -148,11 +148,6 @@ export class ReactiveBehaviorEngine {
   private applyToOrchestrator(output: BehaviorOutput): void {
     if (!this.orchestrator) return
 
-    this.orchestrator.setHatDensityMultiplier(output.hatDensityMultiplier)
-    this.orchestrator.setKickVelocityMultiplier(output.kickVelocityMultiplier)
-    this.orchestrator.setBassVolumeMultiplier(output.bassVolumeMultiplier)
-    this.orchestrator.setMelodyPitchOffset(output.melodyPitchOffsetSemitones)
-    this.orchestrator.setMelodyVolumeMultiplier(output.melodyVolumeMultiplier)
-    this.orchestrator.setTextureVolumeMultiplier(output.textureVolumeMultiplier)
+    this.orchestrator.applyReactiveMultipliers(output)
   }
 }

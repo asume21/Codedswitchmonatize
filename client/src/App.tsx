@@ -61,6 +61,7 @@ const SampleLibraryPage = React.lazy(() => import("@/pages/sample-library").catc
 const BlogPage = React.lazy(() => import("@/pages/blog").catch(() => ({ default: () => <NotFound /> })));
 const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => ({ default: () => <NotFound /> })));
 const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: () => <NotFound /> })));
+const OrganismGuestPage = React.lazy(() => import("@/features/organism/OrganismGuestPage").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -290,7 +291,7 @@ function App() {
                   Redirect is cheaper than remounting the full StudioProviders stack;
                   UnifiedStudioWorkspace reads ?tab=… from the URL on mount. */}
               <Route path="/lyric-lab"><Redirect to="/studio?tab=lyrics" /></Route>
-              <Route path="/organism"><Redirect to="/studio?tab=organism" /></Route>
+              <Route path="/organism"><OrganismGuestPage /></Route>
 
               {/* ============================================
                   LEGACY STUDIO ROUTES - Redirect to /studio

@@ -82,7 +82,7 @@ export class DrumGenerator extends GeneratorBase {
     // Lighter drum bus compression — master bus handles the glue
     this.compressor = new Tone.Compressor({ threshold: -24, ratio: 2.4, attack: 0.012, release: 0.18 })
     this.compressor.connect(this.output)
-    this.sampleBus = new Tone.Gain(0.78)
+    this.sampleBus = new Tone.Gain(0.68)
     this.sampleBus.connect(this.compressor)
     this.sampledKit = new SampledDrumKit(this.sampleBus)
 

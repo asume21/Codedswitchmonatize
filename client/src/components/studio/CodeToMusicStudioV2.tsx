@@ -82,7 +82,7 @@ export default function CodeToMusicStudioV2() {
   } | null>(null);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const { toast } = useToast();
-  const { playNote, initialize, isInitialized } = useAudio();
+  const { playNote, playDrum, initialize, isInitialized } = useAudio();
 
   const generateMusic = async () => {
     if (!code.trim()) {
@@ -173,32 +173,47 @@ export default function CodeToMusicStudioV2() {
         timeoutsRef.current.push(id);
       };
 
-      // Schedule melody notes
-      musicData.melody.forEach((note: CodeToMusicData['melody'][number]) => {
+      const normalizeInstrument = (instrument?: string) => {
+        if (!instrument) return 'piano';
+        if (instrument === 'pad') return 'synth';
+        if (instrument === '808_bass' || instrument === 'upright_bass') return 'bass';
+        if (instrument.includes('guitar')) return 'piano';
+        if (instrument.includes('rhodes')) return 'piano';
+        return instrument;
+      };
+
+      const scheduleNote = (note: CodeToMusicData['melody'][number]) => {
         if (!note?.note) return;
         const match = note.note.match(/([A-G]#?)(\d+)/);
         if (!match) return;
         const [, noteName, octaveStr] = match;
         const octave = parseInt(octaveStr, 10) || 4;
-        const velocity = Math.max(0, Math.min(1, (note.velocity ?? 100) / 127));
+        const instrument = normalizeInstrument(note.instrument);
+        const layerGain = instrument === 'bass' ? 0.85 : instrument === 'synth' ? 0.62 : 0.72;
+        const velocity = Math.max(0, Math.min(1, ((note.velocity ?? 100) / 127) * layerGain));
 
         scheduleTimeout(note.start * 1000, () => {
-          playNote(noteName, octave, note.duration, note.instrument || 'piano', velocity);
+          playNote(noteName, octave, note.duration, instrument, velocity);
         });
-      });
+      };
 
-      // Schedule chords as sustained backing harmony
-      musicData.chords.forEach((chord: CodeToMusicData['chords'][number]) => {
-        if (!chord?.notes) return;
-        chord.notes.forEach((chordNote: string) => {
-          const match = chordNote.match(/([A-G]#?)(\d+)/);
-          if (!match) return;
-          const [, noteName, octaveStr] = match;
-          const octave = parseInt(octaveStr, 10) || 4;
+      musicData.timeline.forEach((event) => {
+        if (event.type !== 'note' || !event.data) return;
+        const instrument = String(event.data.instrument || '');
+        if (instrument.startsWith('drums_')) {
+          const drumType = instrument.replace('drums_', '') as Parameters<typeof playDrum>[0];
+          const velocity = Math.max(0, Math.min(0.72, ((event.data.velocity ?? 85) / 127) * 0.72));
+          scheduleTimeout(event.time * 1000, () => playDrum(drumType, velocity));
+          return;
+        }
 
-          scheduleTimeout(chord.start * 1000, () => {
-            playNote(noteName, octave, chord.duration, 'piano', 0.8);
-          });
+        scheduleNote({
+          note: event.data.note,
+          start: event.time,
+          duration: event.data.duration,
+          velocity: event.data.velocity,
+          instrument: event.data.instrument,
+          source: event.source,
         });
       });
 
@@ -548,6 +563,20 @@ export default function CodeToMusicStudioV2() {
                     ))}
                   </div>
                 </div>
+
+                {musicData.metadata.sections && musicData.metadata.sections.length > 0 && (
+                  <div className="bg-slate-950 p-4 rounded-lg border border-slate-700">
+                    <div className="text-sm font-medium text-gray-300 mb-2">Code Arrangement</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {musicData.metadata.sections.map((section) => (
+                        <div key={section.name} className="rounded border border-slate-700 bg-slate-900/70 p-2">
+                          <div className="text-sm font-semibold text-cyan-300 capitalize">{section.name}</div>
+                          <div className="text-xs text-gray-400">{section.focus}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex gap-2 pt-2">

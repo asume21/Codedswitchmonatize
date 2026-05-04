@@ -45,7 +45,7 @@ const GENRE_PATTERNS: Record<string, {
   hiphop: {
     kick: [0, 3, 6, 10],    // Syncopated
     snare: [4, 12],
-    hihat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], // 16th notes
+    hihat: [0, 2, 4, 6, 8, 10, 12, 14],
     clap: [4, 12],
   },
   edm: {
@@ -66,6 +66,24 @@ const GENRE_PATTERNS: Record<string, {
     hihat: [0, 4, 8, 12],   // Quarter notes
     clap: [],
   },
+  jazz: {
+    kick: [0, 10],
+    snare: [4, 12],
+    hihat: [2, 6, 10, 14],
+    clap: [],
+  },
+  lofi: {
+    kick: [0, 7, 10],
+    snare: [4, 12],
+    hihat: [0, 4, 8, 12, 14],
+    clap: [12],
+  },
+  classical: {
+    kick: [0],
+    snare: [],
+    hihat: [],
+    clap: [],
+  },
 };
 
 // Complexity modifiers - add more hits based on code complexity
@@ -74,9 +92,9 @@ const COMPLEXITY_ADDITIONS: Record<number, {
   hihat: number[];
 }> = {
   3: { kick: [], hihat: [] },
-  5: { kick: [2], hihat: [1, 3, 5, 7, 9, 11, 13, 15] },
-  7: { kick: [2, 10], hihat: [1, 3, 5, 7, 9, 11, 13, 15] },
-  9: { kick: [2, 6, 10, 14], hihat: [1, 3, 5, 7, 9, 11, 13, 15] },
+  5: { kick: [2], hihat: [3, 11] },
+  7: { kick: [2, 10], hihat: [3, 7, 11, 15] },
+  9: { kick: [2, 6, 10, 14], hihat: [1, 3, 7, 11, 15] },
 };
 
 // Drum fills based on code events
@@ -171,7 +189,7 @@ function patternToHits(
     hits.push({
       instrument: 'hihat',
       time: barStart + (step * stepDuration),
-      velocity: getVelocity(step, isOpen ? 85 : 75),
+      velocity: getVelocity(step, isOpen ? 68 : 58),
       duration: isOpen ? 0.2 : 0.05,
     });
   });

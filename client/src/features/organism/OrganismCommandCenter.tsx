@@ -263,6 +263,7 @@ export function OrganismCommandCenter() {
     kickVelocity, setKickVelocity,
     bassVolume,   setBassVolume,
     melodyVolume, setMelodyVolume,
+    melodyFocusEnabled, setMelodyFocusEnabled,
     instrumentAssignments, setOrganismInstrument,
     // Feature toggles
     cadenceLockEnabled, setCadenceLockEnabled,
@@ -287,6 +288,9 @@ export function OrganismCommandCenter() {
     // Vibe Interpreter
     interpretVibe,
     vibeInterpretation,
+    // WOW moment
+    wowMoment,
+    clearWowMomentLog,
     // Engines (for direct mode + technique control)
     physicsEngine,
     orchestrator,
@@ -496,6 +500,10 @@ export function OrganismCommandCenter() {
   const toggleVibeMatch = useCallback(() => {
     setVibeMatchEnabled(!vibeMatchEnabled)
   }, [setVibeMatchEnabled, vibeMatchEnabled])
+
+  const toggleMelodyFocus = useCallback(() => {
+    setMelodyFocusEnabled(!melodyFocusEnabled)
+  }, [melodyFocusEnabled, setMelodyFocusEnabled])
 
   useEffect(() => {
     lyricsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -985,6 +993,98 @@ export function OrganismCommandCenter() {
           }}>
             <OrganismVisualizer />
           </div>
+
+          <div style={{
+            borderTop: `0.5px solid ${C.border}`,
+            padding: '10px 12px',
+            background: 'rgba(2,6,23,0.78)',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ ...label11, color: C.cyan }}>Organism Thinking</div>
+              <button
+                type="button"
+                onClick={clearWowMomentLog}
+                style={{
+                  border: `0.5px solid ${C.border2}`,
+                  background: 'transparent',
+                  color: C.text3,
+                  borderRadius: 5,
+                  padding: '2px 6px',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                CLEAR
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 8 }}>
+              {([
+                ['drums', 'Drums', C.amber],
+                ['bass', 'Bass', C.green],
+                ['harmony', 'Harmony', C.purple],
+              ] as const).map(([key, label, color]) => {
+                const active = wowMoment.engines[key]
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      border: `0.5px solid ${active ? color : C.border2}`,
+                      background: active ? `${color}1f` : C.bg2,
+                      color: active ? color : C.text3,
+                      borderRadius: 6,
+                      padding: '6px 7px',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      boxShadow: active ? `0 0 14px ${color}33` : 'none',
+                      transition: 'background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease',
+                    }}
+                  >
+                    {label}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{
+              minHeight: 92,
+              maxHeight: 120,
+              overflow: 'auto',
+              border: `0.5px solid ${C.border2}`,
+              background: '#020617',
+              borderRadius: 6,
+              padding: '7px 9px',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+              fontSize: 10,
+              lineHeight: 1.55,
+            }}>
+              {wowMoment.logs.length === 0 ? (
+                <div style={{ color: C.text3 }}>
+                  &gt; say boom boom clap
+                </div>
+              ) : (
+                wowMoment.logs.map(entry => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      color: entry.tone === 'pulse'
+                        ? C.amber
+                        : entry.tone === 'sync'
+                          ? C.cyan
+                          : entry.tone === 'wake'
+                            ? C.green
+                            : C.text2,
+                    }}
+                  >
+                    &gt; {entry.text}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ── RIGHT: controls ─────────────────────────────────────────── */}
@@ -1353,6 +1453,7 @@ export function OrganismCommandCenter() {
               <PillToggle active={dropDetectorEnabled}  label="Drop Detector" onToggle={toggleDropDetector}   color={C.amber} />
               <PillToggle active={vibeMatchEnabled}     label="Vibe Match"    onToggle={toggleVibeMatch}      color={C.green} />
               <PillToggle active={isStoryMode}          label="Story Mode"    onToggle={toggleStoryMode}                                     color={C.red} />
+              <PillToggle active={melodyFocusEnabled}   label="Melody Focus"  onToggle={toggleMelodyFocus}   color={C.cyan} />
             </div>
           </div>
 

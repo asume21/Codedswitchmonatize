@@ -104,6 +104,81 @@ export const NOTE_TO_MIDI: Record<string, number> = {
   'B': 11,
 };
 
+const MIDI_TO_NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+/**
+ * Build a chord definition from a chord symbol used by the genre configs.
+ * This lets richer genre/mood progressions drive the actual generated harmony
+ * instead of falling back to the same four fixed chords every time.
+ */
+export function getChordByName(chordSymbol: string): ChordDefinition {
+  const rootMatch = chordSymbol.match(/^([A-G][#b]?)/);
+  if (!rootMatch) {
+    return FOUR_CHORDS_C_MAJOR[0];
+  }
+
+  const root = rootMatch[1];
+  const quality = chordSymbol.slice(root.length);
+  const qualityLower = quality.toLowerCase();
+  const rootMidi = NOTE_TO_MIDI[root] ?? 0;
+
+  let intervals = [0, 4, 7];
+  let type: ChordDefinition['type'] = 'major';
+
+  const isMinor = (qualityLower.includes('m') || qualityLower.includes('min')) &&
+    !qualityLower.includes('maj') &&
+    !qualityLower.includes('dim');
+
+  if (isMinor) {
+    intervals = [0, 3, 7];
+    type = 'minor';
+  }
+
+  if (qualityLower.includes('dim')) {
+    intervals = [0, 3, 6];
+    type = 'minor';
+  }
+
+  if (quality.includes('5') && !qualityLower.includes('maj') && !qualityLower.includes('m7')) {
+    intervals = [0, 7];
+    type = 'power';
+  }
+
+  if (qualityLower.includes('sus4')) {
+    intervals = [0, 5, 7];
+  } else if (qualityLower.includes('sus2')) {
+    intervals = [0, 2, 7];
+  }
+
+  const hasSeventh = qualityLower.includes('7') || qualityLower.includes('9') || qualityLower.includes('11') || qualityLower.includes('13');
+  if (hasSeventh) {
+    type = 'seventh';
+    if (qualityLower.includes('maj')) {
+      intervals.push(11);
+    } else {
+      intervals.push(10);
+    }
+  }
+
+  if (qualityLower.includes('9') && !intervals.includes(14)) intervals.push(14);
+  if (qualityLower.includes('11') && !intervals.includes(17)) intervals.push(17);
+  if (qualityLower.includes('13') && !intervals.includes(21)) intervals.push(21);
+
+  const notes = intervals.map((interval) => {
+    const noteIndex = (rootMidi + interval) % 12;
+    const octave = 4 + Math.floor((rootMidi + interval) / 12);
+    return `${MIDI_TO_NOTE[noteIndex]}${octave}`;
+  });
+
+  return {
+    name: chordSymbol,
+    root,
+    notes,
+    type,
+    romanNumeral: chordSymbol,
+  };
+}
+
 /**
  * Get chord notes for a specific genre
  */

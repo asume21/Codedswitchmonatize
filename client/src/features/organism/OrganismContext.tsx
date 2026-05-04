@@ -52,6 +52,26 @@ export interface OrganismInstrumentAssignments {
   chord: InstrumentPerformerId | null
 }
 
+export interface WowMomentLogEntry {
+  id: number
+  timestamp: number
+  text: string
+  tone: 'info' | 'pulse' | 'sync' | 'wake'
+}
+
+export interface WowMomentState {
+  logs: WowMomentLogEntry[]
+  engines: {
+    drums: boolean
+    bass: boolean
+    harmony: boolean
+  }
+  phraseActive: boolean
+  lastPulse: 'kick' | 'snare' | 'hat' | null
+  capturedOnsets: number
+  syncBpm: number | null
+}
+
 export interface OrganismContextValue {
   // Engines (null until initialized)
   analysisEngine:    AudioAnalysisEngine    | null
@@ -153,10 +173,12 @@ export interface OrganismContextValue {
   kickVelocity:       number   // 0–2, default 1
   bassVolume:         number   // 0–2, default 1
   melodyVolume:       number   // 0–2, default 1
+  melodyFocusEnabled: boolean
   setHatDensity:      (v: number) => void
   setKickVelocity:    (v: number) => void
   setBassVolume:      (v: number) => void
   setMelodyVolume:    (v: number) => void
+  setMelodyFocusEnabled: (enabled: boolean) => void
 
   // Texture toggle — off by default for hip-hop; enable for ambient/lo-fi genres
   textureEnabled:     boolean
@@ -169,6 +191,7 @@ export interface OrganismContextValue {
   // Guest experience
   guestSecondsRemaining: number      // 60→0 countdown while guest is playing
   isGuestNudgeVisible:   boolean     // true once countdown hits 0
+  isGuestLocked:         boolean     // guest && countdown expired — gate all controls
   dismissGuestNudge:     () => void
 
   // Session sharing
@@ -193,6 +216,10 @@ export interface OrganismContextValue {
   interpretVibe:      (text: string) => Promise<void>
   /** Last interpretation result — null until first voice command. */
   vibeInterpretation: { text: string; result: string; confidence: number } | null
+
+  // WOW moment — theatrical layer over existing mic/onset/generator plumbing.
+  wowMoment: WowMomentState
+  clearWowMomentLog: () => void
 }
 
 const OrganismContext = createContext<OrganismContextValue | null>(null)

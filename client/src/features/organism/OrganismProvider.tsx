@@ -8,6 +8,7 @@ import type {
   OrganismInstrumentRole,
   OrganismPhysicsContextValue,
   SavedSession,
+  WowMomentState,
 } from './OrganismContext'
 
 import { AudioAnalysisEngine }    from '../../organism/analysis/AudioAnalysisEngine'
@@ -51,6 +52,7 @@ import { SelfListenAnalyzer }   from '../../organism/audio/SelfListenAnalyzer'
 import type { PerformerState }  from '../../organism/audio/types'
 import type { SelfListenReport } from '../../organism/audio/types'
 import type { InstrumentPerformerId } from '../../organism/performers'
+import { DrumInstrument, type DrumHit } from '../../organism/generators/types'
 import { OState }                from '../../organism/state/types'
 import * as Tone from 'tone'
 import { useStudioStore } from '../../stores/useStudioStore'
@@ -86,6 +88,55 @@ function createInputSource(
     default:
       return new AudioAnalysisEngine() as unknown as InputSource
   }
+}
+
+type WowPulseInstrument = 'kick' | 'snare' | 'hat'
+
+interface WowOnset {
+  time: number
+  strength: number
+  centroid: number
+  instrument: WowPulseInstrument
+  word: string | null
+}
+
+const WOW_INITIAL_STATE: WowMomentState = {
+  logs: [],
+  engines: { drums: false, bass: false, harmony: false },
+  phraseActive: false,
+  lastPulse: null,
+  capturedOnsets: 0,
+  syncBpm: null,
+}
+
+const WOW_WORDS: Record<string, WowPulseInstrument> = {
+  boom: 'kick',
+  boomp: 'kick',
+  bum: 'kick',
+  dum: 'kick',
+  doom: 'kick',
+  thump: 'kick',
+  clap: 'snare',
+  clack: 'snare',
+  snap: 'snare',
+  pak: 'snare',
+  bap: 'snare',
+  tss: 'hat',
+  ts: 'hat',
+  hat: 'hat',
+  tick: 'hat',
+  tik: 'hat',
+  shh: 'hat',
+}
+
+function normalizeWowWord(word: string): string {
+  return word.toLowerCase().replace(/[^a-z]/g, '')
+}
+
+function drumInstrumentForWow(instrument: WowPulseInstrument): DrumInstrument {
+  if (instrument === 'snare') return DrumInstrument.Snare
+  if (instrument === 'hat') return DrumInstrument.Hat
+  return DrumInstrument.Kick
 }
 
 export function OrganismProvider({ children, userId, isGuest = false }: Props) {
@@ -126,10 +177,30 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [isStarting,     setIsStarting]     = useState(false)
   const [isCapturing,    setIsCapturing]    = useState(false)
   const [error,          setError]          = useState<string | null>(null)
+  const [wowMoment,      setWowMoment]      = useState<WowMomentState>(WOW_INITIAL_STATE)
+  const wowLogIdRef = useRef(0)
+  const wowOnsetsRef = useRef<WowOnset[]>([])
+  const wowPhraseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wowLastVoiceLogRef = useRef(0)
+  const wowLastOnsetLogRef = useRef(0)
+  const wowLastSyncLogRef = useRef(0)
+  const wowSyncBpmRef = useRef<number | null>(null)
+  const wowLatestWordRef = useRef<{ word: string; instrument: WowPulseInstrument; timestamp: number } | null>(null)
+  const wowLastTranscriptTokenRef = useRef('')
 
-  // Guest timer — 60s countdown while playing
-  const [guestSecondsRemaining, setGuestSecondsRemaining] = useState(60)
-  const [isGuestNudgeVisible,   setIsGuestNudgeVisible]   = useState(false)
+  // Guest timer — 60s countdown while playing.
+  // Persist seconds-used to localStorage so a page refresh can't reset the trial.
+  const GUEST_STORAGE_KEY = 'organism_guest_seconds_used'
+  const readGuestSecondsUsed = (): number => {
+    if (typeof window === 'undefined') return 0
+    try {
+      const raw = window.localStorage.getItem(GUEST_STORAGE_KEY)
+      const n = raw ? parseInt(raw, 10) : 0
+      return Number.isFinite(n) ? Math.max(0, Math.min(60, n)) : 0
+    } catch { return 0 }
+  }
+  const [guestSecondsRemaining, setGuestSecondsRemaining] = useState(() => 60 - readGuestSecondsUsed())
+  const [isGuestNudgeVisible,   setIsGuestNudgeVisible]   = useState(() => readGuestSecondsUsed() >= 60)
   const guestTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Session sharing state
@@ -201,7 +272,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [hatDensity,       setHatDensityState]  = useState(0.55)
   const [kickVelocity,     setKickVelocityState]= useState(0.82)
   const [bassVolume,       setBassVolumeState]  = useState(1.25)
-  const [melodyVolume,     setMelodyVolumeState]= useState(1.2)
+  const [melodyVolume,     setMelodyVolumeState]= useState(1.55)
+  const [melodyFocusEnabled, setMelodyFocusEnabledState] = useState(false)
   const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
@@ -407,6 +479,19 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     transcriberRef.current = transcriber
     const unsubTranscription = transcriber.subscribe((state) => {
       setTranscription(state)
+      const latestText = (state.currentInterim || state.lines[state.lines.length - 1]?.text || '').trim()
+      const latestToken = latestText.split(/\s+/).filter(Boolean).pop()
+      if (!latestToken || latestToken === wowLastTranscriptTokenRef.current) return
+      wowLastTranscriptTokenRef.current = latestToken
+      const normalized = normalizeWowWord(latestToken)
+      const instrument = WOW_WORDS[normalized]
+      if (instrument) {
+        wowLatestWordRef.current = {
+          word: normalized,
+          instrument,
+          timestamp: performance.now(),
+        }
+      }
     })
 
     // Gap 2 — Generative patterns: when the arrangement enters a musically
@@ -491,6 +576,170 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
    
   }, [userId])
 
+  const pushWowLog = useCallback((text: string, tone: WowMomentState['logs'][number]['tone'] = 'info') => {
+    const entry = {
+      id: ++wowLogIdRef.current,
+      timestamp: Date.now(),
+      text,
+      tone,
+    }
+    setWowMoment(prev => ({
+      ...prev,
+      logs: [entry, ...prev.logs].slice(0, 8),
+    }))
+  }, [])
+
+  const setWowEngineActive = useCallback((engine: keyof WowMomentState['engines'], activeMs = 700) => {
+    setWowMoment(prev => ({
+      ...prev,
+      engines: { ...prev.engines, [engine]: true },
+    }))
+    window.setTimeout(() => {
+      setWowMoment(prev => ({
+        ...prev,
+        engines: { ...prev.engines, [engine]: false },
+      }))
+    }, activeMs)
+  }, [])
+
+  const mapFrameToWowInstrument = useCallback((frame: AnalysisFrame): { instrument: WowPulseInstrument; word: string | null } => {
+    const latestWord = wowLatestWordRef.current
+    if (latestWord && performance.now() - latestWord.timestamp < 1200) {
+      wowLatestWordRef.current = null
+      return { instrument: latestWord.instrument, word: latestWord.word }
+    }
+
+    if (frame.spectralCentroid < 900) return { instrument: 'kick', word: null }
+    if (frame.spectralCentroid < 3200) return { instrument: 'snare', word: null }
+    return { instrument: 'hat', word: null }
+  }, [])
+
+  const buildWowPattern = useCallback((onsets: WowOnset[], bpm: number): DrumHit[] => {
+    if (onsets.length === 0) return []
+    const start = onsets[0].time
+    const end = onsets[onsets.length - 1].time
+    const phraseMs = Math.max(600, end - start)
+    const byStep = new Map<number, WowOnset>()
+
+    onsets.forEach((onset) => {
+      const step = Math.max(0, Math.min(15, Math.round(((onset.time - start) / phraseMs) * 15)))
+      const current = byStep.get(step)
+      if (!current || onset.strength > current.strength) byStep.set(step, onset)
+    })
+
+    const hits: DrumHit[] = Array.from(byStep.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([step, onset]) => ({
+        instrument: drumInstrumentForWow(onset.instrument),
+        time: `0:${Math.floor(step / 4)}:${step % 4}`,
+        velocity: Math.max(0.35, Math.min(1, 0.46 + onset.strength * 0.5)),
+      }))
+
+    if (!hits.some(hit => hit.instrument === DrumInstrument.Kick)) {
+      hits.unshift({ instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.78 })
+    }
+    if (!hits.some(hit => hit.instrument === DrumInstrument.Snare) && hits.length >= 3) {
+      hits.push({ instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.68 })
+    }
+    if (hits.filter(hit => hit.instrument === DrumInstrument.Hat).length === 0 && bpm >= 80) {
+      hits.push({ instrument: DrumInstrument.Hat, time: '0:0:2', velocity: 0.48 })
+      hits.push({ instrument: DrumInstrument.Hat, time: '0:2:2', velocity: 0.46 })
+    }
+
+    return hits.sort((a, b) => {
+      const [, beatA, subA] = a.time.split(':').map(Number)
+      const [, beatB, subB] = b.time.split(':').map(Number)
+      return beatA === beatB ? subA - subB : beatA - beatB
+    })
+  }, [])
+
+  const finalizeWowPhrase = useCallback(() => {
+    const onsets = wowOnsetsRef.current
+    wowOnsetsRef.current = []
+    setWowMoment(prev => ({ ...prev, phraseActive: false, capturedOnsets: 0 }))
+    if (onsets.length < 2) return
+
+    const bpm = Math.round(orchestrRef.current?.getBpm() ?? physicsRef.current?.getLastState()?.pulse ?? 90)
+    const hits = buildWowPattern(onsets, bpm)
+    if (hits.length === 0) return
+
+    pushWowLog(`phrase captured: ${onsets.length} pulses`, 'info')
+    pushWowLog('pattern detected: 4/4, syncopation mild', 'sync')
+    pushWowLog('generating response...', 'info')
+    orchestrRef.current?.loadGeneratedDrumPattern(hits)
+
+    setWowEngineActive('drums', 900)
+    pushWowLog('drums online', 'wake')
+    window.setTimeout(() => {
+      setWowEngineActive('bass', 900)
+      pushWowLog('bass online', 'wake')
+    }, 260)
+    window.setTimeout(() => {
+      setWowEngineActive('harmony', 1000)
+      pushWowLog('harmony online', 'wake')
+    }, 520)
+  }, [buildWowPattern, pushWowLog, setWowEngineActive])
+
+  const processWowFrame = useCallback((frame: AnalysisFrame, performer: PerformerState | null) => {
+    if (inputSource !== 'mic') return
+    const now = performance.now()
+
+    if (frame.voiceActive && now - wowLastVoiceLogRef.current > 1800) {
+      wowLastVoiceLogRef.current = now
+      pushWowLog('voice detected', 'info')
+    }
+
+    if (
+      performer &&
+      performer.bpmConfidence > 0.55 &&
+      Math.abs(performer.bpm - (wowSyncBpmRef.current ?? 0)) > 3 &&
+      now - wowLastSyncLogRef.current > 3000
+    ) {
+      wowLastSyncLogRef.current = now
+      wowSyncBpmRef.current = Math.round(performer.bpm)
+      setWowMoment(prev => ({ ...prev, syncBpm: Math.round(performer.bpm) }))
+      pushWowLog(`sync established at ${Math.round(performer.bpm)} BPM`, 'sync')
+    }
+
+    if (!frame.onsetDetected || frame.onsetStrength < 0.25) return
+    if (now - wowLastOnsetLogRef.current < 85) return
+    wowLastOnsetLogRef.current = now
+
+    const mapped = mapFrameToWowInstrument(frame)
+    const pulse: WowOnset = {
+      time: frame.onsetTimestamp || now,
+      strength: frame.onsetStrength,
+      centroid: frame.spectralCentroid,
+      instrument: mapped.instrument,
+      word: mapped.word,
+    }
+
+    wowOnsetsRef.current = [...wowOnsetsRef.current, pulse].slice(-16)
+    setWowMoment(prev => ({
+      ...prev,
+      phraseActive: true,
+      lastPulse: mapped.instrument,
+      capturedOnsets: wowOnsetsRef.current.length,
+    }))
+    setWowEngineActive('drums', 420)
+
+    pushWowLog(`heard: ${mapped.word ?? 'transient'}`, 'pulse')
+    pushWowLog(`mapped: ${mapped.instrument}`, 'pulse')
+
+    if (wowPhraseTimerRef.current) clearTimeout(wowPhraseTimerRef.current)
+    wowPhraseTimerRef.current = setTimeout(finalizeWowPhrase, 560)
+  }, [
+    finalizeWowPhrase,
+    inputSource,
+    mapFrameToWowInstrument,
+    pushWowLog,
+    setWowEngineActive,
+  ])
+
+  const clearWowMomentLog = useCallback(() => {
+    setWowMoment(prev => ({ ...prev, logs: [] }))
+  }, [])
+
   // Input-source effect — swap the InputSource without touching the
   // orchestrator, mix, capture, or any Tone.js audio nodes. This is the
   // path that fires when the user clicks Mic / Auto / Audio File / MIDI.
@@ -519,6 +768,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     let lastPerformerUIUpdate = 0
     const unsubPerformer = input.subscribe((frame) => {
       const pState = performer.processFrame(frame)
+      processWowFrame(frame, pState)
       const now = performance.now()
       if (now - lastPerformerUIUpdate < 250) return
       lastPerformerUIUpdate = now
@@ -551,7 +801,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       input.stop()
       lastSyncedBpmRef.current = 0
     }
-  }, [userId, inputSource, autoEnergy])
+  }, [userId, inputSource, autoEnergy, processWowFrame])
 
   // Capture Monitor preflight: when the user enables monitoring before starting
   // the Organism, open the same mic input source so the monitor can prove the
@@ -651,7 +901,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           Tone.getDestination().volume.value = 0
           await orchestrRef.current?.start(undefined, true)
           if (meterIsSilent) {
-            orchestrRef.current?.regenerateAll()
             applyStablePlaybackDefaults()
           }
         } catch (err) {
@@ -667,20 +916,36 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const orchestr = orchestrRef.current
     if (!orchestr) return
 
-    orchestr.setArrangementEnabled(false)
+    orchestr.setArrangementEnabled(true)
     orchestr.setGrooveLocked(true)
     setHatDensityState(0.55)
     setKickVelocityState(0.82)
     setBassVolumeState(1.25)
-    setMelodyVolumeState(1.2)
+    setMelodyVolumeState(1.55)
     orchestr.setHatDensityMultiplier(0.55)
     orchestr.setKickVelocityMultiplier(0.82)
     orchestr.setBassVolumeMultiplier(1.25)
-    orchestr.setMelodyVolumeMultiplier(1.2)
+    orchestr.setMelodyVolumeMultiplier(1.55)
     orchestr.setChordVolumeMultiplier(0.58)
     orchestr.setTextureVolumeMultiplier(0)
     orchestr.setTextureEnabled(false)
   }, [])
+
+  const seedSongRamp = useCallback((seedPhysics: PhysicsState) => {
+    const stateMachine = stateMachRef.current
+    const orchestr = orchestrRef.current
+    if (!stateMachine || !orchestr) return
+
+    stateMachine.forceState(OState.Awakening, seedPhysics)
+    stateMachine.forceState(OState.Breathing, seedPhysics)
+    stateMachine.setStateFloor(OState.Breathing)
+    orchestr.primeFrame(seedPhysics, stateMachine.getCurrentState())
+  }, [])
+
+  const waitForStartupParts = useCallback(
+    () => new Promise<void>(resolve => window.setTimeout(resolve, 240)),
+    [],
+  )
 
   const start = useCallback(async () => {
     if (!inputRef.current || !orchestrRef.current) return
@@ -713,11 +978,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         input.stop()
         return
       }
-      primeAutoGenerateStart()
+      const didPrimeAutoGenerate = primeAutoGenerateStart()
 
       // Fast-boot: skip the Dormant wait, start playing immediately from bar 1.
       // Set a floor of Breathing so a quiet mic can't regress to Dormant mid-session.
-      if (stateMachRef.current && physicsRef.current) {
+      if (!didPrimeAutoGenerate && stateMachRef.current && physicsRef.current) {
         const stateMachine = stateMachRef.current
         const physicsEngine = physicsRef.current
         const fallbackPulse = 90
@@ -739,12 +1004,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           voiceActive: false,
         }
         const seedPhysics = physicsEngine.getLastState() ?? fallbackPhysics
-        stateMachine.forceState(OState.Awakening, seedPhysics)
-        stateMachine.forceState(OState.Breathing, seedPhysics)
-        stateMachine.forceState(OState.Flow, seedPhysics)
-        stateMachine.setStateFloor(OState.Flow)
-        orchestr.regenerateAll()
+        seedSongRamp(seedPhysics)
       }
+
+      await waitForStartupParts()
 
       await orchestr.start()
       if (startTokenRef.current !== token) {
@@ -781,7 +1044,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setIsStarting(false)
       }
     }
-  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
+  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts])
 
   const stop = useCallback(() => {
     startTokenRef.current += 1
@@ -792,6 +1055,20 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     orchestrRef.current?.setGrooveLocked(false)
     orchestrRef.current?.stop()
     transcriberRef.current?.stop()
+    if (wowPhraseTimerRef.current) {
+      clearTimeout(wowPhraseTimerRef.current)
+      wowPhraseTimerRef.current = null
+    }
+    wowOnsetsRef.current = []
+    wowSyncBpmRef.current = null
+    setWowMoment(prev => ({
+      ...prev,
+      engines: { drums: false, bass: false, harmony: false },
+      phraseActive: false,
+      lastPulse: null,
+      capturedOnsets: 0,
+      syncBpm: null,
+    }))
     // Clear state floor so the machine fully resets on the next start()
     stateMachRef.current?.setStateFloor(null)
     setIsRunning(false)
@@ -834,9 +1111,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     captureRef.current?.downloadMidi()
   }, [])
 
-  function primeAutoGenerateStart() {
-    if (inputSource !== 'autoGenerate') return
-    if (!physicsRef.current || !stateMachRef.current || !orchestrRef.current) return
+  function primeAutoGenerateStart(): boolean {
+    if (inputSource !== 'autoGenerate') return false
+    if (!physicsRef.current || !stateMachRef.current || !orchestrRef.current) return false
 
     const now = performance.now()
     const baseRms = autoEnergy === 'chill' ? 0.30 : autoEnergy === 'intense' ? 0.56 : 0.42
@@ -864,16 +1141,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     physicsRef.current.processFrame(startupFrame)
     const seededPhysics = physicsRef.current.getLastState()
-    if (!seededPhysics) return
+    if (!seededPhysics) return false
 
-    // Seed the organism into a fully audible state immediately so ALL
-    // generators (drums, bass, melody, chords) produce sound from beat 1.
-    // Breathing alone leaves flowDepth=0 → melody rests, bass is quiet.
-    // Forcing to Flow gives flowDepth > 0 so every generator activates.
-    stateMachRef.current.forceState(OState.Awakening, seededPhysics)
-    stateMachRef.current.forceState(OState.Breathing, seededPhysics)
-    stateMachRef.current.forceState(OState.Flow, seededPhysics)
-    orchestrRef.current.regenerateAll()
+    seedSongRamp(seededPhysics)
+    return true
   }
 
   /**
@@ -971,20 +1242,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         frameIndex:       0,
       })
 
-      // 5. Force state machine straight to Flow — skip Dormant + Awakening + Breathing
-      //    forceState() chains through transitions so generators get their
-      //    onStateTransition callbacks with the synthetic physics.
-      //    Flow ensures flowDepth > 0 so melody and bass are fully active.
-      stateMachine.forceState(OState.Awakening, syntheticPhysics)
-      stateMachine.forceState(OState.Breathing, syntheticPhysics)
-      stateMachine.forceState(OState.Flow, syntheticPhysics)
-
-      // 5b. Belt + suspenders: force a full pattern regenerate so drums,
-      //     bass, melody, and chord are all guaranteed to have notes ready
-      //     for the very next Transport tick. Without this, bass/melody/chord
-      //     rely on the staggered setTimeout rebuilds (50/120/180ms) fired
-      //     from the wire() transition callback, which can miss the first bar.
-      orchestr.regenerateAll()
+      // 5. Seed Breathing and let the state machine ramp to Flow. This keeps
+      //    the first bars structured instead of slamming every generator on.
+      seedSongRamp(syntheticPhysics)
+      await waitForStartupParts()
 
       await orchestr.start(preset.bpm)
       if (startTokenRef.current !== token) {
@@ -1032,7 +1293,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setIsStarting(false)
       }
     }
-  }, [transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
+  }, [transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts])
 
   /**
    * Live preset swap — change the beat's genre + BPM without restarting.
@@ -1614,6 +1875,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         case 'set-melody-only': {
           const enabled = (detail as Record<string, unknown>).enabled as boolean | undefined
           if (typeof enabled === 'boolean' && orchestrRef.current) {
+            setMelodyFocusEnabledState(enabled)
             orchestrRef.current.setMelodyOnly(enabled)
           }
           break
@@ -2209,6 +2471,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }
       machine.setStateFloor(OState.Flow)
       applyStablePlaybackDefaults()
+      orchestr.setArrangementEnabled(false)
     } else {
       machine.setStateFloor(null)
       orchestr.setGrooveLocked(false)
@@ -2274,11 +2537,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       if (!guestTimerRef.current) {
         guestTimerRef.current = setInterval(() => {
           setGuestSecondsRemaining(prev => {
-            if (prev <= 1) {
-              setIsGuestNudgeVisible(true)
-              return 0
-            }
-            return prev - 1
+            const next = prev <= 1 ? 0 : prev - 1
+            try { window.localStorage.setItem(GUEST_STORAGE_KEY, String(60 - next)) } catch {}
+            if (next === 0) setIsGuestNudgeVisible(true)
+            return next
           })
         }, 1000)
       }
@@ -2297,6 +2559,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }, [isGuest, isRunning])
 
   const dismissGuestNudge = useCallback(() => setIsGuestNudgeVisible(false), [])
+
+  const isGuestLocked = isGuest && guestSecondsRemaining === 0
 
   const shareSession = useCallback(async (caption: string): Promise<{ postUrl: string } | null> => {
     if (isSharingSession) return null
@@ -2545,7 +2809,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     },
     toggleStoryMode: () => {
       // Audit 2026-04-30: consolidated from three near-identical copies
-      // (OrganismCommandCenter, OrganismControls, FloatingAudioMonitor).
+      // (OrganismCommandCenter, FloatingAudioMonitor).
       // Reads the latest isPatternLocked from the React state setter form
       // so it can't drift in stale closures held by event handlers.
       setIsPatternLocked(prev => {
@@ -2566,6 +2830,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     kickVelocity,
     bassVolume,
     melodyVolume,
+    melodyFocusEnabled,
     setHatDensity: (v: number) => {
       setHatDensityState(v)
       orchestrRef.current?.setHatDensityMultiplier(v)
@@ -2582,6 +2847,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setMelodyVolumeState(v)
       orchestrRef.current?.setMelodyVolumeMultiplier(v)
     },
+    setMelodyFocusEnabled: (enabled: boolean) => {
+      setMelodyFocusEnabledState(enabled)
+      orchestrRef.current?.setMelodyOnly(enabled)
+    },
 
     // Texture toggle
     textureEnabled,
@@ -2597,6 +2866,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Guest experience
     guestSecondsRemaining,
     isGuestNudgeVisible,
+    isGuestLocked,
     dismissGuestNudge,
 
     // Session sharing
@@ -2616,6 +2886,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Natural Language Vibe Interpreter
     interpretVibe,
     vibeInterpretation,
+    wowMoment,
+    clearWowMomentLog,
   }), [
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
@@ -2632,13 +2904,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     isRecording, startRecording, stopRecording,
     lastSavedSession, savedSessions, downloadSession,
     latchMode, isPatternLocked,
-    hatDensity, kickVelocity, bassVolume, melodyVolume, textureEnabled,
+    hatDensity, kickVelocity, bassVolume, melodyVolume, melodyFocusEnabled, textureEnabled,
     instrumentAssignments, setOrganismInstrument,
-    guestSecondsRemaining, isGuestNudgeVisible, dismissGuestNudge,
+    guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
     isRunning, isStarting, isCapturing, error,
     performerState, selfListenReport,
     interpretVibe, vibeInterpretation,
+    wowMoment, clearWowMomentLog,
   ])
 
   return (
